@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.planrunner;
 
 import java.util.ArrayList;
 
-public class Plan {
+public class Plan implements PlanPart {
     private final ArrayList<PlanPart> planParts = new ArrayList<>();
     private int currentPlanPartIndex = 0;
 
