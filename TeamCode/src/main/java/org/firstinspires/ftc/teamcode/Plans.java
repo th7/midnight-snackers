@@ -23,6 +23,19 @@ public class Plans {
         );
     }
 
+    public Plan splineOneStep() {
+        return new Plan(
+                setZeroPosition(),
+                splineOneStepStep()
+        );
+    }
+    public Plan splineSquiggleSquare() {
+        return new Plan(
+                setZeroPosition(),
+                splineSquiggleSquareStep(),
+                toZeroPosition()
+        );
+    }
     public Plan splineUsingPoses() {
         return new Plan(
                 setZeroPosition(),
@@ -45,6 +58,28 @@ public class Plans {
         );
     }
 
+    private Step splineOneStepStep() {
+        return new Step(
+                "splineOneStep",
+                drive::splineOneStep,
+                drive::done
+        );
+    }
+    private Step splineSquiggleSquareStep() {
+        return new Step(
+                "splineSquiggleSquare",
+                drive::splineSquiggleSquare,
+                drive::done
+        );
+    }
+
+    private Step toZeroPosition() {
+        return new Step(
+                "toZeroPosition",
+                drive::toZeroPosition,
+                drive::done
+        );
+    }
     private Step splineUsingPosesStep() {
         return new Step(
                 "splineUsingPoses",
