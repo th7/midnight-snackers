@@ -8,11 +8,13 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 public class Plans {
     public Arm arm;
     public Drive drive;
+    public Launcher launcher;
     public OtherSubSystem otherSubSystem;
 
-    public Plans(Arm arm, Drive drive, OtherSubSystem otherSubSystem) {
+    public Plans(Arm arm, Drive drive, Launcher launcher, OtherSubSystem otherSubSystem) {
         this.arm = arm;
         this.drive = drive;
+        this.launcher = launcher;
         this.otherSubSystem = otherSubSystem;
     }
 
@@ -20,6 +22,17 @@ public class Plans {
         return new Plan(
                 setZeroPosition(),
                 splineBasicStep()
+        );
+    }
+
+    public Plan blueFarScoreAThing() {
+        return new Plan(
+                setZeroPosition(),
+                setFarLaunchPowerStep(),
+                blueFarScoreAThingStep(),
+                waitforFlywheel(),
+                launchStep()
+
         );
     }
 
@@ -36,6 +49,7 @@ public class Plans {
                 toZeroPosition()
         );
     }
+
     public Plan splineUsingPoses() {
         return new Plan(
                 setZeroPosition(),
@@ -55,6 +69,37 @@ public class Plans {
                 "splineBasic",
                 drive::splineBasic,
                 drive::done
+        );
+    }
+
+    private Step blueFarScoreAThingStep() {
+        return new Step(
+                "blueFarScoreAThing",
+                drive::blueFarScoreAThing,
+                drive::done
+        );
+    }
+
+    private Step setFarLaunchPowerStep() {
+        return new Step(
+                "setFarLaunchPower",
+                launcher::setFarLaunchPower,
+                () -> true
+        );
+    }
+
+    private Step waitforFlywheel() {
+        return new Step(
+                "waitForFlywheel",
+                () -> {},
+                launcher::flywheelReady
+        );
+    }
+    private Step launchStep() {
+        return new Step(
+                "launch",
+                launcher::launch,
+                launcher::done
         );
     }
 

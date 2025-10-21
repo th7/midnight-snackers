@@ -18,7 +18,7 @@ public abstract class AutoOp extends OpMode {
         arm.initAuto();
         drive.initAuto();
         otherSubSystem.initAuto();
-        plans = new Plans(arm, drive, otherSubSystem);
+        plans = new Plans(arm, drive, launcher, otherSubSystem);
         plan = getPlan();
         telemetry.addData("AutoOp.init()", true);
     }

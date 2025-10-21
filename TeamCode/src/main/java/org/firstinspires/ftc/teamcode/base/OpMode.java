@@ -15,6 +15,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     public ElapsedTime runtime = new ElapsedTime();
     Arm arm;
     Drive drive;
+    protected Launcher launcher;
     OtherSubSystem otherSubSystem;
 
     @Override
@@ -23,19 +24,20 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         arm.init();
         drive = new Drive(hardwareMap, runtime, telemetry);
         drive.init();
+        launcher = new Launcher(hardwareMap, runtime, telemetry);
+        launcher.init();
         otherSubSystem = new OtherSubSystem(hardwareMap, runtime, telemetry);
         otherSubSystem.init();
         telemetry.addData("base.OpMode.init()", true);
     }
 
     @Override
-    public void start() {
-        runtime.reset();
-    }
+    public void start() { runtime.reset(); }
 
     public void loop() {
         arm.loop();
         drive.loop();
+        launcher.loop();
         otherSubSystem.loop();
     }
 }

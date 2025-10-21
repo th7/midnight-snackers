@@ -15,6 +15,8 @@ public class Drive extends SubSystem {
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
     private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
+    final private int blueDirection = 1;
+    final private int redDirection = -1;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -93,7 +95,23 @@ public class Drive extends SubSystem {
         );
     }
 
+    public void blueFarScoreAThing() {
+        farScoreAThing(blueDirection);
+    }
+
+    public void redFarScoreAThing() {
+        farScoreAThing(redDirection);
+    }
+
+    public void farScoreAThing(int direction) {
+        drivePath(
+                new Pose2d(72, 0, Math.PI / 4 * direction),
+                new Pose2d(73, -1, Math.PI / 4 * direction)
+        );
+    }
+
     public void splineBasic() {
+
         Action action = mecanumDrive.actionBuilder(getPose())
                 .splineToSplineHeading(new Pose2d(24, 24, Math.PI / -2), Math.PI / -2)
                 .splineToSplineHeading(new Pose2d(0, 48, Math.PI * -1), Math.PI * -1)
