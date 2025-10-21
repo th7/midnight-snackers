@@ -18,11 +18,19 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.List;
 
 public class Drive extends SubSystem {
+    public enum Alliance {
+        blue(1),
+        red(-1);
+
+        public final int side;
+
+        Alliance(int side) {
+            this.side = side;
+        }
+    }
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
     private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
-    final private int blueDirection = 1;
-    final private int redDirection = -1;
 
 //    private final AprilTagProcessor aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -108,17 +116,17 @@ public class Drive extends SubSystem {
     }
 
     public void blueFarScoreAThing() {
-        farScoreAThing(blueDirection);
+        farScoreAThing(Alliance.blue);
     }
 
     public void redFarScoreAThing() {
-        farScoreAThing(redDirection);
+        farScoreAThing(Alliance.red);
     }
 
-    public void farScoreAThing(int direction) {
+    public void farScoreAThing(Alliance alliance) {
         drivePath(
-                new Pose2d(72, 0, Math.PI / 4 * direction),
-                new Pose2d(73, -1, Math.PI / 4 * direction)
+                new Pose2d(72, 0, Math.PI / 4 * alliance.side),
+                new Pose2d(73, -1, Math.PI / 4 * alliance.side)
         );
     }
 
