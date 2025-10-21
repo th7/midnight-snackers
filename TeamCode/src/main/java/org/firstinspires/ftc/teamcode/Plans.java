@@ -30,7 +30,7 @@ public class Plans {
                 setZeroPosition(),
                 setFarLaunchPowerStep(),
                 blueFarScoreAThingStep(),
-                waitforFlywheel(),
+                waitForFlywheel(),
                 launchStep()
 
         );
@@ -88,7 +88,7 @@ public class Plans {
         );
     }
 
-    private Step waitforFlywheel() {
+    private Step waitForFlywheel() {
         return new Step(
                 "waitForFlywheel",
                 () -> {},
