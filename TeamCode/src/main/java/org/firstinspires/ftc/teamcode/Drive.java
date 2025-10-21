@@ -7,9 +7,15 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+
+import java.util.List;
 
 public class Drive extends SubSystem {
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
@@ -18,11 +24,17 @@ public class Drive extends SubSystem {
     final private int blueDirection = 1;
     final private int redDirection = -1;
 
+//    private final AprilTagProcessor aprilTagProcessor = new AprilTagProcessor.Builder().build();
+
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
     }
 
     public void init() {
+//        new VisionPortal.Builder()
+//                .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
+//                .addProcessor(aprilTagProcessor)
+//                .build();
         telemetry.addData("Drive.init()", true);
     }
 
@@ -126,4 +138,39 @@ public class Drive extends SubSystem {
     public void setPose(Pose2d pose) {
         mecanumDrive.localizer.setPose(pose);
     }
+
+//    private void aprilTagTelemetry() {
+//        // detections may be stale, use getFreshDetections() for latest detections since last processed
+//        List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
+//        for (AprilTagDetection detection : currentDetections) {
+//            String tag = "detection." + detection.id;
+//            telemetry.addData(tag, true);
+//
+//            if (detection.ftcPose == null) {
+//                telemetry.addData(tag + ".ftcPose", null);
+//            } else {
+//                telemetry.addData(tag + ".ftcPose.range", detection.ftcPose.range);
+//                telemetry.addData(tag + ".ftcPose.yaw", detection.ftcPose.yaw);
+//                telemetry.addData(tag + ".ftcPose.bearing", detection.ftcPose.bearing);
+//            }
+//
+//            if (detection.metadata == null) {
+//                telemetry.addData(tag + ".metadata", "null");
+//                continue;
+//            }
+//
+//            if (detection.metadata.fieldPosition == null) {
+//                telemetry.addData(tag + ".metadata.fieldPosition", "null");
+//            } else {
+//                float[] fieldPositionData = detection.metadata.fieldPosition.getData();
+//                if (fieldPositionData == null) {
+//                    telemetry.addData(tag + ".metadata.fieldPosition.getData()", "null");
+//                } else {
+//                    telemetry.addData(tag + ".metadata.fieldPosition.data[0]", fieldPositionData[0]);
+//                    telemetry.addData(tag + ".metadata.fieldPosition.data[1]", fieldPositionData[1]);
+//                    telemetry.addData(tag + ".metadata.fieldPosition.data[2]", fieldPositionData[2]);
+//                }
+//            }
+//        }
+//    }
 }
