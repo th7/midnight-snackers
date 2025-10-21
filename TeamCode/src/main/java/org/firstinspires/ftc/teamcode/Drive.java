@@ -7,27 +7,11 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-
-import java.util.List;
 
 public class Drive extends SubSystem {
-    public enum Alliance {
-        blue(1),
-        red(-1);
-
-        public final int side;
-
-        Alliance(int side) {
-            this.side = side;
-        }
-    }
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
     private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
@@ -125,8 +109,8 @@ public class Drive extends SubSystem {
 
     public void farScoreAThing(Alliance alliance) {
         drivePath(
-                new Pose2d(72, 0, Math.PI / 4 * alliance.side),
-                new Pose2d(73, -1, Math.PI / 4 * alliance.side)
+                alliance.pose(72, 0, Math.PI / 4),
+                alliance.pose(73, 1, Math.PI / 4)
         );
     }
 

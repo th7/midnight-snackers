@@ -4,6 +4,7 @@ import com.acmerobotics.roadrunner.Pose2d;
 
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.teamcode.planrunner.VoidCallable;
 
 public class Plans {
     public Arm arm;
@@ -25,11 +26,19 @@ public class Plans {
         );
     }
 
+    public Plan redFarScoreAThing() {
+        return farScoreAThing(Alliance.red);
+    }
+
     public Plan blueFarScoreAThing() {
+        return farScoreAThing(Alliance.blue);
+    }
+
+    private Plan farScoreAThing(Alliance alliance) {
         return new Plan(
-                setZeroPosition(),
+                setBackPosition(alliance),
                 setFarLaunchPowerStep(),
-                blueFarScoreAThingStep(),
+                moveToFarScorePosition(alliance),
                 waitForFlywheel(),
                 launchStep()
 
@@ -68,14 +77,6 @@ public class Plans {
         return new Step(
                 "splineBasic",
                 drive::splineBasic,
-                drive::done
-        );
-    }
-
-    private Step blueFarScoreAThingStep() {
-        return new Step(
-                "blueFarScoreAThing",
-                drive::blueFarScoreAThing,
                 drive::done
         );
     }
@@ -147,5 +148,25 @@ public class Plans {
                 () -> drive.setPose(new Pose2d(0, 0, 0)),
                 () -> true
         );
+    }
+
+    private Step setBackPosition(Alliance alliance) {
+        return new Step(
+                "setBackPosition",
+                () -> drive.setPose(alliance.pose(-60, 12, 0)),
+                () -> true
+        );
+    }
+
+    private Step moveToFarScorePosition(Alliance alliance) {
+        return new Step(
+                "moveToFarScorePosition",
+                () -> drive.drivePath(alliance.pose(24, 24, Math.PI / 4)),
+                drive::done
+        );
+    }
+
+    private Pose2d poseFacingGoal(Alliance alliance, int x, int y) {
+        return alliance.poseFacingGoal(x, y);
     }
 }
