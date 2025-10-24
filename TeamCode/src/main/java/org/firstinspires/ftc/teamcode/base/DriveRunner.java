@@ -5,15 +5,19 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Action;
 
 public class DriveRunner {
-    private Action roadRunnerAction = null;
     public final FtcDashboard dash = FtcDashboard.getInstance();
+    private Action roadRunnerAction = null;
 
     public void loop() {
-        if (done()) { return; }
+        if (done()) {
+            return;
+        }
 
         TelemetryPacket packet = new TelemetryPacket();
         roadRunnerAction.preview(packet.fieldOverlay());
-        if (!roadRunnerAction.run(packet)) { roadRunnerAction = null; }
+        if (!roadRunnerAction.run(packet)) {
+            roadRunnerAction = null;
+        }
         dash.sendTelemetryPacket(packet);
     }
 

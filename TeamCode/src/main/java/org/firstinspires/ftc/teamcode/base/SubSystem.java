@@ -1,12 +1,9 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import com.acmerobotics.roadrunner.Action;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-
-import java.util.List;
 
 public abstract class SubSystem {
     public final HardwareMap hardwareMap;
@@ -21,8 +18,15 @@ public abstract class SubSystem {
 
     public abstract void init();
 
-    public void initAuto() {};
-    public void initTeleOp() {};
+    public void initAuto() {
+    }
+
+    ;
+
+    public void initTeleOp() {
+    }
+
+    ;
 
     public abstract void loop();
 

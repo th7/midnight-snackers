@@ -10,14 +10,14 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 public class Launcher extends SubSystem {
+    private final double gateOpenPosition = 1;
+    private final double gateClosedPosition = 0;
+    private final double closeLauncherPower = 1050d;
+    private final double rangedLauncherPower = 1350d;
     private DcMotorEx launcher;
     private Servo gate;
     private double gatePosition;
-    private final double gateOpenPosition = 1;
-    private final double gateClosedPosition = 0;
     private double launcherPower = 0d;
-    private final double closeLauncherPower = 1050d;
-    private final double rangedLauncherPower = 1350d;
     private double launchStartedAt = -1;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
@@ -33,12 +33,16 @@ public class Launcher extends SubSystem {
 
     public void increasePower() {
         launcherPower = launcherPower + 25;
-        if (launcherPower > 10000) { launcherPower = 10000; }
+        if (launcherPower > 10000) {
+            launcherPower = 10000;
+        }
     }
 
     public void decreasePower() {
         launcherPower = launcherPower - 25;
-        if (launcherPower < -10000) { launcherPower = -10000; }
+        if (launcherPower < -10000) {
+            launcherPower = -10000;
+        }
     }
 
     public void setCloseLaunchPower() {
@@ -70,7 +74,7 @@ public class Launcher extends SubSystem {
     public void loop() {
         launcher.setVelocity(launcherPower);
 
-        if(gatePosition == gateOpenPosition && secondAfterGateOpen()) {
+        if (gatePosition == gateOpenPosition && secondAfterGateOpen()) {
             gatePosition = gateClosedPosition;
         }
 

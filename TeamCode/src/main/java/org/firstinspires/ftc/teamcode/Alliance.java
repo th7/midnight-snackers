@@ -6,7 +6,7 @@ import com.acmerobotics.roadrunner.Pose2d;
  * Use Alliance.blue or Alliance.red to get an instance of this class.
  * Use positive y coordinates to move toward your goal.
  * Use positive headings to turn toward your goal.
-*/
+ */
 public class Alliance {
     public static final Alliance blue = new Alliance(1, 1);
     public static final Alliance red = new Alliance(-1, -1);

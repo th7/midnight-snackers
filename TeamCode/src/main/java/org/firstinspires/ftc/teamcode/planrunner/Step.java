@@ -1,10 +1,10 @@
 package org.firstinspires.ftc.teamcode.planrunner;
 
 public class Step implements PlanPart {
-    private boolean started = false;
     private final String name;
     private final VoidCallable start;
     private final Callable<Boolean> done;
+    private boolean started = false;
 
     public Step(VoidCallable start, Callable<Boolean> done) {
         this.name = "";
@@ -25,7 +25,8 @@ public class Step implements PlanPart {
             } catch (IllegalAccessException | InstantiationException e) {
                 throw new RuntimeException(e);
             }
-            started = true; }
+            started = true;
+        }
 
         return this.done.call();
     }

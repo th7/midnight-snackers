@@ -3,8 +3,6 @@ package org.firstinspires.ftc.teamcode.base;
 import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
-import java.lang.reflect.Field;
-
 public abstract class AutoOp extends OpMode {
     public Plans plans;
     private PlanPart plan;

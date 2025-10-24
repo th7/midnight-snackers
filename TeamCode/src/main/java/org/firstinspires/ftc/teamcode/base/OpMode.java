@@ -1,20 +1,14 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.*;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import org.firstinspires.ftc.teamcode.Drive;
+import org.firstinspires.ftc.teamcode.Launcher;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     public ElapsedTime runtime = new ElapsedTime();
-    Drive drive;
     protected Launcher launcher;
+    Drive drive;
 
     @Override
     public void init() {
@@ -26,7 +20,9 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     }
 
     @Override
-    public void start() { runtime.reset(); }
+    public void start() {
+        runtime.reset();
+    }
 
     public void loop() {
         drive.loop();

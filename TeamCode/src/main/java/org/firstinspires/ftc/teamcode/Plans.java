@@ -105,8 +105,12 @@ public class Plans {
     private Step waitFor(double seconds) {
         return new Step(
                 "waitFor " + seconds,
-                () -> { startedWaitAt = runtime.time(); },
-                () -> { return runtime.time() >= startedWaitAt + seconds; }
+                () -> {
+                    startedWaitAt = runtime.time();
+                },
+                () -> {
+                    return runtime.time() >= startedWaitAt + seconds;
+                }
         );
     }
 

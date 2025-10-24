@@ -34,7 +34,7 @@ public class Plan implements PlanPart {
     private PlanPart currentPlanPart() {
         try {
             return planParts.get(currentPlanPartIndex);
-        } catch(IndexOutOfBoundsException e) {
+        } catch (IndexOutOfBoundsException e) {
             return null;
         }
     }
