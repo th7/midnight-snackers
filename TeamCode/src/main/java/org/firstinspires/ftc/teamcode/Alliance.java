@@ -8,8 +8,8 @@ import com.acmerobotics.roadrunner.Pose2d;
  * Use positive headings to turn toward your goal.
 */
 public class Alliance {
-    public static final Alliance blue = new Alliance(1, -1);
-    public static final Alliance red = new Alliance(-1, 1);
+    public static final Alliance blue = new Alliance(1, 1);
+    public static final Alliance red = new Alliance(-1, -1);
 
     private final int headingSign;
     private final int ySign;

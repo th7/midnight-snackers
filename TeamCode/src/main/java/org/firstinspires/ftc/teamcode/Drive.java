@@ -34,11 +34,14 @@ public class Drive extends SubSystem {
         driveRunner.loop();
         telemetry.addData("driveRunner.done()", driveRunner.done());
         telemetry.addData("drive.loop()", true);
+        Pose2d currentPose = getPose();
+        telemetry.addData("Coordinates x: ", currentPose.position.x);
+        telemetry.addData("Coordinates y: ", currentPose.position.y);
     }
 
     @Override
     public boolean done() {
-        return false;
+        return driveRunner.done();
     }
 
     public void drivePath(double[]... coordsList) {

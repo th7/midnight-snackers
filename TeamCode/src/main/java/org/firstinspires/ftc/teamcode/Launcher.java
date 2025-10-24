@@ -16,7 +16,7 @@ public class Launcher extends SubSystem {
     private final double gateOpenPosition = 1;
     private final double gateClosedPosition = 0;
     private double launcherPower = 0d;
-    private final double closeLauncherPower = 1000d;
+    private final double closeLauncherPower = 1050d;
     private final double rangedLauncherPower = 1350d;
     private double launchStartedAt = -1;
 
@@ -95,6 +95,6 @@ public class Launcher extends SubSystem {
     }
 
     public boolean flywheelReady() {
-        return closeEnough(launcher.getVelocity(), launcherPower, 10);
+        return closeEnough(launcher.getVelocity(), launcherPower, 15);
     }
 }

@@ -32,7 +32,7 @@ public class TeleOp extends OpMode {
         if(gamepad1.dpadDownWasPressed()) { launcher.decreasePower(); }
         if(gamepad1.squareWasPressed()) { launcher.setCloseLaunchPower(); }
         if(gamepad1.circleWasPressed()) { launcher.setFarLaunchPower(); }
-        if(gamepad1.xWasPressed()) { launcher.noPower(); }
+        if(gamepad1.crossWasPressed()) { launcher.noPower(); }
         if(gamepad1.triangleWasPressed()) { launcher.launch(); }
         if(gamepad1.rightBumperWasPressed()) { launcher.increaseGatePosition(); }
         if(gamepad1.leftBumperWasPressed()){ launcher.decreaseGatePosition(); }
@@ -64,7 +64,10 @@ public class TeleOp extends OpMode {
         telemetry.addData("gameStickRightX", gamepad1.right_stick_x);
         telemetry.addData("gameStickRightY", gamepad1.right_stick_y);
         telemetry.addData("circle", gamepad1.circle);
-        telemetry.addData("leftTrigger", gamepad1.left_trigger);
+        telemetry.addData("square", gamepad1.square);
+        telemetry.addData("x", gamepad1.x);
+        telemetry.addData("triangle", gamepad1.triangle);
+        telemetry.addData("triangle", gamepad1.left_trigger);
         telemetry.addData("rightTrigger", gamepad1.right_trigger);
         telemetry.addData("leftBumper", gamepad1.left_bumper);
         telemetry.addData("rightBumper", gamepad1.right_bumper);
