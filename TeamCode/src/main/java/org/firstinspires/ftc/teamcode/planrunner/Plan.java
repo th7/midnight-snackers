@@ -15,7 +15,7 @@ public class Plan implements PlanPart {
         if (currentPlanPart == null) {
             return "null";
         } else {
-            return Integer.toString(currentPlanPartIndex) + ". " + currentPlanPart.currentStep();
+            return currentPlanPartIndex + ". " + currentPlanPart.currentStep();
         }
     }
 

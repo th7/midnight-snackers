@@ -26,6 +26,7 @@ public final class ThreeDeadWheelLocalizer implements Localizer {
     private int lastPar0Pos, lastPar1Pos, lastPerpPos;
     private boolean initialized;
     private Pose2d pose;
+
     public ThreeDeadWheelLocalizer(HardwareMap hardwareMap, double inPerTick, Pose2d initialPose) {
         // TODO: make sure your config has **motors** with these names (or change them)
         //   the encoders should be plugged into the slot matching the named motor

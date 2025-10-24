@@ -35,6 +35,7 @@ public final class TwoDeadWheelLocalizer implements Localizer {
     private double lastRawHeadingVel, headingVelOffset;
     private boolean initialized;
     private Pose2d pose;
+
     public TwoDeadWheelLocalizer(HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose) {
         // TODO: make sure your config has **motors** with these names (or change them)
         //   the encoders should be plugged into the slot matching the named motor

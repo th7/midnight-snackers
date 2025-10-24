@@ -21,12 +21,8 @@ public abstract class SubSystem {
     public void initAuto() {
     }
 
-    ;
-
     public void initTeleOp() {
     }
-
-    ;
 
     public abstract void loop();
 

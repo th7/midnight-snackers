@@ -17,6 +17,7 @@ public class OTOSLocalizer implements Localizer {
     public static Params PARAMS = new Params();
     public final SparkFunOTOS otos;
     private Pose2d currentPose;
+
     public OTOSLocalizer(HardwareMap hardwareMap, Pose2d initialPose) {
         // TODO: make sure your config has an OTOS device with this name
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html

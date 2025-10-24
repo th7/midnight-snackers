@@ -20,6 +20,7 @@ public final class PinpointLocalizer implements Localizer {
     public final GoBildaPinpointDriver.EncoderDirection initialParDirection, initialPerpDirection;
     private Pose2d txWorldPinpoint;
     private Pose2d txPinpointRobot = new Pose2d(0, 0, 0);
+
     public PinpointLocalizer(HardwareMap hardwareMap, double inPerTick, Pose2d initialPose) {
         // TODO: make sure your config has a Pinpoint device with this name
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
