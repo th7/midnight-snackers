@@ -1,8 +1,5 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import org.firstinspires.ftc.teamcode.Arm;
-import org.firstinspires.ftc.teamcode.Drive;
-import org.firstinspires.ftc.teamcode.OtherSubSystem;
 import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
@@ -15,10 +12,8 @@ public abstract class AutoOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        arm.initAuto();
         drive.initAuto();
-        otherSubSystem.initAuto();
-        plans = new Plans(arm, drive, launcher, otherSubSystem, runtime);
+        plans = new Plans(drive, launcher, runtime);
         plan = getPlan();
         telemetry.addData("AutoOp.init()", true);
     }

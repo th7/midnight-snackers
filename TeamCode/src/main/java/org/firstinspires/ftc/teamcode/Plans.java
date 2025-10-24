@@ -5,29 +5,17 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
-import org.firstinspires.ftc.teamcode.planrunner.VoidCallable;
 
 public class Plans {
-    public Arm arm;
     public Drive drive;
     public Launcher launcher;
-    public OtherSubSystem otherSubSystem;
     public ElapsedTime runtime;
     private double startedWaitAt;
 
-    public Plans(Arm arm, Drive drive, Launcher launcher, OtherSubSystem otherSubSystem, ElapsedTime runtime) {
-        this.arm = arm;
+    public Plans(Drive drive, Launcher launcher, ElapsedTime runtime) {
         this.drive = drive;
         this.launcher = launcher;
-        this.otherSubSystem = otherSubSystem;
         this.runtime = runtime;
-    }
-
-    public Plan splineBasic() {
-        return new Plan(
-                setZeroPosition(),
-                splineBasicStep()
-        );
     }
 
     public Plan redFarScoreAThing() {
@@ -81,40 +69,11 @@ public class Plans {
         );
     }
 
-    public Plan splineOneStep() {
-        return new Plan(
-                setZeroPosition(),
-                splineOneStepStep()
-        );
-    }
-
     public Plan splineSquiggleSquare() {
         return new Plan(
                 setZeroPosition(),
                 splineSquiggleSquareStep(),
                 toZeroPosition()
-        );
-    }
-
-    public Plan splineUsingPoses() {
-        return new Plan(
-                setZeroPosition(),
-                splineUsingPosesStep()
-        );
-    }
-
-    public Plan splineUsingCoords() {
-        return new Plan(
-                setZeroPosition(),
-                splineUsingCoordsStep()
-        );
-    }
-
-    private Step splineBasicStep() {
-        return new Step(
-                "splineBasic",
-                drive::splineBasic,
-                drive::done
         );
     }
 
@@ -150,19 +109,12 @@ public class Plans {
                 () -> { return runtime.time() >= startedWaitAt + seconds; }
         );
     }
+
     private Step launchStep() {
         return new Step(
                 "launch",
                 launcher::launch,
                 launcher::done
-        );
-    }
-
-    private Step splineOneStepStep() {
-        return new Step(
-                "splineOneStep",
-                drive::splineOneStep,
-                drive::done
         );
     }
 
@@ -182,22 +134,6 @@ public class Plans {
         );
     }
 
-    private Step splineUsingPosesStep() {
-        return new Step(
-                "splineUsingPoses",
-                drive::splineUsingPoses,
-                drive::done
-        );
-    }
-
-    private Step splineUsingCoordsStep() {
-        return new Step(
-                "splineUsingCoords",
-                drive::splineUsingCoords,
-                drive::done
-        );
-    }
-
     private Step setZeroPosition() {
         return new Step(
                 "setZeroPosition",
@@ -211,14 +147,6 @@ public class Plans {
         return new Step(
                 "setBackPosition",
                 () -> drive.setPose(alliance.pose(-63.5, 15.375, 0)),
-                () -> true
-        );
-    }
-
-    private Step setGoalPosition(Alliance alliance) {
-        return new Step(
-                "setBackPosition",
-                () -> drive.setPose(alliance.pose(-63.5, 15.375, 0)), //not set
                 () -> true
         );
     }
@@ -261,9 +189,5 @@ public class Plans {
                 ),
                 drive::done
         );
-    }
-
-    private Pose2d poseFacingGoal(Alliance alliance, int x, int y) {
-        return alliance.poseFacingGoal(x, y);
     }
 }

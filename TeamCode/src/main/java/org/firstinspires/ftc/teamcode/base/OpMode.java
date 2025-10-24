@@ -13,21 +13,15 @@ import java.util.Set;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     public ElapsedTime runtime = new ElapsedTime();
-    Arm arm;
     Drive drive;
     protected Launcher launcher;
-    OtherSubSystem otherSubSystem;
 
     @Override
     public void init() {
-        arm = new Arm(hardwareMap, runtime, telemetry);
-        arm.init();
         drive = new Drive(hardwareMap, runtime, telemetry);
         drive.init();
         launcher = new Launcher(hardwareMap, runtime, telemetry);
         launcher.init();
-        otherSubSystem = new OtherSubSystem(hardwareMap, runtime, telemetry);
-        otherSubSystem.init();
         telemetry.addData("base.OpMode.init()", true);
     }
 
@@ -35,9 +29,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     public void start() { runtime.reset(); }
 
     public void loop() {
-        arm.loop();
         drive.loop();
         launcher.loop();
-        otherSubSystem.loop();
     }
 }

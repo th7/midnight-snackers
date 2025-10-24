@@ -37,12 +37,6 @@ public class TeleOp extends OpMode {
         if(gamepad1.rightBumperWasPressed()) { launcher.increaseGatePosition(); }
         if(gamepad1.leftBumperWasPressed()){ launcher.decreaseGatePosition(); }
 
-//        if (gamepad1.triangle) { Arm.armToFloor(); } else if (gamepad1.x) { Arm.armToAboveFloor(); }
-//        if (gamepad1.circle) { Arm.armToLowBasket(); } else if (gamepad1.square) { Arm.armToFloorForwards(); }
-////        if (gamepad1.dpad_left) { Arm.wristOut(); } else if (gamepad1.dpad_right) { Arm.wristIn(); } else { Arm.wristStop(); }
-//        if (gamepad1.right_trigger > 0) { Arm.openClaw(); } else if (gamepad1.left_trigger > 0) { Arm.closeClaw(); }
-//        if (gamepad1.dpad_down) { Arm.manualDown(); } else if (gamepad1.dpad_up) { Arm.manualUp(); }
-
         setTelemetry();
         MoveData straight = MoveData.straight(-gamepad1.left_stick_y, 0f, 1f);
         MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x,0f, 1f);
