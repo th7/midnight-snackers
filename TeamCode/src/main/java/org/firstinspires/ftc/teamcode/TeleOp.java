@@ -67,7 +67,7 @@ public class TeleOp extends OpMode {
         telemetry.addData("square", gamepad1.square);
         telemetry.addData("x", gamepad1.x);
         telemetry.addData("triangle", gamepad1.triangle);
-        telemetry.addData("triangle", gamepad1.left_trigger);
+        telemetry.addData("leftTrigger", gamepad1.left_trigger);
         telemetry.addData("rightTrigger", gamepad1.right_trigger);
         telemetry.addData("leftBumper", gamepad1.left_bumper);
         telemetry.addData("rightBumper", gamepad1.right_bumper);
