@@ -7,11 +7,17 @@ import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans {
+    enum Motif {
+        GPP,
+        PGP,
+        PPG;
+    }
     public Drive drive;
     public Launcher launcher;
     public ElapsedTime runtime;
     private double startedWaitAt;
-
+    private double timeoutStartedAt;
+    private Motif motif;
     public Plans(Drive drive, Launcher launcher, ElapsedTime runtime) {
         this.drive = drive;
         this.launcher = launcher;
@@ -43,6 +49,21 @@ public class Plans {
                 launchStep(),
                 backFromZeroALittle()
 
+        );
+    }
+
+    public Plan scoreAMotif() {
+        return new Plan(
+                detectMotif(),
+                launchMotif()
+        );
+    }
+
+    public Plan launchMotif() {
+        return new Plan(
+                launchMotifFirst(),
+                launchMotifSecond(),
+                launchMotifThird()
         );
     }
 
@@ -194,4 +215,45 @@ public class Plans {
                 drive::done
         );
     }
+
+    private Step detectMotif() {
+        return new Step(
+                "detectMotif",
+                () -> { timeoutStartedAt = runtime.time(); },
+                () -> {
+                    motif = drive.motif();
+                    return motif != null || runtime.time() > timeoutStartedAt + 3;
+                }
+        );
+    }
+
+    private Step launchMotifFirst() {
+        return new Step(
+                "launchMotifFirst",
+                () -> { launcher.launchMotifFirst(motif); },
+                launcher::done
+        );
+    }
+
+    private Step launchMotifSecond() {
+        return new Step(
+                "launchMotifSecond",
+                () -> { launcher.launchMotifSecond(motif); },
+                launcher::done
+        );
+    }
+
+    private Step launchMotifThird() {
+        return new Step(
+                "launchMotifThird",
+                () -> { launcher.launchMotifThird(motif); },
+                launcher::done
+        );
+    }
+
+//    private detectMotif() {
+//        if (drive.motif()) {
+//            motif = drive.motif();
+//        }
+//    }
 }
