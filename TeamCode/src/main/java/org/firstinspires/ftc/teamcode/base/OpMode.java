@@ -25,6 +25,8 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     }
 
     public void loop() {
+        if (gamepad2.crossWasPressed()) { drive.toggleTelemetry(); }
+        if (gamepad2.squareWasPressed()) { launcher.toggleTelemetry(); }
         drive.loop();
         launcher.loop();
     }

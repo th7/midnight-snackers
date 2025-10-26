@@ -14,6 +14,7 @@ public class Drive extends SubSystem {
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
     private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
+    private boolean telemetryOn = false;
 
 //    private final AprilTagProcessor aprilTagProcessor = new AprilTagProcessor.Builder().build();
 
@@ -31,6 +32,10 @@ public class Drive extends SubSystem {
 
     public void loop() {
         driveRunner.loop();
+        if (telemetryOn) { setTelemetry(); }
+    }
+
+    private void setTelemetry() {
         telemetry.addData("driveRunner.done()", driveRunner.done());
         telemetry.addData("drive.loop()", true);
         Pose2d currentPose = getPose();
@@ -71,6 +76,8 @@ public class Drive extends SubSystem {
                 new Pose2d(0, 0, 0)
         );
     }
+
+    public void toggleTelemetry() { telemetryOn = !telemetryOn; }
 
     private Pose2d getPose() {
         return mecanumDrive.localizer.getPose();

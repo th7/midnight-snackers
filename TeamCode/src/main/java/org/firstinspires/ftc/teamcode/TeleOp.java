@@ -10,6 +10,7 @@ public class TeleOp extends OpMode {
     private DcMotor rightFront;
     private DcMotor leftBack;
     private DcMotor rightBack;
+    private boolean telemetryOn = false;
 
     @Override
     public void init() {
@@ -53,7 +54,6 @@ public class TeleOp extends OpMode {
             launcher.decreaseGatePosition();
         }
 
-        setTelemetry();
         MoveData straight = MoveData.straight(-gamepad1.left_stick_y, 0f, 1f);
         MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x, 0f, 1f);
         MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
@@ -62,29 +62,14 @@ public class TeleOp extends OpMode {
         rightFront.setPower(moveData.frontRightPower);
         leftBack.setPower(moveData.rearLeftPower);
         rightBack.setPower(moveData.rearRightPower);
-        telemetry.addData("frontLeftPower", moveData.frontLeftPower);
-        telemetry.addData("frontRightPower", moveData.frontRightPower);
-        telemetry.addData("rearLeftPower", moveData.rearLeftPower);
-        telemetry.addData("rearRightPower", moveData.rearRightPower);
+
+        if (gamepad2.triangleWasPressed()) { telemetryOn = !telemetryOn; }
+        if (telemetryOn) {
+            telemetry.addData("frontLeftPower", moveData.frontLeftPower);
+            telemetry.addData("frontRightPower", moveData.frontRightPower);
+            telemetry.addData("rearLeftPower", moveData.rearLeftPower);
+            telemetry.addData("rearRightPower", moveData.rearRightPower);
+            telemetry.update();
+        }
     }
-
-    private void setTelemetry() {
-        telemetry.addData("gameStickLeftX", gamepad1.left_stick_x);
-        telemetry.addData("gameStickLeftY", gamepad1.left_stick_y);
-        telemetry.addData("gameStickRightX", gamepad1.right_stick_x);
-        telemetry.addData("gameStickRightY", gamepad1.right_stick_y);
-        telemetry.addData("circle", gamepad1.circle);
-        telemetry.addData("square", gamepad1.square);
-        telemetry.addData("x", gamepad1.x);
-        telemetry.addData("triangle", gamepad1.triangle);
-        telemetry.addData("leftTrigger", gamepad1.left_trigger);
-        telemetry.addData("rightTrigger", gamepad1.right_trigger);
-        telemetry.addData("leftBumper", gamepad1.left_bumper);
-        telemetry.addData("rightBumper", gamepad1.right_bumper);
-        telemetry.addData("dpad_up", gamepad1.dpad_up);
-        telemetry.addData("dpad_down", gamepad1.dpad_down);
-        telemetry.update();
-    }
-
-
 }

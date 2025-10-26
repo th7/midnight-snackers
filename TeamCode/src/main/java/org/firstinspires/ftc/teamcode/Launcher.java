@@ -20,6 +20,8 @@ public class Launcher extends SubSystem {
     private double launcherPower = 0d;
     private double launchStartedAt = -1;
 
+    private boolean telemetryOn = false;
+
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
     }
@@ -80,6 +82,12 @@ public class Launcher extends SubSystem {
 
         gate.setPosition(gatePosition);
 
+        if (telemetryOn) { setTelemetry(); }
+    }
+
+    public void toggleTelemetry() { telemetryOn = !telemetryOn; }
+
+    private void setTelemetry() {
         telemetry.addData("launcherPower", launcherPower);
         telemetry.addData("launcherVelocity", launcher.getVelocity());
         telemetry.addData("gatePosition", gatePosition);
