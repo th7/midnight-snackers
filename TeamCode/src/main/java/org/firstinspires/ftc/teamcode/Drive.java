@@ -25,6 +25,8 @@ public class Drive extends SubSystem {
     private final DriveRunner driveRunner = new DriveRunner();
     private final AprilTagProcessor aprilTagProcessor = new AprilTagProcessor.Builder().build();
     private boolean telemetryOn = false;
+    private Pose2d savedPose1;
+    private Pose2d savedPose2;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -96,7 +98,21 @@ public class Drive extends SubSystem {
     public void toggleTelemetry() {
         telemetryOn = !telemetryOn;
     }
+    
+    public void savePose1() {
+        savedPose1 = getPose();
+    }
+    public void goToPose1() {
+        drivePath(savedPose1);
+    }
 
+    public void savePose2() {
+        savedPose2 = getPose();
+    }
+    public void goToPose2() {
+        drivePath(savedPose2);
+    }
+    
     private Pose2d getPose() {
         return mecanumDrive.localizer.getPose();
     }

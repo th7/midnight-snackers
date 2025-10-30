@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -24,6 +23,7 @@ public class Launcher extends SubSystem {
     private double gate1Position;
     private double gate2Position;
     private double gate3Position;
+    private double gateWaitTime = 0.38;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -76,6 +76,14 @@ public class Launcher extends SubSystem {
         gatePosition = gatePosition - 0.05;
     }
 
+    public void increaseGateWaitTime() {
+        gateWaitTime = gateWaitTime + 0.01;
+    }
+
+    public void decreaseGateWaitTime() {
+        gateWaitTime = gateWaitTime - 0.01;
+    }
+
     @Override
     public void loop() {
         launcher.setVelocityPIDFCoefficients(0.0001, 1, 1, 1);
@@ -96,11 +104,12 @@ public class Launcher extends SubSystem {
         telemetry.addData("launcherPower", launcherPower);
         telemetry.addData("launcherVelocity", launcher.getVelocity());
         telemetry.addData("gatePosition", gatePosition);
+        telemetry.addData("gateWaitTime", gateWaitTime);
 //        telemetry.addData("velocityPIDFCoefficients", launcher.getPIDFCoefficients());
     }
 
     private boolean secondAfterGateOpen() {
-        return runtime.time() >= launchStartedAt + 1;
+        return runtime.time() >= launchStartedAt + gateWaitTime;
     }
 
     @Override

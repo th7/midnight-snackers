@@ -8,7 +8,7 @@ import org.firstinspires.ftc.teamcode.Launcher;
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     public ElapsedTime runtime = new ElapsedTime();
     protected Launcher launcher;
-    Drive drive;
+    protected Drive drive;
 
     @Override
     public void init() {
