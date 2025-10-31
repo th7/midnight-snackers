@@ -10,6 +10,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.external.navigation.Position;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
@@ -23,7 +28,7 @@ public class Drive extends SubSystem {
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
     private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
-    private final AprilTagProcessor aprilTagProcessor = new AprilTagProcessor.Builder().build();
+    private AprilTagProcessor aprilTagProcessor;
     private boolean telemetryOn = false;
     private Pose2d savedPose1;
     private Pose2d savedPose2;
@@ -33,6 +38,28 @@ public class Drive extends SubSystem {
     }
 
     public void init() {
+//        AprilTagProcessor.Builder atpb = new AprilTagProcessor.Builder();
+//
+////        Robot axes: (this is typical, but you can define this however you want)
+////
+////        Origin location: Center of the robot at field height
+////
+////        Axes orientation: +x right, +y forward, +z upward
+////
+////        Position:
+////
+////        If all values are zero (no translation), that implies the camera is at the center of the robot. Suppose your camera is positioned 5 inches to the left, 7 inches forward, and 12 inches above the ground - you would need to set the position to (-5, 7, 12).
+//        Position cameraPosition = new Position(DistanceUnit.INCH,
+//                5, 5, 5, 0);
+//
+////        Orientation:
+////
+////        If all values are zero (no rotation), that implies the camera is pointing straight up. In most cases, you’ll need to set the pitch to -90 degrees (rotation about the x-axis), meaning the camera is horizontal. Use a yaw of 0 if the camera is pointing forwards, +90 degrees if it’s pointing straight left, -90 degrees for straight right, etc. You can also set the roll to +/-90 degrees if it’s vertical, or 180 degrees if it’s upside-down.
+//        YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
+//                0, -75, 0, 0);
+//        atpb.setCameraPose(cameraPosition, cameraOrientation);
+//        aprilTagProcessor = atpb.build();
+//
 //        VisionPortal.Builder vpb = new VisionPortal.Builder();
 //        vpb.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
 //        vpb.setCameraResolution(new Size(640, 480));
@@ -132,58 +159,24 @@ public class Drive extends SubSystem {
     }
 
     private void aprilTagTelemetry() {
-        // detections may be stale, use getFreshDetections() for latest detections since last processed
         List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
         if (currentDetections == null) { return; }
 
         for (AprilTagDetection detection : currentDetections) {
             String tag = "detection." + detection.id;
 
-            if (detection.ftcPose == null) {
-                telemetry.addData(tag + ".ftcPose", null);
-            } else {
-                telemetry.addData(tag + ".ftcPose.range", detection.ftcPose.range);
-                telemetry.addData(tag + ".ftcPose.yaw", detection.ftcPose.yaw);
-                telemetry.addData(tag + ".ftcPose.bearing", detection.ftcPose.bearing);
-                telemetry.addData(tag + ".ftcPose.x", detection.ftcPose.x);
-                telemetry.addData(tag + ".ftcPose.y", detection.ftcPose.y);
-            }
-
             if (detection.robotPose == null) {
                 telemetry.addData(tag + ".robotPose", null);
             } else {
-                telemetry.addData(tag + ".robotPose.getOrientation().getYaw()", detection.robotPose.getOrientation().getYaw());
-//                telemetry.addData(tag + ".robotPose.getPosition().x", detection.robotPose.getPosition().x);
-//                telemetry.addData(tag + ".robotPose.getPosition().y", detection.robotPose.getPosition().y);
-            }
-
-            if (detection.metadata == null) {
-                telemetry.addData(tag + ".metadata", "null");
-                continue;
-            }
-
-            if (detection.metadata.fieldPosition == null) {
-                telemetry.addData(tag + ".metadata.fieldPosition", "null");
-            } else {
-                float[] fieldPositionData = detection.metadata.fieldPosition.getData();
-                if (fieldPositionData == null) {
-                    telemetry.addData(tag + ".metadata.fieldPosition.getData()", "null");
-                } else {
-                    telemetry.addData(tag + ".metadata.fieldPosition.data[0]", fieldPositionData[0]);
-                    telemetry.addData(tag + ".metadata.fieldPosition.data[1]", fieldPositionData[1]);
-//                    telemetry.addData(tag + ".metadata.fieldPosition.data[2]", fieldPositionData[2]);
-
-                    if (detection.ftcPose != null) {
-//                        double sinBearing = Math.sin(Math.toRadians(detection.ftcPose.bearing));
-//                        double cosBearing = Math.cos(Math.toRadians(detection.ftcPose.bearing));
-                        double relativeX = detection.ftcPose.y;
-                        double relativeY = detection.ftcPose.x;
-                        telemetry.addData(tag + ".x", fieldPositionData[0] * -1 - relativeX);
-                        telemetry.addData(tag + ".y", fieldPositionData[1] * -1 - relativeY);
-//                        telemetry.addData(tag + ".sinBearing", sinBearing);
-//                        telemetry.addData(tag + ".cosBearing", cosBearing);
-                    }
-                }
+                YawPitchRollAngles orientation = detection.robotPose.getOrientation();
+                telemetry.addData(tag + ".robotPose.getOrientation().getYaw()", detection.robotPose.getOrientation().getYaw(AngleUnit.RADIANS));
+                double roadrunnerYaw = orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2;
+                telemetry.addData(tag + " roadrunnerYaw", roadrunnerYaw);
+                Position position = detection.robotPose.getPosition();
+                telemetry.addData(tag + ".robotPose.getPosition() x,y,z", "%.04f,%.04f,%.04f", position.x, position.y, position.z);
+                double roadRunnerX = position.x * -1;
+                double roadRunnerY = position.y * -1;
+                telemetry.addData(tag + " roodrunner x,y", "%.04f,%.04f", roadRunnerX, roadRunnerY);
             }
         }
     }
