@@ -18,12 +18,6 @@ public abstract class SubSystem {
 
     public abstract void init();
 
-    public void initAuto() {
-    }
-
-    public void initTeleOp() {
-    }
-
     public abstract void loop();
 
     public abstract boolean done();

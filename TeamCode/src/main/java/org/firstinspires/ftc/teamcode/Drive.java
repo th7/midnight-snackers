@@ -48,6 +48,7 @@ public class Drive extends SubSystem {
     }
 
     public void loop() {
+        mecanumDrive.localizer.update();
         driveRunner.loop();
         if (telemetryOn) {
             setTelemetry();
@@ -56,8 +57,17 @@ public class Drive extends SubSystem {
 
     private void setTelemetry() {
         Pose2d currentPose = getPose();
-        telemetry.addData("Coordinates x: ", currentPose.position.x);
-        telemetry.addData("Coordinates y: ", currentPose.position.y);
+        telemetry.addData("current x,y,h", "%.04f,%.04f,%.04f", currentPose.position.x, currentPose.position.y, currentPose.heading.real);
+        if (savedPose1 != null) {
+            telemetry.addData("Saved 1 x,y,h", "%.04f,%.04f,%.04f", savedPose1.position.x, savedPose1.position.y, savedPose1.heading.real);
+        } else {
+            telemetry.addData("Saved 1", null);
+        }
+        if (savedPose2 != null) {
+            telemetry.addData("Saved 2 x,y,h", "%.04f,%.04f,%.04f", savedPose2.position.x, savedPose2.position.y, currentPose.heading.real);
+        } else {
+            telemetry.addData("Saved 2", null);
+        }
         aprilTagTelemetry();
     }
 

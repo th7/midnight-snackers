@@ -68,7 +68,7 @@ public class TeleOp extends OpMode {
         MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x, 0f, 1f);
         MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
         MoveData moveData = straight.add(strafe, turn);
-
+        
         if(drive.done()) {
             leftFront.setPower(moveData.frontLeftPower);
             rightFront.setPower(moveData.frontRightPower);
@@ -79,13 +79,13 @@ public class TeleOp extends OpMode {
         if (gamepad1.leftBumperWasPressed()) {
             drive.savePose1();
         }
-        if (gamepad1.left_trigger > 0.5) {
+        if (gamepad1.left_trigger > 0.5 && drive.done()) {
             drive.goToPose1();
         }
         if (gamepad1.rightBumperWasPressed()) {
             drive.savePose2();
         }
-        if (gamepad1.right_trigger > 0.5) {
+        if (gamepad1.right_trigger > 0.5 && drive.done()) {
             drive.goToPose2();
         }
 
