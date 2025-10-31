@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.teamcode.base.OpMode;
@@ -21,6 +22,7 @@ public class TeleOp extends OpMode {
         leftBack.setDirection(DcMotor.Direction.REVERSE);
         rightBack = hardwareMap.get(DcMotor.class, "rightBack");
         rightBack.setDirection(DcMotor.Direction.REVERSE);
+        drive.setPose(new Pose2d(0, 0, 0));
 
         telemetry.addData("TeleOp.init()", true);
     }
@@ -56,20 +58,24 @@ public class TeleOp extends OpMode {
             launcher.decreasePower();
         }
         if (gamepad2.dpadLeftWasPressed()) {
-            launcher.increaseGatePosition();
+            launcher.decreaseAdjustable();
         }
         if (gamepad2.dpadRightWasPressed()) {
-            launcher.decreaseGatePosition();
+            launcher.increaseAdjustable();
         }
 
         MoveData straight = MoveData.straight(-gamepad1.left_stick_y, 0f, 1f);
         MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x, 0f, 1f);
         MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
         MoveData moveData = straight.add(strafe, turn);
-        leftFront.setPower(moveData.frontLeftPower);
-        rightFront.setPower(moveData.frontRightPower);
-        leftBack.setPower(moveData.rearLeftPower);
-        rightBack.setPower(moveData.rearRightPower);
+
+        if(drive.done()) {
+            leftFront.setPower(moveData.frontLeftPower);
+            rightFront.setPower(moveData.frontRightPower);
+            leftBack.setPower(moveData.rearLeftPower);
+            rightBack.setPower(moveData.rearRightPower);
+        }
+
         if (gamepad1.leftBumperWasPressed()) {
             drive.savePose1();
         }

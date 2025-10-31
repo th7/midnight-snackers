@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -17,13 +18,17 @@ public class Launcher extends SubSystem {
     private DcMotorEx launcher;
     private Servo gate;
     private double gatePosition;
-    private double launcherPower = 0d;
+    private double launcherVelocity = 0d;
     private double launchStartedAt = -1;
     private boolean telemetryOn = false;
     private double gate1Position;
     private double gate2Position;
     private double gate3Position;
-    private double gateWaitTime = 0.38;
+    private double gateWaitTime = 0.37;
+    private PIDFCoefficients pidVelocityOrig;
+    private PIDFCoefficients pidOrig;
+
+    private double adjustable = 0;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -31,36 +36,43 @@ public class Launcher extends SubSystem {
 
     public void init() {
         launcher = hardwareMap.get(DcMotorEx.class, "launcher");
+
+        pidOrig = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
+        launcher.setPositionPIDFCoefficients(5);
+
+        pidVelocityOrig = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
+
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//        launcher.setVelocityPIDFCoefficients(0.01, 1, 50, 0.01);
+
         gate = hardwareMap.get(Servo.class, "gate");
         telemetry.addData("Launcher.init()", true);
     }
 
     public void increasePower() {
-        launcherPower = launcherPower + 25;
-        if (launcherPower > 10000) {
-            launcherPower = 10000;
+        launcherVelocity = launcherVelocity + 25;
+        if (launcherVelocity > 10000) {
+            launcherVelocity = 10000;
         }
     }
 
     public void decreasePower() {
-        launcherPower = launcherPower - 25;
-        if (launcherPower < -10000) {
-            launcherPower = -10000;
+        launcherVelocity = launcherVelocity - 25;
+        if (launcherVelocity < -10000) {
+            launcherVelocity = -10000;
         }
     }
 
     public void setCloseLaunchPower() {
-        launcherPower = closeLauncherPower;
+        launcherVelocity = closeLauncherPower;
     }
 
     public void setFarLaunchPower() {
-        launcherPower = rangedLauncherPower;
+        launcherVelocity = rangedLauncherPower;
     }
 
     public void noPower() {
-        launcherPower = 0;
+        launcherVelocity = 0;
     }
 
     public void launch() {
@@ -86,10 +98,9 @@ public class Launcher extends SubSystem {
 
     @Override
     public void loop() {
-        launcher.setVelocityPIDFCoefficients(0.0001, 1, 1, 1);
-        launcher.setVelocity(launcherPower);
+        launcher.setVelocity(launcherVelocity);
 
-        if (gatePosition == gateOpenPosition && secondAfterGateOpen()) {
+        if (gatePosition == gateOpenPosition && gateWaitTimePassed()) {
             gatePosition = gateClosedPosition;
         }
 
@@ -101,20 +112,34 @@ public class Launcher extends SubSystem {
     public void toggleTelemetry() { telemetryOn = !telemetryOn; }
 
     private void setTelemetry() {
-        telemetry.addData("launcherPower", launcherPower);
-        telemetry.addData("launcherVelocity", launcher.getVelocity());
+        telemetry.addData("adjustable", adjustable);
+        telemetry.addData("launcherPower", launcher.getPower());
+        telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
+        telemetry.addData("launcherVelocityTarget", launcherVelocity);
+        telemetry.addData("launcherVelocityActual", launcher.getVelocity());
         telemetry.addData("gatePosition", gatePosition);
         telemetry.addData("gateWaitTime", gateWaitTime);
+        telemetry.addData("PIDF vel (orig)", "%.04f, %.04f, %.04f, %.04f",
+                pidVelocityOrig.p, pidVelocityOrig.i, pidVelocityOrig.d, pidVelocityOrig.f);
+        PIDFCoefficients pidVelocityModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+        telemetry.addData("PIDF vel (modified)", "%.04f, %.04f, %.04f, %.04f",
+                pidVelocityModified.p, pidVelocityModified.i, pidVelocityModified.d, pidVelocityModified.f);
+        telemetry.addData("PIDF (orig)", "%.04f, %.04f, %.04f, %.04f",
+                pidOrig.p, pidOrig.i, pidOrig.d, pidOrig.f);
+        PIDFCoefficients pidModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
+        telemetry.addData("PIDF (modified)", "%.04f, %.04f, %.04f, %.04f",
+                pidModified.p, pidModified.i, pidModified.d, pidModified.f);
+
 //        telemetry.addData("velocityPIDFCoefficients", launcher.getPIDFCoefficients());
     }
 
-    private boolean secondAfterGateOpen() {
+    private boolean gateWaitTimePassed() {
         return runtime.time() >= launchStartedAt + gateWaitTime;
     }
 
     @Override
     public boolean done() {
-        return secondAfterGateOpen();
+        return gateWaitTimePassed();
     }
 
     private boolean closeEnough(double a, double b, double c) {
@@ -122,7 +147,7 @@ public class Launcher extends SubSystem {
     }
 
     public boolean flywheelReady() {
-        return closeEnough(launcher.getVelocity(), launcherPower, 15);
+        return closeEnough(launcher.getVelocity(), launcherVelocity, 15);
     }
 
 
@@ -163,5 +188,16 @@ public class Launcher extends SubSystem {
             gate3Position = gateOpenPosition;
         }
         launchStartedAt = runtime.time();
+    }
+
+    public void increaseAdjustable() {
+        adjustable = adjustable + 0.1;
+//        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
+//        launcher.setPositionPIDFCoefficients(5);
+    }
+    public void decreaseAdjustable() {
+        adjustable = adjustable - 0.1;
+//        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
+//        launcher.setPositionPIDFCoefficients(5);
     }
 }
