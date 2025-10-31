@@ -33,12 +33,12 @@ public class Drive extends SubSystem {
     }
 
     public void init() {
-        VisionPortal.Builder vpb = new VisionPortal.Builder();
-        vpb.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
-        vpb.setCameraResolution(new Size(640, 480));
-        vpb.setStreamFormat(VisionPortal.StreamFormat.MJPEG);
-        vpb.addProcessor(aprilTagProcessor);
-        vpb.build();
+//        VisionPortal.Builder vpb = new VisionPortal.Builder();
+//        vpb.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
+//        vpb.setCameraResolution(new Size(640, 480));
+//        vpb.setStreamFormat(VisionPortal.StreamFormat.MJPEG);
+//        vpb.addProcessor(aprilTagProcessor);
+//        vpb.build();
 //        Size size = vpb.getActiveCamera().getCameraCharacteristics().getDefaultSize(0);
         telemetry.addData("Drive.init()", true);
 //        telemetry.addData("CameraHeight", size.getHeight());
