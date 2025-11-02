@@ -19,9 +19,7 @@ public class TeleOp extends OpMode {
         leftFront = hardwareMap.get(DcMotor.class, "leftFront");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
-        leftBack.setDirection(DcMotor.Direction.REVERSE);
         rightBack = hardwareMap.get(DcMotor.class, "rightBack");
-        rightBack.setDirection(DcMotor.Direction.REVERSE);
         drive.setPose(new Pose2d(0, 0, 0));
 
         telemetry.addData("TeleOp.init()", true);
@@ -71,8 +69,6 @@ public class TeleOp extends OpMode {
         MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x, 0f, 1f);
         MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
         MoveData moveData = straight.add(strafe, turn);
-
-
 
         if(drive.done()) {
             leftFront.setPower(moveData.frontLeftPower);
