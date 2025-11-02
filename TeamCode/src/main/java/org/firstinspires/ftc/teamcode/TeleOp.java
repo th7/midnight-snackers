@@ -43,6 +43,9 @@ public class TeleOp extends OpMode {
         if (gamepad1.triangleWasPressed()) {
             launcher.launch();
         }
+        if(Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
+            drive.cancel();
+        }
 
         //adjust settings using second controller
         if (gamepad2.rightBumperWasPressed()) {
@@ -68,7 +71,9 @@ public class TeleOp extends OpMode {
         MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x, 0f, 1f);
         MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
         MoveData moveData = straight.add(strafe, turn);
-        
+
+
+
         if(drive.done()) {
             leftFront.setPower(moveData.frontLeftPower);
             rightFront.setPower(moveData.frontRightPower);

@@ -32,4 +32,8 @@ public class DriveRunner {
     public boolean done() {
         return roadRunnerAction == null;
     }
+
+    public void cancel() {
+        roadRunnerAction = null;
+    }
 }

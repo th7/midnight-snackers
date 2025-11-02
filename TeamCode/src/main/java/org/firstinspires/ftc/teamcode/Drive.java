@@ -201,4 +201,8 @@ public class Drive extends SubSystem {
         }
         return null;
     }
+
+    public void cancel() {
+        driveRunner.cancel();
+    }
 }
