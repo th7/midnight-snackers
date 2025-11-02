@@ -159,6 +159,9 @@ public class Drive extends SubSystem {
     }
 
     private void aprilTagTelemetry() {
+        if (aprilTagProcessor == null) {
+            return;
+        }
         List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
         if (currentDetections == null) { return; }
 
