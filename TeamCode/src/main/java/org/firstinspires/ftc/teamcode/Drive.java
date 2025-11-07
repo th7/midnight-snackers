@@ -1,24 +1,19 @@
 package org.firstinspires.ftc.teamcode;
 
-import android.util.Size;
-
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
@@ -103,7 +98,7 @@ public class Drive extends SubSystem {
         return driveRunner.done();
     }
 
-    public void drivePath(Pose2d... poseList) {
+    public void drivePathForward(Pose2d... poseList) {
         TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
         for (Pose2d pose : poseList) {
             builder = builder.splineToSplineHeading(pose, 0);
@@ -111,8 +106,24 @@ public class Drive extends SubSystem {
         driveRunner.drive(builder.build());
     }
 
+    public void drivePathBackward(Pose2d... poseList) {
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
+        for (Pose2d pose : poseList) {
+            builder = builder.setReversed(true).splineToSplineHeading(pose, Math.PI);
+        }
+        driveRunner.drive(builder.build());
+    }
+
+    public void strafePath(Pose2d... poseList) {
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
+        for (Pose2d pose : poseList) {
+            builder = builder.strafeToSplineHeading(pose.position, pose.heading);
+        }
+        driveRunner.driveOverride(builder.build());
+    }
+
     public void splineSquiggleSquare() {
-        drivePath(
+        drivePathForward(
                 new Pose2d(72, 0, 0),
                 new Pose2d(96, 0, Math.PI / 4),
                 new Pose2d(96, 24, Math.PI * 3 / 4),
@@ -127,7 +138,7 @@ public class Drive extends SubSystem {
     }
 
     public void toZeroPosition() {
-        drivePath(
+        drivePathForward(
                 new Pose2d(0, 0, 0)
         );
     }
@@ -140,14 +151,18 @@ public class Drive extends SubSystem {
         savedPose1 = getPose();
     }
     public void goToPose1() {
-        drivePath(savedPose1);
+        if (savedPose1 != null) {
+            strafePath(savedPose1);
+        }
     }
 
     public void savePose2() {
         savedPose2 = getPose();
     }
     public void goToPose2() {
-        drivePath(savedPose2);
+        if (savedPose2 != null) {
+            strafePath(savedPose2);
+        }
     }
     
     private Pose2d getPose() {

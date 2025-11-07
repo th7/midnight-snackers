@@ -5,10 +5,10 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.base.AutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
-@Autonomous(name = "BlueFarScoreAThing", group = "Autonomous")
-public class BlueFarScoreAThing extends AutoOp {
+@Autonomous(name = "RedScoreAThingFromBack", group = "Autonomous")
+public class RedScoreAThingFromBack extends AutoOp {
     @Override
     public PlanPart getPlan() {
-        return plans.blueFarScoreAThing();
+        return plans.redScoreAThingFromBack();
     }
 }

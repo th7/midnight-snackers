@@ -24,7 +24,7 @@ public class Launcher extends SubSystem {
     private double gate1Position;
     private double gate2Position;
     private double gate3Position;
-    private double gateWaitTime = 0.37;
+    private double gateWaitTime = 2;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
 
@@ -76,8 +76,9 @@ public class Launcher extends SubSystem {
     }
 
     public void launch() {
-        gatePosition = gateOpenPosition;
-        launchStartedAt = runtime.time();
+        if (flywheelReady() && gatePosition == gateClosedPosition) {
+            launchNow();
+        }
     }
 
     public void increaseGatePosition() {
@@ -147,9 +148,12 @@ public class Launcher extends SubSystem {
     }
 
     public boolean flywheelReady() {
-        return closeEnough(launcher.getVelocity(), launcherVelocity, 15);
+        return launcherOn() && closeEnough(launcher.getVelocity(), launcherVelocity, 15);
     }
 
+    private boolean launcherOn() {
+        return launcherVelocity > 0;
+    }
 
     public void launchMotifFirst(Plans.Motif motif) {
         if (motif == Plans.Motif.GPP) {
@@ -199,5 +203,14 @@ public class Launcher extends SubSystem {
         adjustable = adjustable - 0.1;
 //        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
 //        launcher.setPositionPIDFCoefficients(5);
+    }
+
+    public boolean stopped() {
+        return launcherVelocity < 1;
+    }
+
+    public void launchNow() {
+        gatePosition = gateOpenPosition;
+        launchStartedAt = runtime.time();
     }
 }

@@ -24,31 +24,21 @@ public class Plans {
         this.runtime = runtime;
     }
 
-    public Plan redFarScoreAThing() {
-        return farScoreAThing(Alliance.red);
+    public Plan redScoreAThingFromBack() {
+        return scoreAThingFromBack(Alliance.red);
     }
 
-    public Plan redCloseScoreAThing() {
-        return nearScoreAThing(Alliance.red);
-    }
-
-    public Plan blueFarScoreAThing() {
-        return farScoreAThing(Alliance.blue);
-    }
-
-    public Plan blueCloseScoreAThing() {
-        return nearScoreAThing(Alliance.blue);
+    public Plan blueScoreAThingFromBack() {
+        return scoreAThingFromBack(Alliance.blue);
     }
 
     public Plan scoreAThing() {
         return new Plan(
                 setZeroPosition(),
                 setCloseLaunchPower(),
-                waitFor(4),
+                backFromZeroALittle(),
                 waitForFlywheel(),
-                launchStep(),
-                backFromZeroALittle()
-
+                launch()
         );
     }
 
@@ -67,26 +57,18 @@ public class Plans {
         );
     }
 
-    private Plan farScoreAThing(Alliance alliance) {
-        return new Plan(
-                setBackPosition(alliance),
-                setFarLaunchPowerStep(),
-                moveToFarScorePosition(alliance),
-                waitForFlywheel(),
-                launchStep(),
-                getOffLaunchLine(alliance)
-
-        );
-    }
-
-    public Plan nearScoreAThing(Alliance alliance) {
+    public Plan scoreAThingFromBack(Alliance alliance) {
         return new Plan(
                 setBackPosition(alliance),
                 setCloseLaunchPower(),
-                moveFromBackToCloseGoal(alliance),
+                moveToScorePosition(alliance),
                 waitForFlywheel(),
-                launchStep(),
-                getOffLaunchLine(alliance)
+                launch(),
+                waitForFlywheel(),
+                launch(),
+                waitForFlywheel(),
+                launch(),
+                toLoadingZone(alliance)
         );
     }
 
@@ -135,13 +117,14 @@ public class Plans {
         );
     }
 
-    private Step launchStep() {
+    private Step launch() {
         return new Step(
                 "launch",
-                launcher::launch,
+                launcher::launchNow,
                 launcher::done
         );
     }
+
 
     private Step splineSquiggleSquareStep() {
         return new Step(
@@ -176,10 +159,10 @@ public class Plans {
         );
     }
 
-    private Step moveToFarScorePosition(Alliance alliance) {
+    private Step moveToScorePosition(Alliance alliance) {
         return new Step(
-                "moveToFarScorePosition",
-                () -> drive.drivePath(alliance.pose(33, 33, Math.PI / 4)),
+                "moveToScorePosition",
+                () -> drive.drivePathForward(alliance.pose(33, 33, Math.PI / 4)),
                 drive::done
         );
     }
@@ -187,7 +170,7 @@ public class Plans {
     private Step moveFromBackToCloseGoal(Alliance alliance) {
         return new Step(
                 "moveFromBackToCloseGoal",
-                () -> drive.drivePath(
+                () -> drive.drivePathForward(
                         alliance.pose(12, 12, Math.PI / 4),
                         alliance.pose(48, 48, Math.PI / 4)
                 ),
@@ -198,7 +181,7 @@ public class Plans {
     private Step getOffLaunchLine(Alliance alliance) {
         return new Step(
                 "getOffLaunchLine",
-                () -> drive.drivePath(
+                () -> drive.drivePathForward(
                         alliance.pose(24, 24, Math.PI / 4),
                         alliance.pose(0, 24, Math.PI / 4)
                 ),
@@ -209,8 +192,18 @@ public class Plans {
     private Step backFromZeroALittle() {
         return new Step(
                 "backFromZeroALittle",
-                () -> drive.drivePath(
-                        new Pose2d(-12, 0, 0)
+                () -> drive.drivePathBackward(
+                        new Pose2d(-18, 0, 0)
+                ),
+                drive::done
+        );
+    }
+
+    private Step toLoadingZone(Alliance alliance) {
+        return new Step(
+                "toLoadingZone",
+                () -> drive.drivePathBackward(
+                        alliance.pose(-36, 12, 0)
                 ),
                 drive::done
         );

@@ -38,7 +38,7 @@ public class TeleOp extends OpMode {
         if (gamepad1.crossWasPressed()) {
             launcher.noPower();
         }
-        if (gamepad1.triangleWasPressed()) {
+        if (gamepad1.triangle && !launcher.stopped()) {
             launcher.launch();
         }
         if(Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
@@ -80,13 +80,13 @@ public class TeleOp extends OpMode {
         if (gamepad1.leftBumperWasPressed()) {
             drive.savePose1();
         }
-        if (gamepad1.left_trigger > 0.5 && drive.done()) {
+        if (gamepad1.left_trigger > 0.5) {
             drive.goToPose1();
         }
         if (gamepad1.rightBumperWasPressed()) {
             drive.savePose2();
         }
-        if (gamepad1.right_trigger > 0.5 && drive.done()) {
+        if (gamepad1.right_trigger > 0.5) {
             drive.goToPose2();
         }
 
