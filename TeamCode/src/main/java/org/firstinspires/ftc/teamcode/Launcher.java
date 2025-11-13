@@ -24,7 +24,7 @@ public class Launcher extends SubSystem {
     private double gate1Position;
     private double gate2Position;
     private double gate3Position;
-    private double gateWaitTime = 2;
+    private double gateWaitTime = 0.4015;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
 
@@ -76,7 +76,9 @@ public class Launcher extends SubSystem {
     }
 
     public void launch() {
-        if (flywheelReady() && gatePosition == gateClosedPosition) {
+        if (stopped()) {
+            setCloseLaunchPower();
+        } else if (flywheelReady() && gatePosition == gateClosedPosition) {
             launchNow();
         }
     }
@@ -90,11 +92,11 @@ public class Launcher extends SubSystem {
     }
 
     public void increaseGateWaitTime() {
-        gateWaitTime = gateWaitTime + 0.01;
+        gateWaitTime = gateWaitTime + 0.0001;
     }
 
     public void decreaseGateWaitTime() {
-        gateWaitTime = gateWaitTime - 0.01;
+        gateWaitTime = gateWaitTime - 0.0001;
     }
 
     @Override
@@ -138,9 +140,13 @@ public class Launcher extends SubSystem {
         return runtime.time() >= launchStartedAt + gateWaitTime;
     }
 
+    private boolean gateClosed() {
+        return runtime.time() >= launchStartedAt + gateWaitTime * 2 + 0.05;
+    }
+
     @Override
     public boolean done() {
-        return gateWaitTimePassed();
+        return gateClosed();
     }
 
     private boolean closeEnough(double a, double b, double c) {

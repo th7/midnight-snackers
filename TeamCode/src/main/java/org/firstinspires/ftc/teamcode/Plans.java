@@ -37,8 +37,7 @@ public class Plans {
                 setZeroPosition(),
                 setCloseLaunchPower(),
                 backFromZeroALittle(),
-                waitForFlywheel(),
-                launch()
+                launchAll()
         );
     }
 
@@ -62,12 +61,7 @@ public class Plans {
                 setBackPosition(alliance),
                 setCloseLaunchPower(),
                 moveToScorePosition(alliance),
-                waitForFlywheel(),
-                launch(),
-                waitForFlywheel(),
-                launch(),
-                waitForFlywheel(),
-                launch(),
+                launchAll(),
                 toLoadingZone(alliance)
         );
     }
@@ -122,6 +116,17 @@ public class Plans {
                 "launch",
                 launcher::launchNow,
                 launcher::done
+        );
+    }
+
+    private Plan launchAll() {
+        return new Plan(
+                waitForFlywheel(),
+                launch(),
+                waitForFlywheel(),
+                launch(),
+                waitForFlywheel(),
+                launch()
         );
     }
 
@@ -193,7 +198,7 @@ public class Plans {
         return new Step(
                 "backFromZeroALittle",
                 () -> drive.drivePathBackward(
-                        new Pose2d(-18, 0, 0)
+                        new Pose2d(-20, 0, 0)
                 ),
                 drive::done
         );
