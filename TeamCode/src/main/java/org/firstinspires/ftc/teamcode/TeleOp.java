@@ -32,9 +32,9 @@ public class TeleOp extends OpMode {
         if (gamepad1.squareWasPressed()) {
             launcher.setCloseLaunchPower();
         }
-        if (gamepad1.circleWasPressed()) {
-            launcher.setFarLaunchPower();
-        }
+//        if (gamepad1.circleWasPressed()) {
+//            launcher.setFarLaunchPower();
+//        }
         if (gamepad1.crossWasPressed()) {
             launcher.noPower();
         }
