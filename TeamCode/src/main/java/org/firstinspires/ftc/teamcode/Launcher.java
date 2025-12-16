@@ -16,19 +16,20 @@ public class Launcher extends SubSystem {
     private final double closeLauncherPower = 1050d;
     private final double rangedLauncherPower = 1350d;
     private DcMotorEx launcher;
-    private Servo gate;
-    private double gatePosition;
-    private double launcherVelocity = 0d;
-    private double launchStartedAt = -1;
-    private boolean telemetryOn = false;
+    private Servo gate1;
+    private Servo gate2; //gate2 is closer to launcher
     private double gate1Position;
     private double gate2Position;
-    private double gate3Position;
-    private double gateWaitTime = 0.4015;
+    private double launcherVelocity = 0d;
+    private double gate2StartedAt = -1;
+    private double gate1StartedAt = -1;
+    private boolean telemetryOn = false;
+    private boolean loadingInProgress = false;
+    private double gate2WaitTime = 0.45;
+    private double gate1WaitTime = gate2WaitTime;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
-
-    private double adjustable = 0;
+    private double PIDFAdjustable = 0;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -45,7 +46,8 @@ public class Launcher extends SubSystem {
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        gate = hardwareMap.get(Servo.class, "gate");
+        gate1 = hardwareMap.get(Servo.class, "gate1");
+        gate2 = hardwareMap.get(Servo.class, "gate2");
         telemetry.addData("Launcher.init()", true);
     }
 
@@ -78,36 +80,59 @@ public class Launcher extends SubSystem {
     public void launch() {
         if (stopped()) {
             setCloseLaunchPower();
-        } else if (flywheelReady() && gatePosition == gateClosedPosition) {
+        } else if (flywheelReady() && gate2Position == gateClosedPosition) {
             launchNow();
         }
     }
 
     public void increaseGatePosition() {
-        gatePosition = gatePosition + 0.05;
+        gate2Position = gate2Position + 0.05;
     }
 
     public void decreaseGatePosition() {
-        gatePosition = gatePosition - 0.05;
+        gate2Position = gate2Position - 0.05;
     }
 
     public void increaseGateWaitTime() {
-        gateWaitTime = gateWaitTime + 0.0001;
+        gate2WaitTime = gate2WaitTime + 0.0001;
     }
 
     public void decreaseGateWaitTime() {
-        gateWaitTime = gateWaitTime - 0.0001;
+        gate2WaitTime = gate2WaitTime - 0.0001;
+    }
+
+    public void startLoading() {
+        if (launchDone()) {
+            loadingInProgress = true;
+        }
+    }
+
+    public void finishLoading() {
+        gate1Position = gateClosedPosition;
     }
 
     @Override
     public void loop() {
         launcher.setVelocity(launcherVelocity);
 
-        if (gatePosition == gateOpenPosition && gateWaitTimePassed()) {
-            gatePosition = gateClosedPosition;
+        if (gate2Position == gateOpenPosition && gate2WaitTimePassed()) {
+            gate2Position = gateClosedPosition;
+            gate1Position = gateOpenPosition;
+            gate1StartedAt = runtime.time();
         }
 
-        gate.setPosition(gatePosition);
+        if (gate1Position == gateOpenPosition && gate1WaitTimePassed()) {
+            gate1Position = gateClosedPosition;
+        }
+
+        if (loadingInProgress) {
+            gate1Position = gateOpenPosition;
+        } else {
+            gate1Position = gateClosedPosition;
+        }
+
+        gate1.setPosition(gate1Position);
+        gate2.setPosition(gate2Position);
 
         if (telemetryOn) { setTelemetry(); }
     }
@@ -115,13 +140,15 @@ public class Launcher extends SubSystem {
     public void toggleTelemetry() { telemetryOn = !telemetryOn; }
 
     private void setTelemetry() {
-        telemetry.addData("adjustable", adjustable);
+        telemetry.addData("adjustable", PIDFAdjustable);
         telemetry.addData("launcherPower", launcher.getPower());
         telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
         telemetry.addData("launcherVelocityTarget", launcherVelocity);
         telemetry.addData("launcherVelocityActual", launcher.getVelocity());
-        telemetry.addData("gatePosition", gatePosition);
-        telemetry.addData("gateWaitTime", gateWaitTime);
+        telemetry.addData("gate1Position", gate1Position);
+        telemetry.addData("gate1WaitTime", gate1WaitTime);
+        telemetry.addData("gate2Position", gate2Position);
+        telemetry.addData("gate2WaitTime", gate2WaitTime);
         telemetry.addData("PIDF vel (orig)", "%.04f, %.04f, %.04f, %.04f",
                 pidVelocityOrig.p, pidVelocityOrig.i, pidVelocityOrig.d, pidVelocityOrig.f);
         PIDFCoefficients pidVelocityModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -136,17 +163,25 @@ public class Launcher extends SubSystem {
 //        telemetry.addData("velocityPIDFCoefficients", launcher.getPIDFCoefficients());
     }
 
-    private boolean gateWaitTimePassed() {
-        return runtime.time() >= launchStartedAt + gateWaitTime;
+    private boolean gate2WaitTimePassed() {
+        return runtime.time() >= gate2StartedAt + gate2WaitTime;
     }
 
-    private boolean gateClosed() {
-        return runtime.time() >= launchStartedAt + gateWaitTime * 2 + 0.05;
+    private boolean gate1WaitTimePassed() {
+        return runtime.time() >= gate1StartedAt + gate1WaitTime;
     }
 
-    @Override
-    public boolean done() {
-        return gateClosed();
+    private boolean gate1LaunchFinished() {
+        return runtime.time() >= gate1StartedAt + gate1WaitTime * 2 + 0.05;
+    }
+
+    private boolean gate2LaunchFinished() {
+        return runtime.time() >= gate2StartedAt + gate2WaitTime * 2 + 0.05;
+    }
+
+//    @Override
+    public boolean launchDone() {
+        return gate1LaunchFinished() && gate2LaunchFinished();
     }
 
     private boolean closeEnough(double a, double b, double c) {
@@ -161,52 +196,52 @@ public class Launcher extends SubSystem {
         return launcherVelocity > 0;
     }
 
-    public void launchMotifFirst(Plans.Motif motif) {
-        if (motif == Plans.Motif.GPP) {
-            gate1Position = gateOpenPosition;
-        } else if (motif == Plans.Motif.PGP) {
-            gate2Position = gateOpenPosition;
-        } else if (motif == Plans.Motif.PPG) {
-            gate3Position = gateOpenPosition;
-        } else {
-            gate1Position = gateOpenPosition;
-        }
-        launchStartedAt = runtime.time();
-    }
-
-    public void launchMotifSecond(Plans.Motif motif) {
-        if (motif == Plans.Motif.GPP) {
-            gate2Position = gateOpenPosition;
-        } else if (motif == Plans.Motif.PGP) {
-            gate1Position = gateOpenPosition;
-        } else if (motif == Plans.Motif.PPG) {
-            gate3Position = gateOpenPosition;
-        } else {
-            gate2Position = gateOpenPosition;
-        }
-        launchStartedAt = runtime.time();
-    }
-
-    public void launchMotifThird(Plans.Motif motif) {
-        if (motif == Plans.Motif.GPP) {
-            gate3Position = gateOpenPosition;
-        } else if (motif == Plans.Motif.PGP) {
-            gate3Position = gateOpenPosition;
-        } else if (motif == Plans.Motif.PPG) {
-            gate1Position = gateOpenPosition;
-        } else {
-            gate3Position = gateOpenPosition;
-        }
-        launchStartedAt = runtime.time();
-    }
+//    public void launchMotifFirst(Plans.Motif motif) {
+//        if (motif == Plans.Motif.GPP) {
+//            gate1Position = gate2OpenPosition;
+//        } else if (motif == Plans.Motif.PGP) {
+//            gate2Position = gate2OpenPosition;
+//        } else if (motif == Plans.Motif.PPG) {
+//            gate3Position = gate2OpenPosition;
+//        } else {
+//            gate1Position = gate2OpenPosition;
+//        }
+//        launchStartedAt = runtime.time();
+//    }
+//
+//    public void launchMotifSecond(Plans.Motif motif) {
+//        if (motif == Plans.Motif.GPP) {
+//            gate2Position = gate2OpenPosition;
+//        } else if (motif == Plans.Motif.PGP) {
+//            gate1Position = gate2OpenPosition;
+//        } else if (motif == Plans.Motif.PPG) {
+//            gate3Position = gate2OpenPosition;
+//        } else {
+//            gate2Position = gate2OpenPosition;
+//        }
+//        launchStartedAt = runtime.time();
+//    }
+//
+//    public void launchMotifThird(Plans.Motif motif) {
+//        if (motif == Plans.Motif.GPP) {
+//            gate3Position = gate2OpenPosition;
+//        } else if (motif == Plans.Motif.PGP) {
+//            gate3Position = gate2OpenPosition;
+//        } else if (motif == Plans.Motif.PPG) {
+//            gate1Position = gate2OpenPosition;
+//        } else {
+//            gate3Position = gate2OpenPosition;
+//        }
+//        launchStartedAt = runtime.time();
+//    }
 
     public void increaseAdjustable() {
-        adjustable = adjustable + 0.1;
+        PIDFAdjustable = PIDFAdjustable + 0.1;
 //        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
 //        launcher.setPositionPIDFCoefficients(5);
     }
     public void decreaseAdjustable() {
-        adjustable = adjustable - 0.1;
+        PIDFAdjustable = PIDFAdjustable - 0.1;
 //        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
 //        launcher.setPositionPIDFCoefficients(5);
     }
@@ -216,7 +251,7 @@ public class Launcher extends SubSystem {
     }
 
     public void launchNow() {
-        gatePosition = gateOpenPosition;
-        launchStartedAt = runtime.time();
+        gate2Position = gateOpenPosition;
+        gate2StartedAt = runtime.time();
     }
 }

@@ -41,20 +41,20 @@ public class Plans {
         );
     }
 
-    public Plan scoreAMotif() {
-        return new Plan(
-                detectMotif(),
-                launchMotif()
-        );
-    }
+//    public Plan scoreAMotif() {
+//        return new Plan(
+//                detectMotif(),
+//                launchMotif()
+//        );
+//    }
 
-    public Plan launchMotif() {
-        return new Plan(
-                launchMotifFirst(),
-                launchMotifSecond(),
-                launchMotifThird()
-        );
-    }
+//    public Plan launchMotif() {
+//        return new Plan(
+//                launchMotifFirst(),
+//                launchMotifSecond(),
+//                launchMotifThird()
+//        );
+//    }
 
     public Plan scoreAThingFromBack(Alliance alliance) {
         return new Plan(
@@ -115,7 +115,7 @@ public class Plans {
         return new Step(
                 "launch",
                 launcher::launchNow,
-                launcher::done
+                launcher::launchDone
         );
     }
 
@@ -225,29 +225,29 @@ public class Plans {
         );
     }
 
-    private Step launchMotifFirst() {
-        return new Step(
-                "launchMotifFirst",
-                () -> { launcher.launchMotifFirst(motif); },
-                launcher::done
-        );
-    }
-
-    private Step launchMotifSecond() {
-        return new Step(
-                "launchMotifSecond",
-                () -> { launcher.launchMotifSecond(motif); },
-                launcher::done
-        );
-    }
-
-    private Step launchMotifThird() {
-        return new Step(
-                "launchMotifThird",
-                () -> { launcher.launchMotifThird(motif); },
-                launcher::done
-        );
-    }
+//    private Step launchMotifFirst() {
+//        return new Step(
+//                "launchMotifFirst",
+//                () -> { launcher.launchMotifFirst(motif); },
+//                launcher::launchDone
+//        );
+//    }
+//
+//    private Step launchMotifSecond() {
+//        return new Step(
+//                "launchMotifSecond",
+//                () -> { launcher.launchMotifSecond(motif); },
+//                launcher::launchDone
+//        );
+//    }
+//
+//    private Step launchMotifThird() {
+//        return new Step(
+//                "launchMotifThird",
+//                () -> { launcher.launchMotifThird(motif); },
+//                launcher::launchDone
+//        );
+//    }
 
 //    private detectMotif() {
 //        if (drive.motif()) {
