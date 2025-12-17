@@ -33,7 +33,7 @@ public class TeleOp extends OpMode {
             launcher.setCloseLaunchPower();
         }
         if (gamepad1.circleWasPressed()) {
-            launcher.startLoading();
+            launcher.loadyLoad();
         }
         if (gamepad1.circleWasReleased()) {
             launcher.finishLoading();
@@ -42,7 +42,8 @@ public class TeleOp extends OpMode {
             launcher.noPower();
         }
         if (gamepad1.triangleWasPressed() && launcher.launchDone()) {
-            launcher.launch();
+//            launcher.launch();
+            launcher.launchyLaunch();
         }
         if(Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
             drive.cancel();

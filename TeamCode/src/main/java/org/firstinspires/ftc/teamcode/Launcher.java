@@ -9,6 +9,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.planrunner.Plan;
+import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher extends SubSystem {
     private final double gateOpenPosition = 1;
@@ -32,6 +34,8 @@ public class Launcher extends SubSystem {
     private double PIDFAdjustable = 0;
     private boolean launching;
 
+    private Plan currentPlan = null;
+
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
     }
@@ -54,35 +58,126 @@ public class Launcher extends SubSystem {
 
     @Override
     public void loop() {
+        if (currentPlan != null) {
+            if (currentPlan.done()) { currentPlan = null; }
+        }
+
         launcher.setVelocity(launcherVelocity);
 
-        if (launching) {
-            // close 2 open 1
-            if (gate2Position == gateOpenPosition && gate2WaitTimePassed()) {
-                gate2Position = gateClosedPosition;
-                gate1Position = gateOpenPosition;
-                gate1StartedAt = runtime.time();
-            }
-
-            // close 1
-            if (gate1Position == gateOpenPosition && gate1WaitTimePassed()) {
-                gate1Position = gateClosedPosition;
-            }
-
-            // finish
-            if (launchDone()) { launching = false; }
-        }
-
-        if (loading) {
-            gate1Position = gateOpenPosition;
-        } else if (!launching) {
-            gate1Position = gateClosedPosition;
-        }
+//        if (launching) {
+//            // close 2 open 1
+//            if (gate2Position == gateOpenPosition && gate2WaitTimePassed()) {
+//                gate2Position = gateClosedPosition;
+//                gate1Position = gateOpenPosition;
+//                gate1StartedAt = runtime.time();
+//            }
+//
+//            // close 1
+//            if (gate1Position == gateOpenPosition && gate1WaitTimePassed()) {
+//                gate1Position = gateClosedPosition;
+//            }
+//
+//            // finish
+//            if (launchDone()) { launching = false; }
+//        }
+//
+//        if (loading) {
+//            gate1Position = gateOpenPosition;
+//        } else if (!launching) {
+//            gate1Position = gateClosedPosition;
+//        }
 
         gate1.setPosition(gate1Position);
         gate2.setPosition(gate2Position);
 
         if (telemetryOn) { setTelemetry(); }
+    }
+
+    public void launchyLaunch() {
+        if (currentPlan == null) {
+            currentPlan = launchPlan();
+        }
+    }
+
+    private Plan launchPlan() {
+        return new Plan(
+                launchOpenGate2(),
+                launchCloseGate2OpenGate1(),
+                launchCloseGate1()
+        );
+    }
+
+    private Step launchOpenGate2() {
+        return new Step(
+                "launchOpenGate2",
+                () -> {
+                    gate2Position = gateOpenPosition;
+                    gate2StartedAt = runtime.time();
+                },
+                this::gate2WaitTimePassed
+        );
+    }
+
+    private Step launchCloseGate2OpenGate1() {
+        return new Step(
+                "launchCloseGate2OpenGate1",
+                () -> {
+                    gate2Position = gateClosedPosition;
+                    gate1Position = gateOpenPosition;
+                    gate1StartedAt = runtime.time();
+                },
+                this::gate1WaitTimePassed
+        );
+    }
+
+    private Step launchCloseGate1() {
+        return new Step(
+                "launchCloseGate1",
+                () -> {
+                    gate1Position = gateClosedPosition;
+                },
+                this::launchDone
+        );
+    }
+
+    public void loadyLoad() {
+        if (currentPlan == null) { currentPlan = loadPlan(); }
+    }
+
+    public void finishLoading() {
+//        if (loading) {
+//            gate1Position = gateClosedPosition;
+        loading = false;
+//        }
+    }
+
+    private Plan loadPlan() {
+        return new Plan(
+                loadOpenGate1(),
+                loadCloseGate1()
+        );
+    }
+
+    private Step loadOpenGate1() {
+        return new Step(
+                "loadOpenGate1",
+                () -> {
+                    loading = true;
+                    gate1Position = gateOpenPosition;
+                },
+                () -> { return !loading; }
+        );
+    }
+
+    private Step loadCloseGate1() {
+        return new Step(
+                "loadCloseGate1",
+                () -> {
+                    gate1Position = gateClosedPosition;
+                    gate1StartedAt = runtime.time();
+                },
+                this::gate1WaitTimePassed
+        );
     }
 
     public void launch() {
@@ -141,22 +236,21 @@ public class Launcher extends SubSystem {
         gate2WaitTime = gate2WaitTime - 0.0001;
     }
 
-    public void startLoading() {
-        if (!launching) {
-            loading = true;
-        }
-    }
-
-    public void finishLoading() {
-        if (loading) {
-            gate1Position = gateClosedPosition;
-            loading = false;
-        }
-    }
+//    public void startLoading() {
+//        if (!launching) {
+//            loading = true;
+//        }
+//    }
 
     public void toggleTelemetry() { telemetryOn = !telemetryOn; }
 
     private void setTelemetry() {
+        if (currentPlan != null) {
+            telemetry.addData("launcherStep", currentPlan.currentStep());
+        } else {
+            telemetry.addData("launcherStep", "no currentPlan");
+        }
+
         telemetry.addData("adjustable", PIDFAdjustable);
         telemetry.addData("launcherPower", launcher.getPower());
         telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
