@@ -24,12 +24,13 @@ public class Launcher extends SubSystem {
     private double gate2StartedAt = -1;
     private double gate1StartedAt = -1;
     private boolean telemetryOn = false;
-    private boolean loadingInProgress = false;
+    private boolean loading = false;
     private double gate2WaitTime = 0.45;
     private double gate1WaitTime = gate2WaitTime;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;
+    private boolean launching;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -49,6 +50,53 @@ public class Launcher extends SubSystem {
         gate1 = hardwareMap.get(Servo.class, "gate1");
         gate2 = hardwareMap.get(Servo.class, "gate2");
         telemetry.addData("Launcher.init()", true);
+    }
+
+    @Override
+    public void loop() {
+        launcher.setVelocity(launcherVelocity);
+
+        if (launching) {
+            // close 2 open 1
+            if (gate2Position == gateOpenPosition && gate2WaitTimePassed()) {
+                gate2Position = gateClosedPosition;
+                gate1Position = gateOpenPosition;
+                gate1StartedAt = runtime.time();
+            }
+
+            // close 1
+            if (gate1Position == gateOpenPosition && gate1WaitTimePassed()) {
+                gate1Position = gateClosedPosition;
+            }
+
+            // finish
+            if (launchDone()) { launching = false; }
+        }
+
+        if (loading) {
+            gate1Position = gateOpenPosition;
+        } else if (!launching) {
+            gate1Position = gateClosedPosition;
+        }
+
+        gate1.setPosition(gate1Position);
+        gate2.setPosition(gate2Position);
+
+        if (telemetryOn) { setTelemetry(); }
+    }
+
+    public void launch() {
+        if (stopped()) {
+            setCloseLaunchPower();
+        } else if (flywheelReady() && !loading && gate2Position == gateClosedPosition) {
+            launchNow();
+        }
+    }
+
+    public void launchNow() {
+        gate2Position = gateOpenPosition;
+        gate2StartedAt = runtime.time();
+        launching = true;
     }
 
     public void increasePower() {
@@ -77,14 +125,6 @@ public class Launcher extends SubSystem {
         launcherVelocity = 0;
     }
 
-    public void launch() {
-        if (stopped()) {
-            setCloseLaunchPower();
-        } else if (flywheelReady() && gate2Position == gateClosedPosition) {
-            launchNow();
-        }
-    }
-
     public void increaseGatePosition() {
         gate2Position = gate2Position + 0.05;
     }
@@ -102,39 +142,16 @@ public class Launcher extends SubSystem {
     }
 
     public void startLoading() {
-        if (launchDone()) {
-            loadingInProgress = true;
+        if (!launching) {
+            loading = true;
         }
     }
 
     public void finishLoading() {
-        gate1Position = gateClosedPosition;
-    }
-
-    @Override
-    public void loop() {
-        launcher.setVelocity(launcherVelocity);
-
-        if (gate2Position == gateOpenPosition && gate2WaitTimePassed()) {
-            gate2Position = gateClosedPosition;
-            gate1Position = gateOpenPosition;
-            gate1StartedAt = runtime.time();
-        }
-
-        if (gate1Position == gateOpenPosition && gate1WaitTimePassed()) {
+        if (loading) {
             gate1Position = gateClosedPosition;
+            loading = false;
         }
-
-        if (loadingInProgress) {
-            gate1Position = gateOpenPosition;
-        } else {
-            gate1Position = gateClosedPosition;
-        }
-
-        gate1.setPosition(gate1Position);
-        gate2.setPosition(gate2Position);
-
-        if (telemetryOn) { setTelemetry(); }
     }
 
     public void toggleTelemetry() { telemetryOn = !telemetryOn; }
@@ -248,10 +265,5 @@ public class Launcher extends SubSystem {
 
     public boolean stopped() {
         return launcherVelocity < 1;
-    }
-
-    public void launchNow() {
-        gate2Position = gateOpenPosition;
-        gate2StartedAt = runtime.time();
     }
 }
