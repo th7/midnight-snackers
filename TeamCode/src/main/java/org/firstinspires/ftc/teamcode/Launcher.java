@@ -19,7 +19,7 @@ public class Launcher extends SubSystem {
     private final double rangedLauncherPower = 1350d;
     private DcMotorEx launcher;
     private Servo gate1;
-    private Servo gate2; //gate2 is closer to launcher
+    private Servo gate2; // gate2 is closer to launcher
     private double gate1Position;
     private double gate2Position;
     private double launcherVelocity = 0d;
@@ -32,7 +32,6 @@ public class Launcher extends SubSystem {
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;
-    private boolean launching;
     private Plan currentPlan = null;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
