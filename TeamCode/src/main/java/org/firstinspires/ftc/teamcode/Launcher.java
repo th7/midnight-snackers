@@ -68,7 +68,9 @@ public class Launcher extends SubSystem {
         gate1.setPosition(gate1Position);
         gate2.setPosition(gate2Position);
 
-        if (telemetryOn) { setTelemetry(); }
+        if (telemetryOn) {
+            setTelemetry();
+        }
     }
 
     public void launchyLaunch() {
@@ -128,7 +130,9 @@ public class Launcher extends SubSystem {
     }
 
     public void loadyLoad() {
-        if (currentPlan == null) { currentPlan = loadPlan(); }
+        if (currentPlan == null) {
+            currentPlan = loadPlan();
+        }
     }
 
     public void finishLoading() {
@@ -149,7 +153,9 @@ public class Launcher extends SubSystem {
                     loading = true;
                     gate1Position = gateOpenPosition;
                 },
-                () -> { return !loading; }
+                () -> {
+                    return !loading;
+                }
         );
     }
 
@@ -206,7 +212,9 @@ public class Launcher extends SubSystem {
         gate2WaitTime = gate2WaitTime - 0.0001;
     }
 
-    public void toggleTelemetry() { telemetryOn = !telemetryOn; }
+    public void toggleTelemetry() {
+        telemetryOn = !telemetryOn;
+    }
 
     private void setTelemetry() {
         if (currentPlan != null) {
@@ -252,7 +260,6 @@ public class Launcher extends SubSystem {
         return runtime.time() >= gate2StartedAt + gate2WaitTime * 2 + 0.05;
     }
 
-//    @Override
     public boolean gateLaunchDone() {
         return gate1LaunchFinished() && gate2LaunchFinished();
     }
@@ -315,6 +322,7 @@ public class Launcher extends SubSystem {
     public void increaseAdjustable() {
         PIDFAdjustable = PIDFAdjustable + 0.1;
     }
+
     public void decreaseAdjustable() {
         PIDFAdjustable = PIDFAdjustable - 0.1;
     }
