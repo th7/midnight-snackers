@@ -28,7 +28,7 @@ public class Launcher extends SubSystem {
     private boolean telemetryOn = false;
     private boolean loading = false;
     private double gate2WaitTime = 0.45;
-    private double gate1WaitTime = gate2WaitTime;
+    private final double gate1WaitTime = gate2WaitTime;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;

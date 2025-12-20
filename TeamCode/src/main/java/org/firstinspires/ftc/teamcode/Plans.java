@@ -10,7 +10,7 @@ public class Plans {
     enum Motif {
         GPP,
         PGP,
-        PPG;
+        PPG
     }
     public Drive drive;
     public Launcher launcher;
