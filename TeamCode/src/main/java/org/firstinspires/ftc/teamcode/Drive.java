@@ -2,12 +2,10 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
-import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
@@ -92,8 +90,7 @@ public class Drive extends SubSystem {
         }
         aprilTagTelemetry();
     }
-
-//    @Override
+    
     public boolean done() {
         return driveRunner.done();
     }
@@ -146,10 +143,11 @@ public class Drive extends SubSystem {
     public void toggleTelemetry() {
         telemetryOn = !telemetryOn;
     }
-    
+
     public void savePose1() {
         savedPose1 = getPose();
     }
+
     public void goToPose1() {
         if (savedPose1 != null) {
             strafePath(savedPose1);
@@ -159,12 +157,13 @@ public class Drive extends SubSystem {
     public void savePose2() {
         savedPose2 = getPose();
     }
+
     public void goToPose2() {
         if (savedPose2 != null) {
             strafePath(savedPose2);
         }
     }
-    
+
     private Pose2d getPose() {
         return mecanumDrive.localizer.getPose();
     }
@@ -178,7 +177,9 @@ public class Drive extends SubSystem {
             return;
         }
         List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
-        if (currentDetections == null) { return; }
+        if (currentDetections == null) {
+            return;
+        }
 
         for (AprilTagDetection detection : currentDetections) {
             String tag = "detection." + detection.id;
@@ -201,7 +202,9 @@ public class Drive extends SubSystem {
 
     public Plans.Motif motif() {
         List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
-        if (currentDetections == null) { return null; }
+        if (currentDetections == null) {
+            return null;
+        }
 
         for (AprilTagDetection detection : currentDetections) {
             if (detection.id == 21) {

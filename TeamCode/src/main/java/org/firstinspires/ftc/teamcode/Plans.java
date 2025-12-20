@@ -7,11 +7,6 @@ import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans {
-    enum Motif {
-        GPP,
-        PGP,
-        PPG
-    }
     public Drive drive;
     public Launcher launcher;
     public ElapsedTime runtime;
@@ -41,6 +36,16 @@ public class Plans {
         );
     }
 
+    public Plan scoreAThingFromBack(Alliance alliance) {
+        return new Plan(
+                setBackPosition(alliance),
+                setCloseLaunchPower(),
+                moveToScorePosition(alliance),
+                launchAll(),
+                toLoadingZone(alliance)
+        );
+    }
+
 //    public Plan scoreAMotif() {
 //        return new Plan(
 //                detectMotif(),
@@ -55,16 +60,6 @@ public class Plans {
 //                launchMotifThird()
 //        );
 //    }
-
-    public Plan scoreAThingFromBack(Alliance alliance) {
-        return new Plan(
-                setBackPosition(alliance),
-                setCloseLaunchPower(),
-                moveToScorePosition(alliance),
-                launchAll(),
-                toLoadingZone(alliance)
-        );
-    }
 
     public Plan splineSquiggleSquare() {
         return new Plan(
@@ -117,7 +112,6 @@ public class Plans {
                 launch()
         );
     }
-
 
     private Step splineSquiggleSquareStep() {
         return new Step(
@@ -205,12 +199,20 @@ public class Plans {
     private Step detectMotif() {
         return new Step(
                 "detectMotif",
-                () -> { timeoutStartedAt = runtime.time(); },
+                () -> {
+                    timeoutStartedAt = runtime.time();
+                },
                 () -> {
                     motif = drive.motif();
                     return motif != null || runtime.time() > timeoutStartedAt + 3;
                 }
         );
+    }
+
+    enum Motif {
+        GPP,
+        PGP,
+        PPG
     }
 
 //    private Step launchMotifFirst() {

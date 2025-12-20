@@ -45,7 +45,7 @@ public class TeleOp extends OpMode {
 //            launcher.launch();
             launcher.launchyLaunch();
         }
-        if(Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
+        if (Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
             drive.cancel();
         }
 
@@ -74,7 +74,7 @@ public class TeleOp extends OpMode {
         MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
         MoveData moveData = straight.add(strafe, turn);
 
-        if(drive.done()) {
+        if (drive.done()) {
             leftFront.setPower(moveData.frontLeftPower);
             rightFront.setPower(moveData.frontRightPower);
             leftBack.setPower(moveData.rearLeftPower);
@@ -94,7 +94,9 @@ public class TeleOp extends OpMode {
             drive.goToPose2();
         }
 
-        if (gamepad2.triangleWasPressed()) { telemetryOn = !telemetryOn; }
+        if (gamepad2.triangleWasPressed()) {
+            telemetryOn = !telemetryOn;
+        }
         if (telemetryOn) {
             telemetry.addData("frontLeftPower", moveData.frontLeftPower);
             telemetry.addData("frontRightPower", moveData.frontRightPower);
