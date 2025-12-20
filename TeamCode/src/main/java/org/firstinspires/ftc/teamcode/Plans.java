@@ -90,15 +90,6 @@ public class Plans {
         );
     }
 
-    private Step waitForFlywheel() {
-        return new Step(
-                "waitForFlywheel",
-                () -> {
-                },
-                launcher::flywheelReady
-        );
-    }
-
     private Step waitFor(double seconds) {
         return new Step(
                 "waitFor " + seconds,
