@@ -65,30 +65,6 @@ public class Launcher extends SubSystem {
         }
 
         launcher.setVelocity(launcherVelocity);
-
-//        if (launching) {
-//            // close 2 open 1
-//            if (gate2Position == gateOpenPosition && gate2WaitTimePassed()) {
-//                gate2Position = gateClosedPosition;
-//                gate1Position = gateOpenPosition;
-//                gate1StartedAt = runtime.time();
-//            }
-//
-//            // close 1
-//            if (gate1Position == gateOpenPosition && gate1WaitTimePassed()) {
-//                gate1Position = gateClosedPosition;
-//            }
-//
-//            // finish
-//            if (gateLaunchDone()) { launching = false; }
-//        }
-//
-//        if (loading) {
-//            gate1Position = gateOpenPosition;
-//        } else if (!launching) {
-//            gate1Position = gateClosedPosition;
-//        }
-
         gate1.setPosition(gate1Position);
         gate2.setPosition(gate2Position);
 
@@ -156,10 +132,7 @@ public class Launcher extends SubSystem {
     }
 
     public void finishLoading() {
-//        if (loading) {
-//            gate1Position = gateClosedPosition;
         loading = false;
-//        }
     }
 
     private Plan loadPlan() {
