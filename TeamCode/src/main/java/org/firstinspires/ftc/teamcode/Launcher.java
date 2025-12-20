@@ -60,8 +60,8 @@ public class Launcher extends SubSystem {
 
     @Override
     public void loop() {
-        if (currentPlan != null) {
-            if (currentPlan.done()) { currentPlan = null; }
+        if (currentPlan != null && currentPlan.done()) {
+            currentPlan = null;
         }
 
         launcher.setVelocity(launcherVelocity);
