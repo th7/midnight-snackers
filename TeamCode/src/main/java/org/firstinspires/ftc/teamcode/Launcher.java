@@ -33,7 +33,6 @@ public class Launcher extends SubSystem {
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;
     private boolean launching;
-
     private Plan currentPlan = null;
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
@@ -53,6 +52,9 @@ public class Launcher extends SubSystem {
 
         gate1 = hardwareMap.get(Servo.class, "gate1");
         gate2 = hardwareMap.get(Servo.class, "gate2");
+        gate1.setPosition(gateClosedPosition);
+        gate2.setPosition(gateClosedPosition);
+
         telemetry.addData("Launcher.init()", true);
     }
 
@@ -78,7 +80,7 @@ public class Launcher extends SubSystem {
 //            }
 //
 //            // finish
-//            if (launchDone()) { launching = false; }
+//            if (gateLaunchDone()) { launching = false; }
 //        }
 //
 //        if (loading) {
@@ -101,9 +103,18 @@ public class Launcher extends SubSystem {
 
     private Plan launchPlan() {
         return new Plan(
+                ensureFlywheelReady(),
                 launchOpenGate2(),
                 launchCloseGate2OpenGate1(),
                 launchCloseGate1()
+        );
+    }
+
+    private Step ensureFlywheelReady() {
+        return new Step(
+                "launchOpenGate2",
+                this::setCloseLaunchPower,
+                this::flywheelReady
         );
     }
 
@@ -136,7 +147,7 @@ public class Launcher extends SubSystem {
                 () -> {
                     gate1Position = gateClosedPosition;
                 },
-                this::launchDone
+                this::gateLaunchDone
         );
     }
 
@@ -181,7 +192,7 @@ public class Launcher extends SubSystem {
     }
 
     public void launch() {
-        if (stopped()) {
+        if (flywheelStopped()) {
             setCloseLaunchPower();
         } else if (flywheelReady() && !loading && gate2Position == gateClosedPosition) {
             launchNow();
@@ -291,8 +302,12 @@ public class Launcher extends SubSystem {
     }
 
 //    @Override
-    public boolean launchDone() {
+    public boolean gateLaunchDone() {
         return gate1LaunchFinished() && gate2LaunchFinished();
+    }
+
+    public boolean launchDone() {
+        return gateLaunchDone() && currentPlan == null;
     }
 
     private boolean closeEnough(double a, double b, double c) {
@@ -357,7 +372,7 @@ public class Launcher extends SubSystem {
 //        launcher.setPositionPIDFCoefficients(5);
     }
 
-    public boolean stopped() {
+    public boolean flywheelStopped() {
         return launcherVelocity < 1;
     }
 }

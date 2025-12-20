@@ -114,18 +114,15 @@ public class Plans {
     private Step launch() {
         return new Step(
                 "launch",
-                launcher::launchNow,
+                launcher::launchyLaunch,
                 launcher::launchDone
         );
     }
 
     private Plan launchAll() {
         return new Plan(
-                waitForFlywheel(),
                 launch(),
-                waitForFlywheel(),
                 launch(),
-                waitForFlywheel(),
                 launch()
         );
     }
@@ -229,7 +226,7 @@ public class Plans {
 //        return new Step(
 //                "launchMotifFirst",
 //                () -> { launcher.launchMotifFirst(motif); },
-//                launcher::launchDone
+//                launcher::gateLaunchDone
 //        );
 //    }
 //
@@ -237,7 +234,7 @@ public class Plans {
 //        return new Step(
 //                "launchMotifSecond",
 //                () -> { launcher.launchMotifSecond(motif); },
-//                launcher::launchDone
+//                launcher::gateLaunchDone
 //        );
 //    }
 //
@@ -245,7 +242,7 @@ public class Plans {
 //        return new Step(
 //                "launchMotifThird",
 //                () -> { launcher.launchMotifThird(motif); },
-//                launcher::launchDone
+//                launcher::gateLaunchDone
 //        );
 //    }
 
