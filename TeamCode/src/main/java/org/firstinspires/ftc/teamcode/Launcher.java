@@ -164,20 +164,6 @@ public class Launcher extends SubSystem {
         );
     }
 
-    public void launch() {
-        if (flywheelStopped()) {
-            setCloseLaunchPower();
-        } else if (flywheelReady() && !loading && gate2Position == gateClosedPosition) {
-            launchNow();
-        }
-    }
-
-    public void launchNow() {
-        gate2Position = gateOpenPosition;
-        gate2StartedAt = runtime.time();
-        launching = true;
-    }
-
     public void increasePower() {
         launcherVelocity = launcherVelocity + 25;
         if (launcherVelocity > 10000) {
@@ -220,12 +206,6 @@ public class Launcher extends SubSystem {
         gate2WaitTime = gate2WaitTime - 0.0001;
     }
 
-//    public void startLoading() {
-//        if (!launching) {
-//            loading = true;
-//        }
-//    }
-
     public void toggleTelemetry() { telemetryOn = !telemetryOn; }
 
     private void setTelemetry() {
@@ -254,8 +234,6 @@ public class Launcher extends SubSystem {
         PIDFCoefficients pidModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
         telemetry.addData("PIDF (modified)", "%.04f, %.04f, %.04f, %.04f",
                 pidModified.p, pidModified.i, pidModified.d, pidModified.f);
-
-//        telemetry.addData("velocityPIDFCoefficients", launcher.getPIDFCoefficients());
     }
 
     private boolean gate2WaitTimePassed() {
@@ -336,16 +314,8 @@ public class Launcher extends SubSystem {
 
     public void increaseAdjustable() {
         PIDFAdjustable = PIDFAdjustable + 0.1;
-//        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
-//        launcher.setPositionPIDFCoefficients(5);
     }
     public void decreaseAdjustable() {
         PIDFAdjustable = PIDFAdjustable - 0.1;
-//        launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
-//        launcher.setPositionPIDFCoefficients(5);
-    }
-
-    public boolean flywheelStopped() {
-        return launcherVelocity < 1;
     }
 }
