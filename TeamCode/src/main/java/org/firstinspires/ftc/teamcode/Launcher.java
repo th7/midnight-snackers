@@ -112,7 +112,7 @@ public class Launcher extends SubSystem {
 
     private Step ensureFlywheelReady() {
         return new Step(
-                "launchOpenGate2",
+                "ensureFlywheelReady",
                 this::setCloseLaunchPower,
                 this::flywheelReady
         );
