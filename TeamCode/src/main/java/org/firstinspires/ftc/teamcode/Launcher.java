@@ -10,25 +10,29 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
+import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher extends SubSystem {
-    private final double gateOpenPosition = 1;
-    private final double gateClosedPosition = 0;
+    private final double topGateOpenPosition = 1;
+    private final double topGateClosedPosition = 0.6;
+    private final double bottomGateOpenPosition = 0.5;
+    private final double bottomGateClosedPosition = 0.4;
     private final double closeLauncherPower = 1050d;
     private final double rangedLauncherPower = 1350d;
     private DcMotorEx launcher;
-    private Servo gate1;
-    private Servo gate2; // gate2 is closer to launcher
-    private double gate1Position;
-    private double gate2Position;
+    private Servo topGate;
+    private Servo bottomGate; // bottomGate is closer to launcher
+    private double topGatePosition = topGateOpenPosition;
+    private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
-    private double gate2StartedAt = -1;
-    private double gate1StartedAt = -1;
+    private double bottomGateStartedAt = -1;
+    private double topGateStartedAt = -1;
+    private double waitForStartedAt = -1;
     private boolean telemetryOn = false;
     private boolean loading = false;
-    private double gate2WaitTime = 0.45;
-    private final double gate1WaitTime = gate2WaitTime;
+    private double bottomGateWaitTime = 0.45;
+    private double topGateWaitTime = bottomGateWaitTime;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;
@@ -49,10 +53,10 @@ public class Launcher extends SubSystem {
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        gate1 = hardwareMap.get(Servo.class, "gate1");
-        gate2 = hardwareMap.get(Servo.class, "gate2");
-        gate1.setPosition(gateClosedPosition);
-        gate2.setPosition(gateClosedPosition);
+        topGate = hardwareMap.get(Servo.class, "topGate");
+        bottomGate = hardwareMap.get(Servo.class, "bottomGate");
+        topGate.setPosition(topGatePosition);
+        bottomGate.setPosition(bottomGatePosition);
 
         telemetry.addData("Launcher.init()", true);
     }
@@ -64,8 +68,8 @@ public class Launcher extends SubSystem {
         }
 
         launcher.setVelocity(launcherVelocity);
-        gate1.setPosition(gate1Position);
-        gate2.setPosition(gate2Position);
+        topGate.setPosition(topGatePosition);
+        bottomGate.setPosition(bottomGatePosition);
 
         if (telemetryOn) {
             setTelemetry();
@@ -81,50 +85,89 @@ public class Launcher extends SubSystem {
     private Plan launchPlan() {
         return new Plan(
                 ensureFlywheelReady(),
-                launchOpenGate2(),
-                launchCloseGate2OpenGate1(),
-                launchCloseGate1()
+                launchCloseTopGate(),
+                launchOpenBottomGate(),
+                launchCloseBottomGate(),
+                launchOpenTopGate()
         );
     }
 
     private Step ensureFlywheelReady() {
         return new Step(
                 "ensureFlywheelReady",
-                this::setCloseLaunchPower,
+                () -> {
+                    if (launcherVelocity < closeLauncherPower) {
+                        setCloseLaunchPower();
+                    }
+                },
                 this::flywheelReady
         );
     }
 
-    private Step launchOpenGate2() {
+    private Step launchCloseTopGate() {
         return new Step(
-                "launchOpenGate2",
+                "launchCloseTopGate",
                 () -> {
-                    gate2Position = gateOpenPosition;
-                    gate2StartedAt = runtime.time();
+                    topGatePosition = topGateClosedPosition;
+                    topGateStartedAt = runtime.time();
                 },
-                this::gate2WaitTimePassed
+                () -> this.runtime.time() >= topGateStartedAt + 0.05
         );
     }
 
-    private Step launchCloseGate2OpenGate1() {
+    private Step launchOpenBottomGate() {
         return new Step(
-                "launchCloseGate2OpenGate1",
+                "launchOpenBottomGate",
                 () -> {
-                    gate2Position = gateClosedPosition;
-                    gate1Position = gateOpenPosition;
-                    gate1StartedAt = runtime.time();
+                    bottomGatePosition = bottomGateOpenPosition;
+                    bottomGateStartedAt = runtime.time();
                 },
-                this::gate1WaitTimePassed
+                () -> this.runtime.time() >= bottomGateStartedAt + 0.2
         );
     }
 
-    private Step launchCloseGate1() {
+    private Step launchCloseBottomGate() {
         return new Step(
-                "launchCloseGate1",
+                "launchOpenBottomGate",
                 () -> {
-                    gate1Position = gateClosedPosition;
+                    bottomGatePosition = bottomGateClosedPosition;
+                    bottomGateStartedAt = runtime.time();
                 },
-                this::gateLaunchDone
+                () -> this.runtime.time() >= bottomGateStartedAt + 0.08
+        );
+    }
+
+    private Step launchOpenTopGate() {
+        return new Step(
+                "launchOpenTopGate",
+                () -> {
+                    topGatePosition = topGateOpenPosition;
+                    topGateStartedAt = runtime.time();
+                },
+                () -> true
+        );
+    }
+
+    public void slowLaunchyLaunch() {
+        if (currentPlan == null) {
+            currentPlan = slowLaunchPlan();
+        }
+    }
+
+    private Plan slowLaunchPlan() {
+        return new Plan(
+                launchPlan(),
+                waitFor(0.8)
+        );
+    }
+
+    private Step waitFor(double seconds) {
+        return new Step(
+                "waitFor",
+                () -> {
+                    waitForStartedAt = runtime.time();
+                },
+                () -> runtime.time() >= waitForStartedAt + seconds
         );
     }
 
@@ -150,7 +193,7 @@ public class Launcher extends SubSystem {
                 "loadOpenGate1",
                 () -> {
                     loading = true;
-                    gate1Position = gateOpenPosition;
+                    topGatePosition = topGateOpenPosition;
                 },
                 () -> {
                     return !loading;
@@ -162,10 +205,10 @@ public class Launcher extends SubSystem {
         return new Step(
                 "loadCloseGate1",
                 () -> {
-                    gate1Position = gateClosedPosition;
-                    gate1StartedAt = runtime.time();
+                    topGatePosition = topGateClosedPosition;
+                    topGateStartedAt = runtime.time();
                 },
-                this::gate1WaitTimePassed
+                this::topGateWaitTimePassed
         );
     }
 
@@ -195,20 +238,36 @@ public class Launcher extends SubSystem {
         launcherVelocity = 0;
     }
 
-    public void increaseGatePosition() {
-        gate2Position = gate2Position + 0.05;
+    public void increaseBottomGatePosition() {
+        bottomGatePosition = bottomGatePosition + 0.05;
     }
 
-    public void decreaseGatePosition() {
-        gate2Position = gate2Position - 0.05;
+    public void decreaseBottomGatePosition() {
+        bottomGatePosition = bottomGatePosition - 0.05;
     }
 
-    public void increaseGateWaitTime() {
-        gate2WaitTime = gate2WaitTime + 0.0001;
+    public void increaseTopGatePosition() {
+        topGatePosition = topGatePosition + 0.05;
     }
 
-    public void decreaseGateWaitTime() {
-        gate2WaitTime = gate2WaitTime - 0.0001;
+    public void decreaseTopGatePosition() {
+        topGatePosition = topGatePosition - 0.05;
+    }
+
+    public void increaseTopGateWaitTime() {
+        topGateWaitTime = topGateWaitTime + 0.0001;
+    }
+
+    public void decreaseTopGateWaitTime() {
+        topGateWaitTime = topGateWaitTime - 0.0001;
+    }
+
+    public void increaseBottomGateWaitTime() {
+        bottomGateWaitTime = bottomGateWaitTime + 0.0001;
+    }
+
+    public void decreaseBottomGateWaitTime() {
+        bottomGateWaitTime = bottomGateWaitTime - 0.0001;
     }
 
     public void toggleTelemetry() {
@@ -227,10 +286,10 @@ public class Launcher extends SubSystem {
         telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
         telemetry.addData("launcherVelocityTarget", launcherVelocity);
         telemetry.addData("launcherVelocityActual", launcher.getVelocity());
-        telemetry.addData("gate1Position", gate1Position);
-        telemetry.addData("gate1WaitTime", gate1WaitTime);
-        telemetry.addData("gate2Position", gate2Position);
-        telemetry.addData("gate2WaitTime", gate2WaitTime);
+        telemetry.addData("topGatePosition", topGatePosition);
+        telemetry.addData("topGateWaitTime", topGateWaitTime);
+        telemetry.addData("bottomGatePosition", bottomGatePosition);
+        telemetry.addData("bottomGateWaitTime", bottomGateWaitTime);
         telemetry.addData("PIDF vel (orig)", "%.04f, %.04f, %.04f, %.04f",
                 pidVelocityOrig.p, pidVelocityOrig.i, pidVelocityOrig.d, pidVelocityOrig.f);
         PIDFCoefficients pidVelocityModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -243,24 +302,24 @@ public class Launcher extends SubSystem {
                 pidModified.p, pidModified.i, pidModified.d, pidModified.f);
     }
 
-    private boolean gate2WaitTimePassed() {
-        return runtime.time() >= gate2StartedAt + gate2WaitTime;
+    private boolean bottomGateWaitTimePassed() {
+        return runtime.time() >= bottomGateStartedAt + bottomGateWaitTime;
     }
 
-    private boolean gate1WaitTimePassed() {
-        return runtime.time() >= gate1StartedAt + gate1WaitTime;
+    private boolean topGateWaitTimePassed() {
+        return runtime.time() >= topGateStartedAt + topGateWaitTime;
     }
 
-    private boolean gate1LaunchFinished() {
-        return runtime.time() >= gate1StartedAt + gate1WaitTime * 2 + 0.05;
+    private boolean topGateLaunchFinished() {
+        return runtime.time() >= topGateStartedAt + topGateWaitTime * 2 + 0.05;
     }
 
-    private boolean gate2LaunchFinished() {
-        return runtime.time() >= gate2StartedAt + gate2WaitTime * 2 + 0.05;
+    private boolean bottomGateLaunchFinished() {
+        return runtime.time() >= bottomGateStartedAt + bottomGateWaitTime * 2 + 0.05;
     }
 
     public boolean gateLaunchDone() {
-        return gate1LaunchFinished() && gate2LaunchFinished();
+        return topGateLaunchFinished() && bottomGateLaunchFinished();
     }
 
     public boolean launchDone() {

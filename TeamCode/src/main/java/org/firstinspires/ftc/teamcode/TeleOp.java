@@ -29,21 +29,20 @@ public class TeleOp extends OpMode {
     public void loop() {
         super.loop();
 
-        if (gamepad1.squareWasPressed()) {
-            launcher.setCloseLaunchPower();
+        if (gamepad1.square) {
+            launcher.launchyLaunch();
         }
-        if (gamepad1.circleWasPressed()) {
-            launcher.loadyLoad();
-        }
-        if (gamepad1.circleWasReleased()) {
-            launcher.finishLoading();
-        }
+//        if (gamepad1.circleWasPressed()) {
+//            launcher.loadyLoad();
+//        }
+//        if (gamepad1.circleWasReleased()) {
+//            launcher.finishLoading();
+//        }
         if (gamepad1.crossWasPressed()) {
             launcher.noPower();
         }
-        if (gamepad1.triangleWasPressed()) {
-//            launcher.launch();
-            launcher.launchyLaunch();
+        if (gamepad1.triangle) {
+            launcher.slowLaunchyLaunch();
         }
         if (Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
             drive.cancel();
@@ -51,11 +50,17 @@ public class TeleOp extends OpMode {
 
         //adjust settings using second controller
         if (gamepad2.rightBumperWasPressed()) {
-            launcher.increaseGateWaitTime();
+            launcher.increaseBottomGateWaitTime();
         }
         if (gamepad2.leftBumperWasPressed()) {
-            launcher.decreaseGateWaitTime();
+            launcher.decreaseBottomGateWaitTime();
         }
+//        if (gamepad2.rightBumperWasPressed()) {
+//            launcher.increaseTopGatePosition();
+//        }
+//        if (gamepad2.leftBumperWasPressed()) {
+//            launcher.decreaseTopGatePosition();
+//        }
         if (gamepad2.dpadUpWasPressed()) {
             launcher.increasePower();
         }
