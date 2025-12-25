@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -18,6 +19,10 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.List;
 
 public class Drive extends SubSystem {
+    private DcMotor leftFront;
+    private DcMotor rightFront;
+    private DcMotor leftBack;
+    private DcMotor rightBack;
     private final Pose2d zeroPose = new Pose2d(0, 0, 0);
     private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
@@ -25,6 +30,10 @@ public class Drive extends SubSystem {
     private boolean telemetryOn = false;
     private Pose2d savedPose1;
     private Pose2d savedPose2;
+    private float straightPower;
+    private float strafePower;
+    private float turnPower;
+    private MoveData moveData;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -60,11 +69,35 @@ public class Drive extends SubSystem {
 //        vpb.addProcessor(aprilTagProcessor);
 //        vpb.build();
 //        Size size = vpb.getActiveCamera().getCameraCharacteristics().getDefaultSize(0);
+        leftFront = hardwareMap.get(DcMotor.class, "leftFront");
+        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
+        leftBack = hardwareMap.get(DcMotor.class, "leftBack");
+        rightBack = hardwareMap.get(DcMotor.class, "rightBack");
+        setPose(new Pose2d(0, 0, 0));
+
         telemetry.addData("Drive.init()", true);
 //        telemetry.addData("CameraHeight", size.getHeight());
 //        telemetry.addData("CameraWidth", size.getWidth());
+    }
 
+    public void useDirectPower() {
+        MoveData straight = MoveData.straight(straightPower, 0f, 1f);
+        MoveData strafe = MoveData.strafe(strafePower, 0f, 1f);
+        MoveData turn = MoveData.turn(turnPower, 0f, 1f);
+        moveData = straight.add(strafe, turn);
 
+        if (done()) {
+            leftFront.setPower(moveData.frontLeftPower);
+            rightFront.setPower(moveData.frontRightPower);
+            leftBack.setPower(moveData.rearLeftPower);
+            rightBack.setPower(moveData.rearRightPower);
+        }
+    }
+
+    public void setPower(float straight, float strafe, float turn) {
+        straightPower = straight;
+        strafePower = strafe;
+        turnPower = turn;
     }
 
     public void loop() {
@@ -77,6 +110,12 @@ public class Drive extends SubSystem {
 
     private void setTelemetry() {
         Pose2d currentPose = getPose();
+
+        telemetry.addData("frontLeftPower", moveData.frontLeftPower);
+        telemetry.addData("frontRightPower", moveData.frontRightPower);
+        telemetry.addData("rearLeftPower", moveData.rearLeftPower);
+        telemetry.addData("rearRightPower", moveData.rearRightPower);
+
         telemetry.addData("current x,y,h", "%.04f,%.04f,%.04f", currentPose.position.x, currentPose.position.y, currentPose.heading.real);
         if (savedPose1 != null) {
             telemetry.addData("Saved 1 x,y,h", "%.04f,%.04f,%.04f", savedPose1.position.x, savedPose1.position.y, savedPose1.heading.real);

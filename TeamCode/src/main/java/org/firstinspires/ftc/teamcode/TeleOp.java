@@ -74,17 +74,8 @@ public class TeleOp extends OpMode {
             launcher.increaseAdjustable();
         }
 
-        MoveData straight = MoveData.straight(-gamepad1.left_stick_y, 0f, 1f);
-        MoveData strafe = MoveData.strafe(-gamepad1.left_stick_x, 0f, 1f);
-        MoveData turn = MoveData.turn(-gamepad1.right_stick_x, 0f, 1f);
-        MoveData moveData = straight.add(strafe, turn);
-
-        if (drive.done()) {
-            leftFront.setPower(moveData.frontLeftPower);
-            rightFront.setPower(moveData.frontRightPower);
-            leftBack.setPower(moveData.rearLeftPower);
-            rightBack.setPower(moveData.rearRightPower);
-        }
+        drive.setPower(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+        drive.useDirectPower();
 
         if (gamepad1.leftBumperWasPressed()) {
             drive.savePose1();
@@ -101,13 +92,6 @@ public class TeleOp extends OpMode {
 
         if (gamepad2.triangleWasPressed()) {
             telemetryOn = !telemetryOn;
-        }
-        if (telemetryOn) {
-            telemetry.addData("frontLeftPower", moveData.frontLeftPower);
-            telemetry.addData("frontRightPower", moveData.frontRightPower);
-            telemetry.addData("rearLeftPower", moveData.rearLeftPower);
-            telemetry.addData("rearRightPower", moveData.rearRightPower);
-            telemetry.update();
         }
     }
 }
