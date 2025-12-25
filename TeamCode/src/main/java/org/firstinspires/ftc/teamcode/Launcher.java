@@ -275,6 +275,7 @@ public class Launcher extends SubSystem {
     }
 
     private void setTelemetry() {
+        telemetry.addData("Launcher", "telemetry on");
         if (currentPlan != null) {
             telemetry.addData("launcherStep", currentPlan.currentStep());
         } else {

@@ -44,6 +44,18 @@ public class TeleOp extends OpMode {
         if (gamepad1.triangle) {
             launcher.slowLaunchyLaunch();
         }
+        if (gamepad1.right_trigger > 0.2) {
+            brain.autoShootSlowBlue();
+        } else if (gamepad1.left_trigger > 0.2) {
+            brain.autoShootFastBlue();
+        } else if (gamepad1.right_bumper) {
+            drive.turnToBlue();
+            drive.setStraightPower(-gamepad1.left_stick_y);
+        } else {
+            drive.setTurnPower(-gamepad1.right_stick_x);
+            drive.setStraightPower(-gamepad1.left_stick_y);
+        }
+
         if (Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
             drive.cancel();
         }
@@ -74,21 +86,21 @@ public class TeleOp extends OpMode {
             launcher.increaseAdjustable();
         }
 
-        drive.setPower(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+        drive.setStrafePower(-gamepad1.left_stick_x);
         drive.useDirectPower();
 
-        if (gamepad1.leftBumperWasPressed()) {
-            drive.savePose1();
-        }
-        if (gamepad1.left_trigger > 0.5) {
-            drive.goToPose1();
-        }
-        if (gamepad1.rightBumperWasPressed()) {
-            drive.savePose2();
-        }
-        if (gamepad1.right_trigger > 0.5) {
-            drive.goToPose2();
-        }
+//        if (gamepad1.leftBumperWasPressed()) {
+//            drive.savePose1();
+//        }
+//        if (gamepad1.left_trigger > 0.5) {
+//            drive.goToPose1();
+//        }
+//        if (gamepad1.rightBumperWasPressed()) {
+//            drive.savePose2();
+//        }
+//        if (gamepad1.right_trigger > 0.5) {
+//            drive.goToPose2();
+//        }
 
         if (gamepad2.triangleWasPressed()) {
             telemetryOn = !telemetryOn;

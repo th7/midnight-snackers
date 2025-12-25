@@ -3,13 +3,15 @@ package org.firstinspires.ftc.teamcode.base;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.Brain;
+import org.firstinspires.ftc.teamcode.Camera;
 import org.firstinspires.ftc.teamcode.Drive;
 import org.firstinspires.ftc.teamcode.Launcher;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
-    private Brain brain;
+    protected Brain brain;
     protected Launcher launcher;
     protected Drive drive;
+    protected Camera camera;
     protected ElapsedTime runtime;
 
     @Override
@@ -19,6 +21,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         runtime = brain.runtime;
         drive = brain.drive;
         launcher = brain.launcher;
+        camera = brain.camera;
         telemetry.addData("base.OpMode.init()", true);
     }
 
@@ -30,6 +33,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     public void loop() {
         if (gamepad2.crossWasPressed()) { drive.toggleTelemetry(); }
         if (gamepad2.squareWasPressed()) { launcher.toggleTelemetry(); }
+        if (gamepad2.circleWasPressed()) {camera.toggleTelemetry(); }
         brain.loop();
     }
 }

@@ -1,15 +1,13 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Position;
-import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
@@ -34,6 +32,7 @@ public class Drive extends SubSystem {
     private float strafePower;
     private float turnPower;
     private MoveData moveData;
+    private boolean fieldPositionKnown = false;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -94,10 +93,16 @@ public class Drive extends SubSystem {
         }
     }
 
-    public void setPower(float straight, float strafe, float turn) {
-        straightPower = straight;
-        strafePower = strafe;
-        turnPower = turn;
+    public void setStrafePower(float newStrafePower) {
+        strafePower = newStrafePower;
+    }
+
+    public void setTurnPower(float newTurnPower) {
+        turnPower = newTurnPower;
+    }
+
+    public void setStraightPower(float newStraightPower) {
+        straightPower = newStraightPower;
     }
 
     public void loop() {
@@ -109,12 +114,10 @@ public class Drive extends SubSystem {
     }
 
     private void setTelemetry() {
+        telemetry.addData("Drive", "telemetry on");
         Pose2d currentPose = getPose();
 
-        telemetry.addData("frontLeftPower", moveData.frontLeftPower);
-        telemetry.addData("frontRightPower", moveData.frontRightPower);
-        telemetry.addData("rearLeftPower", moveData.rearLeftPower);
-        telemetry.addData("rearRightPower", moveData.rearRightPower);
+        telemetry.addData("fieldPositionKnown", fieldPositionKnown);
 
         telemetry.addData("current x,y,h", "%.04f,%.04f,%.04f", currentPose.position.x, currentPose.position.y, currentPose.heading.real);
         if (savedPose1 != null) {
@@ -127,11 +130,82 @@ public class Drive extends SubSystem {
         } else {
             telemetry.addData("Saved 2", null);
         }
-        aprilTagTelemetry();
+
     }
 
     public boolean done() {
         return driveRunner.done();
+    }
+
+    public void setFieldPosition(Pose2d pose) {
+       fieldPositionKnown = true;
+       setPose(pose);
+    }
+
+    public boolean turnToBlue() {
+        if (!fieldPositionKnown) {
+            return false;
+        }
+
+        Pose2d botPose = mecanumDrive.localizer.getPose();
+
+        double blueAprilTagX = 58.3;
+        double blueAprilTagY = 55.6;
+        double blueX = blueAprilTagX + 10;
+        double blueY = blueAprilTagY + 10;
+
+        double fieldBearingToTarget = Math.atan2(blueY - botPose.position.y, blueX - botPose.position.x);
+
+        double headingErrorRadians = Rotation2d.exp(fieldBearingToTarget).minus(botPose.heading);
+
+        telemetry.addData("headingErrorRadians", headingErrorRadians);
+
+        if (Math.abs(headingErrorRadians) < Math.PI / 80) {
+            turnPower = 0;
+            return true;
+        } else {
+            turnPower = clampMinPower(headingErrorRadians / (Math.PI / 6), 0.03);
+            return false;
+        }
+    }
+
+    public boolean driveToBlue() {
+        if (!fieldPositionKnown) {
+            return false;
+        }
+
+        Pose2d botPose = mecanumDrive.localizer.getPose();
+
+        double blueAprilTagX = 58.3;
+        double blueAprilTagY = 55.6;
+        double blueX = blueAprilTagX + 10;
+        double blueY = blueAprilTagY + 10;
+
+        double fieldDistanceToTarget = Math.sqrt(Math.pow(blueY - botPose.position.y, 2) + Math.pow(blueX - botPose.position.x, 2));
+
+        double targetShootingDistance = 40;
+
+        double distanceError = fieldDistanceToTarget - targetShootingDistance;
+
+        telemetry.addData("distanceError", distanceError);
+
+        if (Math.abs(distanceError) < 1) {
+            straightPower = 0;
+            return true;
+        } else {
+            straightPower = clampMinPower(distanceError / 20, 0.1);
+            return false;
+        }
+    }
+
+    private float clampMinPower(double power, double min) {
+        if (power > 0 && power < min) {
+            return (float) min;
+        } else if (power < 0 && power > -min) {
+            return (float) -min;
+        } else {
+            return (float) power;
+        }
     }
 
     public void drivePathForward(Pose2d... poseList) {
@@ -209,34 +283,6 @@ public class Drive extends SubSystem {
 
     public void setPose(Pose2d pose) {
         mecanumDrive.localizer.setPose(pose);
-    }
-
-    private void aprilTagTelemetry() {
-        if (aprilTagProcessor == null) {
-            return;
-        }
-        List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
-        if (currentDetections == null) {
-            return;
-        }
-
-        for (AprilTagDetection detection : currentDetections) {
-            String tag = "detection." + detection.id;
-
-            if (detection.robotPose == null) {
-                telemetry.addData(tag + ".robotPose", null);
-            } else {
-                YawPitchRollAngles orientation = detection.robotPose.getOrientation();
-                telemetry.addData(tag + ".robotPose.getOrientation().getYaw()", detection.robotPose.getOrientation().getYaw(AngleUnit.RADIANS));
-                double roadrunnerYaw = orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2;
-                telemetry.addData(tag + " roadrunnerYaw", roadrunnerYaw);
-                Position position = detection.robotPose.getPosition();
-                telemetry.addData(tag + ".robotPose.getPosition() x,y,z", "%.04f,%.04f,%.04f", position.x, position.y, position.z);
-                double roadRunnerX = position.x * -1;
-                double roadRunnerY = position.y * -1;
-                telemetry.addData(tag + " roodrunner x,y", "%.04f,%.04f", roadRunnerX, roadRunnerY);
-            }
-        }
     }
 
     public Plans.Motif motif() {

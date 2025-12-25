@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Camera;
 import org.firstinspires.ftc.teamcode.Drive;
 import org.firstinspires.ftc.teamcode.Launcher;
 
@@ -14,6 +15,7 @@ public class SuperSystem {
 
     protected Launcher launcher;
     protected Drive drive;
+    protected Camera camera;
 
     public SuperSystem(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         this.hardwareMap = hardwareMap;
@@ -26,11 +28,14 @@ public class SuperSystem {
         drive.init();
         launcher = new Launcher(hardwareMap, runtime, telemetry);
         launcher.init();
+        camera = new Camera(hardwareMap, runtime, telemetry);
+        camera.init();
         telemetry.addData("base.SuperSystem.init()", true);
     }
 
     public void loop() {
         drive.loop();
         launcher.loop();
+        camera.loop();
     }
 }
