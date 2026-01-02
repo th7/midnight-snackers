@@ -35,15 +35,13 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     public void loop() {
         tickCount += 1;
-        telemetry.addData("averageTick", "%.03f", runtime.milliseconds() / tickCount);
         double currentTickAt = runtime.time();
         double lastTickSeconds = currentTickAt - lastTickAt;
-        telemetry.addData("lastTickSeconds", "%.03f", lastTickSeconds);
         lastTickAt = currentTickAt;
         if (lastTickSeconds > maxTickSeconds) {
             maxTickSeconds = lastTickSeconds;
         }
-        telemetry.addData("maxTickSeconds", "%.03f", maxTickSeconds);
+        telemetry.addData("Tick (last, avg, max)", "%.03f, %.03f, %.03f", lastTickSeconds, runtime.milliseconds() / tickCount / 1000, maxTickSeconds);
 
         if (gamepad2.crossWasPressed()) { drive.toggleTelemetry(); }
         if (gamepad2.squareWasPressed()) { launcher.toggleTelemetry(); }

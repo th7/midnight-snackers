@@ -27,8 +27,6 @@ public class Drive extends SubSystem {
     private final DriveRunner driveRunner = new DriveRunner();
     private AprilTagProcessor aprilTagProcessor;
     private boolean telemetryOn = false;
-    private Pose2d savedPose1;
-    private Pose2d savedPose2;
     private Pose2d currentPose;
     private Pose2d lastPose;
     private float straightPower;
@@ -55,7 +53,7 @@ public class Drive extends SubSystem {
     //    private final double blueLaunchTargetY = blueAprilTagY + 10;
     private final double blueLaunchTargetX = blueAprilTagX;
     private final double blueLaunchTargetY = blueAprilTagY;
-
+    private final double targetLaunchDistance = 40;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -163,16 +161,16 @@ public class Drive extends SubSystem {
         telemetry.addData("fieldPositionDiscarded", fieldPositionDiscarded);
 
         telemetry.addData("current x,y,h", "%.04f,%.04f,%.04f", currentPose.position.x, currentPose.position.y, currentPose.heading.real);
-        if (savedPose1 != null) {
-            telemetry.addData("Saved 1 x,y,h", "%.04f,%.04f,%.04f", savedPose1.position.x, savedPose1.position.y, savedPose1.heading.real);
-        } else {
-            telemetry.addData("Saved 1", null);
-        }
-        if (savedPose2 != null) {
-            telemetry.addData("Saved 2 x,y,h", "%.04f,%.04f,%.04f", savedPose2.position.x, savedPose2.position.y, currentPose.heading.real);
-        } else {
-            telemetry.addData("Saved 2", null);
-        }
+//        if (savedPose1 != null) {
+//            telemetry.addData("Saved 1 x,y,h", "%.04f,%.04f,%.04f", savedPose1.position.x, savedPose1.position.y, savedPose1.heading.real);
+//        } else {
+//            telemetry.addData("Saved 1", null);
+//        }
+//        if (savedPose2 != null) {
+//            telemetry.addData("Saved 2 x,y,h", "%.04f,%.04f,%.04f", savedPose2.position.x, savedPose2.position.y, currentPose.heading.real);
+//        } else {
+//            telemetry.addData("Saved 2", null);
+//        }
 
     }
 
@@ -216,15 +214,8 @@ public class Drive extends SubSystem {
             return false;
         }
 
-        Pose2d botPose = mecanumDrive.localizer.getPose();
-
-
-
-        double fieldBearingToTarget = Math.atan2(blueLaunchTargetY - botPose.position.y, blueLaunchTargetX - botPose.position.x);
-
-        double headingErrorRadians = Rotation2d.exp(fieldBearingToTarget).minus(botPose.heading);
-
-        telemetry.addData("headingErrorRadians", headingErrorRadians);
+        double fieldBearingToTarget = Math.atan2(blueLaunchTargetY - currentPose.position.y, blueLaunchTargetX - currentPose.position.x);
+        double headingErrorRadians = Rotation2d.exp(fieldBearingToTarget).minus(currentPose.heading);
 
         if (Math.abs(headingErrorRadians) < Math.PI / 80) {
             turnPower = 0;
@@ -240,20 +231,8 @@ public class Drive extends SubSystem {
             return false;
         }
 
-        Pose2d botPose = mecanumDrive.localizer.getPose();
-
-        double blueAprilTagX = 58.3;
-        double blueAprilTagY = 55.6;
-        double blueX = blueAprilTagX + 10;
-        double blueY = blueAprilTagY + 10;
-
-        double fieldDistanceToTarget = Math.sqrt(Math.pow(blueY - botPose.position.y, 2) + Math.pow(blueX - botPose.position.x, 2));
-
-        double targetShootingDistance = 40;
-
-        double distanceError = fieldDistanceToTarget - targetShootingDistance;
-
-        telemetry.addData("distanceError", distanceError);
+        double fieldDistanceToTarget = Math.sqrt(Math.pow(blueLaunchTargetY - currentPose.position.y, 2) + Math.pow(blueLaunchTargetX - currentPose.position.x, 2));
+        double distanceError = fieldDistanceToTarget - targetLaunchDistance;
 
         if (Math.abs(distanceError) < 1) {
             straightPower = 0;
