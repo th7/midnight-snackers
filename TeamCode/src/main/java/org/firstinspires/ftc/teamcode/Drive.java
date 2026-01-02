@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -28,17 +29,40 @@ public class Drive extends SubSystem {
     private boolean telemetryOn = false;
     private Pose2d savedPose1;
     private Pose2d savedPose2;
+    private Pose2d currentPose;
+    private Pose2d lastPose;
     private float straightPower;
     private float strafePower;
     private float turnPower;
     private MoveData moveData;
     private boolean fieldPositionKnown = false;
+    private int fieldPositionUpdated;
+    private int fieldPositionDiscarded;
+    private double xChange;
+    private double yChange;
+    private double headingChange;
+
+    private final double nearlyStoppedMaxInchesPerSecond = 3;
+    private final double nearlyStoppedMaxRadiansPerSecond = Math.toRadians(10);
+    private final double assumedTicksPerSecond = 50;
+
+    private final double nearlyStoppedInchesPerTick = nearlyStoppedMaxInchesPerSecond / assumedTicksPerSecond;
+    private final double nearlyStoppedDegreesPerTick = nearlyStoppedMaxRadiansPerSecond / assumedTicksPerSecond;
+
+    private final double blueAprilTagX = 58.3;
+    private final double blueAprilTagY = 55.6;
+    //    private final double blueLaunchTargetX = blueAprilTagX + 10;
+    //    private final double blueLaunchTargetY = blueAprilTagY + 10;
+    private final double blueLaunchTargetX = blueAprilTagX;
+    private final double blueLaunchTargetY = blueAprilTagY;
+
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
     }
 
     public void init() {
+
 //        AprilTagProcessor.Builder atpb = new AprilTagProcessor.Builder();
 //
 ////        Robot axes: (this is typical, but you can define this however you want)
@@ -72,7 +96,10 @@ public class Drive extends SubSystem {
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
         rightBack = hardwareMap.get(DcMotor.class, "rightBack");
-        setPose(new Pose2d(0, 0, 0));
+        setPose(zeroPose);
+
+        currentPose = zeroPose;
+        lastPose = zeroPose;
 
         telemetry.addData("Drive.init()", true);
 //        telemetry.addData("CameraHeight", size.getHeight());
@@ -107,17 +134,33 @@ public class Drive extends SubSystem {
 
     public void loop() {
         mecanumDrive.localizer.update();
+        currentPose = mecanumDrive.localizer.getPose();
+        updateChanges();
         driveRunner.loop();
         if (telemetryOn) {
             setTelemetry();
         }
+
+        lastPose = currentPose;
     }
 
+    private void updateChanges() {
+        xChange = currentPose.position.x - lastPose.position.x;
+        yChange = currentPose.position.y - lastPose.position.y;
+        headingChange = currentPose.heading.minus(lastPose.heading);
+
+        if (telemetryOn) {
+            telemetry.addData("xChange", xChange);
+            telemetry.addData("yChange", yChange);
+            telemetry.addData("headingChange", headingChange);
+        }
+    }
     private void setTelemetry() {
         telemetry.addData("Drive", "telemetry on");
-        Pose2d currentPose = getPose();
 
         telemetry.addData("fieldPositionKnown", fieldPositionKnown);
+        telemetry.addData("fieldPositionUpdated", fieldPositionUpdated);
+        telemetry.addData("fieldPositionDiscarded", fieldPositionDiscarded);
 
         telemetry.addData("current x,y,h", "%.04f,%.04f,%.04f", currentPose.position.x, currentPose.position.y, currentPose.heading.real);
         if (savedPose1 != null) {
@@ -138,8 +181,34 @@ public class Drive extends SubSystem {
     }
 
     public void setFieldPosition(Pose2d pose) {
-       fieldPositionKnown = true;
-       setPose(pose);
+        if (!fieldPositionKnown) {
+            fieldPositionKnown = true;
+            setPose(pose);
+            return;
+        }
+
+        double xError = pose.position.x - currentPose.position.x;
+        double yError = pose.position.y - currentPose.position.y;
+
+        if (xError > 1) {
+            xError = 1;
+        } else if (xError < -1) {
+            xError = -1;
+        }
+
+        if (yError > 1) {
+            yError = 1;
+        } else if (yError < -1) {
+            yError = -1;
+        }
+
+        Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
+        setPose(new Pose2d(adjustedPosition, currentPose.heading));
+        fieldPositionUpdated = fieldPositionUpdated + 1;
+    }
+
+    public boolean nearlyStopped() {
+        return !(Math.abs(xChange) > nearlyStoppedInchesPerTick) && !(Math.abs(yChange) > nearlyStoppedInchesPerTick) && !(Math.abs(headingChange) > nearlyStoppedDegreesPerTick);
     }
 
     public boolean turnToBlue() {
@@ -149,12 +218,9 @@ public class Drive extends SubSystem {
 
         Pose2d botPose = mecanumDrive.localizer.getPose();
 
-        double blueAprilTagX = 58.3;
-        double blueAprilTagY = 55.6;
-        double blueX = blueAprilTagX + 10;
-        double blueY = blueAprilTagY + 10;
 
-        double fieldBearingToTarget = Math.atan2(blueY - botPose.position.y, blueX - botPose.position.x);
+
+        double fieldBearingToTarget = Math.atan2(blueLaunchTargetY - botPose.position.y, blueLaunchTargetX - botPose.position.x);
 
         double headingErrorRadians = Rotation2d.exp(fieldBearingToTarget).minus(botPose.heading);
 
@@ -209,7 +275,7 @@ public class Drive extends SubSystem {
     }
 
     public void drivePathForward(Pose2d... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
         for (Pose2d pose : poseList) {
             builder = builder.splineToSplineHeading(pose, 0);
         }
@@ -217,7 +283,7 @@ public class Drive extends SubSystem {
     }
 
     public void drivePathBackward(Pose2d... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
         for (Pose2d pose : poseList) {
             builder = builder.setReversed(true).splineToSplineHeading(pose, Math.PI);
         }
@@ -225,7 +291,7 @@ public class Drive extends SubSystem {
     }
 
     public void strafePath(Pose2d... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
         for (Pose2d pose : poseList) {
             builder = builder.strafeToSplineHeading(pose.position, pose.heading);
         }
@@ -255,30 +321,6 @@ public class Drive extends SubSystem {
 
     public void toggleTelemetry() {
         telemetryOn = !telemetryOn;
-    }
-
-    public void savePose1() {
-        savedPose1 = getPose();
-    }
-
-    public void goToPose1() {
-        if (savedPose1 != null) {
-            strafePath(savedPose1);
-        }
-    }
-
-    public void savePose2() {
-        savedPose2 = getPose();
-    }
-
-    public void goToPose2() {
-        if (savedPose2 != null) {
-            strafePath(savedPose2);
-        }
-    }
-
-    private Pose2d getPose() {
-        return mecanumDrive.localizer.getPose();
     }
 
     public void setPose(Pose2d pose) {

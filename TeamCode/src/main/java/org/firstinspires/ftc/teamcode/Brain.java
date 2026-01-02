@@ -9,6 +9,9 @@ import org.firstinspires.ftc.teamcode.base.SuperSystem;
 
 public class Brain extends SuperSystem {
 
+    private boolean usingCameraLocalization = true;
+    private int cameraLocalizationDroppedDueToMovement = 0;
+
     public Brain(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
     }
@@ -25,7 +28,12 @@ public class Brain extends SuperSystem {
         Pose2d roadrunnerPose = camera.calculateRoadrunnerPose();
 
         if (roadrunnerPose != null) {
-            drive.setFieldPosition(roadrunnerPose);
+            if (usingCameraLocalization && drive.nearlyStopped()) {
+                drive.setFieldPosition(roadrunnerPose);
+            }
+            if (!drive.nearlyStopped()) {
+                cameraLocalizationDroppedDueToMovement += 1;
+            }
             telemetry.addData("roadrunnerPoseFound", true);
         }
     }
@@ -47,6 +55,11 @@ public class Brain extends SuperSystem {
     }
 
     private void setTelemetry() {
+        telemetry.addData("usingCameraLocalization", usingCameraLocalization);
+        telemetry.addData("cameraLocalizationDroppedDueToMovement", cameraLocalizationDroppedDueToMovement);
+    }
 
+    public void toggleCameraLocalization() {
+        usingCameraLocalization = !usingCameraLocalization;
     }
 }

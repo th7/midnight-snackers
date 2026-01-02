@@ -85,6 +85,9 @@ public class TeleOp extends OpMode {
         if (gamepad2.dpadRightWasPressed()) {
             launcher.increaseAdjustable();
         }
+        if (gamepad2.right_trigger > 0.2) {
+            brain.toggleCameraLocalization();
+        }
 
         drive.setStrafePower(-gamepad1.left_stick_x);
         drive.useDirectPower();
