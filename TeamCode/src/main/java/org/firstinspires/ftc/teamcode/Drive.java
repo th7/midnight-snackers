@@ -130,37 +130,20 @@ public class Drive extends SubSystem {
         straightPower = newStraightPower;
     }
 
-    public void loop() {
-        mecanumDrive.localizer.update();
-        currentPose = mecanumDrive.localizer.getPose();
-        updateChanges();
-        driveRunner.loop();
-        if (telemetryOn) {
-            setTelemetry();
-        }
-
-        lastPose = currentPose;
-    }
-
     private void updateChanges() {
         xChange = currentPose.position.x - lastPose.position.x;
         yChange = currentPose.position.y - lastPose.position.y;
         headingChange = currentPose.heading.minus(lastPose.heading);
-
-        if (telemetryOn) {
-            telemetry.addData("xChange", xChange);
-            telemetry.addData("yChange", yChange);
-            telemetry.addData("headingChange", headingChange);
-        }
     }
     private void setTelemetry() {
         telemetry.addData("Drive", "telemetry on");
 
         telemetry.addData("fieldPositionKnown", fieldPositionKnown);
         telemetry.addData("fieldPositionUpdated", fieldPositionUpdated);
-        telemetry.addData("fieldPositionDiscarded", fieldPositionDiscarded);
 
-        telemetry.addData("current x,y,h", "%.04f,%.04f,%.04f", currentPose.position.x, currentPose.position.y, currentPose.heading.real);
+        double headingRadians = Rotation2d.exp(0).minus(currentPose.heading);
+        telemetry.addData("current x, y, h(rads)", "%.02f, %.02f, %.02f", currentPose.position.x, currentPose.position.y, headingRadians);
+        telemetry.addData("changes x, y, h(rads)", "%.02f, %.02f, %.02f", xChange, yChange, headingChange);
 //        if (savedPose1 != null) {
 //            telemetry.addData("Saved 1 x,y,h", "%.04f,%.04f,%.04f", savedPose1.position.x, savedPose1.position.y, savedPose1.heading.real);
 //        } else {
@@ -288,6 +271,15 @@ public class Drive extends SubSystem {
                 new Pose2d(24, 48, Math.PI * 3 / 4),
                 new Pose2d(0, 48, Math.PI * -3 / 4),
                 new Pose2d(0, 24, Math.PI / -2),
+                new Pose2d(0, 0, 0)
+        );
+    }
+
+    public void forwardLeftBackwardRight() {
+        strafePath(
+                new Pose2d(24, 0, 0),
+                new Pose2d(24, 24, 0),
+                new Pose2d(0, 24, 0),
                 new Pose2d(0, 0, 0)
         );
     }
