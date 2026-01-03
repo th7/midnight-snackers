@@ -4,7 +4,9 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
+import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.teamcode.planrunner.StepData;
 
 public class Plans {
     public Drive drive;
@@ -88,12 +90,8 @@ public class Plans {
     private Step waitFor(double seconds) {
         return new Step(
                 "waitFor " + seconds,
-                () -> {
-                    startedWaitAt = runtime.time();
-                },
-                () -> {
-                    return runtime.time() >= startedWaitAt + seconds;
-                }
+                () -> {},
+                (StepData stepData) -> stepData.secondsElapsed(seconds)
         );
     }
 
@@ -206,6 +204,18 @@ public class Plans {
                     motif = drive.motif();
                     return motif != null || runtime.time() > timeoutStartedAt + 3;
                 }
+        );
+    }
+
+    public PlanPart forwardLeftBackwardRight() {
+        return new Plan(
+                setZeroPosition(),
+                waitFor(5),
+                new Step(
+                        "forwardLeftBackwardRight",
+                        drive::forwardLeftBackwardRight,
+                        drive::done
+                )
         );
     }
 
