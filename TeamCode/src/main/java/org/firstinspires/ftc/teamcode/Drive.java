@@ -18,6 +18,15 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.List;
 
 public class Drive extends SubSystem {
+    // COORDINATES!!! ARGH
+    // Imagine facing the field from the audience. Blue goal is forward left, red goal is forward right. Any further mention of left/right or forward/backward is relative to this perspective.
+
+    // FTC Coordinates
+    // +x backward, +y right, straight forward heading is PI/2
+
+    // Roadrunner Coordinates (this is what we use)
+    // +x forward, +y left, straight forward heading is 0
+
     private DcMotor leftFront;
     private DcMotor rightFront;
     private DcMotor leftBack;
@@ -35,7 +44,6 @@ public class Drive extends SubSystem {
     private MoveData moveData;
     private boolean fieldPositionKnown = false;
     private int fieldPositionUpdated;
-    private int fieldPositionDiscarded;
     private double xChange;
     private double yChange;
     private double headingChange;
@@ -49,10 +57,8 @@ public class Drive extends SubSystem {
 
     private final double blueAprilTagX = 58.3;
     private final double blueAprilTagY = 55.6;
-    //    private final double blueLaunchTargetX = blueAprilTagX + 10;
-    //    private final double blueLaunchTargetY = blueAprilTagY + 10;
-    private final double blueLaunchTargetX = blueAprilTagX;
-    private final double blueLaunchTargetY = blueAprilTagY;
+    private final double blueLaunchTargetX = blueAprilTagX + 8;
+    private final double blueLaunchTargetY = blueAprilTagY + 8;
     private final double targetLaunchDistance = 40;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
@@ -60,36 +66,6 @@ public class Drive extends SubSystem {
     }
 
     public void init() {
-
-//        AprilTagProcessor.Builder atpb = new AprilTagProcessor.Builder();
-//
-////        Robot axes: (this is typical, but you can define this however you want)
-////
-////        Origin location: Center of the robot at field height
-////
-////        Axes orientation: +x right, +y forward, +z upward
-////
-////        Position:
-////
-////        If all values are zero (no translation), that implies the camera is at the center of the robot. Suppose your camera is positioned 5 inches to the left, 7 inches forward, and 12 inches above the ground - you would need to set the position to (-5, 7, 12).
-//        Position cameraPosition = new Position(DistanceUnit.INCH,
-//                5, 5, 5, 0);
-//
-////        Orientation:
-////
-////        If all values are zero (no rotation), that implies the camera is pointing straight up. In most cases, you’ll need to set the pitch to -90 degrees (rotation about the x-axis), meaning the camera is horizontal. Use a yaw of 0 if the camera is pointing forwards, +90 degrees if it’s pointing straight left, -90 degrees for straight right, etc. You can also set the roll to +/-90 degrees if it’s vertical, or 180 degrees if it’s upside-down.
-//        YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
-//                0, -75, 0, 0);
-//        atpb.setCameraPose(cameraPosition, cameraOrientation);
-//        aprilTagProcessor = atpb.build();
-//
-//        VisionPortal.Builder vpb = new VisionPortal.Builder();
-//        vpb.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
-//        vpb.setCameraResolution(new Size(640, 480));
-//        vpb.setStreamFormat(VisionPortal.StreamFormat.MJPEG);
-//        vpb.addProcessor(aprilTagProcessor);
-//        vpb.build();
-//        Size size = vpb.getActiveCamera().getCameraCharacteristics().getDefaultSize(0);
         leftFront = hardwareMap.get(DcMotor.class, "leftFront");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
@@ -100,8 +76,18 @@ public class Drive extends SubSystem {
         lastPose = zeroPose;
 
         telemetry.addData("Drive.init()", true);
-//        telemetry.addData("CameraHeight", size.getHeight());
-//        telemetry.addData("CameraWidth", size.getWidth());
+    }
+
+    public void loop() {
+        mecanumDrive.localizer.update();
+        currentPose = mecanumDrive.localizer.getPose();
+        updateChanges();
+        driveRunner.loop();
+        if (telemetryOn) {
+            setTelemetry();
+        }
+
+        lastPose = currentPose;
     }
 
     public void useDirectPower() {
