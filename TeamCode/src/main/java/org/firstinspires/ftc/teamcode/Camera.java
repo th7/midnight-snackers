@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import android.util.Size;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Rotation2d;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -106,6 +107,20 @@ public class Camera extends SubSystem {
                 telemetry.addData("goalDetection.ftcPose.yaw", goalDetection.ftcPose.yaw);
                 telemetry.addData("goalDetection.ftcPose.pitch", goalDetection.ftcPose.pitch);
                 telemetry.addData("goalDetection.ftcPose.roll", goalDetection.ftcPose.roll);
+            }
+
+            if (goalDetection.robotPose != null) {
+                Position position = goalDetection.robotPose.getPosition();
+                YawPitchRollAngles orientation = goalDetection.robotPose.getOrientation();
+                if (position != null && orientation != null) {
+                    telemetry.addData("ftc x, y, h(rads)", "%.02f, %.02f, %.02f", position.x, position.y, orientation.getYaw(AngleUnit.RADIANS));
+                }
+
+                Pose2d currentPose = calculateRoadrunnerPose();
+                if (currentPose != null) {
+                    double headingRadians = Rotation2d.exp(0).minus(currentPose.heading);
+                    telemetry.addData("roadrunner x, y, h(rads)", "%.02f, %.02f, %.02f", currentPose.position.x, currentPose.position.y, headingRadians);
+                }
             }
         }
     }
