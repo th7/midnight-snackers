@@ -76,17 +76,11 @@ public class Camera extends SubSystem {
 
         for (AprilTagDetection detection : detections) {
             if (detection.id == 20 || detection.id == 24) {
-                goalDetection = detection;
+                detectionFilter.addDetection(detection);
             }
         }
 
-        if (goalDetection == null) {
-            return;
-        }
-
-        if (System.nanoTime() - goalDetection.frameAcquisitionNanoTime > 0.1 * 1_000_000_000) {
-            goalDetection = null;
-        }
+        goalDetection = detectionFilter.getCleanDetection();
 
         if (telemetryOn) {
             setTelemetry();
