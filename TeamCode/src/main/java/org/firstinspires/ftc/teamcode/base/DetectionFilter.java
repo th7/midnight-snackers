@@ -12,15 +12,16 @@ public class DetectionFilter {
     private final LinkedList<AprilTagDetection> storedDetections = new LinkedList<>();
     private final int detectionCount = 3;
     private final int maxPositionDifference;
-    private final double maxDetectionAgeSeconds;
+
+    public final long maxDetectionAgeNano;
 
     public DetectionFilter() {
         this.maxPositionDifference = 1;
-        this.maxDetectionAgeSeconds = 0.1;
+        this.maxDetectionAgeNano = (long) (0.1 * 1_000_000_000);
     }
     public DetectionFilter(int maxPositionDifference, double maxDetectionAgeSeconds) {
         this.maxPositionDifference = maxPositionDifference;
-        this.maxDetectionAgeSeconds = maxDetectionAgeSeconds;
+        this.maxDetectionAgeNano = (long) (maxDetectionAgeSeconds * 1_000_000_000);
     }
 
     public void addDetection(AprilTagDetection detection) {
@@ -50,7 +51,10 @@ public class DetectionFilter {
         double minY = 1000000;
         double maxY = -1000000;
         for (AprilTagDetection detection : storedDetections) {
+            if (detection.robotPose == null) { return false; }
             Position position = detection.robotPose.getPosition();
+            if (position == null) { return false; }
+
             if (position.x < minX) { minX = position.x; }
             if (position.x > maxX) { maxX = position.x; }
             if (position.y < minY) { minY = position.y; }
@@ -60,8 +64,12 @@ public class DetectionFilter {
         return Math.abs(maxX - minX) < maxPositionDifference && Math.abs(maxY - minY) < maxPositionDifference;
     }
 
-    private boolean lastDetectionIsRecent() {
+    public boolean lastDetectionIsRecent() {
+        return lastDetectionAgeNano() < maxDetectionAgeNano;
+    }
+
+    public long lastDetectionAgeNano() {
         AprilTagDetection lastDetection = storedDetections.getLast();
-        return lastDetection == null || !(System.nanoTime() - lastDetection.frameAcquisitionNanoTime > maxDetectionAgeSeconds * 1_000_000_000);
+        return System.nanoTime() - lastDetection.frameAcquisitionNanoTime;
     }
 }
