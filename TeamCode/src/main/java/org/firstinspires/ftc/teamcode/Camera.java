@@ -14,6 +14,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.teamcode.base.DetectionFilter;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -25,6 +26,7 @@ public class Camera extends SubSystem {
     private AprilTagProcessor aprilTagProcessor;
     private boolean telemetryOn = false;
     private AprilTagDetection goalDetection;
+    private final DetectionFilter detectionFilter = new DetectionFilter();
 
     public Camera(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -98,6 +100,9 @@ public class Camera extends SubSystem {
 
     private void setTelemetry() {
         telemetry.addData("Camera", "telemetry on");
+        telemetry.addData("detectionFilter.maxDetectionAgeNano", detectionFilter.maxDetectionAgeNano);
+        telemetry.addData("detectionFilter.lastDetectionAgeNano", detectionFilter.lastDetectionAgeNano());
+        telemetry.addData("detectionFilter.lastDetectionIsRecent", detectionFilter.lastDetectionIsRecent());
         if (goalDetection != null) {
             telemetry.addData("goalDetection.id", goalDetection.id);
             if (goalDetection.ftcPose != null) {
