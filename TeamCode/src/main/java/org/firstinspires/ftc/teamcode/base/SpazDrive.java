@@ -5,6 +5,7 @@ import androidx.core.math.MathUtils;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Twist2d;
+import com.acmerobotics.roadrunner.Vector2d;
 
 public class SpazDrive {
 //    private Pose2d currentPose;
@@ -84,6 +85,10 @@ public class SpazDrive {
 
     public void setDestination(Pose2d newDestination) {
         this.destination = newDestination;
+    }
+
+    public void setDestination(Vector2d position, double headingRadians) {
+        this.destination = new Pose2d(position, headingRadians);
     }
 
     public float straightPower() {
