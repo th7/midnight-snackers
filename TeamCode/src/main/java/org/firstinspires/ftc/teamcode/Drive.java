@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
+import org.firstinspires.ftc.teamcode.base.SpazDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -60,6 +61,7 @@ public class Drive extends SubSystem {
     private final double blueLaunchTargetX = blueAprilTagX + 8;
     private final double blueLaunchTargetY = blueAprilTagY + 8;
     private final double targetLaunchDistance = 40;
+    private SpazDrive spazDrive;
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -75,6 +77,7 @@ public class Drive extends SubSystem {
         currentPose = zeroPose;
         lastPose = zeroPose;
 
+        spazDrive = new SpazDrive();
         telemetry.addData("Drive.init()", true);
     }
 
@@ -88,6 +91,54 @@ public class Drive extends SubSystem {
         }
 
         lastPose = currentPose;
+    }
+
+    public void increasePositionP() {
+        spazDrive.increasePositionP();
+    }
+
+    public void decreasePositionP() {
+        spazDrive.decreasePositionP();
+    }
+
+    public void increasePositionI() {
+        spazDrive.increasePositionI();
+    }
+
+    public void decreasePositionI() {
+        spazDrive.decreasePositionI();
+    }
+
+    public void increasePositionD() {
+        spazDrive.increasePositionD();
+    }
+
+    public void decreasePositionD() {
+        spazDrive.decreasePositionD();
+    }
+
+    public void increaseHeadingP() {
+        spazDrive.increaseHeadingP();
+    }
+
+    public void decreaseHeadingP() {
+        spazDrive.decreaseHeadingP();
+    }
+
+    public void increaseHeadingI() {
+        spazDrive.increaseHeadingI();
+    }
+
+    public void decreaseHeadingI() {
+        spazDrive.decreaseHeadingI();
+    }
+
+    public void increaseHeadingD() {
+        spazDrive.increaseHeadingD();
+    }
+
+    public void decreaseHeadingD() {
+        spazDrive.decreaseHeadingD();
     }
 
     public void useDirectPower() {
@@ -123,6 +174,28 @@ public class Drive extends SubSystem {
     }
     private void setTelemetry() {
         telemetry.addData("Drive", "telemetry on");
+
+        Pose2d error = spazDrive.error;
+        if (error != null) {
+            telemetry.addData("spazError.x", error.position.x);
+            telemetry.addData("spazError.y", error.position.y);
+            telemetry.addData("spazError.h", Rotation2d.exp(0).minus(error.heading));
+        }
+
+        telemetry.addData("spazStraightPower", spazDrive.straightPower());
+        telemetry.addData("spazStrafePower", spazDrive.strafePower());
+        telemetry.addData("spazTurnPower", spazDrive.turnPower());
+        telemetry.addData("spazPositionP", spazDrive.positionP);
+        telemetry.addData("spazPositionI", spazDrive.positionI);
+        telemetry.addData("spazPositionD", spazDrive.positionD);
+        telemetry.addData("spazHeadingP", spazDrive.headingP);
+        telemetry.addData("spazHeadingI", spazDrive.headingI);
+        telemetry.addData("spazHeadingD", spazDrive.headingD);
+        telemetry.addData("spazDrive.atDestination();", spazDrive.doneMoving());
+        telemetry.addData("spazDrive.nearXDestination();", spazDrive.nearXDestination());
+        telemetry.addData("spazDrive.nearYDestination();", spazDrive.nearYDestination());
+        telemetry.addData("spazDrive.nearHDestination();", spazDrive.nearHDestination());
+        telemetry.addData("spazDrive.notMoving();", spazDrive.notMoving());
 
         telemetry.addData("fieldPositionKnown", fieldPositionKnown);
         telemetry.addData("fieldPositionUpdated", fieldPositionUpdated);
