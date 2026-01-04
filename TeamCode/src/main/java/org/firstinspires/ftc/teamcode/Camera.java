@@ -91,11 +91,6 @@ public class Camera extends SubSystem {
         if (telemetryOn) {
             setTelemetry();
         }
-
-//        for (Candle candle : candlesOnTable()) {
-//            candle.turnOn();
-//        }
-
     }
 
     private void setTelemetry() {
