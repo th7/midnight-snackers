@@ -12,6 +12,7 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.teamcode.planrunner.StepData;
 
 public class Launcher extends SubSystem {
     private final double topGateOpenPosition = 1;
@@ -26,9 +27,6 @@ public class Launcher extends SubSystem {
     private double topGatePosition = topGateOpenPosition;
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
-    private double bottomGateStartedAt = -1;
-    private double topGateStartedAt = -1;
-    private double waitForStartedAt = -1;
     private boolean telemetryOn = false;
     private boolean loading = false;
     private double bottomGateWaitTime = 0.45;
@@ -87,8 +85,10 @@ public class Launcher extends SubSystem {
                 ensureFlywheelReady(),
                 launchCloseTopGate(),
                 launchOpenBottomGate(),
+                Step.waitFor("ball to fall into launcher", 0.15),
                 launchCloseBottomGate(),
-                launchOpenTopGate()
+                launchOpenTopGate(),
+                Step.waitFor("ball to fall into bottom position", 0.15)
         );
     }
 
@@ -106,12 +106,11 @@ public class Launcher extends SubSystem {
 
     private Step launchCloseTopGate() {
         return new Step(
-                "launchCloseTopGate",
+            "launchCloseTopGate",
                 () -> {
                     topGatePosition = topGateClosedPosition;
-                    topGateStartedAt = runtime.time();
                 },
-                () -> this.runtime.time() >= topGateStartedAt + 0.05
+                Step.secondsElapsed(0.05)
         );
     }
 
@@ -120,9 +119,8 @@ public class Launcher extends SubSystem {
                 "launchOpenBottomGate",
                 () -> {
                     bottomGatePosition = bottomGateOpenPosition;
-                    bottomGateStartedAt = runtime.time();
                 },
-                () -> this.runtime.time() >= bottomGateStartedAt + 0.2
+                Step.secondsElapsed(0.05)
         );
     }
 
@@ -131,9 +129,8 @@ public class Launcher extends SubSystem {
                 "launchOpenBottomGate",
                 () -> {
                     bottomGatePosition = bottomGateClosedPosition;
-                    bottomGateStartedAt = runtime.time();
                 },
-                () -> this.runtime.time() >= bottomGateStartedAt + 0.08
+                Step.secondsElapsed(0.08)
         );
     }
 
@@ -142,9 +139,8 @@ public class Launcher extends SubSystem {
                 "launchOpenTopGate",
                 () -> {
                     topGatePosition = topGateOpenPosition;
-                    topGateStartedAt = runtime.time();
                 },
-                () -> true
+                Step.secondsElapsed(0.05)
         );
     }
 
@@ -157,58 +153,7 @@ public class Launcher extends SubSystem {
     private Plan slowLaunchPlan() {
         return new Plan(
                 launchPlan(),
-                waitFor(0.8)
-        );
-    }
-
-    private Step waitFor(double seconds) {
-        return new Step(
-                "waitFor",
-                () -> {
-                    waitForStartedAt = runtime.time();
-                },
-                () -> runtime.time() >= waitForStartedAt + seconds
-        );
-    }
-
-    public void loadyLoad() {
-        if (currentPlan == null) {
-            currentPlan = loadPlan();
-        }
-    }
-
-    public void finishLoading() {
-        loading = false;
-    }
-
-    private Plan loadPlan() {
-        return new Plan(
-                loadOpenGate1(),
-                loadCloseGate1()
-        );
-    }
-
-    private Step loadOpenGate1() {
-        return new Step(
-                "loadOpenGate1",
-                () -> {
-                    loading = true;
-                    topGatePosition = topGateOpenPosition;
-                },
-                () -> {
-                    return !loading;
-                }
-        );
-    }
-
-    private Step loadCloseGate1() {
-        return new Step(
-                "loadCloseGate1",
-                () -> {
-                    topGatePosition = topGateClosedPosition;
-                    topGateStartedAt = runtime.time();
-                },
-                this::topGateWaitTimePassed
+                Step.waitFor("slow launch", 0.8)
         );
     }
 
@@ -303,28 +248,8 @@ public class Launcher extends SubSystem {
                 pidModified.p, pidModified.i, pidModified.d, pidModified.f);
     }
 
-    private boolean bottomGateWaitTimePassed() {
-        return runtime.time() >= bottomGateStartedAt + bottomGateWaitTime;
-    }
-
-    private boolean topGateWaitTimePassed() {
-        return runtime.time() >= topGateStartedAt + topGateWaitTime;
-    }
-
-    private boolean topGateLaunchFinished() {
-        return runtime.time() >= topGateStartedAt + topGateWaitTime * 2 + 0.05;
-    }
-
-    private boolean bottomGateLaunchFinished() {
-        return runtime.time() >= bottomGateStartedAt + bottomGateWaitTime * 2 + 0.05;
-    }
-
-    public boolean gateLaunchDone() {
-        return topGateLaunchFinished() && bottomGateLaunchFinished();
-    }
-
     public boolean launchDone() {
-        return gateLaunchDone() && currentPlan == null;
+        return currentPlan == null;
     }
 
     private boolean closeEnough(double a, double b, double c) {
