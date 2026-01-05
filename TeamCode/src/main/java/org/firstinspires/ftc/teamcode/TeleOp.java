@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.teamcode.base.OpMode;
 
-@com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "TeleOp")
-public class TeleOp extends OpMode {
+abstract class TeleOp extends OpMode {
     private DcMotor leftFront;
     private DcMotor rightFront;
     private DcMotor leftBack;
@@ -45,15 +45,28 @@ public class TeleOp extends OpMode {
             launcher.slowLaunchyLaunch();
         }
         if (gamepad1.right_trigger > 0.2) {
-            brain.autoShootSlowBlue();
+            brain.autoShootSlow(launchTarget());
         } else if (gamepad1.left_trigger > 0.2) {
-            brain.autoShootFastBlue();
+            brain.autoShootFast(launchTarget());
         } else if (gamepad1.right_bumper) {
-            drive.turnToBlue();
+            drive.spazToLaunchPose(launchTarget());
+            if (Math.abs(gamepad1.right_stick_x) > 0.05) {
+                drive.setTurnPower(-gamepad1.right_stick_x);
+            }
             drive.setStraightPower(-gamepad1.left_stick_y);
+            drive.setStrafePower(-gamepad1.left_stick_x);
+        } else if (gamepad1.left_bumper) {
+            drive.spazToLaunchPose(launchTarget());
+            if (Math.abs(gamepad1.left_stick_x) > 0.05) {
+                drive.setStrafePower(-gamepad1.left_stick_x);
+            }
+            if (Math.abs(gamepad1.right_stick_x) > 0.05) {
+                drive.setTurnPower(-gamepad1.right_stick_x);
+            }
         } else {
             drive.setTurnPower(-gamepad1.right_stick_x);
             drive.setStraightPower(-gamepad1.left_stick_y);
+            drive.setStrafePower(-gamepad1.left_stick_x);
         }
 
         if (Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
@@ -89,7 +102,6 @@ public class TeleOp extends OpMode {
             brain.toggleCameraLocalization();
         }
 
-        drive.setStrafePower(-gamepad1.left_stick_x);
         drive.useDirectPower();
 
 //        if (gamepad1.leftBumperWasPressed()) {
@@ -109,4 +121,7 @@ public class TeleOp extends OpMode {
             telemetryOn = !telemetryOn;
         }
     }
+
+    abstract Vector2d launchTarget();
+
 }

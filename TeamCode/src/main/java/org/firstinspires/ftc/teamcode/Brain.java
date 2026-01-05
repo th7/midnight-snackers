@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -38,19 +39,15 @@ public class Brain extends SuperSystem {
         }
     }
 
-    public void autoShootSlowBlue() {
-        if (drive.turnToBlue()) {
-            if (drive.driveToBlue()) {
-                launcher.slowLaunchyLaunch();
-            }
+    public void autoShootSlow(Vector2d launchTarget) {
+        if (drive.spazToLaunchPose(launchTarget)) {
+            launcher.slowLaunchyLaunch();
         }
     }
 
-    public void autoShootFastBlue() {
-        if (drive.turnToBlue()) {
-            if (drive.driveToBlue()) {
-                launcher.launchyLaunch();
-            }
+    public void autoShootFast(Vector2d launchTarget) {
+        if (drive.spazToLaunchPose(launchTarget)) {
+            launcher.launchyLaunch();
         }
     }
 

@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
+import org.firstinspires.ftc.teamcode.base.NavUtil;
 import org.firstinspires.ftc.teamcode.base.SpazDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
@@ -60,8 +61,10 @@ public class Drive extends SubSystem {
     private final double blueAprilTagY = 55.6;
     private final double blueLaunchTargetX = blueAprilTagX + 8;
     private final double blueLaunchTargetY = blueAprilTagY + 8;
+    public final Vector2d blueLaunchTarget = new Vector2d(blueLaunchTargetX, blueLaunchTargetY);
+    public final Vector2d redLaunchTarget = new Vector2d(blueLaunchTargetX, -blueLaunchTargetY);
     private final double targetLaunchDistance = 40;
-    private SpazDrive spazDrive;
+    private SpazDrive spazDrive = new SpazDrive();
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -77,7 +80,6 @@ public class Drive extends SubSystem {
         currentPose = zeroPose;
         lastPose = zeroPose;
 
-        spazDrive = new SpazDrive();
         telemetry.addData("Drive.init()", true);
     }
 
@@ -91,6 +93,24 @@ public class Drive extends SubSystem {
         }
 
         lastPose = currentPose;
+    }
+
+    public boolean spazToLaunchPose(Vector2d launchTarget) {
+        if (!fieldPositionKnown) {
+            return false;
+        }
+
+        Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
+
+        spazDrive.setDestination(launchPose);
+        spazDrive.update(currentPose);
+
+        straightPower = spazDrive.straightPower();
+        strafePower = spazDrive.strafePower();
+        turnPower = spazDrive.turnPower();
+
+        return spazDrive.doneMoving();
+
     }
 
     public void increasePositionP() {
