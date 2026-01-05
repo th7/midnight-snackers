@@ -48,14 +48,8 @@ abstract class TeleOp extends OpMode {
             brain.autoShootSlow(launchTarget());
         } else if (gamepad1.left_trigger > 0.2) {
             brain.autoShootFast(launchTarget());
-        } else if (gamepad1.right_bumper) {
-            drive.spazToLaunchPose(launchTarget());
-            if (Math.abs(gamepad1.right_stick_x) > 0.05) {
-                drive.setTurnPower(-gamepad1.right_stick_x);
-            }
-            drive.setStraightPower(-gamepad1.left_stick_y);
-            drive.setStrafePower(-gamepad1.left_stick_x);
         } else if (gamepad1.left_bumper) {
+            brain.cancelPlan();
             drive.spazToLaunchPose(launchTarget());
             if (Math.abs(gamepad1.left_stick_x) > 0.05) {
                 drive.setStrafePower(-gamepad1.left_stick_x);
@@ -63,7 +57,16 @@ abstract class TeleOp extends OpMode {
             if (Math.abs(gamepad1.right_stick_x) > 0.05) {
                 drive.setTurnPower(-gamepad1.right_stick_x);
             }
+        } else if (gamepad1.right_bumper) {
+            brain.cancelPlan();
+            drive.spazToLaunchPose(launchTarget());
+            if (Math.abs(gamepad1.right_stick_x) > 0.05) {
+                drive.setTurnPower(-gamepad1.right_stick_x);
+            }
+            drive.setStraightPower(-gamepad1.left_stick_y);
+            drive.setStrafePower(-gamepad1.left_stick_x);
         } else {
+            brain.cancelPlan();
             drive.setTurnPower(-gamepad1.right_stick_x);
             drive.setStraightPower(-gamepad1.left_stick_y);
             drive.setStrafePower(-gamepad1.left_stick_x);

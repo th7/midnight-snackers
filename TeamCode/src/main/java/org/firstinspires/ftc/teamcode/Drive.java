@@ -59,8 +59,8 @@ public class Drive extends SubSystem {
 
     private final double blueAprilTagX = 58.3;
     private final double blueAprilTagY = 55.6;
-    private final double blueLaunchTargetX = blueAprilTagX + 8;
-    private final double blueLaunchTargetY = blueAprilTagY + 8;
+    private final double blueLaunchTargetX = blueAprilTagX + 9;
+    private final double blueLaunchTargetY = blueAprilTagY + 9;
     public final Vector2d blueLaunchTarget = new Vector2d(blueLaunchTargetX, blueLaunchTargetY);
     public final Vector2d redLaunchTarget = new Vector2d(blueLaunchTargetX, -blueLaunchTargetY);
     private final double targetLaunchDistance = 40;
