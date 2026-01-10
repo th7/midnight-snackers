@@ -7,7 +7,7 @@ import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Twist2d;
 import com.acmerobotics.roadrunner.Vector2d;
 
-public class SpazDrive {
+public class FastDrive {
 //    private Pose2d currentPose;
 //    private long currentPoseAt;
 //    private Pose2d lastPose;

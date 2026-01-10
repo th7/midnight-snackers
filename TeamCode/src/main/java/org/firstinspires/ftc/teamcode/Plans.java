@@ -11,13 +11,15 @@ import org.firstinspires.ftc.teamcode.planrunner.StepData;
 public class Plans {
     public Drive drive;
     public Launcher launcher;
+    public Brain brain;
     public ElapsedTime runtime;
     private double startedWaitAt;
     private double timeoutStartedAt;
     private Motif motif;
-    public Plans(Drive drive, Launcher launcher, ElapsedTime runtime) {
+    public Plans(Drive drive, Launcher launcher, Brain brain, ElapsedTime runtime) {
         this.drive = drive;
         this.launcher = launcher;
+        this.brain = brain;
         this.runtime = runtime;
     }
 
@@ -31,6 +33,7 @@ public class Plans {
 
     public Plan scoreAThing() {
         return new Plan(
+                disableCamera(),
                 setZeroPosition(),
                 setCloseLaunchPower(),
                 backFromZeroALittle(),
@@ -124,6 +127,14 @@ public class Plans {
                 "toZeroPosition",
                 drive::toZeroPosition,
                 drive::done
+        );
+    }
+
+    private Step disableCamera() {
+        return new Step(
+                "disableCamera",
+                () -> brain.disableCameraLocalization(),
+                () -> true
         );
     }
 

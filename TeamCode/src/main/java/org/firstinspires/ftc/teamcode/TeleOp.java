@@ -50,7 +50,7 @@ abstract class TeleOp extends OpMode {
             brain.autoShootFast(launchTarget());
         } else if (gamepad1.left_bumper) {
             brain.cancelPlan();
-            drive.spazToLaunchPose(launchTarget());
+            drive.fastDriveToLaunchPose(launchTarget());
             if (Math.abs(gamepad1.left_stick_x) > 0.05) {
                 drive.setStrafePower(-gamepad1.left_stick_x);
             }
@@ -59,7 +59,7 @@ abstract class TeleOp extends OpMode {
             }
         } else if (gamepad1.right_bumper) {
             brain.cancelPlan();
-            drive.spazToLaunchPose(launchTarget());
+            drive.fastDriveToLaunchPose(launchTarget());
             if (Math.abs(gamepad1.right_stick_x) > 0.05) {
                 drive.setTurnPower(-gamepad1.right_stick_x);
             }

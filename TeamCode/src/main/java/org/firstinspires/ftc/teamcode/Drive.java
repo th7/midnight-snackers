@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.NavUtil;
-import org.firstinspires.ftc.teamcode.base.SpazDrive;
+import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -64,7 +64,7 @@ public class Drive extends SubSystem {
     public final Vector2d blueLaunchTarget = new Vector2d(blueLaunchTargetX, blueLaunchTargetY);
     public final Vector2d redLaunchTarget = new Vector2d(blueLaunchTargetX, -blueLaunchTargetY);
     private final double targetLaunchDistance = 40;
-    private SpazDrive spazDrive = new SpazDrive();
+    private FastDrive fastDrive = new FastDrive();
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -95,70 +95,70 @@ public class Drive extends SubSystem {
         lastPose = currentPose;
     }
 
-    public boolean spazToLaunchPose(Vector2d launchTarget) {
+    public boolean fastDriveToLaunchPose(Vector2d launchTarget) {
         if (!fieldPositionKnown) {
             return false;
         }
 
         Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
 
-        spazDrive.setDestination(launchPose);
-        spazDrive.update(currentPose);
+        fastDrive.setDestination(launchPose);
+        fastDrive.update(currentPose);
 
-        straightPower = spazDrive.straightPower();
-        strafePower = spazDrive.strafePower();
-        turnPower = spazDrive.turnPower();
+        straightPower = fastDrive.straightPower();
+        strafePower = fastDrive.strafePower();
+        turnPower = fastDrive.turnPower();
 
-        return spazDrive.doneMoving();
+        return fastDrive.doneMoving();
 
     }
 
     public void increasePositionP() {
-        spazDrive.increasePositionP();
+        fastDrive.increasePositionP();
     }
 
     public void decreasePositionP() {
-        spazDrive.decreasePositionP();
+        fastDrive.decreasePositionP();
     }
 
     public void increasePositionI() {
-        spazDrive.increasePositionI();
+        fastDrive.increasePositionI();
     }
 
     public void decreasePositionI() {
-        spazDrive.decreasePositionI();
+        fastDrive.decreasePositionI();
     }
 
     public void increasePositionD() {
-        spazDrive.increasePositionD();
+        fastDrive.increasePositionD();
     }
 
     public void decreasePositionD() {
-        spazDrive.decreasePositionD();
+        fastDrive.decreasePositionD();
     }
 
     public void increaseHeadingP() {
-        spazDrive.increaseHeadingP();
+        fastDrive.increaseHeadingP();
     }
 
     public void decreaseHeadingP() {
-        spazDrive.decreaseHeadingP();
+        fastDrive.decreaseHeadingP();
     }
 
     public void increaseHeadingI() {
-        spazDrive.increaseHeadingI();
+        fastDrive.increaseHeadingI();
     }
 
     public void decreaseHeadingI() {
-        spazDrive.decreaseHeadingI();
+        fastDrive.decreaseHeadingI();
     }
 
     public void increaseHeadingD() {
-        spazDrive.increaseHeadingD();
+        fastDrive.increaseHeadingD();
     }
 
     public void decreaseHeadingD() {
-        spazDrive.decreaseHeadingD();
+        fastDrive.decreaseHeadingD();
     }
 
     public void useDirectPower() {
@@ -195,27 +195,27 @@ public class Drive extends SubSystem {
     private void setTelemetry() {
         telemetry.addData("Drive", "telemetry on");
 
-        Pose2d error = spazDrive.error;
+        Pose2d error = fastDrive.error;
         if (error != null) {
-            telemetry.addData("spazError.x", error.position.x);
-            telemetry.addData("spazError.y", error.position.y);
-            telemetry.addData("spazError.h", Rotation2d.exp(0).minus(error.heading));
+            telemetry.addData("fastDriveError.x", error.position.x);
+            telemetry.addData("fastDriveError.y", error.position.y);
+            telemetry.addData("fastDriveError.h", Rotation2d.exp(0).minus(error.heading));
         }
 
-        telemetry.addData("spazStraightPower", spazDrive.straightPower());
-        telemetry.addData("spazStrafePower", spazDrive.strafePower());
-        telemetry.addData("spazTurnPower", spazDrive.turnPower());
-        telemetry.addData("spazPositionP", spazDrive.positionP);
-        telemetry.addData("spazPositionI", spazDrive.positionI);
-        telemetry.addData("spazPositionD", spazDrive.positionD);
-        telemetry.addData("spazHeadingP", spazDrive.headingP);
-        telemetry.addData("spazHeadingI", spazDrive.headingI);
-        telemetry.addData("spazHeadingD", spazDrive.headingD);
-        telemetry.addData("spazDrive.atDestination();", spazDrive.doneMoving());
-        telemetry.addData("spazDrive.nearXDestination();", spazDrive.nearXDestination());
-        telemetry.addData("spazDrive.nearYDestination();", spazDrive.nearYDestination());
-        telemetry.addData("spazDrive.nearHDestination();", spazDrive.nearHDestination());
-        telemetry.addData("spazDrive.notMoving();", spazDrive.notMoving());
+        telemetry.addData("fastDriveStraightPower", fastDrive.straightPower());
+        telemetry.addData("fastDriveStrafePower", fastDrive.strafePower());
+        telemetry.addData("fastDriveTurnPower", fastDrive.turnPower());
+        telemetry.addData("fastDrivePositionP", fastDrive.positionP);
+        telemetry.addData("fastDrivePositionI", fastDrive.positionI);
+        telemetry.addData("fastDrivePositionD", fastDrive.positionD);
+        telemetry.addData("fastDriveHeadingP", fastDrive.headingP);
+        telemetry.addData("fastDriveHeadingI", fastDrive.headingI);
+        telemetry.addData("fastDriveHeadingD", fastDrive.headingD);
+        telemetry.addData("fastDrive.atDestination();", fastDrive.doneMoving());
+        telemetry.addData("fastDrive.nearXDestination();", fastDrive.nearXDestination());
+        telemetry.addData("fastDrive.nearYDestination();", fastDrive.nearYDestination());
+        telemetry.addData("fastDrive.nearHDestination();", fastDrive.nearHDestination());
+        telemetry.addData("fastDrive.notMoving();", fastDrive.notMoving());
 
         telemetry.addData("fieldPositionKnown", fieldPositionKnown);
         telemetry.addData("fieldPositionUpdated", fieldPositionUpdated);

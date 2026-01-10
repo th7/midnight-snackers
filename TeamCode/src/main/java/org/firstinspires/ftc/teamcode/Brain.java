@@ -85,7 +85,7 @@ public class Brain extends SuperSystem {
         return new Step(
                 "moveToLaunchPose",
                 () -> {},
-                () -> drive.spazToLaunchPose(launchTarget)
+                () -> drive.fastDriveToLaunchPose(launchTarget)
         );
     }
 
@@ -112,5 +112,13 @@ public class Brain extends SuperSystem {
 
     public void toggleCameraLocalization() {
         usingCameraLocalization = !usingCameraLocalization;
+    }
+
+    public void enableCameraLocalization() {
+        usingCameraLocalization = true;
+    }
+
+    public void disableCameraLocalization() {
+        usingCameraLocalization = false;
     }
 }
