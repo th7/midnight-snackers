@@ -271,50 +271,6 @@ public class Drive extends SubSystem {
         return !(Math.abs(xChange) > nearlyStoppedInchesPerTick) && !(Math.abs(yChange) > nearlyStoppedInchesPerTick) && !(Math.abs(headingChange) > nearlyStoppedDegreesPerTick);
     }
 
-    public boolean turnToBlue() {
-        if (!fieldPositionKnown) {
-            return false;
-        }
-
-        double fieldBearingToTarget = Math.atan2(blueLaunchTargetY - currentPose.position.y, blueLaunchTargetX - currentPose.position.x);
-        double headingErrorRadians = Rotation2d.exp(fieldBearingToTarget).minus(currentPose.heading);
-
-        if (Math.abs(headingErrorRadians) < Math.PI / 80) {
-            turnPower = 0;
-            return true;
-        } else {
-            turnPower = clampMinPower(headingErrorRadians / (Math.PI / 6), 0.03);
-            return false;
-        }
-    }
-
-    public boolean driveToBlue() {
-        if (!fieldPositionKnown) {
-            return false;
-        }
-
-        double fieldDistanceToTarget = Math.sqrt(Math.pow(blueLaunchTargetY - currentPose.position.y, 2) + Math.pow(blueLaunchTargetX - currentPose.position.x, 2));
-        double distanceError = fieldDistanceToTarget - targetLaunchDistance;
-
-        if (Math.abs(distanceError) < 1) {
-            straightPower = 0;
-            return true;
-        } else {
-            straightPower = clampMinPower(distanceError / 20, 0.1);
-            return false;
-        }
-    }
-
-    private float clampMinPower(double power, double min) {
-        if (power > 0 && power < min) {
-            return (float) min;
-        } else if (power < 0 && power > -min) {
-            return (float) -min;
-        } else {
-            return (float) power;
-        }
-    }
-
     public void drivePathForward(Pose2d... poseList) {
         TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
         for (Pose2d pose : poseList) {
@@ -399,5 +355,13 @@ public class Drive extends SubSystem {
 
     public void cancel() {
         driveRunner.cancel();
+    }
+
+    public double relativeHeadingToTarget(Vector2d launchTarget) {
+        if (!fieldPositionKnown) {
+            return 0;
+        }
+        Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
+        return currentPose.heading.minus(launchPose.heading);
     }
 }

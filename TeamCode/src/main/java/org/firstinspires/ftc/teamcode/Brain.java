@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -32,11 +33,14 @@ public class Brain extends SuperSystem {
             currentPlan = null;
         }
 
-        Pose2d roadrunnerPose = camera.calculateRoadrunnerPose();
+        Pose2d rawRoadrunnerPose = camera.calculateRoadrunnerPose();
 
-        if (roadrunnerPose != null) {
+        if (rawRoadrunnerPose != null) {
+            Rotation2d turnTableOffset = Rotation2d.exp(launcher.getTurnTableOffsetRadians());
+            Pose2d adjustedRoadrunnerPose = new Pose2d(rawRoadrunnerPose.position, rawRoadrunnerPose.heading.minus(turnTableOffset));
+
             if (usingCameraLocalization && drive.nearlyStopped()) {
-                drive.setFieldPosition(roadrunnerPose);
+                drive.setFieldPosition(adjustedRoadrunnerPose);
             }
             if (!drive.nearlyStopped()) {
                 cameraLocalizationDroppedDueToMovement += 1;
@@ -45,6 +49,10 @@ public class Brain extends SuperSystem {
         }
 
         setTelemetry();
+    }
+
+    public void turnTurnTableToTarget(Vector2d launchTarget) {
+        launcher.setTurnTablePosition(drive.relativeHeadingToTarget(launchTarget));
     }
 
     public void cancelPlan() {

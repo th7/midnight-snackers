@@ -44,6 +44,9 @@ abstract class TeleOp extends OpMode {
         if (gamepad1.triangle) {
             launcher.slowLaunchyLaunch();
         }
+        if (gamepad1.circle) {
+            brain.turnTurnTableToTarget(launchTarget());
+        }
         if (gamepad1.right_trigger > 0.2) {
             brain.autoShootSlow(launchTarget());
         } else if (gamepad1.left_trigger > 0.2) {
@@ -96,10 +99,10 @@ abstract class TeleOp extends OpMode {
             launcher.decreasePower();
         }
         if (gamepad2.dpadLeftWasPressed()) {
-            launcher.decreaseAdjustable();
+            launcher.turnTableToLeft();
         }
         if (gamepad2.dpadRightWasPressed()) {
-            launcher.increaseAdjustable();
+            launcher.turnTableToRight();
         }
         if (gamepad2.right_trigger > 0.2) {
             brain.toggleCameraLocalization();

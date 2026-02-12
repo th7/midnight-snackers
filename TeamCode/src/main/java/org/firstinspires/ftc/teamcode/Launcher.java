@@ -10,9 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
-import org.firstinspires.ftc.teamcode.planrunner.StepData;
 
 public class Launcher extends SubSystem {
     private final double topGateOpenPosition = 1;
@@ -22,6 +20,7 @@ public class Launcher extends SubSystem {
     private final double closeLauncherPower = 1050d;
     private final double rangedLauncherPower = 1350d;
     private DcMotorEx launcher;
+    private DcMotorEx turnTable;
     private Servo topGate;
     private Servo bottomGate; // bottomGate is closer to launcher
     private double topGatePosition = topGateOpenPosition;
@@ -31,6 +30,8 @@ public class Launcher extends SubSystem {
     private boolean loading = false;
     private double bottomGateWaitTime = 0.45;
     private double topGateWaitTime = bottomGateWaitTime;
+    private int turnTableTargetPosition;
+    private final int ticksPerRevolution = 1700;
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;
@@ -51,6 +52,8 @@ public class Launcher extends SubSystem {
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+        turnTable = hardwareMap.get(DcMotorEx.class, "turnTable");
+
         topGate = hardwareMap.get(Servo.class, "topGate");
         bottomGate = hardwareMap.get(Servo.class, "bottomGate");
         topGate.setPosition(topGatePosition);
@@ -65,12 +68,31 @@ public class Launcher extends SubSystem {
             currentPlan = null;
         }
 
+        double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
+        double turnTablePower = turnTableError / 100;
+
         launcher.setVelocity(launcherVelocity);
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);
+       if (turnTableError < 5 && turnTableError > -5) {
+            turnTable.setPower(0);
+        } else {
+           double finalTurnTablePower = clampMinPower(turnTablePower, 0.1);
+           turnTable.setPower(finalTurnTablePower);
+        }
 
         if (telemetryOn) {
             setTelemetry();
+        }
+    }
+
+    private float clampMinPower(double power, double min) {
+        if (power > 0 && power < min) {
+            return (float) min;
+        } else if (power < 0 && power > -min) {
+            return (float) -min;
+        } else {
+            return (float) power;
         }
     }
 
@@ -227,9 +249,13 @@ public class Launcher extends SubSystem {
             telemetry.addData("launcherStep", "no currentPlan");
         }
 
-        telemetry.addData("adjustable", PIDFAdjustable);
+        telemetry.addData("turnTableRotationTicks", turnTable.getCurrentPosition());
+        telemetry.addData("turnTableOffsetRadians", getTurnTableOffsetRadians());
+        telemetry.addData("turnTableTargetPosition", turnTableTargetPosition);
+        telemetry.addData("turnTablePower", turnTable.getPower());
+//        telemetry.addData("adjustable", PIDFAdjustable);
         telemetry.addData("launcherPower", launcher.getPower());
-        telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
+//        telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
         telemetry.addData("launcherVelocityTarget", launcherVelocity);
         telemetry.addData("launcherVelocityActual", launcher.getVelocity());
         telemetry.addData("topGatePosition", topGatePosition);
@@ -309,5 +335,33 @@ public class Launcher extends SubSystem {
 
     public void decreaseAdjustable() {
         PIDFAdjustable = PIDFAdjustable - 0.1;
+    }
+
+    public void turnTableToLeft() {
+        turnTableTargetPosition += 10;
+    }
+
+    public void turnTableToRight() {
+        turnTableTargetPosition -= 10;
+    }
+
+    public double getTurnTableOffsetRadians() {
+        double revolutions = (double) turnTable.getCurrentPosition() / ticksPerRevolution;
+        return revolutions * (Math.PI * 2);
+    }
+
+    public void setTurnTablePosition(double relativeHeadingRadians) {
+        double radiansPerRevolution = Math.PI * 2;
+        double ticksPerRadian = ticksPerRevolution / radiansPerRevolution;
+        int rawTurnTableTargetPosition = (int) (relativeHeadingRadians * ticksPerRadian);
+        int middleTurnTablePosition = rawTurnTableTargetPosition % ticksPerRevolution;
+
+        if (middleTurnTablePosition > ticksPerRevolution / 2) {
+            turnTableTargetPosition = middleTurnTablePosition - ticksPerRevolution;
+        } else if (middleTurnTablePosition < -ticksPerRevolution / 2) {
+            turnTableTargetPosition = middleTurnTablePosition + ticksPerRevolution;
+        } else {
+            turnTableTargetPosition = middleTurnTablePosition;
+        }
     }
 }
