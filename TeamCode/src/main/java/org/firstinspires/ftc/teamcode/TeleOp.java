@@ -22,6 +22,8 @@ abstract class TeleOp extends OpMode {
         rightBack = hardwareMap.get(DcMotor.class, "rightBack");
         drive.setPose(new Pose2d(0, 0, 0));
 
+        brain.setLaunchTarget(launchTarget());
+
         telemetry.addData("TeleOp.init()", true);
     }
 
@@ -38,14 +40,15 @@ abstract class TeleOp extends OpMode {
 //        if (gamepad1.circleWasReleased()) {
 //            launcher.finishLoading();
 //        }
-        if (gamepad1.crossWasPressed()) {
-            launcher.noPower();
-        }
+
         if (gamepad1.triangle) {
             launcher.slowLaunchyLaunch();
         }
-        if (gamepad1.circle) {
-            brain.turnTurnTableToTarget(launchTarget());
+        if (gamepad1.crossWasPressed()) {
+            brain.turnTableToZeroModeOn();
+        }
+        if (gamepad1.circleWasPressed()) {
+            brain.turnTableToTargetModeOn();
         }
         if (gamepad1.right_trigger > 0.2) {
             brain.autoShootSlow(launchTarget());
@@ -99,9 +102,11 @@ abstract class TeleOp extends OpMode {
             launcher.decreasePower();
         }
         if (gamepad2.dpadLeftWasPressed()) {
+            brain.setTurnTableDebugOverrideModeOn();
             launcher.turnTableToLeft();
         }
         if (gamepad2.dpadRightWasPressed()) {
+            brain.setTurnTableDebugOverrideModeOn();
             launcher.turnTableToRight();
         }
         if (gamepad2.right_trigger > 0.2) {

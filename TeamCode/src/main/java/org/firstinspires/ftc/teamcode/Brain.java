@@ -14,8 +14,11 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 public class Brain extends SuperSystem {
 
     private boolean usingCameraLocalization = true;
+    private boolean turnTableToZeroMode = false;
+    private boolean turnTableDebugOverride = false;
     private int cameraLocalizationDroppedDueToMovement = 0;
     private Plan currentPlan = null;
+    private Vector2d launchTarget = null;
 
     public Brain(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -31,6 +34,14 @@ public class Brain extends SuperSystem {
 
         if (currentPlan != null && currentPlan.done()) {
             currentPlan = null;
+        }
+
+        if (!turnTableDebugOverride) {
+            if (turnTableToZeroMode) {
+                launcher.setTurnTablePosition(0);
+            } else {
+                turnTurnTableToTarget(launchTarget);
+            }
         }
 
         Pose2d rawRoadrunnerPose = camera.calculateRoadrunnerPose();
@@ -51,8 +62,24 @@ public class Brain extends SuperSystem {
         setTelemetry();
     }
 
+    public void setLaunchTarget(Vector2d launchTarget) {
+        this.launchTarget = launchTarget;
+    }
+
+    public void turnTableToTargetModeOn() {
+        turnTableDebugOverride = false;
+        turnTableToZeroMode = false;
+    }
+
     public void turnTurnTableToTarget(Vector2d launchTarget) {
-        launcher.setTurnTablePosition(drive.relativeHeadingToTarget(launchTarget));
+        double relativeHeadingToTarget = drive.relativeHeadingToTarget(launchTarget);
+        telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
+        launcher.setTurnTablePosition(relativeHeadingToTarget);
+    }
+
+    public void turnTableToZeroModeOn() {
+        turnTableDebugOverride = false;
+        turnTableToZeroMode = true;
     }
 
     public void cancelPlan() {
@@ -128,5 +155,9 @@ public class Brain extends SuperSystem {
 
     public void disableCameraLocalization() {
         usingCameraLocalization = false;
+    }
+
+    public void setTurnTableDebugOverrideModeOn() {
+        turnTableDebugOverride = true;
     }
 }

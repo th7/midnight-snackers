@@ -362,6 +362,10 @@ public class Drive extends SubSystem {
             return 0;
         }
         Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
-        return currentPose.heading.minus(launchPose.heading);
+        double launchPoseHeadingRads = launchPose.heading.minus(Rotation2d.exp(0));
+        double currentPoseHeadingRads = currentPose.heading.minus(Rotation2d.exp(0));
+        double headingRads = -(launchPoseHeadingRads - currentPoseHeadingRads);
+
+        return headingRads;//launchPose.minus().heading.toDouble().minus(currentPose.heading);
     }
 }

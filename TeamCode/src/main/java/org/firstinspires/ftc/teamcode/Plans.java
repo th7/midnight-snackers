@@ -230,6 +230,17 @@ public class Plans {
         );
     }
 
+    public PlanPart driveForward() {
+        return new Plan(
+                setZeroPosition(),
+                new Step(
+                        "forwardLeftBackwardRight",
+                        drive::driveForward,
+                        drive::done
+                )
+        );
+    }
+
     enum Motif {
         GPP,
         PGP,
