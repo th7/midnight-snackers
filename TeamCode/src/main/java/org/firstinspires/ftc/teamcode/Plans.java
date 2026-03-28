@@ -43,11 +43,29 @@ public class Plans {
 
     public Plan scoreAThingFromBack(Alliance alliance) {
         return new Plan(
-                setBackPosition(alliance),
+                setFarLaunchPosition(alliance),
                 setCloseLaunchPower(),
-                moveToScorePosition(alliance),
+                moveToBackWall(alliance),
+                moveToBackWallScorePosition(alliance),
                 launchAll(),
                 toLoadingZone(alliance)
+        );
+    }
+
+    private PlanPart moveToBackWall(Alliance alliance) {
+        return driveTo(alliance, 60, 12, 0);
+    }
+
+    private PlanPart moveToBackWallScorePosition(Alliance alliance) {
+        return driveTo(alliance, 60, 12, 0);
+        //not correct pose
+    }
+
+    private PlanPart driveTo(Alliance alliance, double x, double y, double heading) {
+        return new Step(
+                String.format("driveTo %s, %s, %s, ", x, y, heading),
+                () -> drive.strafePath(new Pose2d(x, y, heading)),
+                drive::done
         );
     }
 
@@ -147,7 +165,7 @@ public class Plans {
     }
 
     //should be placed against the left side of the tile with the small launch line and against the wall
-    private Step setBackPosition(Alliance alliance) {
+    private Step setFarLaunchPosition(Alliance alliance) {
         return new Step(
                 "setBackPosition",
                 () -> drive.setPose(alliance.pose(-63.5, 15.375, 0)),
@@ -232,10 +250,11 @@ public class Plans {
 
     public PlanPart driveForward() {
         return new Plan(
+                disableCamera(),
                 setZeroPosition(),
                 new Step(
-                        "forwardLeftBackwardRight",
-                        drive::driveForward,
+                        "driveForward",
+                        () -> drive.drivePathForward(new Pose2d(24, 0, 0)),
                         drive::done
                 )
         );
