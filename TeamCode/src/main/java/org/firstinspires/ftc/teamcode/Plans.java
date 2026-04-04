@@ -40,6 +40,75 @@ public class Plans {
                 launchAll()
         );
     }
+    public Plan spinnyThing() {
+        return new Plan(
+                disableCamera(),
+                setZeroPosition(),
+                spin360(),
+                move1FootForward(),
+                move6InchesLeft(),
+                moveBackTo0_0()
+
+
+        );
+    }
+
+    private PlanPart move1FootForward() {
+        return new Step(
+                "move1FootForward",
+                () -> drive.strafePath(new Pose2d(12, 0, 0)),
+                drive::done
+        );
+    }
+
+    private PlanPart move6InchesLeft() {
+        return new Step(
+                "move6InchesLeft",
+                () -> drive.strafePath(new Pose2d(12, -6, 0)),
+                drive::done
+        );
+    }
+
+    private PlanPart moveBackTo0_0() {
+        return new Step(
+                "moveBackTo0_0",
+                () -> drive.strafePath(new Pose2d(0, 0, 0)),
+                drive::done
+        );
+    }
+
+    private Plan spin360() {
+        return new Plan(
+                turnLeft(),
+                turnBackward(),
+                turnRight(),
+                turnForward()
+        );
+    }
+
+    private Step turnRight() {
+        return turnToHeadingAtZero(0, 1, Math.PI / 2);
+    }
+
+    private Step turnForward() {
+        return turnToHeadingAtZero(0, 0, 0);
+    }
+
+    private Step turnLeft() {
+        return turnToHeadingAtZero(0, -1, -Math.PI / 2);
+    }
+
+    private Step turnBackward() {
+        return turnToHeadingAtZero(-1, 0, -Math.PI);
+    }
+
+    private Step turnToHeadingAtZero(double x, double y, double heading) {
+        return new Step(
+                "turnToHeadingAtZero",
+                () -> drive.strafePath(new Pose2d(x, y, heading)),
+                drive::done
+        );
+    }
 
     public Plan scoreAThingFromBack(Alliance alliance) {
         return new Plan(
