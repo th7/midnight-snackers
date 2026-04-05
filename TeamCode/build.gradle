@@ -43,16 +43,17 @@ repositories {
 
 dependencies {
     implementation project(':FtcRobotController')
+    implementation project(':wpilibNewCommands')
 
     implementation "com.acmerobotics.roadrunner:ftc:0.1.24"
     implementation "com.acmerobotics.roadrunner:core:1.0.1"
     implementation "com.acmerobotics.roadrunner:actions:1.0.1"
     implementation "com.acmerobotics.dashboard:dashboard:0.4.17"
 
-    implementation 'androidx.core:core-ktx:1.13.1' // needed for wpilib?
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
-    implementation "edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:2026.2.1"
-    implementation "edu.wpi.first.wpiutil:wpiutil-java:2026.2.1"
-    implementation "edu.wpi.first.wpilibj:wpilibj-java:2026.2.1"
-    implementation "edu.wpi.first.hal:hal-java:2026.2.1"
+//    implementation 'androidx.core:core-ktx:1.13.1' // needed for wpilib?
+//    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+//    implementation "edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:2026.2.1"
+//    implementation "edu.wpi.first.wpiutil:wpiutil-java:2026.2.1"
+//    implementation "edu.wpi.first.wpilibj:wpilibj-java:2026.2.1"
+//    implementation "edu.wpi.first.hal:hal-java:2026.2.1"
 }
