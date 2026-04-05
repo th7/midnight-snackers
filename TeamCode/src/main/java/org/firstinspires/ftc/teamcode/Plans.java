@@ -6,7 +6,6 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
-import org.firstinspires.ftc.teamcode.planrunner.StepData;
 
 public class Plans {
     public Drive drive;
@@ -181,7 +180,7 @@ public class Plans {
         return new Step(
                 "waitFor " + seconds,
                 () -> {},
-                (StepData stepData) -> stepData.secondsElapsed(seconds)
+                Step.secondsElapsed(seconds)
         );
     }
 
