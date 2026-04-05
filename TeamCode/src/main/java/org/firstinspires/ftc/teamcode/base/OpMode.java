@@ -5,13 +5,18 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.Brain;
 import org.firstinspires.ftc.teamcode.Camera;
 import org.firstinspires.ftc.teamcode.Drive;
+import org.firstinspires.ftc.teamcode.ExampleSubsystem;
 import org.firstinspires.ftc.teamcode.Launcher;
+
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     protected Brain brain;
     protected Launcher launcher;
     protected Drive drive;
     protected Camera camera;
+    protected ExampleSubsystem exampleSubsystem;
     protected ElapsedTime runtime;
     private long tickCount = 0;
     private double lastTickAt = 0;
@@ -25,6 +30,9 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         drive = brain.drive;
         launcher = brain.launcher;
         camera = brain.camera;
+        exampleSubsystem = new ExampleSubsystem(runtime, telemetry);
+//        Trigger exampleTrigger = new Trigger(gamepad2::triangleWasPressed);
+//        exampleTrigger.onTrue(exampleSubsystem.outputTime());
         telemetry.addData("base.OpMode.init()", true);
     }
 
@@ -46,6 +54,10 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         if (gamepad2.crossWasPressed()) { drive.toggleTelemetry(); }
         if (gamepad2.squareWasPressed()) { launcher.toggleTelemetry(); }
         if (gamepad2.circleWasPressed()) {camera.toggleTelemetry(); }
+
         brain.loop();
+
+//        if (gamepad2.triangleWasPressed()) { CommandScheduler.getInstance().schedule(exampleSubsystem.outputTime()); }
+//        CommandScheduler.getInstance().run();
     }
 }
