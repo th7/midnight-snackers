@@ -31,8 +31,8 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         launcher = brain.launcher;
         camera = brain.camera;
         exampleSubsystem = new ExampleSubsystem(runtime, telemetry);
-//        Trigger exampleTrigger = new Trigger(gamepad2::triangleWasPressed);
-//        exampleTrigger.onTrue(exampleSubsystem.outputTime());
+        Trigger exampleTrigger = new Trigger(gamepad2::triangleWasPressed);
+        exampleTrigger.onTrue(exampleSubsystem.outputTwice());
         telemetry.addData("base.OpMode.init()", true);
     }
 
@@ -58,6 +58,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         brain.loop();
 
 //        if (gamepad2.triangleWasPressed()) { CommandScheduler.getInstance().schedule(exampleSubsystem.outputTime()); }
-//        CommandScheduler.getInstance().run();
+        CommandScheduler.getInstance().run();
     }
 }

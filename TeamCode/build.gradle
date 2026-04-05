@@ -44,11 +44,17 @@ repositories {
 dependencies {
     implementation project(':FtcRobotController')
     implementation project(':wpilibNewCommands')
+    // There's some java insanity about needing the wpiunits library
+    // even though it's already in wpilibNewCommands where it is actually used.
+    // It helps java resolve overloaded methods, or something.
+    // In general, I don't think we're using it directly.
+    implementation 'edu.wpi.first.wpiunits:wpiunits-java:2026.2.1'
 
     implementation "com.acmerobotics.roadrunner:ftc:0.1.24"
     implementation "com.acmerobotics.roadrunner:core:1.0.1"
     implementation "com.acmerobotics.roadrunner:actions:1.0.1"
     implementation "com.acmerobotics.dashboard:dashboard:0.4.17"
+
 
 //    implementation 'androidx.core:core-ktx:1.13.1' // needed for wpilib?
 //    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'

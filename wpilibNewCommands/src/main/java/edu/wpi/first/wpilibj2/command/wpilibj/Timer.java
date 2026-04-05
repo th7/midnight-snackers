@@ -15,6 +15,7 @@ import edu.wpi.first.units.measure.Time;
  * get() won't return a negative duration.
  */
 public class Timer {
+
     /**
      * Return the clock time in seconds. By default, the time is based on the FPGA hardware clock in
      * seconds since the FPGA started. However, the return value of this method may be modified to use
@@ -23,31 +24,31 @@ public class Timer {
      * @return Robot running time in seconds.
      */
     public static double getTimestamp() {
-        return RobotController.getTime() / 1000000.0;
+        return System.currentTimeMillis() / 1000.0;
     }
 
-    /**
-     * Return the system clock time in seconds. Return the time from the FPGA hardware clock in
-     * seconds since the FPGA started.
-     *
-     * @return Robot running time in seconds.
-     */
-    public static double getFPGATimestamp() {
-        return RobotController.getFPGATime() / 1000000.0;
-    }
-
-    /**
-     * Return the approximate match time. The FMS does not send an official match time to the robots,
-     * but does send an approximate match time. The value will count down the time remaining in the
-     * current period (auto or teleop). Warning: This is not an official time (so it cannot be used to
-     * dispute ref calls or guarantee that a function will trigger before the match ends) The Practice
-     * Match function of the DS approximates the behavior seen on the field.
-     *
-     * @return Time remaining in current match period (auto or teleop) in seconds
-     */
-    public static double getMatchTime() {
-        return DriverStation.getMatchTime();
-    }
+//    /**
+//     * Return the system clock time in seconds. Return the time from the FPGA hardware clock in
+//     * seconds since the FPGA started.
+//     *
+//     * @return Robot running time in seconds.
+//     */
+//    public static double getFPGATimestamp() {
+//        return RobotController.getFPGATime() / 1000000.0;
+//    }
+//
+//    /**
+//     * Return the approximate match time. The FMS does not send an official match time to the robots,
+//     * but does send an approximate match time. The value will count down the time remaining in the
+//     * current period (auto or teleop). Warning: This is not an official time (so it cannot be used to
+//     * dispute ref calls or guarantee that a function will trigger before the match ends) The Practice
+//     * Match function of the DS approximates the behavior seen on the field.
+//     *
+//     * @return Time remaining in current match period (auto or teleop) in seconds
+//     */
+//    public static double getMatchTime() {
+//        return DriverStation.getMatchTime();
+//    }
 
     /**
      * Pause the execution of the thread for a specified period of time. Motors will continue to run
@@ -85,7 +86,7 @@ public class Timer {
     }
 
     private double getMsClock() {
-        return RobotController.getTime() / 1000.0;
+        return System.currentTimeMillis();
     }
 
     /**
