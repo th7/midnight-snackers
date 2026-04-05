@@ -132,7 +132,7 @@ public class Plans {
     private PlanPart driveTo(Alliance alliance, double x, double y, double heading) {
         return new Step(
                 String.format("driveTo %s, %s, %s, ", x, y, heading),
-                () -> drive.strafePath(new Pose2d(x, y, heading)),
+                () -> drive.strafePath(alliance.pose(x, y, heading)),
                 drive::done
         );
     }
