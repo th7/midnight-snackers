@@ -7,9 +7,8 @@ package edu.wpi.first.wpilibj2.command;
 import static edu.wpi.first.units.Units.Seconds;
 
 import edu.wpi.first.units.measure.Time;
-import edu.wpi.first.util.sendable.SendableBuilder;
-import edu.wpi.first.util.sendable.SendableRegistry;
-import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj2.command.wpilibj.Timer;
+
 
 /**
  * A command that does nothing but takes a specified amount of time to finish.
