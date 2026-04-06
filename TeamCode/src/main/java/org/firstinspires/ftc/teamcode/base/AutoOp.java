@@ -10,7 +10,7 @@ public abstract class AutoOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        plans = new Plans(drive, launcher, brain, runtime);
+        plans = new Plans(runtime, telemetry, launcher, drive, camera, nav, turntable, brain);
         plan = getPlan();
         telemetry.addData("AutoOp.init()", true);
     }

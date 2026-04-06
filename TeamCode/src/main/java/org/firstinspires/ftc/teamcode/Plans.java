@@ -1,39 +1,26 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Action;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.base.SuperSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Plans {
-    public Drive drive;
-    public Launcher launcher;
-    public Brain brain;
-    public ElapsedTime runtime;
+public class Plans extends SuperSystem {
+    private Brain brain;
     private double startedWaitAt;
     private double timeoutStartedAt;
     private Motif motif;
-    public Plans(Drive drive, Launcher launcher, Brain brain, ElapsedTime runtime) {
-        this.drive = drive;
-        this.launcher = launcher;
+    public Plans(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable, Brain brain) {
+        super(runtime, telemetry, launcher, drive, camera, nav, turntable);
         this.brain = brain;
-        this.runtime = runtime;
-    }
-
-    public Plan redScoreAThingFromBack() {
-        return scoreAThingFromBack(Alliance.red);
-    }
-
-    public Plan blueScoreAThingFromBack() {
-        return scoreAThingFromBack(Alliance.blue);
     }
 
     public Plan scoreAThing() {
         return new Plan(
-                disableCamera(),
-                setZeroPosition(),
                 setCloseLaunchPower(),
                 backFromZeroALittle(),
                 launchAll()
@@ -41,8 +28,6 @@ public class Plans {
     }
     public Plan spinnyThing() {
         return new Plan(
-                disableCamera(),
-                setZeroPosition(),
                 spin360(),
                 move1FootForward(),
                 move6InchesLeft(),
@@ -55,7 +40,7 @@ public class Plans {
     private PlanPart move1FootForward() {
         return new Step(
                 "move1FootForward",
-                () -> drive.strafePath(new Pose2d(12, 0, 0)),
+                () -> drive.to(nav.strafeTo(12, 0, 0)),
                 drive::done
         );
     }
@@ -63,7 +48,7 @@ public class Plans {
     private PlanPart move6InchesLeft() {
         return new Step(
                 "move6InchesLeft",
-                () -> drive.strafePath(new Pose2d(12, -6, 0)),
+                () -> drive.to(nav.strafeTo(12, -6, 0)),
                 drive::done
         );
     }
@@ -71,7 +56,7 @@ public class Plans {
     private PlanPart moveBackTo0_0() {
         return new Step(
                 "moveBackTo0_0",
-                () -> drive.strafePath(new Pose2d(0, 0, 0)),
+                () -> drive.to(nav.strafeTo(0, 0, 0)),
                 drive::done
         );
     }
@@ -104,35 +89,35 @@ public class Plans {
     private Step turnToHeadingAtZero(double x, double y, double heading) {
         return new Step(
                 "turnToHeadingAtZero",
-                () -> drive.strafePath(new Pose2d(x, y, heading)),
+                () -> drive.to(nav.strafeTo(x, y, heading)),
                 drive::done
         );
     }
 
-    public Plan scoreAThingFromBack(Alliance alliance) {
+    public Plan scoreAThingFromBack() {
         return new Plan(
-                setFarLaunchPosition(alliance),
+                setFarLaunchPosition(),
                 setCloseLaunchPower(),
-                moveToBackWall(alliance),
-                moveToBackWallScorePosition(alliance),
+                moveToBackWall(),
+                moveToBackWallScorePosition(),
                 launchAll(),
-                toLoadingZone(alliance)
+                toLoadingZone()
         );
     }
 
-    private PlanPart moveToBackWall(Alliance alliance) {
-        return driveTo(alliance, 60, 12, 0);
+    private PlanPart moveToBackWall() {
+        return driveTo(60, 12, 0);
     }
 
-    private PlanPart moveToBackWallScorePosition(Alliance alliance) {
-        return driveTo(alliance, 60, 12, 0);
+    private PlanPart moveToBackWallScorePosition() {
+        return driveTo(60, 12, 0);
         //not correct pose
     }
 
-    private PlanPart driveTo(Alliance alliance, double x, double y, double heading) {
+    private PlanPart driveTo(double x, double y, double heading) {
         return new Step(
                 String.format("driveTo %s, %s, %s, ", x, y, heading),
-                () -> drive.strafePath(alliance.pose(x, y, heading)),
+                () -> drive.to(nav.strafeTo(x, y, heading)),
                 drive::done
         );
     }
@@ -154,7 +139,6 @@ public class Plans {
 
     public Plan splineSquiggleSquare() {
         return new Plan(
-                setZeroPosition(),
                 splineSquiggleSquareStep(),
                 toZeroPosition()
         );
@@ -203,126 +187,127 @@ public class Plans {
     private Step splineSquiggleSquareStep() {
         return new Step(
                 "splineSquiggleSquare",
-                drive::splineSquiggleSquare,
+                () -> drive.to(splineSquiggleSquarePath()),
                 drive::done
+        );
+    }
+
+    private Action splineSquiggleSquarePath() {
+        return nav.forwardPath(
+                nav.pose(72, 0, 0),
+                nav.pose(96, 0, Math.PI / 4),
+                nav.pose(96, 24, Math.PI * 3 / 4),
+                nav.pose(72, 24, Math.PI * 1),
+                nav.pose(48, 24, Math.PI * 1),
+                nav.pose(24, 24, Math.PI * 3 / 4),
+                nav.pose(24, 48, Math.PI * 3 / 4),
+                nav.pose(0, 48, Math.PI * -3 / 4),
+                nav.pose(0, 24, Math.PI / -2),
+                nav.pose(0, 0, 0)
         );
     }
 
     private Step toZeroPosition() {
         return new Step(
                 "toZeroPosition",
-                drive::toZeroPosition,
+                () -> drive.to(nav.strafeTo(0, 0, 0)),
                 drive::done
-        );
-    }
-
-    private Step disableCamera() {
-        return new Step(
-                "disableCamera",
-                () -> brain.disableCameraLocalization(),
-                () -> true
-        );
-    }
-
-    private Step setZeroPosition() {
-        return new Step(
-                "setZeroPosition",
-                () -> drive.setPose(new Pose2d(0, 0, 0)),
-                () -> true
         );
     }
 
     //should be placed against the left side of the tile with the small launch line and against the wall
-    private Step setFarLaunchPosition(Alliance alliance) {
+    private Step setFarLaunchPosition() {
         return new Step(
                 "setBackPosition",
-                () -> drive.setPose(alliance.pose(-63.5, 15.375, 0)),
+                () -> nav.setPose(nav.pose(-63.5, 15.375, 0)),
                 () -> true
         );
     }
 
-    private Step moveToScorePosition(Alliance alliance) {
-        return new Step(
-                "moveToScorePosition",
-                () -> drive.drivePathForward(alliance.pose(33, 33, Math.PI / 4)),
-                drive::done
-        );
-    }
+//    private Step moveToScorePosition() {
+//        return new Step(
+//                "moveToScorePosition",
+//                () -> drive.to(nav.strafeTo(33, 33, Math.PI / 4)),
+//                drive::done
+//        );
+//    }
+//
+//    private Step moveFromBackToCloseGoal() {
+//        return new Step(
+//                "moveFromBackToCloseGoal",
+//                () -> drive.drivePathForward(
+//                        nav.pose(12, 12, Math.PI / 4),
+//                        nav.pose(48, 48, Math.PI / 4)
+//                ),
+//                drive::done
+//        );
+//    }
 
-    private Step moveFromBackToCloseGoal(Alliance alliance) {
-        return new Step(
-                "moveFromBackToCloseGoal",
-                () -> drive.drivePathForward(
-                        alliance.pose(12, 12, Math.PI / 4),
-                        alliance.pose(48, 48, Math.PI / 4)
-                ),
-                drive::done
-        );
-    }
-
-    private Step getOffLaunchLine(Alliance alliance) {
-        return new Step(
-                "getOffLaunchLine",
-                () -> drive.drivePathForward(
-                        alliance.pose(24, 24, Math.PI / 4),
-                        alliance.pose(0, 24, Math.PI / 4)
-                ),
-                drive::done
-        );
-    }
+//    private Step getOffLaunchLine() {
+//        return new Step(
+//                "getOffLaunchLine",
+//                () -> drive.drivePathForward(
+//                        nav.pose(24, 24, Math.PI / 4),
+//                        nav.pose(0, 24, Math.PI / 4)
+//                ),
+//                drive::done
+//        );
+//    }
 
     private Step backFromZeroALittle() {
         return new Step(
                 "backFromZeroALittle",
-                () -> drive.drivePathBackward(
-                        new Pose2d(-20, 0, 0)
-                ),
+                () -> drive.to(nav.backwardTo(-20, 0, 0)),
                 drive::done
         );
     }
 
-    private Step toLoadingZone(Alliance alliance) {
+    private Step toLoadingZone() {
         return new Step(
                 "toLoadingZone",
-                () -> drive.drivePathBackward(
-                        alliance.pose(-36, 12, 0)
-                ),
+                () -> drive.to(nav.backwardTo(-36, 12, 0)),
                 drive::done
         );
     }
 
-    private Step detectMotif() {
-        return new Step(
-                "detectMotif",
-                () -> {
-                    timeoutStartedAt = runtime.time();
-                },
-                () -> {
-                    motif = drive.motif();
-                    return motif != null || runtime.time() > timeoutStartedAt + 3;
-                }
-        );
-    }
+//    private Step detectMotif() {
+//        return new Step(
+//                "detectMotif",
+//                () -> {
+//                    timeoutStartedAt = runtime.time();
+//                },
+//                () -> {
+//                    motif = drive.motif();
+//                    return motif != null || runtime.time() > timeoutStartedAt + 3;
+//                }
+//        );
+//    }
 
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
-                setZeroPosition(),
                 waitFor(5),
                 new Step(
                         "forwardLeftBackwardRight",
-                        drive::forwardLeftBackwardRight,
+                        () -> drive.to(forwardLeftBackwardRightAction()),
                         drive::done
                 )
         );
     }
 
+    public Action forwardLeftBackwardRightAction() {
+        return nav.strafePath(
+                nav.pose(24, 0, 0),
+                nav.pose(24, 24, 0),
+                nav.pose(0, 24, 0),
+                nav.pose(0, 0, 0)
+        );
+    }
+
     public PlanPart driveForward() {
         return new Plan(
-                disableCamera(),
-                setZeroPosition(),
                 new Step(
                         "driveForward",
-                        () -> drive.drivePathForward(new Pose2d(24, 0, 0)),
+                        () -> drive.to(nav.strafeTo(24, 0, 0)),
                         drive::done
                 )
         );

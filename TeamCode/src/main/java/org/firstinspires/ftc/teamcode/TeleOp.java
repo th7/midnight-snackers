@@ -1,29 +1,13 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Vector2d;
-import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.teamcode.base.OpMode;
 
-abstract class TeleOp extends OpMode {
-    private DcMotor leftFront;
-    private DcMotor rightFront;
-    private DcMotor leftBack;
-    private DcMotor rightBack;
-    private boolean telemetryOn = false;
-
+public abstract class TeleOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        leftFront = hardwareMap.get(DcMotor.class, "leftFront");
-        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
-        leftBack = hardwareMap.get(DcMotor.class, "leftBack");
-        rightBack = hardwareMap.get(DcMotor.class, "rightBack");
-        drive.setPose(new Pose2d(0, 0, 0));
-
-        brain.setLaunchTarget(launchTarget());
-
         telemetry.addData("TeleOp.init()", true);
     }
 
@@ -51,12 +35,12 @@ abstract class TeleOp extends OpMode {
             brain.turnTableToTargetModeOn();
         }
         if (gamepad1.right_trigger > 0.2) {
-            brain.autoShootSlow(launchTarget());
+            brain.autoShootSlow();
         } else if (gamepad1.left_trigger > 0.2) {
-            brain.autoShootFast(launchTarget());
+            brain.autoShootFast();
         } else if (gamepad1.left_bumper) {
             brain.cancelPlan();
-            drive.fastDriveToLaunchPose(launchTarget());
+            drive.fastDriveTo(nav.launchPose(), nav.currentPose());
             if (Math.abs(gamepad1.left_stick_x) > 0.05) {
                 drive.setStrafePower(-gamepad1.left_stick_x);
             }
@@ -65,7 +49,7 @@ abstract class TeleOp extends OpMode {
             }
         } else if (gamepad1.right_bumper) {
             brain.cancelPlan();
-            drive.fastDriveToLaunchPose(launchTarget());
+            drive.fastDriveTo(nav.launchPose(), nav.currentPose());
             if (Math.abs(gamepad1.right_stick_x) > 0.05) {
                 drive.setTurnPower(-gamepad1.right_stick_x);
             }
@@ -103,11 +87,11 @@ abstract class TeleOp extends OpMode {
         }
         if (gamepad2.dpadLeftWasPressed()) {
             brain.setTurnTableDebugOverrideModeOn();
-            launcher.turnTableToLeft();
+            turntable.turnTableToLeft();
         }
         if (gamepad2.dpadRightWasPressed()) {
             brain.setTurnTableDebugOverrideModeOn();
-            launcher.turnTableToRight();
+            turntable.turnTableToRight();
         }
         if (gamepad2.right_trigger > 0.2) {
             brain.toggleCameraLocalization();
@@ -127,12 +111,5 @@ abstract class TeleOp extends OpMode {
 //        if (gamepad1.right_trigger > 0.5) {
 //            drive.goToPose2();
 //        }
-
-        if (gamepad2.triangleWasPressed()) {
-            telemetryOn = !telemetryOn;
-        }
     }
-
-    abstract Vector2d launchTarget();
-
 }

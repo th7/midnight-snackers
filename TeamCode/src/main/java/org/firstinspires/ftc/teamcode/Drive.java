@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -10,14 +10,9 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
-import org.firstinspires.ftc.teamcode.base.NavUtil;
+import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-
-import java.util.List;
 
 public class Drive extends SubSystem {
     // COORDINATES!!! ARGH
@@ -33,22 +28,21 @@ public class Drive extends SubSystem {
     private DcMotor rightFront;
     private DcMotor leftBack;
     private DcMotor rightBack;
-    private final Pose2d zeroPose = new Pose2d(0, 0, 0);
-    private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
+//    private final Pose2d zeroPose = new Pose2d(0, 0, 0);
+//    private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
-    private AprilTagProcessor aprilTagProcessor;
     private boolean telemetryOn = false;
-    private Pose2d currentPose;
-    private Pose2d lastPose;
+//    private Pose2d currentPose;
+//    private Pose2d lastPose;
     private float straightPower;
     private float strafePower;
     private float turnPower;
     private MoveData moveData;
-    private boolean fieldPositionKnown = false;
-    private int fieldPositionUpdated;
-    private double xChange;
-    private double yChange;
-    private double headingChange;
+//    private boolean fieldPositionKnown = false;
+//    private int fieldPositionUpdated;
+//    private double xChange;
+//    private double yChange;
+//    private double headingChange;
 
     private final double nearlyStoppedMaxInchesPerSecond = 3;
     private final double nearlyStoppedMaxRadiansPerSecond = Math.toRadians(10);
@@ -75,42 +69,44 @@ public class Drive extends SubSystem {
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         leftBack = hardwareMap.get(DcMotor.class, "leftBack");
         rightBack = hardwareMap.get(DcMotor.class, "rightBack");
-        setPose(zeroPose);
-
-        currentPose = zeroPose;
-        lastPose = zeroPose;
 
         telemetry.addData("Drive.init()", true);
     }
 
     public void loop() {
-        mecanumDrive.localizer.update();
-        currentPose = mecanumDrive.localizer.getPose();
-        updateChanges();
+//        updateChanges();
         driveRunner.loop();
         if (telemetryOn) {
             setTelemetry();
         }
-
-        lastPose = currentPose;
     }
 
-    public boolean fastDriveToLaunchPose(Vector2d launchTarget) {
-        if (!fieldPositionKnown) {
-            return false;
-        }
+//    public boolean fastDriveToLaunchPose(Vector2d launchTarget) {
+//        if (!fieldPositionKnown) {
+//            return false;
+//        }
+//
+//        Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
+//
+//        fastDrive.setDestination(launchPose);
+//        fastDrive.update(currentPose);
+//
+//        straightPower = fastDrive.straightPower();
+//        strafePower = fastDrive.strafePower();
+//        turnPower = fastDrive.turnPower();
+//
+//        return fastDrive.doneMoving();
+//    }
 
-        Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
-
-        fastDrive.setDestination(launchPose);
-        fastDrive.update(currentPose);
+    public boolean fastDriveTo(Nav.Pose to, Nav.Pose current) {
+        fastDrive.setDestination(to.pose2d);
+        fastDrive.update(current.pose2d);
 
         straightPower = fastDrive.straightPower();
         strafePower = fastDrive.strafePower();
         turnPower = fastDrive.turnPower();
 
         return fastDrive.doneMoving();
-
     }
 
     public void increasePositionP() {
@@ -187,11 +183,11 @@ public class Drive extends SubSystem {
         straightPower = newStraightPower;
     }
 
-    private void updateChanges() {
-        xChange = currentPose.position.x - lastPose.position.x;
-        yChange = currentPose.position.y - lastPose.position.y;
-        headingChange = currentPose.heading.minus(lastPose.heading);
-    }
+//    private void updateChanges() {
+//        xChange = currentPose.position.x - lastPose.position.x;
+//        yChange = currentPose.position.y - lastPose.position.y;
+//        headingChange = currentPose.heading.minus(lastPose.heading);
+//    }
     private void setTelemetry() {
         telemetry.addData("Drive", "telemetry on");
 
@@ -217,12 +213,12 @@ public class Drive extends SubSystem {
         telemetry.addData("fastDrive.nearHDestination();", fastDrive.nearHDestination());
         telemetry.addData("fastDrive.notMoving();", fastDrive.notMoving());
 
-        telemetry.addData("fieldPositionKnown", fieldPositionKnown);
-        telemetry.addData("fieldPositionUpdated", fieldPositionUpdated);
+//        telemetry.addData("fieldPositionKnown", fieldPositionKnown);
+//        telemetry.addData("fieldPositionUpdated", fieldPositionUpdated);
 
-        double headingRadians = Rotation2d.exp(0).minus(currentPose.heading);
-        telemetry.addData("current x, y, h(rads)", "%.02f, %.02f, %.02f", currentPose.position.x, currentPose.position.y, headingRadians);
-        telemetry.addData("changes x, y, h(rads)", "%.02f, %.02f, %.02f", xChange, yChange, headingChange);
+//        double headingRadians = Rotation2d.exp(0).minus(currentPose.heading);
+//        telemetry.addData("current x, y, h(rads)", "%.02f, %.02f, %.02f", currentPose.position.x, currentPose.position.y, headingRadians);
+//        telemetry.addData("changes x, y, h(rads)", "%.02f, %.02f, %.02f", xChange, yChange, headingChange);
 //        if (savedPose1 != null) {
 //            telemetry.addData("Saved 1 x,y,h", "%.04f,%.04f,%.04f", savedPose1.position.x, savedPose1.position.y, savedPose1.heading.real);
 //        } else {
@@ -239,133 +235,109 @@ public class Drive extends SubSystem {
     public boolean done() {
         return driveRunner.done();
     }
+//
+//    public void setFieldPosition(Pose2d pose) {
+//        if (!fieldPositionKnown) {
+//            fieldPositionKnown = true;
+//            setPose(pose);
+//            return;
+//        }
+//
+//        double xError = pose.position.x - currentPose.position.x;
+//        double yError = pose.position.y - currentPose.position.y;
+//
+//        if (xError > 1) {
+//            xError = 1;
+//        } else if (xError < -1) {
+//            xError = -1;
+//        }
+//
+//        if (yError > 1) {
+//            yError = 1;
+//        } else if (yError < -1) {
+//            yError = -1;
+//        }
+//
+//        Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
+//        setPose(new Pose2d(adjustedPosition, currentPose.heading));
+//        fieldPositionUpdated = fieldPositionUpdated + 1;
+//    }
 
-    public void setFieldPosition(Pose2d pose) {
-        if (!fieldPositionKnown) {
-            fieldPositionKnown = true;
-            setPose(pose);
-            return;
-        }
+//    public boolean nearlyStopped() {
+//        return !(Math.abs(xChange) > nearlyStoppedInchesPerTick) && !(Math.abs(yChange) > nearlyStoppedInchesPerTick) && !(Math.abs(headingChange) > nearlyStoppedDegreesPerTick);
+//    }
 
-        double xError = pose.position.x - currentPose.position.x;
-        double yError = pose.position.y - currentPose.position.y;
-
-        if (xError > 1) {
-            xError = 1;
-        } else if (xError < -1) {
-            xError = -1;
-        }
-
-        if (yError > 1) {
-            yError = 1;
-        } else if (yError < -1) {
-            yError = -1;
-        }
-
-        Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
-        setPose(new Pose2d(adjustedPosition, currentPose.heading));
-        fieldPositionUpdated = fieldPositionUpdated + 1;
+    public void to(Action action) {
+        driveRunner.drive(action);
     }
+//    public void drivePathForward(Nav.Pose... poseList) {
+//        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
+//        for (Nav.Pose pose : poseList) {
+//            builder = builder.splineToSplineHeading(pose.pose2d, 0);
+//        }
+//        driveRunner.drive(builder.build());
+//    }
+//
+//    public void drivePathBackward(Pose2d... poseList) {
+//        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
+//        for (Pose2d pose : poseList) {
+//            builder = builder.setReversed(true).splineToSplineHeading(pose, Math.PI);
+//        }
+//        driveRunner.drive(builder.build());
+//    }
+//
+//    public void strafePath(Nav.Pose... poseList) {
+//        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
+//        for (Nav.Pose pose : poseList) {
+//            builder = builder.strafeToSplineHeading(pose.pose2d.position, pose.pose2d.heading);
+//        }
+//        driveRunner.driveOverride(builder.build());
+//    }
 
-    public boolean nearlyStopped() {
-        return !(Math.abs(xChange) > nearlyStoppedInchesPerTick) && !(Math.abs(yChange) > nearlyStoppedInchesPerTick) && !(Math.abs(headingChange) > nearlyStoppedDegreesPerTick);
-    }
 
-    public void drivePathForward(Pose2d... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
-        for (Pose2d pose : poseList) {
-            builder = builder.splineToSplineHeading(pose, 0);
-        }
-        driveRunner.drive(builder.build());
-    }
-
-    public void drivePathBackward(Pose2d... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
-        for (Pose2d pose : poseList) {
-            builder = builder.setReversed(true).splineToSplineHeading(pose, Math.PI);
-        }
-        driveRunner.drive(builder.build());
-    }
-
-    public void strafePath(Pose2d... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(currentPose);
-        for (Pose2d pose : poseList) {
-            builder = builder.strafeToSplineHeading(pose.position, pose.heading);
-        }
-        driveRunner.driveOverride(builder.build());
-    }
-
-    public void splineSquiggleSquare() {
-        drivePathForward(
-                new Pose2d(72, 0, 0),
-                new Pose2d(96, 0, Math.PI / 4),
-                new Pose2d(96, 24, Math.PI * 3 / 4),
-                new Pose2d(72, 24, Math.PI * 1),
-                new Pose2d(48, 24, Math.PI * 1),
-                new Pose2d(24, 24, Math.PI * 3 / 4),
-                new Pose2d(24, 48, Math.PI * 3 / 4),
-                new Pose2d(0, 48, Math.PI * -3 / 4),
-                new Pose2d(0, 24, Math.PI / -2),
-                new Pose2d(0, 0, 0)
-        );
-    }
-
-    public void forwardLeftBackwardRight() {
-        strafePath(
-                new Pose2d(24, 0, 0),
-                new Pose2d(24, 24, 0),
-                new Pose2d(0, 24, 0),
-                new Pose2d(0, 0, 0)
-        );
-    }
-
-    public void toZeroPosition() {
-        drivePathForward(
-                new Pose2d(0, 0, 0)
-        );
-    }
+//
 
     public void toggleTelemetry() {
         telemetryOn = !telemetryOn;
     }
+//
+//    public void setPose(Nav.Pose pose) {
+//        mecanumDrive.localizer.setPose(pose.pose2d);
+//    }
 
-    public void setPose(Pose2d pose) {
-        mecanumDrive.localizer.setPose(pose);
-    }
-
-    public Plans.Motif motif() {
-        List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
-        if (currentDetections == null) {
-            return null;
-        }
-
-        for (AprilTagDetection detection : currentDetections) {
-            if (detection.id == 21) {
-                return Plans.Motif.GPP;
-            }
-            if (detection.id == 22) {
-                return Plans.Motif.PGP;
-            }
-            if (detection.id == 23) {
-                return Plans.Motif.PPG;
-            }
-        }
-        return null;
-    }
+//    public Plans.Motif motif() {
+//        List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
+//        if (currentDetections == null) {
+//            return null;
+//        }
+//
+//        for (AprilTagDetection detection : currentDetections) {
+//            if (detection.id == 21) {
+//                return Plans.Motif.GPP;
+//            }
+//            if (detection.id == 22) {
+//                return Plans.Motif.PGP;
+//            }
+//            if (detection.id == 23) {
+//                return Plans.Motif.PPG;
+//            }
+//        }
+//        return null;
+//    }
 
     public void cancel() {
         driveRunner.cancel();
     }
 
-    public double relativeHeadingToTarget(Vector2d launchTarget) {
-        if (!fieldPositionKnown) {
-            return 0;
-        }
-        Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
-        double launchPoseHeadingRads = launchPose.heading.minus(Rotation2d.exp(0));
-        double currentPoseHeadingRads = currentPose.heading.minus(Rotation2d.exp(0));
-        double headingRads = -(launchPoseHeadingRads - currentPoseHeadingRads);
-
-        return headingRads;//launchPose.minus().heading.toDouble().minus(currentPose.heading);
-    }
+//    public double relativeHeadingToTarget(Vector2d launchTarget) {
+//        if (!fieldPositionKnown) {
+//            return 0;
+//        }
+//        Pose2d launchPose = NavUtil.nearestPoseAtDistanceFromTarget(currentPose.position, launchTarget, targetLaunchDistance);
+//        double launchPoseHeadingRads = launchPose.heading.minus(Rotation2d.exp(0));
+//        double currentPoseHeadingRads = currentPose.heading.minus(Rotation2d.exp(0));
+//        double headingRads = -(launchPoseHeadingRads - currentPoseHeadingRads);
+//
+//        return headingRads;//launchPose.minus().heading.toDouble().minus(currentPose.heading);
+//    }
 }

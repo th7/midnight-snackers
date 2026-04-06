@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.base;
 
 public class MoveData {
     public float frontLeftPower = 0f;

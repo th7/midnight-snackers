@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.acmerobotics.roadrunner.Vector2d;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -12,58 +10,42 @@ import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Brain extends SuperSystem {
-
     private boolean usingCameraLocalization = true;
     private boolean turnTableToZeroMode = false;
     private boolean turnTableDebugOverride = false;
     private int cameraLocalizationDroppedDueToMovement = 0;
     private Plan currentPlan = null;
-    private Vector2d launchTarget = null;
 
-    public Brain(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        super(hardwareMap, runtime, telemetry);
-    }
-
-    public void init() {
-        super.init();
-        telemetry.addData("Brain.init()", true);
+    public Brain(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable) {
+        super(runtime, telemetry, launcher, drive, camera, nav, turntable);
     }
 
     public void loop() {
-        super.loop();
-
         if (currentPlan != null && currentPlan.done()) {
             currentPlan = null;
         }
 
         if (!turnTableDebugOverride) {
             if (turnTableToZeroMode) {
-                launcher.setTurnTablePosition(0);
+                turntable.setTurnTablePosition(0);
             } else {
-                turnTurnTableToTarget(launchTarget);
+                turnTurnTableToTarget();
             }
         }
 
         Pose2d rawRoadrunnerPose = camera.calculateRoadrunnerPose();
 
         if (rawRoadrunnerPose != null) {
-            Rotation2d turnTableOffset = Rotation2d.exp(launcher.getTurnTableOffsetRadians());
+            telemetry.addData("camera pose found", true);
+            Rotation2d turnTableOffset = Rotation2d.exp(turntable.getTurnTableOffsetRadians());
             Pose2d adjustedRoadrunnerPose = new Pose2d(rawRoadrunnerPose.position, rawRoadrunnerPose.heading.minus(turnTableOffset));
 
-            if (usingCameraLocalization && drive.nearlyStopped()) {
-                drive.setFieldPosition(adjustedRoadrunnerPose);
+            if (usingCameraLocalization) {
+                nav.setFieldPosition(adjustedRoadrunnerPose);
             }
-            if (!drive.nearlyStopped()) {
-                cameraLocalizationDroppedDueToMovement += 1;
-            }
-            telemetry.addData("roadrunnerPoseFound", true);
         }
 
         setTelemetry();
-    }
-
-    public void setLaunchTarget(Vector2d launchTarget) {
-        this.launchTarget = launchTarget;
     }
 
     public void turnTableToTargetModeOn() {
@@ -71,10 +53,10 @@ public class Brain extends SuperSystem {
         turnTableToZeroMode = false;
     }
 
-    public void turnTurnTableToTarget(Vector2d launchTarget) {
-        double relativeHeadingToTarget = drive.relativeHeadingToTarget(launchTarget);
+    public void turnTurnTableToTarget() {
+        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
         telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
-        launcher.setTurnTablePosition(relativeHeadingToTarget);
+        turntable.setTurnTablePosition(relativeHeadingToTarget);
     }
 
     public void turnTableToZeroModeOn() {
@@ -86,41 +68,41 @@ public class Brain extends SuperSystem {
         currentPlan = null;
     }
 
-    public void autoShootFast(Vector2d launchTarget) {
+    public void autoShootFast() {
         if (currentPlan == null) {
-            currentPlan = autoShootFastPlan(launchTarget);
+            currentPlan = autoShootFastPlan();
         }
     }
 
-    public void autoShootSlow(Vector2d launchTarget) {
+    public void autoShootSlow() {
         if (currentPlan == null) {
-            currentPlan = autoShootSlowPlan(launchTarget);
+            currentPlan = autoShootSlowPlan();
         }
     }
 
-    private Plan autoShootFastPlan(Vector2d launchTarget) {
+    private Plan autoShootFastPlan() {
         return new Plan(
-                moveToLaunchPose(launchTarget),
+                moveToLaunchPose(),
                 launch(),
                 launch(),
                 launch()
         );
     }
 
-    private Plan autoShootSlowPlan(Vector2d launchTarget) {
+    private Plan autoShootSlowPlan() {
         return new Plan(
-                moveToLaunchPose(launchTarget),
+                moveToLaunchPose(),
                 launchSlow(),
                 launchSlow(),
                 launchSlow()
         );
     }
 
-    private Step moveToLaunchPose(Vector2d launchTarget) {
+    private Step moveToLaunchPose() {
         return new Step(
                 "moveToLaunchPose",
                 () -> {},
-                () -> drive.fastDriveToLaunchPose(launchTarget)
+                () -> drive.fastDriveTo(nav.launchPose(), nav.currentPose())
         );
     }
 

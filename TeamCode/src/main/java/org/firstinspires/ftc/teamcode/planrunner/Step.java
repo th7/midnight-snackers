@@ -24,7 +24,7 @@ public class Step implements PlanPart {
     }
 
     public static LongPredicate secondsElapsed(double seconds) {
-        return (nanoStartedAt) -> (System.nanoTime() - nanoStartedAt) * 1_000_000_000 > seconds;
+        return (nanoStartedAt) -> (System.nanoTime() - nanoStartedAt) / 1_000_000_000d > seconds;
     }
 
     public static Step waitFor(String label, double seconds) {

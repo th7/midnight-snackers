@@ -19,6 +19,4 @@ public abstract class SubSystem {
     public abstract void init();
 
     public abstract void loop();
-
-//    public abstract boolean gateLaunchDone();
 }
