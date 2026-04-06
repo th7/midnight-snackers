@@ -3,30 +3,28 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
-import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
+import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 public class Drive extends SubSystem {
+    private final DriveRunner driveRunner = new DriveRunner();
+    private final FastDrive fastDrive = new FastDrive();
     private DcMotor leftFront;
     private DcMotor rightFront;
     private DcMotor leftBack;
     private DcMotor rightBack;
-    private final DriveRunner driveRunner = new DriveRunner();
     private boolean telemetryOn = false;
     private float straightPower;
     private float strafePower;
     private float turnPower;
     private MoveData moveData;
-
-    private final FastDrive fastDrive = new FastDrive();
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -151,7 +149,7 @@ public class Drive extends SubSystem {
         straightPower = newStraightPower;
     }
 
-//    private void updateChanges() {
+    //    private void updateChanges() {
 //        xChange = currentPose.position.x - lastPose.position.x;
 //        yChange = currentPose.position.y - lastPose.position.y;
 //        headingChange = currentPose.heading.minus(lastPose.heading);

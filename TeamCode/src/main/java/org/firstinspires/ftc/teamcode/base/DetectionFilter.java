@@ -9,16 +9,16 @@ import java.util.LinkedList;
  * Track 3 detections. Only return "clean" detection if all x and y readings are within maxPositionDifference (default 1) and most recent detection is less than maxDetectionAgeSeconds old (default 0.1).
  */
 public class DetectionFilter {
+    public final long maxDetectionAgeNano;
     private final LinkedList<AprilTagDetection> storedDetections = new LinkedList<>();
     private final int detectionCount = 3;
     private final int maxPositionDifference;
-
-    public final long maxDetectionAgeNano;
 
     public DetectionFilter() {
         this.maxPositionDifference = 1;
         this.maxDetectionAgeNano = (long) (0.1 * 1_000_000_000);
     }
+
     public DetectionFilter(int maxPositionDifference, double maxDetectionAgeSeconds) {
         this.maxPositionDifference = maxPositionDifference;
         this.maxDetectionAgeNano = (long) (maxDetectionAgeSeconds * 1_000_000_000);
@@ -51,14 +51,26 @@ public class DetectionFilter {
         double minY = 1000000;
         double maxY = -1000000;
         for (AprilTagDetection detection : storedDetections) {
-            if (detection.robotPose == null) { return false; }
+            if (detection.robotPose == null) {
+                return false;
+            }
             Position position = detection.robotPose.getPosition();
-            if (position == null) { return false; }
+            if (position == null) {
+                return false;
+            }
 
-            if (position.x < minX) { minX = position.x; }
-            if (position.x > maxX) { maxX = position.x; }
-            if (position.y < minY) { minY = position.y; }
-            if (position.y > maxY) { maxY = position.y; }
+            if (position.x < minX) {
+                minX = position.x;
+            }
+            if (position.x > maxX) {
+                maxX = position.x;
+            }
+            if (position.y < minY) {
+                minY = position.y;
+            }
+            if (position.y > maxY) {
+                maxY = position.y;
+            }
         }
 
         return Math.abs(maxX - minX) < maxPositionDifference && Math.abs(maxY - minY) < maxPositionDifference;

@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.Vector2d;
-
 import org.firstinspires.ftc.teamcode.base.OpMode;
 
 public abstract class TeleOp extends OpMode {

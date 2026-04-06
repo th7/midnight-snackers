@@ -5,9 +5,9 @@ import java.util.function.Supplier;
 
 public class Step implements PlanPart {
     private final String name;
-    private long nanoStartedAt;
     private final Runnable start;
     private final Supplier<Boolean> done;
+    private long nanoStartedAt;
     private boolean started = false;
 
     public Step(String name, Runnable start, Supplier<Boolean> done) {
@@ -30,7 +30,8 @@ public class Step implements PlanPart {
     public static Step waitFor(String label, double seconds) {
         return new Step(
                 label + " waitFor " + seconds,
-                () -> {},
+                () -> {
+                },
                 Step.secondsElapsed(seconds)
         );
     }

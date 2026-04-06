@@ -103,7 +103,7 @@ public class Launcher extends SubSystem {
 
     private Step launchCloseTopGate() {
         return new Step(
-            "launchCloseTopGate",
+                "launchCloseTopGate",
                 () -> {
                     topGatePosition = topGateClosedPosition;
                 },

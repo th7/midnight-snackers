@@ -14,6 +14,7 @@ public class Plans extends SuperSystem {
     private double startedWaitAt;
     private double timeoutStartedAt;
     private Motif motif;
+
     public Plans(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable, Brain brain) {
         super(runtime, telemetry, launcher, drive, camera, nav, turntable);
         this.brain = brain;
@@ -26,6 +27,7 @@ public class Plans extends SuperSystem {
                 launchAll()
         );
     }
+
     public Plan spinnyThing() {
         return new Plan(
                 spin360(),
@@ -163,7 +165,8 @@ public class Plans extends SuperSystem {
     private Step waitFor(double seconds) {
         return new Step(
                 "waitFor " + seconds,
-                () -> {},
+                () -> {
+                },
                 Step.secondsElapsed(seconds)
         );
     }

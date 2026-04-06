@@ -12,12 +12,11 @@ import org.firstinspires.ftc.teamcode.Turntable;
 public class SuperSystem {
     protected final ElapsedTime runtime;
     protected final Telemetry telemetry;
-
+    protected final Turntable turntable;
     protected Launcher launcher;
     protected Drive drive;
     protected Camera camera;
     protected Nav nav;
-    protected final Turntable turntable;
 
     public SuperSystem(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable) {
         this.runtime = runtime;

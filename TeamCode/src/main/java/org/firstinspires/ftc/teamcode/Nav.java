@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
  * Use Nav.blue, Nav.red, or Nav.relative to get an instance of this class.
- *
+ * <p>
  * 2025-2026 Season
  * Treat all coordinates and heading as if you are playing as blue.
  * If you're red, they will automatically be adjusted.
@@ -44,23 +44,23 @@ public class Nav extends SubSystem {
     private MecanumDrive mecanumDrive;
     private boolean fieldPositionKnown = false;
 
-    public static Nav blue(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry,1, 1, blueLaunchTarget);
-    }
-
-    public static Nav red(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry,-1, -1, redLaunchTarget);
-    }
-
-    public static Nav relative(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry,-1, -1, null);
-    }
-
     private Nav(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry, int headingSign, int ySign, Vector2d launchTarget) {
         super(hardwareMap, runtime, telemetry);
         this.headingSign = headingSign;
         this.ySign = ySign;
         this.launchTarget = launchTarget;
+    }
+
+    public static Nav blue(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
+        return new Nav(hardwareMap, runtime, telemetry, 1, 1, blueLaunchTarget);
+    }
+
+    public static Nav red(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
+        return new Nav(hardwareMap, runtime, telemetry, -1, -1, redLaunchTarget);
+    }
+
+    public static Nav relative(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
+        return new Nav(hardwareMap, runtime, telemetry, -1, -1, null);
     }
 
     @Override
@@ -84,19 +84,6 @@ public class Nav extends SubSystem {
 
         return headingRads;//launchPose.minus().heading.toDouble().minus(currentPose.heading);
     }
-
-    public static class Pose {
-        public final Pose2d pose2d;
-
-        /**
-         * Represents a position and heading. Call .pose2d to use with RoadRunner.
-         */
-        public Pose(Pose2d pose2d) {
-            this.pose2d = pose2d;
-        }
-    }
-
-
 
     private double angleRadians(Vector2d from, Vector2d to) {
         return Math.atan2(to.y - from.y, to.x - from.x);
@@ -125,16 +112,8 @@ public class Nav extends SubSystem {
         return new Pose(new Pose2d(x, y * this.ySign, heading * this.headingSign));
     }
 
-    public void setPose(Pose2d pose) {
-        mecanumDrive.localizer.setPose(pose);
-    }
-
-    public void setPose(Pose pose) {
-        setPose(pose.pose2d);
-    }
-
     public void setZeroPosition() {
-        mecanumDrive.localizer.setPose(new Pose2d(0,0,0));
+        setPose(new Pose2d(0, 0, 0));
     }
 
     public Pose currentPose() {
@@ -143,6 +122,14 @@ public class Nav extends SubSystem {
 
     private Pose2d getPose() {
         return mecanumDrive.localizer.getPose();
+    }
+
+    public void setPose(Pose2d pose) {
+        mecanumDrive.localizer.setPose(pose);
+    }
+
+    public void setPose(Pose pose) {
+        setPose(pose.pose2d);
     }
 
     public void setFieldPosition(Pose2d pose) {
@@ -205,5 +192,16 @@ public class Nav extends SubSystem {
     public Action strafeTo(double x, double y, double heading) {
         Pose pose = pose(x, y, heading);
         return strafePath(pose);
+    }
+
+    public static class Pose {
+        public final Pose2d pose2d;
+
+        /**
+         * Represents a position and heading. Call .pose2d to use with RoadRunner.
+         */
+        public Pose(Pose2d pose2d) {
+            this.pose2d = pose2d;
+        }
     }
 }

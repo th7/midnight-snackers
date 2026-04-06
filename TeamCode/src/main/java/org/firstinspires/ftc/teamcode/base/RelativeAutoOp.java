@@ -9,6 +9,7 @@ public abstract class RelativeAutoOp extends AutoOp {
         getNav().setZeroPosition();
         brain.disableCameraLocalization();
     }
+
     protected Nav getNav() {
         return Nav.relative(hardwareMap, runtime, telemetry);
     }

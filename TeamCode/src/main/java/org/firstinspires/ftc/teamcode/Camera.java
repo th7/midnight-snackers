@@ -23,10 +23,10 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.ArrayList;
 
 public class Camera extends SubSystem {
+    private final DetectionFilter detectionFilter = new DetectionFilter();
     private AprilTagProcessor aprilTagProcessor;
     private boolean telemetryOn = false;
     private AprilTagDetection goalDetection;
-    private final DetectionFilter detectionFilter = new DetectionFilter();
 
     public Camera(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -52,7 +52,7 @@ public class Camera extends SubSystem {
 //
 //        If all values are zero (no rotation), that implies the camera is pointing straight up. In most cases, you’ll need to set the pitch to -90 degrees (rotation about the x-axis), meaning the camera is horizontal. Use a yaw of 0 if the camera is pointing forwards, +90 degrees if it’s pointing straight left, -90 degrees for straight right, etc. You can also set the roll to +/-90 degrees if it’s vertical, or 180 degrees if it’s upside-down.
         YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
-                0, -68, 0 , 0);
+                0, -68, 0, 0);
         atpb.setCameraPose(cameraPosition, cameraOrientation);
         aprilTagProcessor = atpb.build();
 

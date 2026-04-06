@@ -1,22 +1,17 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
-import org.firstinspires.ftc.teamcode.planrunner.Plan;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Turntable extends SubSystem {
+    private final int ticksPerRevolution = 1700;
     private DcMotorEx turnTable;
     private boolean telemetryOn = false;
     private int turnTableTargetPosition;
-    private final int ticksPerRevolution = 1700;
 
     public Turntable(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -32,11 +27,11 @@ public class Turntable extends SubSystem {
         double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
         double turnTablePower = turnTableError / 100;
 
-       if (turnTableError < 5 && turnTableError > -5) {
+        if (turnTableError < 5 && turnTableError > -5) {
             turnTable.setPower(0);
         } else {
-           double finalTurnTablePower = clampMinPower(turnTablePower, 0.1);
-           turnTable.setPower(finalTurnTablePower);
+            double finalTurnTablePower = clampMinPower(turnTablePower, 0.1);
+            turnTable.setPower(finalTurnTablePower);
         }
 
         if (telemetryOn) {
