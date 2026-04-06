@@ -172,9 +172,8 @@ public class SensorColor extends LinearOpMode {
       if (xButtonCurrentlyPressed != xButtonPreviouslyPressed) {
         // If the button is (now) down, then toggle the light
         if (xButtonCurrentlyPressed) {
-          if (colorSensor instanceof SwitchableLight) {
-            SwitchableLight light = (SwitchableLight)colorSensor;
-            light.enableLight(!light.isLightOn());
+          if (colorSensor instanceof SwitchableLight light) {
+              light.enableLight(!light.isLightOn());
           }
         }
       }

@@ -22,6 +22,14 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
  * Positive headings will turn toward your goal.
  */
 public class Nav extends SubSystem {
+    // COORDINATES!!! ARGH
+    // Imagine facing the field from the audience. Blue goal is forward left, red goal is forward right. Any further mention of left/right or forward/backward is relative to this perspective.
+
+    // FTC Coordinates
+    // +x backward, +y right, straight forward heading is PI/2
+
+    // Roadrunner Coordinates (this is what we use)
+    // +x forward, +y left, straight forward heading is 0
     private static final double blueAprilTagX = 58.3;
     private static final double blueAprilTagY = 55.6;
     private static final double blueLaunchTargetX = blueAprilTagX + 9;

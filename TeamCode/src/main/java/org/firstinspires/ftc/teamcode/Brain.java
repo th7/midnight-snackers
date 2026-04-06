@@ -13,7 +13,6 @@ public class Brain extends SuperSystem {
     private boolean usingCameraLocalization = true;
     private boolean turnTableToZeroMode = false;
     private boolean turnTableDebugOverride = false;
-    private int cameraLocalizationDroppedDueToMovement = 0;
     private Plan currentPlan = null;
 
     public Brain(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable) {
@@ -124,7 +123,6 @@ public class Brain extends SuperSystem {
 
     private void setTelemetry() {
         telemetry.addData("usingCameraLocalization", usingCameraLocalization);
-        telemetry.addData("cameraLocalizationDroppedDueToMovement", cameraLocalizationDroppedDueToMovement);
     }
 
     public void toggleCameraLocalization() {

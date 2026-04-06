@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans extends SuperSystem {
-    private Brain brain;
+    private final Brain brain;
     private double startedWaitAt;
     private double timeoutStartedAt;
     private Motif motif;

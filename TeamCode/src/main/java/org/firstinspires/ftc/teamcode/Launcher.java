@@ -26,7 +26,6 @@ public class Launcher extends SubSystem {
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
     private boolean telemetryOn = false;
-    private boolean loading = false;
     private double bottomGateWaitTime = 0.45;
     private double topGateWaitTime = bottomGateWaitTime;
     private PIDFCoefficients pidVelocityOrig;

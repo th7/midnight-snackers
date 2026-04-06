@@ -15,50 +15,18 @@ import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 public class Drive extends SubSystem {
-    // COORDINATES!!! ARGH
-    // Imagine facing the field from the audience. Blue goal is forward left, red goal is forward right. Any further mention of left/right or forward/backward is relative to this perspective.
-
-    // FTC Coordinates
-    // +x backward, +y right, straight forward heading is PI/2
-
-    // Roadrunner Coordinates (this is what we use)
-    // +x forward, +y left, straight forward heading is 0
-
     private DcMotor leftFront;
     private DcMotor rightFront;
     private DcMotor leftBack;
     private DcMotor rightBack;
-//    private final Pose2d zeroPose = new Pose2d(0, 0, 0);
-//    private final MecanumDrive mecanumDrive = new MecanumDrive(hardwareMap, zeroPose);
     private final DriveRunner driveRunner = new DriveRunner();
     private boolean telemetryOn = false;
-//    private Pose2d currentPose;
-//    private Pose2d lastPose;
     private float straightPower;
     private float strafePower;
     private float turnPower;
     private MoveData moveData;
-//    private boolean fieldPositionKnown = false;
-//    private int fieldPositionUpdated;
-//    private double xChange;
-//    private double yChange;
-//    private double headingChange;
 
-    private final double nearlyStoppedMaxInchesPerSecond = 3;
-    private final double nearlyStoppedMaxRadiansPerSecond = Math.toRadians(10);
-    private final double assumedTicksPerSecond = 50;
-
-    private final double nearlyStoppedInchesPerTick = nearlyStoppedMaxInchesPerSecond / assumedTicksPerSecond;
-    private final double nearlyStoppedDegreesPerTick = nearlyStoppedMaxRadiansPerSecond / assumedTicksPerSecond;
-
-    private final double blueAprilTagX = 58.3;
-    private final double blueAprilTagY = 55.6;
-    private final double blueLaunchTargetX = blueAprilTagX + 9;
-    private final double blueLaunchTargetY = blueAprilTagY + 9;
-    public final Vector2d blueLaunchTarget = new Vector2d(blueLaunchTargetX, blueLaunchTargetY);
-    public final Vector2d redLaunchTarget = new Vector2d(blueLaunchTargetX, -blueLaunchTargetY);
-    private final double targetLaunchDistance = 40;
-    private FastDrive fastDrive = new FastDrive();
+    private final FastDrive fastDrive = new FastDrive();
 
     public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
