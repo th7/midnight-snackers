@@ -194,20 +194,21 @@ public class Nav extends SubSystem {
         return strafePath(pose);
     }
 
-    public boolean closeTo(double x, double y,double heading) {
+    public boolean closeTo(double x, double y, double heading) {
+        Pose targetPose = pose(x, y, heading);
         double headinglimit = Math.PI * 2 / 60;
         Pose2d currentPose = mecanumDrive.localizer.getPose();
-        double headingerror = currentPose.heading.minus(Rotation2d.exp(heading));
+        double headingerror = currentPose.heading.minus(targetPose.pose2d.heading);
         if (Math.abs(headingerror) > headinglimit) {
             return false;
         }
 
-        double xError = currentPose.position.x - x;
+        double xError = currentPose.position.x - targetPose.x();
         if (Math.abs(xError) > 3) {
             return false;
         }
 
-        double yError = currentPose.position.y - y;
+        double yError = currentPose.position.y - targetPose.pose2d.position.y;
         if (Math.abs(yError) > 3) {
             return false;
         }
@@ -224,5 +225,7 @@ public class Nav extends SubSystem {
         public Pose(Pose2d pose2d) {
             this.pose2d = pose2d;
         }
+
+        public double x() { return pose2d.position.x; }
     }
 }
