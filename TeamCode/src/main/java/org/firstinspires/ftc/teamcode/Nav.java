@@ -60,7 +60,7 @@ public class Nav extends SubSystem {
     }
 
     public static Nav relative(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry, -1, -1, null);
+        return new Nav(hardwareMap, runtime, telemetry, 1, 1, null);
     }
 
     @Override
@@ -192,6 +192,27 @@ public class Nav extends SubSystem {
     public Action strafeTo(double x, double y, double heading) {
         Pose pose = pose(x, y, heading);
         return strafePath(pose);
+    }
+
+    public boolean closeTo(double x, double y,double heading) {
+        double headinglimit = Math.PI * 2 / 60;
+        Pose2d currentPose = mecanumDrive.localizer.getPose();
+        double headingerror = currentPose.heading.minus(Rotation2d.exp(heading));
+        if (Math.abs(headingerror) > headinglimit) {
+            return false;
+        }
+
+        double xError = currentPose.position.x - x;
+        if (Math.abs(xError) > 3) {
+            return false;
+        }
+
+        double yError = currentPose.position.y - y;
+        if (Math.abs(yError) > 3) {
+            return false;
+        }
+
+        return true;
     }
 
     public static class Pose {

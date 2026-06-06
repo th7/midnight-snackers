@@ -22,7 +22,6 @@ public class Plans extends SuperSystem {
 
     public Plan scoreAThing() {
         return new Plan(
-                setCloseLaunchPower(),
                 backFromZeroALittle(),
                 launchAll()
         );
@@ -43,7 +42,13 @@ public class Plans extends SuperSystem {
         return new Step(
                 "move1FootForward",
                 () -> drive.to(nav.strafeTo(12, 0, 0)),
-                drive::done
+                () -> {
+                    if (nav.closeTo(12, 0, 0)) {
+                        drive.cancel();
+                        return true;
+                    };
+                    return false;
+                }
         );
     }
 
@@ -51,7 +56,13 @@ public class Plans extends SuperSystem {
         return new Step(
                 "move6InchesLeft",
                 () -> drive.to(nav.strafeTo(12, -6, 0)),
-                drive::done
+                () -> {
+                    if (nav.closeTo(12, -6, 0)) {
+                        drive.cancel();
+                        return true;
+                    };
+                    return false;
+                }
         );
     }
 
@@ -59,7 +70,13 @@ public class Plans extends SuperSystem {
         return new Step(
                 "moveBackTo0_0",
                 () -> drive.to(nav.strafeTo(0, 0, 0)),
-                drive::done
+                () -> {
+                    if (nav.closeTo(0, 0, 0)) {
+                        drive.cancel();
+                        return true;
+                    };
+                    return false;
+                }
         );
     }
 
@@ -90,16 +107,21 @@ public class Plans extends SuperSystem {
 
     private Step turnToHeadingAtZero(double x, double y, double heading) {
         return new Step(
-                "turnToHeadingAtZero",
+                String.format("turnToHeadingAtZero %s", heading),
                 () -> drive.to(nav.strafeTo(x, y, heading)),
-                drive::done
+                () -> {
+                    if (nav.closeTo(x, y, heading)) {
+                        drive.cancel();
+                        return true;
+                    };
+                    return false;
+                }
         );
     }
 
     public Plan scoreAThingFromBack() {
         return new Plan(
                 setFarLaunchPosition(),
-                setCloseLaunchPower(),
                 moveToBackWall(),
                 moveToBackWallScorePosition(),
                 launchAll(),
@@ -143,31 +165,6 @@ public class Plans extends SuperSystem {
         return new Plan(
                 splineSquiggleSquareStep(),
                 toZeroPosition()
-        );
-    }
-
-    private Step setFarLaunchPowerStep() {
-        return new Step(
-                "setFarLaunchPower",
-                launcher::setFarLaunchPower,
-                () -> true
-        );
-    }
-
-    private Step setCloseLaunchPower() {
-        return new Step(
-                "setCloseLaunchPower",
-                launcher::setCloseLaunchPower,
-                () -> true
-        );
-    }
-
-    private Step waitFor(double seconds) {
-        return new Step(
-                "waitFor " + seconds,
-                () -> {
-                },
-                Step.secondsElapsed(seconds)
         );
     }
 
@@ -288,7 +285,7 @@ public class Plans extends SuperSystem {
 
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
-                waitFor(5),
+                Step.waitFor("forwardLeftBackwardRight", 5),
                 new Step(
                         "forwardLeftBackwardRight",
                         () -> drive.to(forwardLeftBackwardRightAction()),

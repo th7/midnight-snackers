@@ -6,7 +6,6 @@ public abstract class RelativeAutoOp extends AutoOp {
     @Override
     public void init() {
         super.init();
-        getNav().setZeroPosition();
         brain.disableCameraLocalization();
     }
 
