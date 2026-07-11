@@ -24,6 +24,9 @@ out/
 .gradle/
 build/
 
+# Kotlin compiler/session cache
+.kotlin/
+
 # Local configuration file (sdk path, etc)
 local.properties
 
