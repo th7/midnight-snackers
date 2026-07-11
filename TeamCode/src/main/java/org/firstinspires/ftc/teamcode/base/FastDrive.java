@@ -1,11 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import androidx.core.math.MathUtils;
-
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.acmerobotics.roadrunner.Twist2d;
-import com.acmerobotics.roadrunner.Vector2d;
 
 public class FastDrive {
     private final double positionXCloseEnough = 0.7;
@@ -14,42 +10,23 @@ public class FastDrive {
     private final float straightMinPower = 0.1f; // 0.05f
     private final float strafeMinPower = 0.1f; // 0.1f
     private final float turnMinPower = 0.1f; // 0.03f
-    public Twist2d poseError;
-    public Pose2d error;
-    public double positionP = 0.01;
-    public double positionI = 0;
-    public double positionD = 0.02;
-    public double headingP = 2;
-    public double headingI = 0;
-    public double headingD = 4;
-    //    private Pose2d currentPose;
-//    private long currentPoseAt;
-//    private Pose2d lastPose;
-//    private long lastPoseAt;
+    private final double positionP = 0.01;
+    private final double positionI = 0;
+    private final double positionD = 0.02;
+    private final double headingP = 2;
+    private final double headingI = 0;
+    private final double headingD = 4;
+    private final MiniPID xPID = new MiniPID(positionP, positionI, positionD);
+    private final MiniPID yPID = new MiniPID(positionP * 2, positionI, positionD);
+    private final MiniPID hPID = new MiniPID(headingP, headingI, headingD);
+    private Pose2d error;
     private Pose2d destination;
-    //
-//    private Twist2d positionDelta;
-//    private Twist2d velocity;
-//    private MoveData moveData;
     private float straightPower;
     private float strafePower;
     private float turnPower;
-    private MiniPID xPID = new MiniPID(positionP, positionI, positionD);
-    private MiniPID yPID = new MiniPID(positionP * 2, positionI, positionD);
-    private MiniPID hPID = new MiniPID(headingP, headingI, headingD);
-
 
     public void update(Pose2d currentPose) {
-        this.poseError = destination.minus(currentPose);
         this.error = destination.minusExp(currentPose);
-
-
-//        double xOutput = xPID.getOutput(-exaggeratedXError, 0);
-//        straightPower = clamp(xOutput, straightMinPower, 1);
-//        double yOutput = yPID.getOutput(-exaggeratedYError, 0);
-//        strafePower = clamp(yOutput, strafeMinPower, 1);
-//        double hOutput = hPID.getOutput(-exaggeratedHError, 0);
-//        turnPower = clamp(hOutput, turnMinPower, 1);
 
         if (Math.abs(error.position.x) < positionXCloseEnough) {
             straightPower = 0;
@@ -81,8 +58,8 @@ public class FastDrive {
         this.destination = newDestination;
     }
 
-    public void setDestination(Vector2d position, double headingRadians) {
-        this.destination = new Pose2d(position, headingRadians);
+    public Pose2d error() {
+        return error;
     }
 
     public float straightPower() {
@@ -139,86 +116,14 @@ public class FastDrive {
         return straightPower < straightMinPower && strafePower < strafeMinPower && turnPower < turnMinPower;
     }
 
-    public void increasePositionP() {
-        positionP = positionP + 0.01;
-        xPID = new MiniPID(positionP, positionI, positionD);
-        yPID = new MiniPID(positionP * 2, positionI, positionD);
-    }
-
-    public void decreasePositionP() {
-        positionP = positionP - 0.01;
-        xPID = new MiniPID(positionP, positionI, positionD);
-        yPID = new MiniPID(positionP * 2, positionI, positionD);
-    }
-
-    public void increasePositionI() {
-        positionI = positionI + 0.001;
-        xPID = new MiniPID(positionP, positionI, positionD);
-        yPID = new MiniPID(positionP * 2, positionI, positionD);
-    }
-
-    public void decreasePositionI() {
-        positionI = positionI - 0.001;
-        xPID = new MiniPID(positionP, positionI, positionD);
-        yPID = new MiniPID(positionP * 2, positionI, positionD);
-    }
-
-    public void increasePositionD() {
-        positionD = positionD + 0.01;
-        xPID = new MiniPID(positionP, positionI, positionD);
-        yPID = new MiniPID(positionP * 2, positionI, positionD);
-    }
-
-    public void decreasePositionD() {
-        positionD = positionD - 0.01;
-        xPID = new MiniPID(positionP, positionI, positionD);
-        yPID = new MiniPID(positionP * 2, positionI, positionD);
-    }
-
-    public void increaseHeadingP() {
-        headingP = headingP + 0.1;
-        hPID = new MiniPID(headingP, headingI, headingD);
-    }
-
-    public void decreaseHeadingP() {
-        headingP = headingP - 0.1;
-        hPID = new MiniPID(headingP, headingI, headingD);
-    }
-
-    public void increaseHeadingI() {
-        headingI = headingI + 0.01;
-        hPID = new MiniPID(headingP, headingI, headingD);
-    }
-
-    public void decreaseHeadingI() {
-        headingI = headingI - 0.01;
-        hPID = new MiniPID(headingP, headingI, headingD);
-    }
-
-    public void increaseHeadingD() {
-        headingD = headingD + 0.1;
-        hPID = new MiniPID(headingP, headingI, headingD);
-    }
-
-    public void decreaseHeadingD() {
-        headingD = headingD - 0.1;
-        hPID = new MiniPID(headingP, headingI, headingD);
-    }
-
-
     private float clamp(double unclamped, float min, float max) {
         if (unclamped < 0) {
-            return (float) MathUtils.clamp(unclamped, -max, -min);
+            return (float) Math.min(-min, Math.max(unclamped, -max));
         }
         if (unclamped > 0) {
-            return (float) MathUtils.clamp(unclamped, min, max);
+            return (float) Math.max(min, Math.min(unclamped, max));
         }
 
         return 0f;
     }
-
-
-//    private double speed() {
-//        return delta().line.norm();
-//    }
 }

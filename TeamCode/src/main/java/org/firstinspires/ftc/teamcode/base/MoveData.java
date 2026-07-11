@@ -1,10 +1,26 @@
 package org.firstinspires.ftc.teamcode.base;
 
 public class MoveData {
-    public float frontLeftPower = 0f;
-    public float frontRightPower = 0f;
-    public float rearLeftPower = 0f;
-    public float rearRightPower = 0f;
+    private float frontLeftPower = 0f;
+    private float frontRightPower = 0f;
+    private float rearLeftPower = 0f;
+    private float rearRightPower = 0f;
+
+    public float frontLeftPower() {
+        return frontLeftPower;
+    }
+
+    public float frontRightPower() {
+        return frontRightPower;
+    }
+
+    public float rearLeftPower() {
+        return rearLeftPower;
+    }
+
+    public float rearRightPower() {
+        return rearRightPower;
+    }
 
     public static MoveData straight(float power, float min, float max) {
         MoveData movement = new MoveData();
