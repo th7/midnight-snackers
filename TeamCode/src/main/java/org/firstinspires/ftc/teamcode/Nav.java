@@ -181,6 +181,31 @@ public class Nav extends SubSystem {
         return backwardPath(pose);
     }
 
+    /**
+     * Builds one continuous spline trajectory through every pose. Consecutive spline
+     * segments stay velocity-continuous, so the robot rounds each waypoint instead of
+     * stopping at it. Heading is held constant (constant-heading splines); each
+     * waypoint's path tangent points toward the next waypoint.
+     */
+    public Action smoothPath(Pose... poseList) {
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
+        for (int i = 0; i < poseList.length; i++) {
+            Vector2d position = poseList[i].pose2d.position;
+            double tangent;
+            if (i + 1 < poseList.length) {
+                Vector2d next = poseList[i + 1].pose2d.position;
+                tangent = Math.atan2(next.y - position.y, next.x - position.x);
+            } else if (i > 0) {
+                Vector2d prev = poseList[i - 1].pose2d.position;
+                tangent = Math.atan2(position.y - prev.y, position.x - prev.x);
+            } else {
+                tangent = poseList[i].pose2d.heading.toDouble();
+            }
+            builder = builder.splineToConstantHeading(position, tangent);
+        }
+        return builder.build();
+    }
+
     public Action strafePath(Pose... poseList) {
         TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
         for (Nav.Pose pose : poseList) {
