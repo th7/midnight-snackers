@@ -217,6 +217,42 @@ public class Nav extends SubSystem {
         return builder.build();
     }
 
+    /**
+     * Like {@link #smoothPath} but the robot drives nose-first: instead of holding a
+     * constant heading, it rotates to face its direction of travel and turns and
+     * translates at the same time. Each waypoint's target heading is the direction
+     * travelled to reach it, so the robot arrives driving forward into the point
+     * (including turning toward the first point on the way there). The path tangent
+     * aims at the next waypoint to keep the curve smooth and continuous.
+     */
+    public Action smoothForwardPath(Pose... poseList) {
+        Pose2d startPose = mecanumDrive.localizer.getPose();
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(startPose);
+        Vector2d previous = startPose.position;
+        for (int i = 0; i < poseList.length; i++) {
+            Vector2d position = poseList[i].pose2d.position;
+            // Face the direction we travelled to get here (drive forward into the point).
+            double heading = Math.atan2(position.y - previous.y, position.x - previous.x);
+            // Aim the path tangent at the next point so the corner rounds into the next
+            // leg; on the last point just keep the arrival direction.
+            double tangent;
+            if (i + 1 < poseList.length) {
+                Vector2d next = poseList[i + 1].pose2d.position;
+                tangent = Math.atan2(next.y - position.y, next.x - position.x);
+            } else {
+                tangent = heading;
+            }
+            if (i == 0) {
+                // The robot may not already face the first point; leave along the travel
+                // direction so the opening spline is a valid forward curve.
+                builder = builder.setTangent(heading);
+            }
+            builder = builder.splineToLinearHeading(new Pose2d(position, heading), tangent);
+            previous = position;
+        }
+        return builder.build();
+    }
+
     public Action strafePath(Pose... poseList) {
         TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
         for (Nav.Pose pose : poseList) {

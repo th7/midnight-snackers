@@ -329,7 +329,8 @@ public class Plans extends SuperSystem {
     // Centroid-to-vertex distance is the circumradius R = side / sqrt(3). The lower
     // vertices are at R*cos(120deg) = -R/2 in x and +/- side/2 in y.
     // Path visits: bottom-left, top, bottom-right, bottom-left, then back to start,
-    // as one continuous spline so the robot rounds each vertex without stopping.
+    // as one continuous spline so the robot rounds each vertex without stopping. The
+    // robot drives nose-first, turning to face its direction of travel into each point.
     public Action trianglePath() {
         double side = 24;
         double circumradius = side / Math.sqrt(3); // ~13.856 in
@@ -337,7 +338,7 @@ public class Plans extends SuperSystem {
         Nav.Pose bottomLeft = nav.pose(-circumradius / 2, side / 2, 0);
         Nav.Pose bottomRight = nav.pose(-circumradius / 2, -side / 2, 0);
         Nav.Pose start = nav.pose(0, 0, 0);
-        return nav.smoothPath(
+        return nav.smoothForwardPath(
                 bottomLeft,
                 top,
                 bottomRight,
