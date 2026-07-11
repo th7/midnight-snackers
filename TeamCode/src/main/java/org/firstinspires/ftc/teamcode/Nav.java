@@ -188,7 +188,18 @@ public class Nav extends SubSystem {
      * waypoint's path tangent points toward the next waypoint.
      */
     public Action smoothPath(Pose... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
+        Pose2d startPose = mecanumDrive.localizer.getPose();
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(startPose);
+        if (poseList.length > 0) {
+            // The robot's heading need not point at the first waypoint (e.g. it starts
+            // facing the top vertex while the first move is behind-left). Aim the initial
+            // path tangent at the first waypoint so the opening spline is a valid forward
+            // curve instead of a degenerate one the follower can't leave.
+            Vector2d first = poseList[0].pose2d.position;
+            double startTangent = Math.atan2(
+                    first.y - startPose.position.y, first.x - startPose.position.x);
+            builder = builder.setTangent(startTangent);
+        }
         for (int i = 0; i < poseList.length; i++) {
             Vector2d position = poseList[i].pose2d.position;
             double tangent;
