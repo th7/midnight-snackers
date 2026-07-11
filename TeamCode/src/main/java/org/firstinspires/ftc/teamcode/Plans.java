@@ -313,6 +313,38 @@ public class Plans extends SuperSystem {
         );
     }
 
+    public PlanPart triangle() {
+        return new Plan(
+                new Step(
+                        "triangle",
+                        () -> drive.to(trianglePath()),
+                        drive::done
+                )
+        );
+    }
+
+    // Equilateral triangle with 24 in (2 ft) sides. The robot starts at the centroid
+    // (0, 0) facing the top vertex, which sits straight ahead (+x). The two lower
+    // vertices are behind the robot: left is +y, right is -y.
+    // Centroid-to-vertex distance is the circumradius R = side / sqrt(3). The lower
+    // vertices are at R*cos(120deg) = -R/2 in x and +/- side/2 in y.
+    // Path visits: bottom-left, top, bottom-right, bottom-left, then back to start.
+    public Action trianglePath() {
+        double side = 24;
+        double circumradius = side / Math.sqrt(3); // ~13.856 in
+        Nav.Pose top = nav.pose(circumradius, 0, 0);
+        Nav.Pose bottomLeft = nav.pose(-circumradius / 2, side / 2, 0);
+        Nav.Pose bottomRight = nav.pose(-circumradius / 2, -side / 2, 0);
+        Nav.Pose start = nav.pose(0, 0, 0);
+        return nav.strafePath(
+                bottomLeft,
+                top,
+                bottomRight,
+                bottomLeft,
+                start
+        );
+    }
+
     enum Motif {
         GPP,
         PGP,
