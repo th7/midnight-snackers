@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
+import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher extends SubSystem {
@@ -31,7 +32,7 @@ public class Launcher extends SubSystem {
     private PIDFCoefficients pidVelocityOrig;
     private PIDFCoefficients pidOrig;
     private double PIDFAdjustable = 0;
-    private Plan currentPlan = null;
+    private final PlanRunner planRunner = new PlanRunner();
 
     public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
         super(hardwareMap, runtime, telemetry);
@@ -58,9 +59,7 @@ public class Launcher extends SubSystem {
 
     @Override
     public void loop() {
-        if (currentPlan != null && currentPlan.done()) {
-            currentPlan = null;
-        }
+        planRunner.loop();
 
         launcher.setVelocity(launcherVelocity);
         topGate.setPosition(topGatePosition);
@@ -72,8 +71,8 @@ public class Launcher extends SubSystem {
     }
 
     public void launchyLaunch() {
-        if (currentPlan == null) {
-            currentPlan = launchPlan();
+        if (planRunner.done()) {
+            planRunner.run(launchPlan());
         }
     }
 
@@ -142,8 +141,8 @@ public class Launcher extends SubSystem {
     }
 
     public void slowLaunchyLaunch() {
-        if (currentPlan == null) {
-            currentPlan = slowLaunchPlan();
+        if (planRunner.done()) {
+            planRunner.run(slowLaunchPlan());
         }
     }
 
@@ -218,11 +217,7 @@ public class Launcher extends SubSystem {
 
     private void setTelemetry() {
         telemetry.addData("Launcher", "telemetry on");
-        if (currentPlan != null) {
-            telemetry.addData("launcherStep", currentPlan.currentStep());
-        } else {
-            telemetry.addData("launcherStep", "no currentPlan");
-        }
+        telemetry.addData("launcherStep", planRunner.currentStep());
 
 //        telemetry.addData("adjustable", PIDFAdjustable);
         telemetry.addData("launcherPower", launcher.getPower());
@@ -246,7 +241,7 @@ public class Launcher extends SubSystem {
     }
 
     public boolean launchDone() {
-        return currentPlan == null;
+        return planRunner.done();
     }
 
     private boolean closeEnough(double a, double b, double c) {

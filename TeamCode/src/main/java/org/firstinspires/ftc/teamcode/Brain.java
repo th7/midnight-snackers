@@ -7,22 +7,21 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
+import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Brain extends SuperSystem {
     private boolean usingCameraLocalization = true;
     private boolean turnTableToZeroMode = false;
     private boolean turnTableDebugOverride = false;
-    private Plan currentPlan = null;
+    private final PlanRunner planRunner = new PlanRunner();
 
     public Brain(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable) {
         super(runtime, telemetry, launcher, drive, camera, nav, turntable);
     }
 
     public void loop() {
-        if (currentPlan != null && currentPlan.done()) {
-            currentPlan = null;
-        }
+        planRunner.loop();
 
         if (!turnTableDebugOverride) {
             if (turnTableToZeroMode) {
@@ -64,18 +63,18 @@ public class Brain extends SuperSystem {
     }
 
     public void cancelPlan() {
-        currentPlan = null;
+        planRunner.cancel();
     }
 
     public void autoShootFast() {
-        if (currentPlan == null) {
-            currentPlan = autoShootFastPlan();
+        if (planRunner.done()) {
+            planRunner.run(autoShootFastPlan());
         }
     }
 
     public void autoShootSlow() {
-        if (currentPlan == null) {
-            currentPlan = autoShootSlowPlan();
+        if (planRunner.done()) {
+            planRunner.run(autoShootSlowPlan());
         }
     }
 
