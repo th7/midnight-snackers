@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.Brain;
@@ -25,15 +28,26 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     @Override
     public void init() {
         runtime = new ElapsedTime();
-        launcher = new Launcher(hardwareMap, runtime, telemetry);
+        launcher = new Launcher(
+                hardwareMap.get(DcMotorEx.class, "launcher"),
+                hardwareMap.get(Servo.class, "topGate"),
+                hardwareMap.get(Servo.class, "bottomGate"),
+                runtime, telemetry);
         launcher.init();
-        drive = new Drive(hardwareMap, runtime, telemetry);
+        drive = new Drive(
+                hardwareMap.get(DcMotor.class, "leftFront"),
+                hardwareMap.get(DcMotor.class, "rightFront"),
+                hardwareMap.get(DcMotor.class, "leftBack"),
+                hardwareMap.get(DcMotor.class, "rightBack"),
+                runtime, telemetry);
         drive.init();
         camera = new Camera(hardwareMap, runtime, telemetry);
         camera.init();
         nav = getNav();
         nav.init();
-        turntable = new Turntable(hardwareMap, runtime, telemetry);
+        turntable = new Turntable(
+                hardwareMap.get(DcMotorEx.class, "turnTable"),
+                runtime, telemetry);
         turntable.init();
         brain = new Brain(runtime, telemetry, launcher, drive, camera, nav, turntable);
         telemetry.addData("base.OpMode.init()", true);

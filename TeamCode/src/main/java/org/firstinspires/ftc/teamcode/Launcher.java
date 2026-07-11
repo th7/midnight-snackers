@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -20,9 +19,9 @@ public class Launcher extends SubSystem {
     private final double bottomGateClosedPosition = 0.4;
     private final double closeLauncherPower = 1050d;
     private final double rangedLauncherPower = 1350d;
-    private DcMotorEx launcher;
-    private Servo topGate;
-    private Servo bottomGate; // bottomGate is closer to launcher
+    private final DcMotorEx launcher;
+    private final Servo topGate;
+    private final Servo bottomGate; // bottomGate is closer to launcher
     private double topGatePosition = topGateOpenPosition;
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
@@ -34,13 +33,14 @@ public class Launcher extends SubSystem {
     private double PIDFAdjustable = 0;
     private final PlanRunner planRunner = new PlanRunner();
 
-    public Launcher(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        super(hardwareMap, runtime, telemetry);
+    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, ElapsedTime runtime, Telemetry telemetry) {
+        super(runtime, telemetry);
+        this.launcher = launcher;
+        this.topGate = topGate;
+        this.bottomGate = bottomGate;
     }
 
     public void init() {
-        launcher = hardwareMap.get(DcMotorEx.class, "launcher");
-
         pidOrig = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
         launcher.setPositionPIDFCoefficients(5);
 
@@ -49,8 +49,6 @@ public class Launcher extends SubSystem {
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        topGate = hardwareMap.get(Servo.class, "topGate");
-        bottomGate = hardwareMap.get(Servo.class, "bottomGate");
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);
 

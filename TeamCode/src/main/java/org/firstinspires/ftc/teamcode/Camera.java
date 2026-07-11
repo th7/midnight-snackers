@@ -24,12 +24,14 @@ import java.util.ArrayList;
 
 public class Camera extends SubSystem {
     private final DetectionFilter detectionFilter = new DetectionFilter();
+    private final HardwareMap hardwareMap;
     private AprilTagProcessor aprilTagProcessor;
     private boolean telemetryOn = false;
     private AprilTagDetection goalDetection;
 
     public Camera(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        super(hardwareMap, runtime, telemetry);
+        super(runtime, telemetry);
+        this.hardwareMap = hardwareMap;
     }
 
     @Override

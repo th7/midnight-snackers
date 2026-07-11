@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -9,16 +8,16 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 public class Turntable extends SubSystem {
     private final int ticksPerRevolution = 1700;
-    private DcMotorEx turnTable;
+    private final DcMotorEx turnTable;
     private boolean telemetryOn = false;
     private int turnTableTargetPosition;
 
-    public Turntable(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        super(hardwareMap, runtime, telemetry);
+    public Turntable(DcMotorEx turnTable, ElapsedTime runtime, Telemetry telemetry) {
+        super(runtime, telemetry);
+        this.turnTable = turnTable;
     }
 
     public void init() {
-        turnTable = hardwareMap.get(DcMotorEx.class, "turnTable");
         telemetry.addData("Turntable.init()", true);
     }
 

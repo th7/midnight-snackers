@@ -4,7 +4,6 @@ import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -16,25 +15,24 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 public class Drive extends SubSystem {
     private final DriveRunner driveRunner = new DriveRunner();
     private final FastDrive fastDrive = new FastDrive();
-    private DcMotor leftFront;
-    private DcMotor rightFront;
-    private DcMotor leftBack;
-    private DcMotor rightBack;
+    private final DcMotor leftFront;
+    private final DcMotor rightFront;
+    private final DcMotor leftBack;
+    private final DcMotor rightBack;
     private boolean telemetryOn = false;
     private float straightPower;
     private float strafePower;
     private float turnPower;
 
-    public Drive(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        super(hardwareMap, runtime, telemetry);
+    public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack, ElapsedTime runtime, Telemetry telemetry) {
+        super(runtime, telemetry);
+        this.leftFront = leftFront;
+        this.rightFront = rightFront;
+        this.leftBack = leftBack;
+        this.rightBack = rightBack;
     }
 
     public void init() {
-        leftFront = hardwareMap.get(DcMotor.class, "leftFront");
-        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
-        leftBack = hardwareMap.get(DcMotor.class, "leftBack");
-        rightBack = hardwareMap.get(DcMotor.class, "rightBack");
-
         telemetry.addData("Drive.init()", true);
     }
 

@@ -1,17 +1,14 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public abstract class SubSystem {
-    public final HardwareMap hardwareMap;
     public final ElapsedTime runtime;
     public final Telemetry telemetry;
 
-    public SubSystem(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        this.hardwareMap = hardwareMap;
+    public SubSystem(ElapsedTime runtime, Telemetry telemetry) {
         this.runtime = runtime;
         this.telemetry = telemetry;
     }

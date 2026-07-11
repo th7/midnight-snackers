@@ -41,11 +41,13 @@ public class Nav extends SubSystem {
     private final int ySign;
     private final Vector2d launchTarget;
     private final double targetLaunchDistance = 40;
+    private final HardwareMap hardwareMap;
     private MecanumDrive mecanumDrive;
     private boolean fieldPositionKnown = false;
 
     private Nav(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry, int headingSign, int ySign, Vector2d launchTarget) {
-        super(hardwareMap, runtime, telemetry);
+        super(runtime, telemetry);
+        this.hardwareMap = hardwareMap;
         this.headingSign = headingSign;
         this.ySign = ySign;
         this.launchTarget = launchTarget;
