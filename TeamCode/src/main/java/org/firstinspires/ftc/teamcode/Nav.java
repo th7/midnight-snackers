@@ -247,7 +247,10 @@ public class Nav extends SubSystem {
                 // direction so the opening spline is a valid forward curve.
                 builder = builder.setTangent(heading);
             }
-            builder = builder.splineToLinearHeading(new Pose2d(position, heading), tangent);
+            // Spline (not linear) heading interpolation: linear heading's turn rate jumps
+            // at each waypoint, so RoadRunner splits the path into stop-and-go trajectories
+            // there; spline heading stays continuous and keeps this one trajectory.
+            builder = builder.splineToSplineHeading(new Pose2d(position, heading), tangent);
             previous = position;
         }
         return builder.build();
