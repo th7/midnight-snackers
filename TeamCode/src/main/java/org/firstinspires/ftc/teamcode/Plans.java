@@ -323,7 +323,7 @@ public class Plans extends SuperSystem {
         );
     }
 
-    // Equilateral triangle with 24 in (2 ft) sides. The robot starts at the centroid
+    // Equilateral triangle with 36 in (3 ft) sides. The robot starts at the centroid
     // (0, 0) facing the top vertex, which sits straight ahead (+x). The two lower
     // vertices are behind the robot: left is +y, right is -y.
     // Centroid-to-vertex distance is the circumradius R = side / sqrt(3). The lower
@@ -332,8 +332,8 @@ public class Plans extends SuperSystem {
     // as one continuous spline so the robot rounds each vertex without stopping. The
     // robot drives nose-first, turning to face its direction of travel into each point.
     public Action trianglePath() {
-        double side = 24;
-        double circumradius = side / Math.sqrt(3); // ~13.856 in
+        double side = 36;
+        double circumradius = side / Math.sqrt(3); // ~20.785 in
         Nav.Pose top = nav.pose(circumradius, 0, 0);
         Nav.Pose bottomLeft = nav.pose(-circumradius / 2, side / 2, 0);
         Nav.Pose bottomRight = nav.pose(-circumradius / 2, -side / 2, 0);
