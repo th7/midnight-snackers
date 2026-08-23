@@ -12,6 +12,8 @@ import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 
+import java.util.function.Supplier;
+
 public class Drive extends SubSystem {
     private final DriveRunner driveRunner = new DriveRunner();
     private final FastDrive fastDrive = new FastDrive();
@@ -34,6 +36,14 @@ public class Drive extends SubSystem {
 
     public void init() {
         telemetry.addData("Drive.init()", true);
+    }
+
+    /**
+     * Supplies the robot's current pose so the dashboard field view shows the robot
+     * whenever the op mode is running, not only during RoadRunner actions.
+     */
+    public void setPoseSupplier(Supplier<Pose2d> poseSupplier) {
+        driveRunner.setPoseSupplier(poseSupplier);
     }
 
     public void loop() {

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -27,6 +29,9 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     @Override
     public void init() {
+        // Mirror all telemetry to the FTC Dashboard as well as the Driver Station.
+        // Must happen before subsystems are built, since they capture the telemetry reference.
+        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         runtime = new ElapsedTime();
         launcher = new Launcher(
                 hardwareMap.get(DcMotorEx.class, "launcher"),
@@ -45,6 +50,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         camera.init();
         nav = getNav();
         nav.init();
+        drive.setPoseSupplier(() -> nav.currentPose().pose2d);
         turntable = new Turntable(
                 hardwareMap.get(DcMotorEx.class, "turnTable"),
                 runtime, telemetry);
