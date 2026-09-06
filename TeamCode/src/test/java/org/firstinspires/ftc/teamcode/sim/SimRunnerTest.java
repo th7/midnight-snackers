@@ -94,6 +94,44 @@ public class SimRunnerTest {
     }
 
     @Test
+    public void withALivePortTheRunCanBeWatchedWhileItRunsAndUntilTheViewerHasSeenTheEnd() throws Exception {
+        currentSim = sim;
+        int port = freePort();
+        Thread runner = new Thread(() -> {
+            try {
+                SimRunner.run(new NeverDoneAuto(), sim, 0.5, folder.getRoot().toPath(), port);
+            } catch (AssertionError expected) {
+                // the plan never finishes; the run times out by design
+            }
+        });
+        runner.start();
+
+        String duringRun = null;
+        String afterRun = null;
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            String response = tryGet("http://localhost:" + port + "/ticks?from=0");
+            if (response == null) {
+                Thread.sleep(20);
+                continue;
+            }
+            if (response.contains("\"outcome\":\"timed out")) {
+                afterRun = response;
+                break;
+            }
+            if (response.contains("\"forever\"")) {
+                duringRun = response;
+            }
+            Thread.sleep(20);
+        }
+        runner.join(10_000);
+
+        assertTrue("saw ticks while the run was in progress", duringRun != null);
+        assertTrue("saw the outcome after the run", afterRun != null);
+        assertFalse("the runner returned once the viewer had seen the end", runner.isAlive());
+    }
+
+    @Test
     public void aTimedOutRunStillWritesTheReplayBeforeFailing() throws Exception {
         currentSim = sim;
         Path out = folder.getRoot().toPath();
@@ -107,5 +145,24 @@ public class SimRunnerTest {
         String html = new String(Files.readAllBytes(page), StandardCharsets.UTF_8);
         assertTrue(html.contains("timed out"));
         assertFalse(html.contains("\"done\""));
+    }
+
+    private static int freePort() throws java.io.IOException {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    private static String tryGet(String url) {
+        try {
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            try (java.io.InputStream in = connection.getInputStream()) {
+                return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            } finally {
+                connection.disconnect();
+            }
+        } catch (java.io.IOException notUpYet) {
+            return null;
+        }
     }
 }

@@ -16,10 +16,19 @@ import java.util.List;
  * controller would: init, start, then loop until the op mode's plan is done. Every run, finished
  * or not, leaves a replay page named after the op mode in the output directory.
  * <p>
+ * To watch a run as it happens, set {@code SIM_LIVE} to a port and open that port in a browser:
+ * <pre>
+ * SIM_LIVE=8765 ./gradlew :TeamCode:testDebugUnitTest --rerun --tests '*ForwardLeftBackwardRightSimTest*'
+ * </pre>
+ * The page at http://localhost:8765/ follows the run and stays up until it has shown the end
+ * (at most {@link #LIVE_HOLD_SECONDS} after the run finishes).
+ * <p>
  * Real time because Road Runner actions and {@code Step} timers read the system clock.
  */
 public final class SimRunner {
     public static final Path DEFAULT_OUTPUT_DIR = Paths.get("build", "sim");
+    public static final String LIVE_PORT_ENV = "SIM_LIVE";
+    public static final double LIVE_HOLD_SECONDS = 30;
     private static final long TICK_MILLIS = 5;
     /**
      * Poses are kept for every loop, but the dashboard drawings (which repeat the whole planned
@@ -35,11 +44,22 @@ public final class SimRunner {
      * @throws AssertionError if the plan is not done within {@code timeoutSeconds}
      */
     public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds) {
-        return run(opMode, sim, timeoutSeconds, DEFAULT_OUTPUT_DIR);
+        return run(opMode, sim, timeoutSeconds, DEFAULT_OUTPUT_DIR, livePortFromEnvironment());
     }
 
     public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
+        return run(opMode, sim, timeoutSeconds, outputDir, null);
+    }
+
+    /**
+     * @param livePort serve a live view on this port while the run is in progress, or null for none
+     */
+    public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
         SimRecording recording = new SimRecording(nameOf(opMode));
+        SimLiveServer live = livePort == null ? null : SimLiveServer.start(recording, livePort);
+        if (live != null) {
+            System.out.println("Simulation live view: " + live.url());
+        }
         try {
             loopUntilDone(opMode, sim, timeoutSeconds, recording);
             recording.finish("done");
@@ -52,8 +72,24 @@ public final class SimRunner {
             Path page = outputDir.resolve(recording.name() + ".html");
             SimReplayPage.write(recording, page);
             System.out.println("Simulation replay: " + page.toAbsolutePath());
+            if (live != null) {
+                live.awaitViewerSawOutcome(LIVE_HOLD_SECONDS);
+                live.stop();
+            }
         }
         return recording;
+    }
+
+    private static Integer livePortFromEnvironment() {
+        String value = System.getenv(LIVE_PORT_ENV);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(LIVE_PORT_ENV + " must be a port number, not '" + value + "'", e);
+        }
     }
 
     private static void loopUntilDone(AutoOp opMode, SimRobot sim, double timeoutSeconds, SimRecording recording) {

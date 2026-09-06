@@ -76,6 +76,7 @@
     </div>
     <div class="controls">
       <button id="play">Play</button>
+      <button id="follow" hidden aria-pressed="true">Following live</button>
       <select id="speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select>
       <input type="range" id="scrub" min="0" value="0" step="1">
       <span class="time mono" id="time"></span>
@@ -114,15 +115,25 @@
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
   document.getElementById('title').textContent = rec.name;
-  document.title = rec.name + ' replay';
-  document.getElementById('outcome').textContent =
-    (ticks.length ? ticks.length + ' loops, ' + ticks[ticks.length - 1].t.toFixed(2) + ' s, ' : '') + 'outcome: ' + (rec.outcome || 'unknown');
+  document.title = rec.name + (rec.live ? ' live' : ' replay');
 
   const play = document.getElementById('play'), speed = document.getElementById('speed'),
-        scrub = document.getElementById('scrub'), time = document.getElementById('time');
+        scrub = document.getElementById('scrub'), time = document.getElementById('time'),
+        follow = document.getElementById('follow');
   scrub.max = Math.max(0, ticks.length - 1);
 
   let index = 0, playing = false, clock = 0, lastFrame = null;
+  let following = !!rec.live;
+
+  function updateOutcome() {
+    const loops = ticks.length ? ticks.length + ' loops, ' + ticks[ticks.length - 1].t.toFixed(2) + ' s' : 'no loops yet';
+    let state;
+    if (rec.outcome) state = 'outcome: ' + rec.outcome;
+    else if (rec.live) state = rec.disconnected ? 'live view lost the test process' : 'running';
+    else state = 'outcome: unknown';
+    document.getElementById('outcome').textContent = loops + ', ' + state;
+  }
+  updateOutcome();
 
   function drawField() {
     ctx.fillStyle = token('--field');
@@ -246,7 +257,15 @@
     render();
   }
 
+  function setFollowing(f) {
+    following = f;
+    follow.setAttribute('aria-pressed', String(f));
+    follow.textContent = f ? 'Following live' : 'Follow live';
+    if (f) { setPlaying(false); setIndex(ticks.length - 1); }
+  }
+
   function setPlaying(p) {
+    if (p) following = false, follow.setAttribute('aria-pressed', 'false'), follow.textContent = 'Follow live';
     playing = p && ticks.length > 1;
     play.textContent = playing ? 'Pause' : 'Play';
     lastFrame = null;
@@ -267,12 +286,34 @@
   }
 
   play.addEventListener('click', () => setPlaying(!playing));
-  scrub.addEventListener('input', () => { setPlaying(false); setIndex(parseInt(scrub.value, 10)); });
+  scrub.addEventListener('input', () => { setPlaying(false); if (following) setFollowing(false); setIndex(parseInt(scrub.value, 10)); });
+  follow.addEventListener('click', () => setFollowing(!following));
   document.addEventListener('keydown', e => {
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
     if (e.code === 'ArrowRight') { setPlaying(false); setIndex(index + 1); }
     if (e.code === 'ArrowLeft') { setPlaying(false); setIndex(index - 1); }
   });
+
+  if (rec.live) {
+    follow.hidden = false;
+    const poll = async () => {
+      try {
+        const response = await fetch('/ticks?from=' + ticks.length, { cache: 'no-store' });
+        const update = await response.json();
+        if (update.ticks.length) {
+          ticks.push(...update.ticks);
+          scrub.max = ticks.length - 1;
+          if (following) setIndex(ticks.length - 1); else render();
+        }
+        if (update.outcome) { rec.outcome = update.outcome; updateOutcome(); return; }
+        updateOutcome();
+      } catch (e) {
+        rec.disconnected = true; updateOutcome(); return;
+      }
+      setTimeout(poll, 100);
+    };
+    poll();
+  }
 
   if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
   new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
