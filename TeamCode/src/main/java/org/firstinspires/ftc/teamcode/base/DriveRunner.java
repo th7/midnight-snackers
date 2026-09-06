@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.canvas.Canvas;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Action;
@@ -11,9 +10,13 @@ import org.firstinspires.ftc.teamcode.roadrunner.Drawing;
 import java.util.function.Supplier;
 
 public class DriveRunner {
-    public final FtcDashboard dash = FtcDashboard.getInstance();
+    private final Dashboard dashboard;
     private Action roadRunnerAction = null;
     private Supplier<Pose2d> poseSupplier = null;
+
+    public DriveRunner(Dashboard dashboard) {
+        this.dashboard = dashboard;
+    }
 
     /**
      * Provide the robot's current pose so it is drawn on the dashboard field view
@@ -39,7 +42,7 @@ public class DriveRunner {
             return;
         }
 
-        dash.sendTelemetryPacket(packet);
+        dashboard.send(packet);
     }
 
     public void drive(Action action) {

@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.base.Dashboard;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.MoveData;
@@ -15,7 +16,7 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 import java.util.function.Supplier;
 
 public class Drive extends SubSystem {
-    private final DriveRunner driveRunner = new DriveRunner();
+    private final DriveRunner driveRunner;
     private final FastDrive fastDrive = new FastDrive();
     private final DcMotor leftFront;
     private final DcMotor rightFront;
@@ -26,8 +27,9 @@ public class Drive extends SubSystem {
     private float strafePower;
     private float turnPower;
 
-    public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack, ElapsedTime runtime, Telemetry telemetry) {
+    public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack, Dashboard dashboard, ElapsedTime runtime, Telemetry telemetry) {
         super(runtime, telemetry);
+        this.driveRunner = new DriveRunner(dashboard);
         this.leftFront = leftFront;
         this.rightFront = rightFront;
         this.leftBack = leftBack;
