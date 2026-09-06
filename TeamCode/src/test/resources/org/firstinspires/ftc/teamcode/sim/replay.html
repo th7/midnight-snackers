@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ replay</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc;
+    --field: #fbfaf6; --tile: #e4e1d7; --axis: #c3bfb3; --label: #8f8b80;
+    --true: #d84a05; --true-soft: rgba(216, 74, 5, 0.22); --trail: rgba(216, 74, 5, 0.45);
+    --accent: #2f5bd7; --focus: #2f5bd7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
+      --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
+      --true: #ff7a3d; --true-soft: rgba(255, 122, 61, 0.24); --trail: rgba(255, 122, 61, 0.5);
+      --accent: #7ea2ff; --focus: #7ea2ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
+    --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
+    --true: #ff7a3d; --true-soft: rgba(255, 122, 61, 0.24); --trail: rgba(255, 122, 61, 0.5);
+    --accent: #7ea2ff; --focus: #7ea2ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  main { display: grid; grid-template-columns: minmax(320px, 720px) minmax(240px, 1fr); gap: 20px; padding: 20px; max-width: 1180px; margin: 0 auto; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 0 0 12px; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  canvas { width: 100%; height: auto; background: var(--field); border: 1px solid var(--line); border-radius: 6px; display: block; }
+  .controls { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  button, select { font: inherit; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover, select:hover { border-color: var(--ink); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #play { min-width: 5.5em; }
+  input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+  .time { min-width: 8ch; text-align: right; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; align-self: start; display: grid; gap: 14px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; word-break: break-word; }
+  .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+  .power { display: grid; grid-template-columns: 3ch 1fr 5.5ch; gap: 10px; align-items: center; margin: 3px 0; }
+  .power span:last-child { text-align: right; }
+  .bar { height: 10px; background: var(--line); border-radius: 5px; position: relative; overflow: hidden; }
+  .bar::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--axis); }
+  .bar span { position: absolute; top: 0; bottom: 0; background: var(--accent); }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+  td:first-child { color: var(--muted); white-space: nowrap; }
+  .legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin-top: 8px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; }
+  kbd { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1 id="title"></h1>
+    <p class="sub" id="outcome"></p>
+    <canvas id="field" width="720" height="720"></canvas>
+    <div class="legend">
+      <span><i style="background: var(--true)"></i>true pose (only the simulator knows this)</span>
+      <span><i style="border: 2px solid #3F51B5"></i>localizer estimate</span>
+      <span><i style="border: 2px solid #4CAF50"></i>target and planned path</span>
+    </div>
+    <div class="controls">
+      <button id="play">Play</button>
+      <select id="speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select>
+      <input type="range" id="scrub" min="0" value="0" step="1">
+      <span class="time mono" id="time"></span>
+    </div>
+    <p class="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.</p>
+  </section>
+  <aside>
+    <dl>
+      <dt>step</dt><dd class="mono" id="step"></dd>
+      <dt>true pose</dt><dd class="mono" id="pose"></dd>
+      <dt>loop</dt><dd class="mono" id="loop"></dd>
+    </dl>
+    <div>
+      <p class="section-label">Drive motor power</p>
+      <div id="powers" class="mono"></div>
+    </div>
+    <div>
+      <p class="section-label">Dashboard telemetry</p>
+      <table id="data" class="mono"></table>
+    </div>
+  </aside>
+</main>
+<script id="recording" type="application/json">__DATA__</script>
+<script>
+(function () {
+  const rec = JSON.parse(document.getElementById('recording').textContent);
+  const ticks = rec.ticks;
+  const FIELD_IN = 144, TILE_IN = 24, ROBOT_RADIUS_IN = 9;
+  const canvas = document.getElementById('field');
+  const ctx = canvas.getContext('2d');
+  const scale = canvas.width / FIELD_IN;
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  // Road Runner field frame: +x forward (up on screen), +y left (left on screen).
+  const sx = (x, y) => cx - y * scale;
+  const sy = (x, y) => cy - x * scale;
+  const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  document.getElementById('title').textContent = rec.name;
+  document.title = rec.name + ' replay';
+  document.getElementById('outcome').textContent =
+    (ticks.length ? ticks.length + ' loops, ' + ticks[ticks.length - 1].t.toFixed(2) + ' s, ' : '') + 'outcome: ' + (rec.outcome || 'unknown');
+
+  const play = document.getElementById('play'), speed = document.getElementById('speed'),
+        scrub = document.getElementById('scrub'), time = document.getElementById('time');
+  scrub.max = Math.max(0, ticks.length - 1);
+
+  let index = 0, playing = false, clock = 0, lastFrame = null;
+
+  function drawField() {
+    ctx.fillStyle = token('--field');
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = token('--tile');
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= FIELD_IN / TILE_IN; i++) {
+      const p = i * TILE_IN * scale;
+      ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); ctx.stroke();
+    }
+    ctx.strokeStyle = token('--axis');
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+    ctx.fillStyle = token('--label');
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText('+x', cx + 6, 14);
+    ctx.fillText('+y', 6, cy - 6);
+  }
+
+  function drawTrail(upTo) {
+    if (upTo < 1) return;
+    ctx.strokeStyle = token('--trail');
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx(ticks[0].x, ticks[0].y), sy(ticks[0].x, ticks[0].y));
+    for (let i = 1; i <= upTo; i++) ctx.lineTo(sx(ticks[i].x, ticks[i].y), sy(ticks[i].x, ticks[i].y));
+    ctx.stroke();
+  }
+
+  function drawOps(ops) {
+    ctx.save();
+    ctx.lineWidth = 1;
+    for (const op of ops) {
+      switch (op.type) {
+        case 'STROKE': ctx.strokeStyle = op.color; break;
+        case 'FILL': ctx.fillStyle = op.color; break;
+        case 'STROKE_WIDTH': ctx.lineWidth = op.width; break;
+        case 'ALPHA': ctx.globalAlpha = op.alpha; break;
+        case 'POLYLINE':
+        case 'POLYGON': {
+          if (!op.xPoints.length) break;
+          ctx.beginPath();
+          ctx.moveTo(sx(op.xPoints[0], op.yPoints[0]), sy(op.xPoints[0], op.yPoints[0]));
+          for (let i = 1; i < op.xPoints.length; i++) ctx.lineTo(sx(op.xPoints[i], op.yPoints[i]), sy(op.xPoints[i], op.yPoints[i]));
+          if (op.type === 'POLYGON') { ctx.closePath(); op.stroke ? ctx.stroke() : ctx.fill(); } else ctx.stroke();
+          break;
+        }
+        case 'CIRCLE':
+          ctx.beginPath();
+          ctx.arc(sx(op.x, op.y), sy(op.x, op.y), op.radius * scale, 0, 2 * Math.PI);
+          op.stroke ? ctx.stroke() : ctx.fill();
+          break;
+        case 'SPLINE': {
+          ctx.beginPath();
+          for (let i = 0; i <= 24; i++) {
+            const t = i / 24;
+            const x = ((((op.ax * t + op.bx) * t + op.cx) * t + op.dx) * t + op.ex) * t + op.fx;
+            const y = ((((op.ay * t + op.by) * t + op.cy) * t + op.dy) * t + op.ey) * t + op.fy;
+            i ? ctx.lineTo(sx(x, y), sy(x, y)) : ctx.moveTo(sx(x, y), sy(x, y));
+          }
+          ctx.stroke();
+          break;
+        }
+        case 'TEXT':
+          ctx.font = op.font || '12px sans-serif';
+          op.stroke ? ctx.strokeText(op.text, sx(op.x, op.y), sy(op.x, op.y)) : ctx.fillText(op.text, sx(op.x, op.y), sy(op.x, op.y));
+          break;
+        default: break; // GRID, IMAGE, TRANSLATE, ROTATION, SCALE are not used by our code
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawTrueRobot(tick) {
+    const x = sx(tick.x, tick.y), y = sy(tick.x, tick.y), r = ROBOT_RADIUS_IN * scale;
+    ctx.fillStyle = token('--true-soft');
+    ctx.strokeStyle = token('--true');
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    const hx = tick.x + Math.cos(tick.heading) * ROBOT_RADIUS_IN, hy = tick.y + Math.sin(tick.heading) * ROBOT_RADIUS_IN;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(sx(hx, hy), sy(hx, hy)); ctx.stroke();
+  }
+
+  function latestPackets(upTo) {
+    for (let i = upTo; i >= 0; i--) if (ticks[i].packets.length) return ticks[i].packets;
+    return [];
+  }
+
+  function render() {
+    drawField();
+    if (!ticks.length) return;
+    const tick = ticks[index];
+    drawTrail(index);
+    const packets = latestPackets(index);
+    for (const p of packets) drawOps(p.ops);
+    drawTrueRobot(tick);
+
+    time.textContent = tick.t.toFixed(2) + ' s';
+    scrub.value = index;
+    document.getElementById('step').textContent = tick.step;
+    document.getElementById('pose').textContent =
+      'x ' + tick.x.toFixed(1) + ' in, y ' + tick.y.toFixed(1) + ' in, ' + (tick.heading * 180 / Math.PI).toFixed(1) + '°';
+    document.getElementById('loop').textContent = (index + 1) + ' / ' + ticks.length;
+
+    const names = ['LF', 'RF', 'LB', 'RB'];
+    document.getElementById('powers').innerHTML = tick.powers.map((p, i) => {
+      const pct = Math.min(1, Math.abs(p)) * 50;
+      const left = p < 0 ? 50 - pct : 50;
+      return '<div class="power"><span>' + names[i] + '</span><div class="bar"><span style="left:' + left + '%;width:' + pct + '%"></span></div><span>' + p.toFixed(2) + '</span></div>';
+    }).join('');
+
+    const data = packets.length ? packets[packets.length - 1].data || {} : {};
+    document.getElementById('data').innerHTML = Object.keys(data).map(k =>
+      '<tr><td>' + k + '</td><td>' + data[k] + '</td></tr>').join('');
+  }
+
+  function setIndex(i) {
+    index = Math.max(0, Math.min(ticks.length - 1, i));
+    clock = ticks.length ? ticks[index].t : 0;
+    render();
+  }
+
+  function setPlaying(p) {
+    playing = p && ticks.length > 1;
+    play.textContent = playing ? 'Pause' : 'Play';
+    lastFrame = null;
+    if (playing) {
+      if (index >= ticks.length - 1) setIndex(0);
+      requestAnimationFrame(frame);
+    }
+  }
+
+  function frame(now) {
+    if (!playing) return;
+    if (lastFrame !== null) clock += (now - lastFrame) / 1000 * parseFloat(speed.value);
+    lastFrame = now;
+    while (index < ticks.length - 1 && ticks[index + 1].t <= clock) index++;
+    render();
+    if (index >= ticks.length - 1) { setPlaying(false); return; }
+    requestAnimationFrame(frame);
+  }
+
+  play.addEventListener('click', () => setPlaying(!playing));
+  scrub.addEventListener('input', () => { setPlaying(false); setIndex(parseInt(scrub.value, 10)); });
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    if (e.code === 'ArrowRight') { setPlaying(false); setIndex(index + 1); }
+    if (e.code === 'ArrowLeft') { setPlaying(false); setIndex(index - 1); }
+  });
+
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  setIndex(0);
+})();
+</script>
+</body>
+</html>
