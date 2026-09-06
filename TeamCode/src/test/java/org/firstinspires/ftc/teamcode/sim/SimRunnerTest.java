@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import org.firstinspires.ftc.teamcode.base.Hardware;
 import org.firstinspires.ftc.teamcode.base.RelativeAutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
@@ -34,11 +33,6 @@ public class SimRunnerTest {
             return new Step("count to three", () -> {
             }, () -> ++loops >= 3);
         }
-
-        @Override
-        protected Hardware hardware() {
-            return SimRunnerTest.currentSim.hardware();
-        }
     }
 
     public static class NeverDoneAuto extends RelativeAutoOp {
@@ -47,18 +41,10 @@ public class SimRunnerTest {
             return new Step("forever", () -> {
             }, () -> false);
         }
-
-        @Override
-        protected Hardware hardware() {
-            return SimRunnerTest.currentSim.hardware();
-        }
     }
-
-    private static SimRobot currentSim;
 
     @Test
     public void recordsEveryLoopUntilThePlanIsDoneAndWritesTheReplay() {
-        currentSim = sim;
         Path out = folder.getRoot().toPath();
 
         SimRecording recording = SimRunner.run(new ThreeLoopAuto(), sim, 5, out);
@@ -71,7 +57,6 @@ public class SimRunnerTest {
 
     @Test
     public void keepsEveryLoopsPoseButThinsDrawingsToTwentyPerSecond() {
-        currentSim = sim;
 
         SimRecording recording = SimRunner.run(new ThreeLoopAuto(), sim, 5, folder.getRoot().toPath());
 
@@ -84,7 +69,6 @@ public class SimRunnerTest {
 
     @Test
     public void anAnonymousSubclassIsNamedAfterItsNearestNamedClass() {
-        currentSim = sim;
         Path out = folder.getRoot().toPath();
 
         SimRunner.run(new ThreeLoopAuto() {
@@ -95,7 +79,6 @@ public class SimRunnerTest {
 
     @Test
     public void withALivePortTheRunCanBeWatchedWhileItRunsAndUntilTheViewerHasSeenTheEnd() throws Exception {
-        currentSim = sim;
         int port = freePort();
         Thread runner = new Thread(() -> {
             try {
@@ -133,7 +116,6 @@ public class SimRunnerTest {
 
     @Test
     public void aTimedOutRunStillWritesTheReplayBeforeFailing() throws Exception {
-        currentSim = sim;
         Path out = folder.getRoot().toPath();
 
         AssertionError error = assertThrows(AssertionError.class,

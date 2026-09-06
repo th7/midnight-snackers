@@ -93,6 +93,7 @@ public final class SimRunner {
     }
 
     private static void loopUntilDone(AutoOp opMode, SimRobot sim, double timeoutSeconds, SimRecording recording) {
+        opMode.useHardware(sim.hardware());
         opMode.telemetry = new FakeTelemetry();
         opMode.gamepad1 = new Gamepad();
         opMode.gamepad2 = new Gamepad();

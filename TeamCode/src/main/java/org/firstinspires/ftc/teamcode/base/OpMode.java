@@ -25,12 +25,21 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 //    private double lastTickAt = 0;
 //    private double maxTickSeconds = 0;
 
+    private Hardware injectedHardware = null;
+
     /**
-     * The devices this op mode drives. The robot resolves them from the configuration;
-     * a simulation overrides this to supply fakes.
+     * Drive these devices instead of the ones in the robot configuration. A simulation calls this
+     * before {@link #init()}; on the robot nothing does.
+     */
+    public void useHardware(Hardware hardware) {
+        this.injectedHardware = hardware;
+    }
+
+    /**
+     * The devices this op mode drives: the injected ones if any, else the robot configuration's.
      */
     protected Hardware hardware() {
-        return Hardware.fromHardwareMap(hardwareMap);
+        return injectedHardware != null ? injectedHardware : Hardware.fromHardwareMap(hardwareMap);
     }
 
     @Override
