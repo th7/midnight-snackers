@@ -88,18 +88,37 @@ public final class MecanumDrive {
         this(hardwareMap, new Pose2d(0,0,0));
     }
     public MecanumDrive(HardwareMap hardwareMap, Pose2d pose) {
+        // TODO: make sure your config has motors with these names (or change them)
+        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
+        // TODO: make sure your config has an IMU with this name (can be BNO or BHI)
+        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
+        this(
+                hardwareMap.get(DcMotorEx.class, "leftFront"),
+                hardwareMap.get(DcMotorEx.class, "leftBack"),
+                hardwareMap.get(DcMotorEx.class, "rightBack"),
+                hardwareMap.get(DcMotorEx.class, "rightFront"),
+                new LazyHardwareMapImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
+                        PARAMS.logoFacingDirection, PARAMS.usbFacingDirection)),
+                hardwareMap.voltageSensor.iterator().next(),
+                pose);
+
         LynxFirmware.throwIfModulesAreOutdated(hardwareMap);
 
         for (LynxModule module : hardwareMap.getAll(LynxModule.class)) {
             module.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
+    }
 
-        // TODO: make sure your config has motors with these names (or change them)
-        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
-        leftFront = hardwareMap.get(DcMotorEx.class, "leftFront");
-        leftBack = hardwareMap.get(DcMotorEx.class, "leftBack");
-        rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
-        rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
+    /**
+     * Build the drive from already-resolved devices, so it can run on fakes as well as on the robot.
+     * The dead wheels are read through the rightBack (parallel) and leftFront (perpendicular) encoder ports.
+     */
+    public MecanumDrive(DcMotorEx leftFront, DcMotorEx leftBack, DcMotorEx rightBack, DcMotorEx rightFront,
+                        LazyImu lazyImu, VoltageSensor voltageSensor, Pose2d pose) {
+        this.leftFront = leftFront;
+        this.leftBack = leftBack;
+        this.rightBack = rightBack;
+        this.rightFront = rightFront;
 
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -110,14 +129,10 @@ public final class MecanumDrive {
         leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
         rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        // TODO: make sure your config has an IMU with this name (can be BNO or BHI)
-        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
-        lazyImu = new LazyHardwareMapImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
-                PARAMS.logoFacingDirection, PARAMS.usbFacingDirection));
+        this.lazyImu = lazyImu;
+        this.voltageSensor = voltageSensor;
 
-        voltageSensor = hardwareMap.voltageSensor.iterator().next();
-
-        localizer = new TwoDeadWheelLocalizer(hardwareMap, lazyImu.get(), PARAMS.inPerTick, pose);
+        localizer = new TwoDeadWheelLocalizer(rightBack, leftFront, lazyImu.get(), PARAMS.inPerTick, pose);
 
         FlightRecorder.write("MECANUM_PARAMS", PARAMS);
     }

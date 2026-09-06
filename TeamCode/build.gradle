@@ -39,4 +39,5 @@ dependencies {
     implementation "com.acmerobotics.dashboard:dashboard:0.6.0"
 
     testImplementation "junit:junit:4.13.2"
+    testImplementation "com.google.code.gson:gson:2.11.0"
 }

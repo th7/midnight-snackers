@@ -24,4 +24,12 @@ public abstract class AutoOp extends OpMode {
     }
 
     public abstract PlanPart getPlan();
+
+    public boolean done() {
+        return planRunner.done();
+    }
+
+    public String currentStep() {
+        return planRunner.currentStep();
+    }
 }

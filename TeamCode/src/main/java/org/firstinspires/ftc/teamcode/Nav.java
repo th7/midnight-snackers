@@ -5,7 +5,6 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -41,33 +40,32 @@ public class Nav extends SubSystem {
     private final int ySign;
     private final Vector2d launchTarget;
     private final double targetLaunchDistance = 40;
-    private final HardwareMap hardwareMap;
-    private MecanumDrive mecanumDrive;
+    private final MecanumDrive mecanumDrive;
     private boolean fieldPositionKnown = false;
 
-    private Nav(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry, int headingSign, int ySign, Vector2d launchTarget) {
+    private Nav(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry, int headingSign, int ySign, Vector2d launchTarget) {
         super(runtime, telemetry);
-        this.hardwareMap = hardwareMap;
+        this.mecanumDrive = mecanumDrive;
         this.headingSign = headingSign;
         this.ySign = ySign;
         this.launchTarget = launchTarget;
     }
 
-    public static Nav blue(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry, 1, 1, blueLaunchTarget);
+    public static Nav blue(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry) {
+        return new Nav(mecanumDrive, runtime, telemetry, 1, 1, blueLaunchTarget);
     }
 
-    public static Nav red(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry, -1, -1, redLaunchTarget);
+    public static Nav red(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry) {
+        return new Nav(mecanumDrive, runtime, telemetry, -1, -1, redLaunchTarget);
     }
 
-    public static Nav relative(HardwareMap hardwareMap, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(hardwareMap, runtime, telemetry, 1, 1, null);
+    public static Nav relative(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry) {
+        return new Nav(mecanumDrive, runtime, telemetry, 1, 1, null);
     }
 
     @Override
     public void init() {
-        this.mecanumDrive = new MecanumDrive(hardwareMap);
+        telemetry.addData("Nav.init()", true);
     }
 
     @Override

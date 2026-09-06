@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import org.firstinspires.ftc.teamcode.Nav;
+import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 public abstract class RelativeAutoOp extends AutoOp {
     @Override
@@ -9,7 +10,7 @@ public abstract class RelativeAutoOp extends AutoOp {
         brain.disableCameraLocalization();
     }
 
-    protected Nav getNav() {
-        return Nav.relative(hardwareMap, runtime, telemetry);
+    protected Nav getNav(MecanumDrive mecanumDrive) {
+        return Nav.relative(mecanumDrive, runtime, telemetry);
     }
 }

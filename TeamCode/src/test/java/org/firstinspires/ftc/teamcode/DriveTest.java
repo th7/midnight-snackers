@@ -6,6 +6,7 @@ import static org.junit.Assert.assertFalse;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.junit.Test;
@@ -18,7 +19,7 @@ public class DriveTest {
     private final FakeDcMotorEx leftBack = new FakeDcMotorEx();
     private final FakeDcMotorEx rightBack = new FakeDcMotorEx();
     private final Drive drive =
-            new Drive(leftFront, rightFront, leftBack, rightBack, new ElapsedTime(), new FakeTelemetry());
+            new Drive(leftFront, rightFront, leftBack, rightBack, new FakeDashboard(), new ElapsedTime(), new FakeTelemetry());
 
     @Test
     public void straightPowerDrivesAllWheelsTheSame() {
