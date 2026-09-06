@@ -19,8 +19,9 @@ import java.util.function.Function;
 
 /**
  * A deliberately small HTTP/1.0 responder on a server socket, for the simulator's browser pages.
- * The Android compile classpath offers no HTTP server, and this only ever talks to a browser on
- * localhost: no keep-alive, no request bodies, no TLS.
+ * The Android compile classpath offers no HTTP server, and this only ever talks to a developer's
+ * browser: no keep-alive, no request bodies, no TLS. It listens on every interface because when
+ * the tests run in a container, the published port arrives over the bridge, not loopback.
  */
 public final class TinyHttpServer {
     public static final class Request {
@@ -63,6 +64,8 @@ public final class TinyHttpServer {
         }
     }
 
+    private static final InetAddress ANY_INTERFACE = null;
+
     private final ServerSocket socket;
     private final Function<Request, Response> handler;
     private final ExecutorService connections = Executors.newCachedThreadPool();
@@ -77,7 +80,7 @@ public final class TinyHttpServer {
      */
     public static TinyHttpServer start(int port, String threadName, Function<Request, Response> handler) {
         try {
-            ServerSocket socket = new ServerSocket(port, 50, InetAddress.getLoopbackAddress());
+            ServerSocket socket = new ServerSocket(port, 50, ANY_INTERFACE);
             TinyHttpServer server = new TinyHttpServer(socket, handler);
             Thread acceptor = new Thread(server::acceptLoop, threadName);
             acceptor.setDaemon(true);
@@ -94,6 +97,10 @@ public final class TinyHttpServer {
 
     public String url() {
         return "http://localhost:" + port() + "/";
+    }
+
+    public InetAddress bindAddress() {
+        return socket.getInetAddress();
     }
 
     public void stop() {
