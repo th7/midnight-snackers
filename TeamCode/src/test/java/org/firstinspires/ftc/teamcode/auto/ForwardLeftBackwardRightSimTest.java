@@ -5,7 +5,6 @@ import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 
-import org.firstinspires.ftc.teamcode.base.Hardware;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
@@ -25,12 +24,7 @@ public class ForwardLeftBackwardRightSimTest {
     @Test
     public void drivesTheSquareAndComesBackToWhereItStarted() {
         SimRobot sim = new SimRobot();
-        ForwardLeftBackwardRight opMode = new ForwardLeftBackwardRight() {
-            @Override
-            protected Hardware hardware() {
-                return sim.hardware();
-            }
-        };
+        ForwardLeftBackwardRight opMode = new ForwardLeftBackwardRight();
 
         SimRecording recording = SimRunner.run(opMode, sim, TIMEOUT_SECONDS);
         List<Pose2d> trace = recording.poses();
