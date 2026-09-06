@@ -61,6 +61,21 @@ public final class SimRunner {
             System.out.println("Simulation live view: " + live.url());
         }
         try {
+            return record(recording, opMode, sim, timeoutSeconds, outputDir);
+        } finally {
+            if (live != null) {
+                live.awaitViewerSawOutcome(LIVE_HOLD_SECONDS);
+                live.stop();
+            }
+        }
+    }
+
+    /**
+     * Run into a recording the caller already holds, so it can be watched while this is in progress.
+     * The recording always ends with an outcome and a replay page, even when this throws.
+     */
+    public static SimRecording record(SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
+        try {
             loopUntilDone(opMode, sim, timeoutSeconds, recording);
             recording.finish("done");
         } catch (RuntimeException | Error e) {
@@ -72,10 +87,6 @@ public final class SimRunner {
             Path page = outputDir.resolve(recording.name() + ".html");
             SimReplayPage.write(recording, page);
             System.out.println("Simulation replay: " + page.toAbsolutePath());
-            if (live != null) {
-                live.awaitViewerSawOutcome(LIVE_HOLD_SECONDS);
-                live.stop();
-            }
         }
         return recording;
     }

@@ -41,3 +41,19 @@ dependencies {
     testImplementation "junit:junit:4.13.2"
     testImplementation "com.google.code.gson:gson:2.11.0"
 }
+
+// The simulation bench: a dev server that runs the autonomous op modes on the simulated robot
+// and shows each run live. Runs on the unit test classpath, the only one where the FTC SDK
+// loads on a plain JVM.
+//   ./gradlew :TeamCode:simDev     then open http://localhost:8765/  (SIM_DEV_PORT overrides)
+afterEvaluate {
+    tasks.register('simDev', JavaExec) {
+        group = 'simulation'
+        description = 'Serve the simulation bench on http://localhost:8765/'
+        def unitTest = tasks.named('testDebugUnitTest').get()
+        dependsOn unitTest.taskDependencies
+        classpath = unitTest.classpath
+        mainClass = 'org.firstinspires.ftc.teamcode.sim.SimDevServer'
+        workingDir = projectDir
+    }
+}

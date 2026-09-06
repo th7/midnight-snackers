@@ -5,9 +5,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import org.firstinspires.ftc.teamcode.base.RelativeAutoOp;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
+import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -21,27 +20,6 @@ public class SimRunnerTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     private final SimRobot sim = new SimRobot();
-
-    /**
-     * An auto whose single step finishes on its third loop.
-     */
-    public static class ThreeLoopAuto extends RelativeAutoOp {
-        private int loops = 0;
-
-        @Override
-        public PlanPart getPlan() {
-            return new Step("count to three", () -> {
-            }, () -> ++loops >= 3);
-        }
-    }
-
-    public static class NeverDoneAuto extends RelativeAutoOp {
-        @Override
-        public PlanPart getPlan() {
-            return new Step("forever", () -> {
-            }, () -> false);
-        }
-    }
 
     @Test
     public void recordsEveryLoopUntilThePlanIsDoneAndWritesTheReplay() {
