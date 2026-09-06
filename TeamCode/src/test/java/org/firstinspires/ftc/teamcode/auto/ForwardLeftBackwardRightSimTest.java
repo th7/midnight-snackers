@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.roadrunner.Pose2d;
 
 import org.firstinspires.ftc.teamcode.base.Hardware;
+import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
 import org.junit.Test;
@@ -31,7 +32,8 @@ public class ForwardLeftBackwardRightSimTest {
             }
         };
 
-        List<Pose2d> trace = SimRunner.run(opMode, sim, TIMEOUT_SECONDS);
+        SimRecording recording = SimRunner.run(opMode, sim, TIMEOUT_SECONDS);
+        List<Pose2d> trace = recording.poses();
 
         assertTrue("never reached the forward corner", trace.stream().anyMatch(
                 p -> p.position.x > 22 && Math.abs(p.position.y) < POSITION_TOLERANCE_INCHES));
