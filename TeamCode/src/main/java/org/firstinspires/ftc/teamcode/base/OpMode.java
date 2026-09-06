@@ -1,10 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
-import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.Servo;
+import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.Brain;
@@ -13,6 +10,7 @@ import org.firstinspires.ftc.teamcode.Drive;
 import org.firstinspires.ftc.teamcode.Launcher;
 import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.Turntable;
+import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     protected ElapsedTime runtime;
@@ -27,33 +25,36 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 //    private double lastTickAt = 0;
 //    private double maxTickSeconds = 0;
 
+    /**
+     * The devices this op mode drives. The robot resolves them from the configuration;
+     * a simulation overrides this to supply fakes.
+     */
+    protected Hardware hardware() {
+        return Hardware.fromHardwareMap(hardwareMap);
+    }
+
     @Override
     public void init() {
+        Hardware hardware = hardware();
         // Mirror all telemetry to the FTC Dashboard as well as the Driver Station.
         // Must happen before subsystems are built, since they capture the telemetry reference.
-        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+        telemetry = new MultipleTelemetry(telemetry, hardware.dashboard.telemetry());
         runtime = new ElapsedTime();
-        launcher = new Launcher(
-                hardwareMap.get(DcMotorEx.class, "launcher"),
-                hardwareMap.get(Servo.class, "topGate"),
-                hardwareMap.get(Servo.class, "bottomGate"),
-                runtime, telemetry);
+        launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate, runtime, telemetry);
         launcher.init();
         drive = new Drive(
-                hardwareMap.get(DcMotor.class, "leftFront"),
-                hardwareMap.get(DcMotor.class, "rightFront"),
-                hardwareMap.get(DcMotor.class, "leftBack"),
-                hardwareMap.get(DcMotor.class, "rightBack"),
-                runtime, telemetry);
+                hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack,
+                hardware.dashboard, runtime, telemetry);
         drive.init();
-        camera = new Camera(hardwareMap, runtime, telemetry);
+        camera = new Camera(hardware.aprilTags, runtime, telemetry);
         camera.init();
-        nav = getNav();
+        MecanumDrive mecanumDrive = new MecanumDrive(
+                hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront,
+                hardware.imu, hardware.voltageSensor, new Pose2d(0, 0, 0));
+        nav = getNav(mecanumDrive);
         nav.init();
         drive.setPoseSupplier(() -> nav.currentPose().pose2d);
-        turntable = new Turntable(
-                hardwareMap.get(DcMotorEx.class, "turnTable"),
-                runtime, telemetry);
+        turntable = new Turntable(hardware.turnTable, runtime, telemetry);
         turntable.init();
         brain = new Brain(runtime, telemetry, launcher, drive, camera, nav, turntable);
         telemetry.addData("base.OpMode.init()", true);
@@ -97,5 +98,5 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 //        telemetry.addData("Tick (last, avg, max)", "%.03f, %.03f, %.03f", lastTickSeconds, runtime.milliseconds() / tickCount / 1000, maxTickSeconds);
 //    }
 
-    protected abstract Nav getNav();
+    protected abstract Nav getNav(MecanumDrive mecanumDrive);
 }
