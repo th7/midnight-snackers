@@ -17,9 +17,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests (same command as local)
         run: ./gradlew :TeamCode:testDebugUnitTest
-      - name: Test report
+      - name: Test report and simulation replays
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: TeamCode/build/test-results/testDebugUnitTest/*.xml
+          path: |
+            TeamCode/build/test-results/testDebugUnitTest/*.xml
+            TeamCode/build/sim/*.html
