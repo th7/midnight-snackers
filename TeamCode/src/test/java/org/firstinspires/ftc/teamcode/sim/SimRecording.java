@@ -10,6 +10,7 @@ import java.util.List;
 /**
  * Everything observed during one simulated run, one entry per op mode loop: the true pose, the
  * plan's current step, the drive powers, and the dashboard packets the robot code drew that loop.
+ * Safe to read from another thread (the live view) while the run is still adding to it.
  */
 public final class SimRecording {
     public static final class Tick {
@@ -41,17 +42,28 @@ public final class SimRecording {
         return name;
     }
 
-    public void add(Tick tick) {
+    public synchronized void add(Tick tick) {
         ticks.add(tick);
     }
 
-    public List<Tick> ticks() {
-        return Collections.unmodifiableList(ticks);
+    /**
+     * A snapshot of every tick so far.
+     */
+    public synchronized List<Tick> ticks() {
+        return Collections.unmodifiableList(new ArrayList<>(ticks));
+    }
+
+    /**
+     * A snapshot of the ticks from index {@code from} onward.
+     */
+    public synchronized List<Tick> ticksFrom(int from) {
+        return Collections.unmodifiableList(new ArrayList<>(ticks.subList(Math.min(from, ticks.size()), ticks.size())));
     }
 
     public List<Pose2d> poses() {
-        List<Pose2d> poses = new ArrayList<>(ticks.size());
-        for (Tick tick : ticks) {
+        List<Tick> snapshot = ticks();
+        List<Pose2d> poses = new ArrayList<>(snapshot.size());
+        for (Tick tick : snapshot) {
             poses.add(tick.truePose);
         }
         return poses;
@@ -60,15 +72,15 @@ public final class SimRecording {
     /**
      * How the run ended, e.g. "done" or "timed out after 40.0s".
      */
-    public void finish(String outcome) {
+    public synchronized void finish(String outcome) {
         this.outcome = outcome;
     }
 
-    public boolean finished() {
+    public synchronized boolean finished() {
         return outcome != null;
     }
 
-    public String outcome() {
+    public synchronized String outcome() {
         return outcome;
     }
 }
