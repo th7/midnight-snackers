@@ -298,7 +298,7 @@
     follow.hidden = false;
     const poll = async () => {
       try {
-        const response = await fetch('/ticks?from=' + ticks.length, { cache: 'no-store' });
+        const response = await fetch('ticks?from=' + ticks.length, { cache: 'no-store' });
         const update = await response.json();
         if (update.ticks.length) {
           ticks.push(...update.ticks);

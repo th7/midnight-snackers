@@ -52,6 +52,21 @@ public final class SimCatalog {
         this.entries = entries;
     }
 
+    /**
+     * A catalog of exactly these op modes, for tests and tools that know what they want to run.
+     */
+    @SafeVarargs
+    public static SimCatalog of(Class<? extends AutoOp>... types) {
+        List<Entry> entries = new ArrayList<>();
+        for (Class<? extends AutoOp> type : types) {
+            Autonomous annotation = type.getAnnotation(Autonomous.class);
+            String name = annotation == null || annotation.name().isEmpty() ? type.getSimpleName() : annotation.name();
+            entries.add(new Entry(name, annotation == null ? "" : annotation.group(), type));
+        }
+        entries.sort(Comparator.comparing(e -> e.name));
+        return new SimCatalog(Collections.unmodifiableList(entries));
+    }
+
     public static SimCatalog discover() {
         List<Entry> entries = new ArrayList<>();
         for (Class<?> type : classesIn(AUTO_PACKAGE)) {
