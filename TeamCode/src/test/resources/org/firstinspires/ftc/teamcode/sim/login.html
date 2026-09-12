@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared Editor</title>
+<style>
+  :root { color-scheme: light; --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc; --accent: #2f5bd7; --accent-ink: #ffffff; --bad: #c62828; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --accent: #7ea2ff; --accent-ink: #101318; --bad: #ff8a80; } }
+  :root[data-theme="dark"] { color-scheme: dark; --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --accent: #7ea2ff; --accent-ink: #101318; --bad: #ff8a80; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  form, .waiting { width: min(100%, 360px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 24px; display: grid; gap: 12px; }
+  h1 { font-size: 18px; margin: 0; }
+  p { margin: 0; color: var(--muted); }
+  label { display: grid; gap: 6px; font-weight: 600; }
+  input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  button { font: inherit; padding: 8px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .error { color: var(--bad); }
+  .spin { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+</style>
+</head>
+<body>
+<form id="login">
+  <h1>Shared editor</h1>
+  <p>Enter your name. The person at the host machine will let you in.</p>
+  <label>Your name <input id="username" name="username" maxlength="32" autocomplete="username" required autofocus></label>
+  <button type="submit">Ask to join</button>
+  <p id="error" class="error" hidden></p>
+</form>
+<div id="waiting" class="waiting" hidden>
+  <h1><span class="spin"></span>Waiting for approval</h1>
+  <p id="status">Your request is on the admin's screen.</p>
+</div>
+<script>
+(function () {
+  var form = document.getElementById('login');
+  var waiting = document.getElementById('waiting');
+  var error = document.getElementById('error');
+  var status = document.getElementById('status');
+
+  function poll() {
+    fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
+      if (me.state === 'approved') { location.reload(); return; }
+      if (me.state === 'denied') { status.textContent = 'The admin said no this time.'; return; }
+      if (me.state === 'revoked') { status.textContent = 'Your access was ended. Reload to ask again.'; return; }
+      if (me.state === 'pending') { setTimeout(poll, 1000); return; }
+      waiting.hidden = true; form.hidden = false;
+    }).catch(function () { setTimeout(poll, 2000); });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = document.getElementById('username').value.trim();
+    fetch('/login?username=' + encodeURIComponent(name), { method: 'POST' }).then(function (r) {
+      if (!r.ok) { return r.text().then(function (t) { error.textContent = t; error.hidden = false; }); }
+      form.hidden = true; waiting.hidden = false; poll();
+    });
+  });
+
+  fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
+    if (me.state === 'pending') { form.hidden = true; waiting.hidden = false; poll(); }
+    else if (me.state === 'denied' || me.state === 'revoked') { form.hidden = true; waiting.hidden = false; poll(); }
+  });
+})();
+</script>
+</body>
+</html>
