@@ -1,3 +1,35 @@
+# Coding server: a real editor
+
+## Batch 6 · CodeMirror in the Edit tab
+
+The Edit tab's textarea is replaced by CodeMirror 6: Java syntax colouring,
+line numbers, bracket matching, search, multiple cursors, and a lint gutter.
+The compiler problems the server already returns after each save become
+diagnostics in the gutter and under the text, for the open file; the list
+under the editor stays and still jumps to the line. Tab indents, Ctrl-S or
+Cmd-S saves at once instead of after the pause, undo is per file, and the
+editor follows the system's light or dark scheme.
+
+**Served from the host.** Teammates are on the robot's wifi, which has no
+internet, so the editor is one prebuilt bundle at `/static/codemirror.js`,
+served by the user listener to anyone, session or not. `/static` serves
+nothing else: an allowlist of names, so no page or class file is reachable
+through it. The bundle is built by `tools/codemirror/build.sh` (npm and
+esbuild, versions pinned in `package.json` and the lock file) and committed
+under the test resources, so the Gradle build and CI never need node.
+
+Tests first (`CodingServerTest`): the bundle is served with a JavaScript
+content type and is not a stub; `/static` refuses other names, pages,
+traversal, and the admin port; the page loads the bundle, builds a
+`CM.EditorView` with `CM.java()`, `CM.lintGutter()`, `CM.setDiagnostics`,
+`CM.indentWithTab`, and a `Mod-s` binding, and has no textarea; and every
+`CM.<name>` the page uses is a name the bundle exports. The page's script
+was also driven in jsdom against the real bundle and a mocked server
+(load, autosave, build check, diagnostics, jump to line, Ctrl-S, conflict
+and reload); that harness is not in CI, since CI has no node.
+
+---
+
 # Coding server: a name, and a memory
 
 ## Batch 5 · rename, persistent sessions, persistent editable set

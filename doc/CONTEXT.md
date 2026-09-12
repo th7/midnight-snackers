@@ -49,6 +49,16 @@ Directory convention: `$XDG_STATE_HOME/midnight-snackers/coding-server`,
 else `~/.local/state/midnight-snackers/coding-server`. Owner-only. Session
 secrets are stored there only as salted scrypt hashes.
 
+**Editor bundle** — CodeMirror 6, built once by `tools/codemirror/build.sh`
+into `codemirror.js` under the test resources and served by the user
+listener at `/static/codemirror.js`. It is the one **static asset**: the
+`/static` route serves only names on its allowlist. The page reaches the
+bundle only through `window.CM`.
+
+**Diagnostic** — A build problem shown in the editor itself, in the lint
+gutter and under the text of the open file. The problems list under the
+editor shows the same problems for every file.
+
 **Build** — Compiling the main sources as they are on disk with the JDK's
 own compiler, cached by a fingerprint of the tree. The Edit tab asks for a
 build after every save and shows the **problems** (file, line, message).

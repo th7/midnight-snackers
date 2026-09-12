@@ -85,3 +85,6 @@ lint/tmp/
 
 .DS_Store
 /.idea
+
+# The editor bundle build (tools/codemirror); its output is committed
+node_modules/
