@@ -70,6 +70,8 @@ public final class CodingServer {
     public static final int MAX_USERNAME_LENGTH = 32;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final String COOKIE = "session";
+    /** What the pages load besides themselves: the editor, bundled so the host serves it without internet. */
+    private static final Set<String> STATIC = Set.of("codemirror.js");
     private static final String SESSIONS_FILE = "sessions.json";
     private static final String EDITABLE_FILE = "editable.json";
     /** scrypt at 16 MiB and roughly 50 ms per guess: sized for a stolen store, not for the LAN. */
@@ -294,6 +296,13 @@ public final class CodingServer {
         }
         if (request.path.equals("/login")) {
             return login(request);
+        }
+        if (request.path.startsWith("/static/")) {
+            String name = request.path.substring("/static/".length());
+            if (!STATIC.contains(name)) {
+                return Response.error(404, "not found: " + request.path);
+            }
+            return new Response(200, "application/javascript; charset=utf-8", page(name));
         }
         if (request.path.equals("/me")) {
             return Response.json(GSON.toJson(me(session)));

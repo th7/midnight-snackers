@@ -94,13 +94,18 @@
   .pill.muted { color: var(--muted); background: var(--hover); }
   button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
-  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-  #editor { width: 100%; height: 100%; margin: 0; padding: 14px 20px; border: 0; resize: none; background: var(--panel); color: var(--ink); font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; tab-size: 4; white-space: pre; overflow: auto; }
-  #editor:disabled { background: var(--bg); color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  /* the CodeMirror editor fills its grid row; the bundle brings its own colours for the code */
+  #editor { min-height: 0; overflow: hidden; background: var(--panel); }
+  #editor .cm-editor { height: 100%; }
+  #editor .cm-scroller { font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  #editor .cm-editor.cm-focused { outline: 2px solid var(--focus); outline-offset: -2px; }
+  #editor.idle .cm-content { color: var(--muted); }
   .placeholder { display: grid; place-items: center; color: var(--muted); }
 </style>
 </head>
 <body>
+<script src="/static/codemirror.js"></script>
 <header>
   <h1>Coding server</h1>
   <nav role="tablist">
@@ -122,7 +127,7 @@
       <span id="build-status" class="pill muted" hidden></span>
       <button id="reload" hidden>Load the host's version</button>
     </div>
-    <textarea id="editor" spellcheck="false" disabled placeholder="Pick a file on the left."></textarea>
+    <div id="editor" class="idle"></div>
     <ul id="problems" hidden></ul>
   </section>
 </main>
@@ -160,7 +165,7 @@
   var SAVE_DELAY_MS = 300;
   var filesEl = document.getElementById('files');
   var nofiles = document.getElementById('nofiles');
-  var editor = document.getElementById('editor');
+  var editorHost = document.getElementById('editor');
   var title = document.getElementById('title');
   var status = document.getElementById('status');
   var reload = document.getElementById('reload');
@@ -170,6 +175,49 @@
   var saveTimer = null;
   var saving = false;
   var dirtyWhileSaving = false;
+
+  // --- the editor: CodeMirror from the bundle the host serves; one fresh state per file, so undo is per file ---
+  var editable = new CM.Compartment();
+  var theme = new CM.Compartment();
+  var dark = matchMedia('(prefers-color-scheme: dark)');
+  var lastProblems = [];
+  var settingDoc = false;
+
+  function themeFor() {
+    return dark.matches ? CM.oneDark : [];
+  }
+
+  function editorState(text, canEdit) {
+    return CM.EditorState.create({
+      doc: text,
+      extensions: [
+        CM.basicSetup,
+        CM.java(),
+        CM.lintGutter(),
+        CM.indentUnit.of('    '),
+        CM.keymap.of([{ key: 'Mod-s', run: function () { saveNow(); return true; } }, CM.indentWithTab]),
+        editable.of(CM.EditorView.editable.of(canEdit)),
+        theme.of(themeFor()),
+        CM.EditorView.updateListener.of(function (update) {
+          if (update.docChanged && !settingDoc && open && open.version) { scheduleSave(); }
+        })
+      ]
+    });
+  }
+
+  var view = new CM.EditorView({ parent: editorHost, state: editorState('', false) });
+  dark.addEventListener('change', function () { view.dispatch({ effects: theme.reconfigure(themeFor()) }); });
+
+  function setDoc(text) {
+    settingDoc = true;
+    view.setState(editorState(text, true));
+    settingDoc = false;
+    editorHost.classList.remove('idle');
+  }
+
+  function docText() {
+    return view.state.doc.toString();
+  }
 
   function setStatus(text, kind) {
     status.textContent = text;
@@ -219,12 +267,12 @@
       return r.json().then(function (file) {
         open = { path: file.path, version: file.version };
         title.textContent = file.path;
-        editor.value = file.content;
-        editor.disabled = false;
+        setDoc(file.content);
         reload.hidden = true;
         setStatus('saved', 'ok');
-        editor.focus();
+        view.focus();
         if (line) { goToLine(line); }
+        showDiagnostics(lastProblems);
         refreshNow();
         scheduleCheck();
       });
@@ -242,12 +290,19 @@
     saveTimer = setTimeout(save, SAVE_DELAY_MS);
   }
 
+  /** Ctrl-S / Cmd-S: save what is in the editor now instead of after the pause. */
+  function saveNow() {
+    if (!open || !open.version) { return; }
+    clearTimeout(saveTimer);
+    save();
+  }
+
   function save() {
     if (!open) { return; }
     if (saving) { dirtyWhileSaving = true; return; }
     saving = true;
     var path = open.path;
-    var content = editor.value;
+    var content = docText();
     fetch(fileUrl(path), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -318,6 +373,8 @@
   }
 
   function renderProblems(problems) {
+    lastProblems = problems;
+    showDiagnostics(problems);
     problemsEl.innerHTML = '';
     problemsEl.hidden = !problems.length;
     problems.forEach(function (problem) {
@@ -337,32 +394,25 @@
     });
   }
 
-  function goToLine(line) {
-    var at = 0;
-    var text = editor.value;
-    for (var i = 1; i < line; i++) {
-      var next = text.indexOf('\n', at);
-      if (next < 0) { break; }
-      at = next + 1;
-    }
-    editor.focus();
-    editor.setSelectionRange(at, at);
-    var lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 20;
-    editor.scrollTop = Math.max(0, (line - 4) * lineHeight);
+  /** The compiler's problems for the open file, marked in the editor's gutter and under the text. */
+  function showDiagnostics(problems) {
+    if (!open) { return; }
+    var doc = view.state.doc;
+    var diagnostics = [];
+    problems.forEach(function (problem) {
+      if (problem.file !== open.path || !problem.line) { return; }
+      var line = doc.line(Math.max(1, Math.min(problem.line, doc.lines)));
+      diagnostics.push({ from: line.from, to: line.to, severity: 'error', message: problem.message });
+    });
+    view.dispatch(CM.setDiagnostics(view.state, diagnostics));
   }
 
-  editor.addEventListener('input', function () {
-    if (open && open.version) { scheduleSave(); }
-  });
-  editor.addEventListener('keydown', function (e) {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      var start = editor.selectionStart, end = editor.selectionEnd;
-      editor.value = editor.value.slice(0, start) + '    ' + editor.value.slice(end);
-      editor.selectionStart = editor.selectionEnd = start + 4;
-      editor.dispatchEvent(new Event('input'));
-    }
-  });
+  function goToLine(line) {
+    var doc = view.state.doc;
+    var pos = doc.line(Math.max(1, Math.min(line, doc.lines))).from;
+    view.dispatch({ selection: { anchor: pos }, effects: CM.EditorView.scrollIntoView(pos, { y: 'center' }) });
+    view.focus();
+  }
 
   fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
     if (me.state !== 'approved') { location.reload(); return; }
