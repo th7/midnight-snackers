@@ -43,6 +43,9 @@ import java.util.stream.Stream;
  *     admin  http://localhost:21987/admin     (loopback only)
  *     users  http://&lt;this machine's LAN address&gt;:21986/
  * </pre>
+ * The Simulate tab runs the autonomous op modes on the simulated robot through the same
+ * {@link SimBench} as the bench, one run at a time for everyone. Runs execute the op mode classes
+ * as loaded when the server started; edits take effect after a restart.
  * Sessions live in memory: restarting the server logs everyone out, and no token is ever written
  * to disk.
  */
@@ -77,6 +80,7 @@ public final class SharedEditorServer {
     }
 
     private final Path root;
+    private final SimBench bench;
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
@@ -88,8 +92,10 @@ public final class SharedEditorServer {
      */
     private final TreeSet<String> editable = new TreeSet<>();
 
-    private SharedEditorServer(Path root, InetAddress adminBind, int adminPort, int userPort) {
+    private SharedEditorServer(Path root, SimCatalog catalog, InetAddress adminBind, int adminPort, int userPort,
+                               Path simOutputDir, double runTimeoutSeconds) {
         this.root = root.toAbsolutePath().normalize();
+        this.bench = new SimBench(catalog, simOutputDir, runTimeoutSeconds);
         this.admin = TinyHttpServer.start(adminBind, adminPort, "editor-admin", this::handleAdmin);
         this.users = TinyHttpServer.start(userPort, "editor-users", this::handleUser);
     }
@@ -98,13 +104,17 @@ public final class SharedEditorServer {
      * @param adminBind the one address the admin listener answers on; {@link #main} always passes
      *                  loopback, and this is a parameter only so a test can prove the property
      */
-    public static SharedEditorServer start(Path root, InetAddress adminBind, int adminPort, int userPort) {
-        return new SharedEditorServer(root, adminBind, adminPort, userPort);
+    public static SharedEditorServer start(Path root, SimCatalog catalog, InetAddress adminBind, int adminPort, int userPort,
+                                           Path simOutputDir, double runTimeoutSeconds) {
+        return new SharedEditorServer(root, catalog, adminBind, adminPort, userPort, simOutputDir, runTimeoutSeconds);
     }
 
+    /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
     public static void main(String[] args) throws InterruptedException {
-        SharedEditorServer server = start(Path.of("").toAbsolutePath(), InetAddress.getLoopbackAddress(),
-                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT));
+        Path root = Path.of("").toAbsolutePath();
+        SharedEditorServer server = start(root, SimCatalog.discover(), InetAddress.getLoopbackAddress(),
+                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT),
+                root.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR), SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS);
         System.out.println("Shared editor");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
         System.out.println("  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
@@ -174,6 +184,12 @@ public final class SharedEditorServer {
                 }
             }
             return Response.error(405, "GET or PUT /files/<path>");
+        }
+        if (request.path.startsWith("/sim/")) {
+            if (session == null || session.state != State.APPROVED) {
+                return Response.error(403, "not an approved session");
+            }
+            return bench.handle(request.path.substring("/sim".length()), request, session.username);
         }
         return Response.error(404, "not found: " + request.path);
     }

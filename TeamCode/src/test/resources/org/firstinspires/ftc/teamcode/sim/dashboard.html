@@ -29,13 +29,38 @@
     --warn: #ff7a3d; --warn-soft: rgba(255, 122, 61, 0.18);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); display: grid; grid-template-rows: auto 1fr; }
-  header { display: flex; align-items: baseline; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
-  h1 { font-size: 16px; font-weight: 600; margin: 0; }
-  header .who { color: var(--muted); margin: 0; }
-  main { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; }
-  @media (max-width: 760px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+  header { display: flex; align-items: center; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; padding: 12px 0; }
+  header .who { color: var(--muted); margin: 0; margin-left: auto; }
+  nav { display: flex; gap: 2px; align-self: stretch; }
+  nav button { border: 0; border-radius: 0; background: none; padding: 12px 14px; color: var(--muted); font-weight: 600; box-shadow: inset 0 -2px 0 transparent; }
+  nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+  nav button:hover { color: var(--ink); }
+  .panel { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; }
+  @media (max-width: 760px) { .panel { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+  #simulate aside { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; overflow-x: hidden; }
+  .opmodes { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0; }
+  .opmode { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 14px; }
+  .opmode + .opmode { border-top: 1px solid var(--line); }
+  .opmode .name { font-weight: 600; }
+  .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .msg { color: var(--bad); min-height: 1.4em; margin: 4px 20px 0; }
+  .note { color: var(--muted); margin: 0 20px 8px; font-size: 12px; }
+  .runs { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  col.id { width: 2.2em; } col.by { width: 4.5em; } col.outcome { width: 5.5em; } col.show { width: 3.4em; }
+  th { border-top: 0; color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+  tr.current td { background: var(--hover); }
+  td a { color: var(--accent); }
+  .pill.live { color: var(--warn); background: var(--warn-soft); }
+  .pill.live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); margin-right: 6px; vertical-align: 1px; }
+  iframe { width: 100%; height: 100%; border: 0; background: var(--panel); display: block; }
+  .stage-empty { display: grid; place-items: center; color: var(--muted); padding: 20px; }
   .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
   aside { border-right: 1px solid var(--line); overflow: auto; padding: 12px 0; }
   .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 20px 8px; }
@@ -66,9 +91,13 @@
 <body>
 <header>
   <h1>Shared editor</h1>
+  <nav role="tablist">
+    <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
+    <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
+  </nav>
   <p class="who">Signed in as <strong id="who">…</strong></p>
 </header>
-<main>
+<main id="edit" class="panel" role="tabpanel">
   <aside>
     <p class="section-label">Files you can edit</p>
     <ul id="files"></ul>
@@ -81,6 +110,34 @@
       <button id="reload" hidden>Load the host's version</button>
     </div>
     <textarea id="editor" spellcheck="false" disabled placeholder="Pick a file on the left."></textarea>
+  </section>
+</main>
+<main id="simulate" class="panel" role="tabpanel" hidden>
+  <aside>
+    <div>
+      <p class="section-label" style="margin-top: 12px">Autonomous op modes</p>
+      <p class="note">Runs the code the server was started with. Saved edits count after a restart.</p>
+      <div class="opmodes" id="opmodes"></div>
+      <p class="msg" id="msg" role="status"></p>
+    </div>
+    <div>
+      <p class="section-label">Runs</p>
+      <div class="runs">
+        <table id="history">
+          <colgroup><col class="id"><col><col class="by"><col class="outcome"><col class="show"></colgroup>
+          <thead><tr><th>#</th><th>Op mode</th><th>By</th><th>Outcome</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </aside>
+  <section class="stage">
+    <div class="stage-head">
+      <h2 id="stage-title">No run yet</h2>
+      <span id="stage-state"></span>
+    </div>
+    <div class="stage-empty" id="stage-empty">Pick an op mode and press Run. The live view appears here.</div>
+    <iframe id="stage" title="Live view of the current run" hidden></iframe>
   </section>
 </main>
 <script>
@@ -219,6 +276,148 @@
     document.getElementById('who').textContent = me.username;
   });
   refreshFiles();
+
+  // --- tabs: the active one lives in the hash so a reload comes back to it ---
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('nav [data-tab]'));
+  function showTab(name) {
+    if (name !== 'simulate') { name = 'edit'; }
+    tabs.forEach(function (tab) {
+      var on = tab.dataset.tab === name;
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      document.getElementById(tab.dataset.tab).hidden = !on;
+    });
+    if (location.hash !== '#' + name) { history.replaceState(null, '', '#' + name); }
+    if (name === 'simulate') { simulate.enter(); }
+  }
+  tabs.forEach(function (tab) { tab.addEventListener('click', function () { showTab(tab.dataset.tab); }); });
+  window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });
+
+  // --- simulate: the bench's routes under /sim, one run at a time for everyone ---
+  var simulate = (function () {
+    var list = document.getElementById('opmodes');
+    var msg = document.getElementById('msg');
+    var stage = document.getElementById('stage');
+    var stageEmpty = document.getElementById('stage-empty');
+    var stageTitle = document.getElementById('stage-title');
+    var stageState = document.getElementById('stage-state');
+    var history = document.querySelector('#history tbody');
+    var catalog = null;
+    var shownRunId = null;
+    var running = false;
+    var pollTimer = null;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+    }
+
+    function renderCatalog() {
+      var lastGroup = null;
+      list.innerHTML = '';
+      if (!catalog.length) {
+        list.innerHTML = '<div class="opmode"><span class="cls">No autonomous op modes found.</span></div>';
+      }
+      catalog.forEach(function (entry) {
+        if (entry.group !== lastGroup) {
+          var label = document.createElement('div');
+          label.className = 'group-label';
+          label.textContent = entry.group || 'ungrouped';
+          list.appendChild(label);
+          lastGroup = entry.group;
+        }
+        var row = document.createElement('div');
+        row.className = 'opmode';
+        var text = document.createElement('div');
+        text.innerHTML = '<div class="name"></div><div class="cls mono"></div>';
+        text.firstChild.textContent = entry.name;
+        text.lastChild.textContent = entry.opMode;
+        text.lastChild.title = entry.opMode;
+        var button = document.createElement('button');
+        button.className = 'primary run';
+        button.textContent = 'Run';
+        button.disabled = running;
+        button.addEventListener('click', function () { run(entry); });
+        row.appendChild(text);
+        row.appendChild(button);
+        list.appendChild(row);
+      });
+    }
+
+    function run(entry) {
+      msg.textContent = '';
+      fetch('/sim/run?opmode=' + encodeURIComponent(entry.opMode), { method: 'POST' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return; }
+        if (!r.ok) { return r.text().then(function (t) { msg.textContent = 'Could not start ' + entry.name + ': ' + t; }); }
+        return r.json().then(function (started) { show(started.id, entry.name); poll(); });
+      }).catch(function (e) { msg.textContent = 'Lost the host: ' + e; });
+    }
+
+    function show(id, name) {
+      if (shownRunId === id) { return; }
+      shownRunId = id;
+      stageTitle.textContent = 'Run ' + id + ': ' + name;
+      stageEmpty.hidden = true;
+      stage.hidden = false;
+      stage.src = '/sim/runs/' + id + '/';
+    }
+
+    function pill(run) {
+      if (!run.outcome) { return '<span class="pill live">running</span>'; }
+      var ok = run.outcome === 'done';
+      return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(run.outcome) + '</span>';
+    }
+
+    function renderStatus(status) {
+      running = status.running;
+      Array.prototype.forEach.call(list.querySelectorAll('button.run'), function (b) { b.disabled = running; });
+      history.innerHTML = status.runs.map(function (run) {
+        var title = escapeHtml(run.name) + ' · ' + run.seconds.toFixed(1) + ' s' + (run.startedBy ? ' · started by ' + escapeHtml(run.startedBy) : '');
+        return '<tr class="' + (run.id === shownRunId ? 'current' : '') + '" title="' + title + '">' +
+          '<td class="mono">' + run.id + '</td>' +
+          '<td>' + escapeHtml(run.name) + '</td>' +
+          '<td>' + escapeHtml(run.startedBy || '') + '</td>' +
+          '<td>' + pill(run) + '</td>' +
+          '<td><a href="/sim/runs/' + run.id + '/" data-id="' + run.id + '" data-name="' + escapeHtml(run.name) + '">show</a></td>' +
+          '</tr>';
+      }).join('');
+      Array.prototype.forEach.call(history.querySelectorAll('a[data-id]'), function (link) {
+        link.addEventListener('click', function (e) { e.preventDefault(); show(parseInt(link.dataset.id, 10), link.dataset.name); renderStatus(status); });
+      });
+      var shown = null;
+      status.runs.forEach(function (r) { if (r.id === shownRunId) { shown = r; } });
+      stageState.innerHTML = shown ? pill(shown) + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
+      if (status.runs.length && shownRunId === null) { show(status.runs[0].id, status.runs[0].name); }
+    }
+
+    function poll() {
+      clearTimeout(pollTimer);
+      if (document.getElementById('simulate').hidden) { return; }
+      fetch('/sim/status', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        return r.json();
+      }).then(function (status) {
+        if (status) { renderStatus(status); }
+        if (msg.textContent.indexOf('Lost') === 0) { msg.textContent = ''; }
+      }).catch(function () {
+        msg.textContent = 'Lost the host. Ask the admin to restart ./gradlew :TeamCode:editorServer';
+      }).then(function () {
+        pollTimer = setTimeout(poll, running ? 500 : 2000);
+      });
+    }
+
+    function enter() {
+      if (catalog === null) {
+        fetch('/sim/catalog').then(function (r) { return r.json(); }).then(function (json) {
+          catalog = json;
+          renderCatalog();
+        });
+      }
+      poll();
+    }
+
+    return { enter: enter };
+  })();
+
+  showTab(location.hash.slice(1));
 })();
 </script>
 </body>

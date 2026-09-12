@@ -8,6 +8,8 @@ import static org.junit.Assert.assertTrue;
 import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 
+import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
+import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,11 +32,14 @@ public class SharedEditorServerTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
+    private static final double RUN_TIMEOUT_SECONDS = 0.3;
+
     private SharedEditorServer server;
 
     private SharedEditorServer server() {
         if (server == null) {
-            server = SharedEditorServer.start(folder.getRoot().toPath(), InetAddress.getLoopbackAddress(), 0, 0);
+            server = SharedEditorServer.start(folder.getRoot().toPath(), SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class),
+                    InetAddress.getLoopbackAddress(), 0, 0, folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS);
         }
         return server;
     }
@@ -61,6 +66,7 @@ public class SharedEditorServerTest {
         assertEquals(200, page.status);
         assertTrue(page.body, page.body.contains("name=\"username\""));
         assertTrue(page.body, page.body.contains("/me"));
+        assertHiddenWins(page.body);
     }
 
     @Test
@@ -414,10 +420,131 @@ public class SharedEditorServerTest {
         assertTrue(page, page.contains("/admin/files/add"));
         assertTrue(page, page.contains("/admin/files/remove"));
         assertTrue(page, page.contains("/admin/info"));
+        assertHiddenWins(page);
         assertEquals(page, admin("GET", "/").body);
         String info = admin("GET", "/admin/info").body;
         assertTrue(info, info.contains("\"userPort\":" + server().userPort()));
         assertTrue(info, info.contains("\"addresses\":["));
+    }
+
+    // --- simulate ---
+
+    private String approvedUser(String name) throws IOException {
+        String cookie = login(name);
+        admin("POST", "/admin/logins/" + idOf(name) + "/approve");
+        return cookie;
+    }
+
+    private String awaitSimStatus(String cookie, String marker) throws Exception {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        String status = "";
+        while (System.nanoTime() < deadline) {
+            status = user("GET", "/sim/status", cookie).body;
+            if (status.contains(marker)) {
+                return status;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("sim status never contained " + marker + "; last: " + status);
+    }
+
+    @Test
+    public void theSimCatalogListsTheRunnableAutos() throws IOException {
+        String cookie = approvedUser("ada");
+
+        Reply catalog = user("GET", "/sim/catalog", cookie);
+
+        assertEquals(200, catalog.status);
+        assertTrue(catalog.body, catalog.body.contains("\"name\":\"Count to three\""));
+        assertTrue(catalog.body, catalog.body.contains("\"name\":\"Never done\""));
+        assertTrue(catalog.body, catalog.body.contains("\"opMode\":\"" + ThreeLoopAuto.class.getName() + "\""));
+    }
+
+    @Test
+    public void aRunStartsAndTheStatusFollowsItToItsOutcomeWithWhoStartedIt() throws Exception {
+        String cookie = approvedUser("ada");
+
+        Reply started = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), cookie);
+
+        assertEquals(started.body, 200, started.status);
+        String id = json(started.body).get("id").getAsString();
+        String status = awaitSimStatus(cookie, "\"outcome\":\"done\"");
+        assertTrue(status, status.contains("\"id\":" + id));
+        assertTrue(status, status.contains("\"name\":\"Count to three\""));
+        assertTrue(status, status.contains("\"startedBy\":\"ada\""));
+        assertTrue(status, status.contains("\"running\":false"));
+        Reply live = user("GET", "/sim/runs/" + id + "/", cookie);
+        assertEquals(200, live.status);
+        assertTrue(live.body, live.body.contains("<canvas"));
+        assertTrue(live.body, live.body.contains("\"live\":true"));
+        Reply ticks = user("GET", "/sim/runs/" + id + "/ticks?from=0", cookie);
+        assertEquals(200, ticks.status);
+        assertEquals(3, ticks.body.split("\"step\"").length - 1);
+        assertTrue(folder.getRoot().toPath().resolve("sim").resolve("ThreeLoopAuto.html").toFile().exists());
+    }
+
+    @Test
+    public void oneRunAtATimeForEveryone() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
+        assertTrue(user("GET", "/sim/status", bob).body.contains("\"running\":true"));
+
+        Reply second = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), bob);
+
+        assertEquals(409, second.status);
+        assertTrue(second.body, second.body.contains("ada"));
+        String status = awaitSimStatus(bob, "\"outcome\":\"timed out");
+        assertTrue(status, status.contains("\"running\":false"));
+    }
+
+    @Test
+    public void theSimIsForApprovedSessionsOnly() throws IOException {
+        String pending = login("bob");
+
+        assertEquals(403, user("GET", "/sim/catalog", pending).status);
+        assertEquals(403, user("GET", "/sim/status", pending).status);
+        assertEquals(403, user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), pending).status);
+        assertEquals(403, user("GET", "/sim/runs/1/", pending).status);
+        assertEquals(403, user("GET", "/sim/runs/1/ticks?from=0", null).status);
+    }
+
+    @Test
+    public void unknownOpModesAndWrongMethodsAreRejected() throws IOException {
+        String cookie = approvedUser("ada");
+
+        assertEquals(404, user("POST", "/sim/run?opmode=org.example.Nope", cookie).status);
+        assertEquals(405, user("GET", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), cookie).status);
+        assertEquals(404, user("GET", "/sim/runs/999/ticks?from=0", cookie).status);
+        assertEquals(404, user("GET", "/sim/nope", cookie).status);
+    }
+
+    @Test
+    public void theDashboardHasEditAndSimulateTabs() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("data-tab=\"edit\""));
+        assertTrue(page, page.contains("data-tab=\"simulate\""));
+        assertTrue(page, page.contains("id=\"opmodes\""));
+        assertTrue(page, page.contains("id=\"history\""));
+        assertTrue(page, page.contains("id=\"stage\""));
+        assertTrue(page, page.contains("'/sim/catalog'"));
+        assertTrue(page, page.contains("'/sim/run?opmode='"));
+        assertTrue(page, page.contains("'/sim/status'"));
+        assertTrue(page, page.contains("'/sim/runs/'"));
+        assertTrue(page, page.contains("location.hash"));
+        assertTrue(page, page.contains("started with"));
+        assertHiddenWins(page);
+    }
+
+    /**
+     * Every page toggles elements with the {@code hidden} attribute, and any author
+     * {@code display:} rule on the same element silently beats it unless the page says otherwise.
+     */
+    private static void assertHiddenWins(String page) {
+        assertTrue(page, page.replaceAll("\\s+", " ").contains("[hidden] { display: none !important; }"));
     }
 
     // --- helpers ---
