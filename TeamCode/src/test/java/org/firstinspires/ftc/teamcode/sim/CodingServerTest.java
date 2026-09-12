@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -58,10 +59,16 @@ public class CodingServerTest {
         GitFixture.init(root);
     }
 
+    /** The benches the server has made, one per worktree, in the order it asked for them. */
+    private final java.util.List<SimBench> benches = new java.util.ArrayList<>();
+
     private CodingServer server() {
         if (server == null) {
-            SimBench shared = bench();
-            serverWith(worktree -> shared);
+            serverWith(worktree -> {
+                SimBench bench = bench();
+                benches.add(bench);
+                return bench;
+            });
         }
         return server;
     }
@@ -551,18 +558,78 @@ public class CodingServerTest {
     }
 
     @Test
-    public void oneRunAtATimeForEveryone() throws Exception {
+    public void oneRunAtATimePerUserAndTwoUsersRunAtOnce() throws Exception {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
+        assertTrue(user("GET", "/sim/status", ada).body.contains("\"running\":true"));
+
+        Reply adaAgain = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), ada);
+        Reply bobToo = user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), bob);
+
+        assertEquals(409, adaAgain.status);
+        assertTrue(adaAgain.body, adaAgain.body.contains("ada"));
+        assertEquals(bobToo.body, 200, bobToo.status);
         assertTrue(user("GET", "/sim/status", bob).body.contains("\"running\":true"));
-
-        Reply second = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), bob);
-
-        assertEquals(409, second.status);
-        assertTrue(second.body, second.body.contains("ada"));
-        String status = awaitSimStatus(bob, "\"outcome\":\"timed out");
+        String status = awaitSimStatus(ada, "\"outcome\":\"timed out");
         assertTrue(status, status.contains("\"running\":false"));
+        awaitSimStatus(bob, "\"outcome\":\"timed out");
+    }
+
+    @Test
+    public void aUsersSimStatusShowsTheirRunsOnly() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), ada).status);
+        awaitSimStatus(ada, "\"outcome\":\"done\"");
+
+        String bobs = user("GET", "/sim/status", bob).body;
+
+        assertEquals("{\"running\":false,\"runs\":[]}", bobs);
+        assertEquals(404, user("GET", "/sim/runs/1/", bob).status);
+        assertEquals(200, user("GET", "/sim/runs/1/", ada).status);
+    }
+
+    @Test
+    public void stoppingTheServerStopsEveryUsersBenchAndChild() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), bob).status);
+        assertEquals(2, benches.size());
+
+        server.stop();
+
+        for (SimBench bench : benches) {
+            assertNull(bench.current());
+            assertTrue(bench.status(), bench.status().contains("\"outcome\":\"stopped\""));
+        }
+    }
+
+    @Test
+    public void oneUsersBrokenEditDoesNotBreakAnothers() throws Exception {
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        GitFixture.commitAll(root, "the auto");
+        serverWith(sourcesBench());
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        String version = json(user("GET", "/files/" + key, ada).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/" + key, ada, edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version)).status);
+
+        Reply adas = user("GET", "/sim/catalog", ada);
+        Reply bobs = user("GET", "/sim/catalog", bob);
+
+        assertEquals(500, adas.status);
+        assertEquals(bobs.body, 200, bobs.status);
+        assertTrue(bobs.body, bobs.body.contains("\"name\":\"Temp\""));
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, bob).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, ada).status);
+        String bobsRun = awaitSimStatus(bob, "\"outcome\":\"done\"");
+        assertTrue(bobsRun, bobsRun.contains("\"loops\":2"));
+        String adasRun = awaitSimStatus(ada, "\"outcome\":\"build failed\"");
+        assertTrue(adasRun, adasRun.contains("TempAuto.java:8"));
     }
 
     @Test

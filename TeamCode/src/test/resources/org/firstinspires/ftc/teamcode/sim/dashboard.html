@@ -436,7 +436,7 @@
   tabs.forEach(function (tab) { tab.addEventListener('click', function () { showTab(tab.dataset.tab); }); });
   window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });
 
-  // --- simulate: the bench's routes under /sim, one run at a time for everyone ---
+  // --- simulate: the bench's routes under /sim, this user's own bench, one run at a time per user ---
   var simulate = (function () {
     var list = document.getElementById('opmodes');
     var msg = document.getElementById('msg');
