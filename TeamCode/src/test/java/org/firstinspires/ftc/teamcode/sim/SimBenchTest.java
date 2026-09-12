@@ -136,6 +136,33 @@ public class SimBenchTest {
     }
 
     @Test
+    public void checkCompilesWithoutRunningAndNeverUnderARun() throws Exception {
+        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempAuto(100000));
+        bench = new SimBench(null, sourceRoot, outputDir(), 1.0, GRACE_SECONDS);
+        assertTrue(bench.check().problems.isEmpty());
+        assertNull("nothing ran", bench.current());
+        SimBench.Run run = bench.start(new SimCatalog.Entry("Temp", "Test", TEMP_AUTO_CLASS, null), "ada");
+        while (!"running".equals(run.phase()) && run.outcome() == null) {
+            Thread.sleep(10);
+        }
+
+        sourceRootWith(folder.getRoot().toPath(), tempAuto(2).replace("loops = 0", "loops = "));
+        SimBuild.Result during = bench.check();
+
+        assertTrue("the last result, since a rebuild would pull the classes from under the child", during.problems.isEmpty());
+        await(run);
+        assertTrue(run.outcome(), run.outcome().startsWith("timed out"));
+        assertEquals(1, bench.check().problems.size());
+    }
+
+    @Test
+    public void aBenchWithoutSourcesHasNothingToCheck() {
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, GRACE_SECONDS);
+
+        assertNull(bench.check());
+    }
+
+    @Test
     public void theLogKeepsWhatTheChildWroteToStderr() throws Exception {
         bench = new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, outputDir(), TIMEOUT_SECONDS, GRACE_SECONDS);
 

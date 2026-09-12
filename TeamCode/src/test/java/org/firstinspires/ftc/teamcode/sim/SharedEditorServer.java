@@ -192,6 +192,12 @@ public final class SharedEditorServer {
             }
             return bench.handle(request.path.substring("/sim".length()), request, session.username);
         }
+        if (request.path.equals("/build")) {
+            if (session == null || session.state != State.APPROVED) {
+                return Response.error(403, "not an approved session");
+            }
+            return Response.json(GSON.toJson(buildCheck()));
+        }
         return Response.error(404, "not found: " + request.path);
     }
 
@@ -373,6 +379,44 @@ public final class SharedEditorServer {
             }
         }
         return count;
+    }
+
+    /** The compile result of the sources as saved, with problems named by root-relative file. */
+    private JsonObject buildCheck() {
+        JsonObject body = new JsonObject();
+        SimBuild.Result result;
+        try {
+            result = bench.check();
+        } catch (RuntimeException e) {
+            body.addProperty("available", true);
+            body.addProperty("ok", false);
+            JsonArray problems = new JsonArray();
+            JsonObject problem = new JsonObject();
+            problem.addProperty("file", "");
+            problem.addProperty("line", 0);
+            problem.addProperty("message", e.getMessage());
+            problems.add(problem);
+            body.add("problems", problems);
+            return body;
+        }
+        if (result == null) {
+            body.addProperty("available", false);
+            return body;
+        }
+        body.addProperty("available", true);
+        body.addProperty("ok", result.classes != null);
+        JsonArray problems = new JsonArray();
+        Path sourceRoot = bench.sourceRoot();
+        for (SimBuild.Problem p : result.problems) {
+            JsonObject problem = new JsonObject();
+            String file = p.file.isEmpty() ? "" : root.relativize(sourceRoot.resolve(p.file)).toString().replace('\\', '/');
+            problem.addProperty("file", file);
+            problem.addProperty("line", p.line);
+            problem.addProperty("message", p.message);
+            problems.add(problem);
+        }
+        body.add("problems", problems);
+        return body;
     }
 
     // --- the admin listener ---
