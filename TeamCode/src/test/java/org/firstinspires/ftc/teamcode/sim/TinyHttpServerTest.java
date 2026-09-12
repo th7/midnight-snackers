@@ -61,9 +61,10 @@ public class TinyHttpServerTest {
     public void routesPathAndDecodedQueryToTheHandler() throws IOException {
         echoServer();
 
-        String body = get("/hello?q=a%20b").body;
+        String body = get("/hel%20lo+there?q=a%20b").body;
 
-        assertEquals("{\"path\":\"/hello\",\"q\":\"a b\"}", body);
+        // %XX is decoded in the path; '+' is only a space in the query
+        assertEquals("{\"path\":\"/hel lo+there\",\"q\":\"a b\"}", body);
     }
 
     @Test

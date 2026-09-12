@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -24,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -364,6 +367,9 @@ public final class SharedEditorServer {
         if (request.path.equals("/admin/logins")) {
             return Response.json(logins());
         }
+        if (request.path.equals("/admin/info")) {
+            return Response.json(info());
+        }
         if (request.path.startsWith("/admin/logins/")) {
             String[] parts = request.path.split("/");
             if (parts.length == 5 && request.method.equals("POST")) {
@@ -465,6 +471,27 @@ public final class SharedEditorServer {
             }
         }
         return Response.json(GSON.toJson(fileList(false)));
+    }
+
+    /** The user port and this machine's LAN addresses, so the admin can tell teammates where to go. */
+    private String info() {
+        JsonArray addresses = new JsonArray();
+        try {
+            for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InetAddress address : Collections.list(nic.getInetAddresses())) {
+                    if (!address.isLoopbackAddress() && !address.isLinkLocalAddress() && address.getAddress().length == 4) {
+                        addresses.add(address.getHostAddress());
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            // no addresses to offer; the admin can still find one by hand
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("userPort", users.port());
+        body.addProperty("root", root.toString());
+        body.add("addresses", addresses);
+        return GSON.toJson(body);
     }
 
     private synchronized String logins() {

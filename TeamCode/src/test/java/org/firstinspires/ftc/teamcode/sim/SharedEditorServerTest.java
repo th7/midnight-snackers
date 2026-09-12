@@ -383,6 +383,43 @@ public class SharedEditorServerTest {
         assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"approved\",\"ageSeconds\":0,\"file\":\"TeamCode/Drive.java\""));
     }
 
+    // --- pages ---
+
+    @Test
+    public void theDashboardPageHasTheFileListAndAnEditorThatSavesAsYouType() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("id=\"files\""));
+        assertTrue(page, page.contains("id=\"editor\""));
+        assertTrue(page, page.contains("id=\"status\""));
+        assertTrue(page, page.contains("method: 'PUT'"));
+        assertTrue(page, page.contains("baseVersion"));
+        assertTrue(page, page.contains("setTimeout"));
+        assertTrue(page, page.contains("409"));
+    }
+
+    @Test
+    public void theAdminPageListsLoginsWithDecisionsAndTheFilePicker() throws IOException {
+        String page = admin("GET", "/admin").body;
+
+        assertTrue(page, page.contains("id=\"logins\""));
+        assertTrue(page, page.contains("/admin/logins"));
+        assertTrue(page, page.contains("/approve"));
+        assertTrue(page, page.contains("/deny"));
+        assertTrue(page, page.contains("/revoke"));
+        assertTrue(page, page.contains("id=\"tree\""));
+        assertTrue(page, page.contains("/admin/tree"));
+        assertTrue(page, page.contains("/admin/files/add"));
+        assertTrue(page, page.contains("/admin/files/remove"));
+        assertTrue(page, page.contains("/admin/info"));
+        assertEquals(page, admin("GET", "/").body);
+        String info = admin("GET", "/admin/info").body;
+        assertTrue(info, info.contains("\"userPort\":" + server().userPort()));
+        assertTrue(info, info.contains("\"addresses\":["));
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {

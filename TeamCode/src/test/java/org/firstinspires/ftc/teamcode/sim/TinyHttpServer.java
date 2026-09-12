@@ -273,7 +273,7 @@ public final class TinyHttpServer {
         String method = parts.length > 0 ? parts[0] : "GET";
         String target = parts.length > 1 ? parts[1] : "/";
         int q = target.indexOf('?');
-        String path = q < 0 ? target : target.substring(0, q);
+        String path = URLDecoder.decode((q < 0 ? target : target.substring(0, q)).replace("+", "%2B"), StandardCharsets.UTF_8);
         Map<String, String> query = new HashMap<>();
         if (q >= 0) {
             for (String pair : target.substring(q + 1).split("&")) {

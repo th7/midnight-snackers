@@ -1,3 +1,225 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Shared Editor</title></head>
-<body><div id="editor"></div></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared Editor</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc; --hover: #f0eee7;
+    --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7;
+    --ok: #2e7d32; --ok-soft: rgba(46, 125, 50, 0.14); --bad: #c62828; --bad-soft: rgba(198, 40, 40, 0.12);
+    --warn: #d84a05; --warn-soft: rgba(216, 74, 5, 0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --hover: #26282d;
+      --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+      --ok: #7bd389; --ok-soft: rgba(123, 211, 137, 0.16); --bad: #ff8a80; --bad-soft: rgba(255, 138, 128, 0.14);
+      --warn: #ff7a3d; --warn-soft: rgba(255, 122, 61, 0.18);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --hover: #26282d;
+    --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+    --ok: #7bd389; --ok-soft: rgba(123, 211, 137, 0.16); --bad: #ff8a80; --bad-soft: rgba(255, 138, 128, 0.14);
+    --warn: #ff7a3d; --warn-soft: rgba(255, 122, 61, 0.18);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); display: grid; grid-template-rows: auto 1fr; }
+  header { display: flex; align-items: baseline; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  header .who { color: var(--muted); margin: 0; }
+  main { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  aside { border-right: 1px solid var(--line); overflow: auto; padding: 12px 0; }
+  .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 20px 8px; }
+  #files { list-style: none; margin: 0; padding: 0; }
+  #files li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 20px; cursor: pointer; }
+  #files li:hover { background: var(--hover); }
+  #files li.open { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
+  #files .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #files .editors { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); padding: 8px 20px; }
+  .stage { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+  .stage-head { display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 1px solid var(--line); min-height: 44px; flex-wrap: wrap; }
+  .stage-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.ok { color: var(--ok); background: var(--ok-soft); }
+  .pill.bad { color: var(--bad); background: var(--bad-soft); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); }
+  .pill.muted { color: var(--muted); background: var(--hover); }
+  button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  #editor { width: 100%; height: 100%; margin: 0; padding: 14px 20px; border: 0; resize: none; background: var(--panel); color: var(--ink); font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; tab-size: 4; white-space: pre; overflow: auto; }
+  #editor:disabled { background: var(--bg); color: var(--muted); }
+  .placeholder { display: grid; place-items: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shared editor</h1>
+  <p class="who">Signed in as <strong id="who">…</strong></p>
+</header>
+<main>
+  <aside>
+    <p class="section-label">Files you can edit</p>
+    <ul id="files"></ul>
+    <p id="nofiles" class="empty" hidden>The admin has not picked any files yet.</p>
+  </aside>
+  <section class="stage">
+    <div class="stage-head">
+      <h2 id="title" class="mono">Pick a file on the left</h2>
+      <span id="status" class="pill muted" hidden></span>
+      <button id="reload" hidden>Load the host's version</button>
+    </div>
+    <textarea id="editor" spellcheck="false" disabled placeholder="Pick a file on the left."></textarea>
+  </section>
+</main>
+<script>
+(function () {
+  var SAVE_DELAY_MS = 300;
+  var filesEl = document.getElementById('files');
+  var nofiles = document.getElementById('nofiles');
+  var editor = document.getElementById('editor');
+  var title = document.getElementById('title');
+  var status = document.getElementById('status');
+  var reload = document.getElementById('reload');
+  var open = null;        // {path, version}
+  var saveTimer = null;
+  var saving = false;
+  var dirtyWhileSaving = false;
+
+  function setStatus(text, kind) {
+    status.textContent = text;
+    status.className = 'pill ' + kind;
+    status.hidden = !text;
+  }
+
+  function fileUrl(path) {
+    return '/files/' + path.split('/').map(encodeURIComponent).join('/');
+  }
+
+  function renderFiles(files) {
+    nofiles.hidden = files.length > 0;
+    filesEl.innerHTML = '';
+    files.forEach(function (file) {
+      var li = document.createElement('li');
+      li.className = open && open.path === file.path ? 'open' : '';
+      var slash = file.path.lastIndexOf('/');
+      var name = document.createElement('div');
+      name.innerHTML = '<div class="name"></div><div class="dir"></div>';
+      name.firstChild.textContent = slash < 0 ? file.path : file.path.slice(slash + 1);
+      name.lastChild.textContent = slash < 0 ? '' : file.path.slice(0, slash);
+      var editors = document.createElement('span');
+      editors.className = 'editors';
+      editors.textContent = file.editors.length ? file.editors.join(', ') : '';
+      editors.title = file.editors.length ? 'also open by ' + file.editors.join(', ') : '';
+      li.appendChild(name);
+      li.appendChild(editors);
+      li.addEventListener('click', function () { load(file.path); });
+      filesEl.appendChild(li);
+    });
+  }
+
+  function refreshFiles() {
+    fetch('/files').then(function (r) {
+      if (r.status === 403) { location.reload(); return null; }
+      return r.json();
+    }).then(function (json) {
+      if (json) { renderFiles(json.files); }
+    }).catch(function () {}).then(function () { setTimeout(refreshFiles, 2000); });
+  }
+
+  function load(path) {
+    fetch(fileUrl(path)).then(function (r) {
+      if (r.status === 403) { location.reload(); return; }
+      if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
+      return r.json().then(function (file) {
+        open = { path: file.path, version: file.version };
+        title.textContent = file.path;
+        editor.value = file.content;
+        editor.disabled = false;
+        reload.hidden = true;
+        setStatus('saved', 'ok');
+        editor.focus();
+        refreshNow();
+      });
+    });
+  }
+
+  function refreshNow() {
+    fetch('/files').then(function (r) { return r.json(); }).then(function (json) { renderFiles(json.files); }).catch(function () {});
+  }
+
+  function scheduleSave() {
+    if (!open) { return; }
+    setStatus('saving…', 'muted');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, SAVE_DELAY_MS);
+  }
+
+  function save() {
+    if (!open) { return; }
+    if (saving) { dirtyWhileSaving = true; return; }
+    saving = true;
+    var path = open.path;
+    var content = editor.value;
+    fetch(fileUrl(path), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ content: content, baseVersion: open.version })
+    }).then(function (r) {
+      if (r.status === 403) { location.reload(); return; }
+      if (r.status === 409) {
+        return r.json().then(function (current) {
+          open.version = null;  // nothing more is written until the host's version is loaded
+          setStatus('changed on the host', 'warn');
+          reload.hidden = false;
+          reload.onclick = function () { load(path); };
+        });
+      }
+      if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
+      return r.json().then(function (written) {
+        if (open && open.path === path) {
+          open.version = written.version;
+          setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
+        }
+      });
+    }).catch(function () {
+      setStatus('could not reach the host', 'bad');
+    }).then(function () {
+      saving = false;
+      if (dirtyWhileSaving) { dirtyWhileSaving = false; if (open && open.version) { save(); } }
+    });
+  }
+
+  editor.addEventListener('input', function () {
+    if (open && open.version) { scheduleSave(); }
+  });
+  editor.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = editor.selectionStart, end = editor.selectionEnd;
+      editor.value = editor.value.slice(0, start) + '    ' + editor.value.slice(end);
+      editor.selectionStart = editor.selectionEnd = start + 4;
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+
+  fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
+    if (me.state !== 'approved') { location.reload(); return; }
+    document.getElementById('who').textContent = me.username;
+  });
+  refreshFiles();
+})();
+</script>
+</body>
+</html>

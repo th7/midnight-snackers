@@ -1,3 +1,254 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Shared Editor Admin</title></head>
-<body><div id="logins"></div></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared Editor Admin</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc; --hover: #f0eee7;
+    --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7;
+    --ok: #2e7d32; --ok-soft: rgba(46, 125, 50, 0.14); --bad: #c62828; --bad-soft: rgba(198, 40, 40, 0.12);
+    --warn: #d84a05; --warn-soft: rgba(216, 74, 5, 0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --hover: #26282d;
+      --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+      --ok: #7bd389; --ok-soft: rgba(123, 211, 137, 0.16); --bad: #ff8a80; --bad-soft: rgba(255, 138, 128, 0.14);
+      --warn: #ff7a3d; --warn-soft: rgba(255, 122, 61, 0.18);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --hover: #26282d;
+    --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+    --ok: #7bd389; --ok-soft: rgba(123, 211, 137, 0.16); --bad: #ff8a80; --bad-soft: rgba(255, 138, 128, 0.14);
+    --warn: #ff7a3d; --warn-soft: rgba(255, 122, 61, 0.18);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding: 16px 20px 0; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); margin: 0; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 16px 20px 24px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  section { display: grid; gap: 18px; align-content: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 14px; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row.pending { box-shadow: inset 3px 0 0 var(--warn); }
+  .actions { display: flex; gap: 6px; }
+  .empty { color: var(--muted); padding: 10px 14px; }
+  button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  button.danger { color: var(--bad); }
+  button:hover:not(:disabled) { filter: brightness(0.95); }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.ok { color: var(--ok); background: var(--ok-soft); }
+  .pill.bad { color: var(--bad); background: var(--bad-soft); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); }
+  .pill.muted { color: var(--muted); background: var(--hover); }
+  .crumbs { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); display: flex; gap: 4px; flex-wrap: wrap; }
+  .crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .crumbs a:hover { text-decoration: underline; }
+  #tree .row.dir { cursor: pointer; }
+  #tree .row.dir:hover { background: var(--hover); }
+  #tree .row.dir .name::before { content: "▸ "; color: var(--muted); }
+  .urls { display: grid; gap: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shared editor · admin</h1>
+  <p class="sub">Only a browser on this machine can open this page.</p>
+</header>
+<main>
+  <section>
+    <div>
+      <p class="section-label">Tell teammates to open</p>
+      <div class="panel"><div id="urls" class="urls mono empty">…</div></div>
+    </div>
+    <div>
+      <p class="section-label">Logins</p>
+      <div id="logins" class="panel"></div>
+    </div>
+  </section>
+  <section>
+    <div>
+      <p class="section-label">Files teammates can edit</p>
+      <div id="editable" class="panel"></div>
+    </div>
+    <div>
+      <p class="section-label">Pick files</p>
+      <div class="panel">
+        <div id="crumbs" class="crumbs"></div>
+        <div id="tree"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  var loginsEl = document.getElementById('logins');
+  var editableEl = document.getElementById('editable');
+  var treeEl = document.getElementById('tree');
+  var crumbsEl = document.getElementById('crumbs');
+  var urlsEl = document.getElementById('urls');
+  var editable = [];
+  var dir = '';
+
+  function post(path) {
+    return fetch(path, { method: 'POST' });
+  }
+
+  function row(cls, name, meta) {
+    var el = document.createElement('div');
+    el.className = 'row ' + cls;
+    el.innerHTML = '<div><div class="name"></div><div class="meta"></div></div><div class="actions"></div>';
+    el.querySelector('.name').textContent = name;
+    el.querySelector('.meta').textContent = meta;
+    return el;
+  }
+
+  function button(label, cls, onClick) {
+    var b = document.createElement('button');
+    b.textContent = label;
+    b.className = cls;
+    b.addEventListener('click', function (e) { e.stopPropagation(); onClick(); });
+    return b;
+  }
+
+  function age(seconds) {
+    return seconds < 60 ? seconds + 's ago' : Math.floor(seconds / 60) + 'm ago';
+  }
+
+  function renderLogins(logins) {
+    loginsEl.innerHTML = '';
+    if (!logins.length) {
+      loginsEl.innerHTML = '<p class="empty">Nobody has asked to join yet.</p>';
+      return;
+    }
+    logins.forEach(function (login) {
+      var meta = login.address + ' · ' + age(login.ageSeconds) + (login.file ? ' · editing ' + login.file : '');
+      var el = row(login.state, login.username, meta);
+      var actions = el.querySelector('.actions');
+      var pill = document.createElement('span');
+      pill.className = 'pill ' + ({ pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' })[login.state];
+      pill.textContent = login.state;
+      actions.appendChild(pill);
+      if (login.state === 'pending') {
+        actions.appendChild(button('Approve', 'primary', function () { post('/admin/logins/' + login.id + '/approve').then(refresh); }));
+        actions.appendChild(button('Deny', 'danger', function () { post('/admin/logins/' + login.id + '/deny').then(refresh); }));
+      } else if (login.state === 'approved') {
+        actions.appendChild(button('Revoke', 'danger', function () { post('/admin/logins/' + login.id + '/revoke').then(refresh); }));
+      } else {
+        actions.appendChild(button('Approve', '', function () { post('/admin/logins/' + login.id + '/approve').then(refresh); }));
+      }
+      loginsEl.appendChild(el);
+    });
+  }
+
+  function renderEditable() {
+    editableEl.innerHTML = '';
+    if (!editable.length) {
+      editableEl.innerHTML = '<p class="empty">Pick files below. Teammates see nothing until you do.</p>';
+      return;
+    }
+    editable.forEach(function (path) {
+      var el = row('', path, '');
+      el.querySelector('.actions').appendChild(button('Remove', 'danger', function () {
+        post('/admin/files/remove?path=' + encodeURIComponent(path)).then(loadEditable);
+      }));
+      editableEl.appendChild(el);
+    });
+  }
+
+  function loadEditable() {
+    return fetch('/admin/files').then(function (r) { return r.json(); }).then(function (json) {
+      editable = json.files.map(function (f) { return f.path; });
+      renderEditable();
+      renderTreeButtons();
+    });
+  }
+
+  var lastTree = null;
+  function renderTreeButtons() {
+    if (lastTree) { renderTree(lastTree); }
+  }
+
+  function renderTree(json) {
+    lastTree = json;
+    crumbsEl.innerHTML = '';
+    var parts = json.dir ? json.dir.split('/') : [];
+    var rootLink = document.createElement('a');
+    rootLink.textContent = 'project';
+    rootLink.addEventListener('click', function () { browse(''); });
+    crumbsEl.appendChild(rootLink);
+    parts.forEach(function (part, i) {
+      crumbsEl.appendChild(document.createTextNode(' / '));
+      var link = document.createElement('a');
+      link.textContent = part;
+      link.addEventListener('click', function () { browse(parts.slice(0, i + 1).join('/')); });
+      crumbsEl.appendChild(link);
+    });
+    treeEl.innerHTML = '';
+    json.entries.forEach(function (entry) {
+      var el = row(entry.type, entry.name, '');
+      if (entry.type === 'dir') {
+        el.addEventListener('click', function () { browse(entry.path); });
+      } else if (editable.indexOf(entry.path) >= 0) {
+        var pill = document.createElement('span');
+        pill.className = 'pill ok';
+        pill.textContent = 'editable';
+        el.querySelector('.actions').appendChild(pill);
+      } else {
+        el.querySelector('.actions').appendChild(button('Add', '', function () {
+          post('/admin/files/add?path=' + encodeURIComponent(entry.path)).then(function (r) {
+            if (!r.ok) { return r.text().then(alert); }
+            return loadEditable();
+          });
+        }));
+      }
+      treeEl.appendChild(el);
+    });
+  }
+
+  function browse(path) {
+    dir = path;
+    fetch('/admin/tree?dir=' + encodeURIComponent(dir)).then(function (r) {
+      if (!r.ok) { return r.text().then(function (t) { treeEl.innerHTML = '<p class="empty"></p>'; treeEl.firstChild.textContent = t; }); }
+      return r.json().then(renderTree);
+    });
+  }
+
+  function refresh() {
+    fetch('/admin/logins').then(function (r) { return r.json(); }).then(function (json) { renderLogins(json.logins); }).catch(function () {});
+  }
+
+  fetch('/admin/info').then(function (r) { return r.json(); }).then(function (info) {
+    urlsEl.className = 'urls mono';
+    urlsEl.innerHTML = '';
+    if (!info.addresses.length) {
+      urlsEl.textContent = 'http://<this machine\'s LAN address>:' + info.userPort + '/';
+    }
+    info.addresses.forEach(function (address) {
+      var line = document.createElement('div');
+      line.textContent = 'http://' + address + ':' + info.userPort + '/';
+      urlsEl.appendChild(line);
+    });
+  });
+  loadEditable().then(function () { browse(''); });
+  refresh();
+  setInterval(refresh, 1000);
+})();
+</script>
+</body>
+</html>

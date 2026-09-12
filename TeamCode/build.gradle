@@ -56,4 +56,19 @@ afterEvaluate {
         mainClass = 'org.firstinspires.ftc.teamcode.sim.SimDevServer'
         workingDir = projectDir
     }
+
+    // The shared editor: teammates on the LAN edit the files the admin picks, after the admin
+    // approves them from a page only this machine can reach.
+    //   ./gradlew :TeamCode:editorServer
+    //       admin  http://localhost:8766/admin   users  http://<LAN address>:8767/
+    //   (EDITOR_ADMIN_PORT and EDITOR_USER_PORT override the port numbers)
+    tasks.register('editorServer', JavaExec) {
+        group = 'simulation'
+        description = 'Serve the shared editor: admin on http://localhost:8766/admin, users on port 8767'
+        def unitTest = tasks.named('testDebugUnitTest').get()
+        dependsOn unitTest.taskDependencies
+        classpath = unitTest.classpath
+        mainClass = 'org.firstinspires.ftc.teamcode.sim.SharedEditorServer'
+        workingDir = rootDir
+    }
 }
