@@ -1,0 +1,265 @@
+package org.firstinspires.ftc.teamcode.sim;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
+public class WorktreesTest {
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
+    private Path root;
+    private Path stateDir;
+
+    @Before
+    public void aRepositoryWithADevelopBranch() throws IOException {
+        root = folder.getRoot().toPath().resolve("project");
+        stateDir = folder.getRoot().toPath().resolve("state").resolve("coding-server");
+        GitFixture.init(root);
+    }
+
+    private Worktrees worktrees() {
+        return new Worktrees(root, stateDir, "git");
+    }
+
+    private static String read(Path file) throws IOException {
+        return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+    }
+
+    private static void deleteTree(Path dir) throws IOException {
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+        }
+    }
+
+    // --- one worktree per username, on its own branch, from develop ---
+
+    @Test
+    public void ensureMakesAWorktreeOnItsOwnBranchAtDevelopNotAtTheHostsHead() throws IOException {
+        String develop = GitFixture.head(root);
+        GitFixture.git(root, "checkout", "-q", "-b", "main");
+        Files.write(root.resolve("README"), "on main\n".getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "a commit on main");
+        Worktrees worktrees = worktrees();
+
+        Worktrees.Worktree ada = worktrees.ensure("Ada Lovelace");
+
+        assertEquals("ada-lovelace", ada.slug);
+        assertEquals("coding/ada-lovelace", ada.branch);
+        assertEquals(worktrees.directory().resolve("ada-lovelace"), ada.path);
+        assertTrue(ada.path.startsWith(stateDir));
+        assertEquals(develop, GitFixture.head(ada.path));
+        assertEquals("coding/ada-lovelace", GitFixture.git(ada.path, "rev-parse", "--abbrev-ref", "HEAD").trim());
+        assertEquals("hello\n", read(ada.path.resolve("README")));
+        String listed = GitFixture.git(root, "worktree", "list", "--porcelain");
+        assertTrue(listed, listed.contains("worktree " + ada.path.toRealPath()));
+        assertTrue(listed, listed.contains("branch refs/heads/coding/ada-lovelace"));
+    }
+
+    @Test
+    public void ensureTwiceIsTheSameWorktreeAndACollidingNameGetsItsOwn() throws IOException {
+        Worktrees worktrees = worktrees();
+
+        Worktrees.Worktree first = worktrees.ensure("Ada Lovelace");
+        Worktrees.Worktree again = worktrees.ensure("Ada Lovelace");
+        Worktrees.Worktree second = worktrees.ensure("ada  LOVELACE");
+        Worktrees.Worktree third = worktrees.ensure("ada-lovelace");
+
+        assertEquals(first.path, again.path);
+        assertEquals(first.branch, again.branch);
+        assertEquals("ada-lovelace-2", second.slug);
+        assertEquals("coding/ada-lovelace-2", second.branch);
+        assertEquals("ada-lovelace-3", third.slug);
+        assertNotEquals(first.path, second.path);
+        assertTrue(Files.isDirectory(second.path.resolve(".git").getParent()));
+        assertTrue(Files.exists(third.path.resolve("README")));
+    }
+
+    @Test
+    public void nastyUsernamesGiveValidRefsInsideTheWorktreesDirectory() throws IOException {
+        Worktrees worktrees = worktrees();
+        String[] names = { "..", "a/b", "über", "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", "-leading", "trailing-", ".git", "refs/heads/develop" };
+
+        for (String name : names) {
+            Worktrees.Worktree worktree = worktrees.ensure(name);
+            assertTrue(name + " -> " + worktree.path, worktree.path.toRealPath().startsWith(worktrees.directory().toRealPath()));
+            assertEquals(name, worktrees.directory(), worktree.path.getParent());
+            assertTrue(name + " -> " + worktree.slug, worktree.slug.matches("[a-z0-9]([a-z0-9-]*[a-z0-9])?"));
+            assertTrue(name + " -> " + worktree.branch, worktree.branch.startsWith("coding/"));
+            GitFixture.git(root, "check-ref-format", "--branch", worktree.branch);
+            assertEquals(name, "hello\n", read(worktree.path.resolve("README")));
+        }
+        assertEquals(names.length, worktrees.directory().toFile().list().length);
+        assertEquals("develop is still the only branch outside coding/", "develop\n",
+                GitFixture.git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/", "--exclude=refs/heads/coding/*"));
+    }
+
+    // --- what outlives the process ---
+
+    @Test
+    public void theStoreOutlivesTheProcessAndIsOwnerOnly() throws IOException {
+        Worktrees.Worktree ada = worktrees().ensure("Ada Lovelace");
+        worktrees().ensure("ada-lovelace");
+
+        Worktrees later = worktrees();
+
+        assertEquals(ada.path, later.find("Ada Lovelace").path);
+        assertEquals(ada.branch, later.find("Ada Lovelace").branch);
+        assertEquals("ada-lovelace-2", later.find("ada-lovelace").slug);
+        assertNull(later.find("nobody"));
+        assertEquals(ada.path, later.ensure("Ada Lovelace").path);
+        Path store = stateDir.resolve(Worktrees.STORE_FILE);
+        assertTrue(Files.exists(store));
+        if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(store)));
+            assertEquals("rwx------", PosixFilePermissions.toString(Files.getPosixFilePermissions(stateDir)));
+        }
+    }
+
+    @Test
+    public void theStoreIsKeptPerProjectRoot() throws IOException {
+        Path other = folder.getRoot().toPath().resolve("other");
+        GitFixture.init(other);
+        Worktrees.Worktree here = worktrees().ensure("ada");
+
+        Worktrees.Worktree there = new Worktrees(other, stateDir, "git").ensure("ada");
+
+        assertNotEquals(here.path, there.path);
+        assertEquals("ada", there.slug);
+        assertEquals(here.path, worktrees().find("ada").path);
+        assertNotEquals(here.path.getParent(), there.path.getParent());
+        assertTrue(here.path.getParent().getFileName().toString().startsWith("project-"));
+        assertTrue(there.path.getParent().getFileName().toString().startsWith("other-"));
+    }
+
+    @Test
+    public void anUnreadableStoreStopsStartupNamingTheFile() throws IOException {
+        worktrees().ensure("ada");
+        Path store = stateDir.resolve(Worktrees.STORE_FILE);
+        Files.write(store, "{not json".getBytes(StandardCharsets.UTF_8));
+
+        try {
+            worktrees();
+            fail("a store that cannot be read must not be silently started over");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(store.toString()));
+        }
+    }
+
+    @Test
+    public void aDeletedDirectoryIsRecreatedOnTheSameBranchWithItsCommittedContent() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("README"), "ada's work\n".getBytes(StandardCharsets.UTF_8));
+        String committed = GitFixture.commitAll(ada.path, "ada's commit");
+        deleteTree(ada.path);
+        assertFalse(Files.exists(ada.path));
+
+        Worktrees.Worktree back = worktrees.ensure("ada");
+
+        assertEquals(ada.path, back.path);
+        assertEquals(ada.branch, back.branch);
+        assertEquals(committed, GitFixture.head(back.path));
+        assertEquals("ada's work\n", read(back.path.resolve("README")));
+        assertEquals("the branch was not moved", committed, GitFixture.commitOf(root, "coding/ada"));
+    }
+
+    @Test
+    public void nothingIsWrittenUnderTheProjectRootOutsideDotGit() throws IOException {
+        worktrees().ensure("ada");
+
+        assertEquals("[.git, README]", java.util.Arrays.toString(sorted(root.toFile().list())));
+    }
+
+    private static String[] sorted(String[] names) {
+        java.util.Arrays.sort(names);
+        return names;
+    }
+
+    // --- what must be there before the server starts ---
+
+    @Test
+    public void aRootThatIsNotARepositoryStopsStartupNamingIt() throws IOException {
+        Path plain = folder.newFolder("plain").toPath();
+
+        try {
+            new Worktrees(plain, stateDir, "git");
+            fail("no repository, no worktrees");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(plain.toString()));
+        }
+    }
+
+    @Test
+    public void aSubdirectoryOfARepositoryIsNotARootEither() throws IOException {
+        Path sub = Files.createDirectories(root.resolve("TeamCode"));
+
+        try {
+            new Worktrees(sub, stateDir, "git");
+            fail("the root must be the top of the working tree");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(sub.toString()));
+            assertTrue(e.getMessage(), e.getMessage().contains(root.toString()));
+        }
+    }
+
+    @Test
+    public void aRepositoryWithoutDevelopStopsStartupSayingHowToMakeIt() throws IOException {
+        GitFixture.git(root, "checkout", "-q", "-b", "main");
+        GitFixture.git(root, "branch", "-D", "develop");
+
+        try {
+            worktrees();
+            fail("no develop branch, nowhere to start from");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("develop"));
+            assertTrue(e.getMessage(), e.getMessage().contains("git branch develop"));
+        }
+    }
+
+    @Test
+    public void aMissingGitStopsStartupNamingIt() {
+        String missing = folder.getRoot().toPath().resolve("no-such-git").toString();
+
+        try {
+            new Worktrees(root, stateDir, missing);
+            fail("no git, no worktrees");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(missing));
+        }
+    }
+
+    @Test
+    public void aGitOlderThanWhatMergeTreeNeedsStopsStartupNamingBothVersions() throws IOException {
+        assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
+        Path stub = folder.getRoot().toPath().resolve("old-git");
+        Files.write(stub, "#!/bin/sh\necho 'git version 2.30.0'\n".getBytes(StandardCharsets.UTF_8));
+        Files.setPosixFilePermissions(stub, PosixFilePermissions.fromString("rwx------"));
+
+        try {
+            new Worktrees(root, stateDir, stub.toString());
+            fail("merge-tree --write-tree needs 2.38");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("2.38"));
+            assertTrue(e.getMessage(), e.getMessage().contains("2.30.0"));
+        }
+    }
+}

@@ -21,12 +21,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -776,7 +773,7 @@ public final class CodingServer {
     // --- what outlives the process ---
 
     private void loadSessions() {
-        JsonObject stored = loadJson(stateDir.resolve(SESSIONS_FILE));
+        JsonObject stored = StateStore.load(stateDir.resolve(SESSIONS_FILE));
         if (stored == null) {
             return;
         }
@@ -798,12 +795,12 @@ public final class CodingServer {
         }
         JsonObject body = new JsonObject();
         body.add("sessions", list);
-        saveJson(stateDir.resolve(SESSIONS_FILE), body);
+        StateStore.save(stateDir.resolve(SESSIONS_FILE), body);
     }
 
     /** The editable set is stored under this root's absolute path, next to any other checkout's. */
     private void loadEditable() {
-        JsonObject stored = loadJson(stateDir.resolve(EDITABLE_FILE));
+        JsonObject stored = StateStore.load(stateDir.resolve(EDITABLE_FILE));
         if (stored == null) {
             return;
         }
@@ -821,7 +818,7 @@ public final class CodingServer {
 
     private void saveEditable() {
         Path file = stateDir.resolve(EDITABLE_FILE);
-        JsonObject stored = loadJson(file);
+        JsonObject stored = StateStore.load(file);
         JsonObject roots = stored == null || !stored.has("roots") ? new JsonObject() : stored.getAsJsonObject("roots");
         JsonArray ours = new JsonArray();
         for (String key : editable) {
@@ -830,48 +827,7 @@ public final class CodingServer {
         roots.add(root.toString(), ours);
         JsonObject body = new JsonObject();
         body.add("roots", roots);
-        saveJson(file, body);
-    }
-
-    /** The object in a store file, null when there is no file yet, and a failure to start when it cannot be read. */
-    private static JsonObject loadJson(Path file) {
-        if (!Files.exists(file)) {
-            return null;
-        }
-        try {
-            JsonObject object = GSON.fromJson(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), JsonObject.class);
-            if (object == null) {
-                throw new IllegalStateException("empty");
-            }
-            return object;
-        } catch (IOException | RuntimeException e) {
-            throw new IllegalStateException("could not read " + file + ": " + e, e);
-        }
-    }
-
-    /** Written whole and moved into place, readable by this user only; a failure is a 500 that names the file. */
-    private static void saveJson(Path file, JsonObject body) {
-        boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
-        Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rwx------");
-        Set<PosixFilePermission> ownerOnlyFile = PosixFilePermissions.fromString("rw-------");
-        Path dir = file.getParent();
-        try {
-            Files.createDirectories(dir);
-            if (posix) {
-                Files.setPosixFilePermissions(dir, ownerOnly);
-            }
-            Path temp = posix
-                    ? Files.createTempFile(dir, "." + file.getFileName(), ".saving", PosixFilePermissions.asFileAttribute(ownerOnlyFile))
-                    : Files.createTempFile(dir, "." + file.getFileName(), ".saving");
-            try {
-                Files.write(temp, GSON.toJson(body).getBytes(StandardCharsets.UTF_8));
-                Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not save " + file + ": " + e.getMessage(), e);
-        }
+        StateStore.save(file, body);
     }
 
     // --- pages ---
