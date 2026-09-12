@@ -29,6 +29,7 @@
     --warn: #ff7a3d; --warn-soft: rgba(255, 122, 61, 0.18);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); display: grid; grid-template-rows: auto 1fr; }
   header { display: flex; align-items: center; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -39,7 +40,6 @@
   nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
   nav button:hover { color: var(--ink); }
   .panel { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; }
-  .panel[hidden] { display: none; }
   @media (max-width: 760px) { .panel { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
   #simulate aside { display: grid; gap: 18px; align-content: start; }
   .opmodes { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0; }

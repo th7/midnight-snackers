@@ -66,6 +66,7 @@ public class SharedEditorServerTest {
         assertEquals(200, page.status);
         assertTrue(page.body, page.body.contains("name=\"username\""));
         assertTrue(page.body, page.body.contains("/me"));
+        assertHiddenWins(page.body);
     }
 
     @Test
@@ -419,6 +420,7 @@ public class SharedEditorServerTest {
         assertTrue(page, page.contains("/admin/files/add"));
         assertTrue(page, page.contains("/admin/files/remove"));
         assertTrue(page, page.contains("/admin/info"));
+        assertHiddenWins(page);
         assertEquals(page, admin("GET", "/").body);
         String info = admin("GET", "/admin/info").body;
         assertTrue(info, info.contains("\"userPort\":" + server().userPort()));
@@ -534,6 +536,15 @@ public class SharedEditorServerTest {
         assertTrue(page, page.contains("'/sim/runs/'"));
         assertTrue(page, page.contains("location.hash"));
         assertTrue(page, page.contains("started with"));
+        assertHiddenWins(page);
+    }
+
+    /**
+     * Every page toggles elements with the {@code hidden} attribute, and any author
+     * {@code display:} rule on the same element silently beats it unless the page says otherwise.
+     */
+    private static void assertHiddenWins(String page) {
+        assertTrue(page, page.replaceAll("\\s+", " ").contains("[hidden] { display: none !important; }"));
     }
 
     // --- helpers ---
