@@ -1,3 +1,88 @@
+# Coding server: go to definition and find usages, from javac
+
+## Batch 8 · navigation from the compiler's own analysis
+
+The Edit tab gets **go to definition** (F12, or Ctrl-click / Cmd-click)
+and **find usages** (Shift-F12) for the symbol under the cursor, answered
+by the JDK's own compiler over the user's worktree. No language server,
+no new process, nothing to download: the same `JavacTask` that already
+compiles every worktree runs `analyze()` instead of `generate()`, and
+the `com.sun.source` Trees API says which declaration the symbol is and
+where every reference to it sits.
+
+## Terms (to add to the glossary)
+
+**Navigator** — Answers, for a position in one of the worktree's main
+sources, which **symbol** is there (its qualified name and kind), where
+it is **defined** (a file, line and column in the sources, or nowhere
+when it comes from the SDK or the JDK), and every **usage** of it across
+the sources (a reference, never the declaration itself). Cached by the
+same source fingerprint as the build, so an unchanged tree costs nothing.
+A file that does not compile still answers for the parts that do. Lines
+and columns are 1-based and count characters, never tab stops. Class:
+`SourceNavigator`.
+
+**Source set** — Every `.java` file under the worktree's main source
+root, named by its root-relative key like the editable set. A user may
+**view** any file in it, read-only, at `GET /source/<key>`, so a jump to
+a definition lands somewhere the user can read; a user may **edit** only
+the editable set, as before. The source set is enumerated and matched
+exactly, never resolved against the filesystem. The file list still
+shows only the editable set.
+
+## Design
+
+- `SourceNavigator(sourceRoot)`: `definition(file, line, column)`,
+  `usages(file, line, column)`, `files()`. The compile step's source walk
+  and fingerprint move to static helpers on `SimBuild` so both share
+  them. The analysis is kept between queries and redone when the
+  fingerprint changes.
+- Positions: the innermost tree node covering the offset gives the
+  element (`Trees.getElement`); its declaration's path gives the file,
+  and the name's position within the declaration gives line and column.
+  Usages are every identifier, member select, or member reference whose
+  element is the same, scanned across all compilation units.
+- Routes on the user listener, approved sessions only:
+  `GET /nav/definition?file=&line=&column=` and `GET /nav/usages?…`,
+  with `file` a root-relative key in the source set;
+  `GET /source/<key>` for read-only content. A server whose bench has no
+  sources answers `{"available": false}`, like `/build`.
+- The page: F12 and Ctrl-click go to the definition, opening the file in
+  the editor when editable and read-only (a "view only" pill, saves off)
+  otherwise; Shift-F12 lists usages under the editor, each a click away.
+
+## Phases
+
+Gate: `./gradlew :TeamCode:testDebugUnitTest`, locally and in CI.
+
+### Phase 0 · The navigator
+
+Tests first (`SourceNavigatorTest`, over a temp source root with two
+classes): the definition of a class named in another file, of a method
+from its call, of a field from its use, of a local variable; a JDK symbol
+has a name and no location; whitespace has no symbol; usages of a method,
+of a class (type uses and `new`), of a field (never its declaration); a
+broken file elsewhere still answers; columns count characters through a
+leading tab; an edit is noticed; `files()` lists the source keys.
+
+### Phase 1 · The routes and the page
+
+Tests first (`CodingServerTest`): a jump from an editable file lands in a
+file the user may read but not edit, and `/source` serves it read-only
+while `/files` still refuses it; usages come from the user's own
+worktree, so a saved edit adds one; a server without sources says so;
+unapproved sessions get 403; the page markers.
+
+### Phase 2 · Words
+
+The glossary entries above.
+
+## Definition of done
+
+Branch, pull request, green `tests` workflow, landed.
+
+---
+
 # Coding server: a worktree per user, and Commit, Push, Pull buttons
 
 ## Batch 7 · every user edits and runs in their own git worktree
