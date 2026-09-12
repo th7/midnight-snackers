@@ -74,6 +74,15 @@
   #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #files .editors { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 8px 20px; }
+  /* the user's branch: what is uncommitted, and the buttons that move work along */
+  .git { margin: 0 20px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 8px; }
+  .git .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  .git .buttons button { position: relative; }
+  .git #changed { color: var(--muted); font-size: 12px; }
+  .git #git-result { font-size: 12px; min-height: 1.4em; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .git #git-result.ok { color: var(--ok); }
+  .git #git-result.bad { color: var(--bad); }
+  .git #git-result.warn { color: var(--warn); }
   .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; }
   /* explicit rows: a hidden message must not let the stage slide up into its auto-sized row */
   .stage > .stage-head { grid-row: 1; }
@@ -116,6 +125,14 @@
 </header>
 <main id="edit" class="panel" role="tabpanel">
   <aside>
+    <p class="section-label">Your branch</p>
+    <div id="git" class="git">
+      <div id="changed">…</div>
+      <div class="buttons">
+        <button id="commit" type="button" disabled>Commit</button>
+      </div>
+      <div id="git-result" role="status"></div>
+    </div>
     <p class="section-label">Files you can edit</p>
     <ul id="files"></ul>
     <p id="nofiles" class="empty" hidden>The admin has not picked any files yet.</p>
@@ -324,6 +341,7 @@
           setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
         }
         scheduleCheck();
+        git.refresh();
       });
     }).catch(function () {
       setStatus('could not reach the host', 'bad');
@@ -413,6 +431,71 @@
     view.dispatch({ selection: { anchor: pos }, effects: CM.EditorView.scrollIntoView(pos, { y: 'center' }) });
     view.focus();
   }
+
+  // --- the user's branch: commit what is saved ---
+  var git = (function () {
+    var changedEl = document.getElementById('changed');
+    var commitButton = document.getElementById('commit');
+    var resultEl = document.getElementById('git-result');
+    var busy = false;
+
+    function say(text, kind) {
+      resultEl.textContent = text;
+      resultEl.className = kind || '';
+    }
+
+    function render(status) {
+      var n = status.changed.length;
+      changedEl.textContent = n ? n + (n === 1 ? ' file changed' : ' files changed') + ' since your last commit' : 'nothing to commit';
+      changedEl.title = status.changed.join('\n');
+      commitButton.disabled = busy || !n;
+    }
+
+    function refresh() {
+      return fetch('/git/status').then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        return r.json();
+      }).then(function (status) {
+        if (status) { render(status); }
+      }).catch(function () {});
+    }
+
+    function post(path, body) {
+      busy = true;
+      commitButton.disabled = true;
+      return fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(body || {})
+      }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        return r.text().then(function (text) { return { status: r.status, ok: r.ok, text: text }; });
+      }).catch(function () {
+        return { status: 0, ok: false, text: 'could not reach the host' };
+      }).then(function (reply) {
+        busy = false;
+        return reply;
+      });
+    }
+
+    function commit() {
+      var message = prompt('What did you change? (one line for the commit)');
+      if (message === null) { return; }
+      if (!message.trim()) { say('a commit needs a message', 'bad'); return; }
+      saveNow();
+      post('/git/commit', { message: message.trim() }).then(function (reply) {
+        if (!reply) { return; }
+        if (!reply.ok) { say(reply.text, 'bad'); }
+        else { var result = JSON.parse(reply.text); say(result.message, result.committed ? 'ok' : ''); }
+        refresh();
+      });
+    }
+
+    commitButton.addEventListener('click', commit);
+    refresh();
+    setInterval(refresh, 2000);
+    return { refresh: refresh, say: say };
+  })();
 
   fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
     if (me.state !== 'approved') { location.reload(); return; }

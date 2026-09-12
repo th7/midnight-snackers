@@ -194,6 +194,64 @@ public class WorktreesTest {
         return names;
     }
 
+    // --- status and commit ---
+
+    @Test
+    public void statusListsTheChangedFilesAndCommitMakesOneCommitAuthoredByTheUsername() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("Ada Lovelace");
+        assertEquals("[]", worktrees.status("Ada Lovelace").changed.toString());
+        Files.write(ada.path.resolve("README"), "ada's\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(ada.path.resolve("New.java"), "class New {}\n".getBytes(StandardCharsets.UTF_8));
+
+        Worktrees.Status before = worktrees.status("Ada Lovelace");
+        Worktrees.Commit commit = worktrees.commit("Ada Lovelace", "my change");
+        Worktrees.Status after = worktrees.status("Ada Lovelace");
+
+        assertEquals("[New.java, README]", before.changed.toString());
+        assertEquals(0, before.ahead);
+        assertEquals(0, before.behind);
+        assertTrue(commit.made);
+        assertEquals("[New.java, README]", commit.files.toString());
+        assertEquals(commit.commit, GitFixture.head(ada.path));
+        assertEquals("Ada Lovelace|ada-lovelace@coding-server.invalid|my change\n",
+                GitFixture.git(ada.path, "log", "-1", "--format=%an|%ae|%s"));
+        assertEquals("ada's\n", GitFixture.git(ada.path, "show", "HEAD:README"));
+        assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
+        assertEquals("[]", after.changed.toString());
+        assertEquals(1, after.ahead);
+        assertEquals(0, after.behind);
+        assertEquals("develop did not move", GitFixture.commitOf(root, "develop"), GitFixture.git(root, "rev-parse", "develop").trim());
+        assertNotEquals(commit.commit, GitFixture.commitOf(root, "develop"));
+    }
+
+    @Test
+    public void commitWithNothingChangedMakesNoCommitAndSaysSo() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        String head = GitFixture.head(ada.path);
+
+        Worktrees.Commit commit = worktrees.commit("ada", "nothing");
+
+        assertFalse(commit.made);
+        assertEquals("[]", commit.files.toString());
+        assertEquals(head, GitFixture.head(ada.path));
+    }
+
+    @Test
+    public void statusCountsTheCommitsOnDevelopTheUserLacks() throws IOException {
+        Worktrees worktrees = worktrees();
+        worktrees.ensure("ada");
+        Files.write(root.resolve("README"), "on develop\n".getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "a commit on develop");
+
+        Worktrees.Status status = worktrees.status("ada");
+
+        assertEquals(0, status.ahead);
+        assertEquals(1, status.behind);
+        assertEquals("[]", status.changed.toString());
+    }
+
     // --- what must be there before the server starts ---
 
     @Test

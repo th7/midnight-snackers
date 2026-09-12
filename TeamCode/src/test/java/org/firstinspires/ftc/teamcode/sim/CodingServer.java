@@ -374,6 +374,16 @@ public final class CodingServer {
                 return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
             }
         }
+        if (request.path.startsWith("/git/")) {
+            if (session == null || session.state != State.APPROVED) {
+                return Response.error(403, "not an approved session");
+            }
+            try {
+                return git(session, request);
+            } catch (Worktrees.GitFailed e) {
+                return Response.error(500, "git failed for " + session.username + ": " + e.getMessage());
+            }
+        }
         if (request.path.equals("/build")) {
             if (session == null || session.state != State.APPROVED) {
                 return Response.error(403, "not an approved session");
@@ -605,6 +615,51 @@ public final class CodingServer {
             }
         }
         return count;
+    }
+
+    // --- the user's branch: status, commit, pull, push ---
+
+    private Response git(Session session, Request request) {
+        String op = request.path.substring("/git/".length());
+        if (op.equals("status")) {
+            return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
+        }
+        if (op.equals("commit")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST /git/commit with a JSON body naming the message");
+            }
+            JsonObject body;
+            try {
+                body = GSON.fromJson(request.body, JsonObject.class);
+            } catch (RuntimeException e) {
+                body = null;
+            }
+            String message = body == null || !body.has("message") || body.get("message").isJsonNull() ? "" : body.get("message").getAsString().trim();
+            if (message.isEmpty()) {
+                return Response.error(400, "a commit needs a message");
+            }
+            Worktrees.Commit commit;
+            synchronized (this) {
+                // under the server's lock, so a save in flight lands before or after, never inside
+                commit = worktrees.commit(session.username, message);
+            }
+            JsonObject reply = new JsonObject();
+            reply.addProperty("committed", commit.made);
+            reply.addProperty("commit", commit.commit);
+            reply.add("files", GSON.toJsonTree(commit.files));
+            reply.addProperty("message", commit.made ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files") : "nothing to commit");
+            return Response.json(GSON.toJson(reply));
+        }
+        return Response.error(404, "not found: " + request.path);
+    }
+
+    private static JsonObject statusJson(Worktrees.Status status) {
+        JsonObject body = new JsonObject();
+        body.addProperty("branch", status.branch);
+        body.add("changed", GSON.toJsonTree(status.changed));
+        body.addProperty("ahead", status.ahead);
+        body.addProperty("behind", status.behind);
+        return body;
     }
 
     /** The compile result of the user's sources as saved, with problems named by root-relative file. */

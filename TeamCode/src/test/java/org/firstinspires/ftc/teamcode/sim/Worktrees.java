@@ -68,6 +68,38 @@ public final class Worktrees {
         }
     }
 
+    /** A user's worktree against its branch and against {@code develop}. */
+    public static final class Status {
+        public final String branch;
+        /** Root-relative paths with '/' separators, sorted: what a commit would take. */
+        public final List<String> changed;
+        /** Commits on the user branch that {@code develop} lacks. */
+        public final int ahead;
+        /** Commits on {@code develop} that the user branch lacks: what a pull would bring. */
+        public final int behind;
+
+        Status(String branch, List<String> changed, int ahead, int behind) {
+            this.branch = branch;
+            this.changed = changed;
+            this.ahead = ahead;
+            this.behind = behind;
+        }
+    }
+
+    /** What a commit did: nothing when there was nothing to commit. */
+    public static final class Commit {
+        public final boolean made;
+        /** The branch's tip afterwards, made or not. */
+        public final String commit;
+        public final List<String> files;
+
+        Commit(boolean made, String commit, List<String> files) {
+            this.made = made;
+            this.commit = commit;
+            this.files = files;
+        }
+    }
+
     /** A git command that did not succeed; the message carries the command and what git said. */
     public static final class GitFailed extends RuntimeException {
         GitFailed(String message) {
@@ -167,6 +199,70 @@ public final class Worktrees {
             throw e;
         }
         return made;
+    }
+
+    // --- status and commit ---
+
+    /** The user's uncommitted changes and how their branch stands against {@code develop}. */
+    public synchronized Status status(String username) {
+        Worktree worktree = ensure(username);
+        return new Status(worktree.branch, changedFiles(worktree),
+                count(DEVELOP + ".." + worktree.branch), count(worktree.branch + ".." + DEVELOP));
+    }
+
+    /**
+     * Every uncommitted change in the user's worktree, new files included, as one commit on the
+     * user branch authored by the username.
+     *
+     * @return what was committed, or a commit that was not made when there was nothing to commit
+     */
+    public synchronized Commit commit(String username, String message) {
+        Worktree worktree = ensure(username);
+        git(worktree.path, "add", "-A");
+        List<String> files = nulSeparated(git(worktree.path, "diff", "--cached", "--name-only", "-z").out);
+        if (files.isEmpty()) {
+            return new Commit(false, head(worktree), files);
+        }
+        git(worktree.path, "-c", "user.name=" + username, "-c", "user.email=" + worktree.slug + "@coding-server.invalid",
+                "commit", "-q", "-m", message);
+        return new Commit(true, head(worktree), files);
+    }
+
+    private List<String> changedFiles(Worktree worktree) {
+        // -z: one NUL after each entry, and a renamed entry is followed by its old path as one more
+        String[] entries = git(worktree.path, "status", "--porcelain", "-z", "--untracked-files=all").out.split("\0");
+        List<String> files = new ArrayList<>();
+        for (int i = 0; i < entries.length; i++) {
+            if (entries[i].length() < 4) {
+                continue;
+            }
+            files.add(entries[i].substring(3));
+            char x = entries[i].charAt(0);
+            if (x == 'R' || x == 'C') {
+                i++;
+            }
+        }
+        files.sort(null);
+        return files;
+    }
+
+    private int count(String range) {
+        return Integer.parseInt(git(root, "rev-list", "--count", range).out.trim());
+    }
+
+    private String head(Worktree worktree) {
+        return git(worktree.path, "rev-parse", "HEAD").out.trim();
+    }
+
+    private static List<String> nulSeparated(String out) {
+        List<String> items = new ArrayList<>();
+        for (String item : out.split("\0")) {
+            if (!item.isEmpty()) {
+                items.add(item);
+            }
+        }
+        items.sort(null);
+        return items;
     }
 
     /**
