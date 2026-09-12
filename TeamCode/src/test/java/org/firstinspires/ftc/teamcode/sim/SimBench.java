@@ -137,6 +137,7 @@ public final class SimBench {
     private final List<Run> runs = new ArrayList<>();
     private SimCatalog listed;
     private Path listedFrom;
+    private SimBuild.Result lastCheck;
 
     /**
      * @param fixedCatalog     the op modes to offer, or null to compile and list them from {@code sourceRoot}
@@ -179,6 +180,28 @@ public final class SimBench {
             listedFrom = result.classes;
             return listed;
         }
+    }
+
+    /**
+     * Compiles the sources as saved, for the editor to show problems as they are made. Cached by
+     * the source fingerprint, so an unchanged tree costs nothing. While a run is in progress the
+     * previous result is returned, since a rebuild would pull the classes out from under the child.
+     *
+     * @return null when there are no sources to build
+     */
+    public synchronized SimBuild.Result check() {
+        if (build == null) {
+            return null;
+        }
+        if (current() != null && lastCheck != null) {
+            return lastCheck;
+        }
+        lastCheck = build.build();
+        return lastCheck;
+    }
+
+    public Path sourceRoot() {
+        return build == null ? null : build.sourceRoot();
     }
 
     private static SimCatalog list(Path classes) {

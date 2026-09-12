@@ -573,6 +573,53 @@ public class SharedEditorServerTest {
         assertEquals(403, user("GET", "/sim/runs/" + id + "/log", null).status);
     }
 
+    // --- compile on save ---
+
+    @Test
+    public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
+        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2));
+        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        admin("POST", "/admin/files/add?path=" + key);
+        String cookie = approvedUser("ada");
+
+        Reply good = user("GET", "/build", cookie);
+        assertEquals(200, good.status);
+        assertEquals("{\"available\":true,\"ok\":true,\"problems\":[]}", good.body);
+
+        String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
+        user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version));
+        Reply broken = user("GET", "/build", cookie);
+        assertEquals(200, broken.status);
+        JsonObject body = json(broken.body);
+        assertEquals(false, body.get("ok").getAsBoolean());
+        JsonObject problem = body.getAsJsonArray("problems").get(0).getAsJsonObject();
+        assertEquals(key, problem.get("file").getAsString());
+        assertEquals(8, problem.get("line").getAsInt());
+        assertTrue(problem.toString(), problem.get("message").getAsString().contains("illegal start of expression"));
+        assertEquals(403, user("GET", "/build", login("bob")).status);
+    }
+
+    @Test
+    public void aServerWithoutSourcesSaysSo() throws IOException {
+        String cookie = approvedUser("ada");
+
+        assertEquals("{\"available\":false}", user("GET", "/build", cookie).body);
+    }
+
+    @Test
+    public void theEditTabChecksEachSaveAndListsTheProblems() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("fetch('/build')"));
+        assertTrue(page, page.contains("id=\"problems\""));
+        assertTrue(page, page.contains("id=\"build-status\""));
+        assertTrue(page, page.contains("problem.line"));
+        assertTrue(page, page.contains("compiles"));
+    }
+
     @Test
     public void theDashboardHasEditAndSimulateTabs() throws IOException {
         String cookie = approvedEditorOf("Plans.java");

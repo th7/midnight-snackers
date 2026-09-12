@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,18 +29,40 @@ import javax.tools.ToolProvider;
  * desugaring, no annotation processing. A Kotlin file is refused by name rather than skipped.
  */
 public final class SimBuild {
+    /** One compiler error: the file relative to the source root, its line, and the message. */
+    public static final class Problem {
+        public final String file;
+        public final long line;
+        public final String message;
+
+        Problem(String file, long line, String message) {
+            this.file = file;
+            this.line = line;
+            this.message = message;
+        }
+    }
+
     public static final class Result {
         /** The compiled classes, or null when the build failed. */
         public final Path classes;
         /** Compiler errors when the build failed, otherwise empty. */
         public final String diagnostics;
+        public final List<Problem> problems;
         /** False when the sources had not changed and the previous output was reused. */
         public final boolean rebuilt;
 
-        Result(Path classes, String diagnostics, boolean rebuilt) {
+        Result(Path classes, List<Problem> problems, boolean rebuilt) {
             this.classes = classes;
-            this.diagnostics = diagnostics;
+            this.problems = Collections.unmodifiableList(problems);
             this.rebuilt = rebuilt;
+            StringBuilder text = new StringBuilder();
+            for (Problem problem : problems) {
+                if (text.length() > 0) {
+                    text.append('\n');
+                }
+                text.append(problem.file.isEmpty() ? "" : problem.file + ":" + problem.line + ": ").append(problem.message);
+            }
+            this.diagnostics = text.toString();
         }
     }
 
@@ -66,7 +89,7 @@ public final class SimBuild {
         List<Path> sources = sources();
         String fingerprint = fingerprint(sources);
         if (fingerprint.equals(lastFingerprint) && lastResult != null) {
-            return new Result(lastResult.classes, lastResult.diagnostics, false);
+            return new Result(lastResult.classes, lastResult.problems, false);
         }
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
@@ -100,13 +123,13 @@ public final class SimBuild {
         Result result;
         if (ok) {
             Path previous = lastResult == null ? null : lastResult.classes;
-            result = new Result(output, "", true);
+            result = new Result(output, List.of(), true);
             if (previous != null) {
                 deleteTree(previous);
             }
         } else {
             deleteTree(output);
-            result = new Result(null, format(diagnostics), true);
+            result = new Result(null, problems(diagnostics), true);
         }
         lastFingerprint = fingerprint;
         lastResult = result;
@@ -152,16 +175,16 @@ public final class SimBuild {
         }
     }
 
-    private String format(DiagnosticCollector<JavaFileObject> diagnostics) {
-        List<String> lines = new ArrayList<>();
+    private List<Problem> problems(DiagnosticCollector<JavaFileObject> diagnostics) {
+        List<Problem> problems = new ArrayList<>();
         for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
             if (d.getKind() != Diagnostic.Kind.ERROR) {
                 continue;
             }
-            String where = d.getSource() == null ? "" : sourceRoot.relativize(Path.of(d.getSource().toUri())) + ":" + d.getLineNumber() + ": ";
-            lines.add(where + d.getMessage(null));
+            String file = d.getSource() == null ? "" : sourceRoot.relativize(Path.of(d.getSource().toUri())).toString().replace('\\', '/');
+            problems.add(new Problem(file, d.getLineNumber(), d.getMessage(null)));
         }
-        return String.join("\n", lines);
+        return problems;
     }
 
     private static void deleteTree(Path root) {

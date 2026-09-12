@@ -74,11 +74,17 @@
   #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #files .editors { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 8px 20px; }
-  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
+  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; }
   /* explicit rows: a hidden message must not let the stage slide up into its auto-sized row */
   .stage > .stage-head { grid-row: 1; }
   .stage > #run-message { grid-row: 2; }
   .stage > #editor, .stage > #stage, .stage > .stage-empty { grid-row: 3; }
+  .stage > #problems { grid-row: 4; }
+  #problems { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); background: var(--panel); max-height: 200px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  #problems li { padding: 6px 20px; border-top: 1px solid var(--line); color: var(--bad); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #problems li:first-child { border-top: 0; }
+  #problems li:hover { background: var(--hover); }
+  #problems li .where { color: var(--muted); }
   .stage-head { display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 1px solid var(--line); min-height: 44px; flex-wrap: wrap; }
   .stage-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
   .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
@@ -113,9 +119,11 @@
     <div class="stage-head">
       <h2 id="title" class="mono">Pick a file on the left</h2>
       <span id="status" class="pill muted" hidden></span>
+      <span id="build-status" class="pill muted" hidden></span>
       <button id="reload" hidden>Load the host's version</button>
     </div>
     <textarea id="editor" spellcheck="false" disabled placeholder="Pick a file on the left."></textarea>
+    <ul id="problems" hidden></ul>
   </section>
 </main>
 <main id="simulate" class="panel" role="tabpanel" hidden>
@@ -156,6 +164,8 @@
   var title = document.getElementById('title');
   var status = document.getElementById('status');
   var reload = document.getElementById('reload');
+  var buildStatus = document.getElementById('build-status');
+  var problemsEl = document.getElementById('problems');
   var open = null;        // {path, version}
   var saveTimer = null;
   var saving = false;
@@ -202,7 +212,7 @@
     }).catch(function () {}).then(function () { setTimeout(refreshFiles, 2000); });
   }
 
-  function load(path) {
+  function load(path, line) {
     fetch(fileUrl(path)).then(function (r) {
       if (r.status === 403) { location.reload(); return; }
       if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
@@ -214,7 +224,9 @@
         reload.hidden = true;
         setStatus('saved', 'ok');
         editor.focus();
+        if (line) { goToLine(line); }
         refreshNow();
+        scheduleCheck();
       });
     });
   }
@@ -256,6 +268,7 @@
           open.version = written.version;
           setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
         }
+        scheduleCheck();
       });
     }).catch(function () {
       setStatus('could not reach the host', 'bad');
@@ -263,6 +276,79 @@
       saving = false;
       if (dirtyWhileSaving) { dirtyWhileSaving = false; if (open && open.version) { save(); } }
     });
+  }
+
+  // --- compile on save: every saved edit is checked, and the problems listed under the editor ---
+  var CHECK_DELAY_MS = 400;
+  var checkTimer = null;
+  var checking = false;
+  var checkAgain = false;
+  var buildAvailable = true;
+
+  function setBuildStatus(text, kind) {
+    buildStatus.textContent = text;
+    buildStatus.className = 'pill ' + kind;
+    buildStatus.hidden = !text;
+  }
+
+  function scheduleCheck() {
+    if (!buildAvailable) { return; }
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(check, CHECK_DELAY_MS);
+  }
+
+  function check() {
+    if (checking) { checkAgain = true; return; }
+    checking = true;
+    setBuildStatus('checking…', 'muted');
+    fetch('/build').then(function (r) {
+      if (r.status === 403) { location.reload(); return null; }
+      return r.json();
+    }).then(function (result) {
+      if (!result) { return; }
+      if (result.available === false) { buildAvailable = false; setBuildStatus('', 'muted'); return; }
+      renderProblems(result.problems);
+      setBuildStatus(result.ok ? 'compiles' : result.problems.length + (result.problems.length === 1 ? ' error' : ' errors'), result.ok ? 'ok' : 'bad');
+    }).catch(function () {
+      setBuildStatus('could not check', 'bad');
+    }).then(function () {
+      checking = false;
+      if (checkAgain) { checkAgain = false; check(); }
+    });
+  }
+
+  function renderProblems(problems) {
+    problemsEl.innerHTML = '';
+    problemsEl.hidden = !problems.length;
+    problems.forEach(function (problem) {
+      var li = document.createElement('li');
+      var where = document.createElement('span');
+      where.className = 'where';
+      var name = problem.file ? problem.file.slice(problem.file.lastIndexOf('/') + 1) : '';
+      where.textContent = problem.file ? name + ':' + problem.line + '  ' : '';
+      li.appendChild(where);
+      li.appendChild(document.createTextNode(problem.message));
+      li.title = problem.file;
+      li.addEventListener('click', function () {
+        if (open && open.path === problem.file) { goToLine(problem.line); }
+        else if (problem.file) { load(problem.file, problem.line); }
+      });
+      problemsEl.appendChild(li);
+    });
+  }
+
+  function goToLine(line) {
+    var at = 0;
+    var text = editor.value;
+    for (var i = 1; i < line; i++) {
+      var next = text.indexOf('\n', at);
+      if (next < 0) { break; }
+      at = next + 1;
+    }
+    editor.focus();
+    editor.setSelectionRange(at, at);
+    var lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 20;
+    editor.scrollTop = Math.max(0, (line - 4) * lineHeight);
   }
 
   editor.addEventListener('input', function () {

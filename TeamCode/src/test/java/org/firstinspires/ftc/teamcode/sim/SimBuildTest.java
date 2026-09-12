@@ -66,6 +66,18 @@ public class SimBuildTest {
         assertNull(result.classes);
         assertTrue(result.diagnostics, result.diagnostics.contains("Broken.java:3"));
         assertTrue(result.diagnostics, result.diagnostics.contains("illegal start of expression"));
+        assertEquals(1, result.problems.size());
+        assertEquals("demo/Broken.java", result.problems.get(0).file);
+        assertEquals(3, result.problems.get(0).line);
+        assertTrue(result.problems.get(0).message, result.problems.get(0).message.contains("illegal start of expression"));
+    }
+
+    @Test
+    public void aGoodBuildHasNoProblems() throws IOException {
+        SimBuild build = build();
+        write("demo/Greeter.java", GREETER);
+
+        assertTrue(build.build().problems.isEmpty());
     }
 
     @Test

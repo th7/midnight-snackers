@@ -1,4 +1,24 @@
-# Shared editor: saved edits take effect in Simulate
+# Shared editor: compile on save, then saved edits in Simulate
+
+## Batch 4 · compile on save
+
+Every successful save in the Edit tab asks the server to compile
+(`GET /build`, cached by the source fingerprint, so an unchanged tree costs
+nothing). The reply is structured: `ok`, and `problems` as root-relative
+file, line, and message. The tab shows "compiles" or the problems under the
+editor; clicking one moves the cursor to that line. The server never
+rebuilds while a run is in progress, since the child is executing from the
+current classes; it answers with the last result instead. A bench with no
+source root answers `available: false`.
+
+Tests first: structured problems from the build step; the route after a good
+save and after a broken one (file and line match what the editor holds); the
+route during a run returns the previous result and the run is unharmed;
+unapproved sessions get 403; the page markers.
+
+---
+
+# Batch 3 · saved edits take effect in Simulate
 
 Batch 3. Batch 1 (login, approval, editing) shipped in PR #6; batch 2 (the
 Simulate tab) in PR #7. This batch removes the restart: a run always executes
