@@ -31,11 +31,40 @@ longer is). Only approved sessions reach files, builds, and the simulator.
 named by its **root-relative path** with `/` separators
 (`TeamCode/src/main/java/.../Plans.java`). A user may only ever name a file
 by exact match against this set; nothing a user sends is resolved against
-the filesystem.
+the filesystem. The admin picks from the host checkout; the key means the
+same path in every worktree.
 
-**Project root** — The repository checkout the coding server serves. All
-paths users see are relative to it, and the editable set is stored per
-project root.
+**Project root** — The repository checkout the coding server serves: the
+top of a git working tree with a `develop` branch. All paths users see are
+relative to it, and the editable set and the worktrees are stored per
+project root. A user's save never writes under it; only git does, under
+`.git`.
+
+**Develop branch** — `develop`, the permanent branch every user's work
+starts from. The server requires it to exist and never deletes or
+rewrites it.
+
+**Worktree** — A git worktree of the project root's repository, one per
+**username**, on its own **user branch**. All of that user's edits are
+written there and every run they start is compiled from there. Owned by
+the username, not the session, so logging in again after a restart or a
+revoke-and-reapprove finds the same work. Made when the admin approves
+the login, so git's refusal, if any, is the admin's to see. Class:
+`Worktrees`.
+
+**User branch** — `coding/<slug>`, created at the tip of `develop` when
+the worktree is made. Saves are uncommitted changes in the worktree.
+
+**Slug** — The username lowercased, every run of characters outside
+`[a-z0-9]` replaced by one `-`, trimmed of leading and trailing `-`, at
+most 32 characters, never empty. It names the branch and the worktree
+directory. Two usernames that collapse to one slug get `-2`, `-3`, … so
+the mapping is decided once and stored, never recomputed.
+
+**Worktrees directory** — Where the worktrees live: under the state
+directory, at `worktrees/<root name>-<8 hex of SHA-256(root path)>/<slug>`,
+so two checkouts on one machine keep their worktrees apart and the admin
+can still read the directory name.
 
 **Version** — The SHA-256 of a file's bytes, as hex. A read returns the
 content and its version; a save carries the **base version** it was edited
@@ -44,10 +73,14 @@ the file on disk has moved on, whether from another browser or from an IDE
 on the host.
 
 **State directory** — Where the coding server keeps what outlives the
-process: `sessions.json` and `editable.json`. It follows the XDG Base
-Directory convention: `$XDG_STATE_HOME/midnight-snackers/coding-server`,
-else `~/.local/state/midnight-snackers/coding-server`. Owner-only. Session
-secrets are stored there only as salted scrypt hashes.
+process: `sessions.json`, `editable.json`, `worktrees.json` (username to
+slug, path, and branch, per project root), and the worktrees themselves.
+It follows the XDG Base Directory convention:
+`$XDG_STATE_HOME/midnight-snackers/coding-server`, else
+`~/.local/state/midnight-snackers/coding-server`. Owner-only. Session
+secrets are stored there only as salted scrypt hashes. A store that
+exists but cannot be read stops the server from starting. Class:
+`StateStore`.
 
 **Editor bundle** — CodeMirror 6, built once by `tools/codemirror/build.sh`
 into `codemirror.js` under the test resources and served by the user
@@ -62,15 +95,20 @@ editor shows the same problems for every file.
 **Build** — Compiling the main sources as they are on disk with the JDK's
 own compiler, cached by a fingerprint of the tree. The Edit tab asks for a
 build after every save and shows the **problems** (file, line, message).
-Not the Android build: no Kotlin, no desugaring. Class: `SimBuild`.
+In the coding server the sources are the user's worktree, so one user's
+broken edit breaks only their own build. Not the Android build: no
+Kotlin, no desugaring. Class: `SimBuild`.
 
 ## The simulator
 
 **Bench** — The simulation core shared by the bench page and the coding
 server's Simulate tab: the catalog, the runs so far, and the routes that
-start a run and follow it. One run at a time, whoever asks. Given a source
-root it builds before every run; without one (the tests) it runs on the
-current classpath. Class: `SimBench`.
+start a run and follow it. One run at a time per bench. The bench page
+has one; the coding server makes one per worktree through a **bench
+factory**, so one run at a time per user and two users may run at once,
+each in its own child JVM, and a user's status lists only their runs.
+Given a source root it builds before every run; without one (the tests)
+it runs on the current classpath. Class: `SimBench`.
 
 **Bench page** — The standalone page for one developer at
 `./gradlew :TeamCode:simDev` (http://localhost:8765/), with no login.
