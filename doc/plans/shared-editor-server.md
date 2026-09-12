@@ -1,3 +1,42 @@
+# Coding server: a name, and a memory
+
+## Batch 5 · rename, persistent sessions, persistent editable set
+
+The shared editor is now the **coding server**: class `CodingServer`, task
+`./gradlew :TeamCode:codingServer`, ports from `CODING_ADMIN_PORT` and
+`CODING_USER_PORT`, and the pages say so.
+
+Restarting the host used to log everyone out and forget which files were
+editable. Both now outlive the process, in the XDG state directory on the
+host: `$XDG_STATE_HOME/midnight-snackers/coding-server`, else
+`~/.local/state/midnight-snackers/coding-server` (a relative `XDG_STATE_HOME`
+is ignored, as the spec says). The directory and its files are readable by
+this user only.
+
+- `sessions.json` holds every session's id, username, address, state, and
+  creation time. The cookie is `session=<id>.<secret>`; the store holds a
+  **salted scrypt hash** of the secret (N=2^14, r=8, p=1, 16-byte salt,
+  32-byte hash) with its parameters, never the secret and never a fast
+  digest of it. A cookie is checked against the hash once per process, then
+  the cookie value itself is remembered in memory. Ids keep counting after
+  a restart.
+- `editable.json` holds the editable set keyed by the project root's
+  absolute path, so two checkouts on one machine keep separate sets.
+- Each file is written whole and moved into place. A save that fails is a
+  500 naming the file (and a login that could not be saved is not created).
+  A store that exists but cannot be read stops the server from starting,
+  naming the file, rather than silently starting over.
+
+Tests first (`CodingServerTest`): approved, pending, and revoked sessions
+survive a restart, and a pending one can still be decided; new logins get
+fresh ids; the store never contains a secret and its hash is scrypt of the
+secret under the stored salt, with a distinct salt per session and
+owner-only permissions; a real id with the wrong secret is no session; an
+unreadable store stops startup; the editable set survives a restart and is
+kept per root; nothing is written under the project root; the XDG rules.
+
+---
+
 # Shared editor: compile on save, then saved edits in Simulate
 
 ## Batch 4 · compile on save
