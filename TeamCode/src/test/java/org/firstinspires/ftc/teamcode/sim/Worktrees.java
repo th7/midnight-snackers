@@ -274,11 +274,11 @@ public final class Worktrees {
         if (isAncestor(DEVELOP, worktree.branch)) {
             return new Merge(Outcome.NOTHING, List.of(), null);
         }
-        List<String> conflicts = conflictsBetween(worktree.branch, DEVELOP);
-        if (!conflicts.isEmpty()) {
-            return new Merge(Outcome.CONFLICTS, conflicts, null);
+        MergeTree tree = mergeTree(worktree.branch, DEVELOP);
+        if (!tree.conflicts.isEmpty()) {
+            return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
         }
-        Result merged = run(worktree.path, "-c", "user.name=" + username, "-c", "user.email=" + worktree.slug + "@coding-server.invalid",
+        Result merged = run(worktree.path, "-c", "user.name=" + username, "-c", "user.email=" + email(worktree),
                 "merge", "-q", "-m", "Pull " + DEVELOP, DEVELOP);
         if (merged.exit != 0) {
             // known clean, so this is a refusal before anything was written; make sure of it
@@ -286,6 +286,75 @@ public final class Worktrees {
             return new Merge(Outcome.REFUSED, List.of(), (merged.err + merged.out).trim());
         }
         return new Merge(Outcome.MERGED, List.of(), null);
+    }
+
+    // --- push: the user's branch into develop ---
+
+    /**
+     * Merges the user branch into {@code develop} with a merge commit, then fast-forwards the
+     * user branch and worktree to the new {@code develop}. Conflicts are found first with
+     * {@code merge-tree}, so a conflicting push changes nothing at all. Where {@code develop}
+     * is checked out (normally the host checkout) the merge runs there, so that working tree
+     * shows the pushed work; git refuses, changing nothing, if uncommitted changes there would
+     * be overwritten. Checked out nowhere, only the branch moves.
+     *
+     * @return {@link Outcome#MERGED} with a {@code detail} when the push landed but the
+     *         worktree could not be fast-forwarded, which a commit and a pull will heal
+     */
+    public synchronized Merge push(String username) {
+        Worktree worktree = ensure(username);
+        List<String> changed = changedFiles(worktree);
+        if (!changed.isEmpty()) {
+            return new Merge(Outcome.UNCOMMITTED, changed, null);
+        }
+        if (isAncestor(worktree.branch, DEVELOP)) {
+            return new Merge(Outcome.NOTHING, List.of(), null);
+        }
+        MergeTree tree = mergeTree(DEVELOP, worktree.branch);
+        if (!tree.conflicts.isEmpty()) {
+            return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
+        }
+        String message = "Push " + username + "'s work";
+        Path checkedOut = checkedOutAt(DEVELOP);
+        if (checkedOut != null) {
+            Result merged = run(checkedOut, "-c", "user.name=" + username, "-c", "user.email=" + email(worktree),
+                    "merge", "--no-ff", "-q", "-m", message, worktree.branch);
+            if (merged.exit != 0) {
+                run(checkedOut, "merge", "--abort");
+                return new Merge(Outcome.REFUSED, List.of(), (merged.err + merged.out).trim());
+            }
+        } else {
+            String old = git(root, "rev-parse", "refs/heads/" + DEVELOP).out.trim();
+            String tip = git(root, "-c", "user.name=" + username, "-c", "user.email=" + email(worktree),
+                    "commit-tree", tree.tree, "-p", old, "-p", worktree.branch, "-m", message).out.trim();
+            Result moved = run(root, "update-ref", "refs/heads/" + DEVELOP, tip, old);
+            if (moved.exit != 0) {
+                return new Merge(Outcome.REFUSED, List.of(), (moved.err + moved.out).trim());
+            }
+        }
+        Result caughtUp = run(worktree.path, "merge", "--ff-only", "-q", DEVELOP);
+        if (caughtUp.exit != 0) {
+            return new Merge(Outcome.MERGED, List.of(), (caughtUp.err + caughtUp.out).trim());
+        }
+        return new Merge(Outcome.MERGED, List.of(), null);
+    }
+
+    /** The worktree where a branch is checked out, or null when it is checked out nowhere. */
+    private Path checkedOutAt(String branch) {
+        String[] lines = git(root, "worktree", "list", "--porcelain").out.split("\n");
+        Path current = null;
+        for (String line : lines) {
+            if (line.startsWith("worktree ")) {
+                current = Path.of(line.substring("worktree ".length()));
+            } else if (line.equals("branch refs/heads/" + branch)) {
+                return current;
+            }
+        }
+        return null;
+    }
+
+    private static String email(Worktree worktree) {
+        return worktree.slug + "@coding-server.invalid";
     }
 
     private boolean isAncestor(String maybeAncestor, String of) {
@@ -296,28 +365,35 @@ public final class Worktrees {
         return result.exit == 0;
     }
 
-    /**
-     * The files where merging {@code theirs} into {@code ours} would conflict, found without
-     * touching any working tree; empty when the merge is clean.
-     */
-    private List<String> conflictsBetween(String ours, String theirs) {
-        Result result = run(root, "merge-tree", "--write-tree", "--name-only", ours, theirs);
-        if (result.exit == 0) {
-            return List.of();
+    /** What {@code merge-tree} made of two branches: the merged tree, and where it conflicts. */
+    private static final class MergeTree {
+        final String tree;
+        final List<String> conflicts;
+
+        MergeTree(String tree, List<String> conflicts) {
+            this.tree = tree;
+            this.conflicts = conflicts;
         }
-        if (result.exit != 1) {
+    }
+
+    /** Merges {@code theirs} into {@code ours} without touching any working tree. */
+    private MergeTree mergeTree(String ours, String theirs) {
+        Result result = run(root, "merge-tree", "--write-tree", "--name-only", ours, theirs);
+        if (result.exit > 1) {
             throw new GitFailed("git merge-tree " + ours + " " + theirs + " failed: " + result.err.trim());
         }
         // the tree, then one conflicting file per line, then a blank line and the messages
-        List<String> files = new ArrayList<>();
         String[] lines = result.out.split("\n");
-        for (int i = 1; i < lines.length && !lines[i].isEmpty(); i++) {
-            if (!files.contains(lines[i])) {
-                files.add(lines[i]);
+        List<String> files = new ArrayList<>();
+        if (result.exit == 1) {
+            for (int i = 1; i < lines.length && !lines[i].isEmpty(); i++) {
+                if (!files.contains(lines[i])) {
+                    files.add(lines[i]);
+                }
             }
+            files.sort(null);
         }
-        files.sort(null);
-        return files;
+        return new MergeTree(lines[0].trim(), files);
     }
 
     private List<String> changedFiles(Worktree worktree) {

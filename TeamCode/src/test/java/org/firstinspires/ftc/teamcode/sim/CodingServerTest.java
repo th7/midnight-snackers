@@ -1382,6 +1382,99 @@ public class CodingServerTest {
         assertTrue("the reply's message, coach and all, is what the page shows", page.contains("say(result.message"));
     }
 
+    // --- push ---
+
+    @Test
+    public void pushLandsTheUsersCommitsOnDevelopAndTheHostCheckoutShowsThem() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        String oldDevelop = GitFixture.commitOf(root, "develop");
+
+        Reply pushed = user("POST", "/git/push", cookie);
+
+        assertEquals(pushed.body, 200, pushed.status);
+        assertEquals("pushed", json(pushed.body).get("outcome").getAsString());
+        assertEquals("class Plans { int mine; }\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
+        assertEquals("ada", GitFixture.git(root, "log", "-1", "--format=%an").trim());
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
+        JsonObject status = json(user("GET", "/git/status", cookie).body);
+        assertEquals(0, status.get("ahead").getAsInt());
+        assertEquals(0, status.get("behind").getAsInt());
+        assertEquals(405, user("GET", "/git/push", cookie).status);
+    }
+
+    @Test
+    public void pushWithUncommittedChangesIsRefusedAndWithNothingNewSaysSo() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply refused = user("POST", "/git/push", cookie);
+        assertEquals(409, refused.status);
+        assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        assertEquals(200, user("POST", "/git/push", cookie).status);
+        Reply again = user("POST", "/git/push", cookie);
+        assertEquals(again.body, 200, again.status);
+        assertEquals("nothing", json(again.body).get("outcome").getAsString());
+    }
+
+    @Test
+    public void aPushThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
+        String cookie = savedEditor("class Plans { int ada; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        String develop = GitFixture.commitOf(root, "develop");
+        String head = GitFixture.commitOf(root, "coding/ada");
+
+        Reply conflicted = user("POST", "/git/push", cookie);
+
+        assertEquals(409, conflicted.status);
+        JsonObject body = json(conflicted.body);
+        assertEquals("conflicts", body.get("outcome").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("class Plans { int develop; }\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"push\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+    }
+
+    @Test
+    public void aPushIsRefusedWhenTheHostsUncommittedEditWouldBeOverwrittenAndTheEditIsIntact() throws IOException {
+        String cookie = savedEditor("class Plans { int ada; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
+        Files.write(root.resolve("TeamCode/Plans.java"), "the coach's unsaved work\n".getBytes(StandardCharsets.UTF_8));
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply refused = user("POST", "/git/push", cookie);
+
+        assertEquals(409, refused.status);
+        JsonObject body = json(refused.body);
+        assertEquals("refused", body.get("outcome").getAsString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("the coach's unsaved work\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertFalse(Files.exists(root.resolve(".git/MERGE_HEAD")));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"op\":\"push\",\"outcome\":\"refused\""));
+        assertTrue(logins, logins.contains("Plans.java"));
+    }
+
+    @Test
+    public void theEditTabHasAPushButton() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("id=\"push\""));
+        assertTrue(page, page.contains("'/git/push'"));
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {

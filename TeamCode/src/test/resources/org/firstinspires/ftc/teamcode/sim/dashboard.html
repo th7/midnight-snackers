@@ -136,6 +136,7 @@
       <div class="buttons">
         <button id="commit" type="button" disabled>Commit</button>
         <button id="pull" type="button" title="Bring develop into your branch">Pull</button>
+        <button id="push" type="button" title="Land your commits on develop">Push</button>
       </div>
       <div id="git-result" role="status"></div>
     </div>
@@ -443,6 +444,7 @@
     var changedEl = document.getElementById('changed');
     var commitButton = document.getElementById('commit');
     var pullButton = document.getElementById('pull');
+    var pushButton = document.getElementById('push');
     var resultEl = document.getElementById('git-result');
     var busy = false;
     var behind = 0;
@@ -460,6 +462,8 @@
       behind = status.behind;
       pullButton.classList.toggle('behind', behind > 0);
       pullButton.disabled = busy;
+      pushButton.disabled = busy || (!status.ahead && !n);
+      pushButton.title = status.ahead ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push' : 'Land your commits on develop';
       var badge = pullButton.querySelector('.badge');
       if (behind > 0) {
         if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; pullButton.appendChild(badge); }
@@ -484,6 +488,7 @@
       busy = true;
       commitButton.disabled = true;
       pullButton.disabled = true;
+      pushButton.disabled = true;
       return fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -532,8 +537,14 @@
       post('/git/pull').then(afterMerge);
     }
 
+    function push() {
+      saveNow();
+      post('/git/push').then(afterMerge);
+    }
+
     commitButton.addEventListener('click', commit);
     pullButton.addEventListener('click', pull);
+    pushButton.addEventListener('click', push);
     refresh();
     setInterval(refresh, 2000);
     return { refresh: refresh, say: say };

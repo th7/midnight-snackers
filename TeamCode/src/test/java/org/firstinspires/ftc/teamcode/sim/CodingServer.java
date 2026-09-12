@@ -662,6 +662,18 @@ public final class CodingServer {
             }
             return merged("pull", session, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull");
         }
+        if (op.equals("push")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST /git/push to land your commits on develop");
+            }
+            Worktrees.Merge merge;
+            synchronized (this) {
+                merge = worktrees.push(session.username);
+            }
+            String did = merge.detail == null ? "pushed to " + Worktrees.DEVELOP
+                    : "pushed to " + Worktrees.DEVELOP + ", but your worktree is not up to date; commit and pull: " + merge.detail;
+            return merged("push", session, merge, did, "nothing to push");
+        }
         return Response.error(404, "not found: " + request.path);
     }
 

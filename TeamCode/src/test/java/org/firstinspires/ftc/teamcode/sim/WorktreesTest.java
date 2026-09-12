@@ -328,6 +328,135 @@ public class WorktreesTest {
         return Path.of(GitFixture.git(worktree, "rev-parse", "--git-dir").trim());
     }
 
+    // --- push: the user's branch into develop ---
+
+    private static int parentsOf(Path cwd, String ref) throws IOException {
+        return GitFixture.git(cwd, "rev-list", "--parents", "-1", ref).trim().split(" ").length - 1;
+    }
+
+    @Test
+    public void pushLandsTheUsersCommitsOnDevelopWhereItIsCheckedOutAndBringsTheWorktreeUpToDate() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        String oldDevelop = GitFixture.commitOf(root, "develop");
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        String mine = worktrees.commit("ada", "mine").commit;
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertNull(pushed.detail);
+        String develop = GitFixture.commitOf(root, "develop");
+        assertEquals(2, parentsOf(root, "develop"));
+        assertEquals(oldDevelop + " " + mine, GitFixture.git(root, "rev-list", "--parents", "-1", "develop").trim().substring(develop.length() + 1));
+        assertEquals("the host checkout, on develop, shows the pushed file", "class Mine {}\n", read(root.resolve("Mine.java")));
+        assertEquals(develop, GitFixture.head(root));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertEquals("the user branch was fast-forwarded to develop", develop, GitFixture.head(ada.path));
+        assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
+        assertEquals(0, worktrees.status("ada").ahead);
+        assertEquals(0, worktrees.status("ada").behind);
+    }
+
+    @Test
+    public void pushWhenDevelopIsCheckedOutNowhereMovesOnlyTheBranch() throws IOException {
+        GitFixture.git(root, "checkout", "-q", "-b", "main");
+        String mainHead = GitFixture.head(root);
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        String mine = worktrees.commit("ada", "mine").commit;
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertEquals(2, parentsOf(root, "develop"));
+        assertEquals("class Mine {}\n", GitFixture.git(root, "show", "develop:Mine.java"));
+        assertEquals("ada", GitFixture.git(root, "log", "-1", "--format=%an", "develop").trim());
+        assertFalse("the host checkout, on main, is untouched", Files.exists(root.resolve("Mine.java")));
+        assertEquals(mainHead, GitFixture.head(root));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.head(ada.path));
+        assertNotEquals(mine, GitFixture.head(ada.path));
+    }
+
+    @Test
+    public void pushIsRefusedWhenTheHostHasUncommittedChangesInAFileItTouches() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("README"), "ada's\n".getBytes(StandardCharsets.UTF_8));
+        String mine = worktrees.commit("ada", "mine").commit;
+        String develop = GitFixture.commitOf(root, "develop");
+        Files.write(root.resolve("README"), "the coach's unsaved work\n".getBytes(StandardCharsets.UTF_8));
+
+        Worktrees.Merge refused = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.REFUSED, refused.outcome);
+        assertTrue(refused.detail, refused.detail.contains("README"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("the coach's unsaved work\n", read(root.resolve("README")));
+        assertEquals(" M README\n", GitFixture.git(root, "status", "--porcelain"));
+        assertFalse(Files.exists(root.resolve(".git/MERGE_HEAD")));
+        assertEquals(mine, GitFixture.head(ada.path));
+    }
+
+    @Test
+    public void aPushThatConflictsChangesNothingAndNamesTheFiles() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("README"), "ada's line\n".getBytes(StandardCharsets.UTF_8));
+        String mine = worktrees.commit("ada", "mine").commit;
+        commitOnDevelop("README", "develop's line\n");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Worktrees.Merge conflicted = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.CONFLICTS, conflicted.outcome);
+        assertEquals("[README]", conflicted.files.toString());
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("develop's line\n", read(root.resolve("README")));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertEquals(mine, GitFixture.head(ada.path));
+        assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
+    }
+
+    @Test
+    public void pushWithNothingNewOrWithUncommittedChangesDoesNothing() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        assertEquals(Worktrees.Outcome.NOTHING, worktrees.push("ada").outcome);
+
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        Worktrees.Merge refused = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.UNCOMMITTED, refused.outcome);
+        assertEquals("[Mine.java]", refused.files.toString());
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+    }
+
+    @Test
+    public void twoUsersPushInTurnAndTheSecondCarriesTheFirstsWork() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Worktrees.Worktree bob = worktrees.ensure("bob");
+        Files.write(ada.path.resolve("A.java"), "class A {}\n".getBytes(StandardCharsets.UTF_8));
+        worktrees.commit("ada", "a");
+        Files.write(bob.path.resolve("B.java"), "class B {}\n".getBytes(StandardCharsets.UTF_8));
+        worktrees.commit("bob", "b");
+
+        assertEquals(Worktrees.Outcome.MERGED, worktrees.push("ada").outcome);
+        assertEquals(Worktrees.Outcome.MERGED, worktrees.push("bob").outcome);
+
+        assertEquals("class A {}\n", GitFixture.git(root, "show", "develop:A.java"));
+        assertEquals("class B {}\n", GitFixture.git(root, "show", "develop:B.java"));
+        assertTrue("bob's worktree carries ada's work", Files.exists(bob.path.resolve("A.java")));
+        assertFalse("ada's worktree waits for a pull", Files.exists(ada.path.resolve("B.java")));
+        assertEquals("bob's commit and the merge that landed it", 2, worktrees.status("ada").behind);
+        assertEquals(0, worktrees.status("bob").behind);
+    }
+
     // --- what must be there before the server starts ---
 
     @Test
