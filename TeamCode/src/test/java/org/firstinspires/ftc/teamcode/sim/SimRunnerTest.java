@@ -58,9 +58,11 @@ public class SimRunnerTest {
     @Test
     public void withALivePortTheRunCanBeWatchedWhileItRunsAndUntilTheViewerHasSeenTheEnd() throws Exception {
         int port = freePort();
+        // long enough that a loaded CI runner's first fetch still lands while the run is in progress
+        double runSeconds = 2.0;
         Thread runner = new Thread(() -> {
             try {
-                SimRunner.run(new NeverDoneAuto(), sim, 0.5, folder.getRoot().toPath(), port);
+                SimRunner.run(new NeverDoneAuto(), sim, runSeconds, folder.getRoot().toPath(), port);
             } catch (AssertionError expected) {
                 // the plan never finishes; the run times out by design
             }
