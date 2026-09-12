@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -588,8 +589,24 @@ public class SharedEditorServerTest {
         assertTrue(page, page.contains("'/sim/status'"));
         assertTrue(page, page.contains("'/sim/runs/'"));
         assertTrue(page, page.contains("location.hash"));
-        assertTrue(page, page.contains("started with"));
         assertHiddenWins(page);
+    }
+
+    @Test
+    public void theSimulateTabShowsBuildingAndTheRunsMessageAndRefreshesTheCatalog() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("run.phase === 'building'"));
+        assertTrue(page, page.contains("run.message"));
+        assertTrue(page, page.contains("id=\"run-message\""));
+        assertTrue(page, page.contains("as last saved"));
+        assertFalse(page, page.contains("started with"));
+        // the catalog is fetched every time the tab opens and again when a run ends, never cached for the page's life
+        assertTrue(page, page.split("fetch\\('/sim/catalog'\\)").length - 1 >= 1);
+        assertTrue(page, page.contains("loadCatalog()"));
+        assertTrue(page, page.contains("wasRunning && !running"));
     }
 
     /**
