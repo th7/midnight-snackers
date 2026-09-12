@@ -1475,6 +1475,122 @@ public class CodingServerTest {
         assertTrue(page, page.contains("'/git/push'"));
     }
 
+    // --- go to definition, find usages, and viewing what is not editable ---
+
+    private static final String SRC = "TeamCode/src/main/java/org/example/";
+
+    /** Two classes on develop, Auto.java editable, and ada approved. */
+    private String navigatingUser() throws IOException {
+        Path src = root.resolve(SRC);
+        Files.createDirectories(src);
+        Files.write(src.resolve("Plans.java"), SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8));
+        Files.write(src.resolve("Auto.java"), SourceNavigatorTest.AUTO_SOURCE.getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "two classes");
+        serverWith(sourcesBench());
+        assertEquals(200, admin("POST", "/admin/files/add?path=" + SRC + "Auto.java").status);
+        return approvedUser("ada");
+    }
+
+    private static String nav(String route, String file, String source, String lineText, String token) {
+        int[] where = SourceNavigatorTest.at(source, lineText, token);
+        return "/nav/" + route + "?file=" + file + "&line=" + where[0] + "&column=" + where[1];
+    }
+
+    @Test
+    public void aJumpToADefinitionLandsInAFileTheUserMayReadButNotEdit() throws IOException {
+        String cookie = navigatingUser();
+
+        Reply definition = user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "int total = Plans.count();", "count"), cookie);
+
+        assertEquals(definition.body, 200, definition.status);
+        JsonObject body = json(definition.body);
+        assertEquals("org.example.Plans.count()", body.get("symbol").getAsString());
+        assertEquals("method", body.get("kind").getAsString());
+        assertEquals(SRC + "Plans.java", body.get("file").getAsString());
+        int[] where = SourceNavigatorTest.at(SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count");
+        assertEquals(where[0], body.get("line").getAsInt());
+        assertEquals(where[1], body.get("column").getAsInt());
+        assertEquals("public static int count() {", body.get("text").getAsString());
+
+        Reply source = user("GET", "/source/" + SRC + "Plans.java", cookie);
+        assertEquals(source.body, 200, source.status);
+        JsonObject plans = json(source.body);
+        assertEquals(SourceNavigatorTest.PLANS_SOURCE, plans.get("content").getAsString());
+        assertFalse(plans.get("editable").getAsBoolean());
+        assertEquals(sha256(SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8)), plans.get("version").getAsString());
+        assertTrue(json(user("GET", "/source/" + SRC + "Auto.java", cookie).body).get("editable").getAsBoolean());
+        assertEquals("editing is still only the editable set", 404, user("GET", "/files/" + SRC + "Plans.java", cookie).status);
+        assertEquals(404, user("GET", "/source/README", cookie).status);
+        assertEquals(404, user("GET", "/source/TeamCode/src/main/java/org/example/../example/Plans.java", cookie).status);
+        assertEquals(405, user("PUT", "/source/" + SRC + "Plans.java", cookie, edit("x", plans.get("version").getAsString())).status);
+        String pending = login("bob");
+        assertEquals(403, user("GET", "/source/" + SRC + "Plans.java", pending).status);
+        assertEquals(403, user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "int total = Plans.count();", "count"), pending).status);
+        assertEquals(403, user("GET", "/nav/usages?file=x&line=1&column=1", pending).status);
+    }
+
+    @Test
+    public void aSymbolFromOutsideTheSourcesHasNoFileAndNothingUnderTheCursorIsA404() throws IOException {
+        String cookie = navigatingUser();
+
+        Reply list = user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "List<String> names", "List"), cookie);
+        assertEquals(list.body, 200, list.status);
+        assertEquals("java.util.List", json(list.body).get("symbol").getAsString());
+        assertTrue(list.body, json(list.body).get("file").isJsonNull());
+
+        assertEquals(404, user("GET", "/nav/definition?file=" + SRC + "Auto.java&line=2&column=1", cookie).status);
+        assertEquals(404, user("GET", "/nav/definition?file=README&line=1&column=1", cookie).status);
+        assertEquals(400, user("GET", "/nav/definition?file=" + SRC + "Auto.java&line=x&column=1", cookie).status);
+    }
+
+    @Test
+    public void usagesComeFromTheUsersOwnWorktree() throws IOException {
+        String ada = navigatingUser();
+        String bob = approvedUser("bob");
+        String version = json(user("GET", "/files/" + SRC + "Auto.java", ada).body).get("version").getAsString();
+        String edited = SourceNavigatorTest.AUTO_SOURCE.replace("return total + names.size();", "return total + names.size() + Plans.count();");
+        assertEquals(200, user("PUT", "/files/" + SRC + "Auto.java", ada, edit(edited, version)).status);
+
+        Reply adas = user("GET", nav("usages", SRC + "Plans.java", SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count"), ada);
+        Reply bobs = user("GET", nav("usages", SRC + "Plans.java", SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count"), bob);
+
+        assertEquals(adas.body, 200, adas.status);
+        JsonObject body = json(adas.body);
+        assertEquals("org.example.Plans.count()", body.get("symbol").getAsString());
+        assertEquals(SRC + "Plans.java", body.getAsJsonObject("definition").get("file").getAsString());
+        assertEquals(2, body.getAsJsonArray("usages").size());
+        JsonObject second = body.getAsJsonArray("usages").get(1).getAsJsonObject();
+        assertEquals(SRC + "Auto.java", second.get("file").getAsString());
+        int[] where = SourceNavigatorTest.at(edited, "return total + names.size() + Plans.count();", "count");
+        assertEquals(where[0], second.get("line").getAsInt());
+        assertEquals(where[1], second.get("column").getAsInt());
+        assertEquals("return total + names.size() + Plans.count();", second.get("text").getAsString());
+        assertEquals(1, json(bobs.body).getAsJsonArray("usages").size());
+    }
+
+    @Test
+    public void navigationOnAServerWithoutSourcesSaysSo() throws IOException {
+        String cookie = approvedUser("ada");
+
+        assertEquals("{\"available\":false}", user("GET", "/nav/definition?file=x&line=1&column=1", cookie).body);
+        assertEquals("{\"available\":false}", user("GET", "/nav/usages?file=x&line=1&column=1", cookie).body);
+        assertEquals(404, user("GET", "/source/x", cookie).status);
+    }
+
+    @Test
+    public void theEditTabJumpsToDefinitionsAndListsUsages() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("'/nav/definition"));
+        assertTrue(page, page.contains("'/nav/usages"));
+        assertTrue(page, page.contains("'F12'"));
+        assertTrue(page, page.contains("'Shift-F12'"));
+        assertTrue(page, page.contains("posAtCoords"));
+        assertTrue(page, page.contains("id=\"usages\""));
+        assertTrue(page, page.contains("'/source/'"));
+        assertTrue(page, page.contains("view only"));
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {
