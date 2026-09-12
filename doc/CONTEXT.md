@@ -41,8 +41,9 @@ project root. A user's save never writes under it; only git does, under
 `.git`.
 
 **Develop branch** — `develop`, the permanent branch every user's work
-starts from. The server requires it to exist and never deletes or
-rewrites it.
+starts from, pushes to, and pulls from. The server requires it to exist
+and never deletes or rewrites it: it only adds merge commits to it.
+Getting `develop` to `main` is the coach's job, by pull request.
 
 **Worktree** — A git worktree of the project root's repository, one per
 **username**, on its own **user branch**. All of that user's edits are
@@ -53,7 +54,49 @@ the login, so git's refusal, if any, is the admin's to see. Class:
 `Worktrees`.
 
 **User branch** — `coding/<slug>`, created at the tip of `develop` when
-the worktree is made. Saves are uncommitted changes in the worktree.
+the worktree is made. Saves are uncommitted changes in the worktree
+until the user presses Commit.
+
+**Commit** — `POST /git/commit` with a message: every uncommitted change in
+the user's worktree becomes one commit on the user branch, authored by
+the username. Nothing to commit is a success that says so. An empty
+message is refused. `GET /git/status` reports the uncommitted files
+(**changed**), the commits the branch has that `develop` lacks
+(**ahead**), and the commits `develop` has that the branch lacks
+(**behind**).
+
+**Push** — `POST /git/push`: the user branch is merged into `develop` with
+a merge commit, and then the user branch and worktree are fast-forwarded
+to the new `develop`, so the user carries everyone's pushed work from
+then on. Where `develop` is checked out, normally the host checkout, the
+merge runs there so that working tree shows the pushed work; git refuses,
+changing nothing, if an uncommitted edit there would be overwritten.
+Checked out nowhere, only the branch moves. It needs a clean worktree
+(commit first) and refuses, changing nothing, on a **merge conflict**.
+The name is the user's view of it: the server never talks to a remote.
+
+**Pull** — `POST /git/pull`: `develop` is merged into the user branch, in
+the user's worktree, a fast-forward when it can be and a merge commit
+otherwise. `develop` does not change. It needs a clean worktree (commit
+first) and refuses, changing nothing, on a merge conflict. The Pull
+button pulses, and wears the count, while the branch is behind.
+
+**Merge conflict** — `develop` and the user branch changed the same lines
+since they diverged. Not the save **conflict** (a stale base version on
+`PUT /files`), which keeps its name. Push and Pull hit the same conflict,
+since both merge the same two branches, and both find it with
+`git merge-tree`, which touches no working tree, so either changes
+nothing anywhere, names the files, and tells the user to ask their
+coach. The admin page shows the coach the recipe, with the real path:
+
+```
+cd <the user's worktree>
+git merge develop         # resolve the conflicts in an editor
+git add -A && git commit  # then the user presses Push
+```
+
+The coach's merge *is* the pull, so Push is all that is left, and
+`develop` is never checked out to resolve anything.
 
 **Slug** — The username lowercased, every run of characters outside
 `[a-z0-9]` replaced by one `-`, trimmed of leading and trailing `-`, at

@@ -50,9 +50,12 @@ import java.util.stream.Stream;
  * </pre>
  * Approving a login makes the user's {@link Worktrees worktree}, one per username on its own
  * branch off {@code develop}, under the state directory. The host checkout is never written by a
- * user's save. The Simulate tab runs the autonomous op modes on the simulated robot through a
- * {@link SimBench} per worktree, one run at a time per user. Every run recompiles that worktree's
- * main sources and runs in a child JVM, so a saved edit is what the next run executes.
+ * user's save. The Edit tab's Commit, Pull, and Push buttons commit the user's edits on their
+ * branch, bring {@code develop} into it, and land it on {@code develop}; a merge conflict changes
+ * nothing and sends the user to their coach. The Simulate tab runs the autonomous op modes on the
+ * simulated robot through a {@link SimBench} per worktree, one run at a time per user. Every run
+ * recompiles that worktree's main sources and runs in a child JVM, so a saved edit is what the
+ * next run executes.
  * <p>
  * Sessions, the editable set, and the worktrees outlive the process. They live in the XDG state
  * directory ({@code $XDG_STATE_HOME/midnight-snackers/coding-server}, else

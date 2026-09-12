@@ -221,9 +221,9 @@ gains `worktree`, `branch`, and `lastMerge` (push or pull, outcome,
 files, git's message); `/admin/info` gains `worktreesDir` and `develop`'s
 commit.
 
-The Edit tab gets a git line above the editor: the branch, "N files
-changed since your last commit", Commit (asks for a message), Push, and
-Pull buttons, and the last result: "committed 3 files", "pushed to
+The Edit tab gets a git panel at the top of its sidebar: the branch (in
+the header), "N files changed since your last commit", Commit (asks for
+a message), Pull, and Push buttons, and the last result: "committed 3 files", "pushed to
 develop", "pulled develop", "nothing to pull", "your changes conflict
 with develop in TeamCode/…/Plans.java; ask your coach for help", or
 "commit first".
@@ -366,8 +366,9 @@ Then: `Worktrees.push`, the route, the page, the admin page.
 ### Phase 6 · Words
 
 The glossary entries above; the `CodingServer` javadoc; `CONTEXT.md`'s
-bench entry revised to "one run at a time per user"; a short note for the
-coach: the `develop` rule, the recipe, and how `develop` reaches `main`.
+bench entry revised to "one run at a time per user"; the coach's recipe
+and how `develop` reaches `main`, in the glossary's merge conflict and
+develop branch entries.
 
 Manual acceptance on two machines: both log in, both edit the same auto
 differently, both press Run and each watches their own plan drive; the
