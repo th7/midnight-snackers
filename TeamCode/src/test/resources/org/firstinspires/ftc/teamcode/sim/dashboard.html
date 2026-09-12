@@ -112,7 +112,7 @@
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
   </nav>
-  <p class="who">Signed in as <strong id="who">…</strong></p>
+  <p class="who">Signed in as <strong id="who">…</strong> on <span id="branch" class="mono">…</span></p>
 </header>
 <main id="edit" class="panel" role="tabpanel">
   <aside>
@@ -417,6 +417,7 @@
   fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
     if (me.state !== 'approved') { location.reload(); return; }
     document.getElementById('who').textContent = me.username;
+    document.getElementById('branch').textContent = me.branch || '';
   });
   refreshFiles();
 
