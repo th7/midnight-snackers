@@ -138,8 +138,10 @@
       return;
     }
     logins.forEach(function (login) {
-      var meta = login.address + ' · ' + age(login.ageSeconds) + (login.file ? ' · editing ' + login.file : '');
+      var meta = login.address + ' · ' + age(login.ageSeconds) + (login.file ? ' · editing ' + login.file : '')
+          + (login.branch ? ' · ' + login.branch : '');
       var el = row(login.state, login.username, meta);
+      if (login.worktree) { el.querySelector('.meta').title = login.worktree; }
       var actions = el.querySelector('.actions');
       var pill = document.createElement('span');
       pill.className = 'pill ' + ({ pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' })[login.state];
