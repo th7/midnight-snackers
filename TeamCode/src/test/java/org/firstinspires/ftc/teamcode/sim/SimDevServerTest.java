@@ -26,8 +26,8 @@ public class SimDevServerTest {
 
     private SimDevServer server() {
         if (server == null) {
-            server = SimDevServer.start(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), 0,
-                    folder.getRoot().toPath(), RUN_TIMEOUT_SECONDS);
+            server = SimDevServer.start(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
+                    folder.getRoot().toPath(), RUN_TIMEOUT_SECONDS, 1), 0);
         }
         return server;
     }

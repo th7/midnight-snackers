@@ -38,9 +38,14 @@ public class SharedEditorServerTest {
 
     private SharedEditorServer server() {
         if (server == null) {
-            server = SharedEditorServer.start(folder.getRoot().toPath(), SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class),
-                    InetAddress.getLoopbackAddress(), 0, 0, folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS);
+            serverWith(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
+                    folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 1));
         }
+        return server;
+    }
+
+    private SharedEditorServer serverWith(SimBench bench) {
+        server = SharedEditorServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0);
         return server;
     }
 
@@ -517,6 +522,54 @@ public class SharedEditorServerTest {
         assertEquals(405, user("GET", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), cookie).status);
         assertEquals(404, user("GET", "/sim/runs/999/ticks?from=0", cookie).status);
         assertEquals(404, user("GET", "/sim/nope", cookie).status);
+    }
+
+    @Test
+    public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
+        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2));
+        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
+        String cookie = approvedUser("ada");
+        assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
+
+        String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(4), version)).status);
+        Reply started = user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, cookie);
+
+        assertEquals(started.body, 200, started.status);
+        String status = awaitSimStatus(cookie, "\"outcome\":\"done\"");
+        assertTrue(status, status.contains("\"loops\":4"));
+        assertTrue(status, status.contains("\"phase\":\"finished\""));
+        assertTrue(status, status.contains("\"message\":null"));
+    }
+
+    @Test
+    public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
+        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "));
+        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String cookie = approvedUser("ada");
+
+        Reply catalog = user("GET", "/sim/catalog", cookie);
+        assertEquals(500, catalog.status);
+        assertTrue(catalog.body, catalog.body.contains("TempAuto.java:8"));
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, cookie).status);
+        String status = awaitSimStatus(cookie, "\"outcome\":\"build failed\"");
+        assertTrue(status, status.contains("TempAuto.java:8"));
+    }
+
+    @Test
+    public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
+        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String cookie = approvedUser("ada");
+        String id = json(user("POST", "/sim/run?opmode=" + TestAutos.ChattyAuto.class.getName(), cookie).body).get("id").getAsString();
+        awaitSimStatus(cookie, "\"outcome\":\"done\"");
+
+        Reply log = user("GET", "/sim/runs/" + id + "/log", cookie);
+
+        assertEquals(200, log.status);
+        assertTrue(log.body, log.body.contains("hello from the op mode"));
+        assertEquals(403, user("GET", "/sim/runs/" + id + "/log", null).status);
     }
 
     @Test

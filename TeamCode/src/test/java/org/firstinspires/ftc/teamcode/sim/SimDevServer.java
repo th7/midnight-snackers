@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
@@ -24,26 +25,29 @@ public final class SimDevServer {
     public static final String PORT_ENV = "SIM_DEV_PORT";
     public static final int DEFAULT_PORT = 8765;
     public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
+    public static final double DEFAULT_KILL_GRACE_SECONDS = 5;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
     private final SimBench bench;
     private final TinyHttpServer http;
 
-    private SimDevServer(SimCatalog catalog, int port, Path outputDir, double runTimeoutSeconds) {
-        this.bench = new SimBench(catalog, outputDir, runTimeoutSeconds);
+    private SimDevServer(SimBench bench, int port) {
+        this.bench = bench;
         this.http = TinyHttpServer.start(port, "sim-bench", this::handle);
     }
 
-    public static SimDevServer start(SimCatalog catalog, int port, Path outputDir, double runTimeoutSeconds) {
-        return new SimDevServer(catalog, port, outputDir, runTimeoutSeconds);
+    public static SimDevServer start(SimBench bench, int port) {
+        return new SimDevServer(bench, port);
     }
 
+    /** Run from the TeamCode module directory (the Gradle task does). */
     public static void main(String[] args) throws InterruptedException {
         String portValue = System.getenv(PORT_ENV);
         int port = portValue == null || portValue.isBlank() ? DEFAULT_PORT : Integer.parseInt(portValue.trim());
-        SimCatalog catalog = SimCatalog.discover();
-        SimDevServer server = start(catalog, port, SimRunner.DEFAULT_OUTPUT_DIR, DEFAULT_RUN_TIMEOUT_SECONDS);
-        System.out.println("Simulation bench: " + server.url() + "  (" + catalog.entries().size() + " op modes; Ctrl-C to stop)");
+        SimBench bench = new SimBench(null, Path.of("src", "main", "java"), SimRunner.DEFAULT_OUTPUT_DIR,
+                DEFAULT_RUN_TIMEOUT_SECONDS, DEFAULT_KILL_GRACE_SECONDS);
+        SimDevServer server = start(bench, port);
+        System.out.println("Simulation bench: " + server.url() + "  (runs the sources as saved; Ctrl-C to stop)");
         Thread.currentThread().join();
     }
 
@@ -57,6 +61,7 @@ public final class SimDevServer {
 
     public void stop() {
         http.stop();
+        bench.stop();
     }
 
     private Response handle(Request request) {
@@ -67,7 +72,15 @@ public final class SimDevServer {
     }
 
     private String page() {
-        return template().replace("__CATALOG__", GSON.toJson(bench.catalogJson()));
+        JsonArray catalog;
+        String problem = "";
+        try {
+            catalog = bench.catalog().toJson();
+        } catch (SimBench.BuildFailed e) {
+            catalog = new JsonArray();
+            problem = "the sources do not compile:\n" + e.getMessage();
+        }
+        return template().replace("__CATALOG__", GSON.toJson(catalog)).replace("__PROBLEM__", GSON.toJson(problem));
     }
 
     private static String template() {
