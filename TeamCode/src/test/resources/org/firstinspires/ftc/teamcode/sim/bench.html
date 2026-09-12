@@ -29,6 +29,7 @@
     --live: #ff7a3d; --live-soft: rgba(255, 122, 61, 0.18);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
   header { display: flex; align-items: baseline; gap: 14px; padding: 16px 20px 0; max-width: 1400px; margin: 0 auto; }
   h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
@@ -66,19 +67,22 @@
   tr.current td { background: var(--hover); }
   a { color: var(--accent); }
   .msg { color: var(--bad); min-height: 1.4em; margin: 0; }
+  .pill.building { color: var(--accent); background: rgba(47, 91, 215, 0.14); }
+  #problem, #run-message { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--bad); font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <header>
   <h1>Sim Bench</h1>
-  <p class="sub">Run an autonomous op mode on the simulated robot and watch it drive. One run at a time, in real time.</p>
+  <p class="sub">Run an autonomous op mode on the simulated robot and watch it drive. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
 </header>
 <main>
   <aside>
     <div>
       <p class="section-label">Autonomous op modes</p>
       <div class="opmodes" id="opmodes"></div>
+      <pre id="problem" hidden></pre>
       <p class="msg" id="msg" role="status"></p>
     </div>
     <div>
@@ -94,14 +98,21 @@
       <h2 id="stage-title">No run yet</h2>
       <span id="stage-state"></span>
     </div>
+    <pre id="run-message" hidden></pre>
     <div class="empty" id="stage-empty">Pick an op mode and press Run. The live view appears here.</div>
     <iframe id="stage" title="Live view of the current run" hidden></iframe>
   </section>
 </main>
 <script id="catalog" type="application/json">__CATALOG__</script>
+<script id="problem-data" type="application/json">__PROBLEM__</script>
 <script>
 (function () {
   const catalog = JSON.parse(document.getElementById('catalog').textContent);
+  const problem = JSON.parse(document.getElementById('problem-data').textContent);
+  const problemEl = document.getElementById('problem');
+  const runMessage = document.getElementById('run-message');
+  problemEl.textContent = problem;
+  problemEl.hidden = !problem;
   const list = document.getElementById('opmodes');
   const msg = document.getElementById('msg');
   const stage = document.getElementById('stage');
@@ -162,7 +173,12 @@
     stage.src = '/runs/' + id + '/';
   }
 
+  function messageOf(run) {
+    return run && run.message ? run.message : '';
+  }
+
   function pill(run) {
+    if (run.phase === 'building') return '<span class="pill building">building</span>';
     if (!run.outcome) return '<span class="pill live">running</span>';
     const ok = run.outcome === 'done';
     return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(run.outcome) + '</span>';
@@ -189,6 +205,8 @@
     }
     const shown = status.runs.find(r => r.id === shownRunId);
     stageState.innerHTML = shown ? pill(shown) : '';
+    runMessage.textContent = messageOf(shown);
+    runMessage.hidden = !messageOf(shown);
     if (status.runs.length && shownRunId === null) show(status.runs[0].id, status.runs[0].name);
   }
 

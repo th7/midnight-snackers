@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
@@ -26,8 +27,8 @@ public class SimDevServerTest {
 
     private SimDevServer server() {
         if (server == null) {
-            server = SimDevServer.start(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), 0,
-                    folder.getRoot().toPath(), RUN_TIMEOUT_SECONDS);
+            server = SimDevServer.start(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
+                    folder.getRoot().toPath(), RUN_TIMEOUT_SECONDS, 1), 0);
         }
         return server;
     }
@@ -47,6 +48,10 @@ public class SimDevServerTest {
         assertTrue(page.body.contains("Count to three"));
         assertTrue(page.body.contains("Never done"));
         assertTrue(page.body.contains(ThreeLoopAuto.class.getName()));
+        assertTrue(page.body, page.body.contains("run.phase === 'building'"));
+        assertTrue(page.body, page.body.contains("run.message"));
+        assertTrue(page.body, page.body.contains("id=\"problem\""));
+        assertFalse(page.body, page.body.contains("__PROBLEM__"));
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
@@ -42,13 +43,18 @@ public final class SimReplayPage {
      * a file page embeds the whole recording.
      */
     public static String page(SimRecording recording, boolean live) {
+        return page(recording.name(), live, ticksJson(live ? List.of() : recording.ticks()), recording.outcome());
+    }
+
+    /** The page for ticks already in their JSON form, as another JVM streamed them. */
+    public static String page(String name, boolean live, JsonArray ticks, String outcome) {
         JsonObject root = new JsonObject();
-        root.addProperty("name", recording.name());
+        root.addProperty("name", name);
         root.addProperty("live", live);
-        root.addProperty("outcome", live ? null : recording.outcome());
-        root.add("ticks", ticksJson(live ? List.of() : recording.ticks()));
+        root.addProperty("outcome", live ? null : outcome);
+        root.add("ticks", live ? new JsonArray() : ticks);
         return template()
-                .replace("__TITLE__", recording.name())
+                .replace("__TITLE__", name)
                 .replace("__DATA__", GSON.toJson(root));
     }
 
@@ -56,10 +62,39 @@ public final class SimReplayPage {
      * What a live page fetches: the ticks from {@code from} onward and the outcome once there is one.
      */
     public static String update(SimRecording recording, int from) {
+        return update(ticksJson(recording.ticksFrom(from)), recording.outcome());
+    }
+
+    public static String update(JsonArray ticksFrom, String outcome) {
         JsonObject root = new JsonObject();
-        root.addProperty("outcome", recording.outcome());
-        root.add("ticks", ticksJson(recording.ticksFrom(from)));
+        root.addProperty("outcome", outcome);
+        root.add("ticks", ticksFrom);
         return GSON.toJson(root);
+    }
+
+    /** One tick in the form the page reads and the child streams. */
+    static JsonObject tickJson(SimRecording.Tick tick) {
+        Gson gson = GSON;
+        JsonObject t = new JsonObject();
+        t.add("t", gson.toJsonTree(tick.seconds));
+        t.add("x", gson.toJsonTree(tick.truePose.position.x));
+        t.add("y", gson.toJsonTree(tick.truePose.position.y));
+        t.add("heading", gson.toJsonTree(tick.truePose.heading.toDouble()));
+        t.addProperty("step", tick.step);
+        t.add("powers", gson.toJsonTree(tick.wheelPowers));
+        JsonArray packets = new JsonArray();
+        for (TelemetryPacket packet : tick.packets) {
+            JsonObject p = new JsonObject();
+            p.add("data", gson.toJsonTree(packet).getAsJsonObject().get("data"));
+            p.add("ops", gson.toJsonTree(packet.fieldOverlay().getOperations()));
+            packets.add(p);
+        }
+        t.add("packets", packets);
+        return t;
+    }
+
+    static String toLine(JsonElement json) {
+        return GSON.toJson(json);
     }
 
     private static final Gson GSON = gson();
@@ -75,25 +110,9 @@ public final class SimReplayPage {
     }
 
     private static JsonArray ticksJson(List<SimRecording.Tick> source) {
-        Gson gson = GSON;
         JsonArray ticks = new JsonArray();
         for (SimRecording.Tick tick : source) {
-            JsonObject t = new JsonObject();
-            t.add("t", gson.toJsonTree(tick.seconds));
-            t.add("x", gson.toJsonTree(tick.truePose.position.x));
-            t.add("y", gson.toJsonTree(tick.truePose.position.y));
-            t.add("heading", gson.toJsonTree(tick.truePose.heading.toDouble()));
-            t.addProperty("step", tick.step);
-            t.add("powers", gson.toJsonTree(tick.wheelPowers));
-            JsonArray packets = new JsonArray();
-            for (TelemetryPacket packet : tick.packets) {
-                JsonObject p = new JsonObject();
-                p.add("data", gson.toJsonTree(packet).getAsJsonObject().get("data"));
-                p.add("ops", gson.toJsonTree(packet.fieldOverlay().getOperations()));
-                packets.add(p);
-            }
-            t.add("packets", packets);
-            ticks.add(t);
+            ticks.add(tickJson(tick));
         }
         // Gson escapes '<' and '>' so the JSON is safe inside a <script> element.
         return ticks;

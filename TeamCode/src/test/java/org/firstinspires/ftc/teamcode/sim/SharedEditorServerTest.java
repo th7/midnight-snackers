@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -38,9 +39,14 @@ public class SharedEditorServerTest {
 
     private SharedEditorServer server() {
         if (server == null) {
-            server = SharedEditorServer.start(folder.getRoot().toPath(), SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class),
-                    InetAddress.getLoopbackAddress(), 0, 0, folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS);
+            serverWith(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
+                    folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 1));
         }
+        return server;
+    }
+
+    private SharedEditorServer serverWith(SimBench bench) {
+        server = SharedEditorServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0);
         return server;
     }
 
@@ -520,6 +526,54 @@ public class SharedEditorServerTest {
     }
 
     @Test
+    public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
+        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2));
+        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
+        String cookie = approvedUser("ada");
+        assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
+
+        String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(4), version)).status);
+        Reply started = user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, cookie);
+
+        assertEquals(started.body, 200, started.status);
+        String status = awaitSimStatus(cookie, "\"outcome\":\"done\"");
+        assertTrue(status, status.contains("\"loops\":4"));
+        assertTrue(status, status.contains("\"phase\":\"finished\""));
+        assertTrue(status, status.contains("\"message\":null"));
+    }
+
+    @Test
+    public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
+        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "));
+        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String cookie = approvedUser("ada");
+
+        Reply catalog = user("GET", "/sim/catalog", cookie);
+        assertEquals(500, catalog.status);
+        assertTrue(catalog.body, catalog.body.contains("TempAuto.java:8"));
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, cookie).status);
+        String status = awaitSimStatus(cookie, "\"outcome\":\"build failed\"");
+        assertTrue(status, status.contains("TempAuto.java:8"));
+    }
+
+    @Test
+    public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
+        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        String cookie = approvedUser("ada");
+        String id = json(user("POST", "/sim/run?opmode=" + TestAutos.ChattyAuto.class.getName(), cookie).body).get("id").getAsString();
+        awaitSimStatus(cookie, "\"outcome\":\"done\"");
+
+        Reply log = user("GET", "/sim/runs/" + id + "/log", cookie);
+
+        assertEquals(200, log.status);
+        assertTrue(log.body, log.body.contains("hello from the op mode"));
+        assertEquals(403, user("GET", "/sim/runs/" + id + "/log", null).status);
+    }
+
+    @Test
     public void theDashboardHasEditAndSimulateTabs() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
 
@@ -535,8 +589,24 @@ public class SharedEditorServerTest {
         assertTrue(page, page.contains("'/sim/status'"));
         assertTrue(page, page.contains("'/sim/runs/'"));
         assertTrue(page, page.contains("location.hash"));
-        assertTrue(page, page.contains("started with"));
         assertHiddenWins(page);
+    }
+
+    @Test
+    public void theSimulateTabShowsBuildingAndTheRunsMessageAndRefreshesTheCatalog() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("run.phase === 'building'"));
+        assertTrue(page, page.contains("run.message"));
+        assertTrue(page, page.contains("id=\"run-message\""));
+        assertTrue(page, page.contains("as last saved"));
+        assertFalse(page, page.contains("started with"));
+        // the catalog is fetched every time the tab opens and again when a run ends, never cached for the page's life
+        assertTrue(page, page.split("fetch\\('/sim/catalog'\\)").length - 1 >= 1);
+        assertTrue(page, page.contains("loadCatalog()"));
+        assertTrue(page, page.contains("wasRunning && !running"));
     }
 
     /**
