@@ -35,11 +35,11 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
- * The shared editor: teammates on the LAN log in with a username, the person at this machine
+ * The coding server: teammates on the LAN log in with a username, the person at this machine
  * approves them from a page only this machine can reach, and approved teammates edit the files
  * the admin has picked, with every edit written straight to disk.
  * <pre>
- * ./gradlew :TeamCode:editorServer
+ * ./gradlew :TeamCode:codingServer
  *     admin  http://localhost:21987/admin     (loopback only)
  *     users  http://&lt;this machine's LAN address&gt;:21986/
  * </pre>
@@ -49,9 +49,9 @@ import java.util.stream.Stream;
  * Sessions live in memory: restarting the server logs everyone out, and no token is ever written
  * to disk.
  */
-public final class SharedEditorServer {
-    public static final String ADMIN_PORT_ENV = "EDITOR_ADMIN_PORT";
-    public static final String USER_PORT_ENV = "EDITOR_USER_PORT";
+public final class CodingServer {
+    public static final String ADMIN_PORT_ENV = "CODING_ADMIN_PORT";
+    public static final String USER_PORT_ENV = "CODING_USER_PORT";
     public static final int DEFAULT_ADMIN_PORT = 21987;
     public static final int DEFAULT_USER_PORT = 21986;
     public static final int MAX_PENDING_LOGINS = 20;
@@ -92,19 +92,19 @@ public final class SharedEditorServer {
      */
     private final TreeSet<String> editable = new TreeSet<>();
 
-    private SharedEditorServer(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort) {
+    private CodingServer(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort) {
         this.root = root.toAbsolutePath().normalize();
         this.bench = bench;
-        this.admin = TinyHttpServer.start(adminBind, adminPort, "editor-admin", this::handleAdmin);
-        this.users = TinyHttpServer.start(userPort, "editor-users", this::handleUser);
+        this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", this::handleAdmin);
+        this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
     }
 
     /**
      * @param adminBind the one address the admin listener answers on; {@link #main} always passes
      *                  loopback, and this is a parameter only so a test can prove the property
      */
-    public static SharedEditorServer start(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort) {
-        return new SharedEditorServer(root, bench, adminBind, adminPort, userPort);
+    public static CodingServer start(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort) {
+        return new CodingServer(root, bench, adminBind, adminPort, userPort);
     }
 
     /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
@@ -113,9 +113,9 @@ public final class SharedEditorServer {
         SimBench bench = new SimBench(null, root.resolve("TeamCode/src/main/java"),
                 root.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS, SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
-        SharedEditorServer server = start(root, bench, InetAddress.getLoopbackAddress(),
+        CodingServer server = start(root, bench, InetAddress.getLoopbackAddress(),
                 port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT));
-        System.out.println("Shared editor");
+        System.out.println("Coding server");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
         System.out.println("  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
         Thread.currentThread().join();
@@ -595,9 +595,9 @@ public final class SharedEditorServer {
     // --- pages ---
 
     private static String page(String name) {
-        try (InputStream in = SharedEditorServer.class.getResourceAsStream(name)) {
+        try (InputStream in = CodingServer.class.getResourceAsStream(name)) {
             if (in == null) {
-                throw new IllegalStateException("missing resource " + name + " next to " + SharedEditorServer.class.getName());
+                throw new IllegalStateException("missing resource " + name + " next to " + CodingServer.class.getName());
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

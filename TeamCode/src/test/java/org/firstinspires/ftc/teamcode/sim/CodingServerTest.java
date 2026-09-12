@@ -29,15 +29,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-public class SharedEditorServerTest {
+public class CodingServerTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     private static final double RUN_TIMEOUT_SECONDS = 0.3;
 
-    private SharedEditorServer server;
+    private CodingServer server;
 
-    private SharedEditorServer server() {
+    private CodingServer server() {
         if (server == null) {
             serverWith(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
                     folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 1));
@@ -45,8 +45,8 @@ public class SharedEditorServerTest {
         return server;
     }
 
-    private SharedEditorServer serverWith(SimBench bench) {
-        server = SharedEditorServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0);
+    private CodingServer serverWith(SimBench bench) {
+        server = CodingServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0);
         return server;
     }
 
@@ -139,7 +139,7 @@ public class SharedEditorServerTest {
 
     @Test
     public void tooManyPendingLoginsAreRefused() throws IOException {
-        for (int i = 0; i < SharedEditorServer.MAX_PENDING_LOGINS; i++) {
+        for (int i = 0; i < CodingServer.MAX_PENDING_LOGINS; i++) {
             assertEquals(200, user("POST", "/login?username=user" + i, null).status);
         }
 

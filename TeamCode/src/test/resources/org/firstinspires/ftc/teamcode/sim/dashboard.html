@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shared Editor</title>
+<title>Coding Server</title>
 <style>
   :root {
     color-scheme: light;
@@ -102,7 +102,7 @@
 </head>
 <body>
 <header>
-  <h1>Shared editor</h1>
+  <h1>Coding server</h1>
   <nav role="tablist">
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
@@ -501,7 +501,7 @@
         if (status) { renderStatus(status); }
         if (msg.textContent.indexOf('Lost') === 0) { msg.textContent = ''; }
       }).catch(function () {
-        msg.textContent = 'Lost the host. Ask the admin to restart ./gradlew :TeamCode:editorServer';
+        msg.textContent = 'Lost the host. Ask the admin to restart ./gradlew :TeamCode:codingServer';
       }).then(function () {
         pollTimer = setTimeout(poll, running ? 500 : 2000);
       });
