@@ -12,9 +12,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -56,6 +62,8 @@ public final class SharedEditorServer {
         final InetAddress address;
         final long createdAtMillis = System.currentTimeMillis();
         State state = State.PENDING;
+        /** The editable key this session last fetched, so others can see who has a file open. */
+        String openFile;
 
         Session(int id, String token, String username, InetAddress address) {
             this.id = id;
@@ -155,8 +163,14 @@ public final class SharedEditorServer {
                 if (!editable.contains(key)) {
                     return Response.error(404, "not an editable file: " + key);
                 }
+                if (request.method.equals("GET")) {
+                    return read(session, key);
+                }
+                if (request.method.equals("PUT")) {
+                    return write(key, request.body);
+                }
             }
-            return Response.error(404, "not implemented yet: " + key);
+            return Response.error(405, "GET or PUT /files/<path>");
         }
         return Response.error(404, "not found: " + request.path);
     }
@@ -167,13 +181,124 @@ public final class SharedEditorServer {
             JsonObject item = new JsonObject();
             item.addProperty("path", path);
             if (withEditors) {
-                item.add("editors", new JsonArray());
+                JsonArray editors = new JsonArray();
+                for (Session session : sessions.values()) {
+                    if (session.state == State.APPROVED && path.equals(session.openFile)) {
+                        editors.add(session.username);
+                    }
+                }
+                item.add("editors", editors);
             }
             list.add(item);
         }
         JsonObject body = new JsonObject();
         body.add("files", list);
         return body;
+    }
+
+    // --- read, write, conflict ---
+
+    /** The file's text and version, or the response explaining why it has none. */
+    private static final class Current {
+        final String content;
+        final String version;
+        final Response problem;
+
+        Current(String content, String version) {
+            this.content = content;
+            this.version = version;
+            this.problem = null;
+        }
+
+        Current(Response problem) {
+            this.content = null;
+            this.version = null;
+            this.problem = problem;
+        }
+    }
+
+    private Current current(String key) {
+        byte[] bytes;
+        try {
+            bytes = Files.readAllBytes(root.resolve(key));
+        } catch (IOException e) {
+            return new Current(Response.error(404, "could not read " + key + ": " + e.getMessage()));
+        }
+        try {
+            String content = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes)).toString();
+            return new Current(content, version(bytes));
+        } catch (CharacterCodingException e) {
+            return new Current(Response.error(415, key + " is not UTF-8 text, so it cannot be edited here"));
+        }
+    }
+
+    /** The version of a file is the SHA-256 of its bytes: stateless, and it notices edits made outside the server. */
+    static String version(byte[] bytes) {
+        try {
+            StringBuilder hex = new StringBuilder();
+            for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes)) {
+                hex.append(Character.forDigit((b >> 4) & 0xf, 16)).append(Character.forDigit(b & 0xf, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private Response read(Session session, String key) {
+        Current current = current(key);
+        if (current.problem != null) {
+            return current.problem;
+        }
+        session.openFile = key;
+        JsonObject body = new JsonObject();
+        body.addProperty("path", key);
+        body.addProperty("content", current.content);
+        body.addProperty("version", current.version);
+        return Response.json(GSON.toJson(body));
+    }
+
+    private Response write(String key, String requestBody) {
+        JsonObject edit;
+        try {
+            edit = GSON.fromJson(requestBody, JsonObject.class);
+        } catch (RuntimeException e) {
+            edit = null;
+        }
+        if (edit == null || !edit.has("content") || !edit.has("baseVersion")) {
+            return Response.error(400, "PUT a JSON body with content and baseVersion");
+        }
+        Current current = current(key);
+        if (current.problem != null) {
+            return current.problem;
+        }
+        if (!current.version.equals(edit.get("baseVersion").getAsString())) {
+            JsonObject body = new JsonObject();
+            body.addProperty("path", key);
+            body.addProperty("content", current.content);
+            body.addProperty("version", current.version);
+            return Response.json(409, GSON.toJson(body));
+        }
+        byte[] bytes = edit.get("content").getAsString().getBytes(StandardCharsets.UTF_8);
+        Path target = root.resolve(key);
+        try {
+            Path temp = Files.createTempFile(target.getParent(), "." + target.getFileName(), ".editing");
+            try {
+                Files.write(temp, bytes);
+                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+        } catch (IOException e) {
+            return Response.error(500, "could not write " + key + ": " + e.getMessage());
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("path", key);
+        body.addProperty("version", version(bytes));
+        return Response.json(GSON.toJson(body));
     }
 
     private Response login(Request request) {
@@ -352,6 +477,7 @@ public final class SharedEditorServer {
             item.addProperty("address", session.address == null ? "" : session.address.getHostAddress());
             item.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
             item.addProperty("ageSeconds", (now - session.createdAtMillis) / 1000);
+            item.addProperty("file", session.openFile);
             list.add(item);
         }
         JsonObject root = new JsonObject();

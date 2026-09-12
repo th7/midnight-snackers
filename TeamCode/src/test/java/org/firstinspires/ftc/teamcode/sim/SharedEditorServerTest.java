@@ -1,8 +1,12 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -18,6 +22,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 public class SharedEditorServerTest {
     @Rule
@@ -217,6 +224,165 @@ public class SharedEditorServerTest {
         assertEquals(404, user("GET", "/admin/files", cookie).status);
     }
 
+    // --- read, write, conflict ---
+
+    private String approvedEditorOf(String... files) throws IOException {
+        folder.newFolder("TeamCode");
+        for (String file : files) {
+            folder.newFile("TeamCode/" + file);
+            assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/" + file).status);
+        }
+        String cookie = login("ada");
+        admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+        return cookie;
+    }
+
+    private Path file(String name) {
+        return folder.getRoot().toPath().resolve("TeamCode").resolve(name);
+    }
+
+    private static String sha256(byte[] bytes) throws IOException {
+        try {
+            StringBuilder hex = new StringBuilder();
+            for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes)) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
+    }
+
+    private static JsonObject json(String body) {
+        return new Gson().fromJson(body, JsonObject.class);
+    }
+
+    private static String edit(String content, String baseVersion) {
+        JsonObject body = new JsonObject();
+        body.addProperty("content", content);
+        body.addProperty("baseVersion", baseVersion);
+        return body.toString();
+    }
+
+    @Test
+    public void readingAFileReturnsItsContentAndAVersionThatIsItsHash() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        byte[] bytes = "class Plans {}\n".getBytes(StandardCharsets.UTF_8);
+        Files.write(file("Plans.java"), bytes);
+
+        Reply read = user("GET", "/files/TeamCode/Plans.java", cookie);
+
+        assertEquals(200, read.status);
+        JsonObject json = json(read.body);
+        assertEquals("class Plans {}\n", json.get("content").getAsString());
+        assertEquals(sha256(bytes), json.get("version").getAsString());
+        assertEquals("TeamCode/Plans.java", json.get("path").getAsString());
+    }
+
+    @Test
+    public void anEditFromTheCurrentVersionIsWrittenToDisk() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        Files.write(file("Plans.java"), "old".getBytes(StandardCharsets.UTF_8));
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+
+        Reply written = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("new content\n", version));
+
+        assertEquals(written.body, 200, written.status);
+        assertEquals("new content\n", new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(sha256("new content\n".getBytes(StandardCharsets.UTF_8)),
+                json(written.body).get("version").getAsString());
+    }
+
+    @Test
+    public void anEditFromAStaleVersionIsRefusedWithTheCurrentContent() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        Files.write(file("Plans.java"), "on disk".getBytes(StandardCharsets.UTF_8));
+
+        Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("mine", sha256("something else".getBytes(StandardCharsets.UTF_8))));
+
+        assertEquals(409, refused.status);
+        JsonObject json = json(refused.body);
+        assertEquals("on disk", json.get("content").getAsString());
+        assertEquals(sha256("on disk".getBytes(StandardCharsets.UTF_8)), json.get("version").getAsString());
+        assertEquals("on disk", new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void aChangeMadeOnTheHostBetweenReadAndWriteIsAConflict() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        Files.write(file("Plans.java"), "v1".getBytes(StandardCharsets.UTF_8));
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        Files.write(file("Plans.java"), "v2 from the IDE".getBytes(StandardCharsets.UTF_8));
+
+        Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("v2 from the browser", version));
+
+        assertEquals(409, refused.status);
+        assertEquals("v2 from the IDE", new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void writesLeaveNoTemporaryFilesAndKeepLineEndings() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        Files.write(file("Plans.java"), "a\r\nb\r\n".getBytes(StandardCharsets.UTF_8));
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+
+        Reply written = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("a\r\nb\r\nc", version));
+
+        assertEquals(200, written.status);
+        assertArrayEquals("a\r\nb\r\nc".getBytes(StandardCharsets.UTF_8), Files.readAllBytes(file("Plans.java")));
+        assertEquals("[Plans.java]", Arrays.toString(file("Plans.java").getParent().toFile().list()));
+    }
+
+    @Test
+    public void anOversizedEditIsRefused() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+
+        Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("x".repeat(TinyHttpServer.MAX_BODY_BYTES + 1), version));
+
+        assertEquals(413, refused.status);
+        assertEquals(0, Files.size(file("Plans.java")));
+    }
+
+    @Test
+    public void aFileThatIsNotUtf8IsListedButNotEditable() throws IOException {
+        String cookie = approvedEditorOf("logo.bin");
+        Files.write(file("logo.bin"), new byte[]{(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3});
+
+        assertTrue(user("GET", "/files", cookie).body.contains("\"path\":\"TeamCode/logo.bin\""));
+        assertEquals(415, user("GET", "/files/TeamCode/logo.bin", cookie).status);
+        assertEquals(415, user("PUT", "/files/TeamCode/logo.bin", cookie, edit("text", "whatever")).status);
+        assertArrayEquals(new byte[]{(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3}, Files.readAllBytes(file("logo.bin")));
+    }
+
+    @Test
+    public void onlyApprovedSessionsReadOrWrite() throws IOException {
+        approvedEditorOf("Plans.java");
+        String pending = login("bob");
+
+        assertEquals(403, user("GET", "/files/TeamCode/Plans.java", pending).status);
+        assertEquals(403, user("PUT", "/files/TeamCode/Plans.java", pending, edit("x", "y")).status);
+        assertEquals(403, user("PUT", "/files/TeamCode/Plans.java", null, edit("x", "y")).status);
+        assertEquals(0, Files.size(file("Plans.java")));
+    }
+
+    @Test
+    public void theListShowsWhoHasEachFileOpen() throws IOException {
+        String ada = approvedEditorOf("Plans.java", "Drive.java");
+        String bob = login("bob");
+        admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
+        user("GET", "/files/TeamCode/Plans.java", ada);
+        user("GET", "/files/TeamCode/Plans.java", bob);
+        user("GET", "/files/TeamCode/Drive.java", bob);
+
+        String files = user("GET", "/files", ada).body;
+
+        assertTrue(files, files.contains("{\"path\":\"TeamCode/Drive.java\",\"editors\":[\"bob\"]}"));
+        assertTrue(files, files.contains("{\"path\":\"TeamCode/Plans.java\",\"editors\":[\"ada\"]}"));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"approved\",\"ageSeconds\":0,\"file\":\"TeamCode/Drive.java\""));
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {
@@ -240,6 +406,10 @@ public class SharedEditorServerTest {
 
     private Reply user(String method, String path, String cookie) throws IOException {
         return request(server().userUrl(), method, path, cookie, null);
+    }
+
+    private Reply user(String method, String path, String cookie, String body) throws IOException {
+        return request(server().userUrl(), method, path, cookie, body);
     }
 
     private Reply admin(String method, String path) throws IOException {
