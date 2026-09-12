@@ -682,6 +682,67 @@ public class CodingServerTest {
         assertTrue(page, page.contains("wasRunning && !running"));
     }
 
+    // --- the editor: CodeMirror, served from the host because the robot's wifi has no internet ---
+
+    @Test
+    public void theEditorBundleIsServedFromTheHostToAnyoneOnTheUserPort() throws IOException {
+        Reply bundle = user("GET", "/static/codemirror.js", null);
+
+        assertEquals(200, bundle.status);
+        assertTrue(bundle.header("Content-Type"), bundle.header("Content-Type").startsWith("application/javascript"));
+        assertTrue(bundle.body.contains("window.CM"));
+        assertTrue("a real bundle, not a stub: " + bundle.body.length() + " bytes", bundle.body.length() > 100_000);
+    }
+
+    @Test
+    public void theStaticRouteServesOnlyTheBundle() throws IOException {
+        assertEquals(404, user("GET", "/static/nope.js", null).status);
+        assertEquals(404, user("GET", "/static/dashboard.html", null).status);
+        assertEquals(404, user("GET", "/static/admin.html", null).status);
+        assertEquals(404, user("GET", "/static/../CodingServer.class", null).status);
+        assertEquals(404, user("GET", "/static/", null).status);
+        assertEquals(404, admin("GET", "/static/codemirror.js").status);
+    }
+
+    @Test
+    public void theDashboardEditsInCodeMirrorAndShowsTheProblemsAsDiagnostics() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("<script src=\"/static/codemirror.js\"></script>"));
+        assertTrue(page, page.contains("id=\"editor\""));
+        assertFalse("the textarea is gone", page.contains("<textarea"));
+        assertTrue(page, page.contains("new CM.EditorView("));
+        assertTrue(page, page.contains("CM.java()"));
+        assertTrue(page, page.contains("CM.setDiagnostics("));
+        assertTrue(page, page.contains("CM.lintGutter()"));
+        assertTrue("Ctrl-S / Cmd-S saves now", page.contains("key: 'Mod-s'"));
+        assertTrue("Tab indents inside the editor", page.contains("CM.indentWithTab"));
+        assertTrue(page, page.contains("CM.oneDark"));
+    }
+
+    /** The page only ever reaches the bundle through {@code CM.<name>}; each such name must be one the bundle exports. */
+    @Test
+    public void everyEditorNameThePageUsesIsInTheBundle() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String page = user("GET", "/", cookie).body;
+        String bundle = user("GET", "/static/codemirror.js", null).body;
+        String exports = bundle.substring(bundle.indexOf("window.CM="));
+        exports = exports.substring(0, exports.indexOf("}") + 1);
+
+        java.util.regex.Matcher names = java.util.regex.Pattern.compile("\\bCM\\.(\\w+)").matcher(page);
+        java.util.Set<String> used = new java.util.TreeSet<>();
+        while (names.find()) {
+            used.add(names.group(1));
+        }
+
+        assertTrue("the page uses the editor: " + used, used.size() >= 5);
+        for (String name : used) {
+            assertTrue(name + " is not exported by the bundle: " + exports, exports.matches("(?s).*\\b" + name + ":.*"));
+        }
+    }
+
     /**
      * Every page toggles elements with the {@code hidden} attribute, and any author
      * {@code display:} rule on the same element silently beats it unless the page says otherwise.
