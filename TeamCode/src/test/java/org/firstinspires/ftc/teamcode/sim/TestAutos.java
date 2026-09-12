@@ -28,6 +28,38 @@ public final class TestAutos {
         }
     }
 
+    /**
+     * An auto that prints to System.out from its step, the way student code does.
+     */
+    @Autonomous(name = "Chatty", group = "Test")
+    public static class ChattyAuto extends RelativeAutoOp {
+        private int loops = 0;
+
+        @Override
+        public PlanPart getPlan() {
+            return new Step("chat", () -> System.out.println("hello from the op mode"), () -> ++loops >= 2);
+        }
+    }
+
+    /**
+     * An auto whose loop never returns, so no cooperative timeout can end it.
+     */
+    @Autonomous(name = "Hangs", group = "Test")
+    public static class HangingAuto extends RelativeAutoOp {
+        @Override
+        public PlanPart getPlan() {
+            return new Step("hang", () -> {
+                while (true) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        // keep hanging: the point is that nothing in-process can stop this
+                    }
+                }
+            }, () -> false);
+        }
+    }
+
     @Autonomous(name = "Never done", group = "Test")
     public static class NeverDoneAuto extends RelativeAutoOp {
         @Override

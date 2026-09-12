@@ -9,6 +9,9 @@ import org.firstinspires.ftc.teamcode.auto.ForwardLeftBackwardRight;
 import org.firstinspires.ftc.teamcode.base.AutoOp;
 import org.junit.Test;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -46,5 +49,25 @@ public class SimCatalogTest {
         assertTrue(first instanceof ForwardLeftBackwardRight);
         assertTrue(first != second);
         assertFalse(catalog.find("org.example.Nope").isPresent());
+        assertEquals(ForwardLeftBackwardRight.class.getName(), entry.get().className);
+    }
+
+    @Test
+    public void anEntryParsedFromJsonHasAClassNameButNoTypeToBuild() {
+        JsonArray json = new Gson().fromJson("[{\"name\":\"Fresh\",\"group\":\"New\",\"opMode\":\"org.example.FreshAuto\"}]", JsonArray.class);
+
+        SimCatalog parsed = SimCatalog.fromJson(json);
+
+        SimCatalog.Entry entry = parsed.find("org.example.FreshAuto").get();
+        assertEquals("Fresh", entry.name);
+        assertEquals("New", entry.group);
+        assertEquals("org.example.FreshAuto", entry.className);
+        assertEquals(null, entry.type);
+        try {
+            entry.create();
+            assertTrue("an entry from another JVM cannot be built here", false);
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("org.example.FreshAuto"));
+        }
     }
 }
