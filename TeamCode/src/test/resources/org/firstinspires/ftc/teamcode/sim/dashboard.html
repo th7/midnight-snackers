@@ -74,7 +74,11 @@
   #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #files .editors { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 8px 20px; }
-  .stage { display: grid; grid-template-rows: auto auto 1fr; min-height: 0; }
+  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
+  /* explicit rows: a hidden message must not let the stage slide up into its auto-sized row */
+  .stage > .stage-head { grid-row: 1; }
+  .stage > #run-message { grid-row: 2; }
+  .stage > #editor, .stage > #stage, .stage > .stage-empty { grid-row: 3; }
   .stage-head { display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 1px solid var(--line); min-height: 44px; flex-wrap: wrap; }
   .stage-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
   .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
