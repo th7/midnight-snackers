@@ -13,12 +13,17 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 
 /**
  * The shared editor: teammates on the LAN log in with a username, the person at this machine
@@ -66,6 +71,11 @@ public final class SharedEditorServer {
     private final SecureRandom random = new SecureRandom();
     private final Map<String, Session> sessions = new LinkedHashMap<>();
     private int nextSessionId = 1;
+    /**
+     * Root-relative paths with '/' separators, exactly as users must name them. A user-supplied
+     * path is only ever looked up here by exact match, never resolved against the filesystem.
+     */
+    private final TreeSet<String> editable = new TreeSet<>();
 
     private SharedEditorServer(Path root, InetAddress adminBind, int adminPort, int userPort) {
         this.root = root.toAbsolutePath().normalize();
@@ -133,15 +143,37 @@ public final class SharedEditorServer {
         if (request.path.equals("/me")) {
             return Response.json(GSON.toJson(me(session)));
         }
-        if (request.path.equals("/files")) {
+        if (request.path.equals("/files") || request.path.startsWith("/files/")) {
             if (session == null || session.state != State.APPROVED) {
                 return Response.error(403, "not an approved session");
             }
-            JsonObject body = new JsonObject();
-            body.add("files", new JsonArray());
-            return Response.json(GSON.toJson(body));
+            if (request.path.equals("/files")) {
+                return Response.json(GSON.toJson(fileList(true)));
+            }
+            String key = request.path.substring("/files/".length());
+            synchronized (this) {
+                if (!editable.contains(key)) {
+                    return Response.error(404, "not an editable file: " + key);
+                }
+            }
+            return Response.error(404, "not implemented yet: " + key);
         }
         return Response.error(404, "not found: " + request.path);
+    }
+
+    private synchronized JsonObject fileList(boolean withEditors) {
+        JsonArray list = new JsonArray();
+        for (String path : editable) {
+            JsonObject item = new JsonObject();
+            item.addProperty("path", path);
+            if (withEditors) {
+                item.add("editors", new JsonArray());
+            }
+            list.add(item);
+        }
+        JsonObject body = new JsonObject();
+        body.add("files", list);
+        return body;
     }
 
     private Response login(Request request) {
@@ -214,7 +246,100 @@ public final class SharedEditorServer {
             }
             return Response.error(404, "POST /admin/logins/<id>/approve|deny|revoke");
         }
+        if (request.path.equals("/admin/tree")) {
+            return tree(request.query("dir"));
+        }
+        if (request.path.equals("/admin/files")) {
+            return Response.json(GSON.toJson(fileList(false)));
+        }
+        if (request.path.equals("/admin/files/add") || request.path.equals("/admin/files/remove")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST " + request.path + "?path=<root-relative path>");
+            }
+            return request.path.endsWith("add") ? addEditable(request.query("path")) : removeEditable(request.query("path"));
+        }
         return Response.error(404, "not found: " + request.path);
+    }
+
+    // --- the editable set ---
+
+    /**
+     * The directory or file at a root-relative path, or null when the path is absolute, climbs
+     * out of the root, follows a symlink out of it, or does not exist.
+     */
+    private Path underRoot(String relative) {
+        if (relative == null) {
+            relative = "";
+        }
+        if (relative.startsWith("/") || relative.startsWith("\\") || relative.contains(":")) {
+            return null;
+        }
+        Path path = root.resolve(relative).normalize();
+        if (!path.startsWith(root) || !Files.exists(path)) {
+            return null;
+        }
+        try {
+            if (!path.toRealPath().startsWith(root.toRealPath())) {
+                return null;
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return path;
+    }
+
+    private String keyOf(Path path) {
+        return root.relativize(path).toString().replace('\\', '/');
+    }
+
+    private Response tree(String dir) {
+        Path directory = underRoot(dir);
+        if (directory == null || !Files.isDirectory(directory)) {
+            return Response.error(400, "not a directory under the project root: " + dir);
+        }
+        List<Path> children = new ArrayList<>();
+        try (Stream<Path> listing = Files.list(directory)) {
+            listing.forEach(children::add);
+        } catch (IOException e) {
+            return Response.error(400, "could not list " + dir + ": " + e.getMessage());
+        }
+        children.sort((a, b) -> {
+            boolean da = Files.isDirectory(a);
+            boolean db = Files.isDirectory(b);
+            return da != db ? (da ? -1 : 1) : a.getFileName().toString().compareTo(b.getFileName().toString());
+        });
+        JsonArray entries = new JsonArray();
+        for (Path child : children) {
+            JsonObject item = new JsonObject();
+            item.addProperty("name", child.getFileName().toString());
+            item.addProperty("type", Files.isDirectory(child) ? "dir" : "file");
+            item.addProperty("path", keyOf(child));
+            entries.add(item);
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("dir", directory.equals(root) ? "" : keyOf(directory));
+        body.add("entries", entries);
+        return Response.json(GSON.toJson(body));
+    }
+
+    private Response addEditable(String relative) {
+        Path file = underRoot(relative);
+        if (file == null || !Files.isRegularFile(file)) {
+            return Response.error(400, "not a file under the project root: " + relative);
+        }
+        synchronized (this) {
+            editable.add(keyOf(file));
+        }
+        return Response.json(GSON.toJson(fileList(false)));
+    }
+
+    private Response removeEditable(String key) {
+        synchronized (this) {
+            if (key == null || !editable.remove(key)) {
+                return Response.error(404, "not an editable file: " + key);
+            }
+        }
+        return Response.json(GSON.toJson(fileList(false)));
     }
 
     private synchronized String logins() {

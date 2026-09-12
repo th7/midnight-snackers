@@ -16,6 +16,8 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class SharedEditorServerTest {
     @Rule
@@ -145,6 +147,74 @@ public class SharedEditorServerTest {
         assertEquals(404, user("GET", "/admin/logins", cookie).status);
         assertEquals(404, user("POST", "/admin/logins/1/approve", cookie).status);
         assertEquals(404, user("GET", "/admin/tree", cookie).status);
+    }
+
+    // --- the editable set ---
+
+    @Test
+    public void theTreeStaysUnderTheRoot() throws IOException {
+        folder.newFolder("TeamCode");
+        folder.newFile("TeamCode/Plans.java");
+        Path outside = Files.createTempDirectory("editor-outside");
+        try {
+            Files.write(outside.resolve("secret.txt"), "shh".getBytes(StandardCharsets.UTF_8));
+            Files.createSymbolicLink(folder.getRoot().toPath().resolve("escape"), outside);
+
+            assertEquals(400, admin("GET", "/admin/tree?dir=..").status);
+            assertEquals(400, admin("GET", "/admin/tree?dir=" + outside.toAbsolutePath()).status);
+            assertEquals(400, admin("GET", "/admin/tree?dir=escape").status);
+            assertEquals(400, admin("GET", "/admin/tree?dir=TeamCode/../..").status);
+            assertEquals(400, admin("POST", "/admin/files/add?path=escape/secret.txt").status);
+            assertEquals(400, admin("POST", "/admin/files/add?path=../secret.txt").status);
+            assertEquals("{\"files\":[]}", admin("GET", "/admin/files").body);
+        } finally {
+            Files.deleteIfExists(outside.resolve("secret.txt"));
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    @Test
+    public void theTreeListsFilesAndDirectoriesUnderTheRoot() throws IOException {
+        folder.newFolder("TeamCode", "src");
+        folder.newFile("TeamCode/build.gradle");
+        folder.newFile("README.md");
+
+        Reply top = admin("GET", "/admin/tree");
+        Reply sub = admin("GET", "/admin/tree?dir=TeamCode");
+
+        assertEquals(200, top.status);
+        assertTrue(top.body, top.body.contains("{\"name\":\"README.md\",\"type\":\"file\",\"path\":\"README.md\"}"));
+        assertTrue(top.body, top.body.contains("{\"name\":\"TeamCode\",\"type\":\"dir\",\"path\":\"TeamCode\"}"));
+        assertTrue(sub.body, sub.body.contains("{\"name\":\"build.gradle\",\"type\":\"file\",\"path\":\"TeamCode/build.gradle\"}"));
+        assertTrue(sub.body, sub.body.contains("{\"name\":\"src\",\"type\":\"dir\",\"path\":\"TeamCode/src\"}"));
+        assertEquals(400, admin("GET", "/admin/tree?dir=TeamCode/build.gradle").status);
+        assertEquals(400, admin("GET", "/admin/tree?dir=nope").status);
+    }
+
+    @Test
+    public void usersSeeExactlyTheFilesTheAdminPicked() throws IOException {
+        folder.newFolder("TeamCode");
+        folder.newFile("TeamCode/Plans.java");
+        folder.newFile("TeamCode/Drive.java");
+        folder.newFile("TeamCode/Secret.java");
+        String cookie = login("ada");
+        admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+
+        assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Plans.java").status);
+        assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Drive.java").status);
+        assertEquals(400, admin("POST", "/admin/files/add?path=TeamCode").status);
+        assertEquals(400, admin("POST", "/admin/files/add?path=TeamCode/Missing.java").status);
+        assertEquals(200, admin("POST", "/admin/files/remove?path=TeamCode/Drive.java").status);
+
+        Reply files = user("GET", "/files", cookie);
+        assertEquals(200, files.status);
+        assertTrue(files.body, files.body.contains("\"path\":\"TeamCode/Plans.java\""));
+        assertTrue(files.body, !files.body.contains("Drive.java"));
+        assertTrue(files.body, !files.body.contains("Secret.java"));
+        assertEquals(404, user("GET", "/files/TeamCode/Secret.java", cookie).status);
+        assertEquals(404, user("GET", "/files/TeamCode/Drive.java", cookie).status);
+        assertEquals(404, user("GET", "/files/TeamCode/../TeamCode/Plans.java", cookie).status);
+        assertEquals(404, user("GET", "/admin/files", cookie).status);
     }
 
     // --- helpers ---
