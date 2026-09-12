@@ -40,6 +40,8 @@ dependencies {
 
     testImplementation "junit:junit:4.13.2"
     testImplementation "com.google.code.gson:gson:2.11.0"
+    // scrypt, for the coding server's session store
+    testImplementation "org.bouncycastle:bcprov-jdk18on:1.79"
 }
 
 // The simulation bench: a dev server that runs the autonomous op modes on the simulated robot
@@ -57,18 +59,18 @@ afterEvaluate {
         workingDir = projectDir
     }
 
-    // The shared editor: teammates on the LAN edit the files the admin picks, after the admin
+    // The coding server: teammates on the LAN edit the files the admin picks, after the admin
     // approves them from a page only this machine can reach.
-    //   ./gradlew :TeamCode:editorServer
+    //   ./gradlew :TeamCode:codingServer
     //       admin  http://localhost:21987/admin   users  http://<LAN address>:21986/
-    //   (EDITOR_ADMIN_PORT and EDITOR_USER_PORT override the port numbers)
-    tasks.register('editorServer', JavaExec) {
+    //   (CODING_ADMIN_PORT and CODING_USER_PORT override the port numbers)
+    tasks.register('codingServer', JavaExec) {
         group = 'simulation'
-        description = 'Serve the shared editor: admin on http://localhost:21987/admin, users on port 21986'
+        description = 'Serve the coding server: admin on http://localhost:21987/admin, users on port 21986'
         def unitTest = tasks.named('testDebugUnitTest').get()
         dependsOn unitTest.taskDependencies
         classpath = unitTest.classpath
-        mainClass = 'org.firstinspires.ftc.teamcode.sim.SharedEditorServer'
+        mainClass = 'org.firstinspires.ftc.teamcode.sim.CodingServer'
         workingDir = rootDir
     }
 }

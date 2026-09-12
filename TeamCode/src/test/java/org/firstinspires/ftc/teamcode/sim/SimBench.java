@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * The bench core shared by the simulation bench and the shared editor's Simulate tab: the
+ * The bench core shared by the simulation bench and the coding server's Simulate tab: the
  * catalog of runnable autonomous op modes, the runs so far, and the routes that start a run and
  * follow it. One run at a time, whoever asks.
  * <p>
