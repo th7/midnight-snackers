@@ -83,6 +83,11 @@
   .git #git-result.ok { color: var(--ok); }
   .git #git-result.bad { color: var(--bad); }
   .git #git-result.warn { color: var(--warn); }
+  /* the Pull button pulses, and wears the count, while develop has commits this branch lacks */
+  .git .badge { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
+  @keyframes pull-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--warn-soft); } 50% { box-shadow: 0 0 0 7px var(--warn-soft); } }
+  .git button.behind { border-color: var(--warn); animation: pull-pulse 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .git button.behind { animation: none; } }
   .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; }
   /* explicit rows: a hidden message must not let the stage slide up into its auto-sized row */
   .stage > .stage-head { grid-row: 1; }
@@ -130,6 +135,7 @@
       <div id="changed">…</div>
       <div class="buttons">
         <button id="commit" type="button" disabled>Commit</button>
+        <button id="pull" type="button" title="Bring develop into your branch">Pull</button>
       </div>
       <div id="git-result" role="status"></div>
     </div>
@@ -436,8 +442,10 @@
   var git = (function () {
     var changedEl = document.getElementById('changed');
     var commitButton = document.getElementById('commit');
+    var pullButton = document.getElementById('pull');
     var resultEl = document.getElementById('git-result');
     var busy = false;
+    var behind = 0;
 
     function say(text, kind) {
       resultEl.textContent = text;
@@ -449,6 +457,18 @@
       changedEl.textContent = n ? n + (n === 1 ? ' file changed' : ' files changed') + ' since your last commit' : 'nothing to commit';
       changedEl.title = status.changed.join('\n');
       commitButton.disabled = busy || !n;
+      behind = status.behind;
+      pullButton.classList.toggle('behind', behind > 0);
+      pullButton.disabled = busy;
+      var badge = pullButton.querySelector('.badge');
+      if (behind > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; pullButton.appendChild(badge); }
+        badge.textContent = behind;
+        pullButton.title = behind + (behind === 1 ? ' commit' : ' commits') + ' on develop to pull';
+      } else if (badge) {
+        badge.remove();
+        pullButton.title = 'Bring develop into your branch';
+      }
     }
 
     function refresh() {
@@ -463,6 +483,7 @@
     function post(path, body) {
       busy = true;
       commitButton.disabled = true;
+      pullButton.disabled = true;
       return fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -491,7 +512,28 @@
       });
     }
 
+    /** After a pull or push the files on disk may have moved: show the reply, then reload what is open. */
+    function afterMerge(reply) {
+      if (!reply) { return; }
+      var result;
+      try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
+      var kind = reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : (result.outcome === 'conflicts' || result.outcome === 'refused' ? 'bad' : 'warn');
+      say(result.message, kind);
+      if (reply.ok && result.outcome !== 'nothing') {
+        if (open) { load(open.path); }
+        refreshNow();
+        scheduleCheck();
+      }
+      refresh();
+    }
+
+    function pull() {
+      saveNow();
+      post('/git/pull').then(afterMerge);
+    }
+
     commitButton.addEventListener('click', commit);
+    pullButton.addEventListener('click', pull);
     refresh();
     setInterval(refresh, 2000);
     return { refresh: refresh, say: say };

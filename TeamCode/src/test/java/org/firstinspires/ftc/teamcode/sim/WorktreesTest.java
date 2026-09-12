@@ -252,6 +252,82 @@ public class WorktreesTest {
         assertEquals("[]", status.changed.toString());
     }
 
+    // --- pull: develop into the user's branch ---
+
+    private void commitOnDevelop(String file, String content) throws IOException {
+        Files.write(root.resolve(file), content.getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "a commit on develop: " + file);
+    }
+
+    @Test
+    public void pullFastForwardsWhenTheUserHasNoCommitsAndMergesWhenTheyDo() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        commitOnDevelop("README", "first on develop\n");
+
+        Worktrees.Merge fastForward = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, fastForward.outcome);
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.head(ada.path));
+        assertEquals("first on develop\n", read(ada.path.resolve("README")));
+
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        worktrees.commit("ada", "mine");
+        commitOnDevelop("README", "second on develop\n");
+        Worktrees.Merge merge = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, merge.outcome);
+        assertEquals("second on develop\n", read(ada.path.resolve("README")));
+        assertEquals("a merge commit with both parents", 3, GitFixture.git(ada.path, "rev-list", "--parents", "-1", "HEAD").trim().split(" ").length);
+        assertEquals("ada", GitFixture.git(ada.path, "log", "-1", "--format=%an").trim());
+        assertEquals(0, worktrees.status("ada").behind);
+        assertEquals(2, worktrees.status("ada").ahead);
+        assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
+    }
+
+    @Test
+    public void pullWithNothingNewOrWithUncommittedChangesDoesNothing() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        String head = GitFixture.head(ada.path);
+
+        assertEquals(Worktrees.Outcome.NOTHING, worktrees.pull("ada").outcome);
+
+        commitOnDevelop("README", "on develop\n");
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        Worktrees.Merge refused = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.UNCOMMITTED, refused.outcome);
+        assertEquals("[Mine.java]", refused.files.toString());
+        assertEquals(head, GitFixture.head(ada.path));
+        assertEquals("hello\n", read(ada.path.resolve("README")));
+    }
+
+    @Test
+    public void aPullThatConflictsChangesNothingAndNamesTheFiles() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("README"), "ada's line\n".getBytes(StandardCharsets.UTF_8));
+        worktrees.commit("ada", "ada's");
+        String head = GitFixture.head(ada.path);
+        commitOnDevelop("README", "develop's line\n");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Worktrees.Merge conflicted = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.CONFLICTS, conflicted.outcome);
+        assertEquals("[README]", conflicted.files.toString());
+        assertEquals(head, GitFixture.head(ada.path));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("ada's line\n", read(ada.path.resolve("README")));
+        assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
+        assertFalse("no merge in progress", Files.exists(ada.path.resolve(".git")) && Files.exists(gitDir(ada.path).resolve("MERGE_HEAD")));
+    }
+
+    private static Path gitDir(Path worktree) throws IOException {
+        return Path.of(GitFixture.git(worktree, "rev-parse", "--git-dir").trim());
+    }
+
     // --- what must be there before the server starts ---
 
     @Test

@@ -192,6 +192,8 @@ public final class CodingServer {
     private final SimBench.Factory benches;
     /** Each user's bench, made over their worktree on first use; by username. */
     private final Map<String, SimBench> benchByUsername = new LinkedHashMap<>();
+    /** How each user's last pull or push ended, for the admin page; by username. */
+    private final Map<String, JsonObject> lastMergeByUsername = new LinkedHashMap<>();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
@@ -650,7 +652,57 @@ public final class CodingServer {
             reply.addProperty("message", commit.made ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files") : "nothing to commit");
             return Response.json(GSON.toJson(reply));
         }
+        if (op.equals("pull")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST /git/pull to bring develop into your branch");
+            }
+            Worktrees.Merge merge;
+            synchronized (this) {
+                merge = worktrees.pull(session.username);
+            }
+            return merged("pull", session, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull");
+        }
         return Response.error(404, "not found: " + request.path);
+    }
+
+    /** The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the reason otherwise. */
+    private Response merged(String op, Session session, Worktrees.Merge merge, String did, String nothing) {
+        JsonObject reply = new JsonObject();
+        reply.addProperty("op", op);
+        reply.addProperty("outcome", merge.outcome == Worktrees.Outcome.MERGED ? (op.equals("pull") ? "pulled" : "pushed")
+                : merge.outcome.name().toLowerCase(Locale.ROOT));
+        reply.add("files", GSON.toJsonTree(merge.files));
+        reply.addProperty("detail", merge.detail);
+        int status;
+        switch (merge.outcome) {
+            case MERGED:
+                status = 200;
+                reply.addProperty("message", did);
+                break;
+            case NOTHING:
+                status = 200;
+                reply.addProperty("message", nothing);
+                break;
+            case UNCOMMITTED:
+                status = 409;
+                reply.addProperty("message", "commit first: " + String.join(", ", merge.files));
+                break;
+            case CONFLICTS:
+                status = 409;
+                reply.addProperty("message", "your changes conflict with " + Worktrees.DEVELOP + " in "
+                        + String.join(", ", merge.files) + "; ask your coach for help");
+                break;
+            default:
+                status = 409;
+                reply.addProperty("message", "git could not " + op + "; ask your coach for help: " + merge.detail);
+                break;
+        }
+        synchronized (this) {
+            JsonObject record = GSON.fromJson(GSON.toJson(reply), JsonObject.class);
+            record.addProperty("atMillis", System.currentTimeMillis());
+            lastMergeByUsername.put(session.username, record);
+        }
+        return Response.json(status, GSON.toJson(reply));
     }
 
     private static JsonObject statusJson(Worktrees.Status status) {
@@ -855,6 +907,7 @@ public final class CodingServer {
             Worktrees.Worktree worktree = worktrees.find(session.username);
             item.addProperty("worktree", worktree == null ? null : worktree.path.toString());
             item.addProperty("branch", worktree == null ? null : worktree.branch);
+            item.add("lastMerge", lastMergeByUsername.get(session.username));
             list.add(item);
         }
         JsonObject root = new JsonObject();

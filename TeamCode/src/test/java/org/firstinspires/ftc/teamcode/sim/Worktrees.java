@@ -100,6 +100,35 @@ public final class Worktrees {
         }
     }
 
+    /** How a pull or push ended. */
+    public enum Outcome {
+        /** The merge was made (a fast-forward counts). */
+        MERGED,
+        /** There was nothing to merge. */
+        NOTHING,
+        /** The worktree has uncommitted changes; {@code files} names them. Commit first. */
+        UNCOMMITTED,
+        /** The two branches conflict; {@code files} names where. Nothing was changed. */
+        CONFLICTS,
+        /** Git refused to apply a merge known to be clean; {@code detail} is what it said. Nothing was changed. */
+        REFUSED
+    }
+
+    /** What a pull or push did. */
+    public static final class Merge {
+        public final Outcome outcome;
+        /** Root-relative paths, sorted: the uncommitted files, or the conflicting ones. */
+        public final List<String> files;
+        /** What git said, when it refused. */
+        public final String detail;
+
+        Merge(Outcome outcome, List<String> files, String detail) {
+            this.outcome = outcome;
+            this.files = files;
+            this.detail = detail;
+        }
+    }
+
     /** A git command that did not succeed; the message carries the command and what git said. */
     public static final class GitFailed extends RuntimeException {
         GitFailed(String message) {
@@ -226,6 +255,69 @@ public final class Worktrees {
         git(worktree.path, "-c", "user.name=" + username, "-c", "user.email=" + worktree.slug + "@coding-server.invalid",
                 "commit", "-q", "-m", message);
         return new Commit(true, head(worktree), files);
+    }
+
+    // --- pull: develop into the user's branch ---
+
+    /**
+     * Merges {@code develop} into the user branch, in the user's worktree: a fast-forward when
+     * the branch has no commits of its own, a merge commit otherwise. Conflicts are found first
+     * with {@code merge-tree}, which touches no working tree, so a conflicting pull changes
+     * nothing at all.
+     */
+    public synchronized Merge pull(String username) {
+        Worktree worktree = ensure(username);
+        List<String> changed = changedFiles(worktree);
+        if (!changed.isEmpty()) {
+            return new Merge(Outcome.UNCOMMITTED, changed, null);
+        }
+        if (isAncestor(DEVELOP, worktree.branch)) {
+            return new Merge(Outcome.NOTHING, List.of(), null);
+        }
+        List<String> conflicts = conflictsBetween(worktree.branch, DEVELOP);
+        if (!conflicts.isEmpty()) {
+            return new Merge(Outcome.CONFLICTS, conflicts, null);
+        }
+        Result merged = run(worktree.path, "-c", "user.name=" + username, "-c", "user.email=" + worktree.slug + "@coding-server.invalid",
+                "merge", "-q", "-m", "Pull " + DEVELOP, DEVELOP);
+        if (merged.exit != 0) {
+            // known clean, so this is a refusal before anything was written; make sure of it
+            run(worktree.path, "merge", "--abort");
+            return new Merge(Outcome.REFUSED, List.of(), (merged.err + merged.out).trim());
+        }
+        return new Merge(Outcome.MERGED, List.of(), null);
+    }
+
+    private boolean isAncestor(String maybeAncestor, String of) {
+        Result result = run(root, "merge-base", "--is-ancestor", maybeAncestor, of);
+        if (result.exit > 1) {
+            throw new GitFailed("git merge-base --is-ancestor " + maybeAncestor + " " + of + " failed: " + result.err.trim());
+        }
+        return result.exit == 0;
+    }
+
+    /**
+     * The files where merging {@code theirs} into {@code ours} would conflict, found without
+     * touching any working tree; empty when the merge is clean.
+     */
+    private List<String> conflictsBetween(String ours, String theirs) {
+        Result result = run(root, "merge-tree", "--write-tree", "--name-only", ours, theirs);
+        if (result.exit == 0) {
+            return List.of();
+        }
+        if (result.exit != 1) {
+            throw new GitFailed("git merge-tree " + ours + " " + theirs + " failed: " + result.err.trim());
+        }
+        // the tree, then one conflicting file per line, then a blank line and the messages
+        List<String> files = new ArrayList<>();
+        String[] lines = result.out.split("\n");
+        for (int i = 1; i < lines.length && !lines[i].isEmpty(); i++) {
+            if (!files.contains(lines[i])) {
+                files.add(lines[i]);
+            }
+        }
+        files.sort(null);
+        return files;
     }
 
     private List<String> changedFiles(Worktree worktree) {
