@@ -40,8 +40,8 @@ import java.util.stream.Stream;
  * the admin has picked, with every edit written straight to disk.
  * <pre>
  * ./gradlew :TeamCode:editorServer
- *     admin  http://localhost:8766/admin     (loopback only)
- *     users  http://&lt;this machine's LAN address&gt;:8767/
+ *     admin  http://localhost:21987/admin     (loopback only)
+ *     users  http://&lt;this machine's LAN address&gt;:21986/
  * </pre>
  * Sessions live in memory: restarting the server logs everyone out, and no token is ever written
  * to disk.
@@ -49,8 +49,8 @@ import java.util.stream.Stream;
 public final class SharedEditorServer {
     public static final String ADMIN_PORT_ENV = "EDITOR_ADMIN_PORT";
     public static final String USER_PORT_ENV = "EDITOR_USER_PORT";
-    public static final int DEFAULT_ADMIN_PORT = 8766;
-    public static final int DEFAULT_USER_PORT = 8767;
+    public static final int DEFAULT_ADMIN_PORT = 21987;
+    public static final int DEFAULT_USER_PORT = 21986;
     public static final int MAX_PENDING_LOGINS = 20;
     public static final int MAX_USERNAME_LENGTH = 32;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
