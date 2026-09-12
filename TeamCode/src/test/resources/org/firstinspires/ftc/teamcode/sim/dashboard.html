@@ -41,7 +41,7 @@
   nav button:hover { color: var(--ink); }
   .panel { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; }
   @media (max-width: 760px) { .panel { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
-  #simulate aside { display: grid; gap: 18px; align-content: start; }
+  #simulate aside { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; overflow-x: hidden; }
   .opmodes { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0; }
   .opmode { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 14px; }
   .opmode + .opmode { border-top: 1px solid var(--line); }
@@ -50,10 +50,11 @@
   .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   .msg { color: var(--bad); min-height: 1.4em; margin: 4px 20px 0; }
   .note { color: var(--muted); margin: 0 20px 8px; font-size: 12px; }
-  table { border-collapse: collapse; width: calc(100% - 40px); margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  th, td { text-align: left; padding: 6px 10px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .runs { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  col.id { width: 2.2em; } col.by { width: 4.5em; } col.outcome { width: 5.5em; } col.show { width: 3.4em; }
   th { border-top: 0; color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.current td { background: var(--hover); }
   td a { color: var(--accent); }
   .pill.live { color: var(--warn); background: var(--warn-soft); }
@@ -121,10 +122,13 @@
     </div>
     <div>
       <p class="section-label">Runs</p>
-      <table id="history">
-        <thead><tr><th>#</th><th>Op mode</th><th>By</th><th>Outcome</th><th class="num">s</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="runs">
+        <table id="history">
+          <colgroup><col class="id"><col><col class="by"><col class="outcome"><col class="show"></colgroup>
+          <thead><tr><th>#</th><th>Op mode</th><th>By</th><th>Outcome</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </aside>
   <section class="stage">
@@ -366,12 +370,12 @@
       running = status.running;
       Array.prototype.forEach.call(list.querySelectorAll('button.run'), function (b) { b.disabled = running; });
       history.innerHTML = status.runs.map(function (run) {
-        return '<tr class="' + (run.id === shownRunId ? 'current' : '') + '">' +
+        var title = escapeHtml(run.name) + ' · ' + run.seconds.toFixed(1) + ' s' + (run.startedBy ? ' · started by ' + escapeHtml(run.startedBy) : '');
+        return '<tr class="' + (run.id === shownRunId ? 'current' : '') + '" title="' + title + '">' +
           '<td class="mono">' + run.id + '</td>' +
           '<td>' + escapeHtml(run.name) + '</td>' +
           '<td>' + escapeHtml(run.startedBy || '') + '</td>' +
           '<td>' + pill(run) + '</td>' +
-          '<td class="num mono">' + run.seconds.toFixed(1) + '</td>' +
           '<td><a href="/sim/runs/' + run.id + '/" data-id="' + run.id + '" data-name="' + escapeHtml(run.name) + '">show</a></td>' +
           '</tr>';
       }).join('');
