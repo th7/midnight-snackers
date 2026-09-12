@@ -1,85 +1,113 @@
-# Shared editor: the Simulate tab
+# Shared editor: saved edits take effect in Simulate
 
-Batch 2. Batch 1 (login, approval, real-time editing) shipped in PR #6.
+Batch 3. Batch 1 (login, approval, editing) shipped in PR #6; batch 2 (the
+Simulate tab) in PR #7. This batch removes the restart: a run always executes
+the main sources as they are on disk at the moment Run is pressed.
 
-## What it does
+## The approach, and why
 
-The dashboard gets two tabs. **Edit** is the batch 1 dashboard. **Simulate**
-lists the autonomous op modes, runs the chosen one on the simulated robot,
-shows the live view as it drives, and keeps the history of runs with outcomes
-and replays. One run at a time for everyone; the status says who started it.
-Only autonomous op modes (`AutoOp` subclasses with the `Autonomous`
-annotation) can be run, exactly the set the bench lists today.
+Each run recompiles the main sources with the JDK's own compiler (about a
+second for the whole tree, measured) and then runs the op mode in a **fresh
+child JVM** whose classpath starts with the new classes. One class loader per
+process means every class identity is consistent, so every file under
+`TeamCode/src/main/java` takes effect, not only the autos. Each run starts
+from clean static state. A hung op mode is a process the server can kill.
+Compile errors come back as text and are shown in the tab.
 
-## Assumptions
+Rejected: reloading in the same JVM (the simulator names main classes by type
+in the base, plan runner, and road runner packages, so only the auto
+subclasses would really reload and edits elsewhere would be silently
+ignored); compiling with Gradle (works concurrently, but ten seconds plus the
+jar bundling, for nothing the simulator needs); restarting the server (drops
+every session).
 
-- **Simulate runs the code the server was started with.** Saving a file in
-  the Edit tab does not change what a run executes until the server is
-  restarted. The Simulate tab says this in its header. Rebuilding and
-  reloading op modes without a restart is a follow-up batch.
-- **The same bench core as `./gradlew :TeamCode:simDev`.** The run
-  management in `SimDevServer` moves into a class both servers use, so the
-  two cannot drift. The bench keeps its own page and task.
-- **Runs write replays to `TeamCode/build/sim`** as the bench does.
+## Guards
+
+- **No Kotlin.** If a `.kt` file ever appears under `TeamCode/src/main`, the
+  build step fails with a message naming it. It never skips the file.
+- **A JDK, not a JRE.** If the running JVM has no compiler, the build step
+  fails saying so. (Android Studio's bundled runtime has one.)
+- **Build output lives under `TeamCode/build/sim/classes`**, never in a tree
+  Gradle owns. Only the latest build is kept.
+- **A child that dies without reporting an outcome is an outcome**: the run
+  ends "child exited with code N" and its stderr tail is the message.
+- **Student `System.out` cannot corrupt the stream.** The child redirects
+  `System.out` to stderr at startup and keeps the real stdout for the protocol.
 
 ## Design
 
-Routes on the user listener, approved sessions only:
+`SimBuild` compiles a source root against the running JVM's classpath into a
+fresh directory, caching by a fingerprint of the sources (path, size, mtime).
+It returns the classes directory, or null plus the diagnostics.
 
-| Route | Does |
-|---|---|
-| `GET /sim/catalog` | the runnable op modes: name, group, class |
-| `GET /sim/status` | running flag and the runs, newest first, each with who started it |
-| `POST /sim/run?opmode=<class>` | starts a run; 409 while one is in progress |
-| `GET /sim/runs/<id>/` | the live view page (polls `ticks` relatively, so it works under the prefix) |
-| `GET /sim/runs/<id>/ticks?from=<n>` | ticks from `n` onward and the outcome once there is one |
+`SimChild` is the child JVM's main. `--list` prints the catalog as JSON.
+`--run <class> <timeout> <replayDir>` runs the op mode through the existing
+`SimRunner.record`, prints each tick as one JSON line as it happens, then one
+`{"outcome": ...}` line. The parent launches it with
+`java -cp <newClasses>:<its own classpath>`.
 
-The dashboard keeps the active tab in the URL hash (`#edit`, `#simulate`) so a
-reload lands on the same tab. The Simulate tab's markup is its own; it is not
-an iframe of the bench page, whose script uses absolute paths.
+`SimBench` keeps a run's ticks as JSON and serves the same routes as today
+plus `/runs/<id>/log` (the child's stderr). Status gains `phase`
+(`building`, `running`, `finished`) and `message` (compile errors, kill
+reason). The catalog is asked of the child after each new build, so a newly
+written auto appears without a restart. A bench without a source root (the
+tests) skips the build and runs the child on the parent's classpath.
+
+`SimCatalog.Entry` gains `className`; `type` is only set when the class is
+loadable here. Discovery scans every classpath entry for the auto package,
+first wins, the way class loading does.
 
 ## Phases
 
-Gate, locally and in CI: `./gradlew :TeamCode:testDebugUnitTest`.
+Gate: `./gradlew :TeamCode:testDebugUnitTest`, locally and in CI.
 
-### Phase 0 · Extract the bench core
+### Phase 0 · The build step
 
-A refactor: `SimBench` holds the catalog, the runs, `start`, `find`, and
-`status`, and takes the username that started a run. `SimDevServer` becomes a
-thin page-and-routes layer over it. The existing `SimDevServerTest` is the
-test; it must stay green with no edits.
+Tests first (`SimBuildTest`):
+- a temp source root with one class compiles; the class file is in the
+  returned directory;
+- a syntax error returns no directory and diagnostics naming the file and line;
+- an unchanged tree returns the same directory without recompiling; an edited
+  file yields a new directory;
+- a `.kt` file under `src/main` fails naming the file;
+- the real `src/main/java` compiles.
 
-### Phase 1 · Sim routes on the user listener
+### Phase 1 · The child
 
-Tests first (`SharedEditorServerTest`, catalog of the two test autos, short
-run timeout):
-- `GET /sim/catalog` lists "Count to three" and "Never done" with their class
-  names;
-- `POST /sim/run` starts a run and `GET /sim/status` follows it to
-  `"outcome":"done"`, carrying `"startedBy":"ada"`;
-- a second `POST /sim/run` while "Never done" is running gets 409;
-- a pending session gets 403 on every `/sim` route;
-- `GET /sim/runs/<id>/` serves the live page (`"live":true`) and
-  `GET /sim/runs/<id>/ticks?from=0` the ticks;
-- an unknown op mode is 404, `GET /sim/run` is 405.
+Tests first (`SimChildTest`, `SimCatalogTest`):
+- `--list` prints the real autos with name, group, and class;
+- `--run` of "Count to three" prints three tick lines and an outcome line, and
+  writes the replay page;
+- an auto that prints to `System.out` does not break the stream;
+- a catalog entry parsed from JSON has a class name and no type.
 
-Then build: `SharedEditorServer.start` takes a `SimCatalog`, an output
-directory, and a run timeout; the routes delegate to the bench core.
+### Phase 2 · The bench over the child
 
-### Phase 2 · Tabs in the dashboard
+Tests first (`SimBenchTest`, `SharedEditorServerTest`):
+- a run through the child ends "done" with three ticks and the replay file;
+- an auto whose `loop()` never returns is killed after timeout plus grace and
+  the outcome says so;
+- a source root with a compile error ends the run "build failed" with the
+  diagnostics as the message, and the catalog route reports the error;
+- **the contract:** write an auto into a temp source root, run it, edit its
+  source, run again; the second run reflects the edit, no restart;
+- **through the editor:** the admin marks the auto editable, the user saves a
+  new body with `PUT /files/…`, presses Run, and the status shows the edit;
+- `/sim/runs/<id>/log` returns the child's stderr; `/sim/status` carries
+  `phase` and `message`.
 
-Tests first: the dashboard page has the tab controls, the Simulate panel with
-the op mode list, the run history, and the live iframe, and its script
-references `/sim/catalog`, `/sim/run`, `/sim/status`, and `/sim/runs/`.
+Then: both servers take a `SimBench`; `main` builds one over
+`TeamCode/src/main/java`.
 
-Then build: the tab bar, the Simulate panel adapted from the bench page with
-the `/sim` prefix and the "started by" column, the hash routing, and the
-"runs the code the server was started with" note.
+### Phase 3 · The pages
 
-Manual acceptance on two machines before the PR is marked ready:
-1. From a teammate's machine, open Simulate, run an auto, watch it drive.
-2. Two teammates: the second Run while one is in progress says who is running.
-3. Switch tabs, reload; the same tab comes back.
+Tests first: the dashboard and the bench page show the building state and
+the message, and the dashboard refreshes the catalog when the tab opens and
+when a run ends.
+
+Manual acceptance on two machines: edit an auto's plan from a teammate's
+machine, press Run, watch the new plan drive; introduce a syntax error, press
+Run, read the error in the tab; fix it, run again.
 
 ## Definition of done
 
