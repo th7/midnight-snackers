@@ -103,8 +103,12 @@ public final class CodingServer {
      * @param adminBind the one address the admin listener answers on; {@link #main} always passes
      *                  loopback, and this is a parameter only so a test can prove the property
      */
-    public static CodingServer start(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort) {
+    public static CodingServer start(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
         return new CodingServer(root, bench, adminBind, adminPort, userPort);
+    }
+
+    static Path stateDir(Map<String, String> env) {
+        return null;
     }
 
     /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
@@ -114,7 +118,7 @@ public final class CodingServer {
                 root.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS, SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
         CodingServer server = start(root, bench, InetAddress.getLoopbackAddress(),
-                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT));
+                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT), stateDir(System.getenv()));
         System.out.println("Coding server");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
         System.out.println("  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");

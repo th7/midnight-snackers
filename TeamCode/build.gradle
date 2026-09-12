@@ -40,6 +40,8 @@ dependencies {
 
     testImplementation "junit:junit:4.13.2"
     testImplementation "com.google.code.gson:gson:2.11.0"
+    // scrypt, for the coding server's session store
+    testImplementation "org.bouncycastle:bcprov-jdk18on:1.79"
 }
 
 // The simulation bench: a dev server that runs the autonomous op modes on the simulated robot

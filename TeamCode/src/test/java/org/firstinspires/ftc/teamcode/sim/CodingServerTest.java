@@ -5,10 +5,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 
+import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.junit.After;
@@ -25,13 +27,21 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.Map;
 
 public class CodingServerTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
+
+    /** Where the server keeps what outlives it, deliberately nowhere near the project root. */
+    @Rule
+    public TemporaryFolder state = new TemporaryFolder();
 
     private static final double RUN_TIMEOUT_SECONDS = 0.3;
 
@@ -39,15 +49,31 @@ public class CodingServerTest {
 
     private CodingServer server() {
         if (server == null) {
-            serverWith(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
-                    folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 1));
+            serverWith(bench());
         }
         return server;
     }
 
+    private SimBench bench() {
+        return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
+                folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 1);
+    }
+
     private CodingServer serverWith(SimBench bench) {
-        server = CodingServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0);
+        server = CodingServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         return server;
+    }
+
+    /** A directory the server has to create itself, parents included, the way a first run on a new machine does. */
+    private Path stateDir() {
+        return state.getRoot().toPath().resolve("nested").resolve("coding-server");
+    }
+
+    /** Stops the server and starts a fresh one over the same root and state directory, the way a restart does. */
+    private void restart() {
+        server.stop();
+        server = null;
+        server();
     }
 
     @After
@@ -662,6 +688,195 @@ public class CodingServerTest {
      */
     private static void assertHiddenWins(String page) {
         assertTrue(page, page.replaceAll("\\s+", " ").contains("[hidden] { display: none !important; }"));
+    }
+
+    // --- persistence: sessions and the editable set outlive the process ---
+
+    @Test
+    public void anApprovedSessionSurvivesARestart() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String id = idOf("ada");
+
+        restart();
+
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+        assertEquals(200, user("GET", "/files/TeamCode/Plans.java", cookie).status);
+        assertEquals(id, idOf("ada"));
+        assertTrue(user("GET", "/", cookie).body.contains("id=\"editor\""));
+    }
+
+    @Test
+    public void aPendingLoginSurvivesARestartAndCanStillBeDecided() throws IOException {
+        String cookie = login("bob");
+
+        restart();
+
+        assertEquals("{\"state\":\"pending\",\"username\":\"bob\"}", user("GET", "/me", cookie).body);
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"pending\""));
+        admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
+        assertEquals("{\"state\":\"approved\",\"username\":\"bob\"}", user("GET", "/me", cookie).body);
+    }
+
+    @Test
+    public void aRevokedSessionStaysRevokedAcrossARestart() throws IOException {
+        String cookie = login("ada");
+        admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+        admin("POST", "/admin/logins/" + idOf("ada") + "/revoke");
+
+        restart();
+
+        assertEquals("{\"state\":\"revoked\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+        assertEquals(403, user("GET", "/files", cookie).status);
+    }
+
+    @Test
+    public void loginsAfterARestartGetIdsNobodyHasHad() throws IOException {
+        login("ada");
+        String adaId = idOf("ada");
+
+        restart();
+        login("bob");
+
+        assertEquals(adaId, idOf("ada"));
+        assertFalse(adaId.equals(idOf("bob")));
+        assertEquals(2, json(admin("GET", "/admin/logins").body).getAsJsonArray("logins").size());
+    }
+
+    /**
+     * The token in a teammate's cookie is the only thing that proves who they are, so at rest it
+     * is kept the way a password would be: as a salted scrypt hash, never as the token itself and
+     * never as a fast digest of it.
+     */
+    @Test
+    public void theSessionStoreHoldsASaltedScryptHashOfEachSecretAndNeverTheSecret() throws IOException {
+        String ada = login("ada");
+        String bob = login("bob");
+
+        String stored = new String(Files.readAllBytes(sessionsFile()), StandardCharsets.UTF_8);
+
+        assertFalse(stored, stored.contains(secretOf(ada)));
+        assertFalse(stored, stored.contains(secretOf(bob)));
+        JsonObject kdf = storedSession("ada").getAsJsonObject("secret");
+        assertEquals("scrypt", kdf.get("kdf").getAsString());
+        assertTrue(kdf.toString(), kdf.get("n").getAsInt() >= 1 << 14);
+        assertTrue(kdf.toString(), kdf.get("r").getAsInt() >= 8);
+        assertTrue(kdf.toString(), kdf.get("p").getAsInt() >= 1);
+        byte[] salt = Base64.getDecoder().decode(kdf.get("salt").getAsString());
+        byte[] hash = Base64.getDecoder().decode(kdf.get("hash").getAsString());
+        assertTrue("salt of " + salt.length + " bytes", salt.length >= 16);
+        assertTrue("hash of " + hash.length + " bytes", hash.length >= 32);
+        assertArrayEquals(SCrypt.generate(secretOf(ada).getBytes(StandardCharsets.UTF_8), salt,
+                kdf.get("n").getAsInt(), kdf.get("r").getAsInt(), kdf.get("p").getAsInt(), hash.length), hash);
+        assertFalse("every session gets its own salt",
+                kdf.get("salt").getAsString().equals(storedSession("bob").getAsJsonObject("secret").get("salt").getAsString()));
+        if (Files.getFileStore(sessionsFile()).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(sessionsFile())));
+            assertEquals("rwx------", PosixFilePermissions.toString(Files.getPosixFilePermissions(stateDir())));
+        }
+    }
+
+    @Test
+    public void aCookieWithARealIdAndTheWrongSecretIsNoSession() throws IOException {
+        String cookie = login("ada");
+        admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+        String forged = cookie.substring(0, cookie.lastIndexOf('.') + 1) + "B".repeat(secretOf(cookie).length());
+
+        assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
+        restart();
+        assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
+        assertEquals(403, user("GET", "/files", forged).status);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+    }
+
+    @Test
+    public void aSessionStoreThatCannotBeReadStopsTheServerFromStarting() throws IOException {
+        login("ada");
+        server.stop();
+        server = null;
+        Files.write(sessionsFile(), "{not json".getBytes(StandardCharsets.UTF_8));
+
+        try {
+            server();
+            fail("the server started over a session store it could not read");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(sessionsFile().toString()));
+        }
+    }
+
+    @Test
+    public void theEditableSetSurvivesARestart() throws IOException {
+        String cookie = approvedEditorOf("Plans.java", "Drive.java");
+        admin("POST", "/admin/files/remove?path=TeamCode/Drive.java");
+
+        restart();
+
+        assertEquals("{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files").body);
+        assertEquals(200, user("GET", "/files/TeamCode/Plans.java", cookie).status);
+        assertEquals(404, user("GET", "/files/TeamCode/Drive.java", cookie).status);
+    }
+
+    @Test
+    public void theEditableSetIsRememberedPerProjectRoot() throws IOException {
+        approvedEditorOf("Plans.java");
+        Path otherRoot = state.newFolder("other-root").toPath();
+        Files.createFile(otherRoot.resolve("Other.java"));
+        CodingServer other = CodingServer.start(otherRoot, bench(), InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        try {
+            assertEquals("{\"files\":[]}", request(other.adminUrl(), "GET", "/admin/files", null, null).body);
+            request(other.adminUrl(), "POST", "/admin/files/add?path=Other.java", null, null);
+        } finally {
+            other.stop();
+        }
+
+        restart();
+
+        assertEquals("{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files").body);
+        other = CodingServer.start(otherRoot, bench(), InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        try {
+            assertEquals("{\"files\":[{\"path\":\"Other.java\"}]}", request(other.adminUrl(), "GET", "/admin/files", null, null).body);
+        } finally {
+            other.stop();
+        }
+    }
+
+    @Test
+    public void nothingIsWrittenUnderTheProjectRoot() throws IOException {
+        approvedEditorOf("Plans.java");
+
+        assertEquals("[TeamCode]", Arrays.toString(folder.getRoot().list()));
+    }
+
+    /** The XDG Base Directory spec: {@code $XDG_STATE_HOME}, else {@code ~/.local/state}, and a relative value is ignored. */
+    @Test
+    public void theStateDirectoryFollowsTheXdgBaseDirectoryConvention() {
+        Path xdg = state.getRoot().toPath().resolve("xdg");
+        Path home = state.getRoot().toPath().resolve("home");
+        Path underHome = home.resolve(".local/state/midnight-snackers/coding-server");
+
+        assertEquals(xdg.resolve("midnight-snackers/coding-server"),
+                CodingServer.stateDir(Map.of("XDG_STATE_HOME", xdg.toString(), "HOME", home.toString())));
+        assertEquals(underHome, CodingServer.stateDir(Map.of("HOME", home.toString())));
+        assertEquals(underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "relative/state", "HOME", home.toString())));
+        assertEquals(underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "", "HOME", home.toString())));
+    }
+
+    private Path sessionsFile() {
+        return stateDir().resolve("sessions.json");
+    }
+
+    /** The random part of a {@code session=<id>.<secret>} cookie. */
+    private static String secretOf(String cookie) {
+        return cookie.substring(cookie.lastIndexOf('.') + 1);
+    }
+
+    private JsonObject storedSession(String username) throws IOException {
+        for (var element : json(new String(Files.readAllBytes(sessionsFile()), StandardCharsets.UTF_8)).getAsJsonArray("sessions")) {
+            if (element.getAsJsonObject().get("username").getAsString().equals(username)) {
+                return element.getAsJsonObject();
+            }
+        }
+        throw new AssertionError("no stored session for " + username);
     }
 
     // --- helpers ---
