@@ -11,6 +11,7 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -123,6 +124,69 @@ public final class SimBench {
             return child;
         }
 
+        /** How long this run may take: a TeleOp its period, an auto its timeout. */
+        double seconds() {
+            return entry.kind.equals(SimCatalog.TELEOP) ? teleOpSeconds : runTimeoutSeconds;
+        }
+
+        /**
+         * One driver station line to the child, on its standard input.
+         *
+         * @return false when the child is not there to read it
+         */
+        synchronized boolean send(JsonObject line) {
+            if (child == null || outcome != null) {
+                return false;
+            }
+            try {
+                OutputStream in = child.getOutputStream();
+                in.write((GSON.toJson(line) + "\n").getBytes(StandardCharsets.UTF_8));
+                in.flush();
+                return true;
+            } catch (IOException e) {
+                return false; // the child went away; the exit code says how
+            }
+        }
+
+        /**
+         * The driver pressed Stop. A child that is running is told and ends the run itself, with
+         * its replay written; one still building never starts; one that ignores the request is
+         * killed after the grace period.
+         */
+        void stop() {
+            boolean told;
+            synchronized (this) {
+                if (outcome != null) {
+                    return;
+                }
+                if (child == null) {
+                    finish("stopped", "stopped before the build finished");
+                    return;
+                }
+                JsonObject line = new JsonObject();
+                line.addProperty("stop", true);
+                told = send(line);
+            }
+            Process process = child();
+            if (!told) {
+                process.destroyForcibly();
+                return;
+            }
+            Thread grace = new Thread(() -> {
+                try {
+                    if (!process.waitFor((long) (killGraceSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                        finish(String.format("killed %.1fs after Stop: the op mode did not return", killGraceSeconds),
+                                "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
+                        process.destroyForcibly();
+                    }
+                } catch (InterruptedException ignored) {
+                    // stopping
+                }
+            }, "sim-run-" + id + "-stop");
+            grace.setDaemon(true);
+            grace.start();
+        }
+
         String name() {
             String name = entry.className.substring(entry.className.lastIndexOf('.') + 1);
             return name.substring(name.lastIndexOf('$') + 1);
@@ -138,6 +202,7 @@ public final class SimBench {
     private final SimBuild build;
     private final Path outputDir;
     private final double runTimeoutSeconds;
+    private final double teleOpSeconds;
     private final double killGraceSeconds;
     private final List<Run> runs = new ArrayList<>();
     private SimCatalog listed;
@@ -145,11 +210,14 @@ public final class SimBench {
     private SimBuild.Result lastCheck;
 
     /**
-     * @param fixedCatalog     the op modes to offer, or null to compile and list them from {@code sourceRoot}
-     * @param sourceRoot       the main sources to compile before each run, or null to run this JVM's classes
-     * @param killGraceSeconds how long past the run timeout the child may live before it is killed
+     * @param fixedCatalog      the op modes to offer, or null to compile and list them from {@code sourceRoot}
+     * @param sourceRoot        the main sources to compile before each run, or null to run this JVM's classes
+     * @param runTimeoutSeconds how long an auto may take to finish its plan before the run times out
+     * @param teleOpSeconds     how long a TeleOp runs when the driver never presses Stop
+     * @param killGraceSeconds  how long past its time the child may live before it is killed
      */
-    public SimBench(SimCatalog fixedCatalog, Path sourceRoot, Path outputDir, double runTimeoutSeconds, double killGraceSeconds) {
+    public SimBench(SimCatalog fixedCatalog, Path sourceRoot, Path outputDir, double runTimeoutSeconds, double teleOpSeconds,
+                    double killGraceSeconds) {
         if ((fixedCatalog == null) == (sourceRoot == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a source root");
         }
@@ -157,6 +225,7 @@ public final class SimBench {
         this.build = sourceRoot == null ? null : new SimBuild(sourceRoot, outputDir.resolve("classes"));
         this.outputDir = outputDir;
         this.runTimeoutSeconds = runTimeoutSeconds;
+        this.teleOpSeconds = teleOpSeconds;
         this.killGraceSeconds = killGraceSeconds;
     }
 
@@ -258,7 +327,7 @@ public final class SimBench {
                     // let the run itself report the build failure, where the tab shows it
                     entry = listed == null ? Optional.empty() : listed.find(opMode);
                     if (entry.isEmpty()) {
-                        entry = Optional.of(new SimCatalog.Entry(opMode, "", opMode, null));
+                        entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, opMode, null));
                     }
                 }
             }
@@ -283,7 +352,7 @@ public final class SimBench {
             }
             String rest = parts.length >= 4 ? parts[3] : "";
             if (rest.isEmpty()) {
-                return Response.html(SimReplayPage.page(run.name(), true, run.ticks(), run.outcome()));
+                return Response.html(SimReplayPage.page(run.name(), run.entry.kind, true, run.ticks(), run.outcome()));
             }
             if (rest.equals("ticks")) {
                 return Response.json(SimReplayPage.update(run.ticksFrom(SimLiveServer.from(request)), run.outcome()));
@@ -291,8 +360,49 @@ public final class SimBench {
             if (rest.equals("log")) {
                 return new Response(200, "text/plain; charset=utf-8", run.log());
             }
+            if (rest.equals("gamepad")) {
+                return gamepad(run, request);
+            }
+            if (rest.equals("stop")) {
+                if (!request.method.equals("POST")) {
+                    return Response.error(405, "POST /runs/<id>/stop to end the run");
+                }
+                if (!run.running()) {
+                    return Response.error(409, "the run is over: " + run.outcome());
+                }
+                run.stop();
+                return Response.json("{}");
+            }
         }
         return Response.error(404, "not found: " + path);
+    }
+
+    /**
+     * {@code POST /runs/<id>/gamepad} with a driver station line, {@code {"gamepad": 1, "state":
+     * {...}}}, relayed to the child as it is once it has been checked, so a typo in a page is a 400
+     * here and never reaches the run.
+     */
+    private Response gamepad(Run run, Request request) {
+        if (!request.method.equals("POST")) {
+            return Response.error(405, "POST /runs/<id>/gamepad with {\"gamepad\": 1, \"state\": {...}}");
+        }
+        JsonObject line;
+        try {
+            line = GSON.fromJson(request.body, JsonObject.class);
+            if (line == null || !line.has("gamepad") || !line.has("state")) {
+                throw new IllegalArgumentException("expected {\"gamepad\": 1, \"state\": {...}}");
+            }
+            new SimDriverStation().accept(line);
+        } catch (RuntimeException e) {
+            return Response.error(400, "not a gamepad state: " + e.getMessage());
+        }
+        if (!run.running()) {
+            return Response.error(409, "the run is over: " + run.outcome());
+        }
+        if (!run.send(line)) {
+            return Response.error(409, "the run is not taking input" + (run.phase().equals("building") ? " while building" : ""));
+        }
+        return Response.json("{}");
     }
 
     /** Starts a run, or returns null while another is in progress. */
@@ -324,9 +434,12 @@ public final class SimBench {
             }
             classpathFirst = List.of(result.classes);
         }
+        if (!run.running()) {
+            return; // stopped while building
+        }
         Process child;
         try {
-            child = SimChild.launch(classpathFirst, "--run", run.entry.className, String.valueOf(runTimeoutSeconds),
+            child = SimChild.launch(classpathFirst, "--run", run.entry.className, String.valueOf(run.seconds()),
                     outputDir.toAbsolutePath().toString());
         } catch (RuntimeException e) {
             run.finish("could not start the child JVM", e.getMessage());
@@ -344,7 +457,7 @@ public final class SimBench {
         }, "sim-run-" + run.id + "-log");
         stderr.setDaemon(true);
         stderr.start();
-        double maxSeconds = runTimeoutSeconds + killGraceSeconds;
+        double maxSeconds = run.seconds() + killGraceSeconds;
         Thread watchdog = new Thread(() -> {
             try {
                 if (!child.waitFor((long) (maxSeconds * 1000), TimeUnit.MILLISECONDS)) {
@@ -432,6 +545,7 @@ public final class SimBench {
             item.addProperty("id", run.id);
             item.addProperty("opMode", run.entry.className);
             item.addProperty("name", run.entry.name);
+            item.addProperty("kind", run.entry.kind);
             item.addProperty("startedAt", run.startedAtMillis);
             item.addProperty("startedBy", run.startedBy);
             item.addProperty("phase", run.phase());

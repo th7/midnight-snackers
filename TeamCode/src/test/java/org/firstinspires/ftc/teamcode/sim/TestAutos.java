@@ -9,8 +9,8 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Tiny autos for exercising the simulator itself. They live outside the auto package, so the
- * catalog never lists them on the real bench.
+ * Tiny autos for exercising the simulator itself. Nested classes, so the catalog never lists
+ * them on the real bench.
  */
 public final class TestAutos {
     private TestAutos() {

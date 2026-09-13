@@ -1,13 +1,16 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
-import org.firstinspires.ftc.teamcode.base.AutoOp;
+import org.firstinspires.ftc.teamcode.base.OpMode;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -23,14 +26,17 @@ import java.util.List;
  * can be killed.
  * <ul>
  * <li>{@code --list} prints the catalog as one JSON line.</li>
- * <li>{@code --run <class> <timeoutSeconds> <replayDir>} runs the op mode, printing each tick as
- * one JSON line as it happens and finally one {@code {"outcome": ...}} line.</li>
+ * <li>{@code --run <class> <seconds> <replayDir>} runs the op mode, printing each tick as one
+ * JSON line as it happens and finally one {@code {"outcome": ...}} line. Standard input is the
+ * driver station: one {@link SimDriverStation#accept line} at a time, and the run ends stopped
+ * when the input ends.</li>
  * </ul>
  * The protocol owns the real standard output; anything the op mode prints goes to standard
  * error instead, so student output cannot corrupt the stream.
  */
 public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
+    private static final Gson GSON = new Gson();
 
     private SimChild() {
     }
@@ -49,23 +55,27 @@ public final class SimChild {
             protocol.println(SimReplayPage.toLine(last));
             System.exit(0);
         }
-        System.err.println("usage: --list | --run <op mode class> <timeout seconds> <replay dir>");
+        System.err.println("usage: --list | --run <op mode class> <seconds> <replay dir>");
         System.exit(2);
     }
 
-    private static String run(String className, double timeoutSeconds, Path replayDir, PrintStream protocol) {
-        AutoOp opMode;
+    private static String run(String className, double seconds, Path replayDir, PrintStream protocol) {
+        OpMode opMode;
         try {
-            opMode = Class.forName(className).asSubclass(AutoOp.class).getDeclaredConstructor().newInstance();
+            opMode = Class.forName(className).asSubclass(OpMode.class).getDeclaredConstructor().newInstance();
         } catch (ReflectiveOperationException | ClassCastException e) {
             return "could not build " + className + ": " + e;
         }
-        SimRecording recording = new SimRecording(nameOf(opMode.getClass()));
+        SimRecording recording = new SimRecording(SimRunner.nameOf(opMode), SimCatalog.kindOf(opMode.getClass()));
+        SimDriverStation driverStation = new SimDriverStation();
+        Thread driver = new Thread(() -> readDriverStation(driverStation, recording), "sim-driver-station");
+        driver.setDaemon(true);
+        driver.start();
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);
         streamer.start();
         try {
-            SimRunner.record(recording, opMode, new SimRobot(), timeoutSeconds, replayDir);
+            SimRunner.record(recording, opMode, new SimRobot(), seconds, replayDir, driverStation);
         } catch (RuntimeException | Error e) {
             // the outcome is on the recording
         }
@@ -77,6 +87,31 @@ public final class SimChild {
         }
         flush(recording, protocol);
         return recording.outcome();
+    }
+
+    /**
+     * Standard input, line by line, into the driver station. A line that is not a driver station
+     * line is a bug in whoever is driving, so it ends the run with that as the outcome rather than
+     * letting the robot carry on as if nothing had been said. The end of the input ends the run too.
+     */
+    private static void readDriverStation(SimDriverStation driverStation, SimRecording recording) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
+            for (String line = in.readLine(); line != null; line = in.readLine()) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                try {
+                    driverStation.accept(GSON.fromJson(line, JsonObject.class));
+                } catch (RuntimeException e) {
+                    recording.finish("could not read the driver station: " + e.getMessage());
+                    driverStation.stop();
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            recording.finish("could not read the driver station: " + e);
+        }
+        driverStation.stop();
     }
 
     private static int streamed = 0;
@@ -97,13 +132,6 @@ public final class SimChild {
             protocol.println(SimReplayPage.toLine(SimReplayPage.tickJson(tick)));
             streamed++;
         }
-    }
-
-    private static String nameOf(Class<?> type) {
-        while (type.getSimpleName().isEmpty()) {
-            type = type.getSuperclass();
-        }
-        return type.getSimpleName();
     }
 
     // --- the parent's side ---

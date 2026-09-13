@@ -1,11 +1,15 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
+import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -14,7 +18,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SimReplayPageTest {
     @Rule
@@ -47,6 +56,56 @@ public class SimReplayPageTest {
         assertTrue("carries the dashboard drawing ops", html.contains("POLYLINE"));
         assertTrue("carries the dashboard data", html.contains("xError"));
         assertTrue("carries the outcome", html.contains("done"));
+        assertTrue("says what kind of run it was", html.contains("\"kind\":\"auto\""));
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
+    }
+
+    @Test
+    public void aTeleOpPageCarriesTheDriversInputsTickByTick() {
+        SimRecording recording = new SimRecording("StickTeleOp", "teleop");
+        State driving = State.fromJson(new Gson().fromJson("{\"cross\": true, \"left_stick_y\": -1}", JsonObject.class));
+        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "", new double[]{0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
+        recording.add(new SimRecording.Tick(0.5, new Pose2d(3, 0, 0), "", new double[]{1, 1, 1, 1}, List.of(), driving, State.NEUTRAL));
+        recording.finish("stopped");
+
+        String html = SimReplayPage.page(recording, false);
+
+        assertTrue(html, html.contains("\"kind\":\"teleop\""));
+        assertTrue(html, html.contains("\"gamepads\":{\"1\":{\"cross\":true,\"left_stick_y\":-1.0}}"));
+        assertFalse("a neutral gamepad is not carried", html.contains("\"2\":{}"));
+        assertEquals("only the ticks with input carry a gamepads key", 1, html.split("\"gamepads\"", -1).length - 1 - templateMentions("\"gamepads\""));
+    }
+
+    @Test
+    public void theControllerOffersEveryGamepadInputWithItsOwnKeyboardShortcut() {
+        String html = SimReplayPage.page(new SimRecording("StickTeleOp", "teleop"), true);
+
+        assertTrue(html, html.contains("id=\"controller\""));
+        Set<String> keys = new HashSet<>();
+        List<String> inputs = new ArrayList<>(State.BUTTONS);
+        inputs.addAll(State.TRIGGERS);
+        for (String input : inputs) {
+            Matcher clickable = Pattern.compile("data-button=\"" + input + "\"[^>]*data-key=\"([A-Za-z0-9]+)\"").matcher(html);
+            assertTrue(input + " is clickable and has a keyboard shortcut", clickable.find());
+            assertTrue(input + " shares its key " + clickable.group(1), keys.add(clickable.group(1)));
+        }
+        for (String stick : List.of("left", "right")) {
+            Matcher draggable = Pattern.compile("data-stick=\"" + stick + "\"[^>]*data-keys=\"([A-Za-z0-9]+) ([A-Za-z0-9]+) ([A-Za-z0-9]+) ([A-Za-z0-9]+)\"").matcher(html);
+            assertTrue(stick + " stick is draggable and has four keys, up down left right", draggable.find());
+            for (int i = 1; i <= 4; i++) {
+                assertTrue(stick + " stick shares its key " + draggable.group(i), keys.add(draggable.group(i)));
+            }
+        }
+        for (String gamepad : List.of("1", "2")) {
+            Matcher selectable = Pattern.compile("data-gamepad=\"" + gamepad + "\"[^>]*data-key=\"([A-Za-z0-9]+)\"").matcher(html);
+            assertTrue("gamepad " + gamepad + " can be selected by key", selectable.find());
+            assertTrue(keys.add(selectable.group(1)));
+        }
+        assertTrue("Stop is a control, not an input", html.contains("id=\"stop\""));
+    }
+
+    private static int templateMentions(String text) {
+        String empty = SimReplayPage.page(new SimRecording("Empty", "teleop"), false);
+        return empty.split(Pattern.quote(text), -1).length - 1;
     }
 }

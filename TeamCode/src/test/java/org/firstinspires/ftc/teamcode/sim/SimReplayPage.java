@@ -43,13 +43,19 @@ public final class SimReplayPage {
      * a file page embeds the whole recording.
      */
     public static String page(SimRecording recording, boolean live) {
-        return page(recording.name(), live, ticksJson(live ? List.of() : recording.ticks()), recording.outcome());
+        return page(recording.name(), recording.kind(), live, ticksJson(live ? List.of() : recording.ticks()), recording.outcome());
     }
 
-    /** The page for ticks already in their JSON form, as another JVM streamed them. */
-    public static String page(String name, boolean live, JsonArray ticks, String outcome) {
+    /**
+     * The page for ticks already in their JSON form, as another JVM streamed them.
+     *
+     * @param kind {@link SimCatalog#AUTO} or {@link SimCatalog#TELEOP}; a TeleOp page shows the
+     *             controller, and while live drives the run from it
+     */
+    public static String page(String name, String kind, boolean live, JsonArray ticks, String outcome) {
         JsonObject root = new JsonObject();
         root.addProperty("name", name);
+        root.addProperty("kind", kind);
         root.addProperty("live", live);
         root.addProperty("outcome", live ? null : outcome);
         root.add("ticks", live ? new JsonArray() : ticks);
@@ -90,6 +96,16 @@ public final class SimReplayPage {
             packets.add(p);
         }
         t.add("packets", packets);
+        JsonObject gamepads = new JsonObject();
+        if (tick.gamepad1 != null && !tick.gamepad1.neutral()) {
+            gamepads.add("1", tick.gamepad1.toJson());
+        }
+        if (tick.gamepad2 != null && !tick.gamepad2.neutral()) {
+            gamepads.add("2", tick.gamepad2.toJson());
+        }
+        if (gamepads.size() > 0) {
+            t.add("gamepads", gamepads); // absent means neutral, so a replay stays small
+        }
         return t;
     }
 

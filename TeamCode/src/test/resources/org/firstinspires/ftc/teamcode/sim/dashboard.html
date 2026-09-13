@@ -168,8 +168,8 @@
 <main id="simulate" class="panel" role="tabpanel" hidden>
   <aside>
     <div>
-      <p class="section-label" style="margin-top: 12px">Autonomous op modes</p>
-      <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next.</p>
+      <p class="section-label" style="margin-top: 12px">Op modes</p>
+      <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next. A TeleOp is driven from the controller under the live view.</p>
       <div class="opmodes" id="opmodes"></div>
       <p class="msg" id="msg" role="status"></p>
     </div>
@@ -714,19 +714,26 @@
       return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
     }
 
+    // "Autonomous" or "TeleOp", then the op mode's own group when it says something more.
+    function groupLabel(entry) {
+      var kind = entry.kind === 'teleop' ? 'TeleOp' : 'Autonomous';
+      var group = entry.group || '';
+      return group && group.toLowerCase() !== kind.toLowerCase() ? kind + ' · ' + group : kind;
+    }
+
     function renderCatalog() {
       var lastGroup = null;
       list.innerHTML = '';
       if (!catalog.length) {
-        list.innerHTML = '<div class="opmode"><span class="cls">No autonomous op modes found.</span></div>';
+        list.innerHTML = '<div class="opmode"><span class="cls">No op modes found.</span></div>';
       }
       catalog.forEach(function (entry) {
-        if (entry.group !== lastGroup) {
+        if (groupLabel(entry) !== lastGroup) {
           var label = document.createElement('div');
           label.className = 'group-label';
-          label.textContent = entry.group || 'ungrouped';
+          label.textContent = groupLabel(entry);
           list.appendChild(label);
-          lastGroup = entry.group;
+          lastGroup = groupLabel(entry);
         }
         var row = document.createElement('div');
         row.className = 'opmode';
@@ -764,6 +771,9 @@
       stage.src = '/sim/runs/' + id + '/';
     }
 
+    // A TeleOp is driven from the keyboard, so the live view gets it as soon as it loads.
+    stage.addEventListener('load', function () { try { stage.contentWindow.focus(); } catch (e) { /* the driver clicks first */ } });
+
     function messageOf(run) {
       return run && run.message ? run.message : '';
     }
@@ -771,7 +781,7 @@
     function pill(run) {
       if (run.phase === 'building') { return '<span class="pill building">building</span>'; }
       if (!run.outcome) { return '<span class="pill live">running</span>'; }
-      var ok = run.outcome === 'done';
+      var ok = run.outcome === 'done' || run.outcome === 'stopped';
       return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(run.outcome) + '</span>';
     }
 

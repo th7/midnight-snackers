@@ -25,6 +25,8 @@ public final class SimDevServer {
     public static final String PORT_ENV = "SIM_DEV_PORT";
     public static final int DEFAULT_PORT = 8765;
     public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
+    /** A match's driver-controlled period. */
+    public static final double DEFAULT_TELEOP_SECONDS = 120;
     public static final double DEFAULT_KILL_GRACE_SECONDS = 5;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
@@ -45,7 +47,7 @@ public final class SimDevServer {
         String portValue = System.getenv(PORT_ENV);
         int port = portValue == null || portValue.isBlank() ? DEFAULT_PORT : Integer.parseInt(portValue.trim());
         SimBench bench = new SimBench(null, Path.of("src", "main", "java"), SimRunner.DEFAULT_OUTPUT_DIR,
-                DEFAULT_RUN_TIMEOUT_SECONDS, DEFAULT_KILL_GRACE_SECONDS);
+                DEFAULT_RUN_TIMEOUT_SECONDS, DEFAULT_TELEOP_SECONDS, DEFAULT_KILL_GRACE_SECONDS);
         SimDevServer server = start(bench, port);
         System.out.println("Simulation bench: " + server.url() + "  (runs the sources as saved; Ctrl-C to stop)");
         Thread.currentThread().join();
