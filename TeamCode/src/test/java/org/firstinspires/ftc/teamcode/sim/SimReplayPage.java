@@ -13,8 +13,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Writes a run as a single HTML file that replays it: the field, the true pose, and the dashboard
- * drawing the robot code produced, with play/pause/scrub controls. The page loads nothing from
+ * Writes a run as a single HTML file that replays it: the field in three dimensions, the true pose,
+ * and the dashboard drawing the robot code produced, with play/pause/scrub controls. The field,
+ * robot and wall sizes come from {@link SimRobot}, so the page draws what the simulator collides.
+ * The page loads nothing from
  * the network, so it can be opened from anywhere the file is. The run comes from a
  * {@link Source}: a {@link SimRecording} in this JVM, or a run the bench knows only by the lines
  * its child streamed ({@link SimRunStream}); the page is the same either way.
@@ -67,6 +69,7 @@ public final class SimReplayPage {
                 .replace("__TITLE__", run.name())
                 .replace("__FIELD_IN__", String.valueOf(SimRobot.FIELD_SIZE_IN))
                 .replace("__ROBOT_IN__", String.valueOf(SimRobot.ROBOT_SIZE_IN))
+                .replace("__WALL_IN__", String.valueOf(SimRobot.WALL_HEIGHT_IN))
                 .replace("__DATA__", GSON.toJson(root));
     }
 

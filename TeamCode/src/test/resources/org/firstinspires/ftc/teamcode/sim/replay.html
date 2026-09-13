@@ -9,7 +9,8 @@
     color-scheme: light;
     --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc;
     --field: #fbfaf6; --tile: #e4e1d7; --axis: #c3bfb3; --label: #8f8b80;
-    --true: #d84a05; --true-soft: rgba(216, 74, 5, 0.22); --trail: rgba(216, 74, 5, 0.45);
+    --wall: rgba(110, 106, 97, 0.16); --wall-edge: #a7a295;
+    --true: #d84a05; --robot-top: #ffcdb3; --robot-side: #f0865a; --trail: rgba(216, 74, 5, 0.45);
     --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7;
     --pad: #e9e7e0; --pad-line: #bdb9ae; --btn: #ffffff; --btn-line: #a9a59a; --knob: #cfcbc0; --stop: #c62828;
   }
@@ -18,7 +19,8 @@
       color-scheme: dark;
       --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
       --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
-      --true: #ff7a3d; --true-soft: rgba(255, 122, 61, 0.24); --trail: rgba(255, 122, 61, 0.5);
+      --wall: rgba(200, 196, 186, 0.12); --wall-edge: #63666e;
+      --true: #ff7a3d; --robot-top: #ffb48f; --robot-side: #d9622c; --trail: rgba(255, 122, 61, 0.5);
       --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
       --pad: #2a2d33; --pad-line: #4a4d55; --btn: #383b42; --btn-line: #5a5e68; --knob: #4f535c; --stop: #ff8a80;
     }
@@ -27,7 +29,8 @@
     color-scheme: dark;
     --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
     --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
-    --true: #ff7a3d; --true-soft: rgba(255, 122, 61, 0.24); --trail: rgba(255, 122, 61, 0.5);
+    --wall: rgba(200, 196, 186, 0.12); --wall-edge: #63666e;
+    --true: #ff7a3d; --robot-top: #ffb48f; --robot-side: #d9622c; --trail: rgba(255, 122, 61, 0.5);
     --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
     --pad: #2a2d33; --pad-line: #4a4d55; --btn: #383b42; --btn-line: #5a5e68; --knob: #4f535c; --stop: #ff8a80;
   }
@@ -39,7 +42,8 @@
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
   .sub { color: var(--muted); margin: 0 0 12px; }
   .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
-  canvas { width: 100%; height: auto; background: var(--field); border: 1px solid var(--line); border-radius: 6px; display: block; }
+  canvas { width: 100%; height: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; display: block; touch-action: none; cursor: grab; }
+  canvas.orbiting { cursor: grabbing; }
   .controls { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
   button, select { font: inherit; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
   button:hover, select:hover { border-color: var(--ink); }
@@ -104,7 +108,7 @@
   <section>
     <h1 id="title"></h1>
     <p class="sub" id="outcome"></p>
-    <canvas id="field" width="720" height="720"></canvas>
+    <canvas id="field" width="720" height="500"></canvas>
     <div class="legend">
       <span><i style="background: var(--true)"></i>true pose (only the simulator knows this)</span>
       <span><i style="border: 2px solid #3F51B5"></i>localizer estimate</span>
@@ -118,7 +122,7 @@
       <input type="range" id="scrub" min="0" value="0" step="1">
       <span class="time mono" id="time"></span>
     </div>
-    <p class="hint" id="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.</p>
+    <p class="hint" id="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.</p>
   </section>
   <aside>
     <dl>
@@ -193,16 +197,73 @@
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
-  // The field and robot sizes come from SimRobot, so the page draws what the simulator collides.
-  const FIELD_IN = __FIELD_IN__, TILE_IN = 24, ROBOT_IN = __ROBOT_IN__;
+  // The field, robot and wall sizes come from SimRobot, so the page draws what the simulator collides:
+  // a walled square field, and the robot as a cube standing on it.
+  const FIELD_IN = __FIELD_IN__, TILE_IN = 24, ROBOT_IN = __ROBOT_IN__, WALL_IN = __WALL_IN__;
+  const HALF = FIELD_IN / 2;
   const canvas = document.getElementById('field');
   const ctx = canvas.getContext('2d');
-  const scale = canvas.width / FIELD_IN;
-  const cx = canvas.width / 2, cy = canvas.height / 2;
-  // Road Runner field frame: +x forward (up on screen), +y left (left on screen).
-  const sx = (x, y) => cx - y * scale;
-  const sy = (x, y) => cy - x * scale;
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // --- the camera: a perspective view that orbits the field's centre ---
+  // Points are [x, y, z] in field inches, Road Runner frame: +x forward, +y left, +z up.
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const unit = a => { const n = Math.hypot(a[0], a[1], a[2]); return [a[0] / n, a[1] / n, a[2] / n]; };
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  // Azimuth 0 is the audience side: looking along +x, with +y to the left. Elevation is the angle
+  // above the floor; zoom scales the framed field.
+  const HOME = { az: 0, el: 0.62, zoom: 1 };
+  const view = Object.assign({}, HOME);
+  const EYE_DIST = 2.4 * FIELD_IN;
+  const cam = { eye: [0, 0, 0], f: [1, 0, 0], r: [0, -1, 0], u: [0, 0, 1], focal: 1, ox: 0, oy: 0 };
+
+  function project(p) {
+    const v = sub(p, cam.eye);
+    const depth = dot(v, cam.f);
+    return { x: cam.ox + cam.focal * dot(v, cam.r) / depth, y: cam.oy - cam.focal * dot(v, cam.u) / depth };
+  }
+
+  function aimCamera() {
+    const ce = Math.cos(view.el), se = Math.sin(view.el);
+    cam.eye = [-EYE_DIST * ce * Math.cos(view.az), -EYE_DIST * ce * Math.sin(view.az), EYE_DIST * se];
+    cam.f = unit(sub([0, 0, WALL_IN / 2], cam.eye));
+    cam.r = unit(cross(cam.f, [0, 0, 1]));
+    cam.u = cross(cam.r, cam.f);
+    // Frame the walled field with a margin from whatever angle it is seen; zoom scales from there.
+    cam.focal = 1; cam.ox = 0; cam.oy = 0;
+    const top = Math.max(WALL_IN, ROBOT_IN);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const x of [-HALF, HALF]) for (const y of [-HALF, HALF]) for (const z of [0, top]) {
+      const p = project([x, y, z]);
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+    const margin = 28;
+    cam.focal = Math.min((canvas.width - 2 * margin) / (maxX - minX), (canvas.height - 2 * margin) / (maxY - minY)) * view.zoom;
+    cam.ox = canvas.width / 2 - cam.focal * (minX + maxX) / 2;
+    cam.oy = canvas.height / 2 - cam.focal * (minY + maxY) / 2;
+  }
+
+  // A polygon or a line of 3D points as a canvas path. Straight lines stay straight in perspective.
+  function trace(points, close) {
+    ctx.beginPath();
+    points.forEach((p, i) => { const s = project(p); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
+    if (close) ctx.closePath();
+  }
+  const floor = (x, y) => project([x, y, 0]);
+
+  // The four walls: the floor corners each runs between, and which way is outside the field.
+  const WALLS = [
+    { a: [HALF, -HALF], b: [HALF, HALF], out: [1, 0] },
+    { a: [-HALF, -HALF], b: [-HALF, HALF], out: [-1, 0] },
+    { a: [-HALF, HALF], b: [HALF, HALF], out: [0, 1] },
+    { a: [-HALF, -HALF], b: [HALF, -HALF], out: [0, -1] }
+  ];
+  // A wall the camera is outside of is in front of everything on the field; the others are behind.
+  const wallInFront = w => cam.eye[0] * w.out[0] + cam.eye[1] * w.out[1] > HALF;
+  const wallDistance = w => Math.hypot(cam.eye[0] - (w.a[0] + w.b[0]) / 2, cam.eye[1] - (w.a[1] + w.b[1]) / 2, cam.eye[2] - WALL_IN / 2);
 
   document.getElementById('title').textContent = rec.name;
   document.title = rec.name + (rec.live ? ' live' : ' replay');
@@ -231,39 +292,52 @@
     if (teleop) {
       hint.innerHTML = driving()
         ? 'Click a button or press the key shown on it; drag a stick or hold its keys. <kbd>1</kbd> <kbd>2</kbd> pick the gamepad, <kbd>Esc</kbd> stops the run. Click the page first if the keys do nothing.'
-        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.';
+        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.';
     }
   }
 
-  function drawField() {
-    ctx.fillStyle = token('--field');
+  function drawFloor() {
+    ctx.fillStyle = token('--bg');
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = token('--field');
+    trace([[-HALF, -HALF, 0], [HALF, -HALF, 0], [HALF, HALF, 0], [-HALF, HALF, 0]], true);
+    ctx.fill();
     ctx.strokeStyle = token('--tile');
     ctx.lineWidth = 1;
-    for (let i = 0; i <= FIELD_IN / TILE_IN; i++) {
-      const p = i * TILE_IN * scale;
-      ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); ctx.stroke();
+    for (let i = 1; i < FIELD_IN / TILE_IN; i++) {
+      const p = -HALF + i * TILE_IN;
+      trace([[p, -HALF, 0], [p, HALF, 0]]); ctx.stroke();
+      trace([[-HALF, p, 0], [HALF, p, 0]]); ctx.stroke();
     }
     ctx.strokeStyle = token('--axis');
-    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+    trace([[-HALF, 0, 0], [HALF, 0, 0]]); ctx.stroke();
+    trace([[0, -HALF, 0], [0, HALF, 0]]); ctx.stroke();
     ctx.fillStyle = token('--label');
     ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText('+x', cx + 6, 14);
-    ctx.fillText('+y', 6, cy - 6);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const px = floor(HALF + 9, 0), py = floor(0, HALF + 9);
+    ctx.fillText('+x', px.x, px.y);
+    ctx.fillText('+y', py.x, py.y);
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawWall(w) {
+    ctx.fillStyle = token('--wall');
+    ctx.strokeStyle = token('--wall-edge');
+    ctx.lineWidth = 1;
+    trace([[w.a[0], w.a[1], 0], [w.b[0], w.b[1], 0], [w.b[0], w.b[1], WALL_IN], [w.a[0], w.a[1], WALL_IN]], true);
+    ctx.fill(); ctx.stroke();
   }
 
   function drawTrail(upTo) {
     if (upTo < 1) return;
     ctx.strokeStyle = token('--trail');
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(sx(ticks[0].x, ticks[0].y), sy(ticks[0].x, ticks[0].y));
-    for (let i = 1; i <= upTo; i++) ctx.lineTo(sx(ticks[i].x, ticks[i].y), sy(ticks[i].x, ticks[i].y));
+    trace(ticks.slice(0, upTo + 1).map(t => [t.x, t.y, 0]));
     ctx.stroke();
   }
 
+  // The dashboard's field overlay is a drawing on the floor: every op is projected onto it.
   function drawOps(ops) {
     ctx.save();
     ctx.lineWidth = 1;
@@ -276,32 +350,37 @@
         case 'POLYLINE':
         case 'POLYGON': {
           if (!op.xPoints.length) break;
-          ctx.beginPath();
-          ctx.moveTo(sx(op.xPoints[0], op.yPoints[0]), sy(op.xPoints[0], op.yPoints[0]));
-          for (let i = 1; i < op.xPoints.length; i++) ctx.lineTo(sx(op.xPoints[i], op.yPoints[i]), sy(op.xPoints[i], op.yPoints[i]));
-          if (op.type === 'POLYGON') { ctx.closePath(); op.stroke ? ctx.stroke() : ctx.fill(); } else ctx.stroke();
+          trace(op.xPoints.map((x, i) => [x, op.yPoints[i], 0]), op.type === 'POLYGON');
+          if (op.type === 'POLYGON') { op.stroke ? ctx.stroke() : ctx.fill(); } else ctx.stroke();
           break;
         }
-        case 'CIRCLE':
-          ctx.beginPath();
-          ctx.arc(sx(op.x, op.y), sy(op.x, op.y), op.radius * scale, 0, 2 * Math.PI);
+        case 'CIRCLE': {
+          const rim = [];
+          for (let i = 0; i < 36; i++) {
+            const a = i / 36 * 2 * Math.PI;
+            rim.push([op.x + op.radius * Math.cos(a), op.y + op.radius * Math.sin(a), 0]);
+          }
+          trace(rim, true);
           op.stroke ? ctx.stroke() : ctx.fill();
           break;
+        }
         case 'SPLINE': {
-          ctx.beginPath();
+          const curve = [];
           for (let i = 0; i <= 24; i++) {
             const t = i / 24;
-            const x = ((((op.ax * t + op.bx) * t + op.cx) * t + op.dx) * t + op.ex) * t + op.fx;
-            const y = ((((op.ay * t + op.by) * t + op.cy) * t + op.dy) * t + op.ey) * t + op.fy;
-            i ? ctx.lineTo(sx(x, y), sy(x, y)) : ctx.moveTo(sx(x, y), sy(x, y));
+            curve.push([((((op.ax * t + op.bx) * t + op.cx) * t + op.dx) * t + op.ex) * t + op.fx,
+                        ((((op.ay * t + op.by) * t + op.cy) * t + op.dy) * t + op.ey) * t + op.fy, 0]);
           }
+          trace(curve);
           ctx.stroke();
           break;
         }
-        case 'TEXT':
+        case 'TEXT': {
           ctx.font = op.font || '12px sans-serif';
-          op.stroke ? ctx.strokeText(op.text, sx(op.x, op.y), sy(op.x, op.y)) : ctx.fillText(op.text, sx(op.x, op.y), sy(op.x, op.y));
+          const s = floor(op.x, op.y);
+          op.stroke ? ctx.strokeText(op.text, s.x, s.y) : ctx.fillText(op.text, s.x, s.y);
           break;
+        }
         default: break; // GRID, IMAGE, TRANSLATE, ROTATION, SCALE are not used by our code
       }
     }
@@ -309,19 +388,41 @@
   }
 
   function drawTrueRobot(tick) {
-    // The robot's square, in field inches: a point (fx, fy) in the robot's own frame lands at
-    // its pose rotated by the heading.
+    // The robot's cube, in field inches: a point (fx, fy, z) in the robot's own frame lands at its
+    // pose rotated by the heading, standing on the floor.
     const h = ROBOT_IN / 2, cos = Math.cos(tick.heading), sin = Math.sin(tick.heading);
-    const at = (fx, fy) => [tick.x + fx * cos - fy * sin, tick.y + fx * sin + fy * cos];
-    const corners = [at(h, h), at(h, -h), at(-h, -h), at(-h, h)];
-    ctx.fillStyle = token('--true-soft');
+    const at = (fx, fy, z) => [tick.x + fx * cos - fy * sin, tick.y + fx * sin + fy * cos, z];
+    const faces = [
+      { pts: [at(h, h, ROBOT_IN), at(h, -h, ROBOT_IN), at(-h, -h, ROBOT_IN), at(-h, h, ROBOT_IN)], n: [0, 0, 1], fill: '--robot-top' },
+      { pts: [at(h, h, 0), at(h, -h, 0), at(h, -h, ROBOT_IN), at(h, h, ROBOT_IN)], n: [cos, sin, 0], fill: '--true' },
+      { pts: [at(-h, -h, 0), at(-h, h, 0), at(-h, h, ROBOT_IN), at(-h, -h, ROBOT_IN)], n: [-cos, -sin, 0], fill: '--robot-side' },
+      { pts: [at(-h, h, 0), at(h, h, 0), at(h, h, ROBOT_IN), at(-h, h, ROBOT_IN)], n: [-sin, cos, 0], fill: '--robot-side' },
+      { pts: [at(h, -h, 0), at(-h, -h, 0), at(-h, -h, ROBOT_IN), at(h, -h, ROBOT_IN)], n: [sin, -cos, 0], fill: '--robot-side' }
+    ];
+    // The front face is the true-pose colour; the rest are lit from the audience's left, above. The
+    // cube is a little see-through, so what the robot code draws under itself (its localizer's
+    // estimate, say) still shows.
+    const light = unit([-0.5, 0.4, 0.8]);
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    for (const face of faces) {
+      if (dot(face.n, sub(cam.eye, face.pts[0])) <= 0) continue; // faces away from the camera
+      trace(face.pts, true);
+      ctx.fillStyle = token(face.fill);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.3 * (1 - Math.max(0, dot(face.n, light)))).toFixed(3) + ')';
+      ctx.fill();
+      ctx.strokeStyle = token('--true');
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    ctx.restore();
+    // The heading, as an arrow on the top face from the centre to the front edge.
+    const z = ROBOT_IN + 0.1;
     ctx.strokeStyle = token('--true');
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    corners.forEach(([fx, fy], i) => i ? ctx.lineTo(sx(fx, fy), sy(fx, fy)) : ctx.moveTo(sx(fx, fy), sy(fx, fy)));
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    const [hx, hy] = at(h, 0);
-    ctx.beginPath(); ctx.moveTo(sx(tick.x, tick.y), sy(tick.x, tick.y)); ctx.lineTo(sx(hx, hy), sy(hx, hy)); ctx.stroke();
+    trace([at(0, 0, z), at(h, 0, z)]); ctx.stroke();
+    trace([at(h - 4, 3, z), at(h, 0, z), at(h - 4, -3, z)]); ctx.stroke();
   }
 
   function latestPackets(upTo) {
@@ -330,14 +431,21 @@
   }
 
   function render() {
-    drawField();
+    aimCamera();
+    drawFloor();
     if (!driving()) renderController(recordedState(index));
-    if (!ticks.length) return;
-    const tick = ticks[index];
-    drawTrail(index);
-    const packets = latestPackets(index);
-    for (const p of packets) drawOps(p.ops);
-    drawTrueRobot(tick);
+    const tick = ticks.length ? ticks[index] : null;
+    const packets = tick ? latestPackets(index) : [];
+    if (tick) {
+      drawTrail(index);
+      for (const p of packets) drawOps(p.ops);
+    }
+    // Back to front: the walls behind the robot, the robot, then the walls between it and the camera.
+    const walls = WALLS.slice().sort((a, b) => wallDistance(b) - wallDistance(a));
+    for (const w of walls) if (!wallInFront(w)) drawWall(w);
+    if (tick) drawTrueRobot(tick);
+    for (const w of walls) if (wallInFront(w)) drawWall(w);
+    if (!tick) return;
 
     time.textContent = tick.t.toFixed(2) + ' s';
     scrub.value = index;
@@ -395,6 +503,34 @@
   play.addEventListener('click', () => setPlaying(!playing));
   scrub.addEventListener('input', () => { setPlaying(false); if (following) setFollowing(false); setIndex(parseInt(scrub.value, 10)); });
   follow.addEventListener('click', () => setFollowing(!following));
+
+  // Orbit: drag the field to turn it, scroll to zoom, double-click to go back to the audience's view.
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('orbiting');
+    let last = { x: e.clientX, y: e.clientY };
+    const move = ev => {
+      view.az -= (ev.clientX - last.x) * 0.008;
+      view.el = clamp(view.el + (ev.clientY - last.y) * 0.008, 0.12, 1.5);
+      last = { x: ev.clientX, y: ev.clientY };
+      render();
+    };
+    const release = () => {
+      canvas.classList.remove('orbiting');
+      canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', release); canvas.removeEventListener('pointercancel', release);
+    };
+    canvas.addEventListener('pointermove', move);
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    view.zoom = clamp(view.zoom * Math.exp(-e.deltaY * 0.0015), 0.5, 4);
+    render();
+  }, { passive: false });
+  canvas.addEventListener('dblclick', () => { Object.assign(view, HOME); render(); });
 
   // --- the controller ---
   const panel = document.getElementById('controller-panel');
