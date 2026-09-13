@@ -25,6 +25,7 @@ import java.util.Optional;
  * classes first on the classpath: the robot's main sources and the simulator itself, built with
  * them ({@link SimBuild}), so the run executes the sources as last saved, every class identity
  * is consistent, static state starts clean, and a hung op mode is a process that can be killed.
+ * Its first line, either way, is the {@link SimRunStream#hello() protocol} it speaks.
  * <ul>
  * <li>{@code --list [source...]} prints the catalog as one JSON line.</li>
  * <li>{@code --run <name> <seconds> <replayDir> [source...]} runs the op mode of that name,
@@ -48,6 +49,7 @@ public final class SimChild {
     public static void main(String[] args) {
         PrintStream protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
+        protocol.println(SimRunStream.hello());
         if (args.length >= 1 && args[0].equals("--list")) {
             protocol.println(GSON.toJson(catalog(args, 1).toJson()));
             System.exit(0);

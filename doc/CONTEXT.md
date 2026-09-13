@@ -214,19 +214,21 @@ the editable set, as before, and the file list still shows only that.
 The source set is enumerated and matched exactly, never resolved against
 the filesystem.
 
-**Build** — Compiling the main sources as they are on disk with the JDK's
-own compiler, together with the **simulator's own sources** — everything
-under `TeamCode/src/test/java` of the checkout the server runs from that
-is not a test — cached by a fingerprint of both trees. The simulator runs
-in the child against the sources it was just built with, so a simulator
-that does not fit them (a worktree off a stale `develop` meeting a server
-built from `main`, say) fails the build naming the seam, rather than the
-child failing at run time with a linkage error nobody can read. The Edit
-tab asks for a build after every save and shows the **problems** (file,
-line, message); a problem in the simulator has no file the user can open
-and says so in its message. In the coding server the sources are the
-user's worktree, so one user's broken edit breaks only their own build.
-Not the Android build: no Kotlin, no desugaring. Class: `SimBuild`.
+**Build** — Compiling a project's main sources as they are on disk with
+the JDK's own compiler, together with that project's **simulator** —
+everything under its `TeamCode/src/test/java` that is not a test, with
+the resources next to it copied along — cached by a fingerprint of all
+three trees. The simulator runs in the child against the sources it was
+just built with, so a simulator that does not fit them fails the build
+naming the seam, rather than the child failing at run time with a
+linkage error nobody can read. The Edit tab asks for a build after every
+save and shows the **problems** (file, line, message); a problem in the
+simulator has no file the user can open and says so in its message. In
+the coding server the project is the user's worktree, so one user's
+broken edit breaks only their own build, and a worktree on another
+version of the code than the server runs its own simulator, not the
+server's. Not the Android build: no Kotlin, no desugaring. Class:
+`SimBuild`.
 
 ## The simulator
 
@@ -236,8 +238,10 @@ start a run and follow it. One run at a time per bench. The bench page
 has one; the coding server makes one per worktree through a **bench
 factory**, so one run at a time per user and two users may run at once,
 each in its own child JVM, and a user's status lists only their runs.
-Given a source root it builds before every run; without one (the tests)
-it runs on the current classpath. Class: `SimBench`.
+Given a project it builds that project's robot and simulator before
+every run, and refuses a project with no simulator of its own, since the
+child would fall through to the server's; without one (the tests) it
+runs on the current classpath. Class: `SimBench`.
 
 **Bench page** — The standalone page for one developer at
 `./gradlew :TeamCode:simDev` (http://localhost:8765/), with no login.
@@ -258,20 +262,26 @@ The child reports the catalog after each build, so a newly written op
 mode appears without a restart. Class: `SimCatalog`.
 
 **Child** — The fresh JVM each run executes in, launched with the newly
-built classes — the robot sources and the simulator built with them —
-first on its classpath. Every class identity is consistent,
+built classes — the project's robot sources and its simulator, built
+together — first on its classpath. Every class identity is consistent,
 static state starts clean, and a hung op mode is a process that can be
-killed. It builds the catalog, then prints the run stream; the op mode's
-own output goes to stderr. Its standard input is the driver
-station, one line at a time; when the input ends, the run ends stopped.
-Class: `SimChild`.
+killed. It says its **protocol** first, builds the catalog, then prints
+the run stream; the op mode's own output goes to stderr. Its standard
+input is the driver station, one line at a time; when the input ends,
+the run ends stopped. Class: `SimChild`.
 
 **Run stream** — The lines the child prints, one JSON object per line, in
-order: one that the op mode's time has begun, each tick as it happens, and
-finally the outcome. Written and read in one place, so the child and the
-bench agree by construction, and every way a run can end is named there. A
-tick's line is also the form the replay page reads, so a run the bench
-knows only by its lines is the same page the child wrote from its own
+order: which protocol it speaks, one that the op mode's time has begun,
+each tick as it happens, and finally the outcome. Written and read in one
+place, and every way a run can end is named there. But the child runs the
+project's simulator, which may be another version of this code than the
+bench, so the lines carry a **protocol** version: the bench refuses, by
+name and with whose the fix is, a child newer than itself or older than
+the oldest it still reads, rather than misreading it; and a test pins
+what a child of that oldest version printed. A child from before the
+version line prints content first and is that oldest version. A tick's
+line is also the form the replay page reads, so a run the bench knows
+only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Class: `SimRunStream`;
 `SimReplayPage.Source`.
 
@@ -280,8 +290,8 @@ time. A run has a **phase** (*building*, *starting* while the child JVM
 loads the catalog, *running* from the moment the op mode's time begins,
 *finished*), a
 **message** (compile errors, or why it was killed), and when finished an
-**outcome**: *done*, *stopped*, *timed out*, *build failed*, or *child
-exited with code N*. An **auto run** is done when its plan is, and times
+**outcome**: *done*, *stopped*, *timed out*, *build failed*, *wrong
+protocol*, or *child exited with code N*. An **auto run** is done when its plan is, and times
 out when the plan is not done within the **run timeout** (60 s on the
 bench). A **TeleOp run** has no plan: it is driven from the controller
 until the driver presses Stop, or is done when its **period** is over

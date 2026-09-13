@@ -95,8 +95,68 @@ public class SimRunStreamTest {
     }
 
     @Test
+    public void theChildSaysItsProtocolFirstAndABenchOfTheSameVersionConsumesIt() {
+        String hello = SimRunStream.hello();
+        assertEquals(1, hello.split("\n").length);
+        assertNull("a hello is consumed; the next line is content", SimRunStream.afterHello(hello));
+    }
+
+    /**
+     * A child from before the hello existed prints its content first. Those lines are pinned here
+     * as such a child printed them, because a bench must still read them.
+     */
+    @Test
+    public void aVersionOneChildPrintsNoHelloSoItsFirstLineIsContentAndStillReads() {
+        assertEquals(1, SimRunStream.OLDEST_PROTOCOL_READ);
+        assertEquals("a catalog line comes back as it was", "[]", SimRunStream.afterHello("[]"));
+        Heard heard = new Heard();
+        String[] versionOne = {
+                "{\"started\":true}",
+                "{\"t\":0.5,\"x\":1.0,\"y\":2.0,\"heading\":0.0,\"step\":\"1. go\",\"powers\":[0.5,0.5,0.5,0.5],\"packets\":[]}",
+                "{\"outcome\":\"done\"}",
+        };
+        String first = SimRunStream.afterHello(versionOne[0]);
+        assertEquals(versionOne[0], first);
+        SimRunStream.accept(first, heard);
+        SimRunStream.accept(versionOne[1], heard);
+        SimRunStream.accept(versionOne[2], heard);
+        assertEquals(List.of("started", "tick", "finished"), heard.events);
+        assertEquals("1. go", heard.ticks.get(0).get("step").getAsString());
+        assertEquals(0.5, SimRunStream.seconds(heard.ticks.get(0)), 0);
+        assertEquals("done", heard.outcome);
+    }
+
+    @Test
+    public void aChildOfANewerProtocolIsRefusedByName() {
+        int newer = SimRunStream.PROTOCOL + 1;
+        try {
+            SimRunStream.afterHello("{\"protocol\":" + newer + "}");
+            fail("a newer child prints lines this bench cannot read");
+        } catch (SimRunStream.WrongProtocol e) {
+            assertEquals(newer, e.childProtocol);
+            assertTrue(e.getMessage(), e.getMessage().contains("protocol " + newer));
+            assertTrue(e.getMessage(), e.getMessage().contains("protocol " + SimRunStream.PROTOCOL));
+            assertTrue("the fix is the server's, not the sources'", e.getMessage().contains("server"));
+        }
+    }
+
+    @Test
+    public void aChildOlderThanTheOldestReadIsRefusedByName() {
+        int older = SimRunStream.OLDEST_PROTOCOL_READ - 1;
+        try {
+            SimRunStream.afterHello("{\"protocol\":" + older + "}");
+            fail("an older child prints lines this bench no longer reads");
+        } catch (SimRunStream.WrongProtocol e) {
+            assertEquals(older, e.childProtocol);
+            assertTrue(e.getMessage(), e.getMessage().contains("protocol " + older));
+            assertTrue("the fix is the sources'", e.getMessage().toLowerCase().contains("pull"));
+        }
+    }
+
+    @Test
     public void theOutcomesAreNamedHereAsTheGlossarySaysThem() {
         assertEquals("done", Outcome.done());
+        assertTrue(Outcome.wrongProtocol(3).startsWith("wrong protocol"));
         assertEquals("stopped", Outcome.stopped());
         assertEquals("timed out after 0.3s", Outcome.timedOut(0.3));
         assertEquals("build failed", Outcome.buildFailed());

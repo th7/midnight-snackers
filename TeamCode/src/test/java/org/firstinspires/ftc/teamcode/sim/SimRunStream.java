@@ -11,12 +11,15 @@ import com.google.gson.JsonSerializer;
 import java.util.List;
 
 /**
- * The lines a run's child prints, one JSON object per line, in order: {@code {"started": true}}
- * as the op mode's time begins, each tick as it happens, and finally {@code {"outcome": "..."}}.
- * They are written here and read here, so the child and the bench agree by construction, and
- * every way a run can end is named here in {@link Outcome}. A tick's line is also the form the
- * replay page reads, so a run the bench knows only by its lines is the page the child wrote.
- * (The driver station's lines, the other way, are {@link SimDriverStation#accept}.)
+ * The lines a run's child prints, one JSON object per line, in order: {@code {"protocol": N}}
+ * first, {@code {"started": true}} as the op mode's time begins, each tick as it happens, and
+ * finally {@code {"outcome": "..."}}. They are written here and read here; but the child runs the
+ * simulator of the sources it was built from, which may be another version of this code, so the
+ * lines carry a {@link #PROTOCOL version}: the child says its own first, and a bench refuses one
+ * it cannot read ({@link #afterHello}) rather than misreading it. Every way a run can end is
+ * named here in {@link Outcome}. A tick's line is also the form the replay page reads, so a run
+ * the bench knows only by its lines is the page the child wrote. (The driver station's lines,
+ * the other way, are {@link SimDriverStation#accept}.)
  */
 public final class SimRunStream {
     /** What the lines say, in the order they were printed. */
@@ -58,6 +61,11 @@ public final class SimRunStream {
             return "build failed";
         }
 
+        /** The child's simulator speaks a protocol this bench cannot read; the run's message says whose the fix is. */
+        public static String wrongProtocol(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol + ", this server " + PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -91,9 +99,65 @@ public final class SimRunStream {
         }
     }
 
+    /**
+     * The version of these lines. Bump it when a change would leave a bench of the old version
+     * misreading a child of the new; then {@link #OLDEST_PROTOCOL_READ} says how old a child a
+     * bench still reads, and the test of the oldest one pins what such a child printed.
+     */
+    public static final int PROTOCOL = 2;
+    /** The oldest child a bench still reads. A child of version 1 prints no hello: its first line is content. */
+    public static final int OLDEST_PROTOCOL_READ = 1;
+
+    /** The child speaks a protocol this bench cannot read; the message names both and whose the fix is. */
+    public static final class WrongProtocol extends RuntimeException {
+        public final int childProtocol;
+
+        WrongProtocol(int childProtocol, String message) {
+            super(message);
+            this.childProtocol = childProtocol;
+        }
+    }
+
     private static final Gson GSON = gson();
 
     private SimRunStream() {
+    }
+
+    /** The child's first line, before the catalog or the run: which protocol it speaks. */
+    public static String hello() {
+        JsonObject line = new JsonObject();
+        line.addProperty("protocol", PROTOCOL);
+        return GSON.toJson(line);
+    }
+
+    /**
+     * Reads the child's first line. A hello is consumed, and null comes back: the next line is
+     * content. A version-1 child prints no hello, so its first line is content and comes back as it was.
+     *
+     * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than the oldest it reads
+     */
+    public static String afterHello(String firstLine) {
+        JsonObject json;
+        try {
+            json = GSON.fromJson(firstLine, JsonObject.class);
+        } catch (RuntimeException e) {
+            return firstLine; // a catalog line is an array: content
+        }
+        if (json == null || !json.has("protocol")) {
+            return firstLine;
+        }
+        int child = json.get("protocol").getAsInt();
+        if (child > PROTOCOL) {
+            throw new WrongProtocol(child, "the simulator in these sources speaks protocol " + child + " and this server speaks"
+                    + " protocol " + PROTOCOL + ": the server is older than the sources. Restart the server from a checkout"
+                    + " with the newer code.");
+        }
+        if (child < OLDEST_PROTOCOL_READ) {
+            throw new WrongProtocol(child, "the simulator in these sources speaks protocol " + child + " and this server reads"
+                    + " protocol " + OLDEST_PROTOCOL_READ + " to " + PROTOCOL + ": the sources are older than the server."
+                    + " Pull develop.");
+        }
+        return null;
     }
 
     public static String started() {

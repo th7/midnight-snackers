@@ -75,8 +75,7 @@ public class CodingServerTest {
 
     /** A bench over the worktree's own sources, so a run builds what that user saved. */
     private static SimBench.Factory sourcesBench() {
-        return worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"), SimBenchTest.HARNESS,
-                worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
+        return worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
     }
 
     private static String encode(String name) throws java.io.UnsupportedEncodingException {
@@ -84,7 +83,7 @@ public class CodingServerTest {
     }
 
     private SimBench bench() {
-        return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null, null,
+        return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
                 folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 30, 1);
     }
 
@@ -613,7 +612,7 @@ public class CodingServerTest {
 
     @Test
     public void oneUsersBrokenEditDoesNotBreakAnothers() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2));
+        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
         GitFixture.commitAll(root, "the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
@@ -660,7 +659,7 @@ public class CodingServerTest {
 
     @Test
     public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2));
+        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
         GitFixture.commitAll(root, "the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
@@ -681,7 +680,7 @@ public class CodingServerTest {
 
     @Test
     public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "));
+        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "));
         GitFixture.commitAll(root, "the broken auto");
         serverWith(sourcesBench());
         String cookie = approvedUser("ada");
@@ -696,7 +695,7 @@ public class CodingServerTest {
 
     @Test
     public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
-        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, null, folder.getRoot().toPath().resolve("sim"), 2, 30, 1));
+        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, folder.getRoot().toPath().resolve("sim"), 2, 30, 1));
         String cookie = approvedUser("ada");
         String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body).get("id").getAsString();
         awaitSimStatus(cookie, "\"outcome\":\"done\"");
@@ -712,7 +711,7 @@ public class CodingServerTest {
 
     @Test
     public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2));
+        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
         GitFixture.commitAll(root, "the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
@@ -1534,6 +1533,7 @@ public class CodingServerTest {
         Files.createDirectories(src);
         Files.write(src.resolve("Plans.java"), SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8));
         Files.write(src.resolve("Auto.java"), SourceNavigatorTest.AUTO_SOURCE.getBytes(StandardCharsets.UTF_8));
+        SimBenchTest.simulatorInto(root);
         GitFixture.commitAll(root, "two classes");
         serverWith(sourcesBench());
         assertEquals(200, admin("POST", "/admin/files/add?path=" + SRC + "Auto.java").status);

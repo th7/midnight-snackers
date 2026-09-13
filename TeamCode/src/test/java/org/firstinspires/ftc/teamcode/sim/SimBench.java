@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -27,10 +28,10 @@ import java.util.concurrent.TimeUnit;
  * catalog of runnable autonomous op modes, the runs so far, and the routes that start a run and
  * follow it. One run at a time, whoever asks.
  * <p>
- * Given a source root, every run first recompiles the main sources ({@link SimBuild}) and then
+ * Given a project, every run first rebuilds its robot sources and its simulator ({@link SimBuild}) and then
  * runs the op mode in a child JVM ({@link SimChild}) with the new classes first on its classpath,
  * so a run always executes the sources as last saved, and a hung op mode is a process that gets
- * killed. Without a source root (the tests), the child runs on this JVM's classpath as is.
+ * killed. Without a project (the tests), the child runs on this JVM's classpath as is.
  */
 public final class SimBench {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
@@ -230,27 +231,38 @@ public final class SimBench {
     private SimBuild.Result lastCheck;
 
     /**
-     * @param fixedCatalog      the op modes to offer, or null to compile and list them from {@code sourceRoot}
-     * @param sourceRoot        the main sources to compile before each run, or null to run this JVM's classes
-     * @param harnessRoot       the simulator's own sources, built with {@code sourceRoot} before each run; null only with a fixed catalog
+     * @param fixedCatalog      the op modes to offer, or null to build and list them from {@code project}
+     * @param project           the project (a checkout or worktree) whose robot sources and simulator are built before each run, or null to run this JVM's classes
      * @param runTimeoutSeconds how long an auto may take to finish its plan before the run times out
      * @param teleOpSeconds     how long a TeleOp runs when the driver never presses Stop
      * @param killGraceSeconds  how long past its time the child may live before it is killed
      */
-    public SimBench(SimCatalog fixedCatalog, Path sourceRoot, Path harnessRoot, Path outputDir, double runTimeoutSeconds,
+    public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, double runTimeoutSeconds,
                     double teleOpSeconds, double killGraceSeconds) {
-        if ((fixedCatalog == null) == (sourceRoot == null)) {
-            throw new IllegalArgumentException("give either a fixed catalog or a source root");
-        }
-        if (sourceRoot != null && harnessRoot == null) {
-            throw new IllegalArgumentException("a bench over sources needs the simulator's own sources to build with them");
+        if ((fixedCatalog == null) == (project == null)) {
+            throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
         this.fixedCatalog = fixedCatalog;
-        this.build = sourceRoot == null ? null : new SimBuild(sourceRoot, harnessRoot, outputDir.resolve("classes"));
+        this.build = project == null ? null : buildOf(project, outputDir);
         this.outputDir = outputDir;
         this.runTimeoutSeconds = runTimeoutSeconds;
         this.teleOpSeconds = teleOpSeconds;
         this.killGraceSeconds = killGraceSeconds;
+    }
+
+    /**
+     * The build of a project's robot sources and its own simulator, which the child runs. A project
+     * without a simulator is refused: the child would fall through to this server's, built for
+     * other robot sources.
+     */
+    private static SimBuild buildOf(Path project, Path outputDir) {
+        Path harnessRoot = project.resolve("TeamCode/src/test/java");
+        Path child = harnessRoot.resolve(SimChild.class.getName().replace('.', '/') + ".java");
+        if (!Files.isRegularFile(child)) {
+            throw new IllegalArgumentException("no simulator in " + project + ": " + child
+                    + " is missing, and the child would run this server's simulator instead of the project's own");
+        }
+        return new SimBuild(project.resolve("TeamCode/src/main/java"), harnessRoot, outputDir.resolve("classes"));
     }
 
     /**
@@ -307,10 +319,23 @@ public final class SimBench {
         return fixedCatalog == null ? List.of() : fixedCatalog.sources();
     }
 
+    /**
+     * @throws SimRunStream.WrongProtocol when the project's simulator speaks a protocol this bench cannot read
+     */
     private static SimCatalog list(Path classes) {
         Process child = SimChild.launch(List.of(classes), "--list");
         try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
-            String line = out.readLine();
+            String first = out.readLine();
+            String line;
+            try {
+                line = first == null ? null : SimRunStream.afterHello(first);
+            } catch (SimRunStream.WrongProtocol e) {
+                child.destroyForcibly();
+                throw e;
+            }
+            if (line == null && first != null) {
+                line = out.readLine();
+            }
             child.getErrorStream().transferTo(java.io.OutputStream.nullOutputStream());
             if (!child.waitFor(60, TimeUnit.SECONDS) || line == null) {
                 child.destroyForcibly();
@@ -370,6 +395,8 @@ public final class SimBench {
             return Response.json(GSON.toJson(catalog().toJson()));
         } catch (BuildFailed e) {
             return Response.error(500, "the sources do not compile:\n" + e.getMessage());
+        } catch (SimRunStream.WrongProtocol e) {
+            return Response.error(500, e.getMessage());
         }
     }
 
@@ -383,8 +410,8 @@ public final class SimBench {
         if (opMode != null) {
             try {
                 entry = catalog().find(opMode);
-            } catch (BuildFailed e) {
-                // let the run itself report the build failure, where the tab shows it
+            } catch (BuildFailed | SimRunStream.WrongProtocol e) {
+                // let the run itself report the failure, where the tab shows it
                 entry = listed == null ? Optional.empty() : listed.find(opMode);
                 if (entry.isEmpty()) {
                     entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null));
@@ -528,9 +555,23 @@ public final class SimBench {
             }
         };
         try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
+            boolean first = true;
             for (String line = out.readLine(); line != null; line = out.readLine()) {
                 if (line.isBlank()) {
                     continue;
+                }
+                if (first) {
+                    first = false;
+                    try {
+                        line = SimRunStream.afterHello(line);
+                    } catch (SimRunStream.WrongProtocol e) {
+                        run.finish(SimRunStream.Outcome.wrongProtocol(e.childProtocol), e.getMessage());
+                        child.destroyForcibly();
+                        break;
+                    }
+                    if (line == null) {
+                        continue; // the hello, consumed
+                    }
                 }
                 try {
                     SimRunStream.accept(line, listener);

@@ -24,14 +24,14 @@ import javax.tools.ToolProvider;
 /**
  * Compiles the robot's main sources, as they are on disk right now, with the JDK's own compiler
  * against this JVM's classpath, and with them the simulator's own sources: everything under the
- * harness root that is not a test. The simulator runs in the child against the robot sources it
- * was built with, so a simulator that does not fit them (a worktree off a stale develop meeting
- * a server built from main) fails the build naming the seam, rather than the child failing at
- * run time with a linkage error nobody can read. About a second for the whole tree, so a
- * simulated run can always execute what was last saved. Output goes to a fresh directory under
- * the build root each time either tree changes; only the latest is kept. This is not the Android
- * build: no Kotlin, no desugaring, no annotation processing. A Kotlin file is refused by name
- * rather than skipped.
+ * harness root that is not a test, with the resources next to it copied along. The simulator
+ * runs in the child against the robot sources it was built with, so a simulator that does not
+ * fit them fails the build naming the seam, rather than the child failing at run time with a
+ * linkage error nobody can read. About a second for the whole tree, so a simulated run can
+ * always execute what was last saved. Output goes to a fresh directory under the build root each
+ * time any of the trees changes; only the latest is kept. This is not the Android build: no
+ * Kotlin, no desugaring, no annotation processing. A Kotlin file is refused by name rather than
+ * skipped.
  */
 public final class SimBuild {
     /** What a compile error in the simulator's own sources means, said once ahead of them. */
@@ -82,6 +82,8 @@ public final class SimBuild {
 
     private final Path sourceRoot;
     private final Path harnessRoot;
+    /** The simulator's resources, next to its sources ({@code src/test/resources}); copied into the output as they are. */
+    private final Path resourcesRoot;
     private final Path buildRoot;
     private String lastFingerprint;
     private Result lastResult;
@@ -96,6 +98,7 @@ public final class SimBuild {
     public SimBuild(Path sourceRoot, Path harnessRoot, Path buildRoot) {
         this.sourceRoot = sourceRoot.toAbsolutePath().normalize();
         this.harnessRoot = harnessRoot.toAbsolutePath().normalize();
+        this.resourcesRoot = this.harnessRoot.resolveSibling("resources");
         this.buildRoot = buildRoot.toAbsolutePath().normalize();
         if (!Files.isDirectory(this.harnessRoot)) {
             throw new IllegalArgumentException("no simulator sources at " + this.harnessRoot);
@@ -109,7 +112,9 @@ public final class SimBuild {
     public synchronized Result build() {
         List<Path> sources = sourcesUnder(sourceRoot);
         List<Path> harness = harnessUnder(harnessRoot);
-        String fingerprint = fingerprintOf(sourceRoot, sources) + fingerprintOf(harnessRoot, harness);
+        List<Path> resources = filesUnder(resourcesRoot);
+        String fingerprint = fingerprintOf(sourceRoot, sources) + fingerprintOf(harnessRoot, harness)
+                + fingerprintOf(resourcesRoot, resources);
         if (fingerprint.equals(lastFingerprint) && lastResult != null) {
             return new Result(lastResult.classes, lastResult.problems, false);
         }
@@ -147,6 +152,7 @@ public final class SimBuild {
         }
         Result result;
         if (ok) {
+            copyResources(resources, output);
             Path previous = lastResult == null ? null : lastResult.classes;
             result = new Result(output, List.of(), true);
             if (previous != null) {
@@ -193,6 +199,30 @@ public final class SimBuild {
                     .collect(Collectors.toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Every regular file under a root that may not exist, sorted by path. */
+    static List<Path> filesUnder(Path root) {
+        if (!Files.isDirectory(root)) {
+            return List.of();
+        }
+        try (Stream<Path> walk = Files.walk(root)) {
+            return walk.filter(Files::isRegularFile).sorted(Comparator.comparing(Path::toString)).collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void copyResources(List<Path> resources, Path output) {
+        for (Path resource : resources) {
+            Path target = output.resolve(resourcesRoot.relativize(resource).toString());
+            try {
+                Files.createDirectories(target.getParent());
+                Files.copy(resource, target);
+            } catch (IOException e) {
+                throw new UncheckedIOException("could not copy " + resource + " to " + target, e);
+            }
         }
     }
 

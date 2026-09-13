@@ -73,8 +73,9 @@ public class SimChildTest {
         Output output = run(SimChild.launch(List.of(), "--list"));
 
         assertEquals(output.stderr, 0, output.exitCode);
-        assertEquals(1, output.stdout.size());
-        SimCatalog catalog = SimCatalog.fromJson(new Gson().fromJson(output.stdout.get(0), com.google.gson.JsonArray.class));
+        assertEquals(output.stdout.toString(), 2, output.stdout.size());
+        assertEquals("the child says its protocol before anything else", SimRunStream.hello(), output.stdout.get(0));
+        SimCatalog catalog = SimCatalog.fromJson(new Gson().fromJson(output.stdout.get(1), com.google.gson.JsonArray.class));
         assertTrue(catalog.find("driveForward").isPresent());
         assertEquals("Plans.driveForward()", catalog.find("driveForward").get().where);
         assertTrue(catalog.find("RedTeleOp").isPresent());
@@ -99,6 +100,7 @@ public class SimChildTest {
 
         in.write("{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}\n");
         in.flush();
+        assertEquals(SimRunStream.hello(), out.readLine());
         String first = out.readLine();
         assertTrue(String.valueOf(first), first != null && gson.fromJson(first, JsonObject.class).has("started"));
         long deadline = System.nanoTime() + 20_000_000_000L;
@@ -147,15 +149,16 @@ public class SimChildTest {
         Output output = run(SimChild.launch(List.of(), "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()));
 
         assertEquals(output.stderr, 0, output.exitCode);
-        assertEquals(output.stdout.toString(), 5, output.stdout.size());
+        assertEquals(output.stdout.toString(), 6, output.stdout.size());
+        assertEquals(SimRunStream.hello(), output.stdout.get(0));
         Gson gson = new Gson();
         assertTrue("the child says when the op mode starts, so its own startup is not the run's time",
-                gson.fromJson(output.stdout.get(0), JsonObject.class).get("started").getAsBoolean());
-        for (int i = 1; i < 4; i++) {
+                gson.fromJson(output.stdout.get(1), JsonObject.class).get("started").getAsBoolean());
+        for (int i = 2; i < 5; i++) {
             JsonObject tick = gson.fromJson(output.stdout.get(i), JsonObject.class);
             assertTrue(tick.toString(), tick.has("t") && tick.has("x") && tick.has("step") && tick.has("packets"));
         }
-        JsonObject last = gson.fromJson(output.stdout.get(4), JsonObject.class);
+        JsonObject last = gson.fromJson(output.stdout.get(5), JsonObject.class);
         assertEquals("done", last.get("outcome").getAsString());
         assertTrue(Files.isRegularFile(folder.getRoot().toPath().resolve("Count to three.html")));
     }
