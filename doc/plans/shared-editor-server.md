@@ -172,9 +172,11 @@ server never talks to a remote.
 **Pull** — `POST /git/pull`: `develop` is merged into the user branch, in
 the user's worktree, a fast-forward when it can be and a merge commit
 otherwise. Nothing on `develop` and on the user branch changes in
-history. It needs a clean worktree (commit first) and refuses, changing
-nothing, on a merge conflict. The Pull button animates while `develop`
-has commits the user branch does not.
+history. Uncommitted edits stay uncommitted and ride along, except in a
+file the merge would change: those would be overwritten, so the pull
+refuses (commit first), naming only those files and changing nothing.
+It also refuses, changing nothing, on a merge conflict. The Pull button
+animates while `develop` has commits the user branch does not.
 
 **Merge conflict** — `develop` and the user branch changed the same lines
 since they diverged. Not the save **conflict** (a stale base version on
@@ -232,18 +234,22 @@ lands in the next one.
 
 ### Pull
 
-1. **Clean worktree or 409** "commit first", naming the changed files.
-2. **Nothing to pull or 200** when `develop` is already an ancestor of the
+1. **Nothing to pull or 200** when `develop` is already an ancestor of the
    user branch (`git merge-base --is-ancestor`).
-3. **Detect conflicts without touching the working tree**:
+2. **Detect conflicts without touching the working tree**:
    `git merge-tree --write-tree --name-only coding/<slug> develop`. Exit 1
    lists the conflicting files: reply 409 with them, record the attempt
    for the admin page, change nothing.
+3. **Uncommitted edits the merge would overwrite, or 409** "commit
+   first", naming only those: the uncommitted files (`git status
+   --porcelain`, untracked included) that also differ between the user
+   branch and the tree step 2 wrote. Other uncommitted edits ride along;
+   git keeps them through a fast-forward and a merge alike.
 4. **Merge in the worktree**: `git -C <worktree> merge -m "Pull develop"
    develop`, a fast-forward when the user branch is an ancestor of
-   `develop` and a merge commit otherwise. Known clean, so it can only
-   refuse when a save landed after step 1 in a file the merge changes;
-   git then changes nothing, and the reply is 409 "commit first" again.
+   `develop` and a merge commit otherwise. Known clean and known not to
+   overwrite anything, so a refusal by git is unexpected; it then changes
+   nothing, and the reply is 409 with what git said.
 5. The Edit tab reloads the file list and the open file.
 
 **Animation.** `GET /git/status` reports `behind`, the commits on
@@ -429,8 +435,12 @@ Tests first (`WorktreesTest`, `CodingServerTest`):
 - with a commit on the user branch as well, Pull makes a merge commit on
   the user branch with both parents and both edits; `develop` is
   unchanged.
-- Pull with uncommitted changes is 409 "commit first" naming the file and
-  nothing changes.
+- Pull with an uncommitted edit in a file `develop` did not touch merges,
+  the edit is still there and still uncommitted, and the next commit
+  takes it.
+- Pull with an uncommitted edit in a file `develop` changed, or a new
+  file `develop` also adds, is 409 "commit first" naming only that file
+  and nothing changes.
 - Pull with nothing new is 200 saying so and makes no commit.
 - a merge conflict (a different change to the same line on `develop`) is
   409 naming the file; the user branch, the worktree, and `develop` are

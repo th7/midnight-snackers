@@ -1319,8 +1319,30 @@ public class CodingServerTest {
     }
 
     @Test
-    public void pullWithUncommittedChangesIsRefusedNamingTheFile() throws IOException {
+    public void pullKeepsAnUncommittedEditThatDevelopDidNotTouch() throws IOException {
         String cookie = savedEditor("class Plans { int mine; }\n");
+        commitOnDevelop("README", "on develop\n");
+
+        Reply pulled = user("POST", "/git/pull", cookie);
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("on develop\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", json(user("GET", "/git/status", cookie).body).getAsJsonArray("changed").toString());
+
+        Reply committed = user("POST", "/git/commit", cookie, message("mine"));
+
+        assertEquals(committed.body, 200, committed.status);
+        assertEquals("[\"TeamCode/Plans.java\"]", json(committed.body).getAsJsonArray("files").toString());
+        assertEquals(1, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
+    }
+
+    @Test
+    public void pullWithAnUncommittedEditInAFileDevelopChangedIsRefusedNamingIt() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
         commitOnDevelop("README", "on develop\n");
         String head = GitFixture.commitOf(root, "coding/ada");
 
@@ -1332,6 +1354,7 @@ public class CodingServerTest {
         assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals("nothing of develop's arrived", "hello\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
     }
 
     @Test
