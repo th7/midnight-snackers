@@ -29,7 +29,7 @@ public class Drive extends SubSystem {
 
     public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack, Dashboard dashboard, ElapsedTime runtime, Telemetry telemetry) {
         super(runtime, telemetry);
-        this.driveRunner = new DriveRunner(dashboard);
+        this.driveRunner = add(new DriveRunner(dashboard));
         this.leftFront = leftFront;
         this.rightFront = rightFront;
         this.leftBack = leftBack;
@@ -48,8 +48,8 @@ public class Drive extends SubSystem {
         driveRunner.setPoseSupplier(poseSupplier);
     }
 
-    public void loop() {
-        driveRunner.loop();
+    @Override
+    protected void onLoop() {
         if (telemetryOn) {
             setTelemetry();
         }

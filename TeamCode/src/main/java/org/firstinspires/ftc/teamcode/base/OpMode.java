@@ -12,6 +12,8 @@ import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
+import java.util.List;
+
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     protected ElapsedTime runtime;
     protected Launcher launcher;
@@ -22,6 +24,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     protected Turntable turntable;
     protected Brain brain;
 
+    private final LoopGroup subsystems = new LoopGroup();
     private Hardware injectedHardware = null;
 
     /**
@@ -46,23 +49,26 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         // Must happen before subsystems are built, since they capture the telemetry reference.
         telemetry = new MultipleTelemetry(telemetry, hardware.dashboard.telemetry());
         runtime = new ElapsedTime();
-        launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate, runtime, telemetry);
+        // Registration order is loop order. Brain goes last because it reads Camera and Nav
+        // from this tick and sets the Turntable target.
+        launcher = subsystems.add(new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate, runtime, telemetry));
         launcher.init();
-        drive = new Drive(
+        drive = subsystems.add(new Drive(
                 hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack,
-                hardware.dashboard, runtime, telemetry);
+                hardware.dashboard, runtime, telemetry));
         drive.init();
-        camera = new Camera(hardware.aprilTags, runtime, telemetry);
+        camera = subsystems.add(new Camera(hardware.aprilTags, runtime, telemetry));
         camera.init();
         MecanumDrive mecanumDrive = new MecanumDrive(
                 hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront,
                 hardware.imu, hardware.voltageSensor, new Pose2d(0, 0, 0));
-        nav = getNav(mecanumDrive);
+        nav = subsystems.add(getNav(mecanumDrive));
         nav.init();
         drive.setPoseSupplier(() -> nav.currentPose().pose2d);
-        turntable = new Turntable(hardware.turnTable, runtime, telemetry);
+        turntable = subsystems.add(new Turntable(hardware.turnTable, runtime, telemetry));
         turntable.init();
-        brain = new Brain(runtime, telemetry, launcher, drive, camera, nav, turntable);
+        brain = subsystems.add(new Brain(runtime, telemetry, launcher, drive, camera, nav, turntable));
+        brain.init();
         telemetry.addData("base.OpMode.init()", true);
     }
 
@@ -71,7 +77,29 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         runtime.reset();
     }
 
-    public void loop() {
+    /** Registers something to tick after the subsystems, in registration order. */
+    protected <T extends Loopable> T add(T loopable) {
+        return subsystems.add(loopable);
+    }
+
+    /** Everything this op mode ticks, in order. */
+    public List<Loopable> loopOrder() {
+        return subsystems.members();
+    }
+
+    /** Ticks every registered subsystem, then {@link #onLoop()}. Subclasses override {@link #onLoop()}. */
+    @Override
+    public final void loop() {
+        handleTelemetryToggles();
+        subsystems.loop();
+        onLoop();
+    }
+
+    /** Per-op-mode work that runs after every subsystem has ticked. */
+    protected void onLoop() {
+    }
+
+    private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {
             drive.toggleTelemetry();
         }
@@ -82,13 +110,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         if (gamepad2.circleWasPressed()) {
             camera.toggleTelemetry();
         }
-
-        launcher.loop();
-        drive.loop();
-        camera.loop();
-        nav.loop();
-        turntable.loop();
-        brain.loop();
     }
 
     protected abstract Nav getNav(MecanumDrive mecanumDrive);

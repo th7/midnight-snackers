@@ -22,7 +22,7 @@ public class Turntable extends SubSystem {
     }
 
     @Override
-    public void loop() {
+    protected void onLoop() {
         double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
         double turnTablePower = turnTableError / 100;
 

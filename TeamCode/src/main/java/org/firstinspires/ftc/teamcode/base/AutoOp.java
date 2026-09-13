@@ -6,21 +6,20 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 
 public abstract class AutoOp extends OpMode {
     public Plans plans;
-    private final PlanRunner planRunner = new PlanRunner();
+    private PlanRunner planRunner;
 
     @Override
     public void init() {
         super.init();
         plans = new Plans(runtime, telemetry, launcher, drive, camera, nav, turntable, brain);
+        planRunner = add(new PlanRunner());
         planRunner.run(getPlan());
         telemetry.addData("AutoOp.init()", true);
     }
 
     @Override
-    public void loop() {
-        super.loop();
+    protected void onLoop() {
         telemetry.addData("Current Step:", planRunner.currentStep());
-        planRunner.loop();
     }
 
     public abstract PlanPart getPlan();

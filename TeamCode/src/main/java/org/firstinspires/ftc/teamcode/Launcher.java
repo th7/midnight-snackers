@@ -25,7 +25,7 @@ public class Launcher extends SubSystem {
     private double launcherVelocity = 0d;
     private boolean telemetryOn = false;
     private double bottomGateWaitTime = 0.45;
-    private final PlanRunner planRunner = new PlanRunner();
+    private final PlanRunner planRunner = add(new PlanRunner());
 
     public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, ElapsedTime runtime, Telemetry telemetry) {
         super(runtime, telemetry);
@@ -48,9 +48,7 @@ public class Launcher extends SubSystem {
     }
 
     @Override
-    public void loop() {
-        planRunner.loop();
-
+    protected void onLoop() {
         launcher.setVelocity(launcherVelocity);
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);

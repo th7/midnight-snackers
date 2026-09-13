@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.planrunner;
 
-public class PlanRunner {
+import org.firstinspires.ftc.teamcode.base.Loopable;
+
+public class PlanRunner implements Loopable {
     private PlanPart currentPlan = null;
 
     public void run(PlanPart plan) {
@@ -9,6 +11,7 @@ public class PlanRunner {
         }
     }
 
+    @Override
     public void loop() {
         if (currentPlan != null && currentPlan.done()) {
             currentPlan = null;
