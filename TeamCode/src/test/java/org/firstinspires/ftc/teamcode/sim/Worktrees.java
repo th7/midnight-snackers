@@ -31,6 +31,8 @@ import java.util.regex.Pattern;
  */
 public final class Worktrees {
     public static final String DEVELOP = "develop";
+    /** Where {@code develop} is pushed after every push that lands on it, when a remote by this name exists. */
+    public static final String REMOTE = "origin";
     public static final String BRANCH_PREFIX = "coding/";
     public static final String STORE_FILE = "worktrees.json";
     /** {@code git merge-tree --write-tree}, which pushes and pulls use to find conflicts without touching a working tree. */
@@ -38,6 +40,8 @@ public final class Worktrees {
     public static final int MIN_GIT_MINOR = 38;
     private static final int MAX_SLUG_LENGTH = 32;
     private static final long GIT_TIMEOUT_SECONDS = 120;
+    /** A push to the remote on a network with no way out must fail in reasonable time, not hang the click. */
+    private static final long REMOTE_TIMEOUT_SECONDS = 45;
     private static final Pattern VERSION = Pattern.compile("git version (\\d+)\\.(\\d+)");
 
     /** A user's worktree: where it is and which branch it is on. */
@@ -114,6 +118,21 @@ public final class Worktrees {
         REFUSED
     }
 
+    /** How pushing {@code develop} to the remote went. */
+    public static final class Remote {
+        public final String name;
+        /** {@code pushed}, {@code up to date}, or {@code failed}. */
+        public final String outcome;
+        /** What git said, when it failed. */
+        public final String detail;
+
+        Remote(String name, String outcome, String detail) {
+            this.name = name;
+            this.outcome = outcome;
+            this.detail = detail;
+        }
+    }
+
     /** What a pull or push did. */
     public static final class Merge {
         public final Outcome outcome;
@@ -121,11 +140,18 @@ public final class Worktrees {
         public final List<String> files;
         /** What git said, when it refused. */
         public final String detail;
+        /** For a push that landed or had nothing to land: how {@code develop} reached the remote; null when there is no remote. */
+        public final Remote remote;
 
         Merge(Outcome outcome, List<String> files, String detail) {
+            this(outcome, files, detail, null);
+        }
+
+        Merge(Outcome outcome, List<String> files, String detail, Remote remote) {
             this.outcome = outcome;
             this.files = files;
             this.detail = detail;
+            this.remote = remote;
         }
     }
 
@@ -296,7 +322,10 @@ public final class Worktrees {
      * {@code merge-tree}, so a conflicting push changes nothing at all. Where {@code develop}
      * is checked out (normally the host checkout) the merge runs there, so that working tree
      * shows the pushed work; git refuses, changing nothing, if uncommitted changes there would
-     * be overwritten. Checked out nowhere, only the branch moves.
+     * be overwritten. Checked out nowhere, only the branch moves. Then {@code develop} is pushed
+     * to {@link #REMOTE} when there is one, whether or not anything was merged, so the remote
+     * is current whenever the network allows; a remote push that fails leaves the local merge
+     * in place and is reported, never forced.
      *
      * @return {@link Outcome#MERGED} with a {@code detail} when the push landed but the
      *         worktree could not be fast-forwarded, which a commit and a pull will heal
@@ -308,7 +337,7 @@ public final class Worktrees {
             return new Merge(Outcome.UNCOMMITTED, changed, null);
         }
         if (isAncestor(worktree.branch, DEVELOP)) {
-            return new Merge(Outcome.NOTHING, List.of(), null);
+            return new Merge(Outcome.NOTHING, List.of(), null, pushDevelop());
         }
         MergeTree tree = mergeTree(DEVELOP, worktree.branch);
         if (!tree.conflicts.isEmpty()) {
@@ -332,11 +361,38 @@ public final class Worktrees {
                 return new Merge(Outcome.REFUSED, List.of(), (moved.err + moved.out).trim());
             }
         }
+        Remote remote = pushDevelop();
         Result caughtUp = run(worktree.path, "merge", "--ff-only", "-q", DEVELOP);
         if (caughtUp.exit != 0) {
-            return new Merge(Outcome.MERGED, List.of(), (caughtUp.err + caughtUp.out).trim());
+            return new Merge(Outcome.MERGED, List.of(), (caughtUp.err + caughtUp.out).trim(), remote);
         }
-        return new Merge(Outcome.MERGED, List.of(), null);
+        return new Merge(Outcome.MERGED, List.of(), null, remote);
+    }
+
+    /**
+     * Pushes {@code develop} to the remote, unless there is no remote or the remote-tracking
+     * branch already matches, which costs no network round trip. Never forced: a remote that
+     * has moved on is reported for the coach.
+     */
+    private Remote pushDevelop() {
+        if (!git(root, "remote").out.lines().anyMatch(REMOTE::equals)) {
+            return null;
+        }
+        String local = git(root, "rev-parse", "refs/heads/" + DEVELOP).out.trim();
+        Result tracking = run(root, "rev-parse", "--verify", "--quiet", "refs/remotes/" + REMOTE + "/" + DEVELOP);
+        if (tracking.exit == 0 && tracking.out.trim().equals(local)) {
+            return new Remote(REMOTE, "up to date", null);
+        }
+        Result pushed;
+        try {
+            pushed = run(root, REMOTE_TIMEOUT_SECONDS, "push", "--quiet", REMOTE, "refs/heads/" + DEVELOP + ":refs/heads/" + DEVELOP);
+        } catch (GitFailed e) {
+            return new Remote(REMOTE, "failed", e.getMessage());
+        }
+        if (pushed.exit != 0) {
+            return new Remote(REMOTE, "failed", (pushed.err + pushed.out).trim());
+        }
+        return new Remote(REMOTE, "pushed", null);
     }
 
     /** The worktree where a branch is checked out, or null when it is checked out nowhere. */
@@ -569,8 +625,13 @@ public final class Worktrees {
         return result;
     }
 
-    /** Runs git, in {@code cwd} when given, with a timeout, capturing what it wrote. */
+    /** Runs git, in {@code cwd} when given, with the usual timeout, capturing what it wrote. */
     private Result run(Path cwd, String... args) {
+        return run(cwd, GIT_TIMEOUT_SECONDS, args);
+    }
+
+    /** Runs git, in {@code cwd} when given, with a timeout, capturing what it wrote. */
+    private Result run(Path cwd, long timeoutSeconds, String... args) {
         List<String> command = new ArrayList<>();
         command.add(git);
         command.addAll(List.of(args));
@@ -597,9 +658,9 @@ public final class Worktrees {
         stderr.start();
         try {
             String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (!process.waitFor(GIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new GitFailed("git " + String.join(" ", args) + " did not finish within " + GIT_TIMEOUT_SECONDS + " seconds");
+                throw new GitFailed("git " + String.join(" ", args) + " did not finish within " + timeoutSeconds + " seconds");
             }
             stderr.join();
             return new Result(process.exitValue(), out, err.toString());

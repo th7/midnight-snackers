@@ -1,3 +1,27 @@
+# Coding server: Push reaches origin
+
+## Batch 9 · develop is pushed to origin after every push
+
+A push that lands on `develop`, or finds nothing of the user's to land,
+then pushes `develop` to the remote named `origin` when there is one, so
+the remote is current whenever the network allows. Nothing is sent when
+`origin/develop` already matches, which costs no round trip on the
+robot's wifi. A remote push that fails, because there is no way out or
+because origin has moved on, leaves the local merge in place, is never
+forced, and is reported: the reply carries `remote` (name, outcome,
+detail), the Edit tab shows the message as a warning, and the admin page
+shows the coach `git push origin develop`. Pushes to the remote get a
+shorter timeout than other git calls, so a dead network fails the click
+rather than hanging it.
+
+Tests first (`WorktreesTest`, `CodingServerTest`, over a bare origin):
+a push lands on origin and says so, and a second push says origin is up
+to date; nothing to merge still pushes what develop has that origin
+lacks; no remote is reported as none; an unreachable origin still lands
+the merge locally and reports; an origin that moved on is not forced.
+
+---
+
 # Coding server: go to definition and find usages, from javac
 
 ## Batch 8 · navigation from the compiler's own analysis
