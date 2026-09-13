@@ -1,0 +1,109 @@
+package org.firstinspires.ftc.teamcode.sim;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.google.gson.JsonObject;
+
+import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
+import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The lines the child prints are written and read in one place, so the parent and the child
+ * agree by construction, and every way a run can end is named there too.
+ */
+public class SimRunStreamTest {
+    /** Remembers what each line said. */
+    private static final class Heard implements SimRunStream.Listener {
+        final List<String> events = new ArrayList<>();
+        final List<JsonObject> ticks = new ArrayList<>();
+        String outcome;
+
+        @Override
+        public void started() {
+            events.add("started");
+        }
+
+        @Override
+        public void tick(JsonObject tick) {
+            events.add("tick");
+            ticks.add(tick);
+        }
+
+        @Override
+        public void finished(String outcome) {
+            events.add("finished");
+            this.outcome = outcome;
+        }
+    }
+
+    private static SimRecording.Tick tick(double seconds, String step) {
+        TelemetryPacket packet = new TelemetryPacket();
+        packet.put("xError", 0.25);
+        return new SimRecording.Tick(seconds, new Pose2d(12.5, -3, Math.PI / 2), step, new double[]{1, 0.75, -0.5, 0.25}, List.of(packet));
+    }
+
+    @Test
+    public void startedEachTickAndTheOutcomeAreOneLineEachAndReadBackAsWhatTheySaid() {
+        Heard heard = new Heard();
+
+        SimRunStream.accept(SimRunStream.started(), heard);
+        SimRunStream.accept(SimRunStream.tick(tick(0.5, "2. driveTo 24, 0, 0")), heard);
+        SimRunStream.accept(SimRunStream.tick(tick(1.0 / 3, "3. rounding")), heard);
+        SimRunStream.accept(SimRunStream.finished(Outcome.done()), heard);
+
+        assertEquals(List.of("started", "tick", "tick", "finished"), heard.events);
+        JsonObject first = heard.ticks.get(0);
+        assertEquals(0.5, SimRunStream.seconds(first), 0);
+        assertEquals(12.5, first.get("x").getAsDouble(), 0);
+        assertEquals(-3, first.get("y").getAsDouble(), 0);
+        assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);
+        assertEquals("2. driveTo 24, 0, 0", first.get("step").getAsString());
+        assertEquals(4, first.getAsJsonArray("powers").size());
+        assertEquals(0.25, first.getAsJsonArray("packets").get(0).getAsJsonObject().getAsJsonObject("data").get("xError").getAsDouble(), 0);
+        assertEquals("rounded to three decimals on the wire", 0.333, SimRunStream.seconds(heard.ticks.get(1)), 0);
+        assertEquals("done", heard.outcome);
+    }
+
+    @Test
+    public void everyLineIsOneLine() {
+        assertTrue(SimRunStream.started().indexOf('\n') < 0);
+        assertTrue(SimRunStream.tick(tick(0, "a\nstep")).indexOf('\n') < 0);
+        assertTrue(SimRunStream.finished("timed out\nlate").indexOf('\n') < 0);
+    }
+
+    @Test
+    public void aLineThatIsNoneOfTheseIsRefusedNotMistakenForATick() {
+        Heard heard = new Heard();
+        for (String line : List.of("{\"foo\": 1}", "not json", "", "[]")) {
+            try {
+                SimRunStream.accept(line, heard);
+                fail("accepted " + line);
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains(line));
+            }
+        }
+        assertTrue(heard.events.isEmpty());
+        assertNull(heard.outcome);
+    }
+
+    @Test
+    public void theOutcomesAreNamedHereAsTheGlossarySaysThem() {
+        assertEquals("done", Outcome.done());
+        assertEquals("stopped", Outcome.stopped());
+        assertEquals("timed out after 0.3s", Outcome.timedOut(0.3));
+        assertEquals("build failed", Outcome.buildFailed());
+        assertEquals("child exited with code 3", Outcome.childExited(3));
+        assertTrue(Outcome.failed(new IllegalStateException("boom")).startsWith("failed: "));
+        assertTrue(Outcome.killed(1.3, "the op mode did not return").startsWith("killed after 1.3s"));
+        assertTrue(Outcome.killedAfterStop(2.0).startsWith("killed 2.0s after Stop"));
+        assertTrue(Outcome.noOpModeNamed("org.example.Nope").contains("org.example.Nope"));
+    }
+}
