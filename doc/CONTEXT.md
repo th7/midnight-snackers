@@ -215,11 +215,18 @@ The source set is enumerated and matched exactly, never resolved against
 the filesystem.
 
 **Build** — Compiling the main sources as they are on disk with the JDK's
-own compiler, cached by a fingerprint of the tree. The Edit tab asks for a
-build after every save and shows the **problems** (file, line, message).
-In the coding server the sources are the user's worktree, so one user's
-broken edit breaks only their own build. Not the Android build: no
-Kotlin, no desugaring. Class: `SimBuild`.
+own compiler, together with the **simulator's own sources** — everything
+under `TeamCode/src/test/java` of the checkout the server runs from that
+is not a test — cached by a fingerprint of both trees. The simulator runs
+in the child against the sources it was just built with, so a simulator
+that does not fit them (a worktree off a stale `develop` meeting a server
+built from `main`, say) fails the build naming the seam, rather than the
+child failing at run time with a linkage error nobody can read. The Edit
+tab asks for a build after every save and shows the **problems** (file,
+line, message); a problem in the simulator has no file the user can open
+and says so in its message. In the coding server the sources are the
+user's worktree, so one user's broken edit breaks only their own build.
+Not the Android build: no Kotlin, no desugaring. Class: `SimBuild`.
 
 ## The simulator
 
@@ -251,7 +258,8 @@ The child reports the catalog after each build, so a newly written op
 mode appears without a restart. Class: `SimCatalog`.
 
 **Child** — The fresh JVM each run executes in, launched with the newly
-built classes first on its classpath. Every class identity is consistent,
+built classes — the robot sources and the simulator built with them —
+first on its classpath. Every class identity is consistent,
 static state starts clean, and a hung op mode is a process that can be
 killed. It builds the catalog, then prints the run stream; the op mode's
 own output goes to stderr. Its standard input is the driver

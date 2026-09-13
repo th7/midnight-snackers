@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.util.stream.Stream;
 
 public class SimBenchTest {
     private static final double TIMEOUT_SECONDS = 2;
@@ -47,6 +49,27 @@ public class SimBenchTest {
 
     private Path outputDir() {
         return folder.getRoot().toPath().resolve("sim");
+    }
+
+    /** The simulator's own sources, which a bench over sources builds with them; tests run from the TeamCode module. */
+    static final Path HARNESS = Paths.get("src/test/java").toAbsolutePath();
+
+    /** A copy of the real main sources under a temp project, for a test that changes one of them. */
+    static Path realSourcesCopiedUnder(Path project) throws IOException {
+        Path real = Paths.get("src/main/java").toAbsolutePath();
+        assertTrue("tests run from the TeamCode module directory: " + real, Files.isDirectory(real));
+        Path sourceRoot = project.resolve("TeamCode/src/main/java");
+        try (Stream<Path> files = Files.walk(real)) {
+            for (Path file : (Iterable<Path>) files::iterator) {
+                Path target = sourceRoot.resolve(real.relativize(file).toString());
+                if (Files.isDirectory(file)) {
+                    Files.createDirectories(target);
+                } else {
+                    Files.copy(file, target);
+                }
+            }
+        }
+        return sourceRoot;
     }
 
     static final String TEMP_NAME = "Temp";
@@ -97,7 +120,7 @@ public class SimBenchTest {
 
     @Test
     public void aRunThroughTheChildEndsDoneWithItsTicksAndReplay() throws Exception {
-        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
 
@@ -111,7 +134,7 @@ public class SimBenchTest {
 
     @Test
     public void anOpModeWhoseLoopNeverReturnsIsKilled() throws Exception {
-        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
         long startedAt = System.nanoTime();
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Hangs").get(), "ada"));
@@ -142,7 +165,7 @@ public class SimBenchTest {
 
     @Test
     public void theRunsTimeStartsWhenTheOpModeDoesNotWhenTheChildJvmDoes() throws Exception {
-        bench = new SimBench(SimCatalog.of(SlowRegistrar.class), null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(SlowRegistrar.class), null, null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Slow to start").get(), "ada"));
 
@@ -152,7 +175,7 @@ public class SimBenchTest {
     @Test
     public void aCompileErrorIsTheRunsOutcomeAndTheCatalogsToo() throws Exception {
         Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(2).replace("private int loops = 0;", "private int loops = ;"));
-        bench = new SimBench(null, sourceRoot, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(null, sourceRoot, HARNESS, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         try {
             bench.catalog();
@@ -167,9 +190,49 @@ public class SimBenchTest {
     }
 
     @Test
+    public void aBenchOverSourcesNeedsTheSimulatorsSourcesToo() throws Exception {
+        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(2));
+        try {
+            bench = new SimBench(null, sourceRoot, null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+            fail("without the simulator's sources the child would run a simulator built for other robot sources");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("simulator"));
+        }
+    }
+
+    /**
+     * The robot sources came from one version of the code and the simulator from another, the
+     * way a worktree off a stale develop meets a coding server built from main: the run must not
+     * start, and the build must say which seam does not fit.
+     */
+    @Test
+    public void aRobotTheSimulatorCannotBeBuiltAgainstFailsTheBuildNotTheRun() throws Exception {
+        Path sourceRoot = realSourcesCopiedUnder(folder.getRoot().toPath());
+        Path hardware = sourceRoot.resolve("org/firstinspires/ftc/teamcode/base/Hardware.java");
+        String source = new String(Files.readAllBytes(hardware), StandardCharsets.UTF_8);
+        String marker = "    public static Hardware fromHardwareMap(";
+        assertTrue(source, source.contains(marker));
+        // the sources still compile on their own; only the simulator's SimRobot.hardware() no longer fits
+        Files.write(hardware, source.replace(marker, "    private Hardware() {\n    }\n\n" + marker).getBytes(StandardCharsets.UTF_8));
+        bench = new SimBench(null, sourceRoot, HARNESS, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+
+        try {
+            bench.catalog();
+            fail("a catalog cannot be listed for a simulator that does not fit the sources");
+        } catch (SimBench.BuildFailed e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("does not fit"));
+            assertTrue(e.getMessage(), e.getMessage().contains("sim/SimRobot.java"));
+        }
+        SimBench.Run run = await(bench.start(new SimCatalog.Entry("BlueTeleOp", "TeleOp", SimCatalog.TELEOP, "", null), "ada"));
+        assertEquals(run.message(), "build failed", run.outcome());
+        assertTrue(run.message(), run.message().contains("sim/SimRobot.java"));
+        assertEquals(0, run.ticks().size());
+    }
+
+    @Test
     public void savedEditsTakeEffectOnTheNextRunWithoutARestart() throws Exception {
         Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(2));
-        bench = new SimBench(null, sourceRoot, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(null, sourceRoot, HARNESS, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
         SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
         assertEquals("Test", temp.group);
         assertEquals("Plans.temp()", temp.where);
@@ -186,7 +249,7 @@ public class SimBenchTest {
     @Test
     public void checkCompilesWithoutRunningAndNeverUnderARun() throws Exception {
         Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(100000));
-        bench = new SimBench(null, sourceRoot, outputDir(), 1.0, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(null, sourceRoot, HARNESS, outputDir(), 1.0, TELEOP_SECONDS, GRACE_SECONDS);
         assertTrue(bench.check().problems.isEmpty());
         assertNull("nothing ran", bench.current());
         SimBench.Run run = bench.start(new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null), "ada");
@@ -205,14 +268,14 @@ public class SimBenchTest {
 
     @Test
     public void aBenchWithoutSourcesHasNothingToCheck() {
-        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         assertNull(bench.check());
     }
 
     @Test
     public void aTeleOpRunDrivesFromGamepadPostsAndStopEndsIt() throws Exception {
-        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
         SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada");
         awaitRunning(run);
 
@@ -240,7 +303,7 @@ public class SimBenchTest {
 
     @Test
     public void aTeleOpRunEndsDoneWhenItsPeriodIsOver() throws Exception {
-        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, null, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
 
@@ -250,7 +313,7 @@ public class SimBenchTest {
 
     @Test
     public void stopEndsAnAutoRunToo() throws Exception {
-        bench = new SimBench(SimCatalog.of(TestAutos.NeverDoneAuto.class), null, outputDir(), 30, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(TestAutos.NeverDoneAuto.class), null, null, outputDir(), 30, TELEOP_SECONDS, GRACE_SECONDS);
         SimBench.Run run = bench.start(bench.catalog().find("Never done").get(), "ada");
         awaitRunning(run);
         long startedAt = System.nanoTime();
@@ -304,7 +367,7 @@ public class SimBenchTest {
 
     @Test
     public void theLogKeepsWhatTheChildWroteToStderr() throws Exception {
-        bench = new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Chatty").get(), "ada"));
 

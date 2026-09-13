@@ -23,13 +23,27 @@ import javax.tools.ToolProvider;
 
 /**
  * Compiles the robot's main sources, as they are on disk right now, with the JDK's own compiler
- * against this JVM's classpath. About a second for the whole tree, so a simulated run can always
- * execute what was last saved. Output goes to a fresh directory under the build root each time
- * the sources change; only the latest is kept. This is not the Android build: no Kotlin, no
- * desugaring, no annotation processing. A Kotlin file is refused by name rather than skipped.
+ * against this JVM's classpath, and with them the simulator's own sources: everything under the
+ * harness root that is not a test. The simulator runs in the child against the robot sources it
+ * was built with, so a simulator that does not fit them (a worktree off a stale develop meeting
+ * a server built from main) fails the build naming the seam, rather than the child failing at
+ * run time with a linkage error nobody can read. About a second for the whole tree, so a
+ * simulated run can always execute what was last saved. Output goes to a fresh directory under
+ * the build root each time either tree changes; only the latest is kept. This is not the Android
+ * build: no Kotlin, no desugaring, no annotation processing. A Kotlin file is refused by name
+ * rather than skipped.
  */
 public final class SimBuild {
-    /** One compiler error: the file relative to the source root, its line, and the message. */
+    /** What a compile error in the simulator's own sources means, said once ahead of them. */
+    static final String SIMULATOR_DOES_NOT_FIT = "the simulator does not fit these robot sources: it was built from the code"
+            + " the server runs from, and these sources came from another version of it. Pull develop; if that does not help,"
+            + " the coach brings develop and the server's checkout to the same code and restarts the server.";
+
+    /**
+     * One compiler error: the file relative to the source root, its line, and the message. A
+     * problem in the simulator's own sources has no file the user can open: the file is empty
+     * and the message names it.
+     */
     public static final class Problem {
         public final String file;
         public final long line;
@@ -67,18 +81,25 @@ public final class SimBuild {
     }
 
     private final Path sourceRoot;
+    private final Path harnessRoot;
     private final Path buildRoot;
     private String lastFingerprint;
     private Result lastResult;
     private int builds = 0;
 
     /**
-     * @param sourceRoot the package root, e.g. {@code TeamCode/src/main/java}
-     * @param buildRoot  where compiled output goes, e.g. {@code TeamCode/build/sim/classes}
+     * @param sourceRoot  the package root, e.g. {@code TeamCode/src/main/java}
+     * @param harnessRoot the package root of the simulator's own sources, e.g. {@code TeamCode/src/test/java}
+     * @param buildRoot   where compiled output goes, e.g. {@code TeamCode/build/sim/classes}
+     * @throws IllegalArgumentException when there are no simulator sources at {@code harnessRoot}
      */
-    public SimBuild(Path sourceRoot, Path buildRoot) {
+    public SimBuild(Path sourceRoot, Path harnessRoot, Path buildRoot) {
         this.sourceRoot = sourceRoot.toAbsolutePath().normalize();
+        this.harnessRoot = harnessRoot.toAbsolutePath().normalize();
         this.buildRoot = buildRoot.toAbsolutePath().normalize();
+        if (!Files.isDirectory(this.harnessRoot)) {
+            throw new IllegalArgumentException("no simulator sources at " + this.harnessRoot);
+        }
     }
 
     public Path sourceRoot() {
@@ -87,7 +108,8 @@ public final class SimBuild {
 
     public synchronized Result build() {
         List<Path> sources = sourcesUnder(sourceRoot);
-        String fingerprint = fingerprintOf(sourceRoot, sources);
+        List<Path> harness = harnessUnder(harnessRoot);
+        String fingerprint = fingerprintOf(sourceRoot, sources) + fingerprintOf(harnessRoot, harness);
         if (fingerprint.equals(lastFingerprint) && lastResult != null) {
             return new Result(lastResult.classes, lastResult.problems, false);
         }
@@ -115,8 +137,11 @@ public final class SimBuild {
             for (Path source : sources) {
                 sourceFiles.add(source.toFile());
             }
+            for (Path source : harness) {
+                sourceFiles.add(source.toFile());
+            }
             Iterable<? extends JavaFileObject> units = files.getJavaFileObjectsFromFiles(sourceFiles);
-            ok = sources.isEmpty() || compiler.getTask(null, files, diagnostics, options, null, units).call();
+            ok = sourceFiles.isEmpty() || compiler.getTask(null, files, diagnostics, options, null, units).call();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -156,6 +181,21 @@ public final class SimBuild {
         }
     }
 
+    /**
+     * Every .java file under the harness root that is not a test, sorted by path: the simulator
+     * the child runs, without what only tests it.
+     */
+    static List<Path> harnessUnder(Path harnessRoot) {
+        try (Stream<Path> walk = Files.walk(harnessRoot)) {
+            return walk.filter(p -> p.toString().endsWith(".java") && !p.getFileName().toString().endsWith("Test.java")
+                            && Files.isRegularFile(p))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     /** Path, size, and modification time of every source: enough to notice a save. */
     static String fingerprintOf(Path sourceRoot, List<Path> sources) {
         try {
@@ -178,14 +218,28 @@ public final class SimBuild {
 
     private List<Problem> problems(DiagnosticCollector<JavaFileObject> diagnostics) {
         List<Problem> problems = new ArrayList<>();
+        boolean simulator = false;
         for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
             if (d.getKind() != Diagnostic.Kind.ERROR) {
                 continue;
             }
-            String file = d.getSource() == null ? "" : sourceRoot.relativize(Path.of(d.getSource().toUri())).toString().replace('\\', '/');
-            problems.add(new Problem(file, d.getLineNumber(), d.getMessage(null)));
+            Path file = d.getSource() == null ? null : Path.of(d.getSource().toUri()).toAbsolutePath().normalize();
+            if (file != null && file.startsWith(harnessRoot)) {
+                simulator = true;
+                problems.add(new Problem("", d.getLineNumber(),
+                        "simulator " + relative(harnessRoot, file) + ":" + d.getLineNumber() + ": " + d.getMessage(null)));
+            } else {
+                problems.add(new Problem(file == null ? "" : relative(sourceRoot, file), d.getLineNumber(), d.getMessage(null)));
+            }
+        }
+        if (simulator) {
+            problems.add(0, new Problem("", 0, SIMULATOR_DOES_NOT_FIT));
         }
         return problems;
+    }
+
+    private static String relative(Path root, Path file) {
+        return root.relativize(file).toString().replace('\\', '/');
     }
 
     private static void deleteTree(Path root) {

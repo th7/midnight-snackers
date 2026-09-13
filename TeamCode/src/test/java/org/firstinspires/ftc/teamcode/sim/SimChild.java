@@ -22,9 +22,9 @@ import java.util.Optional;
 
 /**
  * The JVM a simulated run happens in. The server launches one per run with the freshly compiled
- * main classes first on the classpath, so the run executes the sources as last saved, every
- * class identity is consistent, static state starts clean, and a hung op mode is a process that
- * can be killed.
+ * classes first on the classpath: the robot's main sources and the simulator itself, built with
+ * them ({@link SimBuild}), so the run executes the sources as last saved, every class identity
+ * is consistent, static state starts clean, and a hung op mode is a process that can be killed.
  * <ul>
  * <li>{@code --list [source...]} prints the catalog as one JSON line.</li>
  * <li>{@code --run <name> <seconds> <replayDir> [source...]} runs the op mode of that name,

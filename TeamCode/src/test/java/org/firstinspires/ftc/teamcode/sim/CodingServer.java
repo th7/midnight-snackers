@@ -263,7 +263,7 @@ public final class CodingServer {
     public static void main(String[] args) throws InterruptedException {
         Path root = Path.of("").toAbsolutePath();
         SimBench.Factory benches = worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"),
-                worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
+                root.resolve("TeamCode/src/test/java"), worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS, SimDevServer.DEFAULT_TELEOP_SECONDS, SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
         CodingServer server = start(root, benches, InetAddress.getLoopbackAddress(),
                 port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT), stateDir(System.getenv()));
