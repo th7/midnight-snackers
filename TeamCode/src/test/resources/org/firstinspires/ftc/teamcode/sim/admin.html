@@ -144,18 +144,23 @@
           + (login.branch ? ' · ' + login.branch : '');
       var el = row(login.state, login.username, meta);
       if (login.worktree) { el.querySelector('.meta').title = login.worktree; }
-      if (login.lastMerge && (login.lastMerge.outcome === 'conflicts' || login.lastMerge.outcome === 'refused')) {
+      var last = login.lastMerge;
+      var remoteFailed = last && login.lastMerge.remote && login.lastMerge.remote.outcome === 'failed';
+      if (last && (last.outcome === 'conflicts' || last.outcome === 'refused' || remoteFailed)) {
         var recipe = document.createElement('pre');
         recipe.className = 'recipe mono';
         var why = document.createElement('div');
         why.className = 'why';
-        why.textContent = login.lastMerge.op + ': ' + login.lastMerge.message;
+        why.textContent = last.op + ': ' + last.message;
         recipe.appendChild(why);
-        if (login.lastMerge.outcome === 'conflicts') {
+        if (last.outcome === 'conflicts') {
           recipe.appendChild(document.createTextNode(
             'cd ' + login.worktree + '\n' +
             'git merge develop         # resolve the conflicts in an editor\n' +
             'git add -A && git commit  # then ' + login.username + ' presses Push'));
+        } else if (remoteFailed) {
+          recipe.appendChild(document.createTextNode(
+            'git push origin develop   # from the checkout, once the network is back; a rejected push wants git pull first'));
         }
         el.appendChild(recipe);
       }

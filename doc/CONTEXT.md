@@ -73,7 +73,12 @@ merge runs there so that working tree shows the pushed work; git refuses,
 changing nothing, if an uncommitted edit there would be overwritten.
 Checked out nowhere, only the branch moves. It needs a clean worktree
 (commit first) and refuses, changing nothing, on a **merge conflict**.
-The name is the user's view of it: the server never talks to a remote.
+Then `develop` is pushed to the remote named `origin`, when there is
+one, whether or not anything was merged, so origin is current whenever
+the network allows; nothing is sent when origin already has it. A remote
+push that fails (the robot's wifi has no way out; origin has moved on)
+leaves the local merge in place, is never forced, and is reported to
+the user and, with the command to run, to the coach on the admin page.
 
 **Pull** — `POST /git/pull`: `develop` is merged into the user branch, in
 the user's worktree, a fast-forward when it can be and a merge commit

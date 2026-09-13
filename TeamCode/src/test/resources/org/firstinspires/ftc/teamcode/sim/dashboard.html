@@ -645,6 +645,7 @@
       var result;
       try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
       var kind = reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : (result.outcome === 'conflicts' || result.outcome === 'refused' ? 'bad' : 'warn');
+      if (reply.ok && result.remote && result.remote.outcome === 'failed') { kind = 'warn'; }
       say(result.message, kind);
       if (reply.ok && result.outcome !== 'nothing') {
         if (open) { load(open.path); }

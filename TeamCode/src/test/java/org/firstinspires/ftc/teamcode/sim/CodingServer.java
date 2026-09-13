@@ -825,11 +825,26 @@ public final class CodingServer {
             synchronized (this) {
                 merge = worktrees.push(session.username);
             }
-            String did = merge.detail == null ? "pushed to " + Worktrees.DEVELOP
-                    : "pushed to " + Worktrees.DEVELOP + ", but your worktree is not up to date; commit and pull: " + merge.detail;
-            return merged("push", session, merge, did, "nothing to push");
+            String did = "pushed to " + Worktrees.DEVELOP + remoteSuffix(merge.remote)
+                    + (merge.detail == null ? "" : "; but your worktree is not up to date; commit and pull: " + merge.detail);
+            String nothing = merge.remote != null && merge.remote.outcome.equals("pushed")
+                    ? "nothing new of yours to push; pushed " + Worktrees.DEVELOP + " to " + merge.remote.name
+                    : "nothing to push" + (merge.remote != null && merge.remote.outcome.equals("failed") ? remoteSuffix(merge.remote) : "");
+            return merged("push", session, merge, did, nothing);
         }
         return Response.error(404, "not found: " + request.path);
+    }
+
+    /** How develop reached the remote, for the message: nothing to say without a remote. */
+    private static String remoteSuffix(Worktrees.Remote remote) {
+        if (remote == null) {
+            return "";
+        }
+        switch (remote.outcome) {
+            case "pushed": return " and to " + remote.name;
+            case "up to date": return " (" + remote.name + " already had it)";
+            default: return "; could not push to " + remote.name + ", ask your coach: " + remote.detail;
+        }
     }
 
     /** The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the reason otherwise. */
@@ -863,6 +878,15 @@ public final class CodingServer {
                 status = 409;
                 reply.addProperty("message", "git could not " + op + "; ask your coach for help: " + merge.detail);
                 break;
+        }
+        if (merge.remote == null) {
+            reply.add("remote", null);
+        } else {
+            JsonObject remote = new JsonObject();
+            remote.addProperty("name", merge.remote.name);
+            remote.addProperty("outcome", merge.remote.outcome);
+            remote.addProperty("detail", merge.remote.detail);
+            reply.add("remote", remote);
         }
         synchronized (this) {
             JsonObject record = GSON.fromJson(GSON.toJson(reply), JsonObject.class);

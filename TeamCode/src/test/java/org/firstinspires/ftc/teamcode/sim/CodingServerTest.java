@@ -1475,6 +1475,50 @@ public class CodingServerTest {
         assertTrue(page, page.contains("'/git/push'"));
     }
 
+    // --- push reaches origin ---
+
+    @Test
+    public void pushLandsOnOriginTooAndTheReplySaysSo() throws IOException {
+        Path origin = state.getRoot().toPath().resolve("origin.git");
+        GitFixture.withOrigin(root, origin);
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+
+        Reply pushed = user("POST", "/git/push", cookie);
+
+        assertEquals(pushed.body, 200, pushed.status);
+        JsonObject body = json(pushed.body);
+        assertEquals("pushed", body.get("outcome").getAsString());
+        assertEquals("origin", body.getAsJsonObject("remote").get("name").getAsString());
+        assertEquals("pushed", body.getAsJsonObject("remote").get("outcome").getAsString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("origin"));
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
+    }
+
+    @Test
+    public void whenOriginIsUnreachableThePushStillLandsAndTheAdminSeesTheProblem() throws IOException {
+        GitFixture.git(root, "remote", "add", "origin", state.getRoot().toPath().resolve("no-such-origin.git").toString());
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        String oldDevelop = GitFixture.commitOf(root, "develop");
+
+        Reply pushed = user("POST", "/git/push", cookie);
+
+        assertEquals(pushed.body, 200, pushed.status);
+        JsonObject body = json(pushed.body);
+        assertEquals("pushed", body.get("outcome").getAsString());
+        assertEquals("failed", body.getAsJsonObject("remote").get("outcome").getAsString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("could not push to origin"));
+        assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"remote\":{\"name\":\"origin\",\"outcome\":\"failed\""));
+        String page = admin("GET", "/admin").body;
+        assertTrue(page, page.contains("git push origin develop"));
+        assertTrue(page, page.contains("lastMerge.remote"));
+        String dashboard = user("GET", "/", cookie).body;
+        assertTrue(dashboard, dashboard.contains("remote.outcome"));
+    }
+
     // --- go to definition, find usages, and viewing what is not editable ---
 
     private static final String SRC = "TeamCode/src/main/java/org/example/";

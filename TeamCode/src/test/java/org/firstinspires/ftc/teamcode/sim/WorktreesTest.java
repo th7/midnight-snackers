@@ -457,6 +457,108 @@ public class WorktreesTest {
         assertEquals(0, worktrees.status("bob").behind);
     }
 
+    // --- push reaches origin ---
+
+    private Path origin() throws IOException {
+        Path bare = folder.getRoot().toPath().resolve("origin.git");
+        GitFixture.withOrigin(root, bare);
+        return bare;
+    }
+
+    private Worktrees.Worktree committedWorker(Worktrees worktrees, String username, String file) throws IOException {
+        Worktrees.Worktree worktree = worktrees.ensure(username);
+        Files.write(worktree.path.resolve(file), ("class " + file.replace(".java", "") + " {}\n").getBytes(StandardCharsets.UTF_8));
+        worktrees.commit(username, file);
+        return worktree;
+    }
+
+    @Test
+    public void pushAlsoPushesDevelopToOriginAndSaysSo() throws IOException {
+        Path origin = origin();
+        Worktrees worktrees = worktrees();
+        committedWorker(worktrees, "ada", "Mine.java");
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertEquals("origin", pushed.remote.name);
+        assertEquals("pushed", pushed.remote.outcome);
+        assertNull(pushed.remote.detail);
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
+        assertEquals("only develop went to origin", "refs/heads/develop\n",
+                GitFixture.git(origin, "for-each-ref", "--format=%(refname)"));
+
+        Worktrees.Merge again = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.NOTHING, again.outcome);
+        assertEquals("up to date", again.remote.outcome);
+    }
+
+    @Test
+    public void nothingToMergeStillPushesWhatDevelopHasThatOriginLacks() throws IOException {
+        Path origin = origin();
+        Worktrees worktrees = worktrees();
+        worktrees.ensure("ada");
+        commitOnDevelop("README", "the coach committed on develop without pushing\n");
+        assertNotEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.NOTHING, pushed.outcome);
+        assertEquals("pushed", pushed.remote.outcome);
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
+    }
+
+    @Test
+    public void pushWithoutARemoteLandsOnDevelopAndSaysThereWasNowhereElse() throws IOException {
+        Worktrees worktrees = worktrees();
+        committedWorker(worktrees, "ada", "Mine.java");
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertNull(pushed.remote);
+        assertEquals(2, parentsOf(root, "develop"));
+    }
+
+    @Test
+    public void whenOriginCannotBeReachedThePushStillLandsOnDevelopAndTheProblemIsReported() throws IOException {
+        GitFixture.git(root, "remote", "add", "origin", folder.getRoot().toPath().resolve("no-such-origin.git").toString());
+        Worktrees worktrees = worktrees();
+        committedWorker(worktrees, "ada", "Mine.java");
+        String oldDevelop = GitFixture.commitOf(root, "develop");
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
+        assertEquals("class Mine {}\n", read(root.resolve("Mine.java")));
+        assertEquals("origin", pushed.remote.name);
+        assertEquals("failed", pushed.remote.outcome);
+        assertTrue(pushed.remote.detail, pushed.remote.detail.contains("no-such-origin"));
+    }
+
+    @Test
+    public void whenOriginHasMovedOnThePushIsNotForcedAndSaysSo() throws IOException {
+        Path origin = origin();
+        Path elsewhere = folder.getRoot().toPath().resolve("elsewhere");
+        GitFixture.git(folder.getRoot().toPath(), "clone", "-q", "-b", "develop", origin.toString(), elsewhere.toString());
+        Files.write(elsewhere.resolve("Theirs.java"), "class Theirs {}\n".getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(elsewhere, "pushed from another machine");
+        GitFixture.git(elsewhere, "push", "-q", "origin", "develop");
+        String theirs = GitFixture.commitOf(origin, "develop");
+        Worktrees worktrees = worktrees();
+        committedWorker(worktrees, "ada", "Mine.java");
+
+        Worktrees.Merge pushed = worktrees.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertEquals("failed", pushed.remote.outcome);
+        assertTrue(pushed.remote.detail, pushed.remote.detail.contains("rejected") || pushed.remote.detail.contains("fetch first"));
+        assertEquals("origin was not forced", theirs, GitFixture.commitOf(origin, "develop"));
+        assertEquals("class Mine {}\n", GitFixture.git(root, "show", "develop:Mine.java"));
+    }
+
     // --- what must be there before the server starts ---
 
     @Test
