@@ -359,22 +359,39 @@ with the field, the true pose, and play/pause/scrub controls, named after
 the op mode under `TeamCode/build/sim`. The field is drawn in three
 dimensions from a camera that orbits it (drag to turn, scroll to zoom,
 double-click for the audience's view): the walls at their height, the
-robot as a cube turned to its heading, and the dashboard's field overlay
-projected onto the floor. The sizes are the simulated robot's, so the
-page draws what the simulator collides. Class: `SimReplayPage`.
+field elements, tape and game pieces of the field model, the robot as a
+cube turned to its heading, and the dashboard's field overlay projected
+onto the floor. The obstacles are outlined on the floor. The model and
+the sizes are the simulated robot's, so the page draws what the simulator
+collides. Class: `SimReplayPage`.
 
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
 
-**Simulated robot** — A kinematic model on a flat, walled field: motor
-powers become wheel velocities through the tuned drive model, the true
-pose is integrated from those and kept inside the walls, and the
-localizer's sensors are written back from the true pose, so the dead
-wheels read nothing while the wheels spin against a wall. The robot is an
-18-inch cube on a 144-inch field with foot-high walls; a wall stops it
-dead and lets it slide along. The model is planar: only the robot's
-footprint collides, and nothing goes over a wall. No inertia, slip, or
-noise. Class: `SimRobot`.
+**Simulated robot** — A kinematic model on the field: motor powers become
+wheel velocities through the tuned drive model, the true pose is
+integrated from those and kept inside the walls and out of the obstacles,
+and the localizer's sensors are written back from the true pose, so the
+dead wheels read nothing while the wheels spin against a wall. The robot
+is an 18-inch cube; a wall or an obstacle stops it dead and lets it slide
+along. The model is planar: only the robot's footprint collides, and
+nothing goes over a wall or under a hive by being low. No inertia, slip,
+or noise. The world moves in steps of at most 5 ms whatever the loop rate,
+so nothing is jumped over. Class: `SimRobot`.
+
+**Field** — The season's field as the simulator has it, reduced from
+FIRST's CAD by `tools/field/step_to_field.py` to `field.json`: the
+**size** between the walls (141 inches) and the walls' height, each
+**field element** as a low-poly convex shape with its colour, the **game
+pieces** where a match starts, the gaffer **tape** on the floor, and the
+**obstacles**: the convex footprint of every element that stands lower
+than the robot is tall, which is what the robot runs into. For BIOBUZZ:
+the frame in the middle of the field is an obstacle leg by leg and foot
+by foot, so the robot drives through it; the flowers at the walls are
+obstacles; the hives hang from the frame above the robot and are only
+drawn. Everything is in the field frame Road Runner uses, in inches: the
+origin at the centre, +x away from the audience, +y to the audience's
+left. Game pieces do not move. Class: `SimField`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.

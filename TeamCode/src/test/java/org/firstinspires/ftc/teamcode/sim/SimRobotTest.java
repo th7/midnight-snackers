@@ -169,6 +169,132 @@ public class SimRobotTest {
     }
 
     /**
+     * The flowers stand against the walls. Driving straight at one stops the robot where its front
+     * edge meets the flower's inward face, as the field model places it.
+     */
+    @Test
+    public void aFlowerStopsTheRobotWhereItsFrontEdgeMeetsIt() {
+        robotDrive();
+        SimField.Obstacle flower = SimRobot.FIELD.obstacle("Flower Assembly <4>");
+        double face = maxY(flower.footprint);
+        double x = (minX(flower.footprint) + maxX(flower.footprint)) / 2;
+        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        // Facing the right wall (-y), ten inches short of the flower.
+        sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(1.0);
+
+        Pose2d pose = sim.pose();
+        assertEquals(face + halfRobot, pose.position.y, DELTA);
+        assertEquals(x, pose.position.x, DELTA);
+        assertEquals(-Math.PI / 2, pose.heading.toDouble(), DELTA);
+    }
+
+    @Test
+    public void drivingDiagonallyIntoAFlowerSlidesAlongIt() {
+        robotDrive();
+        SimField.Obstacle flower = SimRobot.FIELD.obstacle("Flower Assembly <4>");
+        double face = maxY(flower.footprint);
+        double x = (minX(flower.footprint) + maxX(flower.footprint)) / 2;
+        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        sim.setPose(new Pose2d(x, face + halfRobot, -Math.PI / 2));
+        setPowers(0, 1, 1, 0); // forward and left, which facing -y is toward +x
+
+        sim.step(0.1);
+
+        Pose2d pose = sim.pose();
+        assertEquals(face + halfRobot, pose.position.y, DELTA);
+        assertTrue("x=" + pose.position.x, pose.position.x > x + 2);
+        assertEquals(-Math.PI / 2, pose.heading.toDouble(), DELTA);
+    }
+
+    /** The frame in the middle of the field is driven through, between its legs. */
+    @Test
+    public void theRobotDrivesUnderTheHivesBetweenTheFramesLegs() {
+        robotDrive();
+        sim.setPose(new Pose2d(-14, -8, 0));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(0.3);
+
+        Pose2d pose = sim.pose();
+        assertTrue("x=" + pose.position.x, pose.position.x > -14 + 10);
+        assertEquals(-8, pose.position.y, DELTA);
+    }
+
+    /** The frame's feet and legs stand in the way; the nearest part in the robot's path stops it. */
+    @Test
+    public void theFrameStopsTheRobotAtItsNearestPart() {
+        robotDrive();
+        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        double y = -28;
+        double nearestFace = Double.POSITIVE_INFINITY;
+        for (SimField.Obstacle part : SimRobot.FIELD.obstacles) {
+            boolean inThePath = part.name.startsWith("Frame") && minX(part.footprint) < 0
+                    && maxY(part.footprint) > y - halfRobot && minY(part.footprint) < y + halfRobot;
+            if (inThePath) {
+                nearestFace = Math.min(nearestFace, minX(part.footprint));
+            }
+        }
+        assertTrue("some part of the frame is in the way", nearestFace < 0);
+        sim.setPose(new Pose2d(-50, y, 0));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(1.0);
+
+        assertEquals(nearestFace - halfRobot, sim.pose().position.x, DELTA);
+        assertEquals(y, sim.pose().position.y, DELTA);
+    }
+
+    @Test
+    public void againstAFlowerTheDeadWheelsReadTheRobotStandingStill() {
+        MecanumDrive drive = robotDrive();
+        SimField.Obstacle flower = SimRobot.FIELD.obstacle("Flower Assembly <4>");
+        double face = maxY(flower.footprint);
+        double x = (minX(flower.footprint) + maxX(flower.footprint)) / 2;
+        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
+        drive.localizer.setPose(sim.pose());
+        drive.localizer.update();
+        setPowers(1, 1, 1, 1);
+
+        for (int i = 0; i < 40; i++) {
+            sim.step(0.025);
+            drive.localizer.update();
+        }
+
+        Pose2d estimated = drive.localizer.getPose();
+        assertEquals(face + halfRobot, sim.pose().position.y, DELTA);
+        assertEquals(face + halfRobot, estimated.position.y, 0.5);
+        assertEquals(x, estimated.position.x, 0.5);
+    }
+
+    private static double minX(double[][] ring) {
+        double v = Double.POSITIVE_INFINITY;
+        for (double[] p : ring) v = Math.min(v, p[0]);
+        return v;
+    }
+
+    private static double maxX(double[][] ring) {
+        double v = Double.NEGATIVE_INFINITY;
+        for (double[] p : ring) v = Math.max(v, p[0]);
+        return v;
+    }
+
+    private static double minY(double[][] ring) {
+        double v = Double.POSITIVE_INFINITY;
+        for (double[] p : ring) v = Math.min(v, p[1]);
+        return v;
+    }
+
+    private static double maxY(double[][] ring) {
+        double v = Double.NEGATIVE_INFINITY;
+        for (double[] p : ring) v = Math.max(v, p[1]);
+        return v;
+    }
+
+    /**
      * The robot's own drive on the simulated motors, which applies the motor directions the robot uses.
      */
     private MecanumDrive robotDrive() {
