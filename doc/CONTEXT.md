@@ -184,24 +184,33 @@ it runs on the current classpath. Class: `SimBench`.
 `./gradlew :TeamCode:simDev` (http://localhost:8765/), with no login.
 Class: `SimDevServer`.
 
-**Catalog** — The op modes the simulator can run: every concrete `OpMode`
-of ours, anywhere under the team code package, with the `@Autonomous` or
-`@TeleOp` annotation, exactly as the robot controller lists them. Each
-entry has a **kind**, *auto* or *teleop*, which decides how its run ends.
-Nested classes (the test op modes) are never listed. The child reports
-the catalog after each build, so a newly written op mode appears without
-a restart. Class: `SimCatalog`.
+**Catalog** — The op modes the simulator can run, exactly as the robot
+controller lists them: every concrete `OpMode` of ours that carries the
+`@Autonomous` or `@TeleOp` annotation, plus whatever a **registrar** (a
+static method annotated `@OpModeRegistrar`) registers, found by calling
+the registrar itself. The autos are registered that way: each `@Auto`
+annotation on a plan method in `Plans` is one op mode, with no class of
+its own. Entries are keyed by the op mode's **name**, which the robot
+controller requires to be unique, and carry a **kind** (*auto* or
+*teleop*) and **where** a person finds the code (a class, or the plan
+method). Nested classes are never listed, so test op modes stay out of
+the real bench, and Road Runner's vendored code is not ours to simulate.
+The child reports the catalog after each build, so a newly written op
+mode appears without a restart. Class: `SimCatalog`.
 
 **Child** — The fresh JVM each run executes in, launched with the newly
 built classes first on its classpath. Every class identity is consistent,
 static state starts clean, and a hung op mode is a process that can be
-killed. It prints each tick as one JSON line and finally the outcome; the
-op mode's own output goes to stderr. Its standard input is the driver
+killed. It builds the catalog, says when the op mode's time begins, then
+prints each tick as one JSON line and finally the outcome; the op mode's
+own output goes to stderr. Its standard input is the driver
 station, one line at a time; when the input ends, the run ends stopped.
 Class: `SimChild`.
 
 **Run** — One execution of one op mode on a fresh simulated robot, in real
-time. A run has a **phase** (*building*, *running*, *finished*), a
+time. A run has a **phase** (*building*, *starting* while the child JVM
+loads the catalog, *running* from the moment the op mode's time begins,
+*finished*), a
 **message** (compile errors, or why it was killed), and when finished an
 **outcome**: *done*, *stopped*, *timed out*, *build failed*, or *child
 exited with code N*. An **auto run** is done when its plan is, and times

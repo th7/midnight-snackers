@@ -54,11 +54,30 @@ public final class SimRunner {
         return run(opMode, sim, timeoutSeconds, outputDir, null);
     }
 
+    /** Runs a catalog entry's auto, with the recording named as the driver station names the op mode. */
+    public static SimRecording run(SimCatalog.Entry entry, SimRobot sim, double timeoutSeconds) {
+        return run(entry, sim, timeoutSeconds, DEFAULT_OUTPUT_DIR, livePortFromEnvironment());
+    }
+
+    public static SimRecording run(SimCatalog.Entry entry, SimRobot sim, double timeoutSeconds, Path outputDir) {
+        return run(entry, sim, timeoutSeconds, outputDir, null);
+    }
+
+    private static SimRecording run(SimCatalog.Entry entry, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
+        if (!entry.kind.equals(SimCatalog.AUTO)) {
+            throw new IllegalArgumentException(entry.name + " is a TeleOp; run it from a driver station with record()");
+        }
+        return run(new SimRecording(entry.name, entry.kind), (AutoOp) entry.opMode(), sim, timeoutSeconds, outputDir, livePort);
+    }
+
     /**
      * @param livePort serve a live view on this port while the run is in progress, or null for none
      */
     public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
-        SimRecording recording = new SimRecording(nameOf(opMode));
+        return run(new SimRecording(nameOf(opMode)), opMode, sim, timeoutSeconds, outputDir, livePort);
+    }
+
+    private static SimRecording run(SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
         SimLiveServer live = livePort == null ? null : SimLiveServer.start(recording, livePort);
         if (live != null) {
             System.out.println("Simulation live view: " + live.url());
@@ -96,7 +115,7 @@ public final class SimRunner {
             recording.finish("failed: " + e);
             throw e;
         } finally {
-            Path page = outputDir.resolve(recording.name() + ".html");
+            Path page = outputDir.resolve(fileName(recording.name()) + ".html");
             SimReplayPage.write(recording, page);
             System.out.println("Simulation replay: " + page.toAbsolutePath());
         }
@@ -167,6 +186,11 @@ public final class SimRunner {
                     auto == null ? driverStation.state(2) : null));
             sleep();
         }
+    }
+
+    /** The recording's name as a file name: anything a path could not hold becomes an underscore. */
+    static String fileName(String name) {
+        return name.replaceAll("[^A-Za-z0-9._ -]", "_");
     }
 
     /**

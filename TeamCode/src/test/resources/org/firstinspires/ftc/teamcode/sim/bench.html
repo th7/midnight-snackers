@@ -148,10 +148,10 @@
       row.className = 'opmode';
       const text = document.createElement('div');
       const name = document.createElement('div'); name.className = 'name'; name.textContent = entry.name;
-      const cls = document.createElement('div'); cls.className = 'cls mono'; cls.textContent = entry.opMode; cls.title = entry.opMode;
+      const cls = document.createElement('div'); cls.className = 'cls mono'; cls.textContent = entry.where; cls.title = entry.where;
       text.append(name, cls);
       const button = document.createElement('button');
-      button.className = 'run'; button.textContent = 'Run'; button.dataset.opmode = entry.opMode;
+      button.className = 'run'; button.textContent = 'Run'; button.dataset.opmode = entry.name;
       button.addEventListener('click', () => run(entry));
       row.append(text, button);
       list.appendChild(row);
@@ -161,7 +161,7 @@
   async function run(entry) {
     msg.textContent = '';
     try {
-      const response = await fetch('/run?opmode=' + encodeURIComponent(entry.opMode), { method: 'POST' });
+      const response = await fetch('/run?opmode=' + encodeURIComponent(entry.name), { method: 'POST' });
       if (!response.ok) { msg.textContent = 'Could not start ' + entry.name + ': ' + (await response.text()); return; }
       const started = await response.json();
       show(started.id, entry.name);
@@ -185,7 +185,7 @@
   }
 
   function pill(run) {
-    if (run.phase === 'building') return '<span class="pill building">building</span>';
+    if (run.phase === 'building' || run.phase === 'starting') return '<span class="pill building">' + run.phase + '</span>';
     if (!run.outcome) return '<span class="pill live">running</span>';
     const ok = run.outcome === 'done' || run.outcome === 'stopped';
     return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(run.outcome) + '</span>';

@@ -2,7 +2,8 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-import org.firstinspires.ftc.teamcode.base.RelativeAutoOp;
+import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.base.AutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
@@ -16,11 +17,18 @@ public final class TestAutos {
     private TestAutos() {
     }
 
+    /** An auto for no alliance in particular, like every auto here. */
+    public abstract static class TestAuto extends AutoOp {
+        protected TestAuto() {
+            super(Alliance.RELATIVE);
+        }
+    }
+
     /**
      * An auto whose single step finishes on its third loop.
      */
     @Autonomous(name = "Count to three", group = "Test")
-    public static class ThreeLoopAuto extends RelativeAutoOp {
+    public static class ThreeLoopAuto extends TestAuto {
         private int loops = 0;
 
         @Override
@@ -34,7 +42,7 @@ public final class TestAutos {
      * An auto that prints to System.out from its step, the way student code does.
      */
     @Autonomous(name = "Chatty", group = "Test")
-    public static class ChattyAuto extends RelativeAutoOp {
+    public static class ChattyAuto extends TestAuto {
         private int loops = 0;
 
         @Override
@@ -47,7 +55,7 @@ public final class TestAutos {
      * An auto whose loop never returns, so no cooperative timeout can end it.
      */
     @Autonomous(name = "Hangs", group = "Test")
-    public static class HangingAuto extends RelativeAutoOp {
+    public static class HangingAuto extends TestAuto {
         @Override
         public PlanPart getPlan() {
             return new Step("hang", () -> {
@@ -63,7 +71,7 @@ public final class TestAutos {
     }
 
     @Autonomous(name = "Never done", group = "Test")
-    public static class NeverDoneAuto extends RelativeAutoOp {
+    public static class NeverDoneAuto extends TestAuto {
         @Override
         public PlanPart getPlan() {
             return new Step("forever", () -> {
@@ -76,7 +84,7 @@ public final class TestAutos {
      * when the run ends instead of racing a timeout.
      */
     @Autonomous(name = "Gated", group = "Test")
-    public static class GatedAuto extends RelativeAutoOp {
+    public static class GatedAuto extends TestAuto {
         public static final String STEP = "wait for the gate";
         private final AtomicBoolean released = new AtomicBoolean(false);
 

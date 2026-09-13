@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The JVM a simulated run happens in. The server launches one per run with the freshly compiled
@@ -25,12 +26,15 @@ import java.util.List;
  * class identity is consistent, static state starts clean, and a hung op mode is a process that
  * can be killed.
  * <ul>
- * <li>{@code --list} prints the catalog as one JSON line.</li>
- * <li>{@code --run <class> <seconds> <replayDir>} runs the op mode, printing each tick as one
- * JSON line as it happens and finally one {@code {"outcome": ...}} line. Standard input is the
- * driver station: one {@link SimDriverStation#accept line} at a time, and the run ends stopped
- * when the input ends.</li>
+ * <li>{@code --list [source...]} prints the catalog as one JSON line.</li>
+ * <li>{@code --run <name> <seconds> <replayDir> [source...]} runs the op mode of that name,
+ * printing one {@code {"started": true}} line as the op mode's time begins, then each tick as
+ * one JSON line as it happens, and finally one {@code {"outcome": ...}} line. Standard input is
+ * the driver station: one {@link SimDriverStation#accept line} at a time, and the run ends
+ * stopped when the input ends.</li>
  * </ul>
+ * The sources are the classes a fixed catalog was built from ({@link SimCatalog#sources()});
+ * given none, the child discovers the catalog as the parent would.
  * The protocol owns the real standard output; anything the op mode prints goes to standard
  * error instead, so student output cannot corrupt the stream.
  */
@@ -45,28 +49,48 @@ public final class SimChild {
         PrintStream protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
         if (args.length >= 1 && args[0].equals("--list")) {
-            protocol.println(SimReplayPage.toLine(SimCatalog.discover().toJson()));
+            protocol.println(SimReplayPage.toLine(catalog(args, 1).toJson()));
             System.exit(0);
         }
-        if (args.length == 4 && args[0].equals("--run")) {
-            String outcome = run(args[1], Double.parseDouble(args[2]), Paths.get(args[3]), protocol);
+        if (args.length >= 4 && args[0].equals("--run")) {
+            String outcome = run(catalog(args, 4), args[1], Double.parseDouble(args[2]), Paths.get(args[3]), protocol);
             JsonObject last = new JsonObject();
             last.addProperty("outcome", outcome);
             protocol.println(SimReplayPage.toLine(last));
             System.exit(0);
         }
-        System.err.println("usage: --list | --run <op mode class> <seconds> <replay dir>");
+        System.err.println("usage: --list [source...] | --run <op mode name> <seconds> <replay dir> [source...]");
         System.exit(2);
     }
 
-    private static String run(String className, double seconds, Path replayDir, PrintStream protocol) {
+    /** The catalog the sources from {@code args[from]} on describe, or the discovered one given none. */
+    private static SimCatalog catalog(String[] args, int from) {
+        if (args.length <= from) {
+            return SimCatalog.discover();
+        }
+        Class<?>[] sources = new Class<?>[args.length - from];
+        for (int i = from; i < args.length; i++) {
+            try {
+                sources[i - from] = Class.forName(args[i]);
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("no such source of op modes: " + args[i], e);
+            }
+        }
+        return SimCatalog.of(sources);
+    }
+
+    private static String run(SimCatalog catalog, String name, double seconds, Path replayDir, PrintStream protocol) {
+        Optional<SimCatalog.Entry> entry = catalog.find(name);
+        if (entry.isEmpty()) {
+            return "no op mode named " + name;
+        }
         OpMode opMode;
         try {
-            opMode = Class.forName(className).asSubclass(OpMode.class).getDeclaredConstructor().newInstance();
-        } catch (ReflectiveOperationException | ClassCastException e) {
-            return "could not build " + className + ": " + e;
+            opMode = entry.get().opMode();
+        } catch (RuntimeException e) {
+            return "could not build " + name + ": " + e;
         }
-        SimRecording recording = new SimRecording(SimRunner.nameOf(opMode), SimCatalog.kindOf(opMode.getClass()));
+        SimRecording recording = new SimRecording(entry.get().name, entry.get().kind);
         SimDriverStation driverStation = new SimDriverStation();
         Thread driver = new Thread(() -> readDriverStation(driverStation, recording), "sim-driver-station");
         driver.setDaemon(true);
@@ -74,6 +98,9 @@ public final class SimChild {
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);
         streamer.start();
+        JsonObject started = new JsonObject();
+        started.addProperty("started", true);
+        protocol.println(SimReplayPage.toLine(started));
         try {
             SimRunner.record(recording, opMode, new SimRobot(), seconds, replayDir, driverStation);
         } catch (RuntimeException | Error e) {

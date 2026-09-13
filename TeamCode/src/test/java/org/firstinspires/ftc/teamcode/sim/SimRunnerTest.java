@@ -119,6 +119,27 @@ public class SimRunnerTest {
     }
 
     @Test
+    public void aRunFromACatalogEntryIsNamedAsTheDriverStationNamesIt() {
+        Path out = folder.getRoot().toPath();
+
+        SimRecording recording = SimRunner.run(SimCatalog.of(ThreeLoopAuto.class).find("Count to three").get(), sim, 5, out);
+
+        assertEquals("Count to three", recording.name());
+        assertEquals("auto", recording.kind());
+        assertEquals(3, recording.ticks().size());
+        assertTrue(Files.exists(out.resolve("Count to three.html")));
+    }
+
+    @Test
+    public void aNameNoFileCanHaveStillGetsAReplayFile() {
+        Path out = folder.getRoot().toPath();
+
+        SimRunner.record(new SimRecording("odd/name"), new ThreeLoopAuto(), sim, 5, out, new SimDriverStation());
+
+        assertTrue(Files.exists(out.resolve("odd_name.html")));
+    }
+
+    @Test
     public void anAnonymousSubclassIsNamedAfterItsNearestNamedClass() {
         Path out = folder.getRoot().toPath();
 

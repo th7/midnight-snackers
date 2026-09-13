@@ -740,8 +740,8 @@
         var text = document.createElement('div');
         text.innerHTML = '<div class="name"></div><div class="cls mono"></div>';
         text.firstChild.textContent = entry.name;
-        text.lastChild.textContent = entry.opMode;
-        text.lastChild.title = entry.opMode;
+        text.lastChild.textContent = entry.where;
+        text.lastChild.title = entry.where;
         var button = document.createElement('button');
         button.className = 'primary run';
         button.textContent = 'Run';
@@ -755,7 +755,7 @@
 
     function run(entry) {
       msg.textContent = '';
-      fetch('/sim/run?opmode=' + encodeURIComponent(entry.opMode), { method: 'POST' }).then(function (r) {
+      fetch('/sim/run?opmode=' + encodeURIComponent(entry.name), { method: 'POST' }).then(function (r) {
         if (r.status === 403) { location.reload(); return; }
         if (!r.ok) { return r.text().then(function (t) { msg.textContent = 'Could not start ' + entry.name + ': ' + t; }); }
         return r.json().then(function (started) { show(started.id, entry.name); poll(); });
@@ -779,7 +779,7 @@
     }
 
     function pill(run) {
-      if (run.phase === 'building') { return '<span class="pill building">building</span>'; }
+      if (run.phase === 'building' || run.phase === 'starting') { return '<span class="pill building">' + run.phase + '</span>'; }
       if (!run.outcome) { return '<span class="pill live">running</span>'; }
       var ok = run.outcome === 'done' || run.outcome === 'stopped';
       return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(run.outcome) + '</span>';

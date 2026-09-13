@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
@@ -36,9 +37,8 @@ public class OpModeLoopOrderTest {
     }
 
     private static class TestAuto extends AutoOp {
-        @Override
-        protected Nav getNav(MecanumDrive mecanumDrive) {
-            return Nav.relative(mecanumDrive, runtime, telemetry);
+        TestAuto() {
+            super(Alliance.RELATIVE);
         }
 
         @Override

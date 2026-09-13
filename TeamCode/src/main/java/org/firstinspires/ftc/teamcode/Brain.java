@@ -146,6 +146,11 @@ public class Brain extends SubSystem {
         usingCameraLocalization = false;
     }
 
+    /** Whether the camera's tag sightings are used to place the robot on the field. */
+    public boolean usingCameraLocalization() {
+        return usingCameraLocalization;
+    }
+
     public void setTurnTableDebugOverrideModeOn() {
         turnTableDebugOverride = true;
     }

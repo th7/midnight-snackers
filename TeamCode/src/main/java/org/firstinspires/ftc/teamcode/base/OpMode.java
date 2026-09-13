@@ -93,6 +93,11 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         return subsystems.add(loopable);
     }
 
+    /** Where a person finds this op mode's code: its class, unless a subclass knows better. */
+    public String where() {
+        return getClass().getName();
+    }
+
     /** Everything this op mode ticks, in order. */
     public List<Loopable> loopOrder() {
         return subsystems.members();
