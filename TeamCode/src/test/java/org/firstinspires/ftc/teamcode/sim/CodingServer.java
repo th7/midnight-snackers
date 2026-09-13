@@ -21,12 +21,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -44,22 +41,28 @@ import java.util.stream.Stream;
 /**
  * The coding server: teammates on the LAN log in with a username, the person at this machine
  * approves them from a page only this machine can reach, and approved teammates edit the files
- * the admin has picked, with every edit written straight to disk.
+ * the admin has picked, each in a git worktree of their own, with every edit written straight
+ * to disk there.
  * <pre>
  * ./gradlew :TeamCode:codingServer
  *     admin  http://localhost:21987/admin     (loopback only)
  *     users  http://&lt;this machine's LAN address&gt;:21986/
  * </pre>
- * The Simulate tab runs the autonomous op modes on the simulated robot through the same
- * {@link SimBench} as the bench, one run at a time for everyone. Every run recompiles the main
- * sources and runs in a child JVM, so a saved edit is what the next run executes.
+ * Approving a login makes the user's {@link Worktrees worktree}, one per username on its own
+ * branch off {@code develop}, under the state directory. The host checkout is never written by a
+ * user's save. The Edit tab's Commit, Pull, and Push buttons commit the user's edits on their
+ * branch, bring {@code develop} into it, and land it on {@code develop}; a merge conflict changes
+ * nothing and sends the user to their coach. The Simulate tab runs the autonomous op modes on the
+ * simulated robot through a {@link SimBench} per worktree, one run at a time per user. Every run
+ * recompiles that worktree's main sources and runs in a child JVM, so a saved edit is what the
+ * next run executes.
  * <p>
- * Sessions and the editable set outlive the process. They live in the XDG state directory
- * ({@code $XDG_STATE_HOME/midnight-snackers/coding-server}, else
+ * Sessions, the editable set, and the worktrees outlive the process. They live in the XDG state
+ * directory ({@code $XDG_STATE_HOME/midnight-snackers/coding-server}, else
  * {@code ~/.local/state/midnight-snackers/coding-server}), readable by this user only. A
  * session's cookie is {@code <id>.<secret>}; the store holds a salted scrypt hash of the secret,
- * never the secret, so the file on disk cannot be replayed as a login. The editable set is kept
- * per project root, so two checkouts on one machine do not share it.
+ * never the secret, so the file on disk cannot be replayed as a login. The editable set and the
+ * worktrees are kept per project root, so two checkouts on one machine do not share them.
  */
 public final class CodingServer {
     public static final String ADMIN_PORT_ENV = "CODING_ADMIN_PORT";
@@ -188,7 +191,14 @@ public final class CodingServer {
 
     private final Path root;
     private final Path stateDir;
-    private final SimBench bench;
+    private final Worktrees worktrees;
+    private final SimBench.Factory benches;
+    /** Each user's bench, made over their worktree on first use; by username. */
+    private final Map<String, SimBench> benchByUsername = new LinkedHashMap<>();
+    /** How each user's last pull or push ended, for the admin page; by username. */
+    private final Map<String, JsonObject> lastMergeByUsername = new LinkedHashMap<>();
+    /** Each user's navigator over their worktree's sources, made on first use; by username. */
+    private final Map<String, SourceNavigator> navigatorByUsername = new LinkedHashMap<>();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
@@ -201,10 +211,11 @@ public final class CodingServer {
      */
     private final TreeSet<String> editable = new TreeSet<>();
 
-    private CodingServer(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+    private CodingServer(Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
-        this.bench = bench;
+        this.worktrees = new Worktrees(this.root, this.stateDir, "git");
+        this.benches = benches;
         loadSessions();
         loadEditable();
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", this::handleAdmin);
@@ -212,14 +223,18 @@ public final class CodingServer {
     }
 
     /**
+     * @param root      the project checkout: a git repository with a {@code develop} branch
+     * @param benches   makes the bench for a user's worktree, the first time that user builds or runs
      * @param adminBind the one address the admin listener answers on; {@link #main} always passes
      *                  loopback, and this is a parameter only so a test can prove the property
-     * @param stateDir  where sessions and the editable set are kept between runs; created on demand
+     * @param stateDir  where sessions, the editable set, and the worktrees are kept between runs;
+     *                  created on demand
      * @throws IllegalStateException when a store under {@code stateDir} exists but cannot be read,
-     *                               rather than starting over and silently logging everyone out
+     *                               rather than starting over and silently logging everyone out;
+     *                               or when git, the repository, or {@code develop} is missing
      */
-    public static CodingServer start(Path root, SimBench bench, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
-        return new CodingServer(root, bench, adminBind, adminPort, userPort, stateDir);
+    public static CodingServer start(Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir);
     }
 
     /**
@@ -244,15 +259,16 @@ public final class CodingServer {
     /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
     public static void main(String[] args) throws InterruptedException {
         Path root = Path.of("").toAbsolutePath();
-        SimBench bench = new SimBench(null, root.resolve("TeamCode/src/main/java"),
-                root.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
+        SimBench.Factory benches = worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"),
+                worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS, SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
-        CodingServer server = start(root, bench, InetAddress.getLoopbackAddress(),
+        CodingServer server = start(root, benches, InetAddress.getLoopbackAddress(),
                 port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT), stateDir(System.getenv()));
         System.out.println("Coding server");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
         System.out.println("  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
         System.out.println("  state  " + server.stateDir);
+        System.out.println("  trees  " + server.worktrees.directory());
         Thread.currentThread().join();
     }
 
@@ -284,7 +300,28 @@ public final class CodingServer {
     public void stop() {
         admin.stop();
         users.stop();
-        bench.stop();
+        synchronized (benchByUsername) {
+            for (SimBench bench : benchByUsername.values()) {
+                bench.stop();
+            }
+        }
+    }
+
+    /** The user's worktree, made if need be. */
+    private Worktrees.Worktree worktreeOf(Session session) {
+        return worktrees.ensure(session.username);
+    }
+
+    /** The user's bench, made over their worktree the first time they build or run. */
+    private SimBench benchOf(Session session) {
+        synchronized (benchByUsername) {
+            SimBench bench = benchByUsername.get(session.username);
+            if (bench == null) {
+                bench = benches.create(worktreeOf(session).path);
+                benchByUsername.put(session.username, bench);
+            }
+            return bench;
+        }
     }
 
     // --- the user listener ---
@@ -319,11 +356,17 @@ public final class CodingServer {
                 if (!editable.contains(key)) {
                     return Response.error(404, "not an editable file: " + key);
                 }
+                Path worktree;
+                try {
+                    worktree = worktreeOf(session).path;
+                } catch (Worktrees.GitFailed e) {
+                    return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
+                }
                 if (request.method.equals("GET")) {
-                    return read(session, key);
+                    return read(session, worktree, key);
                 }
                 if (request.method.equals("PUT")) {
-                    return write(key, request.body);
+                    return write(worktree, key, request.body);
                 }
             }
             return Response.error(405, "GET or PUT /files/<path>");
@@ -332,13 +375,41 @@ public final class CodingServer {
             if (session == null || session.state != State.APPROVED) {
                 return Response.error(403, "not an approved session");
             }
-            return bench.handle(request.path.substring("/sim".length()), request, session.username);
+            try {
+                return benchOf(session).handle(request.path.substring("/sim".length()), request, session.username);
+            } catch (Worktrees.GitFailed e) {
+                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
+            }
+        }
+        if (request.path.startsWith("/nav/") || request.path.startsWith("/source/")) {
+            if (session == null || session.state != State.APPROVED) {
+                return Response.error(403, "not an approved session");
+            }
+            try {
+                return request.path.startsWith("/nav/") ? navigate(session, request) : source(session, request);
+            } catch (Worktrees.GitFailed e) {
+                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
+            }
+        }
+        if (request.path.startsWith("/git/")) {
+            if (session == null || session.state != State.APPROVED) {
+                return Response.error(403, "not an approved session");
+            }
+            try {
+                return git(session, request);
+            } catch (Worktrees.GitFailed e) {
+                return Response.error(500, "git failed for " + session.username + ": " + e.getMessage());
+            }
         }
         if (request.path.equals("/build")) {
             if (session == null || session.state != State.APPROVED) {
                 return Response.error(403, "not an approved session");
             }
-            return Response.json(GSON.toJson(buildCheck()));
+            try {
+                return Response.json(GSON.toJson(buildCheck(session)));
+            } catch (Worktrees.GitFailed e) {
+                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
+            }
         }
         return Response.error(404, "not found: " + request.path);
     }
@@ -385,10 +456,10 @@ public final class CodingServer {
         }
     }
 
-    private Current current(String key) {
+    private Current current(Path worktree, String key) {
         byte[] bytes;
         try {
-            bytes = Files.readAllBytes(root.resolve(key));
+            bytes = Files.readAllBytes(worktree.resolve(key));
         } catch (IOException e) {
             return new Current(Response.error(404, "could not read " + key + ": " + e.getMessage()));
         }
@@ -416,8 +487,8 @@ public final class CodingServer {
         }
     }
 
-    private Response read(Session session, String key) {
-        Current current = current(key);
+    private Response read(Session session, Path worktree, String key) {
+        Current current = current(worktree, key);
         if (current.problem != null) {
             return current.problem;
         }
@@ -429,7 +500,7 @@ public final class CodingServer {
         return Response.json(GSON.toJson(body));
     }
 
-    private Response write(String key, String requestBody) {
+    private Response write(Path worktree, String key, String requestBody) {
         JsonObject edit;
         try {
             edit = GSON.fromJson(requestBody, JsonObject.class);
@@ -439,7 +510,7 @@ public final class CodingServer {
         if (edit == null || !edit.has("content") || !edit.has("baseVersion")) {
             return Response.error(400, "PUT a JSON body with content and baseVersion");
         }
-        Current current = current(key);
+        Current current = current(worktree, key);
         if (current.problem != null) {
             return current.problem;
         }
@@ -451,7 +522,7 @@ public final class CodingServer {
             return Response.json(409, GSON.toJson(body));
         }
         byte[] bytes = edit.get("content").getAsString().getBytes(StandardCharsets.UTF_8);
-        Path target = root.resolve(key);
+        Path target = worktree.resolve(key);
         try {
             Path temp = Files.createTempFile(target.getParent(), "." + target.getFileName(), ".editing");
             try {
@@ -506,7 +577,7 @@ public final class CodingServer {
         return username.chars().noneMatch(c -> c < 0x20 || Character.isISOControl(c));
     }
 
-    private static JsonObject me(Session session) {
+    private JsonObject me(Session session) {
         JsonObject body = new JsonObject();
         if (session == null) {
             body.addProperty("state", "none");
@@ -514,6 +585,10 @@ public final class CodingServer {
         }
         body.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
         body.addProperty("username", session.username);
+        Worktrees.Worktree worktree = worktrees.find(session.username);
+        if (session.state == State.APPROVED && worktree != null) {
+            body.addProperty("branch", worktree.branch);
+        }
         return body;
     }
 
@@ -559,9 +634,258 @@ public final class CodingServer {
         return count;
     }
 
-    /** The compile result of the sources as saved, with problems named by root-relative file. */
-    private JsonObject buildCheck() {
+    // --- go to definition, find usages, and viewing what is not editable ---
+
+    /** The sources a user may see: the worktree, its main source root, and the navigator over it; null without sources. */
+    private static final class Sources {
+        final Path worktree;
+        /** The source root's key, with a trailing slash, so a file's key is this plus the navigator's name for it. */
+        final String prefix;
+        final SourceNavigator navigator;
+
+        Sources(Path worktree, String prefix, SourceNavigator navigator) {
+            this.worktree = worktree;
+            this.prefix = prefix;
+            this.navigator = navigator;
+        }
+
+        /** The navigator's name for a root-relative key, or null when the key is not a source file. */
+        String sourceOf(String key) {
+            if (key == null || !key.startsWith(prefix)) {
+                return null;
+            }
+            String source = key.substring(prefix.length());
+            return navigator.files().contains(source) ? source : null;
+        }
+
+        String keyOf(String source) {
+            return source == null ? null : prefix + source;
+        }
+    }
+
+    private Sources sourcesOf(Session session) {
+        Path sourceRoot = benchOf(session).sourceRoot();
+        if (sourceRoot == null) {
+            return null;
+        }
+        Path worktree = worktreeOf(session).path;
+        SourceNavigator navigator;
+        synchronized (navigatorByUsername) {
+            navigator = navigatorByUsername.get(session.username);
+            if (navigator == null) {
+                navigator = new SourceNavigator(sourceRoot);
+                navigatorByUsername.put(session.username, navigator);
+            }
+        }
+        return new Sources(worktree, worktree.relativize(sourceRoot).toString().replace('\\', '/') + "/", navigator);
+    }
+
+    private Response navigate(Session session, Request request) {
+        String op = request.path.substring("/nav/".length());
+        if (!op.equals("definition") && !op.equals("usages")) {
+            return Response.error(404, "not found: " + request.path);
+        }
+        if (!request.method.equals("GET")) {
+            return Response.error(405, "GET " + request.path + "?file=<root-relative path>&line=<n>&column=<n>");
+        }
+        Sources sources = sourcesOf(session);
+        if (sources == null) {
+            JsonObject body = new JsonObject();
+            body.addProperty("available", false);
+            return Response.json(GSON.toJson(body));
+        }
+        int line;
+        int column;
+        try {
+            line = Integer.parseInt(request.query("line"));
+            column = Integer.parseInt(request.query("column"));
+        } catch (RuntimeException e) {
+            return Response.error(400, "line and column must be numbers");
+        }
+        String key = request.query("file");
+        String source = sources.sourceOf(key);
+        if (source == null) {
+            return Response.error(404, "not a source file: " + key);
+        }
+        if (op.equals("definition")) {
+            SourceNavigator.Symbol symbol = sources.navigator.definition(source, line, column);
+            if (symbol == null) {
+                return Response.error(404, "nothing at " + key + ":" + line + ":" + column);
+            }
+            JsonObject body = symbolJson(sources, symbol);
+            JsonObject definition = locationJson(sources, symbol.definition);
+            for (Map.Entry<String, JsonElement> entry : definition.entrySet()) {
+                body.add(entry.getKey(), entry.getValue());
+            }
+            return Response.json(GSON.toJson(body));
+        }
+        SourceNavigator.Usages usages = sources.navigator.usages(source, line, column);
+        if (usages == null) {
+            return Response.error(404, "nothing at " + key + ":" + line + ":" + column);
+        }
+        JsonObject body = symbolJson(sources, usages.symbol);
+        body.add("definition", usages.symbol.definition == null ? null : locationJson(sources, usages.symbol.definition));
+        JsonArray list = new JsonArray();
+        for (SourceNavigator.Location usage : usages.usages) {
+            list.add(locationJson(sources, usage));
+        }
+        body.add("usages", list);
+        return Response.json(GSON.toJson(body));
+    }
+
+    private static JsonObject symbolJson(Sources sources, SourceNavigator.Symbol symbol) {
         JsonObject body = new JsonObject();
+        body.addProperty("symbol", symbol.name);
+        body.addProperty("kind", symbol.kind);
+        return body;
+    }
+
+    /** A location with the file as a root-relative key; a null location is a null file with no line. */
+    private static JsonObject locationJson(Sources sources, SourceNavigator.Location location) {
+        JsonObject body = new JsonObject();
+        body.addProperty("file", location == null ? null : sources.keyOf(location.file));
+        body.addProperty("line", location == null ? null : location.line);
+        body.addProperty("column", location == null ? null : location.column);
+        body.addProperty("text", location == null ? null : location.text);
+        return body;
+    }
+
+    /** Any main source file, read-only: where a jump to a definition may land. */
+    private Response source(Session session, Request request) {
+        if (!request.method.equals("GET")) {
+            return Response.error(405, "GET /source/<path>; only the editable set can be written, at /files/<path>");
+        }
+        String key = request.path.substring("/source/".length());
+        Sources sources = sourcesOf(session);
+        if (sources == null || sources.sourceOf(key) == null) {
+            return Response.error(404, "not a source file: " + key);
+        }
+        Current current = current(sources.worktree, key);
+        if (current.problem != null) {
+            return current.problem;
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("path", key);
+        body.addProperty("content", current.content);
+        body.addProperty("version", current.version);
+        synchronized (this) {
+            body.addProperty("editable", editable.contains(key));
+        }
+        return Response.json(GSON.toJson(body));
+    }
+
+    // --- the user's branch: status, commit, pull, push ---
+
+    private Response git(Session session, Request request) {
+        String op = request.path.substring("/git/".length());
+        if (op.equals("status")) {
+            return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
+        }
+        if (op.equals("commit")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST /git/commit with a JSON body naming the message");
+            }
+            JsonObject body;
+            try {
+                body = GSON.fromJson(request.body, JsonObject.class);
+            } catch (RuntimeException e) {
+                body = null;
+            }
+            String message = body == null || !body.has("message") || body.get("message").isJsonNull() ? "" : body.get("message").getAsString().trim();
+            if (message.isEmpty()) {
+                return Response.error(400, "a commit needs a message");
+            }
+            Worktrees.Commit commit;
+            synchronized (this) {
+                // under the server's lock, so a save in flight lands before or after, never inside
+                commit = worktrees.commit(session.username, message);
+            }
+            JsonObject reply = new JsonObject();
+            reply.addProperty("committed", commit.made);
+            reply.addProperty("commit", commit.commit);
+            reply.add("files", GSON.toJsonTree(commit.files));
+            reply.addProperty("message", commit.made ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files") : "nothing to commit");
+            return Response.json(GSON.toJson(reply));
+        }
+        if (op.equals("pull")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST /git/pull to bring develop into your branch");
+            }
+            Worktrees.Merge merge;
+            synchronized (this) {
+                merge = worktrees.pull(session.username);
+            }
+            return merged("pull", session, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull");
+        }
+        if (op.equals("push")) {
+            if (!request.method.equals("POST")) {
+                return Response.error(405, "POST /git/push to land your commits on develop");
+            }
+            Worktrees.Merge merge;
+            synchronized (this) {
+                merge = worktrees.push(session.username);
+            }
+            String did = merge.detail == null ? "pushed to " + Worktrees.DEVELOP
+                    : "pushed to " + Worktrees.DEVELOP + ", but your worktree is not up to date; commit and pull: " + merge.detail;
+            return merged("push", session, merge, did, "nothing to push");
+        }
+        return Response.error(404, "not found: " + request.path);
+    }
+
+    /** The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the reason otherwise. */
+    private Response merged(String op, Session session, Worktrees.Merge merge, String did, String nothing) {
+        JsonObject reply = new JsonObject();
+        reply.addProperty("op", op);
+        reply.addProperty("outcome", merge.outcome == Worktrees.Outcome.MERGED ? (op.equals("pull") ? "pulled" : "pushed")
+                : merge.outcome.name().toLowerCase(Locale.ROOT));
+        reply.add("files", GSON.toJsonTree(merge.files));
+        reply.addProperty("detail", merge.detail);
+        int status;
+        switch (merge.outcome) {
+            case MERGED:
+                status = 200;
+                reply.addProperty("message", did);
+                break;
+            case NOTHING:
+                status = 200;
+                reply.addProperty("message", nothing);
+                break;
+            case UNCOMMITTED:
+                status = 409;
+                reply.addProperty("message", "commit first: " + String.join(", ", merge.files));
+                break;
+            case CONFLICTS:
+                status = 409;
+                reply.addProperty("message", "your changes conflict with " + Worktrees.DEVELOP + " in "
+                        + String.join(", ", merge.files) + "; ask your coach for help");
+                break;
+            default:
+                status = 409;
+                reply.addProperty("message", "git could not " + op + "; ask your coach for help: " + merge.detail);
+                break;
+        }
+        synchronized (this) {
+            JsonObject record = GSON.fromJson(GSON.toJson(reply), JsonObject.class);
+            record.addProperty("atMillis", System.currentTimeMillis());
+            lastMergeByUsername.put(session.username, record);
+        }
+        return Response.json(status, GSON.toJson(reply));
+    }
+
+    private static JsonObject statusJson(Worktrees.Status status) {
+        JsonObject body = new JsonObject();
+        body.addProperty("branch", status.branch);
+        body.add("changed", GSON.toJsonTree(status.changed));
+        body.addProperty("ahead", status.ahead);
+        body.addProperty("behind", status.behind);
+        return body;
+    }
+
+    /** The compile result of the user's sources as saved, with problems named by root-relative file. */
+    private JsonObject buildCheck(Session session) {
+        JsonObject body = new JsonObject();
+        SimBench bench = benchOf(session);
+        Path worktree = worktreeOf(session).path;
         SimBuild.Result result;
         try {
             result = bench.check();
@@ -587,7 +911,7 @@ public final class CodingServer {
         Path sourceRoot = bench.sourceRoot();
         for (SimBuild.Problem p : result.problems) {
             JsonObject problem = new JsonObject();
-            String file = p.file.isEmpty() ? "" : root.relativize(sourceRoot.resolve(p.file)).toString().replace('\\', '/');
+            String file = p.file.isEmpty() ? "" : worktree.relativize(sourceRoot.resolve(p.file)).toString().replace('\\', '/');
             problem.addProperty("file", file);
             problem.addProperty("line", p.line);
             problem.addProperty("message", p.message);
@@ -731,6 +1055,7 @@ public final class CodingServer {
         JsonObject body = new JsonObject();
         body.addProperty("userPort", users.port());
         body.addProperty("root", root.toString());
+        body.addProperty("worktreesDir", worktrees.directory().toString());
         body.add("addresses", addresses);
         return GSON.toJson(body);
     }
@@ -746,6 +1071,10 @@ public final class CodingServer {
             item.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
             item.addProperty("ageSeconds", (now - session.createdAtMillis) / 1000);
             item.addProperty("file", session.openFile);
+            Worktrees.Worktree worktree = worktrees.find(session.username);
+            item.addProperty("worktree", worktree == null ? null : worktree.path.toString());
+            item.addProperty("branch", worktree == null ? null : worktree.branch);
+            item.add("lastMerge", lastMergeByUsername.get(session.username));
             list.add(item);
         }
         JsonObject root = new JsonObject();
@@ -764,7 +1093,15 @@ public final class CodingServer {
             return Response.error(404, "no login with id " + id);
         }
         switch (verb) {
-            case "approve": found.state = State.APPROVED; break;
+            case "approve":
+                // the worktree is made here, in front of the admin, not at the user's first save
+                try {
+                    worktrees.ensure(found.username);
+                } catch (Worktrees.GitFailed e) {
+                    return Response.error(500, "could not make a worktree for " + found.username + ": " + e.getMessage());
+                }
+                found.state = State.APPROVED;
+                break;
             case "deny": found.state = State.DENIED; break;
             case "revoke": found.state = State.REVOKED; break;
             default: return Response.error(404, "POST /admin/logins/<id>/approve|deny|revoke");
@@ -776,7 +1113,7 @@ public final class CodingServer {
     // --- what outlives the process ---
 
     private void loadSessions() {
-        JsonObject stored = loadJson(stateDir.resolve(SESSIONS_FILE));
+        JsonObject stored = StateStore.load(stateDir.resolve(SESSIONS_FILE));
         if (stored == null) {
             return;
         }
@@ -798,12 +1135,12 @@ public final class CodingServer {
         }
         JsonObject body = new JsonObject();
         body.add("sessions", list);
-        saveJson(stateDir.resolve(SESSIONS_FILE), body);
+        StateStore.save(stateDir.resolve(SESSIONS_FILE), body);
     }
 
     /** The editable set is stored under this root's absolute path, next to any other checkout's. */
     private void loadEditable() {
-        JsonObject stored = loadJson(stateDir.resolve(EDITABLE_FILE));
+        JsonObject stored = StateStore.load(stateDir.resolve(EDITABLE_FILE));
         if (stored == null) {
             return;
         }
@@ -821,7 +1158,7 @@ public final class CodingServer {
 
     private void saveEditable() {
         Path file = stateDir.resolve(EDITABLE_FILE);
-        JsonObject stored = loadJson(file);
+        JsonObject stored = StateStore.load(file);
         JsonObject roots = stored == null || !stored.has("roots") ? new JsonObject() : stored.getAsJsonObject("roots");
         JsonArray ours = new JsonArray();
         for (String key : editable) {
@@ -830,48 +1167,7 @@ public final class CodingServer {
         roots.add(root.toString(), ours);
         JsonObject body = new JsonObject();
         body.add("roots", roots);
-        saveJson(file, body);
-    }
-
-    /** The object in a store file, null when there is no file yet, and a failure to start when it cannot be read. */
-    private static JsonObject loadJson(Path file) {
-        if (!Files.exists(file)) {
-            return null;
-        }
-        try {
-            JsonObject object = GSON.fromJson(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), JsonObject.class);
-            if (object == null) {
-                throw new IllegalStateException("empty");
-            }
-            return object;
-        } catch (IOException | RuntimeException e) {
-            throw new IllegalStateException("could not read " + file + ": " + e, e);
-        }
-    }
-
-    /** Written whole and moved into place, readable by this user only; a failure is a 500 that names the file. */
-    private static void saveJson(Path file, JsonObject body) {
-        boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
-        Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rwx------");
-        Set<PosixFilePermission> ownerOnlyFile = PosixFilePermissions.fromString("rw-------");
-        Path dir = file.getParent();
-        try {
-            Files.createDirectories(dir);
-            if (posix) {
-                Files.setPosixFilePermissions(dir, ownerOnly);
-            }
-            Path temp = posix
-                    ? Files.createTempFile(dir, "." + file.getFileName(), ".saving", PosixFilePermissions.asFileAttribute(ownerOnlyFile))
-                    : Files.createTempFile(dir, "." + file.getFileName(), ".saving");
-            try {
-                Files.write(temp, GSON.toJson(body).getBytes(StandardCharsets.UTF_8));
-                Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not save " + file + ": " + e.getMessage(), e);
-        }
+        StateStore.save(file, body);
     }
 
     // --- pages ---

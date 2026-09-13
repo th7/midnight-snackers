@@ -74,12 +74,34 @@
   #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #files .editors { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 8px 20px; }
-  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; }
+  /* the user's branch: what is uncommitted, and the buttons that move work along */
+  .git { margin: 0 20px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 8px; }
+  .git .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  .git .buttons button { position: relative; }
+  .git #changed { color: var(--muted); font-size: 12px; }
+  .git #git-result { font-size: 12px; min-height: 1.4em; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .git #git-result.ok { color: var(--ok); }
+  .git #git-result.bad { color: var(--bad); }
+  .git #git-result.warn { color: var(--warn); }
+  /* the Pull button pulses, and wears the count, while develop has commits this branch lacks */
+  .git .badge { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
+  @keyframes pull-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--warn-soft); } 50% { box-shadow: 0 0 0 7px var(--warn-soft); } }
+  .git button.behind { border-color: var(--warn); animation: pull-pulse 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .git button.behind { animation: none; } }
+  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; min-height: 0; }
   /* explicit rows: a hidden message must not let the stage slide up into its auto-sized row */
   .stage > .stage-head { grid-row: 1; }
   .stage > #run-message { grid-row: 2; }
   .stage > #editor, .stage > #stage, .stage > .stage-empty { grid-row: 3; }
   .stage > #problems { grid-row: 4; }
+  .stage > #usages { grid-row: 5; }
+  /* find usages: every reference to the symbol under the cursor, each a click away */
+  #usages { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); background: var(--panel); max-height: 200px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  #usages li { padding: 6px 20px; border-top: 1px solid var(--line); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #usages li.head { cursor: default; color: var(--muted); font-family: system-ui, sans-serif; display: flex; gap: 12px; align-items: center; border-top: 0; }
+  #usages li.head button { margin-left: auto; padding: 1px 8px; font-size: 12px; }
+  #usages li:not(.head):hover { background: var(--hover); }
+  #usages li .where { color: var(--muted); }
   #problems { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); background: var(--panel); max-height: 200px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
   #problems li { padding: 6px 20px; border-top: 1px solid var(--line); color: var(--bad); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
   #problems li:first-child { border-top: 0; }
@@ -112,10 +134,20 @@
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
   </nav>
-  <p class="who">Signed in as <strong id="who">…</strong></p>
+  <p class="who">Signed in as <strong id="who">…</strong> on <span id="branch" class="mono">…</span></p>
 </header>
 <main id="edit" class="panel" role="tabpanel">
   <aside>
+    <p class="section-label">Your branch</p>
+    <div id="git" class="git">
+      <div id="changed">…</div>
+      <div class="buttons">
+        <button id="commit" type="button" disabled>Commit</button>
+        <button id="pull" type="button" title="Bring develop into your branch">Pull</button>
+        <button id="push" type="button" title="Land your commits on develop">Push</button>
+      </div>
+      <div id="git-result" role="status"></div>
+    </div>
     <p class="section-label">Files you can edit</p>
     <ul id="files"></ul>
     <p id="nofiles" class="empty" hidden>The admin has not picked any files yet.</p>
@@ -126,9 +158,11 @@
       <span id="status" class="pill muted" hidden></span>
       <span id="build-status" class="pill muted" hidden></span>
       <button id="reload" hidden>Load the host's version</button>
+      <span class="note" style="margin: 0 0 0 auto">F12 definition · Shift-F12 usages</span>
     </div>
     <div id="editor" class="idle"></div>
     <ul id="problems" hidden></ul>
+    <ul id="usages" hidden></ul>
   </section>
 </main>
 <main id="simulate" class="panel" role="tabpanel" hidden>
@@ -171,7 +205,9 @@
   var reload = document.getElementById('reload');
   var buildStatus = document.getElementById('build-status');
   var problemsEl = document.getElementById('problems');
-  var open = null;        // {path, version}
+  var usagesEl = document.getElementById('usages');
+  var open = null;        // {path, version, readOnly}; version is null while nothing may be written
+  var editableKeys = [];
   var saveTimer = null;
   var saving = false;
   var dirtyWhileSaving = false;
@@ -195,7 +231,22 @@
         CM.java(),
         CM.lintGutter(),
         CM.indentUnit.of('    '),
-        CM.keymap.of([{ key: 'Mod-s', run: function () { saveNow(); return true; } }, CM.indentWithTab]),
+        CM.keymap.of([
+          { key: 'Mod-s', run: function () { saveNow(); return true; } },
+          { key: 'F12', run: function () { navigate.definition(); return true; } },
+          { key: 'Shift-F12', run: function () { navigate.usages(); return true; } },
+          CM.indentWithTab
+        ]),
+        CM.EditorView.domEventHandlers({
+          mousedown: function (event, v) {
+            if (!(event.ctrlKey || event.metaKey) || event.button !== 0) { return false; }
+            var pos = v.posAtCoords({ x: event.clientX, y: event.clientY });
+            if (pos == null) { return false; }
+            v.dispatch({ selection: { anchor: pos } });
+            navigate.definition();
+            return true;
+          }
+        }),
         editable.of(CM.EditorView.editable.of(canEdit)),
         theme.of(themeFor()),
         CM.EditorView.updateListener.of(function (update) {
@@ -208,9 +259,9 @@
   var view = new CM.EditorView({ parent: editorHost, state: editorState('', false) });
   dark.addEventListener('change', function () { view.dispatch({ effects: theme.reconfigure(themeFor()) }); });
 
-  function setDoc(text) {
+  function setDoc(text, canEdit) {
     settingDoc = true;
-    view.setState(editorState(text, true));
+    view.setState(editorState(text, canEdit !== false));
     settingDoc = false;
     editorHost.classList.remove('idle');
   }
@@ -231,6 +282,7 @@
 
   function renderFiles(files) {
     nofiles.hidden = files.length > 0;
+    editableKeys = files.map(function (file) { return file.path; });
     filesEl.innerHTML = '';
     files.forEach(function (file) {
       var li = document.createElement('li');
@@ -260,23 +312,48 @@
     }).catch(function () {}).then(function () { setTimeout(refreshFiles, 2000); });
   }
 
-  function load(path, line) {
+  function load(path, line, column) {
     fetch(fileUrl(path)).then(function (r) {
       if (r.status === 403) { location.reload(); return; }
       if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
       return r.json().then(function (file) {
-        open = { path: file.path, version: file.version };
+        open = { path: file.path, version: file.version, readOnly: false };
         title.textContent = file.path;
-        setDoc(file.content);
+        setDoc(file.content, true);
         reload.hidden = true;
         setStatus('saved', 'ok');
         view.focus();
-        if (line) { goToLine(line); }
+        if (line) { goTo(line, column); }
         showDiagnostics(lastProblems);
         refreshNow();
         scheduleCheck();
       });
     });
+  }
+
+  /** A source file outside the editable set, shown read-only: where a jump to a definition may land. */
+  function viewSource(path, line, column) {
+    fetch('/source/' + path.split('/').map(encodeURIComponent).join('/')).then(function (r) {
+      if (r.status === 403) { location.reload(); return; }
+      if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
+      return r.json().then(function (file) {
+        open = { path: file.path, version: null, readOnly: true };
+        title.textContent = file.path;
+        setDoc(file.content, false);
+        reload.hidden = true;
+        setStatus('view only', 'muted');
+        view.focus();
+        if (line) { goTo(line, column); }
+        showDiagnostics(lastProblems);
+        refreshNow();
+      });
+    });
+  }
+
+  /** Opens a file at a place: in the editor when it is editable, read-only otherwise. */
+  function openAt(path, line, column) {
+    if (open && open.path === path) { goTo(line, column); return; }
+    if (editableKeys.indexOf(path) >= 0) { load(path, line, column); } else { viewSource(path, line, column); }
   }
 
   function refreshNow() {
@@ -324,6 +401,7 @@
           setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
         }
         scheduleCheck();
+        git.refresh();
       });
     }).catch(function () {
       setStatus('could not reach the host', 'bad');
@@ -408,15 +486,196 @@
   }
 
   function goToLine(line) {
+    goTo(line, 1);
+  }
+
+  function goTo(line, column) {
     var doc = view.state.doc;
-    var pos = doc.line(Math.max(1, Math.min(line, doc.lines))).from;
+    var l = doc.line(Math.max(1, Math.min(line, doc.lines)));
+    var pos = l.from + Math.max(0, Math.min((column || 1) - 1, l.length));
     view.dispatch({ selection: { anchor: pos }, effects: CM.EditorView.scrollIntoView(pos, { y: 'center' }) });
     view.focus();
   }
 
+  // --- go to definition and find usages: the compiler's own answer, from the host ---
+  var navigate = (function () {
+    function where() {
+      if (!open) { return null; }
+      var head = view.state.selection.main.head;
+      var line = view.state.doc.lineAt(head);
+      return { file: open.path, line: line.number, column: head - line.from + 1 };
+    }
+
+    function ask(route) {
+      var at = where();
+      if (!at) { return Promise.resolve(null); }
+      var query = '?file=' + encodeURIComponent(at.file) + '&line=' + at.line + '&column=' + at.column;
+      return fetch(route + query).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (r.status === 404) { return r.text().then(function (t) { setStatus(t.indexOf('nothing at') === 0 ? 'nothing to go to here' : t, 'muted'); return null; }); }
+        if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); return null; }); }
+        return r.json();
+      }).catch(function () { setStatus('could not reach the host', 'bad'); return null; });
+    }
+
+    function definition() {
+      ask('/nav/definition').then(function (found) {
+        if (!found || found.available === false) { return; }
+        if (!found.file) { setStatus(found.symbol + ' is defined outside the project', 'muted'); return; }
+        openAt(found.file, found.line, found.column);
+      });
+    }
+
+    function usages() {
+      ask('/nav/usages').then(function (found) {
+        if (!found || found.available === false) { return; }
+        renderUsages(found);
+      });
+    }
+
+    function renderUsages(found) {
+      usagesEl.innerHTML = '';
+      var head = document.createElement('li');
+      head.className = 'head';
+      head.textContent = found.usages.length + (found.usages.length === 1 ? ' usage of ' : ' usages of ') + found.symbol;
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = 'Close';
+      close.addEventListener('click', function () { usagesEl.hidden = true; });
+      head.appendChild(close);
+      usagesEl.appendChild(head);
+      found.usages.forEach(function (usage) {
+        var li = document.createElement('li');
+        var where = document.createElement('span');
+        where.className = 'where';
+        where.textContent = usage.file.slice(usage.file.lastIndexOf('/') + 1) + ':' + usage.line + '  ';
+        li.appendChild(where);
+        li.appendChild(document.createTextNode(usage.text));
+        li.title = usage.file;
+        li.addEventListener('click', function () { openAt(usage.file, usage.line, usage.column); });
+        usagesEl.appendChild(li);
+      });
+      usagesEl.hidden = false;
+    }
+
+    return { definition: definition, usages: usages };
+  })();
+
+  // --- the user's branch: commit what is saved ---
+  var git = (function () {
+    var changedEl = document.getElementById('changed');
+    var commitButton = document.getElementById('commit');
+    var pullButton = document.getElementById('pull');
+    var pushButton = document.getElementById('push');
+    var resultEl = document.getElementById('git-result');
+    var busy = false;
+    var behind = 0;
+
+    function say(text, kind) {
+      resultEl.textContent = text;
+      resultEl.className = kind || '';
+    }
+
+    function render(status) {
+      var n = status.changed.length;
+      changedEl.textContent = n ? n + (n === 1 ? ' file changed' : ' files changed') + ' since your last commit' : 'nothing to commit';
+      changedEl.title = status.changed.join('\n');
+      commitButton.disabled = busy || !n;
+      behind = status.behind;
+      pullButton.classList.toggle('behind', behind > 0);
+      pullButton.disabled = busy;
+      pushButton.disabled = busy || (!status.ahead && !n);
+      pushButton.title = status.ahead ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push' : 'Land your commits on develop';
+      var badge = pullButton.querySelector('.badge');
+      if (behind > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; pullButton.appendChild(badge); }
+        badge.textContent = behind;
+        pullButton.title = behind + (behind === 1 ? ' commit' : ' commits') + ' on develop to pull';
+      } else if (badge) {
+        badge.remove();
+        pullButton.title = 'Bring develop into your branch';
+      }
+    }
+
+    function refresh() {
+      return fetch('/git/status').then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        return r.json();
+      }).then(function (status) {
+        if (status) { render(status); }
+      }).catch(function () {});
+    }
+
+    function post(path, body) {
+      busy = true;
+      commitButton.disabled = true;
+      pullButton.disabled = true;
+      pushButton.disabled = true;
+      return fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(body || {})
+      }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        return r.text().then(function (text) { return { status: r.status, ok: r.ok, text: text }; });
+      }).catch(function () {
+        return { status: 0, ok: false, text: 'could not reach the host' };
+      }).then(function (reply) {
+        busy = false;
+        return reply;
+      });
+    }
+
+    function commit() {
+      var message = prompt('What did you change? (one line for the commit)');
+      if (message === null) { return; }
+      if (!message.trim()) { say('a commit needs a message', 'bad'); return; }
+      saveNow();
+      post('/git/commit', { message: message.trim() }).then(function (reply) {
+        if (!reply) { return; }
+        if (!reply.ok) { say(reply.text, 'bad'); }
+        else { var result = JSON.parse(reply.text); say(result.message, result.committed ? 'ok' : ''); }
+        refresh();
+      });
+    }
+
+    /** After a pull or push the files on disk may have moved: show the reply, then reload what is open. */
+    function afterMerge(reply) {
+      if (!reply) { return; }
+      var result;
+      try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
+      var kind = reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : (result.outcome === 'conflicts' || result.outcome === 'refused' ? 'bad' : 'warn');
+      say(result.message, kind);
+      if (reply.ok && result.outcome !== 'nothing') {
+        if (open) { load(open.path); }
+        refreshNow();
+        scheduleCheck();
+      }
+      refresh();
+    }
+
+    function pull() {
+      saveNow();
+      post('/git/pull').then(afterMerge);
+    }
+
+    function push() {
+      saveNow();
+      post('/git/push').then(afterMerge);
+    }
+
+    commitButton.addEventListener('click', commit);
+    pullButton.addEventListener('click', pull);
+    pushButton.addEventListener('click', push);
+    refresh();
+    setInterval(refresh, 2000);
+    return { refresh: refresh, say: say };
+  })();
+
   fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
     if (me.state !== 'approved') { location.reload(); return; }
     document.getElementById('who').textContent = me.username;
+    document.getElementById('branch').textContent = me.branch || '';
   });
   refreshFiles();
 
@@ -435,7 +694,7 @@
   tabs.forEach(function (tab) { tab.addEventListener('click', function () { showTab(tab.dataset.tab); }); });
   window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });
 
-  // --- simulate: the bench's routes under /sim, one run at a time for everyone ---
+  // --- simulate: the bench's routes under /sim, this user's own bench, one run at a time per user ---
   var simulate = (function () {
     var list = document.getElementById('opmodes');
     var msg = document.getElementById('msg');

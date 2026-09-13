@@ -86,8 +86,8 @@ public final class SimBuild {
     }
 
     public synchronized Result build() {
-        List<Path> sources = sources();
-        String fingerprint = fingerprint(sources);
+        List<Path> sources = sourcesUnder(sourceRoot);
+        String fingerprint = fingerprintOf(sourceRoot, sources);
         if (fingerprint.equals(lastFingerprint) && lastResult != null) {
             return new Result(lastResult.classes, lastResult.problems, false);
         }
@@ -136,7 +136,8 @@ public final class SimBuild {
         return result;
     }
 
-    private List<Path> sources() {
+    /** Every .java file under the source root, sorted by path; refuses a tree with Kotlin next to it. */
+    static List<Path> sourcesUnder(Path sourceRoot) {
         Path mainDir = sourceRoot.getParent() == null ? sourceRoot : sourceRoot.getParent();
         try (Stream<Path> walk = Files.walk(mainDir)) {
             List<Path> kotlin = walk.filter(p -> p.toString().endsWith(".kt")).collect(Collectors.toList());
@@ -156,7 +157,7 @@ public final class SimBuild {
     }
 
     /** Path, size, and modification time of every source: enough to notice a save. */
-    private String fingerprint(List<Path> sources) {
+    static String fingerprintOf(Path sourceRoot, List<Path> sources) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             for (Path source : sources) {

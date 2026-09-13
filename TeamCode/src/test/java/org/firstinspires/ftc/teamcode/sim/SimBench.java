@@ -129,6 +129,11 @@ public final class SimBench {
         }
     }
 
+    /** Makes the bench for one worktree: the coding server gives each user's worktree its own. */
+    public interface Factory {
+        SimBench create(Path worktree);
+    }
+
     private final SimCatalog fixedCatalog;
     private final SimBuild build;
     private final Path outputDir;

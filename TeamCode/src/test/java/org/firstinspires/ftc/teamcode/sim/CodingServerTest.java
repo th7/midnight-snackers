@@ -3,7 +3,9 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -14,6 +16,7 @@ import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -47,11 +50,32 @@ public class CodingServerTest {
 
     private CodingServer server;
 
+    private Path root;
+
+    /** The project root is a repository with one commit on {@code develop}, checked out, the way the host is. */
+    @Before
+    public void aRepositoryWithADevelopBranch() throws IOException {
+        root = folder.getRoot().toPath();
+        GitFixture.init(root);
+    }
+
+    /** The benches the server has made, one per worktree, in the order it asked for them. */
+    private final java.util.List<SimBench> benches = new java.util.ArrayList<>();
+
     private CodingServer server() {
         if (server == null) {
-            serverWith(bench());
+            serverWith(worktree -> {
+                SimBench bench = bench();
+                benches.add(bench);
+                return bench;
+            });
         }
         return server;
+    }
+
+    /** A bench over the worktree's own sources, so a run builds what that user saved. */
+    private static SimBench.Factory sourcesBench() {
+        return worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"), worktree.resolve("TeamCode/build/sim"), 2, 1);
     }
 
     private SimBench bench() {
@@ -60,7 +84,11 @@ public class CodingServerTest {
     }
 
     private CodingServer serverWith(SimBench bench) {
-        server = CodingServer.start(folder.getRoot().toPath(), bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        return serverWith(worktree -> bench);
+    }
+
+    private CodingServer serverWith(SimBench.Factory benches) {
+        server = CodingServer.start(root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         return server;
     }
 
@@ -126,7 +154,7 @@ public class CodingServerTest {
         Reply approved = admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
 
         assertEquals(200, approved.status);
-        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}", user("GET", "/me", cookie).body);
         Reply page = user("GET", "/", cookie);
         assertTrue(page.body, page.body.contains("id=\"editor\""));
         assertEquals(200, user("GET", "/files", cookie).status);
@@ -242,6 +270,7 @@ public class CodingServerTest {
         folder.newFile("TeamCode/Plans.java");
         folder.newFile("TeamCode/Drive.java");
         folder.newFile("TeamCode/Secret.java");
+        GitFixture.commitAll(root, "the files");
         String cookie = login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
 
@@ -270,13 +299,26 @@ public class CodingServerTest {
             folder.newFile("TeamCode/" + file);
             assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/" + file).status);
         }
+        GitFixture.commitAll(root, "the files");
         String cookie = login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
         return cookie;
     }
 
-    private Path file(String name) {
-        return folder.getRoot().toPath().resolve("TeamCode").resolve(name);
+    /** Ada's copy of the file: the one in her worktree, which is where her reads and writes go. */
+    private Path file(String name) throws IOException {
+        return worktreeOf("ada").resolve("TeamCode").resolve(name);
+    }
+
+    /** The user's worktree, as the admin listing reports it. */
+    private Path worktreeOf(String username) throws IOException {
+        for (var element : json(admin("GET", "/admin/logins").body).getAsJsonArray("logins")) {
+            JsonObject login = element.getAsJsonObject();
+            if (login.get("username").getAsString().equals(username) && !login.get("worktree").isJsonNull()) {
+                return Path.of(login.get("worktree").getAsString());
+            }
+        }
+        throw new AssertionError("no worktree for " + username);
     }
 
     private static String sha256(byte[] bytes) throws IOException {
@@ -516,18 +558,78 @@ public class CodingServerTest {
     }
 
     @Test
-    public void oneRunAtATimeForEveryone() throws Exception {
+    public void oneRunAtATimePerUserAndTwoUsersRunAtOnce() throws Exception {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
+        assertTrue(user("GET", "/sim/status", ada).body.contains("\"running\":true"));
+
+        Reply adaAgain = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), ada);
+        Reply bobToo = user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), bob);
+
+        assertEquals(409, adaAgain.status);
+        assertTrue(adaAgain.body, adaAgain.body.contains("ada"));
+        assertEquals(bobToo.body, 200, bobToo.status);
         assertTrue(user("GET", "/sim/status", bob).body.contains("\"running\":true"));
-
-        Reply second = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), bob);
-
-        assertEquals(409, second.status);
-        assertTrue(second.body, second.body.contains("ada"));
-        String status = awaitSimStatus(bob, "\"outcome\":\"timed out");
+        String status = awaitSimStatus(ada, "\"outcome\":\"timed out");
         assertTrue(status, status.contains("\"running\":false"));
+        awaitSimStatus(bob, "\"outcome\":\"timed out");
+    }
+
+    @Test
+    public void aUsersSimStatusShowsTheirRunsOnly() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), ada).status);
+        awaitSimStatus(ada, "\"outcome\":\"done\"");
+
+        String bobs = user("GET", "/sim/status", bob).body;
+
+        assertEquals("{\"running\":false,\"runs\":[]}", bobs);
+        assertEquals(404, user("GET", "/sim/runs/1/", bob).status);
+        assertEquals(200, user("GET", "/sim/runs/1/", ada).status);
+    }
+
+    @Test
+    public void stoppingTheServerStopsEveryUsersBenchAndChild() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), bob).status);
+        assertEquals(2, benches.size());
+
+        server.stop();
+
+        for (SimBench bench : benches) {
+            assertNull(bench.current());
+            assertTrue(bench.status(), bench.status().contains("\"outcome\":\"stopped\""));
+        }
+    }
+
+    @Test
+    public void oneUsersBrokenEditDoesNotBreakAnothers() throws Exception {
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        GitFixture.commitAll(root, "the auto");
+        serverWith(sourcesBench());
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        String version = json(user("GET", "/files/" + key, ada).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/" + key, ada, edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version)).status);
+
+        Reply adas = user("GET", "/sim/catalog", ada);
+        Reply bobs = user("GET", "/sim/catalog", bob);
+
+        assertEquals(500, adas.status);
+        assertEquals(bobs.body, 200, bobs.status);
+        assertTrue(bobs.body, bobs.body.contains("\"name\":\"Temp\""));
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, bob).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, ada).status);
+        String bobsRun = awaitSimStatus(bob, "\"outcome\":\"done\"");
+        assertTrue(bobsRun, bobsRun.contains("\"loops\":2"));
+        String adasRun = awaitSimStatus(ada, "\"outcome\":\"build failed\"");
+        assertTrue(adasRun, adasRun.contains("TempAuto.java:8"));
     }
 
     @Test
@@ -553,8 +655,9 @@ public class CodingServerTest {
 
     @Test
     public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
-        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2));
-        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        GitFixture.commitAll(root, "the auto");
+        serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
         assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
         String cookie = approvedUser("ada");
@@ -573,8 +676,9 @@ public class CodingServerTest {
 
     @Test
     public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
-        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "));
-        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "));
+        GitFixture.commitAll(root, "the broken auto");
+        serverWith(sourcesBench());
         String cookie = approvedUser("ada");
 
         Reply catalog = user("GET", "/sim/catalog", cookie);
@@ -603,8 +707,9 @@ public class CodingServerTest {
 
     @Test
     public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
-        Path sourceRoot = SimBenchTest.sourceRootWith(folder.getRoot().toPath(), SimBenchTest.tempAuto(2));
-        serverWith(new SimBench(null, sourceRoot, folder.getRoot().toPath().resolve("sim"), 2, 1));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        GitFixture.commitAll(root, "the auto");
+        serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
         admin("POST", "/admin/files/add?path=" + key);
         String cookie = approvedUser("ada");
@@ -760,7 +865,7 @@ public class CodingServerTest {
 
         restart();
 
-        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}", user("GET", "/me", cookie).body);
         assertEquals(200, user("GET", "/files/TeamCode/Plans.java", cookie).status);
         assertEquals(id, idOf("ada"));
         assertTrue(user("GET", "/", cookie).body.contains("id=\"editor\""));
@@ -776,7 +881,7 @@ public class CodingServerTest {
         String logins = admin("GET", "/admin/logins").body;
         assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"pending\""));
         admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
-        assertEquals("{\"state\":\"approved\",\"username\":\"bob\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"bob\",\"branch\":\"coding/bob\"}", user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -847,7 +952,7 @@ public class CodingServerTest {
         restart();
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
         assertEquals(403, user("GET", "/files", forged).status);
-        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}", user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -881,8 +986,10 @@ public class CodingServerTest {
     public void theEditableSetIsRememberedPerProjectRoot() throws IOException {
         approvedEditorOf("Plans.java");
         Path otherRoot = state.newFolder("other-root").toPath();
+        GitFixture.init(otherRoot);
         Files.createFile(otherRoot.resolve("Other.java"));
-        CodingServer other = CodingServer.start(otherRoot, bench(), InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        SimBench otherBench = bench();
+        CodingServer other = CodingServer.start(otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         try {
             assertEquals("{\"files\":[]}", request(other.adminUrl(), "GET", "/admin/files", null, null).body);
             request(other.adminUrl(), "POST", "/admin/files/add?path=Other.java", null, null);
@@ -893,7 +1000,7 @@ public class CodingServerTest {
         restart();
 
         assertEquals("{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files").body);
-        other = CodingServer.start(otherRoot, bench(), InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        other = CodingServer.start(otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         try {
             assertEquals("{\"files\":[{\"path\":\"Other.java\"}]}", request(other.adminUrl(), "GET", "/admin/files", null, null).body);
         } finally {
@@ -901,11 +1008,140 @@ public class CodingServerTest {
         }
     }
 
+    /** Only git writes under the project root, and only under {@code .git}: the worktrees are in the state directory. */
     @Test
-    public void nothingIsWrittenUnderTheProjectRoot() throws IOException {
-        approvedEditorOf("Plans.java");
+    public void nothingIsWrittenUnderTheProjectRootOutsideDotGit() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit("class Plans {}", version)).status);
 
-        assertEquals("[TeamCode]", Arrays.toString(folder.getRoot().list()));
+        String[] names = folder.getRoot().list();
+        Arrays.sort(names);
+        assertEquals("[.git, README, TeamCode]", Arrays.toString(names));
+        assertEquals("[Plans.java]", Arrays.toString(folder.getRoot().toPath().resolve("TeamCode").toFile().list()));
+        assertTrue(worktreeOf("ada").startsWith(stateDir()));
+    }
+
+    // --- a worktree per user ---
+
+    @Test
+    public void approvingALoginMakesAWorktreeAndASaveChangesItNotTheHostCheckout() throws IOException {
+        folder.newFolder("TeamCode");
+        Files.write(root.resolve("TeamCode").resolve("Plans.java"), "class Plans {}\n".getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "the file");
+        assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Plans.java").status);
+        String cookie = approvedUser("ada");
+
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"branch\":\"coding/ada\""));
+        Path worktree = worktreeOf("ada");
+        assertTrue(worktree.toString(), worktree.startsWith(stateDir()));
+        assertEquals("coding/ada", GitFixture.git(worktree, "rev-parse", "--abbrev-ref", "HEAD").trim());
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit("class Plans { int edited; }\n", version)).status);
+        assertEquals("class Plans { int edited; }\n", new String(Files.readAllBytes(worktree.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals("class Plans {}\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals("the host checkout is clean", "", GitFixture.git(root, "status", "--porcelain"));
+    }
+
+    @Test
+    public void twoUsersEditingTheSameFileDoNotConflict() throws IOException {
+        String ada = approvedEditorOf("Plans.java");
+        String bob = approvedUser("bob");
+        String adaVersion = json(user("GET", "/files/TeamCode/Plans.java", ada).body).get("version").getAsString();
+        String bobVersion = json(user("GET", "/files/TeamCode/Plans.java", bob).body).get("version").getAsString();
+
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", ada, edit("ada's", adaVersion)).status);
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", bob, edit("bob's", bobVersion)).status);
+
+        assertEquals("ada's", json(user("GET", "/files/TeamCode/Plans.java", ada).body).get("content").getAsString());
+        assertEquals("bob's", json(user("GET", "/files/TeamCode/Plans.java", bob).body).get("content").getAsString());
+        assertNotEquals(worktreeOf("ada"), worktreeOf("bob"));
+    }
+
+    @Test
+    public void theSameUsernameApprovedAgainSeesTheEarlierSave() throws IOException {
+        String first = approvedEditorOf("Plans.java");
+        String version = json(user("GET", "/files/TeamCode/Plans.java", first).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", first, edit("ada's", version)).status);
+
+        String second = approvedUser("ada");
+
+        assertNotEquals(first, second);
+        assertEquals("ada's", json(user("GET", "/files/TeamCode/Plans.java", second).body).get("content").getAsString());
+        assertEquals(1, worktreeOf("ada").getParent().toFile().list().length);
+    }
+
+    @Test
+    public void aPickedFileTheUsersBranchLacksIsA404NamingIt() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        folder.newFile("TeamCode/Later.java");
+        GitFixture.commitAll(root, "a file added after ada's branch began");
+        assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Later.java").status);
+
+        Reply missing = user("GET", "/files/TeamCode/Later.java", cookie);
+
+        assertEquals(404, missing.status);
+        assertTrue(missing.body, missing.body.contains("TeamCode/Later.java"));
+        assertTrue(user("GET", "/files", cookie).body.contains("TeamCode/Later.java"));
+    }
+
+    @Test
+    public void theDashboardShowsTheBranch() throws IOException {
+        String cookie = approvedUser("ada");
+
+        String page = user("GET", "/", cookie).body;
+
+        assertTrue(page, page.contains("me.branch"));
+        assertTrue(page, page.contains("id=\"branch\""));
+    }
+
+    @Test
+    public void theAdminPageShowsEachLoginsWorktreeAndBranch() throws IOException {
+        String page = admin("GET", "/admin").body;
+
+        assertTrue(page, page.contains("login.branch"));
+        assertTrue(page, page.contains("login.worktree"));
+    }
+
+    @Test
+    public void aRootThatIsNotARepositoryStopsTheServerFromStarting() throws IOException {
+        Path plain = state.newFolder("plain").toPath();
+        SimBench bench = bench();
+
+        try {
+            CodingServer.start(plain, worktree -> bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir()).stop();
+            fail("no repository, no worktrees, no server");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains(plain.toString()));
+        }
+    }
+
+    @Test
+    public void approvedWorktreesAndTheirUncommittedEditsSurviveARestart() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit("ada's", version)).status);
+        Path before = worktreeOf("ada");
+
+        restart();
+
+        assertEquals(before, worktreeOf("ada"));
+        assertEquals("ada's", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+    }
+
+    @Test
+    public void whenGitRefusesApprovalIsA500AndTheSessionStaysPending() throws IOException {
+        String cookie = login("ada");
+        GitFixture.git(root, "checkout", "-q", "-b", "main");
+        GitFixture.git(root, "branch", "-D", "develop");
+
+        Reply approved = admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+
+        assertEquals(500, approved.status);
+        assertTrue(approved.body, approved.body.contains("develop"));
+        assertEquals("{\"state\":\"pending\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
+        assertEquals(403, user("GET", "/files", cookie).status);
     }
 
     /** The XDG Base Directory spec: {@code $XDG_STATE_HOME}, else {@code ~/.local/state}, and a relative value is ignored. */
@@ -940,6 +1176,421 @@ public class CodingServerTest {
         throw new AssertionError("no stored session for " + username);
     }
 
+    // --- commit ---
+
+    private static String message(String text) {
+        JsonObject body = new JsonObject();
+        body.addProperty("message", text);
+        return body.toString();
+    }
+
+    private String savedEditor(String content) throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit(content, version)).status);
+        return cookie;
+    }
+
+    @Test
+    public void commitMakesOneCommitOnTheUserBranchAuthoredByTheUsername() throws IOException {
+        String cookie = savedEditor("class Plans { int edited; }\n");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply committed = user("POST", "/git/commit", cookie, message("my change"));
+
+        assertEquals(committed.body, 200, committed.status);
+        JsonObject body = json(committed.body);
+        assertTrue(body.get("committed").getAsBoolean());
+        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
+        Path worktree = worktreeOf("ada");
+        assertEquals("ada|my change\n", GitFixture.git(worktree, "log", "-1", "--format=%an|%s"));
+        assertEquals("class Plans { int edited; }\n", GitFixture.git(worktree, "show", "HEAD:TeamCode/Plans.java"));
+        assertEquals("", GitFixture.git(worktree, "status", "--porcelain"));
+        assertEquals("1", GitFixture.git(root, "rev-list", "--count", "develop..coding/ada").trim());
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+    }
+
+    @Test
+    public void commitWithNothingChangedIsASuccessThatSaysSo() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        Reply committed = user("POST", "/git/commit", cookie, message("nothing"));
+
+        assertEquals(committed.body, 200, committed.status);
+        assertFalse(json(committed.body).get("committed").getAsBoolean());
+        assertEquals("0", GitFixture.git(root, "rev-list", "--count", "develop..coding/ada").trim());
+    }
+
+    @Test
+    public void commitWithoutAMessageIsRefused() throws IOException {
+        String cookie = savedEditor("edited");
+
+        assertEquals(400, user("POST", "/git/commit", cookie, "{}").status);
+        assertEquals(400, user("POST", "/git/commit", cookie, message("   ")).status);
+        assertEquals(400, user("POST", "/git/commit", cookie, "not json").status);
+        assertEquals(405, user("GET", "/git/commit", cookie).status);
+        assertEquals("0", GitFixture.git(root, "rev-list", "--count", "develop..coding/ada").trim());
+    }
+
+    @Test
+    public void gitStatusListsTheChangedFilesAndTheCommitsAheadAndBehind() throws IOException {
+        String cookie = savedEditor("edited");
+
+        JsonObject before = json(user("GET", "/git/status", cookie).body);
+        assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
+        JsonObject after = json(user("GET", "/git/status", cookie).body);
+        Files.write(root.resolve("README"), "on develop\n".getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "a commit on develop");
+        JsonObject later = json(user("GET", "/git/status", cookie).body);
+
+        assertEquals("[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
+        assertEquals(0, before.get("ahead").getAsInt());
+        assertEquals("coding/ada", before.get("branch").getAsString());
+        assertEquals("[]", after.getAsJsonArray("changed").toString());
+        assertEquals(1, after.get("ahead").getAsInt());
+        assertEquals(0, after.get("behind").getAsInt());
+        assertEquals(1, later.get("behind").getAsInt());
+    }
+
+    @Test
+    public void unapprovedSessionsGet403OnEveryGitRoute() throws IOException {
+        String pending = login("bob");
+
+        assertEquals(403, user("GET", "/git/status", pending).status);
+        assertEquals(403, user("POST", "/git/commit", pending, message("x")).status);
+        assertEquals(403, user("POST", "/git/pull", pending).status);
+        assertEquals(403, user("POST", "/git/push", pending).status);
+        assertEquals(403, user("GET", "/git/status", null).status);
+    }
+
+    @Test
+    public void theEditTabHasTheGitLineWithACommitButtonThatAsksForAMessage() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("id=\"git\""));
+        assertTrue(page, page.contains("id=\"commit\""));
+        assertTrue(page, page.contains("id=\"changed\""));
+        assertTrue(page, page.contains("'/git/status'"));
+        assertTrue(page, page.contains("'/git/commit'"));
+        assertTrue(page, page.contains("prompt("));
+    }
+
+    // --- pull ---
+
+    private void commitOnDevelop(String file, String content) throws IOException {
+        Files.write(root.resolve(file), content.getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "a commit on develop: " + file);
+    }
+
+    @Test
+    public void pullBringsDevelopIntoTheWorktreeAndTheOpenFile() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        assertEquals(1, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
+
+        Reply pulled = user("POST", "/git/pull", cookie);
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
+        assertEquals("class Plans { int fromDevelop; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals(0, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
+    }
+
+    @Test
+    public void pullMergesWhenTheUserHasCommitsOfTheirOwn() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        commitOnDevelop("README", "on develop\n");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply pulled = user("POST", "/git/pull", cookie);
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("on develop\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals(2, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
+        assertEquals("develop did not move", develop, GitFixture.commitOf(root, "develop"));
+    }
+
+    @Test
+    public void pullWithUncommittedChangesIsRefusedNamingTheFile() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        commitOnDevelop("README", "on develop\n");
+        String head = GitFixture.commitOf(root, "coding/ada");
+
+        Reply refused = user("POST", "/git/pull", cookie);
+
+        assertEquals(409, refused.status);
+        assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", json(refused.body).getAsJsonArray("files").toString());
+        assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+    }
+
+    @Test
+    public void pullWithNothingNewIsASuccessThatSaysSo() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String head = GitFixture.commitOf(root, "coding/ada");
+
+        Reply pulled = user("POST", "/git/pull", cookie);
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("nothing", json(pulled.body).get("outcome").getAsString());
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals(405, user("GET", "/git/pull", cookie).status);
+    }
+
+    @Test
+    public void aPullThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
+        String cookie = savedEditor("class Plans { int ada; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        String head = GitFixture.commitOf(root, "coding/ada");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply conflicted = user("POST", "/git/pull", cookie);
+
+        assertEquals(409, conflicted.status);
+        JsonObject body = json(conflicted.body);
+        assertEquals("conflicts", body.get("outcome").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("class Plans { int ada; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+        String page = admin("GET", "/admin").body;
+        assertTrue(page, page.contains("login.lastMerge"));
+        assertTrue(page, page.contains("git merge develop"));
+    }
+
+    @Test
+    public void theEditTabHasAPullButtonThatAnimatesWhileThereIsSomethingToPull() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("id=\"pull\""));
+        assertTrue(page, page.contains("'/git/pull'"));
+        assertTrue(page, page.contains("status.behind"));
+        assertTrue(page, page.contains("@keyframes"));
+        assertTrue(page, page.contains("prefers-reduced-motion"));
+        assertTrue("the reply's message, coach and all, is what the page shows", page.contains("say(result.message"));
+    }
+
+    // --- push ---
+
+    @Test
+    public void pushLandsTheUsersCommitsOnDevelopAndTheHostCheckoutShowsThem() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        String oldDevelop = GitFixture.commitOf(root, "develop");
+
+        Reply pushed = user("POST", "/git/push", cookie);
+
+        assertEquals(pushed.body, 200, pushed.status);
+        assertEquals("pushed", json(pushed.body).get("outcome").getAsString());
+        assertEquals("class Plans { int mine; }\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
+        assertEquals("ada", GitFixture.git(root, "log", "-1", "--format=%an").trim());
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
+        JsonObject status = json(user("GET", "/git/status", cookie).body);
+        assertEquals(0, status.get("ahead").getAsInt());
+        assertEquals(0, status.get("behind").getAsInt());
+        assertEquals(405, user("GET", "/git/push", cookie).status);
+    }
+
+    @Test
+    public void pushWithUncommittedChangesIsRefusedAndWithNothingNewSaysSo() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply refused = user("POST", "/git/push", cookie);
+        assertEquals(409, refused.status);
+        assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        assertEquals(200, user("POST", "/git/push", cookie).status);
+        Reply again = user("POST", "/git/push", cookie);
+        assertEquals(again.body, 200, again.status);
+        assertEquals("nothing", json(again.body).get("outcome").getAsString());
+    }
+
+    @Test
+    public void aPushThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
+        String cookie = savedEditor("class Plans { int ada; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        String develop = GitFixture.commitOf(root, "develop");
+        String head = GitFixture.commitOf(root, "coding/ada");
+
+        Reply conflicted = user("POST", "/git/push", cookie);
+
+        assertEquals(409, conflicted.status);
+        JsonObject body = json(conflicted.body);
+        assertEquals("conflicts", body.get("outcome").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("class Plans { int develop; }\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"push\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+    }
+
+    @Test
+    public void aPushIsRefusedWhenTheHostsUncommittedEditWouldBeOverwrittenAndTheEditIsIntact() throws IOException {
+        String cookie = savedEditor("class Plans { int ada; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
+        Files.write(root.resolve("TeamCode/Plans.java"), "the coach's unsaved work\n".getBytes(StandardCharsets.UTF_8));
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply refused = user("POST", "/git/push", cookie);
+
+        assertEquals(409, refused.status);
+        JsonObject body = json(refused.body);
+        assertEquals("refused", body.get("outcome").getAsString());
+        assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("the coach's unsaved work\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertFalse(Files.exists(root.resolve(".git/MERGE_HEAD")));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"op\":\"push\",\"outcome\":\"refused\""));
+        assertTrue(logins, logins.contains("Plans.java"));
+    }
+
+    @Test
+    public void theEditTabHasAPushButton() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("id=\"push\""));
+        assertTrue(page, page.contains("'/git/push'"));
+    }
+
+    // --- go to definition, find usages, and viewing what is not editable ---
+
+    private static final String SRC = "TeamCode/src/main/java/org/example/";
+
+    /** Two classes on develop, Auto.java editable, and ada approved. */
+    private String navigatingUser() throws IOException {
+        Path src = root.resolve(SRC);
+        Files.createDirectories(src);
+        Files.write(src.resolve("Plans.java"), SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8));
+        Files.write(src.resolve("Auto.java"), SourceNavigatorTest.AUTO_SOURCE.getBytes(StandardCharsets.UTF_8));
+        GitFixture.commitAll(root, "two classes");
+        serverWith(sourcesBench());
+        assertEquals(200, admin("POST", "/admin/files/add?path=" + SRC + "Auto.java").status);
+        return approvedUser("ada");
+    }
+
+    private static String nav(String route, String file, String source, String lineText, String token) {
+        int[] where = SourceNavigatorTest.at(source, lineText, token);
+        return "/nav/" + route + "?file=" + file + "&line=" + where[0] + "&column=" + where[1];
+    }
+
+    @Test
+    public void aJumpToADefinitionLandsInAFileTheUserMayReadButNotEdit() throws IOException {
+        String cookie = navigatingUser();
+
+        Reply definition = user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "int total = Plans.count();", "count"), cookie);
+
+        assertEquals(definition.body, 200, definition.status);
+        JsonObject body = json(definition.body);
+        assertEquals("org.example.Plans.count()", body.get("symbol").getAsString());
+        assertEquals("method", body.get("kind").getAsString());
+        assertEquals(SRC + "Plans.java", body.get("file").getAsString());
+        int[] where = SourceNavigatorTest.at(SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count");
+        assertEquals(where[0], body.get("line").getAsInt());
+        assertEquals(where[1], body.get("column").getAsInt());
+        assertEquals("public static int count() {", body.get("text").getAsString());
+
+        Reply source = user("GET", "/source/" + SRC + "Plans.java", cookie);
+        assertEquals(source.body, 200, source.status);
+        JsonObject plans = json(source.body);
+        assertEquals(SourceNavigatorTest.PLANS_SOURCE, plans.get("content").getAsString());
+        assertFalse(plans.get("editable").getAsBoolean());
+        assertEquals(sha256(SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8)), plans.get("version").getAsString());
+        assertTrue(json(user("GET", "/source/" + SRC + "Auto.java", cookie).body).get("editable").getAsBoolean());
+        assertEquals("editing is still only the editable set", 404, user("GET", "/files/" + SRC + "Plans.java", cookie).status);
+        assertEquals(404, user("GET", "/source/README", cookie).status);
+        assertEquals(404, user("GET", "/source/TeamCode/src/main/java/org/example/../example/Plans.java", cookie).status);
+        assertEquals(405, user("PUT", "/source/" + SRC + "Plans.java", cookie, edit("x", plans.get("version").getAsString())).status);
+        String pending = login("bob");
+        assertEquals(403, user("GET", "/source/" + SRC + "Plans.java", pending).status);
+        assertEquals(403, user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "int total = Plans.count();", "count"), pending).status);
+        assertEquals(403, user("GET", "/nav/usages?file=x&line=1&column=1", pending).status);
+    }
+
+    @Test
+    public void aSymbolFromOutsideTheSourcesHasNoFileAndNothingUnderTheCursorIsA404() throws IOException {
+        String cookie = navigatingUser();
+
+        Reply list = user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "List<String> names", "List"), cookie);
+        assertEquals(list.body, 200, list.status);
+        assertEquals("java.util.List", json(list.body).get("symbol").getAsString());
+        assertTrue(list.body, json(list.body).get("file").isJsonNull());
+
+        assertEquals(404, user("GET", "/nav/definition?file=" + SRC + "Auto.java&line=2&column=1", cookie).status);
+        assertEquals(404, user("GET", "/nav/definition?file=README&line=1&column=1", cookie).status);
+        assertEquals(400, user("GET", "/nav/definition?file=" + SRC + "Auto.java&line=x&column=1", cookie).status);
+    }
+
+    @Test
+    public void usagesComeFromTheUsersOwnWorktree() throws IOException {
+        String ada = navigatingUser();
+        String bob = approvedUser("bob");
+        String version = json(user("GET", "/files/" + SRC + "Auto.java", ada).body).get("version").getAsString();
+        String edited = SourceNavigatorTest.AUTO_SOURCE.replace("return total + names.size();", "return total + names.size() + Plans.count();");
+        assertEquals(200, user("PUT", "/files/" + SRC + "Auto.java", ada, edit(edited, version)).status);
+
+        Reply adas = user("GET", nav("usages", SRC + "Plans.java", SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count"), ada);
+        Reply bobs = user("GET", nav("usages", SRC + "Plans.java", SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count"), bob);
+
+        assertEquals(adas.body, 200, adas.status);
+        JsonObject body = json(adas.body);
+        assertEquals("org.example.Plans.count()", body.get("symbol").getAsString());
+        assertEquals(SRC + "Plans.java", body.getAsJsonObject("definition").get("file").getAsString());
+        assertEquals(2, body.getAsJsonArray("usages").size());
+        JsonObject second = body.getAsJsonArray("usages").get(1).getAsJsonObject();
+        assertEquals(SRC + "Auto.java", second.get("file").getAsString());
+        int[] where = SourceNavigatorTest.at(edited, "return total + names.size() + Plans.count();", "count");
+        assertEquals(where[0], second.get("line").getAsInt());
+        assertEquals(where[1], second.get("column").getAsInt());
+        assertEquals("return total + names.size() + Plans.count();", second.get("text").getAsString());
+        assertEquals(1, json(bobs.body).getAsJsonArray("usages").size());
+    }
+
+    @Test
+    public void navigationOnAServerWithoutSourcesSaysSo() throws IOException {
+        String cookie = approvedUser("ada");
+
+        assertEquals("{\"available\":false}", user("GET", "/nav/definition?file=x&line=1&column=1", cookie).body);
+        assertEquals("{\"available\":false}", user("GET", "/nav/usages?file=x&line=1&column=1", cookie).body);
+        assertEquals(404, user("GET", "/source/x", cookie).status);
+    }
+
+    @Test
+    public void theEditTabJumpsToDefinitionsAndListsUsages() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("'/nav/definition"));
+        assertTrue(page, page.contains("'/nav/usages"));
+        assertTrue(page, page.contains("'F12'"));
+        assertTrue(page, page.contains("'Shift-F12'"));
+        assertTrue(page, page.contains("posAtCoords"));
+        assertTrue(page, page.contains("id=\"usages\""));
+        assertTrue(page, page.contains("'/source/'"));
+        assertTrue(page, page.contains("view only"));
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {
@@ -948,10 +1599,10 @@ public class CodingServerTest {
         return login.sessionCookie();
     }
 
-    /** The admin's id for the session of that username, read off the admin listing. */
+    /** The admin's id for the newest session of that username, read off the admin listing. */
     private String idOf(String username) throws IOException {
         String logins = admin("GET", "/admin/logins").body;
-        int at = logins.indexOf("\"username\":\"" + username + "\"");
+        int at = logins.lastIndexOf("\"username\":\"" + username + "\"");
         assertTrue(logins, at >= 0);
         int idAt = logins.lastIndexOf("\"id\":", at) + "\"id\":".length();
         int end = idAt;
