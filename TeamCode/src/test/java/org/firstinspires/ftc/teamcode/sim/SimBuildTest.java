@@ -183,6 +183,27 @@ public class SimBuildTest {
     }
 
     @Test
+    public void theSimulatorsResourcesRideAlongWithItsClasses() throws IOException {
+        SimBuild build = build();
+        write("demo/Greeter.java", GREETER);
+        Path page = folder.getRoot().toPath().resolve("src/test/resources/demo/page.html");
+        Files.createDirectories(page.getParent());
+        Files.write(page, "<p>one</p>".getBytes(StandardCharsets.UTF_8));
+
+        SimBuild.Result result = build.build();
+
+        assertNotNull(result.diagnostics, result.classes);
+        assertEquals("<p>one</p>", new String(Files.readAllBytes(result.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
+        assertFalse(build.build().rebuilt);
+
+        Files.write(page, "<p>two</p>".getBytes(StandardCharsets.UTF_8));
+        Files.setLastModifiedTime(page, FileTime.fromMillis(System.currentTimeMillis() + 2000));
+        SimBuild.Result edited = build.build();
+        assertTrue("an edited resource is a change to the simulator", edited.rebuilt);
+        assertEquals("<p>two</p>", new String(Files.readAllBytes(edited.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
+    }
+
+    @Test
     public void aMissingSimulatorSourceRootIsRefusedByName() throws IOException {
         build();
         Path missing = folder.getRoot().toPath().resolve("nowhere");

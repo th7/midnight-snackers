@@ -262,8 +262,7 @@ public final class CodingServer {
     /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
     public static void main(String[] args) throws InterruptedException {
         Path root = Path.of("").toAbsolutePath();
-        SimBench.Factory benches = worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"),
-                root.resolve("TeamCode/src/test/java"), worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
+        SimBench.Factory benches = worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS, SimDevServer.DEFAULT_TELEOP_SECONDS, SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
         CodingServer server = start(root, benches, InetAddress.getLoopbackAddress(),
                 port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT), stateDir(System.getenv()));
