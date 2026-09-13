@@ -135,6 +135,28 @@ bundle only through `window.CM`.
 gutter and under the text of the open file. The problems list under the
 editor shows the same problems for every file.
 
+**Navigator** — Answers, for a position in one of the worktree's main
+sources, which **symbol** is there (its qualified name and kind), where
+it is **defined** (a file, line and column in the sources, or nowhere
+when it comes from the SDK or the JDK), and every **usage** of it across
+the sources (a reference, never the declaration itself). The JDK's own
+compiler answers, through the `com.sun.source` Trees API, from the same
+kind of task the build runs, stopped after `analyze()`; no language
+server, no extra process. Cached by the build's source fingerprint, so
+an unchanged tree costs nothing. A file that does not compile still
+answers for the parts that do. Lines and columns are 1-based and count
+characters, never tab stops. In the Edit tab: F12 or Ctrl-click for the
+definition, Shift-F12 for the usages, at `GET /nav/definition` and
+`GET /nav/usages`. Class: `SourceNavigator`.
+
+**Source set** — Every `.java` file under the worktree's main source
+root, named by its root-relative key like the editable set. A user may
+**view** any file in it, read-only, at `GET /source/<key>`, so a jump to
+a definition lands somewhere the user can read; a user may **edit** only
+the editable set, as before, and the file list still shows only that.
+The source set is enumerated and matched exactly, never resolved against
+the filesystem.
+
 **Build** — Compiling the main sources as they are on disk with the JDK's
 own compiler, cached by a fingerprint of the tree. The Edit tab asks for a
 build after every save and shows the **problems** (file, line, message).

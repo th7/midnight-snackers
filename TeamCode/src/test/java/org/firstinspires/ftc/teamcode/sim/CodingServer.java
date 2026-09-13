@@ -197,6 +197,8 @@ public final class CodingServer {
     private final Map<String, SimBench> benchByUsername = new LinkedHashMap<>();
     /** How each user's last pull or push ended, for the admin page; by username. */
     private final Map<String, JsonObject> lastMergeByUsername = new LinkedHashMap<>();
+    /** Each user's navigator over their worktree's sources, made on first use; by username. */
+    private final Map<String, SourceNavigator> navigatorByUsername = new LinkedHashMap<>();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
@@ -375,6 +377,16 @@ public final class CodingServer {
             }
             try {
                 return benchOf(session).handle(request.path.substring("/sim".length()), request, session.username);
+            } catch (Worktrees.GitFailed e) {
+                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
+            }
+        }
+        if (request.path.startsWith("/nav/") || request.path.startsWith("/source/")) {
+            if (session == null || session.state != State.APPROVED) {
+                return Response.error(403, "not an approved session");
+            }
+            try {
+                return request.path.startsWith("/nav/") ? navigate(session, request) : source(session, request);
             } catch (Worktrees.GitFailed e) {
                 return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
             }
@@ -620,6 +632,146 @@ public final class CodingServer {
             }
         }
         return count;
+    }
+
+    // --- go to definition, find usages, and viewing what is not editable ---
+
+    /** The sources a user may see: the worktree, its main source root, and the navigator over it; null without sources. */
+    private static final class Sources {
+        final Path worktree;
+        /** The source root's key, with a trailing slash, so a file's key is this plus the navigator's name for it. */
+        final String prefix;
+        final SourceNavigator navigator;
+
+        Sources(Path worktree, String prefix, SourceNavigator navigator) {
+            this.worktree = worktree;
+            this.prefix = prefix;
+            this.navigator = navigator;
+        }
+
+        /** The navigator's name for a root-relative key, or null when the key is not a source file. */
+        String sourceOf(String key) {
+            if (key == null || !key.startsWith(prefix)) {
+                return null;
+            }
+            String source = key.substring(prefix.length());
+            return navigator.files().contains(source) ? source : null;
+        }
+
+        String keyOf(String source) {
+            return source == null ? null : prefix + source;
+        }
+    }
+
+    private Sources sourcesOf(Session session) {
+        Path sourceRoot = benchOf(session).sourceRoot();
+        if (sourceRoot == null) {
+            return null;
+        }
+        Path worktree = worktreeOf(session).path;
+        SourceNavigator navigator;
+        synchronized (navigatorByUsername) {
+            navigator = navigatorByUsername.get(session.username);
+            if (navigator == null) {
+                navigator = new SourceNavigator(sourceRoot);
+                navigatorByUsername.put(session.username, navigator);
+            }
+        }
+        return new Sources(worktree, worktree.relativize(sourceRoot).toString().replace('\\', '/') + "/", navigator);
+    }
+
+    private Response navigate(Session session, Request request) {
+        String op = request.path.substring("/nav/".length());
+        if (!op.equals("definition") && !op.equals("usages")) {
+            return Response.error(404, "not found: " + request.path);
+        }
+        if (!request.method.equals("GET")) {
+            return Response.error(405, "GET " + request.path + "?file=<root-relative path>&line=<n>&column=<n>");
+        }
+        Sources sources = sourcesOf(session);
+        if (sources == null) {
+            JsonObject body = new JsonObject();
+            body.addProperty("available", false);
+            return Response.json(GSON.toJson(body));
+        }
+        int line;
+        int column;
+        try {
+            line = Integer.parseInt(request.query("line"));
+            column = Integer.parseInt(request.query("column"));
+        } catch (RuntimeException e) {
+            return Response.error(400, "line and column must be numbers");
+        }
+        String key = request.query("file");
+        String source = sources.sourceOf(key);
+        if (source == null) {
+            return Response.error(404, "not a source file: " + key);
+        }
+        if (op.equals("definition")) {
+            SourceNavigator.Symbol symbol = sources.navigator.definition(source, line, column);
+            if (symbol == null) {
+                return Response.error(404, "nothing at " + key + ":" + line + ":" + column);
+            }
+            JsonObject body = symbolJson(sources, symbol);
+            JsonObject definition = locationJson(sources, symbol.definition);
+            for (Map.Entry<String, JsonElement> entry : definition.entrySet()) {
+                body.add(entry.getKey(), entry.getValue());
+            }
+            return Response.json(GSON.toJson(body));
+        }
+        SourceNavigator.Usages usages = sources.navigator.usages(source, line, column);
+        if (usages == null) {
+            return Response.error(404, "nothing at " + key + ":" + line + ":" + column);
+        }
+        JsonObject body = symbolJson(sources, usages.symbol);
+        body.add("definition", usages.symbol.definition == null ? null : locationJson(sources, usages.symbol.definition));
+        JsonArray list = new JsonArray();
+        for (SourceNavigator.Location usage : usages.usages) {
+            list.add(locationJson(sources, usage));
+        }
+        body.add("usages", list);
+        return Response.json(GSON.toJson(body));
+    }
+
+    private static JsonObject symbolJson(Sources sources, SourceNavigator.Symbol symbol) {
+        JsonObject body = new JsonObject();
+        body.addProperty("symbol", symbol.name);
+        body.addProperty("kind", symbol.kind);
+        return body;
+    }
+
+    /** A location with the file as a root-relative key; a null location is a null file with no line. */
+    private static JsonObject locationJson(Sources sources, SourceNavigator.Location location) {
+        JsonObject body = new JsonObject();
+        body.addProperty("file", location == null ? null : sources.keyOf(location.file));
+        body.addProperty("line", location == null ? null : location.line);
+        body.addProperty("column", location == null ? null : location.column);
+        body.addProperty("text", location == null ? null : location.text);
+        return body;
+    }
+
+    /** Any main source file, read-only: where a jump to a definition may land. */
+    private Response source(Session session, Request request) {
+        if (!request.method.equals("GET")) {
+            return Response.error(405, "GET /source/<path>; only the editable set can be written, at /files/<path>");
+        }
+        String key = request.path.substring("/source/".length());
+        Sources sources = sourcesOf(session);
+        if (sources == null || sources.sourceOf(key) == null) {
+            return Response.error(404, "not a source file: " + key);
+        }
+        Current current = current(sources.worktree, key);
+        if (current.problem != null) {
+            return current.problem;
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("path", key);
+        body.addProperty("content", current.content);
+        body.addProperty("version", current.version);
+        synchronized (this) {
+            body.addProperty("editable", editable.contains(key));
+        }
+        return Response.json(GSON.toJson(body));
     }
 
     // --- the user's branch: status, commit, pull, push ---
