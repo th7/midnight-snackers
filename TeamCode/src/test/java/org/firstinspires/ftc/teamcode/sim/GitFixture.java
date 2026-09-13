@@ -22,6 +22,14 @@ final class GitFixture {
         commitAll(root, "first");
     }
 
+    /** A bare repository at {@code bare} as {@code root}'s origin, with {@code develop} already pushed to it. */
+    static void withOrigin(Path root, Path bare) throws IOException {
+        Files.createDirectories(bare);
+        git(bare, "init", "-q", "--bare");
+        git(root, "remote", "add", "origin", bare.toString());
+        git(root, "push", "-q", "origin", Worktrees.DEVELOP);
+    }
+
     /** Commits everything under {@code cwd}'s tree, and returns the new commit. */
     static String commitAll(Path cwd, String message) throws IOException {
         git(cwd, "add", "-A");
