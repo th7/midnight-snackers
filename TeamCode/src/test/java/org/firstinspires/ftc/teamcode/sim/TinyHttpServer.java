@@ -41,8 +41,8 @@ public final class TinyHttpServer {
         public final String body;
         public final InetAddress remoteAddress;
 
-        Request(String method, String path, Map<String, String> query, Map<String, String> headers, String body,
-                InetAddress remoteAddress) {
+        public Request(String method, String path, Map<String, String> query, Map<String, String> headers, String body,
+                       InetAddress remoteAddress) {
             this.method = method;
             this.path = path;
             this.query = query;
@@ -51,8 +51,32 @@ public final class TinyHttpServer {
             this.remoteAddress = remoteAddress;
         }
 
+        /**
+         * A request made by hand, as if it had come off the wire from loopback: the query is
+         * parsed out of {@code target} as {@link #parse} would.
+         */
+        public static Request of(String method, String target, String body) {
+            return of(method, target, Map.of(), body);
+        }
+
+        /**
+         * @param headers header names lower-cased
+         */
+        public static Request of(String method, String target, Map<String, String> headers, String body) {
+            return parse(method + " " + target, headers, body.getBytes(StandardCharsets.UTF_8), InetAddress.getLoopbackAddress());
+        }
+
         public String query(String key) {
             return query.get(key);
+        }
+
+        /**
+         * @return the query value as a number, or {@code fallback} when it is absent
+         * @throws NumberFormatException when it is present and not a number
+         */
+        public int queryInt(String key, int fallback) {
+            String value = query.get(key);
+            return value == null ? fallback : Integer.parseInt(value);
         }
 
         public String header(String name) {

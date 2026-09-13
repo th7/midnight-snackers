@@ -56,6 +56,15 @@ listener** on loopback only (port 21987, `CODING_ADMIN_PORT`), and the
 **user listener** on every interface (port 21986, `CODING_USER_PORT`).
 Class: `CodingServer`.
 
+**Routes** — What each listener answers, said once as a table of method,
+path pattern and handler: the user listener's public routes, then the
+**approved routes** behind one guard (403 for anything but an approved
+session); the admin listener's routes. A path no route knows is a 404, a
+path known by another method a 405. The bench's routes are one table too,
+**mounted** at the root of the bench page and under `/sim` on the user
+listener, per user, so a run started there is recorded as theirs. Class:
+`Router`.
+
 **Admin** — The person at the host machine. Only they can reach the admin
 listener, where they decide logins and pick the editable set. There is no
 admin login; being on the machine is the credential.

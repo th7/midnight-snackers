@@ -216,25 +216,25 @@ public class SimBenchTest {
         SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada");
         awaitRunning(run);
 
-        Response pushed = bench.handle("/runs/" + run.id + "/gamepad", post("{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}"), "ada");
+        Response pushed = routes().handle(post("/runs/" + run.id + "/gamepad", "{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}"));
         assertEquals(pushed.body, 200, pushed.status);
         awaitTicks(run, tick -> tick.get("x").getAsDouble() > 6);
         assertTrue(bench.status(), bench.status().contains("\"kind\":\"teleop\""));
         assertTrue("the ticks carry the driver's inputs", anyTick(run, tick -> tick.has("gamepads")
                 && tick.getAsJsonObject("gamepads").getAsJsonObject("1").get("left_stick_y").getAsDouble() == -1));
 
-        Response typo = bench.handle("/runs/" + run.id + "/gamepad", post("{\"gamepad\": 1, \"state\": {\"corss\": true}}"), "ada");
+        Response typo = routes().handle(post("/runs/" + run.id + "/gamepad", "{\"gamepad\": 1, \"state\": {\"corss\": true}}"));
         assertEquals(400, typo.status);
         assertTrue(typo.body, typo.body.contains("corss"));
-        assertEquals(405, bench.handle("/runs/" + run.id + "/gamepad", get(), "ada").status);
+        assertEquals(405, routes().handle(get("/runs/" + run.id + "/gamepad")).status);
         assertTrue("a bad post changes nothing", run.running());
 
-        Response stopped = bench.handle("/runs/" + run.id + "/stop", post(""), "ada");
+        Response stopped = routes().handle(post("/runs/" + run.id + "/stop", ""));
         assertEquals(stopped.body, 200, stopped.status);
         await(run);
         assertEquals("stopped", run.outcome());
         assertNull(bench.current());
-        Response late = bench.handle("/runs/" + run.id + "/gamepad", post("{\"gamepad\": 1, \"state\": {}}"), "ada");
+        Response late = routes().handle(post("/runs/" + run.id + "/gamepad", "{\"gamepad\": 1, \"state\": {}}"));
         assertEquals(409, late.status);
     }
 
@@ -255,12 +255,12 @@ public class SimBenchTest {
         awaitRunning(run);
         long startedAt = System.nanoTime();
 
-        assertEquals(200, bench.handle("/runs/" + run.id + "/stop", post(""), "ada").status);
+        assertEquals(200, routes().handle(post("/runs/" + run.id + "/stop", "")).status);
         await(run);
 
         assertEquals("stopped", run.outcome());
         assertTrue("took " + (System.nanoTime() - startedAt) / 1e9 + "s", (System.nanoTime() - startedAt) / 1e9 < 10);
-        assertEquals(404, bench.handle("/runs/999/stop", post(""), "ada").status);
+        assertEquals(404, routes().handle(post("/runs/999/stop", "")).status);
     }
 
     private static void awaitRunning(SimBench.Run run) throws InterruptedException {
@@ -289,12 +289,17 @@ public class SimBenchTest {
         return false;
     }
 
-    private static TinyHttpServer.Request post(String body) {
-        return new TinyHttpServer.Request("POST", "/", java.util.Map.of(), java.util.Map.of(), body, java.net.InetAddress.getLoopbackAddress());
+    /** The bench's routes as the coding server mounts them for ada. */
+    private Router routes() {
+        return bench.routes("ada");
     }
 
-    private static TinyHttpServer.Request get() {
-        return new TinyHttpServer.Request("GET", "/", java.util.Map.of(), java.util.Map.of(), "", java.net.InetAddress.getLoopbackAddress());
+    private static TinyHttpServer.Request post(String path, String body) {
+        return TinyHttpServer.Request.of("POST", path, body);
+    }
+
+    private static TinyHttpServer.Request get(String path) {
+        return TinyHttpServer.Request.of("GET", path, "");
     }
 
     @Test

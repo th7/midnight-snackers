@@ -309,84 +309,83 @@ public final class SimBench {
     }
 
     /**
-     * The routes, with {@code path} relative to wherever the caller mounted them: {@code /catalog},
-     * {@code /status}, {@code POST /run?opmode=<name>}, {@code /runs/<id>/}, {@code /runs/<id>/ticks},
-     * {@code /runs/<id>/log}.
+     * The routes, to mount wherever the caller likes: {@code /catalog}, {@code /status},
+     * {@code POST /run?opmode=<name>}, {@code /runs/<id>/}, {@code /runs/<id>/ticks?from=<n>},
+     * {@code /runs/<id>/log}, {@code POST /runs/<id>/gamepad}, {@code POST /runs/<id>/stop}.
      *
-     * @param startedBy the name to record on a run started by this request, or null
+     * @param startedBy the name to record on a run started through these routes, or null
      */
-    public Response handle(String path, Request request, String startedBy) {
-        if (path.equals("/catalog")) {
-            try {
-                return Response.json(GSON.toJson(catalog().toJson()));
-            } catch (BuildFailed e) {
-                return Response.error(500, "the sources do not compile:\n" + e.getMessage());
-            }
-        }
-        if (path.equals("/status")) {
-            return Response.json(status());
-        }
-        if (path.equals("/run")) {
-            if (!request.method.equals("POST")) {
-                return Response.error(405, "POST /run?opmode=<op mode name> to start a run");
-            }
-            String opMode = request.query("opmode");
-            Optional<SimCatalog.Entry> entry = Optional.empty();
-            if (opMode != null) {
-                try {
-                    entry = catalog().find(opMode);
-                } catch (BuildFailed e) {
-                    // let the run itself report the build failure, where the tab shows it
-                    entry = listed == null ? Optional.empty() : listed.find(opMode);
-                    if (entry.isEmpty()) {
-                        entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null));
+    public Router routes(String startedBy) {
+        return new Router()
+                .route("GET", "/catalog", (request, params) -> catalogJson())
+                .route("GET", "/status", (request, params) -> Response.json(status()))
+                .route("POST", "/run", (request, params) -> run(request.query("opmode"), startedBy))
+                .route("GET", "/runs/{id}", (request, params) -> withRun(params, request, this::page))
+                .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
+                .route("GET", "/runs/{id}/ticks", (request, params) -> withRun(params, request, (run, r) ->
+                        Response.json(SimReplayPage.update(run.ticksFrom(r.queryInt("from", 0)), run.outcome()))))
+                .route("GET", "/runs/{id}/log", (request, params) -> withRun(params, request, (run, r) ->
+                        new Response(200, "text/plain; charset=utf-8", run.log())))
+                .route("POST", "/runs/{id}/gamepad", (request, params) -> withRun(params, request, this::gamepad))
+                .route("POST", "/runs/{id}/stop", (request, params) -> withRun(params, request, (run, r) -> {
+                    if (!run.running()) {
+                        return Response.error(409, "the run is over: " + run.outcome());
                     }
-                }
-            }
-            if (entry.isEmpty()) {
-                return Response.error(404, "no runnable op mode named " + opMode);
-            }
-            Run run = start(entry.get(), startedBy);
-            if (run == null) {
-                Run current = current();
-                return Response.error(409, "a run is already in progress"
-                        + (current != null && current.startedBy != null ? " (started by " + current.startedBy + ")" : ""));
-            }
-            JsonObject body = new JsonObject();
-            body.addProperty("id", run.id);
-            return Response.json(GSON.toJson(body));
+                    run.stop();
+                    return Response.json("{}");
+                }));
+    }
+
+    private interface RunRoute {
+        Response handle(Run run, Request request);
+    }
+
+    private Response withRun(java.util.Map<String, String> params, Request request, RunRoute route) {
+        Run run = find(params.get("id"));
+        if (run == null) {
+            return Response.error(404, "no such run: " + request.path);
         }
-        if (path.startsWith("/runs/")) {
-            String[] parts = path.split("/");
-            Run run = parts.length >= 3 ? find(parts[2]) : null;
-            if (run == null) {
-                return Response.error(404, "no such run: " + path);
-            }
-            String rest = parts.length >= 4 ? parts[3] : "";
-            if (rest.isEmpty()) {
-                return Response.html(SimReplayPage.page(run.name(), run.entry.kind, true, run.ticks(), run.outcome()));
-            }
-            if (rest.equals("ticks")) {
-                return Response.json(SimReplayPage.update(run.ticksFrom(SimLiveServer.from(request)), run.outcome()));
-            }
-            if (rest.equals("log")) {
-                return new Response(200, "text/plain; charset=utf-8", run.log());
-            }
-            if (rest.equals("gamepad")) {
-                return gamepad(run, request);
-            }
-            if (rest.equals("stop")) {
-                if (!request.method.equals("POST")) {
-                    return Response.error(405, "POST /runs/<id>/stop to end the run");
+        return route.handle(run, request);
+    }
+
+    private Response catalogJson() {
+        try {
+            return Response.json(GSON.toJson(catalog().toJson()));
+        } catch (BuildFailed e) {
+            return Response.error(500, "the sources do not compile:\n" + e.getMessage());
+        }
+    }
+
+    private Response page(Run run, Request request) {
+        return Response.html(SimReplayPage.page(run.name(), run.entry.kind, true, run.ticks(), run.outcome()));
+    }
+
+    /** {@code POST /run?opmode=<name>}: starts the run and answers its id. */
+    private Response run(String opMode, String startedBy) {
+        Optional<SimCatalog.Entry> entry = Optional.empty();
+        if (opMode != null) {
+            try {
+                entry = catalog().find(opMode);
+            } catch (BuildFailed e) {
+                // let the run itself report the build failure, where the tab shows it
+                entry = listed == null ? Optional.empty() : listed.find(opMode);
+                if (entry.isEmpty()) {
+                    entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null));
                 }
-                if (!run.running()) {
-                    return Response.error(409, "the run is over: " + run.outcome());
-                }
-                run.stop();
-                return Response.json("{}");
             }
         }
-        return Response.error(404, "not found: " + path);
+        if (entry.isEmpty()) {
+            return Response.error(404, "no runnable op mode named " + opMode);
+        }
+        Run run = start(entry.get(), startedBy);
+        if (run == null) {
+            Run current = current();
+            return Response.error(409, "a run is already in progress"
+                    + (current != null && current.startedBy != null ? " (started by " + current.startedBy + ")" : ""));
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("id", run.id);
+        return Response.json(GSON.toJson(body));
     }
 
     /**
@@ -395,9 +394,6 @@ public final class SimBench {
      * here and never reaches the run.
      */
     private Response gamepad(Run run, Request request) {
-        if (!request.method.equals("POST")) {
-            return Response.error(405, "POST /runs/<id>/gamepad with {\"gamepad\": 1, \"state\": {...}}");
-        }
         JsonObject line;
         try {
             line = GSON.fromJson(request.body, JsonObject.class);
