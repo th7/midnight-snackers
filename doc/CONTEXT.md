@@ -340,7 +340,12 @@ read. Class: `SimRecording`.
 
 **Replay** — A run's ticks written as a single self-contained HTML page
 with the field, the true pose, and play/pause/scrub controls, named after
-the op mode under `TeamCode/build/sim`. Class: `SimReplayPage`.
+the op mode under `TeamCode/build/sim`. The field is drawn in three
+dimensions from a camera that orbits it (drag to turn, scroll to zoom,
+double-click for the audience's view): the walls at their height, the
+robot as a cube turned to its heading, and the dashboard's field overlay
+projected onto the floor. The sizes are the simulated robot's, so the
+page draws what the simulator collides. Class: `SimReplayPage`.
 
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
@@ -350,8 +355,10 @@ powers become wheel velocities through the tuned drive model, the true
 pose is integrated from those and kept inside the walls, and the
 localizer's sensors are written back from the true pose, so the dead
 wheels read nothing while the wheels spin against a wall. The robot is an
-18-inch square on a 144-inch field; a wall stops it dead and lets it slide
-along. No inertia, slip, or noise. Class: `SimRobot`.
+18-inch cube on a 144-inch field with foot-high walls; a wall stops it
+dead and lets it slide along. The model is planar: only the robot's
+footprint collides, and nothing goes over a wall. No inertia, slip, or
+noise. Class: `SimRobot`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.

@@ -26,14 +26,22 @@ import java.util.ArrayList;
  * wheel velocities through the drive model Road Runner was tuned with ({@link MecanumDrive.Params});
  * the true pose is integrated from those, kept inside the walls, and the sensors the localizer
  * reads (dead wheel encoders and IMU yaw) are written back from the true pose. The robot is an
- * {@link #ROBOT_SIZE_IN}-inch square; the walls stop it dead and let it slide along them. There is
- * no inertia, slip, or sensor noise.
+ * {@link #ROBOT_SIZE_IN}-inch cube; the walls, {@link #WALL_HEIGHT_IN} inches high, stop it dead
+ * and let it slide along them. There is no inertia, slip, or sensor noise.
  */
 public class SimRobot {
     public static final double BATTERY_VOLTS = 12.5;
     /** The field is a square of this many inches on a side, centred on the origin, walled all round. */
     public static final double FIELD_SIZE_IN = 144;
-    /** The robot's footprint is a square of this many inches on a side, centred on its pose. */
+    /**
+     * The walls are this many inches high. The model is planar, so nothing ever goes over them;
+     * the replay page draws them at this height.
+     */
+    public static final double WALL_HEIGHT_IN = 12;
+    /**
+     * The robot is a cube of this many inches on a side, centred on its pose and standing on the
+     * floor. Only its footprint collides with the walls.
+     */
     public static final double ROBOT_SIZE_IN = 18;
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
     /**

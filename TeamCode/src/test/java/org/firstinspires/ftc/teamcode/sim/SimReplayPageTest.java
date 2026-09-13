@@ -61,13 +61,18 @@ public class SimReplayPageTest {
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
     }
 
+    /**
+     * The page draws the field in three dimensions: the robot as a cube of the simulator's size,
+     * and the walls as high as the simulator says they are.
+     */
     @Test
     public void thePageDrawsTheFieldAndTheRobotAtTheSimulatorsSizes() {
         String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
 
         assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
         assertTrue(html, html.contains("ROBOT_IN = " + SimRobot.ROBOT_SIZE_IN));
-        assertFalse("no placeholder is left behind", html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__"));
+        assertTrue(html, html.contains("WALL_IN = " + SimRobot.WALL_HEIGHT_IN));
+        assertFalse("no placeholder is left behind", html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__") || html.contains("__WALL_IN__"));
     }
 
     @Test
