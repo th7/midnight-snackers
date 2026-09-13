@@ -30,16 +30,16 @@ public class AutoOpTest {
 
     @Test
     public void redMirrorsTheFieldAcrossTheCentreLineAndBlueDoesNot() {
-        assertEquals(-1, autoFor(Alliance.RED).nav.pose(0, 1, 1).pose2d.position.y, 0);
-        assertEquals(1, autoFor(Alliance.BLUE).nav.pose(0, 1, 1).pose2d.position.y, 0);
-        assertEquals(1, autoFor(Alliance.RELATIVE).nav.pose(0, 1, 1).pose2d.position.y, 0);
+        assertEquals(-1, autoFor(Alliance.RED).robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
+        assertEquals(1, autoFor(Alliance.BLUE).robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
+        assertEquals(1, autoFor(Alliance.RELATIVE).robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
     }
 
     @Test
     public void anAutoWithoutAnAllianceDoesNotLetTheCameraPlaceTheRobot() {
-        assertFalse(autoFor(Alliance.RELATIVE).brain.usingCameraLocalization());
-        assertTrue(autoFor(Alliance.BLUE).brain.usingCameraLocalization());
-        assertTrue(autoFor(Alliance.RED).brain.usingCameraLocalization());
+        assertFalse(autoFor(Alliance.RELATIVE).robot.brain.usingCameraLocalization());
+        assertTrue(autoFor(Alliance.BLUE).robot.brain.usingCameraLocalization());
+        assertTrue(autoFor(Alliance.RED).robot.brain.usingCameraLocalization());
     }
 
     @Test

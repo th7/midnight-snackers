@@ -29,8 +29,8 @@ public final class TestTeleOps {
             if (gamepad1.crossWasPressed()) {
                 presses++;
             }
-            drive.setStraightPower(-gamepad1.left_stick_y);
-            drive.useDirectPower();
+            robot.drive.setStraightPower(-gamepad1.left_stick_y);
+            robot.drive.useDirectPower();
         }
     }
 }

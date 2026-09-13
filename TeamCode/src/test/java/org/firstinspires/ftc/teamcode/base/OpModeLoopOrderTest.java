@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.Driver;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
@@ -40,7 +41,7 @@ public class OpModeLoopOrderTest {
 
         @Override
         public PlanPart getPlan() {
-            return plans.driveForward();
+            return robot.plans.driveForward();
         }
     }
 
@@ -56,10 +57,22 @@ public class OpModeLoopOrderTest {
     @Test
     public void ticksEverySubsystemWithBrainLast() {
         TestOp opMode = initialised(new TestOp());
+        Robot robot = opMode.robot;
 
         assertEquals(
-                List.of(opMode.launcher, opMode.drive, opMode.camera, opMode.nav, opMode.turntable, opMode.brain),
-                opMode.loopOrder());
+                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain),
+                opMode.loopOrder().subList(0, 6));
+    }
+
+    @Test
+    public void aTeleOpTicksItsDriverAfterTheRobot() {
+        BlueTeleOp opMode = initialised(new BlueTeleOp());
+
+        List<Loopable> order = opMode.loopOrder();
+
+        assertEquals(opMode.robot.brain, order.get(order.size() - 3));
+        assertEquals(opMode.robot.plans, order.get(order.size() - 2));
+        assertTrue(order.get(order.size() - 1) instanceof Driver);
     }
 
     @Test
@@ -82,9 +95,10 @@ public class OpModeLoopOrderTest {
 
         opMode.init();
 
+        Robot robot = opMode.robot;
         assertEquals(first.size(), opMode.loopOrder().size());
         assertEquals(
-                List.of(opMode.launcher, opMode.drive, opMode.camera, opMode.nav, opMode.turntable, opMode.brain),
+                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain),
                 opMode.loopOrder().subList(0, 6));
     }
 
@@ -110,8 +124,8 @@ public class OpModeLoopOrderTest {
 
         List<Loopable> order = opMode.loopOrder();
 
-        assertEquals(opMode.brain, order.get(order.size() - 3));
-        assertEquals(opMode.plans, order.get(order.size() - 2));
+        assertEquals(opMode.robot.brain, order.get(order.size() - 3));
+        assertEquals(opMode.robot.plans, order.get(order.size() - 2));
         assertTrue(order.get(order.size() - 1) instanceof PlanRunner);
     }
 }
