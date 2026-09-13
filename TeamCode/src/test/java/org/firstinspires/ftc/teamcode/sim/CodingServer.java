@@ -199,6 +199,9 @@ public final class CodingServer {
     private final Map<String, JsonObject> lastMergeByUsername = new LinkedHashMap<>();
     /** Each user's navigator over their worktree's sources, made on first use; by username. */
     private final Map<String, SourceNavigator> navigatorByUsername = new LinkedHashMap<>();
+    /** Each user's bench routes, recording runs as started by them; by username, made with the bench. */
+    private final Map<String, Router> benchRoutesByUsername = new LinkedHashMap<>();
+    private final Router userRoutes = userRoutes();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
@@ -218,7 +221,7 @@ public final class CodingServer {
         this.benches = benches;
         loadSessions();
         loadEditable();
-        this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", this::handleAdmin);
+        this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
         this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
     }
 
@@ -319,99 +322,74 @@ public final class CodingServer {
             if (bench == null) {
                 bench = benches.create(worktreeOf(session).path);
                 benchByUsername.put(session.username, bench);
+                benchRoutesByUsername.put(session.username, bench.routes(session.username));
             }
             return bench;
         }
     }
 
+    /** The user's bench routes, mounted under {@code /sim}: runs they start are recorded as theirs. */
+    private Router benchRoutesOf(Session session) {
+        synchronized (benchByUsername) {
+            benchOf(session);
+            return benchRoutesByUsername.get(session.username);
+        }
+    }
+
     // --- the user listener ---
 
+    /**
+     * The user listener: the login and dashboard pages, the editor bundle and {@code /me} for
+     * anyone; files, the simulator, navigation, git and builds for approved sessions only.
+     */
+    private Router userRoutes() {
+        Router approved = new Router()
+                .guard(request -> isApproved(sessionOf(request)) ? null : Response.error(403, "not an approved session"))
+                .route("GET", "/files", (request, params) -> Response.json(GSON.toJson(fileList(true))))
+                .route("GET", "/files/{key*}", (request, params) -> file(sessionOf(request), params.get("key"), null))
+                .route("PUT", "/files/{key*}", (request, params) -> file(sessionOf(request), params.get("key"), request.body))
+                .mount("/sim", request -> benchRoutesOf(sessionOf(request)))
+                .route("GET", "/nav/{op}", (request, params) -> navigate(sessionOf(request), params.get("op"), request))
+                .route("GET", "/source/{key*}", (request, params) -> source(sessionOf(request), params.get("key")))
+                .route("GET", "/git/status", (request, params) -> gitStatus(sessionOf(request)))
+                .route("POST", "/git/commit", (request, params) -> gitCommit(sessionOf(request), request.body))
+                .route("POST", "/git/pull", (request, params) -> gitPull(sessionOf(request)))
+                .route("POST", "/git/push", (request, params) -> gitPush(sessionOf(request)))
+                .route("GET", "/build", (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))));
+        return new Router()
+                .route("GET", "/", (request, params) ->
+                        Response.html(isApproved(sessionOf(request)) ? page("dashboard.html") : page("login.html")))
+                .route("POST", "/login", (request, params) -> login(request))
+                .route("GET", "/static/{name}", (request, params) -> STATIC.contains(params.get("name"))
+                        ? new Response(200, "application/javascript; charset=utf-8", page(params.get("name")))
+                        : Response.error(404, "not found: " + request.path))
+                .route("GET", "/me", (request, params) -> Response.json(GSON.toJson(me(sessionOf(request)))))
+                .mount("", approved);
+    }
+
+    private static boolean isApproved(Session session) {
+        return session != null && session.state == State.APPROVED;
+    }
+
+    /** The user routes, with git's refusal to make or use the worktree reported as the server's failure. */
     private Response handleUser(Request request) {
-        Session session = sessionOf(request);
-        if (request.path.equals("/")) {
-            return Response.html(session != null && session.state == State.APPROVED ? page("dashboard.html") : page("login.html"));
+        try {
+            return userRoutes.handle(request);
+        } catch (Worktrees.GitFailed e) {
+            Session session = sessionOf(request);
+            return Response.error(500, "git failed for " + (session == null ? "?" : session.username) + ": " + e.getMessage());
         }
-        if (request.path.equals("/login")) {
-            return login(request);
+    }
+
+    /** {@code GET} or {@code PUT /files/<key>}: reads, or with a body writes, one file of the editable set. */
+    private Response file(Session session, String key, String edit) {
+        synchronized (this) {
+            if (!editable.contains(key)) {
+                return Response.error(404, "not an editable file: " + key);
+            }
+            Path worktree = worktreeOf(session).path;
+            return edit == null ? read(session, worktree, key) : write(worktree, key, edit);
         }
-        if (request.path.startsWith("/static/")) {
-            String name = request.path.substring("/static/".length());
-            if (!STATIC.contains(name)) {
-                return Response.error(404, "not found: " + request.path);
-            }
-            return new Response(200, "application/javascript; charset=utf-8", page(name));
-        }
-        if (request.path.equals("/me")) {
-            return Response.json(GSON.toJson(me(session)));
-        }
-        if (request.path.equals("/files") || request.path.startsWith("/files/")) {
-            if (session == null || session.state != State.APPROVED) {
-                return Response.error(403, "not an approved session");
-            }
-            if (request.path.equals("/files")) {
-                return Response.json(GSON.toJson(fileList(true)));
-            }
-            String key = request.path.substring("/files/".length());
-            synchronized (this) {
-                if (!editable.contains(key)) {
-                    return Response.error(404, "not an editable file: " + key);
-                }
-                Path worktree;
-                try {
-                    worktree = worktreeOf(session).path;
-                } catch (Worktrees.GitFailed e) {
-                    return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
-                }
-                if (request.method.equals("GET")) {
-                    return read(session, worktree, key);
-                }
-                if (request.method.equals("PUT")) {
-                    return write(worktree, key, request.body);
-                }
-            }
-            return Response.error(405, "GET or PUT /files/<path>");
-        }
-        if (request.path.startsWith("/sim/")) {
-            if (session == null || session.state != State.APPROVED) {
-                return Response.error(403, "not an approved session");
-            }
-            try {
-                return benchOf(session).handle(request.path.substring("/sim".length()), request, session.username);
-            } catch (Worktrees.GitFailed e) {
-                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
-            }
-        }
-        if (request.path.startsWith("/nav/") || request.path.startsWith("/source/")) {
-            if (session == null || session.state != State.APPROVED) {
-                return Response.error(403, "not an approved session");
-            }
-            try {
-                return request.path.startsWith("/nav/") ? navigate(session, request) : source(session, request);
-            } catch (Worktrees.GitFailed e) {
-                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
-            }
-        }
-        if (request.path.startsWith("/git/")) {
-            if (session == null || session.state != State.APPROVED) {
-                return Response.error(403, "not an approved session");
-            }
-            try {
-                return git(session, request);
-            } catch (Worktrees.GitFailed e) {
-                return Response.error(500, "git failed for " + session.username + ": " + e.getMessage());
-            }
-        }
-        if (request.path.equals("/build")) {
-            if (session == null || session.state != State.APPROVED) {
-                return Response.error(403, "not an approved session");
-            }
-            try {
-                return Response.json(GSON.toJson(buildCheck(session)));
-            } catch (Worktrees.GitFailed e) {
-                return Response.error(500, "no worktree for " + session.username + ": " + e.getMessage());
-            }
-        }
-        return Response.error(404, "not found: " + request.path);
     }
 
     private synchronized JsonObject fileList(boolean withEditors) {
@@ -541,9 +519,6 @@ public final class CodingServer {
     }
 
     private Response login(Request request) {
-        if (!request.method.equals("POST")) {
-            return Response.error(405, "POST /login?username=<name> to ask for access");
-        }
         String username = request.query("username");
         username = username == null ? "" : username.trim();
         if (username.isEmpty() || username.length() > MAX_USERNAME_LENGTH || !printable(username)) {
@@ -680,13 +655,10 @@ public final class CodingServer {
         return new Sources(worktree, worktree.relativize(sourceRoot).toString().replace('\\', '/') + "/", navigator);
     }
 
-    private Response navigate(Session session, Request request) {
-        String op = request.path.substring("/nav/".length());
+    /** {@code GET /nav/definition} or {@code /nav/usages}, with {@code file}, {@code line} and {@code column}. */
+    private Response navigate(Session session, String op, Request request) {
         if (!op.equals("definition") && !op.equals("usages")) {
             return Response.error(404, "not found: " + request.path);
-        }
-        if (!request.method.equals("GET")) {
-            return Response.error(405, "GET " + request.path + "?file=<root-relative path>&line=<n>&column=<n>");
         }
         Sources sources = sourcesOf(session);
         if (sources == null) {
@@ -751,11 +723,7 @@ public final class CodingServer {
     }
 
     /** Any main source file, read-only: where a jump to a definition may land. */
-    private Response source(Session session, Request request) {
-        if (!request.method.equals("GET")) {
-            return Response.error(405, "GET /source/<path>; only the editable set can be written, at /files/<path>");
-        }
-        String key = request.path.substring("/source/".length());
+    private Response source(Session session, String key) {
         Sources sources = sourcesOf(session);
         if (sources == null || sources.sourceOf(key) == null) {
             return Response.error(404, "not a source file: " + key);
@@ -776,18 +744,16 @@ public final class CodingServer {
 
     // --- the user's branch: status, commit, pull, push ---
 
-    private Response git(Session session, Request request) {
-        String op = request.path.substring("/git/".length());
-        if (op.equals("status")) {
-            return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
-        }
-        if (op.equals("commit")) {
-            if (!request.method.equals("POST")) {
-                return Response.error(405, "POST /git/commit with a JSON body naming the message");
-            }
+    private Response gitStatus(Session session) {
+        return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
+    }
+
+    /** {@code POST /git/commit} with a JSON body naming the message. */
+    private Response gitCommit(Session session, String requestBody) {
+        {
             JsonObject body;
             try {
-                body = GSON.fromJson(request.body, JsonObject.class);
+                body = GSON.fromJson(requestBody, JsonObject.class);
             } catch (RuntimeException e) {
                 body = null;
             }
@@ -807,20 +773,22 @@ public final class CodingServer {
             reply.addProperty("message", commit.made ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files") : "nothing to commit");
             return Response.json(GSON.toJson(reply));
         }
-        if (op.equals("pull")) {
-            if (!request.method.equals("POST")) {
-                return Response.error(405, "POST /git/pull to bring develop into your branch");
-            }
+    }
+
+    /** {@code POST /git/pull}: brings develop into the user's branch. */
+    private Response gitPull(Session session) {
+        {
             Worktrees.Merge merge;
             synchronized (this) {
                 merge = worktrees.pull(session.username);
             }
             return merged("pull", session, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull");
         }
-        if (op.equals("push")) {
-            if (!request.method.equals("POST")) {
-                return Response.error(405, "POST /git/push to land your commits on develop");
-            }
+    }
+
+    /** {@code POST /git/push}: lands the user's commits on develop. */
+    private Response gitPush(Session session) {
+        {
             Worktrees.Merge merge;
             synchronized (this) {
                 merge = worktrees.push(session.username);
@@ -832,7 +800,6 @@ public final class CodingServer {
                     : "nothing to push" + (merge.remote != null && merge.remote.outcome.equals("failed") ? remoteSuffix(merge.remote) : "");
             return merged("push", session, merge, did, nothing);
         }
-        return Response.error(404, "not found: " + request.path);
     }
 
     /** How develop reached the remote, for the message: nothing to say without a remote. */
@@ -947,36 +914,18 @@ public final class CodingServer {
 
     // --- the admin listener ---
 
-    private Response handleAdmin(Request request) {
-        if (request.path.equals("/") || request.path.equals("/admin")) {
-            return Response.html(page("admin.html"));
-        }
-        if (request.path.equals("/admin/logins")) {
-            return Response.json(logins());
-        }
-        if (request.path.equals("/admin/info")) {
-            return Response.json(info());
-        }
-        if (request.path.startsWith("/admin/logins/")) {
-            String[] parts = request.path.split("/");
-            if (parts.length == 5 && request.method.equals("POST")) {
-                return decide(parts[3], parts[4]);
-            }
-            return Response.error(404, "POST /admin/logins/<id>/approve|deny|revoke");
-        }
-        if (request.path.equals("/admin/tree")) {
-            return tree(request.query("dir"));
-        }
-        if (request.path.equals("/admin/files")) {
-            return Response.json(GSON.toJson(fileList(false)));
-        }
-        if (request.path.equals("/admin/files/add") || request.path.equals("/admin/files/remove")) {
-            if (!request.method.equals("POST")) {
-                return Response.error(405, "POST " + request.path + "?path=<root-relative path>");
-            }
-            return request.path.endsWith("add") ? addEditable(request.query("path")) : removeEditable(request.query("path"));
-        }
-        return Response.error(404, "not found: " + request.path);
+    /** The admin listener: the admin page, the logins and their decisions, and the editable set. */
+    private Router adminRoutes() {
+        return new Router()
+                .route("GET", "/", (request, params) -> Response.html(page("admin.html")))
+                .route("GET", "/admin", (request, params) -> Response.html(page("admin.html")))
+                .route("GET", "/admin/logins", (request, params) -> Response.json(logins()))
+                .route("GET", "/admin/info", (request, params) -> Response.json(info()))
+                .route("POST", "/admin/logins/{id}/{decision}", (request, params) -> decide(params.get("id"), params.get("decision")))
+                .route("GET", "/admin/tree", (request, params) -> tree(request.query("dir")))
+                .route("GET", "/admin/files", (request, params) -> Response.json(GSON.toJson(fileList(false))))
+                .route("POST", "/admin/files/add", (request, params) -> addEditable(request.query("path")))
+                .route("POST", "/admin/files/remove", (request, params) -> removeEditable(request.query("path")));
     }
 
     // --- the editable set ---

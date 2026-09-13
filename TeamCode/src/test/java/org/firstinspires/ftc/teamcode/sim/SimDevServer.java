@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 import java.io.IOException;
@@ -35,7 +34,10 @@ public final class SimDevServer {
 
     private SimDevServer(SimBench bench, int port) {
         this.bench = bench;
-        this.http = TinyHttpServer.start(port, "sim-bench", this::handle);
+        Router routes = new Router()
+                .route("GET", "/", (request, params) -> Response.html(page()))
+                .mount("", bench.routes(null));
+        this.http = TinyHttpServer.start(port, "sim-bench", routes);
     }
 
     public static SimDevServer start(SimBench bench, int port) {
@@ -64,13 +66,6 @@ public final class SimDevServer {
     public void stop() {
         http.stop();
         bench.stop();
-    }
-
-    private Response handle(Request request) {
-        if (request.path.equals("/")) {
-            return Response.html(page());
-        }
-        return bench.handle(request.path, request, null);
     }
 
     private String page() {

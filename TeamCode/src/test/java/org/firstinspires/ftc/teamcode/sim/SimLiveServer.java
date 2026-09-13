@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 /**
@@ -14,7 +13,16 @@ public final class SimLiveServer {
 
     private SimLiveServer(SimRecording recording, int port) {
         this.recording = recording;
-        this.http = TinyHttpServer.start(port, "sim-live-view", this::handle);
+        Router routes = new Router()
+                .route("GET", "/", (request, params) -> Response.html(SimReplayPage.page(recording, true)))
+                .route("GET", "/ticks", (request, params) -> {
+                    String body = SimReplayPage.update(recording, request.queryInt("from", 0));
+                    if (recording.finished()) {
+                        viewerSawOutcome = true;
+                    }
+                    return Response.json(body);
+                });
+        this.http = TinyHttpServer.start(port, "sim-live-view", routes);
     }
 
     /**
@@ -58,22 +66,4 @@ public final class SimLiveServer {
         http.stop();
     }
 
-    private Response handle(Request request) {
-        if (request.path.equals("/")) {
-            return Response.html(SimReplayPage.page(recording, true));
-        }
-        if (request.path.equals("/ticks")) {
-            String body = SimReplayPage.update(recording, from(request));
-            if (recording.finished()) {
-                viewerSawOutcome = true;
-            }
-            return Response.json(body);
-        }
-        return Response.error(404, "not found: " + request.path);
-    }
-
-    static int from(Request request) {
-        String from = request.query("from");
-        return from == null ? 0 : Integer.parseInt(from);
-    }
 }
