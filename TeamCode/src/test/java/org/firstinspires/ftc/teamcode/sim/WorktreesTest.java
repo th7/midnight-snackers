@@ -211,6 +211,8 @@ public class WorktreesTest {
         assertEquals("[New.java, README]", before.changed.toString());
         assertEquals(0, before.ahead);
         assertEquals(0, before.behind);
+        assertEquals("the tip before is develop's", GitFixture.commitOf(root, "develop"), before.head);
+        assertEquals("the tip after is the commit", commit.commit, after.head);
         assertTrue(commit.made);
         assertEquals("[New.java, README]", commit.files.toString());
         assertEquals(commit.commit, GitFixture.head(ada.path));

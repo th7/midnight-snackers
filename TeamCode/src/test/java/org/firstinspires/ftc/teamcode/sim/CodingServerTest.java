@@ -1409,6 +1409,201 @@ public class CodingServerTest {
         assertTrue("the reply's message, coach and all, is what the page shows", page.contains("say(result.message"));
     }
 
+    // --- the admin's view of each user's branch, and pulling for them ---
+
+    /** The admin listing's entry for the username's newest login. */
+    private JsonObject loginOf(String username) throws IOException {
+        JsonObject found = null;
+        for (var element : json(admin("GET", "/admin/logins").body).getAsJsonArray("logins")) {
+            JsonObject login = element.getAsJsonObject();
+            if (login.get("username").getAsString().equals(username)) {
+                found = login;
+            }
+        }
+        assertNotNull("no login for " + username, found);
+        return found;
+    }
+
+    @Test
+    public void theAdminListingShowsEachLoginsChangedFilesAndCommitsAheadAndBehind() throws IOException {
+        String cookie = savedEditor("edited");
+
+        JsonObject before = loginOf("ada").getAsJsonObject("status");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
+        JsonObject after = loginOf("ada").getAsJsonObject("status");
+        commitOnDevelop("README", "on develop\n");
+        JsonObject later = loginOf("ada").getAsJsonObject("status");
+
+        assertEquals("[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
+        assertEquals(0, before.get("ahead").getAsInt());
+        assertEquals(0, before.get("behind").getAsInt());
+        assertEquals("[]", after.getAsJsonArray("changed").toString());
+        assertEquals(1, after.get("ahead").getAsInt());
+        assertEquals(1, later.get("behind").getAsInt());
+        assertEquals(1, later.get("ahead").getAsInt());
+    }
+
+    @Test
+    public void aLoginWithoutAWorktreeHasNoStatusInTheAdminListing() throws IOException {
+        login("bob");
+
+        assertTrue(loginOf("bob").get("status").isJsonNull());
+        assertTrue(loginOf("bob").get("worktree").isJsonNull());
+    }
+
+    @Test
+    public void theAdminPageShowsEachLoginsStatusAndHasAPullButton() throws IOException {
+        String page = admin("GET", "/admin").body;
+
+        assertTrue(page, page.contains("login.status"));
+        assertTrue(page, page.contains("status.changed"));
+        assertTrue(page, page.contains("status.ahead"));
+        assertTrue(page, page.contains("status.behind"));
+        assertTrue(page, page.contains("'/pull'"));
+        assertTrue("the reply's message is what the page shows", page.contains("result.message"));
+    }
+
+    @Test
+    public void theAdminCanPullDevelopIntoALoginsWorktree() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        String develop = GitFixture.commitOf(root, "develop");
+        assertEquals(1, loginOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+
+        Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
+        assertTrue(pulled.body, json(pulled.body).get("message").getAsString().contains("ada"));
+        assertEquals("class Plans { int fromDevelop; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals(0, loginOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertEquals(develop, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("develop did not move", develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("pull", loginOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
+        assertEquals("pulled", loginOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
+    }
+
+    @Test
+    public void anAdminPullMovesTheTipTheUsersStatusReportsSoTheirEditorReloadsWhatIsOpen() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        String before = json(user("GET", "/git/status", cookie).body).get("head").getAsString();
+        assertEquals(GitFixture.commitOf(root, "coding/ada"), before);
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        assertEquals("a commit on develop alone moves nothing of the user's", before, json(user("GET", "/git/status", cookie).body).get("head").getAsString());
+
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/pull").status);
+
+        assertEquals(GitFixture.commitOf(root, "develop"), json(user("GET", "/git/status", cookie).body).get("head").getAsString());
+        String dashboard = user("GET", "/", cookie).body;
+        assertTrue(dashboard, dashboard.contains("status.head"));
+        assertTrue("a tip that moved under a clean editor reloads the open file", dashboard.contains("load(open.path)"));
+    }
+
+    @Test
+    public void theAdminListingStillAnswersWhenOneWorktreesStatusCannotBeRead() throws IOException {
+        approvedEditorOf("Plans.java");
+        approvedUser("bob");
+        // ada's branch vanishes from under her worktree: git can no longer count what she is ahead or behind by
+        GitFixture.git(root, "update-ref", "-d", "refs/heads/coding/ada");
+
+        Reply listing = admin("GET", "/admin/logins");
+
+        assertEquals(listing.body, 200, listing.status);
+        assertTrue(loginOf("ada").get("status").isJsonNull());
+        assertTrue(loginOf("ada").toString(), loginOf("ada").get("statusError").getAsString().contains("coding/ada"));
+        assertEquals(0, loginOf("bob").getAsJsonObject("status").get("behind").getAsInt());
+        assertTrue(loginOf("bob").get("statusError").isJsonNull());
+        String page = admin("GET", "/admin").body;
+        assertTrue(page, page.contains("login.statusError"));
+    }
+
+    @Test
+    public void anAdminPullWithNothingNewIsASuccessThatSaysSo() throws IOException {
+        approvedEditorOf("Plans.java");
+        String head = GitFixture.commitOf(root, "coding/ada");
+
+        Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("nothing", json(pulled.body).get("outcome").getAsString());
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals(405, admin("GET", "/admin/logins/" + idOf("ada") + "/pull").status);
+    }
+
+    @Test
+    public void anAdminPullWithAnUncommittedEditInAFileDevelopChangedIsRefusedNamingItAndTheUser() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        commitOnDevelop("README", "on develop\n");
+        String head = GitFixture.commitOf(root, "coding/ada");
+
+        Reply refused = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+
+        assertEquals(409, refused.status);
+        assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", json(refused.body).getAsJsonArray("files").toString());
+        assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("ada"));
+        assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals("nothing of develop's arrived", "hello\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void anAdminPullKeepsAnUncommittedEditThatDevelopDidNotTouch() throws IOException {
+        String cookie = savedEditor("class Plans { int mine; }\n");
+        commitOnDevelop("README", "on develop\n");
+
+        Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+
+        assertEquals(pulled.body, 200, pulled.status);
+        assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("on develop\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", loginOf("ada").getAsJsonObject("status").getAsJsonArray("changed").toString());
+    }
+
+    @Test
+    public void anAdminPullThatConflictsChangesNothingAndShowsTheCoachTheRecipe() throws IOException {
+        String cookie = savedEditor("class Plans { int ada; }\n");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
+        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        String head = GitFixture.commitOf(root, "coding/ada");
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Reply conflicted = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+
+        assertEquals(409, conflicted.status);
+        JsonObject body = json(conflicted.body);
+        assertEquals("conflicts", body.get("outcome").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
+        assertFalse("the coach is not told to ask the coach: " + body, body.get("message").getAsString().contains("coach"));
+        assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
+        String logins = admin("GET", "/admin/logins").body;
+        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+    }
+
+    @Test
+    public void anAdminPullForALoginWithoutAWorktreeIs404() throws IOException {
+        login("bob");
+
+        Reply refused = admin("POST", "/admin/logins/" + idOf("bob") + "/pull");
+
+        assertEquals(404, refused.status);
+        assertTrue(refused.body, refused.body.contains("bob"));
+        assertEquals(404, admin("POST", "/admin/logins/999/pull").status);
+    }
+
+    @Test
+    public void theAdminPullRouteDoesNotExistOnTheUserPort() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+
+        assertEquals(404, user("POST", "/admin/logins/" + idOf("ada") + "/pull", cookie).status);
+    }
+
     // --- push ---
 
     @Test
