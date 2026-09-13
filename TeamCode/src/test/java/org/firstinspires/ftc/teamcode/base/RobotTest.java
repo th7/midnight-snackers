@@ -1,7 +1,12 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+
+import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Alliance;
@@ -50,10 +55,37 @@ public class RobotTest {
     private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, telemetry);
 
     @Test
-    public void buildsEverySubsystemWithBrainLast() {
+    public void buildsEverySubsystemWithBrainLastThenThePlans() {
         assertEquals(
-                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain),
+                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain, robot.plans),
                 robot.loopOrder());
+    }
+
+    @Test
+    public void keepsTheAllianceAndGamepadsItWasBuiltWith() {
+        Gamepad gamepad1 = new Gamepad();
+        Gamepad gamepad2 = new Gamepad();
+
+        Robot built = new Robot(sim.hardware(), Alliance.RED, telemetry, gamepad1, gamepad2);
+
+        assertEquals(Alliance.RED, built.alliance);
+        assertSame(gamepad1, built.gamepad1);
+        assertSame(gamepad2, built.gamepad2);
+    }
+
+    @Test
+    public void aRobotBuiltWithoutGamepadsHasIdleOnes() {
+        assertNotNull(robot.gamepad1);
+        assertNotNull(robot.gamepad2);
+        assertEquals(0, robot.gamepad1.left_stick_y, 0);
+    }
+
+    /** The camera may place the robot only when playing for an alliance; no op mode has to say so. */
+    @Test
+    public void theBrainUsesTheCameraOnlyWhenPlayingForAnAlliance() {
+        assertFalse(robot.brain.usingCameraLocalization());
+        assertTrue(new Robot(sim.hardware(), Alliance.BLUE, telemetry).brain.usingCameraLocalization());
+        assertTrue(new Robot(sim.hardware(), Alliance.RED, telemetry).brain.usingCameraLocalization());
     }
 
     @Test

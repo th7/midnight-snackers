@@ -16,7 +16,7 @@ public final class PlanOp extends AutoOp {
 
     /**
      * @param where where a person finds the plan, e.g. {@code Plans.driveForward()}
-     * @param plan  the plan to run, from the plans this op mode builds in {@link #init()}
+     * @param plan  the plan to run, from the robot's plans once {@link #init()} has built it
      */
     public PlanOp(Alliance alliance, String where, Function<Plans, PlanPart> plan) {
         super(alliance);
@@ -26,7 +26,7 @@ public final class PlanOp extends AutoOp {
 
     @Override
     public PlanPart getPlan() {
-        return plan.apply(plans);
+        return plan.apply(robot.plans);
     }
 
     @Override

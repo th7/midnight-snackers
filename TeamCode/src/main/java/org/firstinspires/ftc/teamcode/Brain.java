@@ -8,10 +8,16 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Brain extends SuperSystem {
-    private boolean usingCameraLocalization = true;
+    private boolean usingCameraLocalization;
     private boolean turnTableToZeroMode = false;
     private boolean turnTableDebugOverride = false;
     private final PlanRunner planRunner = add(new PlanRunner());
+
+    /** The camera may place the robot on the field only when playing for an alliance. */
+    @Override
+    public void init() {
+        usingCameraLocalization = robot.alliance.usesCameraLocalization();
+    }
 
     @Override
     protected void onLoop() {
@@ -118,10 +124,6 @@ public class Brain extends SuperSystem {
 
     public void toggleCameraLocalization() {
         usingCameraLocalization = !usingCameraLocalization;
-    }
-
-    public void disableCameraLocalization() {
-        usingCameraLocalization = false;
     }
 
     /** Whether the camera's tag sightings are used to place the robot on the field. */

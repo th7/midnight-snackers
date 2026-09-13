@@ -4,24 +4,12 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.Brain;
-import org.firstinspires.ftc.teamcode.Camera;
-import org.firstinspires.ftc.teamcode.Drive;
-import org.firstinspires.ftc.teamcode.Launcher;
-import org.firstinspires.ftc.teamcode.Nav;
-import org.firstinspires.ftc.teamcode.Turntable;
 
 import java.util.List;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     private final Alliance alliance;
     protected Robot robot;
-    protected Launcher launcher;
-    protected Drive drive;
-    protected Camera camera;
-    protected Nav nav;
-    protected Turntable turntable;
-    protected Brain brain;
 
     private Hardware injectedHardware = null;
     /** The telemetry the robot controller gave this op mode, before it was mirrored to the dashboard. */
@@ -63,13 +51,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
             driverStationTelemetry = telemetry;
         }
         telemetry = new MultipleTelemetry(driverStationTelemetry, hardware.dashboard.telemetry());
-        robot = new Robot(hardware, alliance, telemetry);
-        launcher = robot.launcher;
-        drive = robot.drive;
-        camera = robot.camera;
-        nav = robot.nav;
-        turntable = robot.turntable;
-        brain = robot.brain;
+        robot = new Robot(hardware, alliance, telemetry, gamepad1, gamepad2);
     }
 
     /** Registers something to tick after everything registered so far; see {@link Robot#add}. */
@@ -101,14 +83,14 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {
-            drive.toggleTelemetry();
+            robot.drive.toggleTelemetry();
         }
         if (gamepad2.squareWasPressed()) {
-            turntable.toggleTelemetry();
-            launcher.toggleTelemetry();
+            robot.turntable.toggleTelemetry();
+            robot.launcher.toggleTelemetry();
         }
         if (gamepad2.circleWasPressed()) {
-            camera.toggleTelemetry();
+            robot.camera.toggleTelemetry();
         }
     }
 }

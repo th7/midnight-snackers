@@ -1,13 +1,11 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 
 /** An op mode that runs a plan for one alliance from start until the plan is done. */
 public abstract class AutoOp extends OpMode {
-    public Plans plans;
     private PlanRunner planRunner;
 
     protected AutoOp(Alliance alliance) {
@@ -17,10 +15,6 @@ public abstract class AutoOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        if (!alliance().usesCameraLocalization()) {
-            brain.disableCameraLocalization();
-        }
-        plans = add(new Plans());
         planRunner = add(new PlanRunner());
         planRunner.run(getPlan());
     }
