@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.base.AutoOp;
+import org.firstinspires.ftc.teamcode.base.OpMode;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 
 import java.nio.file.Path;
@@ -12,11 +13,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Runs an autonomous op mode against a {@link SimRobot} in real time, the way the robot
- * controller would: init, start, then loop until the op mode's plan is done. Every run, finished
- * or not, leaves a replay page named after the op mode in the output directory.
+ * Runs an op mode against a {@link SimRobot} in real time, the way the robot controller would:
+ * init, start, then loop. An auto loops until its plan is done, and failing that within its
+ * timeout is an error; a TeleOp loops on the {@link SimDriverStation}'s gamepads until the driver
+ * presses Stop or its time is up. Every run, finished or not, leaves a replay page named after
+ * the op mode in the output directory.
  * <p>
- * To watch a run as it happens, set {@code SIM_LIVE} to a port and open that port in a browser:
+ * To watch an auto run as it happens, set {@code SIM_LIVE} to a port and open that port in a browser:
  * <pre>
  * SIM_LIVE=8765 ./gradlew :TeamCode:testDebugUnitTest --rerun --tests '*ForwardLeftBackwardRightSimTest*'
  * </pre>
@@ -71,17 +74,26 @@ public final class SimRunner {
     }
 
     /**
-     * Run into a recording the caller already holds, so it can be watched while this is in progress.
-     * The recording always ends with an outcome and a replay page, even when this throws.
+     * Run an auto into a recording the caller already holds, so it can be watched while this is in
+     * progress. The recording always ends with an outcome and a replay page, even when this throws.
      */
     public static SimRecording record(SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
+        return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation());
+    }
+
+    /**
+     * Run any op mode into a recording the caller already holds, driven from {@code driverStation}.
+     * An auto ends done when its plan is, or fails by timing out after {@code seconds}; a TeleOp
+     * ends done when {@code seconds} are up. Either ends stopped when the driver station says so.
+     * The recording always ends with an outcome and a replay page, even when this throws.
+     */
+    public static SimRecording record(SimRecording recording, OpMode opMode, SimRobot sim, double seconds, Path outputDir,
+                                      SimDriverStation driverStation) {
         try {
-            loopUntilDone(opMode, sim, timeoutSeconds, recording);
+            loopUntilDone(opMode, sim, seconds, recording, driverStation);
             recording.finish("done");
         } catch (RuntimeException | Error e) {
-            if (!recording.finished()) {
-                recording.finish("failed: " + e);
-            }
+            recording.finish("failed: " + e);
             throw e;
         } finally {
             Path page = outputDir.resolve(recording.name() + ".html");
@@ -103,7 +115,9 @@ public final class SimRunner {
         }
     }
 
-    private static void loopUntilDone(AutoOp opMode, SimRobot sim, double timeoutSeconds, SimRecording recording) {
+    private static void loopUntilDone(OpMode opMode, SimRobot sim, double seconds, SimRecording recording,
+                                      SimDriverStation driverStation) {
+        AutoOp auto = opMode instanceof AutoOp ? (AutoOp) opMode : null;
         opMode.useHardware(sim.hardware());
         opMode.telemetry = new FakeTelemetry();
         opMode.gamepad1 = new Gamepad();
@@ -115,17 +129,28 @@ public final class SimRunner {
         double lastDrawingAt = Double.NEGATIVE_INFINITY;
         long startedAt = System.nanoTime();
         long lastTickAt = startedAt;
-        while (!opMode.done()) {
+        while (true) {
+            if (driverStation.stopRequested()) {
+                recording.finish("stopped");
+                return;
+            }
+            if (auto != null && auto.done()) {
+                return;
+            }
             long now = System.nanoTime();
             double elapsed = seconds(now - startedAt);
-            if (elapsed > timeoutSeconds) {
-                recording.finish(String.format("timed out after %.1fs", timeoutSeconds));
+            if (elapsed > seconds) {
+                if (auto == null) {
+                    return; // a TeleOp's time is simply up
+                }
+                recording.finish(String.format("timed out after %.1fs", seconds));
                 throw new AssertionError(String.format(
                         "op mode still running after %.1fs; current step: %s; true pose: %s",
-                        timeoutSeconds, opMode.currentStep(), sim.pose()));
+                        seconds, auto.currentStep(), sim.pose()));
             }
             sim.step(seconds(now - lastTickAt));
             lastTickAt = now;
+            driverStation.applyTo(opMode.gamepad1, opMode.gamepad2);
             opMode.loop();
 
             List<TelemetryPacket> allPackets = sim.dashboard.packets;
@@ -135,9 +160,11 @@ public final class SimRunner {
                 lastDrawingAt = elapsed;
             }
             packetsSeen = allPackets.size();
-            recording.add(new SimRecording.Tick(elapsed, sim.pose(), opMode.currentStep(),
+            recording.add(new SimRecording.Tick(elapsed, sim.pose(), auto != null ? auto.currentStep() : "",
                     new double[]{sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power},
-                    thisLoop));
+                    thisLoop,
+                    auto == null ? driverStation.state(1) : null,
+                    auto == null ? driverStation.state(2) : null));
             sleep();
         }
     }
@@ -145,7 +172,7 @@ public final class SimRunner {
     /**
      * The op mode's class name, or for an anonymous subclass the nearest named class.
      */
-    private static String nameOf(AutoOp opMode) {
+    static String nameOf(OpMode opMode) {
         Class<?> type = opMode.getClass();
         while (type.getSimpleName().isEmpty()) {
             type = type.getSuperclass();

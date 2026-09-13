@@ -184,26 +184,63 @@ it runs on the current classpath. Class: `SimBench`.
 `./gradlew :TeamCode:simDev` (http://localhost:8765/), with no login.
 Class: `SimDevServer`.
 
-**Catalog** — The autonomous op modes the simulator can run: every
-concrete `AutoOp` in the auto package with the `@Autonomous` annotation.
-The child reports it after each build, so a newly written auto appears
-without a restart. Class: `SimCatalog`.
+**Catalog** — The op modes the simulator can run: every concrete `OpMode`
+of ours, anywhere under the team code package, with the `@Autonomous` or
+`@TeleOp` annotation, exactly as the robot controller lists them. Each
+entry has a **kind**, *auto* or *teleop*, which decides how its run ends.
+Nested classes (the test op modes) are never listed. The child reports
+the catalog after each build, so a newly written op mode appears without
+a restart. Class: `SimCatalog`.
 
 **Child** — The fresh JVM each run executes in, launched with the newly
 built classes first on its classpath. Every class identity is consistent,
 static state starts clean, and a hung op mode is a process that can be
 killed. It prints each tick as one JSON line and finally the outcome; the
-op mode's own output goes to stderr. Class: `SimChild`.
+op mode's own output goes to stderr. Its standard input is the driver
+station, one line at a time; when the input ends, the run ends stopped.
+Class: `SimChild`.
 
 **Run** — One execution of one op mode on a fresh simulated robot, in real
 time. A run has a **phase** (*building*, *running*, *finished*), a
 **message** (compile errors, or why it was killed), and when finished an
-**outcome**: *done*, *timed out*, *build failed*, or *child exited with
-code N*.
+**outcome**: *done*, *stopped*, *timed out*, *build failed*, or *child
+exited with code N*. An **auto run** is done when its plan is, and times
+out when the plan is not done within the **run timeout** (60 s on the
+bench). A **TeleOp run** has no plan: it is driven from the controller
+until the driver presses Stop, or is done when its **period** is over
+(120 s on the bench, a match's driver-controlled period). Either kind is
+*stopped* when the driver presses Stop.
+
+**Driver station** — What the driver does during a run: the state of the
+two **gamepads** and the **Stop** button. The controller page sends it to
+the bench (`POST /runs/<id>/gamepad`, `POST /runs/<id>/stop`), the bench
+checks it and relays it to the child on standard input, and the runner
+copies each gamepad's state into the op mode's gamepad before every loop
+through the SDK's own packet copy, so `crossWasPressed()` and the other
+edge detectors behave as on the robot. A state holds until the next one
+replaces it, like a real gamepad. Class: `SimDriverStation`.
+
+**Gamepad state** — One gamepad's inputs as a value, carrying only what
+is not neutral, named as the SDK names its fields: the PlayStation names
+for the buttons (`cross`, `dpad_up`, `left_bumper`, `share`, ...), the
+sticks as `left_stick_x` and the like, and the two triggers. A stick
+pushed forward reads negative y, as on the robot. A name that is not a
+gamepad input is refused, by the bench (400) before it reaches the run,
+and by the child (the run's outcome) should it ever get there. Class:
+`SimDriverStation.State`.
+
+**Controller** — The PlayStation-style gamepad drawn under the live view
+of a TeleOp run. Every input is a button to click or a stick to drag, and
+every one is labelled with its keyboard key; a key held is a button held,
+a stick's four keys are its directions. The page shows and sends one
+gamepad at a time, **gamepad 1** or **gamepad 2**, picked with `1` and `2`;
+Stop is `Esc`. After the run the controller replays what the driver
+pressed, tick by tick, and the keys go back to play/pause and stepping.
 
 **Tick** — One entry in a run's recording, one per op mode loop: the true
-pose, the plan's current step, the drive powers, and the dashboard packets
-drawn that loop. Class: `SimRecording`.
+pose, the plan's current step (empty for a TeleOp), the drive powers, the
+dashboard packets drawn that loop, and for a TeleOp what each gamepad
+read. Class: `SimRecording`.
 
 **Replay** — A run's ticks written as a single self-contained HTML page
 with the field, the true pose, and play/pause/scrub controls, named after

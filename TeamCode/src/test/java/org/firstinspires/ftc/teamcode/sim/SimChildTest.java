@@ -8,8 +8,10 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
 import org.firstinspires.ftc.teamcode.auto.DriveForward;
+import org.firstinspires.ftc.teamcode.base.RedTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ChattyAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -17,6 +19,8 @@ import org.junit.rules.TemporaryFolder;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -75,6 +79,66 @@ public class SimChildTest {
         SimCatalog catalog = SimCatalog.fromJson(new Gson().fromJson(output.stdout.get(0), com.google.gson.JsonArray.class));
         assertTrue(catalog.find(DriveForward.class.getName()).isPresent());
         assertEquals("DriveForward", catalog.find(DriveForward.class.getName()).get().name);
+        assertEquals("auto", catalog.find(DriveForward.class.getName()).get().kind);
+        assertEquals("teleop", catalog.find(RedTeleOp.class.getName()).get().kind);
+    }
+
+    @Test
+    public void aTeleOpRunTakesTheDriverStationFromStdinAndStopEndsIt() throws Exception {
+        Process child = SimChild.launch(List.of(), "--run", StickTeleOp.class.getName(), "30", folder.getRoot().toString());
+        Thread drain = new Thread(() -> {
+            try {
+                child.getErrorStream().transferTo(java.io.OutputStream.nullOutputStream());
+            } catch (IOException ignored) {
+                // the child went away
+            }
+        });
+        drain.start();
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8));
+        Gson gson = new Gson();
+
+        in.write("{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}\n");
+        in.flush();
+        long deadline = System.nanoTime() + 20_000_000_000L;
+        boolean sawTheStick = false;
+        JsonObject tick;
+        do {
+            String line = out.readLine();
+            assertTrue("the child ended before it drove anywhere", line != null);
+            tick = gson.fromJson(line, JsonObject.class);
+            assertFalse(tick.toString(), tick.has("outcome"));
+            if (tick.has("gamepads") && tick.getAsJsonObject("gamepads").has("1")) {
+                sawTheStick |= tick.getAsJsonObject("gamepads").getAsJsonObject("1").get("left_stick_y").getAsDouble() == -1;
+            }
+            assertTrue("never drove forward", System.nanoTime() < deadline);
+        } while (tick.get("x").getAsDouble() < 6);
+        assertTrue("the ticks carry the driver's inputs", sawTheStick);
+
+        in.write("{\"stop\": true}\n");
+        in.flush();
+        String last = null;
+        for (String line = out.readLine(); line != null; line = out.readLine()) {
+            last = line;
+        }
+        assertTrue("child did not exit", child.waitFor(20, TimeUnit.SECONDS));
+        drain.join(5000);
+        assertEquals(0, child.exitValue());
+        assertEquals("stopped", gson.fromJson(last, JsonObject.class).get("outcome").getAsString());
+        assertTrue(Files.isRegularFile(folder.getRoot().toPath().resolve("StickTeleOp.html")));
+    }
+
+    @Test
+    public void aLineTheChildCannotReadEndsTheRunWithThatAsItsOutcome() throws Exception {
+        Process child = SimChild.launch(List.of(), "--run", StickTeleOp.class.getName(), "30", folder.getRoot().toString());
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        in.write("{\"gamepad\": 1, \"state\": {\"corss\": true}}\n");
+        in.flush();
+
+        Output output = run(child);
+
+        JsonObject last = new Gson().fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class);
+        assertTrue(last.toString(), last.get("outcome").getAsString().contains("corss"));
     }
 
     @Test

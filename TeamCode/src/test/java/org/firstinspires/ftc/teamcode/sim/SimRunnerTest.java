@@ -2,12 +2,15 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.GatedAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -31,7 +34,76 @@ public class SimRunnerTest {
         assertEquals(3, recording.ticks().size());
         assertEquals("count to three", recording.ticks().get(0).step);
         assertEquals("done", recording.outcome());
+        assertNull("an auto's ticks carry no driver inputs", recording.ticks().get(0).gamepad1);
+        assertEquals("auto", recording.kind());
         assertTrue(Files.exists(out.resolve("ThreeLoopAuto.html")));
+    }
+
+    @Test
+    public void aTeleOpRunsOnTheDriverStationsInputsUntilTheDriverPressesStop() throws Exception {
+        SimDriverStation station = new SimDriverStation();
+        StickTeleOp teleOp = new StickTeleOp();
+        SimRecording recording = new SimRecording("StickTeleOp", "teleop");
+        Path out = folder.getRoot().toPath();
+        Thread runner = new Thread(() -> SimRunner.record(recording, teleOp, sim, 30, out, station));
+        runner.start();
+
+        station.set(1, state("{\"left_stick_y\": -1, \"cross\": true}"));
+        await("drove forward", () -> sim.pose().position.x > 6);
+        await("recorded the press", () -> lastGamepad1(recording) != null && lastGamepad1(recording).pressed.contains("cross"));
+        station.set(1, State.NEUTRAL);
+        await("recorded the release", () -> lastGamepad1(recording) != null && lastGamepad1(recording).neutral());
+        station.set(1, state("{\"cross\": true}"));
+        await("recorded the second press", () -> lastGamepad1(recording).pressed.contains("cross"));
+
+        station.stop();
+        runner.join(10_000);
+
+        assertFalse(runner.isAlive());
+        assertEquals("stopped", recording.outcome());
+        assertEquals("holding a button is one press", 2, teleOp.presses);
+        assertEquals("a TeleOp has no plan step", "", recording.ticks().get(0).step);
+        assertTrue(recording.ticks().stream().anyMatch(t -> t.gamepad1 != null && t.gamepad1.leftStickY == -1));
+        assertTrue(Files.exists(out.resolve("StickTeleOp.html")));
+    }
+
+    @Test
+    public void aTeleOpEndsDoneWhenItsTimeIsUp() {
+        SimRecording recording = SimRunner.record(new SimRecording("StickTeleOp", "teleop"), new StickTeleOp(), sim, 0.2,
+                folder.getRoot().toPath(), new SimDriverStation());
+
+        assertEquals("done", recording.outcome());
+        assertTrue(recording.ticks().size() > 1);
+    }
+
+    @Test
+    public void stopEndsAnAutoBeforeItsPlanIsDone() {
+        SimDriverStation station = new SimDriverStation();
+        station.stop();
+
+        SimRecording recording = SimRunner.record(new SimRecording("NeverDoneAuto"), new NeverDoneAuto(), sim, 5,
+                folder.getRoot().toPath(), station);
+
+        assertEquals("stopped", recording.outcome());
+    }
+
+    private static SimDriverStation.State lastGamepad1(SimRecording recording) {
+        java.util.List<SimRecording.Tick> ticks = recording.ticks();
+        return ticks.isEmpty() ? null : ticks.get(ticks.size() - 1).gamepad1;
+    }
+
+    private static State state(String json) {
+        return State.fromJson(new com.google.gson.Gson().fromJson(json, com.google.gson.JsonObject.class));
+    }
+
+    private static void await(String what, java.util.function.BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("never " + what);
+            }
+            Thread.sleep(20);
+        }
     }
 
     @Test

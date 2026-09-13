@@ -10,7 +10,8 @@
     --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc;
     --field: #fbfaf6; --tile: #e4e1d7; --axis: #c3bfb3; --label: #8f8b80;
     --true: #d84a05; --true-soft: rgba(216, 74, 5, 0.22); --trail: rgba(216, 74, 5, 0.45);
-    --accent: #2f5bd7; --focus: #2f5bd7;
+    --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7;
+    --pad: #e9e7e0; --pad-line: #bdb9ae; --btn: #ffffff; --btn-line: #a9a59a; --knob: #cfcbc0; --stop: #c62828;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -18,7 +19,8 @@
       --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
       --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
       --true: #ff7a3d; --true-soft: rgba(255, 122, 61, 0.24); --trail: rgba(255, 122, 61, 0.5);
-      --accent: #7ea2ff; --focus: #7ea2ff;
+      --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+      --pad: #2a2d33; --pad-line: #4a4d55; --btn: #383b42; --btn-line: #5a5e68; --knob: #4f535c; --stop: #ff8a80;
     }
   }
   :root[data-theme="dark"] {
@@ -26,9 +28,11 @@
     --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
     --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
     --true: #ff7a3d; --true-soft: rgba(255, 122, 61, 0.24); --trail: rgba(255, 122, 61, 0.5);
-    --accent: #7ea2ff; --focus: #7ea2ff;
+    --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+    --pad: #2a2d33; --pad-line: #4a4d55; --btn: #383b42; --btn-line: #5a5e68; --knob: #4f535c; --stop: #ff8a80;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
   main { display: grid; grid-template-columns: minmax(320px, 720px) minmax(240px, 1fr); gap: 20px; padding: 20px; max-width: 1180px; margin: 0 auto; }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
@@ -39,8 +43,10 @@
   .controls { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
   button, select { font: inherit; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
   button:hover, select:hover { border-color: var(--ink); }
+  button:disabled { opacity: 0.45; cursor: default; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   #play { min-width: 5.5em; }
+  #stop { color: var(--stop); border-color: var(--stop); font-weight: 600; }
   input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
   .time { min-width: 8ch; text-align: right; }
   .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
@@ -60,6 +66,36 @@
   .legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin-top: 8px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; }
   kbd { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink); }
+
+  /* the controller: a PlayStation-style gamepad, every input clickable and labelled with its key */
+  .controller-panel { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+  .controller-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .controller-head .section-label { margin: 0 auto 0 0; }
+  .pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .pick kbd, #stop kbd { margin-left: 6px; border-color: currentColor; color: inherit; opacity: 0.8; }
+  #controller { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; user-select: none; -webkit-user-select: none; touch-action: none; }
+  #controller .body { fill: var(--pad); stroke: var(--pad-line); stroke-width: 1.5; }
+  #controller .btn { cursor: pointer; }
+  #controller .btn .cap { fill: var(--btn); stroke: var(--btn-line); stroke-width: 1.2; transition: fill 60ms; }
+  #controller .btn .glyph { stroke: var(--ink); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #controller .btn .name { fill: var(--muted); font: 600 11px system-ui, sans-serif; text-anchor: middle; }
+  #controller .btn.on .cap { fill: var(--accent); stroke: var(--accent); }
+  #controller .btn.on .glyph { stroke: var(--accent-ink); }
+  #controller .btn.on .name { fill: var(--accent-ink); }
+  #controller .btn:hover .cap { stroke: var(--ink); }
+  #controller .stick { cursor: grab; }
+  #controller .stick .well { fill: var(--pad); stroke: var(--pad-line); stroke-width: 1.5; }
+  #controller .stick .knob { fill: var(--knob); stroke: var(--btn-line); stroke-width: 1.2; transition: fill 60ms; }
+  #controller .stick.on .knob { fill: var(--accent); }
+  #controller .stick:hover .knob { stroke: var(--ink); }
+  #controller .klabel { font: 10px ui-monospace, "SF Mono", Menlo, Consolas, monospace; fill: var(--ink); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  #controller .kbox { fill: var(--panel); stroke: var(--line); pointer-events: none; }
+  #controller .btn.on .klabel { fill: var(--accent-ink); }
+  #controller .btn.on .kbox { fill: var(--accent); stroke: var(--accent-ink); }
+  #controller .tiny { fill: var(--muted); font: 9px system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+  #controller.readonly .btn, #controller.readonly .stick { cursor: default; }
+  #controller.readonly .btn:hover .cap, #controller.readonly .stick:hover .knob { stroke: var(--btn-line); }
+  .controller-msg { color: var(--stop); font-size: 13px; margin: 6px 0 0; min-height: 1.2em; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -77,15 +113,16 @@
     <div class="controls">
       <button id="play">Play</button>
       <button id="follow" hidden aria-pressed="true">Following live</button>
+      <button id="stop" hidden data-key="Escape">Stop<kbd>Esc</kbd></button>
       <select id="speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select>
       <input type="range" id="scrub" min="0" value="0" step="1">
       <span class="time mono" id="time"></span>
     </div>
-    <p class="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.</p>
+    <p class="hint" id="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.</p>
   </section>
   <aside>
     <dl>
-      <dt>step</dt><dd class="mono" id="step"></dd>
+      <dt id="step-label">step</dt><dd class="mono" id="step"></dd>
       <dt>true pose</dt><dd class="mono" id="pose"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
@@ -98,12 +135,64 @@
       <table id="data" class="mono"></table>
     </div>
   </aside>
+  <section class="controller-panel" id="controller-panel" hidden>
+    <div class="controller-head">
+      <p class="section-label" id="controller-label">Controller</p>
+      <button class="pick" data-gamepad="1" data-key="Digit1" aria-pressed="true">Gamepad 1<kbd>1</kbd></button>
+      <button class="pick" data-gamepad="2" data-key="Digit2" aria-pressed="false">Gamepad 2<kbd>2</kbd></button>
+    </div>
+    <svg id="controller" viewBox="0 0 640 322" role="group" aria-label="PlayStation-style controller">
+      <!-- shoulders: triggers above bumpers -->
+      <g class="btn" data-button="left_trigger" data-key="KeyE"><rect class="cap" x="118" y="8" width="74" height="22" rx="8"/><text class="name" x="145" y="23">L2</text><rect class="kbox" x="164" y="12" width="20" height="14" rx="3"/><text class="klabel" x="174" y="19"></text></g>
+      <g class="btn" data-button="left_bumper" data-key="KeyQ"><rect class="cap" x="118" y="36" width="74" height="22" rx="8"/><text class="name" x="145" y="51">L1</text><rect class="kbox" x="164" y="40" width="20" height="14" rx="3"/><text class="klabel" x="174" y="47"></text></g>
+      <g class="btn" data-button="right_trigger" data-key="KeyO"><rect class="cap" x="448" y="8" width="74" height="22" rx="8"/><text class="name" x="495" y="23">R2</text><rect class="kbox" x="456" y="12" width="20" height="14" rx="3"/><text class="klabel" x="466" y="19"></text></g>
+      <g class="btn" data-button="right_bumper" data-key="KeyU"><rect class="cap" x="448" y="36" width="74" height="22" rx="8"/><text class="name" x="495" y="51">R1</text><rect class="kbox" x="456" y="40" width="20" height="14" rx="3"/><text class="klabel" x="466" y="47"></text></g>
+      <!-- body -->
+      <path class="body" d="M 135 62 H 505 C 560 62 588 95 592 140 L 610 245 C 614 285 590 318 556 318 C 522 318 506 292 492 268 L 470 262 H 170 L 148 268 C 134 292 118 318 84 318 C 50 318 26 285 30 245 L 48 140 C 52 95 80 62 135 62 Z"/>
+      <!-- d-pad, around (165, 150) -->
+      <rect class="body" x="150" y="135" width="30" height="30"/>
+      <g class="btn" data-button="dpad_up" data-key="KeyT"><rect class="cap" x="150" y="104" width="30" height="33" rx="5"/><path class="glyph" d="M 159 122 L 165 114 L 171 122"/><rect class="kbox" x="155" y="86" width="20" height="14" rx="3"/><text class="klabel" x="165" y="93"></text></g>
+      <g class="btn" data-button="dpad_down" data-key="KeyG"><rect class="cap" x="150" y="163" width="30" height="33" rx="5"/><path class="glyph" d="M 159 178 L 165 186 L 171 178"/><rect class="kbox" x="155" y="200" width="20" height="14" rx="3"/><text class="klabel" x="165" y="207"></text></g>
+      <g class="btn" data-button="dpad_left" data-key="KeyF"><rect class="cap" x="119" y="135" width="33" height="30" rx="5"/><path class="glyph" d="M 137 144 L 129 150 L 137 156"/><rect class="kbox" x="94" y="143" width="20" height="14" rx="3"/><text class="klabel" x="104" y="150"></text></g>
+      <g class="btn" data-button="dpad_right" data-key="KeyH"><rect class="cap" x="178" y="135" width="33" height="30" rx="5"/><path class="glyph" d="M 193 144 L 201 150 L 193 156"/><rect class="kbox" x="216" y="143" width="20" height="14" rx="3"/><text class="klabel" x="226" y="150"></text></g>
+      <!-- centre: share, touchpad, options, ps -->
+      <g class="btn" data-button="share" data-key="KeyC"><rect class="cap" x="228" y="92" width="14" height="30" rx="5"/><text class="tiny" x="235" y="86">share</text><rect class="kbox" x="225" y="128" width="20" height="14" rx="3"/><text class="klabel" x="235" y="135"></text></g>
+      <g class="btn" data-button="touchpad" data-key="KeyV"><rect class="cap" x="250" y="82" width="140" height="70" rx="10"/><text class="name" x="320" y="112">touchpad</text><rect class="kbox" x="310" y="126" width="20" height="14" rx="3"/><text class="klabel" x="320" y="133"></text></g>
+      <g class="btn" data-button="options" data-key="KeyB"><rect class="cap" x="398" y="92" width="14" height="30" rx="5"/><text class="tiny" x="405" y="86">options</text><rect class="kbox" x="395" y="128" width="20" height="14" rx="3"/><text class="klabel" x="405" y="135"></text></g>
+      <g class="btn" data-button="ps" data-key="KeyP"><circle class="cap" cx="320" cy="180" r="12"/><text class="name" x="320" y="184">PS</text><rect class="kbox" x="310" y="197" width="20" height="14" rx="3"/><text class="klabel" x="320" y="204"></text></g>
+      <!-- face buttons, around (475, 150) -->
+      <g class="btn" data-button="triangle" data-key="KeyI"><circle class="cap" cx="475" cy="108" r="17"/><path class="glyph" d="M 475 99 L 484 115 H 466 Z"/><rect class="kbox" x="465" y="78" width="20" height="14" rx="3"/><text class="klabel" x="475" y="85"></text></g>
+      <g class="btn" data-button="circle" data-key="KeyL"><circle class="cap" cx="517" cy="150" r="17"/><circle class="glyph" cx="517" cy="150" r="7.5"/><rect class="kbox" x="540" y="143" width="20" height="14" rx="3"/><text class="klabel" x="550" y="150"></text></g>
+      <g class="btn" data-button="cross" data-key="KeyK"><circle class="cap" cx="475" cy="192" r="17"/><path class="glyph" d="M 468 185 L 482 199 M 482 185 L 468 199"/><rect class="kbox" x="465" y="214" width="20" height="14" rx="3"/><text class="klabel" x="475" y="221"></text></g>
+      <g class="btn" data-button="square" data-key="KeyJ"><circle class="cap" cx="433" cy="150" r="17"/><rect class="glyph" x="426" y="143" width="14" height="14"/><rect class="kbox" x="398" y="143" width="20" height="14" rx="3"/><text class="klabel" x="408" y="150"></text></g>
+      <!-- sticks: forward is up, which the SDK reads as negative y -->
+      <g class="stick" data-stick="left" data-keys="KeyW KeyS KeyA KeyD"><circle class="well" cx="250" cy="218" r="32"/><circle class="knob" cx="250" cy="218" r="20"/></g>
+      <g class="stick" data-stick="right" data-keys="ArrowUp ArrowDown ArrowLeft ArrowRight"><circle class="well" cx="390" cy="218" r="32"/><circle class="knob" cx="390" cy="218" r="20"/></g>
+      <!-- stick keys, under each stick: up on top, then left down right -->
+      <g class="keys" data-for="left">
+        <rect class="kbox" x="213" y="268" width="22" height="16" rx="3"/><text class="klabel" x="224" y="276" data-dir="0"></text>
+        <rect class="kbox" x="187" y="288" width="22" height="16" rx="3"/><text class="klabel" x="198" y="296" data-dir="2"></text>
+        <rect class="kbox" x="213" y="288" width="22" height="16" rx="3"/><text class="klabel" x="224" y="296" data-dir="1"></text>
+        <rect class="kbox" x="239" y="288" width="22" height="16" rx="3"/><text class="klabel" x="250" y="296" data-dir="3"></text>
+      </g>
+      <g class="btn" data-button="left_stick_button" data-key="KeyX"><rect class="cap" x="270" y="270" width="36" height="34" rx="6"/><text class="name" x="288" y="283">L3</text><rect class="kbox" x="278" y="287" width="20" height="14" rx="3"/><text class="klabel" x="288" y="294"></text></g>
+      <g class="keys" data-for="right">
+        <rect class="kbox" x="379" y="268" width="22" height="16" rx="3"/><text class="klabel" x="390" y="276" data-dir="0"></text>
+        <rect class="kbox" x="353" y="288" width="22" height="16" rx="3"/><text class="klabel" x="364" y="296" data-dir="2"></text>
+        <rect class="kbox" x="379" y="288" width="22" height="16" rx="3"/><text class="klabel" x="390" y="296" data-dir="1"></text>
+        <rect class="kbox" x="405" y="288" width="22" height="16" rx="3"/><text class="klabel" x="416" y="296" data-dir="3"></text>
+      </g>
+      <g class="btn" data-button="right_stick_button" data-key="KeyM"><rect class="cap" x="334" y="270" width="36" height="34" rx="6"/><text class="name" x="352" y="283">R3</text><rect class="kbox" x="342" y="287" width="20" height="14" rx="3"/><text class="klabel" x="352" y="294"></text></g>
+    </svg>
+    <p class="controller-msg" id="controller-msg" role="status"></p>
+  </section>
 </main>
 <script id="recording" type="application/json">__DATA__</script>
 <script>
 (function () {
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
+  const teleop = rec.kind === 'teleop';
   const FIELD_IN = 144, TILE_IN = 24, ROBOT_RADIUS_IN = 9;
   const canvas = document.getElementById('field');
   const ctx = canvas.getContext('2d');
@@ -119,21 +208,31 @@
 
   const play = document.getElementById('play'), speed = document.getElementById('speed'),
         scrub = document.getElementById('scrub'), time = document.getElementById('time'),
-        follow = document.getElementById('follow');
+        follow = document.getElementById('follow'), stop = document.getElementById('stop'),
+        hint = document.getElementById('hint');
   scrub.max = Math.max(0, ticks.length - 1);
 
   let index = 0, playing = false, clock = 0, lastFrame = null;
   let following = !!rec.live;
 
+  // While the run is live and not over, the controller drives it and owns the keyboard.
+  const driving = () => rec.live && !rec.outcome && !rec.disconnected;
+
   function updateOutcome() {
     const loops = ticks.length ? ticks.length + ' loops, ' + ticks[ticks.length - 1].t.toFixed(2) + ' s' : 'no loops yet';
     let state;
     if (rec.outcome) state = 'outcome: ' + rec.outcome;
-    else if (rec.live) state = rec.disconnected ? 'live view lost the test process' : 'running';
+    else if (rec.live) state = rec.disconnected ? 'live view lost the bench' : 'running';
     else state = 'outcome: unknown';
     document.getElementById('outcome').textContent = loops + ', ' + state;
+    stop.hidden = !driving();
+    controller.classList.toggle('readonly', !driving());
+    if (teleop) {
+      hint.innerHTML = driving()
+        ? 'Click a button or press the key shown on it; drag a stick or hold its keys. <kbd>1</kbd> <kbd>2</kbd> pick the gamepad, <kbd>Esc</kbd> stops the run. Click the page first if the keys do nothing.'
+        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.';
+    }
   }
-  updateOutcome();
 
   function drawField() {
     ctx.fillStyle = token('--field');
@@ -225,6 +324,7 @@
 
   function render() {
     drawField();
+    if (!driving()) renderController(recordedState(index));
     if (!ticks.length) return;
     const tick = ticks[index];
     drawTrail(index);
@@ -288,11 +388,216 @@
   play.addEventListener('click', () => setPlaying(!playing));
   scrub.addEventListener('input', () => { setPlaying(false); if (following) setFollowing(false); setIndex(parseInt(scrub.value, 10)); });
   follow.addEventListener('click', () => setFollowing(!following));
+
+  // --- the controller ---
+  const panel = document.getElementById('controller-panel');
+  const controller = document.getElementById('controller');
+  const controllerMsg = document.getElementById('controller-msg');
+  const STICK_TRAVEL = 14; // how far the knob moves, in viewBox units, at full deflection
+  panel.hidden = !teleop;
+  if (teleop) document.getElementById('step-label').textContent = 'plan';
+
+  const keyText = code => ({ ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc' }[code]
+    || code.replace(/^Key|^Digit/, ''));
+  for (const el of controller.querySelectorAll('.btn[data-key]')) {
+    el.querySelector('.klabel').textContent = keyText(el.dataset.key);
+  }
+  for (const stickEl of controller.querySelectorAll('.stick')) {
+    const keys = stickEl.dataset.keys.split(' ');
+    for (const label of controller.querySelectorAll('.keys[data-for="' + stickEl.dataset.stick + '"] .klabel')) {
+      label.textContent = keyText(keys[parseInt(label.dataset.dir, 10)]);
+    }
+  }
+
+  // What we send: per gamepad, only the inputs that are not neutral, named as the SDK names them.
+  const sent = { 1: {}, 2: {} };
+  // Which keys and pointers hold what, so a release lands on the gamepad it was pressed on.
+  const heldByKey = new Map();
+  const stickKeys = { 1: { left: new Set(), right: new Set() }, 2: { left: new Set(), right: new Set() } };
+  let selected = 1;
+
+  function recordedState(i) {
+    if (!ticks.length) return {};
+    const pads = ticks[i].gamepads || {};
+    return pads[String(selected)] || {};
+  }
+
+  function renderController(state) {
+    for (const el of controller.querySelectorAll('.btn[data-button]')) {
+      el.classList.toggle('on', !!state[el.dataset.button]);
+    }
+    for (const el of controller.querySelectorAll('.stick')) {
+      const x = state[el.dataset.stick + '_stick_x'] || 0, y = state[el.dataset.stick + '_stick_y'] || 0;
+      el.querySelector('.knob').setAttribute('transform', 'translate(' + (x * STICK_TRAVEL).toFixed(1) + ' ' + (y * STICK_TRAVEL).toFixed(1) + ')');
+      el.classList.toggle('on', !!state[el.dataset.stick + '_stick_button']);
+    }
+    for (const pick of panel.querySelectorAll('.pick')) {
+      pick.setAttribute('aria-pressed', String(pick.dataset.gamepad === String(selected)));
+    }
+  }
+
+  function select(gamepad) {
+    selected = gamepad;
+    renderController(driving() ? sent[selected] : recordedState(index));
+  }
+
+  let inFlight = false;
+  const dirty = new Set();
+  function send(gamepad) {
+    if (!driving()) return;
+    dirty.add(gamepad);
+    if (inFlight) return;
+    const next = dirty.values().next().value;
+    dirty.delete(next);
+    inFlight = true;
+    fetch('gamepad', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ gamepad: next, state: sent[next] }) })
+      .then(async r => {
+        controllerMsg.textContent = r.ok ? '' : 'The bench refused the input: ' + (await r.text());
+      })
+      .catch(() => { controllerMsg.textContent = 'Could not reach the bench; the robot keeps its last inputs.'; })
+      .then(() => { inFlight = false; if (dirty.size) send(dirty.values().next().value); });
+  }
+
+  // Several inputs at once go as one post, so a stick never reports half a move.
+  function setInputs(gamepad, changes) {
+    const state = sent[gamepad];
+    for (const name of Object.keys(changes)) {
+      const value = changes[name];
+      if (value === false || value === 0) delete state[name]; else state[name] = value;
+    }
+    if (gamepad === selected) renderController(state);
+    send(gamepad);
+  }
+
+  function setInput(gamepad, name, value) {
+    const changes = {};
+    changes[name] = value;
+    setInputs(gamepad, changes);
+  }
+
+  function stickChanges(stick, x, y) {
+    const changes = {};
+    changes[stick + '_stick_x'] = Math.round(x * 1000) / 1000;
+    changes[stick + '_stick_y'] = Math.round(y * 1000) / 1000;
+    return changes;
+  }
+
+  function setStickFromKeys(gamepad, stick) {
+    const held = stickKeys[gamepad][stick];
+    let x = (held.has(3) ? 1 : 0) - (held.has(2) ? 1 : 0);
+    let y = (held.has(1) ? 1 : 0) - (held.has(0) ? 1 : 0); // up is forward, which the SDK reads as negative y
+    if (x && y) { x *= Math.SQRT1_2; y *= Math.SQRT1_2; }
+    setInputs(gamepad, stickChanges(stick, x, y));
+  }
+
+  function releaseEverything() {
+    heldByKey.clear();
+    for (const gamepad of [1, 2]) {
+      for (const stick of ['left', 'right']) stickKeys[gamepad][stick].clear();
+      if (Object.keys(sent[gamepad]).length) { sent[gamepad] = {}; send(gamepad); }
+    }
+    renderController(sent[selected]);
+  }
+
+  function requestStop() {
+    if (!driving()) return;
+    stop.disabled = true;
+    fetch('stop', { method: 'POST' })
+      .then(async r => { if (!r.ok) { controllerMsg.textContent = 'Could not stop: ' + (await r.text()); stop.disabled = false; } })
+      .catch(() => { controllerMsg.textContent = 'Could not reach the bench to stop the run.'; stop.disabled = false; });
+  }
+  stop.addEventListener('click', requestStop);
+
+  // Buttons and triggers: pressed while the pointer is down on them.
+  for (const el of controller.querySelectorAll('.btn[data-button]')) {
+    const name = el.dataset.button;
+    const value = /_trigger$/.test(name) ? 1 : true;
+    el.addEventListener('pointerdown', e => {
+      if (!driving()) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const gamepad = selected;
+      setInput(gamepad, name, value);
+      const release = () => { setInput(gamepad, name, value === 1 ? 0 : false); el.removeEventListener('pointerup', release); el.removeEventListener('pointercancel', release); };
+      el.addEventListener('pointerup', release);
+      el.addEventListener('pointercancel', release);
+    });
+  }
+  // Sticks: drag the knob; it springs back when let go.
+  for (const el of controller.querySelectorAll('.stick')) {
+    const stick = el.dataset.stick;
+    const well = el.querySelector('.well');
+    const center = { x: parseFloat(well.getAttribute('cx')), y: parseFloat(well.getAttribute('cy')) };
+    const toSvg = e => {
+      const p = controller.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+      return p.matrixTransform(controller.getScreenCTM().inverse());
+    };
+    el.addEventListener('pointerdown', e => {
+      if (!driving()) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      const gamepad = selected;
+      const move = ev => {
+        const p = toSvg(ev);
+        let x = (p.x - center.x) / STICK_TRAVEL, y = (p.y - center.y) / STICK_TRAVEL;
+        const r = Math.hypot(x, y);
+        if (r > 1) { x /= r; y /= r; }
+        setInputs(gamepad, stickChanges(stick, x, y));
+      };
+      const release = () => {
+        stickKeys[gamepad][stick].clear();
+        setInputs(gamepad, stickChanges(stick, 0, 0));
+        el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', release); el.removeEventListener('pointercancel', release);
+      };
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', release);
+      el.addEventListener('pointercancel', release);
+      move(e);
+    });
+  }
+  for (const pick of panel.querySelectorAll('.pick')) {
+    pick.addEventListener('click', () => select(parseInt(pick.dataset.gamepad, 10)));
+  }
+
+  // Keyboard: the labels on the controller are the map.
+  const keyMap = new Map();
+  for (const el of controller.querySelectorAll('.btn[data-button][data-key]')) keyMap.set(el.dataset.key, { button: el.dataset.button });
+  for (const el of controller.querySelectorAll('.stick[data-keys]')) {
+    el.dataset.keys.split(' ').forEach((code, dir) => keyMap.set(code, { stick: el.dataset.stick, dir }));
+  }
+  for (const pick of panel.querySelectorAll('.pick[data-key]')) keyMap.set(pick.dataset.key, { select: parseInt(pick.dataset.gamepad, 10) });
+  keyMap.set(stop.dataset.key, { stop: true });
+
   document.addEventListener('keydown', e => {
-    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
-    if (e.code === 'ArrowRight') { setPlaying(false); setIndex(index + 1); }
-    if (e.code === 'ArrowLeft') { setPlaying(false); setIndex(index - 1); }
+    if (!driving() || !teleop) {
+      if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+      if (e.code === 'ArrowRight') { setPlaying(false); setIndex(index + 1); }
+      if (e.code === 'ArrowLeft') { setPlaying(false); setIndex(index - 1); }
+      return;
+    }
+    const action = keyMap.get(e.code);
+    if (!action) return;
+    e.preventDefault();
+    if (e.repeat || heldByKey.has(e.code)) return;
+    if (action.select) { select(action.select); return; }
+    if (action.stop) { requestStop(); return; }
+    const gamepad = selected;
+    heldByKey.set(e.code, { gamepad, action });
+    if (action.button) setInput(gamepad, action.button, /_trigger$/.test(action.button) ? 1 : true);
+    else { stickKeys[gamepad][action.stick].add(action.dir); setStickFromKeys(gamepad, action.stick); }
   });
+  document.addEventListener('keyup', e => {
+    const held = heldByKey.get(e.code);
+    if (!held) return;
+    heldByKey.delete(e.code);
+    const { gamepad, action } = held;
+    if (action.button) setInput(gamepad, action.button, /_trigger$/.test(action.button) ? 0 : false);
+    else { stickKeys[gamepad][action.stick].delete(action.dir); setStickFromKeys(gamepad, action.stick); }
+  });
+  window.addEventListener('blur', releaseEverything);
+  // In the bench the page sits in a frame; a click anywhere gives it the keyboard.
+  document.addEventListener('pointerdown', () => window.focus());
 
   if (rec.live) {
     follow.hidden = false;
@@ -305,19 +610,21 @@
           scrub.max = ticks.length - 1;
           if (following) setIndex(ticks.length - 1); else render();
         }
-        if (update.outcome) { rec.outcome = update.outcome; updateOutcome(); return; }
+        if (update.outcome) { rec.outcome = update.outcome; updateOutcome(); render(); return; }
         updateOutcome();
       } catch (e) {
-        rec.disconnected = true; updateOutcome(); return;
+        rec.disconnected = true; updateOutcome(); render(); return;
       }
-      setTimeout(poll, 100);
+      setTimeout(poll, teleop ? 50 : 100);
     };
     poll();
   }
 
   if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
   new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  updateOutcome();
   setIndex(0);
+  renderController(driving() ? sent[selected] : recordedState(index));
 })();
 </script>
 </body>

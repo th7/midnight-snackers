@@ -75,12 +75,12 @@
 <body>
 <header>
   <h1>Sim Bench</h1>
-  <p class="sub">Run an autonomous op mode on the simulated robot and watch it drive. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
+  <p class="sub">Run an op mode on the simulated robot and watch it drive; drive a TeleOp yourself from the on-screen controller. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
 </header>
 <main>
   <aside>
     <div>
-      <p class="section-label">Autonomous op modes</p>
+      <p class="section-label">Op modes</p>
       <div class="opmodes" id="opmodes"></div>
       <pre id="problem" hidden></pre>
       <p class="msg" id="msg" role="status"></p>
@@ -123,19 +123,26 @@
   let shownRunId = null;
   let running = false;
 
+  // "Autonomous" or "TeleOp", then the op mode's own group when it says something more.
+  function groupLabel(entry) {
+    const kind = entry.kind === 'teleop' ? 'TeleOp' : 'Autonomous';
+    const group = entry.group || '';
+    return group && group.toLowerCase() !== kind.toLowerCase() ? kind + ' · ' + group : kind;
+  }
+
   function renderCatalog() {
     let lastGroup = null;
     list.innerHTML = '';
     if (!catalog.length) {
-      list.innerHTML = '<div class="opmode"><span class="cls">No autonomous op modes found.</span></div>';
+      list.innerHTML = '<div class="opmode"><span class="cls">No op modes found.</span></div>';
     }
     for (const entry of catalog) {
-      if (entry.group !== lastGroup) {
+      if (groupLabel(entry) !== lastGroup) {
         const label = document.createElement('div');
         label.className = 'group-label';
-        label.textContent = entry.group || 'ungrouped';
+        label.textContent = groupLabel(entry);
         list.appendChild(label);
-        lastGroup = entry.group;
+        lastGroup = groupLabel(entry);
       }
       const row = document.createElement('div');
       row.className = 'opmode';
@@ -180,9 +187,12 @@
   function pill(run) {
     if (run.phase === 'building') return '<span class="pill building">building</span>';
     if (!run.outcome) return '<span class="pill live">running</span>';
-    const ok = run.outcome === 'done';
+    const ok = run.outcome === 'done' || run.outcome === 'stopped';
     return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + escapeHtml(run.outcome) + '</span>';
   }
+
+  // A TeleOp is driven from the keyboard, so the live view gets it as soon as it loads.
+  stage.addEventListener('load', () => { try { stage.contentWindow.focus(); } catch (e) { /* cross-origin: the driver clicks first */ } });
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
