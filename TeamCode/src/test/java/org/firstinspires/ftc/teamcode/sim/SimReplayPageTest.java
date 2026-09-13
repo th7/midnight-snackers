@@ -62,6 +62,15 @@ public class SimReplayPageTest {
     }
 
     @Test
+    public void thePageDrawsTheFieldAndTheRobotAtTheSimulatorsSizes() {
+        String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
+
+        assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
+        assertTrue(html, html.contains("ROBOT_IN = " + SimRobot.ROBOT_SIZE_IN));
+        assertFalse("no placeholder is left behind", html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__"));
+    }
+
+    @Test
     public void aTeleOpPageCarriesTheDriversInputsTickByTick() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");
         State driving = State.fromJson(new Gson().fromJson("{\"cross\": true, \"left_stick_y\": -1}", JsonObject.class));
