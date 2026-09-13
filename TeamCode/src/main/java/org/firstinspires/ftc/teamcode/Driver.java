@@ -5,6 +5,8 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.teamcode.Drive.Held;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 
+import java.util.Optional;
+
 /** Drives the robot from the gamepads. A TeleOp adds one; an auto has no driver. */
 public class Driver extends SuperSystem {
     /** How far a stick must move before it counts as held. */
@@ -19,6 +21,16 @@ public class Driver extends SuperSystem {
     public void init() {
         gamepad1 = robot.gamepad1;
         gamepad2 = robot.gamepad2;
+    }
+
+    /** Steers toward the launch pose on the axes the driver is not holding; with no goal, just drives. */
+    private void aim(Held held) {
+        Optional<Nav.Pose> launchPose = nav.launchPose();
+        if (launchPose.isPresent()) {
+            drive.toward(launchPose.get(), held);
+        } else {
+            drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+        }
     }
 
     @Override
@@ -55,7 +67,7 @@ public class Driver extends SuperSystem {
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
                 held = held.turn(-gamepad1.right_stick_x);
             }
-            drive.toward(nav.launchPose(), held);
+            aim(held);
         } else if (gamepad1.right_bumper) {
             // the driver moves the robot; the drive keeps it facing the goal unless the driver turns
             brain.cancelPlan();
@@ -63,7 +75,7 @@ public class Driver extends SuperSystem {
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
                 held = held.turn(-gamepad1.right_stick_x);
             }
-            drive.toward(nav.launchPose(), held);
+            aim(held);
         } else {
             brain.cancelPlan();
             drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);

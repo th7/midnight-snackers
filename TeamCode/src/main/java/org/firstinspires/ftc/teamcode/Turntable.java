@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 public class Turntable extends SubSystem {
-    private final int ticksPerRevolution = 1700;
+    public static final int TICKS_PER_REVOLUTION = 1700;
     private final DcMotorEx turnTable;
     private boolean telemetryOn = false;
     private int turnTableTargetPosition;
@@ -62,20 +62,20 @@ public class Turntable extends SubSystem {
     }
 
     public double getTurnTableOffsetRadians() {
-        double revolutions = (double) turnTable.getCurrentPosition() / ticksPerRevolution;
+        double revolutions = (double) turnTable.getCurrentPosition() / TICKS_PER_REVOLUTION;
         return revolutions * (Math.PI * 2);
     }
 
     public void setTurnTablePosition(double relativeHeadingRadians) {
         double radiansPerRevolution = Math.PI * 2;
-        double ticksPerRadian = ticksPerRevolution / radiansPerRevolution;
+        double ticksPerRadian = TICKS_PER_REVOLUTION / radiansPerRevolution;
         int rawTurnTableTargetPosition = (int) (relativeHeadingRadians * ticksPerRadian);
-        int middleTurnTablePosition = rawTurnTableTargetPosition % ticksPerRevolution;
+        int middleTurnTablePosition = rawTurnTableTargetPosition % TICKS_PER_REVOLUTION;
 
-        if (middleTurnTablePosition > ticksPerRevolution / 2) {
-            turnTableTargetPosition = middleTurnTablePosition - ticksPerRevolution;
-        } else if (middleTurnTablePosition < -ticksPerRevolution / 2) {
-            turnTableTargetPosition = middleTurnTablePosition + ticksPerRevolution;
+        if (middleTurnTablePosition > TICKS_PER_REVOLUTION / 2) {
+            turnTableTargetPosition = middleTurnTablePosition - TICKS_PER_REVOLUTION;
+        } else if (middleTurnTablePosition < -TICKS_PER_REVOLUTION / 2) {
+            turnTableTargetPosition = middleTurnTablePosition + TICKS_PER_REVOLUTION;
         } else {
             turnTableTargetPosition = middleTurnTablePosition;
         }

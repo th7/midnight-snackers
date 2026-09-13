@@ -127,8 +127,8 @@ public class RobotTest {
     public void theNavPlaysForTheRobotsAlliance() {
         Robot red = new Robot(sim.hardware(), Alliance.RED, telemetry);
 
-        assertEquals(-1, red.nav.pose(0, 1, 1).pose2d.position.y, 0);
-        assertEquals(1, robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
+        assertEquals(-1, red.nav.pose(0, 1, 1).y(), 0);
+        assertEquals(1, robot.nav.pose(0, 1, 1).y(), 0);
     }
 
     @Test

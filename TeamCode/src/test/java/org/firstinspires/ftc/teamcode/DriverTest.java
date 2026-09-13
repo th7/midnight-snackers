@@ -34,7 +34,7 @@ public class DriverTest {
 
     /** Puts the robot where its launch pose is, so aiming has nothing left to do. */
     private void parkAtTheLaunchPose() {
-        robot.nav.setPose(robot.nav.launchPose());
+        robot.nav.setPose(robot.nav.launchPose().get());
         robot.loop();
     }
 
@@ -94,6 +94,18 @@ public class DriverTest {
         gamepad1.right_stick_x = 1;
         robot.loop();
         assertPowers(1, -1, 1, -1);
+    }
+
+    @Test
+    public void playingForNoAllianceThereIsNoGoalToAimAtSoTheBumpersJustDrive() {
+        Robot relative = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
+        relative.add(new Driver());
+        gamepad1.left_bumper = true;
+        gamepad1.left_stick_y = -1;
+
+        relative.loop();
+
+        assertPowers(1, 1, 1, 1);
     }
 
     @Test

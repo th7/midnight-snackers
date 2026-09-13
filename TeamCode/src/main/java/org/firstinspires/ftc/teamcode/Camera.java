@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import com.acmerobotics.roadrunner.Rotation2d;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
@@ -11,6 +10,7 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 public class Camera extends SubSystem {
@@ -70,39 +70,29 @@ public class Camera extends SubSystem {
                     telemetry.addData("ftc x, y, h(rads)", "%.02f, %.02f, %.02f", position.x, position.y, orientation.getYaw(AngleUnit.RADIANS));
                 }
 
-                Pose2d currentPose = calculateRoadrunnerPose();
-                if (currentPose != null) {
-                    double headingRadians = Rotation2d.exp(0).minus(currentPose.heading);
-                    telemetry.addData("roadrunner x, y, h(rads)", "%.02f, %.02f, %.02f", currentPose.position.x, currentPose.position.y, headingRadians);
+                Optional<Nav.Pose> sighting = sighting();
+                if (sighting.isPresent()) {
+                    telemetry.addData("roadrunner x, y, h(rads)", "%.02f, %.02f, %.02f",
+                            sighting.get().x(), sighting.get().y(), -sighting.get().heading());
                 }
             }
         }
     }
 
-    public Pose2d calculateRoadrunnerPose() {
-        if (goalDetection == null) {
-            return null;
+    /**
+     * Where the goal's tag says the robot is on the field, as the camera faces: the turntable's
+     * heading, not the robot's. Empty until three consistent recent detections agree.
+     */
+    public Optional<Nav.Pose> sighting() {
+        if (goalDetection == null || goalDetection.robotPose == null) {
+            return Optional.empty();
         }
-
-        Pose3D robotPose = goalDetection.robotPose;
-
-        if (robotPose == null) {
-            return null;
+        Position position = goalDetection.robotPose.getPosition();
+        YawPitchRollAngles orientation = goalDetection.robotPose.getOrientation();
+        if (position == null || orientation == null) {
+            return Optional.empty();
         }
-
-        Position position = robotPose.getPosition();
-
-        if (position == null) {
-            return null;
-        }
-
-        YawPitchRollAngles orientation = robotPose.getOrientation();
-
-        if (orientation == null) {
-            return null;
-        }
-
-        return new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2);
+        return Optional.of(new Nav.Pose(new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2)));
     }
 
     public void toggleTelemetry() {

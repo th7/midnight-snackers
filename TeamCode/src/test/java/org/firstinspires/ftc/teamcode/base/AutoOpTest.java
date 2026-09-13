@@ -30,9 +30,9 @@ public class AutoOpTest {
 
     @Test
     public void redMirrorsTheFieldAcrossTheCentreLineAndBlueDoesNot() {
-        assertEquals(-1, autoFor(Alliance.RED).robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
-        assertEquals(1, autoFor(Alliance.BLUE).robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
-        assertEquals(1, autoFor(Alliance.RELATIVE).robot.nav.pose(0, 1, 1).pose2d.position.y, 0);
+        assertEquals(-1, autoFor(Alliance.RED).robot.nav.pose(0, 1, 1).y(), 0);
+        assertEquals(1, autoFor(Alliance.BLUE).robot.nav.pose(0, 1, 1).y(), 0);
+        assertEquals(1, autoFor(Alliance.RELATIVE).robot.nav.pose(0, 1, 1).y(), 0);
     }
 
     @Test

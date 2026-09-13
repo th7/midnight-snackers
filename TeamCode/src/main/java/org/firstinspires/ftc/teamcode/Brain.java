@@ -1,11 +1,11 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.Pose2d;
-import com.acmerobotics.roadrunner.Rotation2d;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
+
+import java.util.Optional;
 
 public class Brain extends SuperSystem {
     private boolean usingCameraLocalization;
@@ -29,15 +29,15 @@ public class Brain extends SuperSystem {
             }
         }
 
-        Pose2d rawRoadrunnerPose = camera.calculateRoadrunnerPose();
+        Optional<Nav.Pose> sighting = camera.sighting();
 
-        if (rawRoadrunnerPose != null) {
+        if (sighting.isPresent()) {
             telemetry.addData("camera pose found", true);
-            Rotation2d turnTableOffset = Rotation2d.exp(turntable.getTurnTableOffsetRadians());
-            Pose2d adjustedRoadrunnerPose = new Pose2d(rawRoadrunnerPose.position, rawRoadrunnerPose.heading.minus(turnTableOffset));
+            // the camera faces where the turntable does, so the robot's heading is that less the turn
+            Nav.Pose robotPose = sighting.get().rotated(-turntable.getTurnTableOffsetRadians());
 
             if (usingCameraLocalization) {
-                nav.setFieldPosition(adjustedRoadrunnerPose);
+                nav.setFieldPosition(robotPose);
             }
         }
 
@@ -98,7 +98,7 @@ public class Brain extends SuperSystem {
         return new Step(
                 "moveToLaunchPose",
                 () -> {},
-                () -> drive.toward(nav.launchPose())
+                () -> nav.launchPose().map(drive::toward).orElse(true) // nowhere to go without a goal
         );
     }
 
