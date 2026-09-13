@@ -45,7 +45,7 @@ public class DriveRunner implements Loopable {
 
     public void drive(Action action) {
         if (!done()) {
-            throw new RuntimeException("Drive action already in progress.");
+            throw new IllegalStateException("an action is already in progress");
         } else {
             roadRunnerAction = action;
         }

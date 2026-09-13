@@ -98,7 +98,7 @@ public class Brain extends SuperSystem {
         return new Step(
                 "moveToLaunchPose",
                 () -> {},
-                () -> drive.fastDriveTo(nav.launchPose(), nav.currentPose())
+                () -> drive.toward(nav.launchPose())
         );
     }
 

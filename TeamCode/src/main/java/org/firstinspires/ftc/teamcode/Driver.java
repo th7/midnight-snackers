@@ -2,10 +2,16 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.Drive.Held;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 
 /** Drives the robot from the gamepads. A TeleOp adds one; an auto has no driver. */
 public class Driver extends SuperSystem {
+    /** How far a stick must move before it counts as held. */
+    private static final float HELD = 0.05f;
+    /** How far a stick must move to take the wheels back from an action. */
+    private static final float TAKEOVER = 0.2f;
+
     private Gamepad gamepad1;
     private Gamepad gamepad2;
 
@@ -17,6 +23,11 @@ public class Driver extends SuperSystem {
 
     @Override
     protected void onLoop() {
+        if (Math.abs(gamepad1.left_stick_x) > TAKEOVER || Math.abs(gamepad1.left_stick_y) > TAKEOVER
+                || Math.abs(gamepad1.right_stick_x) > TAKEOVER || Math.abs(gamepad1.right_stick_y) > TAKEOVER) {
+            drive.cancel();
+        }
+
         if (gamepad1.square) {
             launcher.launchyLaunch();
         }
@@ -35,31 +46,27 @@ public class Driver extends SuperSystem {
         } else if (gamepad1.left_trigger > 0.2) {
             brain.autoShootFast();
         } else if (gamepad1.left_bumper) {
+            // aim at the goal; the driver may nudge sideways and around
             brain.cancelPlan();
-            drive.fastDriveTo(nav.launchPose(), nav.currentPose());
-            if (Math.abs(gamepad1.left_stick_x) > 0.05) {
-                drive.setStrafePower(-gamepad1.left_stick_x);
+            Held held = Held.NONE;
+            if (Math.abs(gamepad1.left_stick_x) > HELD) {
+                held = held.strafe(-gamepad1.left_stick_x);
             }
-            if (Math.abs(gamepad1.right_stick_x) > 0.05) {
-                drive.setTurnPower(-gamepad1.right_stick_x);
+            if (Math.abs(gamepad1.right_stick_x) > HELD) {
+                held = held.turn(-gamepad1.right_stick_x);
             }
+            drive.toward(nav.launchPose(), held);
         } else if (gamepad1.right_bumper) {
+            // the driver moves the robot; the drive keeps it facing the goal unless the driver turns
             brain.cancelPlan();
-            drive.fastDriveTo(nav.launchPose(), nav.currentPose());
-            if (Math.abs(gamepad1.right_stick_x) > 0.05) {
-                drive.setTurnPower(-gamepad1.right_stick_x);
+            Held held = Held.NONE.straight(-gamepad1.left_stick_y).strafe(-gamepad1.left_stick_x);
+            if (Math.abs(gamepad1.right_stick_x) > HELD) {
+                held = held.turn(-gamepad1.right_stick_x);
             }
-            drive.setStraightPower(-gamepad1.left_stick_y);
-            drive.setStrafePower(-gamepad1.left_stick_x);
+            drive.toward(nav.launchPose(), held);
         } else {
             brain.cancelPlan();
-            drive.setTurnPower(-gamepad1.right_stick_x);
-            drive.setStraightPower(-gamepad1.left_stick_y);
-            drive.setStrafePower(-gamepad1.left_stick_x);
-        }
-
-        if (Math.abs(gamepad1.left_stick_x) > 0.2 || Math.abs(gamepad1.left_stick_y) > 0.2 || Math.abs(gamepad1.right_stick_x) > 0.2 || Math.abs(gamepad1.right_stick_y) > 0.2) {
-            drive.cancel();
+            drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
 
         //adjust settings using second controller
@@ -86,8 +93,5 @@ public class Driver extends SuperSystem {
         if (gamepad2.right_trigger > 0.2) {
             brain.toggleCameraLocalization();
         }
-
-        drive.useDirectPower();
-
     }
 }

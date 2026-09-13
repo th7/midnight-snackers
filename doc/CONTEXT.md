@@ -1,8 +1,26 @@
 # Glossary
 
-The words this project uses for the coding server and the simulator, as the
-code uses them. When a term here and a name in the code disagree, fix one of
-them. Robot-side vocabulary (plans, steps, subsystems) is not yet covered.
+The words this project uses for the coding server, the simulator and the
+robot, as the code uses them. When a term here and a name in the code
+disagree, fix one of them. Robot-side vocabulary is covered only where a
+module has been deepened; plans, steps and the other subsystems are not yet.
+
+## The robot
+
+**Drive** — The subsystem that moves the robot. Whoever is driving gives it
+one **intent** per loop and it writes the wheel motors itself: **manual**
+(straight, strafe and turn powers from the sticks), **toward** (a pose the
+drive steers to on its own, answering whether the robot has arrived and come
+to rest), or **follow** (a Road Runner action, run loop by loop until it is
+done or cancelled). An action being followed owns the wheels: manual and
+toward do nothing until it is done or cancelled, and a stick pushed past the
+takeover deflection cancels it. Class: `Drive`.
+
+**Held axis** — While the drive steers toward a pose, an axis the driver
+holds (straight, strafe or turn) is driven at the driver's power and the
+rest are the drive's to steer. Under the left bumper the driver may hold
+strafe and turn; under the right bumper they hold straight and strafe and
+may hold turn. Class: `Drive.Held`.
 
 ## The coding server
 
