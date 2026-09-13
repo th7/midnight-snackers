@@ -183,7 +183,8 @@ public final class SimRunner {
                     new double[]{sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power},
                     thisLoop,
                     auto == null ? driverStation.state(1) : null,
-                    auto == null ? driverStation.state(2) : null));
+                    auto == null ? driverStation.state(2) : null,
+                    sim.pieces()));
             sleep();
         }
     }

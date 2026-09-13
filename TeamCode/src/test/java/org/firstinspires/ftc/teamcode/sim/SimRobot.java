@@ -29,7 +29,10 @@ import java.util.ArrayList;
  * out of the field elements, and the sensors the localizer reads (dead wheel encoders and IMU yaw)
  * are written back from the true pose. The robot is an {@link #ROBOT_SIZE_IN}-inch cube; the
  * walls, {@link #WALL_HEIGHT_IN} inches high, and the field's obstacles stop it dead and let it
- * slide along them. There is no inertia, slip, or sensor noise.
+ * slide along them. The field's loose game pieces are balls the robot pushes ahead of itself:
+ * they roll on with the speed they were given, slow to a stop, and stop at the walls, the
+ * obstacles and each other. The robot has no inertia, slip, or sensor noise, and nothing pushes
+ * it back.
  */
 public class SimRobot {
     public static final double BATTERY_VOLTS = 12.5;
@@ -51,6 +54,13 @@ public class SimRobot {
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
     /** A quarter inch at full speed: far less than the thinnest obstacle. */
     private static final double MAX_STEP_SECONDS = 0.005;
+    /** A rolling ball loses its speed with this time constant, and is at rest below {@link #REST_SPEED}. */
+    private static final double ROLL_SECONDS = 0.4;
+    private static final double REST_SPEED = 0.5;
+    /** How much of the closing speed a ball keeps, bouncing off a wall, an obstacle or another ball. */
+    private static final double BOUNCE = 0.3;
+    /** How many times over the balls' contacts are settled each step; a chain of them halves its overlap each time. */
+    private static final int SETTLING_PASSES = 6;
     /**
      * How the dead wheel encoders are physically wired: the raw count on the rightBack port rises as
      * the robot moves forward, and the raw count on the leftFront port falls as it moves left.
@@ -89,6 +99,23 @@ public class SimRobot {
     private Pose2d pose = new Pose2d(0, 0, 0);
     private double parTicks = 0;
     private double perpTicks = 0;
+    /** The loose game pieces, {x, y} each, and their velocities, in {@link SimField#loosePieces}' order. */
+    private final double[][] pieces;
+    private final double[][] pieceVelocities;
+    private final double[] pieceRadii;
+
+    public SimRobot() {
+        int n = FIELD.loosePieces.size();
+        pieces = new double[n][];
+        pieceVelocities = new double[n][];
+        pieceRadii = new double[n];
+        for (int i = 0; i < n; i++) {
+            SimField.Piece piece = FIELD.loosePieces.get(i);
+            pieces[i] = new double[]{piece.x, piece.y};
+            pieceVelocities[i] = new double[]{0, 0};
+            pieceRadii[i] = piece.radius;
+        }
+    }
 
     /**
      * The simulated devices, wired the way {@link Hardware#fromHardwareMap} wires the real ones.
@@ -123,6 +150,21 @@ public class SimRobot {
         imu.yawRadians = pose.heading.toDouble();
     }
 
+    /** Where the loose game pieces are, {x, y} each in {@link SimField#loosePieces}' order. */
+    public double[][] pieces() {
+        double[][] copy = new double[pieces.length][];
+        for (int i = 0; i < pieces.length; i++) {
+            copy[i] = pieces[i].clone();
+        }
+        return copy;
+    }
+
+    /** Set a loose game piece down somewhere, at rest. */
+    public void placePiece(int index, double x, double y) {
+        pieces[index] = new double[]{x, y};
+        pieceVelocities[index] = new double[]{0, 0};
+    }
+
     /**
      * Advance the world by {@code dtSeconds} using the motor powers currently commanded. The world
      * moves in steps of at most {@link #MAX_STEP_SECONDS}, so the robot never jumps over an
@@ -146,6 +188,7 @@ public class SimRobot {
                 increment(rb, dtSeconds), increment(rf, dtSeconds)));
         Pose2d previous = pose;
         pose = insideTheWalls(clearOfTheObstacles(previous.plus(twist.value())));
+        rollThePieces(dtSeconds);
 
         // The dead wheels roll on the floor, so they read what the robot actually did: nothing when
         // the wheels spin against a wall, and only the sliding component when it drives into one at
@@ -188,6 +231,155 @@ public class SimRobot {
             return candidate;
         }
         return new Pose2d(new Vector2d(x, y), candidate.heading);
+    }
+
+    /**
+     * The loose pieces roll on and slow down, are pushed ahead of the robot with its speed, and
+     * stop at each other, at the obstacles and at the walls, keeping a little bounce. The
+     * contacts are settled a few times over, so a ball pushed into the next moves it on rather
+     * than staying in the robot.
+     */
+    private void rollThePieces(double dt) {
+        double[][] robot = corners(pose.position, pose.heading);
+        double keep = Math.exp(-dt / ROLL_SECONDS);
+        for (int i = 0; i < pieces.length; i++) {
+            double[] p = pieces[i], v = pieceVelocities[i];
+            p[0] += v[0] * dt;
+            p[1] += v[1] * dt;
+            v[0] *= keep;
+            v[1] *= keep;
+            if (Math.hypot(v[0], v[1]) < REST_SPEED) {
+                v[0] = 0;
+                v[1] = 0;
+            }
+        }
+        for (int pass = 0; pass < SETTLING_PASSES; pass++) {
+            for (int i = 0; i < pieces.length; i++) {
+                double[] p = pieces[i], v = pieceVelocities[i];
+                double[] push = pushCircleOutOf(robot, p, pieceRadii[i]);
+                if (push != null) {
+                    p[0] += push[0];
+                    p[1] += push[1];
+                    if (pass == 0) {
+                        // The ball leaves the robot's edge at least as fast as the edge came: the push in one step.
+                        double length = Math.hypot(push[0], push[1]);
+                        double[] n = {push[0] / length, push[1] / length};
+                        double along = v[0] * n[0] + v[1] * n[1];
+                        double atLeast = length / dt;
+                        if (along < atLeast) {
+                            v[0] += (atLeast - along) * n[0];
+                            v[1] += (atLeast - along) * n[1];
+                        }
+                    }
+                }
+                for (int j = i + 1; j < pieces.length; j++) {
+                    bounceApart(i, j);
+                }
+                for (SimField.Obstacle obstacle : FIELD.obstacles) {
+                    double[] out = pushCircleOutOf(obstacle.footprint, pieces[i], pieceRadii[i]);
+                    if (out != null) {
+                        bounceOff(i, out);
+                    }
+                }
+                double limit = FIELD_SIZE_IN / 2 - pieceRadii[i];
+                for (int axis = 0; axis < 2; axis++) {
+                    if (pieces[i][axis] > limit) {
+                        double[] in = new double[2];
+                        in[axis] = limit - pieces[i][axis];
+                        bounceOff(i, in);
+                    } else if (pieces[i][axis] < -limit) {
+                        double[] in = new double[2];
+                        in[axis] = -limit - pieces[i][axis];
+                        bounceOff(i, in);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Move a ball by the push and turn the speed it had into the push around, keeping {@link #BOUNCE} of it. */
+    private void bounceOff(int i, double[] push) {
+        double[] p = pieces[i], v = pieceVelocities[i];
+        p[0] += push[0];
+        p[1] += push[1];
+        double length = Math.hypot(push[0], push[1]);
+        double[] n = {push[0] / length, push[1] / length};
+        double along = v[0] * n[0] + v[1] * n[1];
+        if (along < 0) {
+            v[0] -= (1 + BOUNCE) * along * n[0];
+            v[1] -= (1 + BOUNCE) * along * n[1];
+        }
+    }
+
+    /** Two balls that overlap are moved apart equally, and trade the speed they close at, keeping {@link #BOUNCE} of it. */
+    private void bounceApart(int i, int j) {
+        double[] a = pieces[i], b = pieces[j];
+        double dx = b[0] - a[0], dy = b[1] - a[1];
+        double distance = Math.hypot(dx, dy);
+        double touching = pieceRadii[i] + pieceRadii[j];
+        if (distance >= touching) {
+            return;
+        }
+        double[] n = distance > 0 ? new double[]{dx / distance, dy / distance} : new double[]{1, 0};
+        double apart = (touching - distance) / 2;
+        a[0] -= apart * n[0];
+        a[1] -= apart * n[1];
+        b[0] += apart * n[0];
+        b[1] += apart * n[1];
+        double[] va = pieceVelocities[i], vb = pieceVelocities[j];
+        double closing = (va[0] - vb[0]) * n[0] + (va[1] - vb[1]) * n[1];
+        if (closing > 0) {
+            double exchange = (1 + BOUNCE) * closing / 2;
+            va[0] -= exchange * n[0];
+            va[1] -= exchange * n[1];
+            vb[0] += exchange * n[0];
+            vb[1] += exchange * n[1];
+        }
+    }
+
+    /**
+     * The shortest move that takes a ball out of a convex polygon (wound counter-clockwise), or
+     * null when they do not touch: away from the nearest edge, or out of the nearest side when the
+     * centre is inside.
+     */
+    private static double[] pushCircleOutOf(double[][] polygon, double[] centre, double radius) {
+        double leastInside = Double.NEGATIVE_INFINITY;
+        double[] leastInsideNormal = null;
+        boolean inside = true;
+        double nearest = Double.POSITIVE_INFINITY;
+        double[] nearestPoint = null;
+        for (int i = 0; i < polygon.length; i++) {
+            double[] a = polygon[i], b = polygon[(i + 1) % polygon.length];
+            double ex = b[0] - a[0], ey = b[1] - a[1];
+            double length = Math.hypot(ex, ey);
+            if (length == 0) {
+                continue;
+            }
+            double[] outward = {ey / length, -ex / length};
+            double signed = (centre[0] - a[0]) * outward[0] + (centre[1] - a[1]) * outward[1];
+            if (signed > 0) {
+                inside = false;
+            } else if (signed > leastInside) {
+                leastInside = signed;
+                leastInsideNormal = outward;
+            }
+            double t = Math.max(0, Math.min(1, ((centre[0] - a[0]) * ex + (centre[1] - a[1]) * ey) / (length * length)));
+            double[] point = {a[0] + t * ex, a[1] + t * ey};
+            double distance = Math.hypot(centre[0] - point[0], centre[1] - point[1]);
+            if (distance < nearest) {
+                nearest = distance;
+                nearestPoint = point;
+            }
+        }
+        if (inside) {
+            double out = radius - leastInside;
+            return new double[]{leastInsideNormal[0] * out, leastInsideNormal[1] * out};
+        }
+        if (nearest >= radius || nearest == 0) {
+            return null;
+        }
+        double out = radius - nearest;
+        return new double[]{(centre[0] - nearestPoint[0]) / nearest * out, (centre[1] - nearestPoint[1]) / nearest * out};
     }
 
     /**

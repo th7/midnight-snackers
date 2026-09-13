@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,7 +51,7 @@ public class SimFieldTest {
     @Test
     public void everyElementIsAClosedShapeOfItsOwnVertices() {
         for (SimField.Element element : field.elements) {
-            assertTrue(element.name + " has a body", element.faces.length >= 4);
+            assertTrue(element.name + " has a body", element.surface || element.faces.length >= 4);
             for (int[] face : element.faces) {
                 assertTrue(element.name + " has a face of " + face.length + " vertices", face.length >= 3);
                 for (int index : face) {
@@ -96,6 +97,100 @@ public class SimFieldTest {
             assertTrue("a mark is a strip of four corners", mark.getAsJsonArray("footprint").size() == 4);
         }
         assertEquals("red and blue", 2, colours.size());
+    }
+
+    /**
+     * A hive cell is its six flat panels, seen through and outlined in its alliance's colour: two
+     * sides, a bottom, two tops and a back, each one flat polygon.
+     */
+    @Test
+    public void aHiveCellIsSixFlatPanelsInItsAlliancesColour() {
+        for (String hive : List.of("Blue Hive <1>", "Red Hive <1>")) {
+            for (String cell : List.of("(Audience)", "(Scoring)")) {
+                List<SimField.Element> panels = new ArrayList<>();
+                for (SimField.Element element : field.elements) {
+                    if (element.group.equals(hive) && element.surface && element.name.contains(cell)) {
+                        panels.add(element);
+                    }
+                }
+                assertEquals(hive + " " + cell + " panels: " + panels.size(), 6, panels.size());
+                for (SimField.Element panel : panels) {
+                    assertEquals(hive.startsWith("Blue") ? "#1651b0" : "#c62828", panel.colour);
+                    assertEquals(panel.name + " is one polygon", 1, panel.faces.length);
+                    assertTrue(panel.name + " has at least three corners", panel.vertices.length >= 3);
+                    assertFlat(panel);
+                }
+            }
+        }
+        for (SimField.Element element : field.elements) {
+            assertTrue("only the hives' panels are seen through: " + element.name, !element.surface || element.group.contains("Hive"));
+        }
+    }
+
+    /** The frame's top bar joins the two hives, and each hive hangs from it by its pivot brackets. */
+    @Test
+    public void theHivesHangFromTheBarBetweenThem() {
+        Set<String> names = new HashSet<>();
+        for (SimField.Element element : field.elements) {
+            names.add(element.group + " / " + element.name);
+        }
+        assertTrue(names.toString(), names.contains("Frame <1> / A-Frame Top Bar"));
+        assertTrue(names.toString(), names.contains("Blue Hive <1> / Goal Pivot Bracket"));
+        assertTrue(names.toString(), names.contains("Red Hive <1> / Goal Pivot Bracket"));
+    }
+
+    /**
+     * The pollen on the floor in the open is loose, for the robot to push; pollen held in a flower
+     * or lying outside the walls, and the nectar in the hives, stay where they are.
+     */
+    @Test
+    public void thePollenOnTheOpenFloorIsLoose() {
+        assertEquals("two rows of four in the corners", 8, field.loosePieces.size());
+        double half = field.size / 2;
+        for (SimField.Piece piece : field.loosePieces) {
+            assertEquals("Pollen", piece.name);
+            assertEquals(piece.name + " rests on the floor", piece.radius, piece.z, 0.25);
+            assertTrue(piece.name + " is inside the walls", Math.abs(piece.x) < half - piece.radius / 2 && Math.abs(piece.y) < half - piece.radius / 2);
+            for (SimField.Obstacle obstacle : field.obstacles) {
+                assertTrue(piece.name + " is not held in " + obstacle.name, !inside(obstacle.footprint, piece.x, piece.y));
+            }
+        }
+        JsonArray pieces = field.json().getAsJsonArray("pieces");
+        int held = 0;
+        for (int i = 0; i < pieces.size(); i++) {
+            if (!pieces.get(i).getAsJsonObject().get("loose").getAsBoolean()) {
+                held++;
+            }
+        }
+        assertTrue("the flowers' stacks, the rows outside and the nectar are held: " + held, held > 30);
+    }
+
+    private static boolean inside(double[][] ring, double x, double y) {
+        for (int i = 0; i < ring.length; i++) {
+            double[] a = ring[i], b = ring[(i + 1) % ring.length];
+            if ((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Every vertex lies on the polygon's own plane (its normal by Newell's method, robust to near-collinear corners). */
+    private static void assertFlat(SimField.Element panel) {
+        double[] n = new double[3];
+        double[][] ring = panel.vertices;
+        for (int i = 0; i < ring.length; i++) {
+            double[] a = ring[i], b = ring[(i + 1) % ring.length];
+            n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+            n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+            n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+        }
+        double length = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        double[] a = ring[0];
+        for (double[] p : ring) {
+            double off = ((p[0] - a[0]) * n[0] + (p[1] - a[1]) * n[1] + (p[2] - a[2]) * n[2]) / length;
+            assertEquals(panel.name + " is flat", 0, off, 0.05);
+        }
     }
 
     /** The page draws what the simulator loaded: one model, read once. */

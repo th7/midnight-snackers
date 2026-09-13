@@ -12,8 +12,8 @@ import java.util.List;
 
 /**
  * Everything observed during one simulated run, one entry per op mode loop: the true pose, the
- * plan's current step, the drive powers, the dashboard packets the robot code drew that loop, and
- * for a TeleOp what the driver's gamepads read. Safe to read from another thread (the live view)
+ * plan's current step, the drive powers, the dashboard packets the robot code drew that loop, where
+ * the loose game pieces are, and for a TeleOp what the driver's gamepads read. Safe to read from another thread (the live view)
  * while the run is still adding to it. A source for the replay page, in this JVM.
  */
 public final class SimRecording implements SimReplayPage.Source {
@@ -29,6 +29,11 @@ public final class SimRecording implements SimReplayPage.Source {
         public final State gamepad1;
         /** What gamepad 2 read this loop; null for an auto. */
         public final State gamepad2;
+        /**
+         * Where the field's loose game pieces are, {x, y} each in {@link SimField#loosePieces}'
+         * order; null when the tick does not say, and they are where the field was set up.
+         */
+        public final double[][] pieces;
 
         public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
             this(seconds, truePose, step, wheelPowers, packets, null, null);
@@ -36,6 +41,11 @@ public final class SimRecording implements SimReplayPage.Source {
 
         public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets,
                     State gamepad1, State gamepad2) {
+            this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, null);
+        }
+
+        public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets,
+                    State gamepad1, State gamepad2, double[][] pieces) {
             this.seconds = seconds;
             this.truePose = truePose;
             this.step = step;
@@ -43,6 +53,7 @@ public final class SimRecording implements SimReplayPage.Source {
             this.packets = packets;
             this.gamepad1 = gamepad1;
             this.gamepad2 = gamepad2;
+            this.pieces = pieces;
         }
     }
 

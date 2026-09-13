@@ -351,19 +351,20 @@ pressed, tick by tick, and the keys go back to play/pause and stepping.
 
 **Tick** — One entry in a run's recording, one per op mode loop: the true
 pose, the plan's current step (empty for a TeleOp), the drive powers, the
-dashboard packets drawn that loop, and for a TeleOp what each gamepad
-read. Class: `SimRecording`.
+dashboard packets drawn that loop, where the loose game pieces are, and
+for a TeleOp what each gamepad read. Class: `SimRecording`.
 
 **Replay** — A run's ticks written as a single self-contained HTML page
 with the field, the true pose, and play/pause/scrub controls, named after
 the op mode under `TeamCode/build/sim`. The field is drawn in three
 dimensions from a camera that orbits it (drag to turn, scroll to zoom,
 double-click for the audience's view): the walls at their height, the
-field elements, tape and game pieces of the field model, the robot as a
-cube turned to its heading, and the dashboard's field overlay projected
-onto the floor. The obstacles are outlined on the floor. The model and
-the sizes are the simulated robot's, so the page draws what the simulator
-collides. Class: `SimReplayPage`.
+field elements, tape and game pieces of the field model, the loose
+pieces where each tick puts them, the robot as a cube turned to its
+heading, and the dashboard's field overlay projected onto the floor. The
+obstacles are outlined on the floor. The model and the sizes are the
+simulated robot's, so the page draws what the simulator collides. Class:
+`SimReplayPage`.
 
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
@@ -374,10 +375,13 @@ integrated from those and kept inside the walls and out of the obstacles,
 and the localizer's sensors are written back from the true pose, so the
 dead wheels read nothing while the wheels spin against a wall. The robot
 is an 18-inch cube; a wall or an obstacle stops it dead and lets it slide
-along. The model is planar: only the robot's footprint collides, and
-nothing goes over a wall or under a hive by being low. No inertia, slip,
-or noise. The world moves in steps of at most 5 ms whatever the loop rate,
-so nothing is jumped over. Class: `SimRobot`.
+along. The **loose pieces** are balls the robot pushes ahead of itself:
+they roll on with the speed they were given, slow to a stop, and stop at
+the walls, the obstacles and each other, with a little bounce; nothing
+pushes the robot back. The model is planar: only the robot's footprint
+collides, and nothing goes over a wall or under a hive by being low. No
+inertia, slip, or noise. The world moves in steps of at most 5 ms whatever
+the loop rate, so nothing is jumped over. Class: `SimRobot`.
 
 **Field** — The season's field as the simulator has it, reduced from
 FIRST's CAD by `tools/field/step_to_field.py` to `field.json`: the
@@ -388,10 +392,14 @@ pieces** where a match starts, the gaffer **tape** on the floor, and the
 than the robot is tall, which is what the robot runs into. For BIOBUZZ:
 the frame in the middle of the field is an obstacle leg by leg and foot
 by foot, so the robot drives through it; the flowers at the walls are
-obstacles; the hives hang from the frame above the robot and are only
-drawn. Everything is in the field frame Road Runner uses, in inches: the
-origin at the centre, +x away from the audience, +y to the audience's
-left. Game pieces do not move. Class: `SimField`.
+obstacles; the hives hang from the frame's top bar above the robot and
+are only drawn, each cell as its six flat **panels** (two sides, a
+bottom, two tops and a back), seen through and outlined in the alliance's
+colour. The game pieces on the floor in the open are **loose**, the
+simulator's to roll; the rest (the flowers' stacks, the rows outside the
+walls, the nectar in the hives) stay put. Everything is in the field frame
+Road Runner uses, in inches: the origin at the centre, +x away from the
+audience, +y to the audience's left. Class: `SimField`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.

@@ -17,7 +17,9 @@ field, +x away from the audience, +y to the audience's left, +z up. The CAD is i
 up and the audience at +z, which is where the hives' audience-facing cells hang.
 
 What the robot collides with is the footprint of each field element below the robot's height:
-the frame's legs and feet, and the flowers. The hives hang above the robot and are only drawn.
+the frame's legs and feet, and the flowers. The hives hang above the robot and are only drawn:
+each cell as its flat panels, seen through and outlined in its alliance's colour. The pollen on
+the floor in the open is marked loose, for the simulator to roll.
 """
 import json
 import math
@@ -27,13 +29,14 @@ import sys
 
 INCH = 0.0254
 ROBOT_HEIGHT_IN = 18  # SimRobot.ROBOT_SIZE_IN: what stands lower than this is in the robot's way
+PANEL_AREA = 40  # square inches: a flat face this big on a hive cell is one of its panels
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'TeamCode', 'src', 'test', 'resources',
                    'org', 'firstinspires', 'ftc', 'teamcode', 'sim', 'field.json')
 
 # Hardware and the parts the simulator models on its own (the floor, the walls); none of it is drawn.
 SKIP = re.compile(r'screw|fhts|nut\b|washer|rivet|rivnut|bolt|spacer|bearing|cable tie|plug|\bpin\b|'
-                  r'sticker|damper|holder|bracket|hinge|panel link|strap|clip|under tile|peanut|'
-                  r'fastener|quick release|soft tiles|perimeter|rail|side glass|goal pivot', re.I)
+                  r'sticker|damper|pivot damper|flower.*bracket|hinge|panel link|strap|clip|under tile|peanut|'
+                  r'fastener|quick release|soft tiles|perimeter|rail|side glass', re.I)
 # Alliance colours for the parts the CAD leaves uncoloured (the goal ribs, the nectar).
 BLUE, RED, DARK = '#1651b0', '#c62828', '#2f2f2f'
 
@@ -250,6 +253,41 @@ def solid_points(st, solid):
     return pts
 
 
+def solid_faces(st, solid, least_area):
+    """The solid's flat faces of at least least_area (in the file's units squared): each as its
+    outward normal and its outer boundary's vertices in order."""
+    out = []
+    shell = st.args(solid)[1][1]
+    for face_ref in st.args(shell)[1]:
+        face = face_ref[1]
+        fa = st.args(face)
+        if st.type(face) not in ('ADVANCED_FACE', 'FACE_SURFACE') or st.type(fa[2][1]) != 'PLANE':
+            continue
+        m = st.placement(st.args(fa[2][1])[1][1])
+        n = m[2] if fa[3] == '.T.' else scale(m[2], -1)
+        ring = None
+        for bound_ref in fa[1]:
+            loop = st.args(bound_ref[1])[1][1]
+            if st.type(loop) != 'EDGE_LOOP':
+                continue
+            candidate = []
+            for oe_ref in st.args(loop)[1]:
+                oe = st.args(oe_ref[1])
+                ea = st.args(oe[3][1])
+                candidate.append(st.point(st.args(ea[1][1] if oe[4] == '.T.' else ea[2][1])[1][1]))
+            if ring is None or st.type(bound_ref[1]) == 'FACE_OUTER_BOUND':
+                ring = candidate
+        if not ring:
+            continue
+        twice = (0.0, 0.0, 0.0)
+        for a, b in zip(ring, ring[1:] + ring[:1]):
+            c = cross(a, b)
+            twice = (twice[0] + c[0], twice[1] + c[1], twice[2] + c[2])
+        if abs(dot(twice, n)) / 2 >= least_area:
+            out.append((n, ring))
+    return out
+
+
 def solid_colours(st):
     """Solid id -> '#rrggbb' from the STYLED_ITEMs, for the solids the CAD colours."""
     colours = {}
@@ -271,7 +309,8 @@ def solid_colours(st):
 
 def placed_solids(st):
     """Every solid in the assembly, placed: (path of product names from the root, solid name,
-    colour or None, world points in inches, CAD frame)."""
+    colour or None, world points in inches, CAD frame, and its flat faces of {@link PANEL_AREA}
+    or more as (normal, ring of points) in the same frame)."""
     product_name = {}
     for pd in st.by_type('PRODUCT_DEFINITION'):
         product_name[pd] = st.args(st.args(st.args(pd)[2][1])[2][1])[1]
@@ -302,14 +341,17 @@ def placed_solids(st):
     roots = [pd for pd in product_name if pd not in placed]
     colours = solid_colours(st)
     local_points = {}
+    local_faces = {}
     out = []
 
     def walk(pd, m, path):
         for solid in rep_solids.get(pd_rep.get(pd), []):
             if solid not in local_points:
                 local_points[solid] = solid_points(st, solid)
+                local_faces[solid] = solid_faces(st, solid, PANEL_AREA * INCH * INCH)
             out.append((path, st.args(solid)[0], colours.get(solid),
-                        [scale(apply(m, p), 1 / INCH) for p in local_points[solid]]))
+                        [scale(apply(m, p), 1 / INCH) for p in local_points[solid]],
+                        [(apply_dir(m, n), [scale(apply(m, p), 1 / INCH) for p in ring]) for n, ring in local_faces[solid]]))
         for nauo, child, occurrence in children.get(pd, []):
             name = product_name[child]
             if occurrence and occurrence != name:
@@ -560,17 +602,54 @@ def colour_for(name, cad):
     return BLUE if re.search(r'blue', name, re.I) else RED
 
 
+def dedupe_panels(panels):
+    """A sheet's two sides are one panel: of the faces on the same plane, keep the biggest,
+    as one flat polygon (the face's outline as a convex ring, simplified)."""
+    by_plane = {}
+    for panel in panels:
+        n = panel['normal']
+        offset = dot(n, panel['ring'][0])
+        # Either side's normal names the plane: take the one pointing up, or forward.
+        sign = 1 if (n[2], n[0], n[1]) > (0, 0, 0) else -1
+        key = (panel['group'], panel['cell'], tuple(round(sign * c, 2) for c in n), round(sign * offset / 0.5) * 0.5)
+        by_plane.setdefault(key, []).append(panel)
+    out = []
+    for key, group in sorted(by_plane.items()):
+        panel = max(group, key=lambda p: len(p['ring']))
+        n = panel['normal']
+        u = norm(cross(n, (0, 0, 1) if abs(n[2]) < 0.9 else (1, 0, 0)))
+        v = cross(n, u)
+        d = dot(n, panel['ring'][0])
+        flat = simplify(hull2d([(round(dot(p, u), 4), round(dot(p, v), 4)) for p in panel['ring']]), 0.25)
+        ring = [[round(u[i] * a + v[i] * b + n[i] * d, 2) for i in range(3)] for a, b in flat]
+        out.append({'group': panel['group'], 'name': panel['cell'] + ' / ' + panel['name'], 'colour': panel['colour'],
+                    'surface': True, 'vertices': ring, 'faces': [list(range(len(ring)))]})
+    return out
+
+
+def is_loose(piece, size, obstacles):
+    """A game piece that rests on the floor inside the walls and in the open is the robot's to push."""
+    x, y, z = piece['centre']
+    r = piece['radius']
+    if z > r + 0.25 or abs(x) > size / 2 - r / 2 or abs(y) > size / 2 - r / 2:
+        return False
+    for obstacle in obstacles:
+        ring = obstacle['footprint']
+        if all((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]) > -r for a, b in zip(ring, ring[1:] + ring[:1])):
+            return False
+    return True
+
+
 def build(step_path):
     st = Step(step_path)
     solids = placed_solids(st)
-    tiles = [p for path, _, _, pts in solids if 'Soft Tiles' in path[1] for p in pts]
+    tiles = [p for path, _, _, pts, _ in solids if 'Soft Tiles' in path[1] for p in pts]
     size = round(2 * max(abs(p[0]) for p in tiles), 2)
-    wall = round(max(p[1] for path, name, _, pts in solids if 'Perimeter' in path[1] and 'Rail' in name for p in pts), 2)
+    wall = round(max(p[1] for path, name, _, pts, _ in solids if 'Perimeter' in path[1] and 'Rail' in name for p in pts), 2)
 
-    elements, pieces, tape = [], [], []
-    # Each hive cell is one shape; every other kept part is its own.
-    merged = {}
-    for path, name, cad_colour, pts in solids:
+    elements, panels, pieces, tape = [], [], [], []
+    # A hive cell is its flat panels, seen through; every other kept part is its own solid shape.
+    for path, name, cad_colour, pts, faces in solids:
         top = clean(path[1]) if len(path) > 1 else clean(path[0])
         if re.search(r'gaffer tape', name, re.I):
             ring = simplify(hull2d([(round(x, 2), round(y, 2)) for x, y, _ in map(to_field, pts)]))
@@ -587,12 +666,11 @@ def build(step_path):
         if any(SKIP.search(n) for n in path[1:] + [name]) or 'Soft Tiles' in path[1]:
             continue
         if 'Hive' in top and len(path) > 2 and 'Cell' in path[2] and 'April Tag' not in name:
-            key = (top, clean(path[2]))
-            merged.setdefault(key, {'colour': colour_for(path[2], None), 'points': []})['points'] += pts
+            for n, ring in faces:
+                panels.append({'group': top, 'cell': clean(path[2]), 'name': clean(name), 'colour': colour_for(path[2], None),
+                               'normal': to_field(n), 'ring': [to_field(p) for p in ring]})
             continue
         elements.append({'group': top, 'name': clean(name), 'colour': colour_for(name, cad_colour), 'cad': pts})
-    for (top, cell), m in merged.items():
-        elements.append({'group': top, 'name': cell, 'colour': m['colour'], 'cad': m['points']})
 
     out_elements, obstacles, seen = [], {}, {}
     for e in elements:
@@ -611,6 +689,10 @@ def build(step_path):
         if low and all(abs(x) < size / 2 and abs(y) < size / 2 for x, y in low):
             obstacles.setdefault(key, []).extend(low)
     out_obstacles = [{'name': k, 'footprint': [list(p) for p in simplify(hull2d(v))]} for k, v in obstacles.items()]
+    for panel in dedupe_panels(panels):
+        out_elements.append(panel)
+    for piece in pieces:
+        piece['loose'] = is_loose(piece, size, out_obstacles)
     return {
         'source': os.path.basename(step_path),
         'size': size,

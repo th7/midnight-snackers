@@ -294,6 +294,104 @@ public class SimRobotTest {
         return v;
     }
 
+    // --- the loose pollen: balls the robot pushes and that roll on and stop ---
+
+    private static final double BALL = SimRobot.FIELD.loosePieces.get(0).radius;
+
+    @Test
+    public void theRobotPushesALooseBallAheadOfIt() {
+        robotDrive();
+        sim.placePiece(0, 10, -40);
+        sim.setPose(new Pose2d(-8, -40, 0));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(0.3);
+
+        double[] ball = sim.pieces()[0];
+        double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
+        assertTrue("the robot drove; x=" + sim.pose().position.x, sim.pose().position.x > 0);
+        assertTrue("the ball is ahead of the robot's front edge: " + ball[0] + " vs " + front, ball[0] - BALL >= front - 0.01);
+        assertEquals(-40, ball[1], 0.01);
+    }
+
+    @Test
+    public void aPushedBallRollsOnThenComesToRestInsideTheWalls() {
+        robotDrive();
+        sim.placePiece(0, 10, -40);
+        sim.setPose(new Pose2d(-8, -40, 0));
+        setPowers(1, 1, 1, 1);
+        sim.step(0.3);
+        double pushedTo = sim.pieces()[0][0];
+        setPowers(0, 0, 0, 0);
+
+        sim.step(0.05);
+        double rollingTo = sim.pieces()[0][0];
+        sim.step(3.0);
+        double restingAt = sim.pieces()[0][0];
+        sim.step(1.0);
+
+        assertTrue("rolled on after the push: " + rollingTo + " vs " + pushedTo, rollingTo > pushedTo + 0.5);
+        assertTrue("came to rest: " + restingAt + " vs " + rollingTo, restingAt > rollingTo);
+        assertEquals("stays at rest", restingAt, sim.pieces()[0][0], DELTA);
+        assertTrue("inside the walls", restingAt < SimRobot.FIELD_SIZE_IN / 2 - BALL);
+    }
+
+    @Test
+    public void aBallStopsAtTheWall() {
+        robotDrive();
+        sim.placePiece(0, 60, -40);
+        sim.setPose(new Pose2d(42, -40, 0));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(1.0);
+
+        assertEquals(SimRobot.FIELD_SIZE_IN / 2 - BALL, sim.pieces()[0][0], DELTA);
+        assertEquals(-40, sim.pieces()[0][1], DELTA);
+    }
+
+    @Test
+    public void aBallPushesTheBallInFrontOfIt() {
+        robotDrive();
+        sim.placePiece(0, 10, -40);
+        sim.placePiece(1, 10 + 2 * BALL + 0.5, -40);
+        sim.setPose(new Pose2d(-8, -40, 0));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(0.3);
+
+        double[] first = sim.pieces()[0], second = sim.pieces()[1];
+        double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
+        assertTrue("both ahead of the robot", first[0] - BALL >= front - 0.01 && second[0] - BALL >= front - 0.01);
+        assertTrue("not through each other: " + first[0] + " and " + second[0], second[0] - first[0] >= 2 * BALL - 0.01);
+    }
+
+    @Test
+    public void aRollingBallStopsAtAnObstacle() {
+        robotDrive();
+        double y = -23.7; // the frame's foot bar on that side runs along y from -24.7 to -22.8, x from -19.5 to 19.5
+        sim.placePiece(0, -40, y);
+        sim.setPose(new Pose2d(-58, y, 0));
+        setPowers(1, 1, 1, 1);
+        sim.step(0.2);
+        setPowers(0, 0, 0, 0);
+
+        sim.step(3.0);
+
+        double[] ball = sim.pieces()[0];
+        assertTrue("it rolled: x=" + ball[0], ball[0] > -35);
+        assertTrue("and not into the foot bar: x=" + ball[0], ball[0] <= -19.5 - BALL + 0.01);
+    }
+
+    @Test
+    public void theBallsStartWhereTheFieldIsSetUp() {
+        double[][] pieces = sim.pieces();
+        assertEquals(SimRobot.FIELD.loosePieces.size(), pieces.length);
+        for (int i = 0; i < pieces.length; i++) {
+            assertEquals(SimRobot.FIELD.loosePieces.get(i).x, pieces[i][0], 0.1);
+            assertEquals(SimRobot.FIELD.loosePieces.get(i).y, pieces[i][1], 0.1);
+        }
+    }
+
     /**
      * The robot's own drive on the simulated motors, which applies the motor directions the robot uses.
      */
