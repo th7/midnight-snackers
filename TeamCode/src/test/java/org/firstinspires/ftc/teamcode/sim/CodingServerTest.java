@@ -75,7 +75,8 @@ public class CodingServerTest {
 
     /** A bench over the worktree's own sources, so a run builds what that user saved. */
     private static SimBench.Factory sourcesBench() {
-        return worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"), worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
+        return worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"), SimBenchTest.HARNESS,
+                worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
     }
 
     private static String encode(String name) throws java.io.UnsupportedEncodingException {
@@ -83,7 +84,7 @@ public class CodingServerTest {
     }
 
     private SimBench bench() {
-        return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
+        return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null, null,
                 folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 30, 1);
     }
 
@@ -695,7 +696,7 @@ public class CodingServerTest {
 
     @Test
     public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
-        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, folder.getRoot().toPath().resolve("sim"), 2, 30, 1));
+        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, null, folder.getRoot().toPath().resolve("sim"), 2, 30, 1));
         String cookie = approvedUser("ada");
         String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body).get("id").getAsString();
         awaitSimStatus(cookie, "\"outcome\":\"done\"");

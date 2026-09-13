@@ -232,17 +232,21 @@ public final class SimBench {
     /**
      * @param fixedCatalog      the op modes to offer, or null to compile and list them from {@code sourceRoot}
      * @param sourceRoot        the main sources to compile before each run, or null to run this JVM's classes
+     * @param harnessRoot       the simulator's own sources, built with {@code sourceRoot} before each run; null only with a fixed catalog
      * @param runTimeoutSeconds how long an auto may take to finish its plan before the run times out
      * @param teleOpSeconds     how long a TeleOp runs when the driver never presses Stop
      * @param killGraceSeconds  how long past its time the child may live before it is killed
      */
-    public SimBench(SimCatalog fixedCatalog, Path sourceRoot, Path outputDir, double runTimeoutSeconds, double teleOpSeconds,
-                    double killGraceSeconds) {
+    public SimBench(SimCatalog fixedCatalog, Path sourceRoot, Path harnessRoot, Path outputDir, double runTimeoutSeconds,
+                    double teleOpSeconds, double killGraceSeconds) {
         if ((fixedCatalog == null) == (sourceRoot == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a source root");
         }
+        if (sourceRoot != null && harnessRoot == null) {
+            throw new IllegalArgumentException("a bench over sources needs the simulator's own sources to build with them");
+        }
         this.fixedCatalog = fixedCatalog;
-        this.build = sourceRoot == null ? null : new SimBuild(sourceRoot, outputDir.resolve("classes"));
+        this.build = sourceRoot == null ? null : new SimBuild(sourceRoot, harnessRoot, outputDir.resolve("classes"));
         this.outputDir = outputDir;
         this.runTimeoutSeconds = runTimeoutSeconds;
         this.teleOpSeconds = teleOpSeconds;

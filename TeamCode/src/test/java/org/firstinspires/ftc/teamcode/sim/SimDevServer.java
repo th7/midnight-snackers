@@ -48,7 +48,7 @@ public final class SimDevServer {
     public static void main(String[] args) throws InterruptedException {
         String portValue = System.getenv(PORT_ENV);
         int port = portValue == null || portValue.isBlank() ? DEFAULT_PORT : Integer.parseInt(portValue.trim());
-        SimBench bench = new SimBench(null, Path.of("src", "main", "java"), SimRunner.DEFAULT_OUTPUT_DIR,
+        SimBench bench = new SimBench(null, Path.of("src", "main", "java"), Path.of("src", "test", "java"), SimRunner.DEFAULT_OUTPUT_DIR,
                 DEFAULT_RUN_TIMEOUT_SECONDS, DEFAULT_TELEOP_SECONDS, DEFAULT_KILL_GRACE_SECONDS);
         SimDevServer server = start(bench, port);
         System.out.println("Simulation bench: " + server.url() + "  (runs the sources as saved; Ctrl-C to stop)");
