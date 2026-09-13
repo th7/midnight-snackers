@@ -4,19 +4,13 @@ import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.util.ElapsedTime;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.base.Dashboard;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 
-import java.util.function.Supplier;
-
 public class Drive extends SubSystem {
-    private final DriveRunner driveRunner;
+    private DriveRunner driveRunner;
     private final FastDrive fastDrive = new FastDrive();
     private final DcMotor leftFront;
     private final DcMotor rightFront;
@@ -27,25 +21,20 @@ public class Drive extends SubSystem {
     private float strafePower;
     private float turnPower;
 
-    public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack, Dashboard dashboard, ElapsedTime runtime, Telemetry telemetry) {
-        super(runtime, telemetry);
-        this.driveRunner = add(new DriveRunner(dashboard));
+    public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack) {
         this.leftFront = leftFront;
         this.rightFront = rightFront;
         this.leftBack = leftBack;
         this.rightBack = rightBack;
     }
 
-    public void init() {
-        telemetry.addData("Drive.init()", true);
-    }
-
     /**
-     * Supplies the robot's current pose so the dashboard field view shows the robot
-     * whenever the op mode is running, not only during RoadRunner actions.
+     * The drive runner draws the robot where Nav says it is, so the dashboard field view shows
+     * the robot whenever the op mode is running, not only during RoadRunner actions.
      */
-    public void setPoseSupplier(Supplier<Pose2d> poseSupplier) {
-        driveRunner.setPoseSupplier(poseSupplier);
+    @Override
+    public void init() {
+        driveRunner = add(new DriveRunner(robot.dashboard, () -> robot.nav.currentPose().pose2d));
     }
 
     @Override

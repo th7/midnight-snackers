@@ -5,15 +5,10 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
-import com.qualcomm.robotcore.util.ElapsedTime;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
- * Use Nav.blue, Nav.red, or Nav.relative to get an instance of this class.
- * <p>
  * 2025-2026 Season
  * Treat all coordinates and heading as if you are playing as blue.
  * If you're red, they will automatically be adjusted.
@@ -29,13 +24,6 @@ public class Nav extends SubSystem {
 
     // Roadrunner Coordinates (this is what we use)
     // +x forward, +y left, straight forward heading is 0
-    private static final double blueAprilTagX = 58.3;
-    private static final double blueAprilTagY = 55.6;
-    private static final double blueLaunchTargetX = blueAprilTagX + 9;
-    private static final double blueLaunchTargetY = blueAprilTagY + 9;
-    private static final Vector2d blueLaunchTarget = new Vector2d(blueLaunchTargetX, blueLaunchTargetY);
-    private static final Vector2d redLaunchTarget = new Vector2d(blueLaunchTargetX, -blueLaunchTargetY);
-
     private final int headingSign;
     private final int ySign;
     private final Vector2d launchTarget;
@@ -43,29 +31,11 @@ public class Nav extends SubSystem {
     private final MecanumDrive mecanumDrive;
     private boolean fieldPositionKnown = false;
 
-    private Nav(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry, int headingSign, int ySign, Vector2d launchTarget) {
-        super(runtime, telemetry);
+    public Nav(MecanumDrive mecanumDrive, Alliance alliance) {
         this.mecanumDrive = mecanumDrive;
-        this.headingSign = headingSign;
-        this.ySign = ySign;
-        this.launchTarget = launchTarget;
-    }
-
-    public static Nav blue(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(mecanumDrive, runtime, telemetry, 1, 1, blueLaunchTarget);
-    }
-
-    public static Nav red(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(mecanumDrive, runtime, telemetry, -1, -1, redLaunchTarget);
-    }
-
-    public static Nav relative(MecanumDrive mecanumDrive, ElapsedTime runtime, Telemetry telemetry) {
-        return new Nav(mecanumDrive, runtime, telemetry, 1, 1, null);
-    }
-
-    @Override
-    public void init() {
-        telemetry.addData("Nav.init()", true);
+        this.headingSign = alliance.headingSign;
+        this.ySign = alliance.ySign;
+        this.launchTarget = alliance.launchTarget;
     }
 
     @Override

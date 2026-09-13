@@ -4,22 +4,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
-import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
 public class DriveTest {
     private static final double DELTA = 0.0001;
 
-    private final FakeDcMotorEx leftFront = new FakeDcMotorEx();
-    private final FakeDcMotorEx rightFront = new FakeDcMotorEx();
-    private final FakeDcMotorEx leftBack = new FakeDcMotorEx();
-    private final FakeDcMotorEx rightBack = new FakeDcMotorEx();
-    private final Drive drive =
-            new Drive(leftFront, rightFront, leftBack, rightBack, new FakeDashboard(), new ElapsedTime(), new FakeTelemetry());
+    private final SimRobot sim = new SimRobot();
+    private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final Drive drive = robot.drive;
 
     @Test
     public void straightPowerDrivesAllWheelsTheSame() {
@@ -27,10 +23,10 @@ public class DriveTest {
 
         drive.useDirectPower();
 
-        assertEquals(0.5, leftFront.power, DELTA);
-        assertEquals(0.5, rightFront.power, DELTA);
-        assertEquals(0.5, leftBack.power, DELTA);
-        assertEquals(0.5, rightBack.power, DELTA);
+        assertEquals(0.5, sim.leftFront.power, DELTA);
+        assertEquals(0.5, sim.rightFront.power, DELTA);
+        assertEquals(0.5, sim.leftBack.power, DELTA);
+        assertEquals(0.5, sim.rightBack.power, DELTA);
     }
 
     @Test
@@ -39,10 +35,10 @@ public class DriveTest {
 
         drive.useDirectPower();
 
-        assertEquals(-0.5, leftFront.power, DELTA);
-        assertEquals(0.5, rightFront.power, DELTA);
-        assertEquals(-0.5, leftBack.power, DELTA);
-        assertEquals(0.5, rightBack.power, DELTA);
+        assertEquals(-0.5, sim.leftFront.power, DELTA);
+        assertEquals(0.5, sim.rightFront.power, DELTA);
+        assertEquals(-0.5, sim.leftBack.power, DELTA);
+        assertEquals(0.5, sim.rightBack.power, DELTA);
     }
 
     @Test
@@ -54,9 +50,18 @@ public class DriveTest {
         drive.useDirectPower();
 
         assertFalse(done);
-        assertEquals(1, leftFront.power, DELTA);
-        assertEquals(1, rightFront.power, DELTA);
-        assertEquals(1, leftBack.power, DELTA);
-        assertEquals(1, rightBack.power, DELTA);
+        assertEquals(1, sim.leftFront.power, DELTA);
+        assertEquals(1, sim.rightFront.power, DELTA);
+        assertEquals(1, sim.leftBack.power, DELTA);
+        assertEquals(1, sim.rightBack.power, DELTA);
+    }
+
+    /** The dashboard field view shows the robot where Nav says it is, even when nothing is driving. */
+    @Test
+    public void idleLoopsDrawTheRobotAtNavsPoseOnTheDashboard() {
+        drive.loop();
+        drive.loop();
+
+        assertEquals(2, sim.dashboard.packets.size());
     }
 }

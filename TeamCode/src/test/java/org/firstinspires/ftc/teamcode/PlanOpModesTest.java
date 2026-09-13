@@ -82,10 +82,6 @@ public class PlanOpModesTest {
     }
 
     public static class WrongShape extends Plans {
-        public WrongShape() {
-            super(null, null, null, null, null, null, null, null);
-        }
-
         @Auto(alliance = Alliance.RELATIVE)
         public PlanPart needsAnArgument(int inches) {
             return Step.waitFor("wait", inches);
@@ -103,10 +99,6 @@ public class PlanOpModesTest {
     }
 
     public static class Twice extends Plans {
-        public Twice() {
-            super(null, null, null, null, null, null, null, null);
-        }
-
         @Auto(name = "Same", alliance = Alliance.RED)
         public PlanPart one() {
             return Step.waitFor("one", 1);

@@ -51,7 +51,7 @@ public class SimBenchTest {
 
     static final String TEMP_NAME = "Temp";
     /** The line of {@link #tempPlans} that holds the loop counter, where a compile error is planted. */
-    static final int TEMP_LOOPS_LINE = 10;
+    static final int TEMP_LOOPS_LINE = 8;
 
     /**
      * A stand-in for the team's Plans with one {@code @Auto} plan, the way a student's edit adds
@@ -59,8 +59,6 @@ public class SimBenchTest {
      */
     static String tempPlans(int loops, String group) {
         return "package org.firstinspires.ftc.teamcode;\n"
-                + "import com.qualcomm.robotcore.util.ElapsedTime;\n"
-                + "import org.firstinspires.ftc.robotcore.external.Telemetry;\n"
                 + "import org.firstinspires.ftc.teamcode.base.Auto;\n"
                 + "import org.firstinspires.ftc.teamcode.base.SuperSystem;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
@@ -68,9 +66,6 @@ public class SimBenchTest {
                 + "\n"
                 + "public class Plans extends SuperSystem {\n"
                 + "    private int loops = 0;\n"
-                + "    public Plans(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable, Brain brain) {\n"
-                + "        super(runtime, telemetry, launcher, drive, camera, nav, turntable);\n"
-                + "    }\n"
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops + "); }\n"
                 + "}\n";

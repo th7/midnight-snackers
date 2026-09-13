@@ -5,11 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
-import org.firstinspires.ftc.teamcode.fakes.FakeServo;
+import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
 public class LauncherTest {
@@ -19,54 +18,46 @@ public class LauncherTest {
     private static final double BOTTOM_GATE_CLOSED = 0.4;
     private static final double CLOSE_LAUNCH_VELOCITY = 1050;
 
-    private final FakeDcMotorEx flywheel = new FakeDcMotorEx();
-    private final FakeServo topGate = new FakeServo();
-    private final FakeServo bottomGate = new FakeServo();
-    private final Launcher launcher =
-            new Launcher(flywheel, topGate, bottomGate, new ElapsedTime(), new FakeTelemetry());
+    private final SimRobot sim = new SimRobot();
+    private final Launcher launcher = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry()).launcher;
 
     @Test
-    public void initParksTheGatesAndConfiguresTheFlywheel() {
-        launcher.init();
-
-        assertEquals(TOP_GATE_OPEN, topGate.position, DELTA);
-        assertEquals(BOTTOM_GATE_CLOSED, bottomGate.position, DELTA);
-        assertEquals(DcMotor.RunMode.RUN_USING_ENCODER, flywheel.getMode());
+    public void aFreshRobotParksTheGatesAndConfiguresTheFlywheel() {
+        assertEquals(TOP_GATE_OPEN, sim.topGate.position, DELTA);
+        assertEquals(BOTTOM_GATE_CLOSED, sim.bottomGate.position, DELTA);
+        assertEquals(DcMotor.RunMode.RUN_USING_ENCODER, sim.launcher.getMode());
     }
 
     @Test
     public void loopDrivesTheCommandedVelocity() {
-        launcher.init();
         launcher.setCloseLaunchPower();
 
         launcher.loop();
 
-        assertEquals(CLOSE_LAUNCH_VELOCITY, flywheel.commandedVelocity, DELTA);
+        assertEquals(CLOSE_LAUNCH_VELOCITY, sim.launcher.commandedVelocity, DELTA);
     }
 
     @Test
     public void launchWaitsForTheFlywheelBeforeCyclingTheGates() {
-        launcher.init();
         launcher.launchyLaunch();
         assertFalse(launcher.launchDone());
 
         launcher.loop();
         launcher.loop();
 
-        assertEquals(CLOSE_LAUNCH_VELOCITY, flywheel.commandedVelocity, DELTA);
-        assertEquals(TOP_GATE_OPEN, topGate.position, DELTA);
+        assertEquals(CLOSE_LAUNCH_VELOCITY, sim.launcher.commandedVelocity, DELTA);
+        assertEquals(TOP_GATE_OPEN, sim.topGate.position, DELTA);
 
-        flywheel.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
+        sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
         launcher.loop();
         launcher.loop();
 
-        assertEquals(TOP_GATE_CLOSED, topGate.position, DELTA);
+        assertEquals(TOP_GATE_CLOSED, sim.topGate.position, DELTA);
     }
 
     @Test
     public void launchRunsToCompletionAndParksTheGates() throws InterruptedException {
-        launcher.init();
-        flywheel.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
+        sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
         launcher.launchyLaunch();
 
         long deadline = System.nanoTime() + 2_000_000_000L;
@@ -76,7 +67,7 @@ public class LauncherTest {
         }
 
         assertTrue(launcher.launchDone());
-        assertEquals(TOP_GATE_OPEN, topGate.position, DELTA);
-        assertEquals(BOTTOM_GATE_CLOSED, bottomGate.position, DELTA);
+        assertEquals(TOP_GATE_OPEN, sim.topGate.position, DELTA);
+        assertEquals(BOTTOM_GATE_CLOSED, sim.bottomGate.position, DELTA);
     }
 }

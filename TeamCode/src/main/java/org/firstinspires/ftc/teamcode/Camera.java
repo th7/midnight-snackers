@@ -2,9 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.qualcomm.robotcore.util.ElapsedTime;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
@@ -25,14 +22,8 @@ public class Camera extends SubSystem {
     /**
      * @param detectionSource the latest AprilTag detections; {@link AprilTagWebcam#detections} on the robot.
      */
-    public Camera(Supplier<List<AprilTagDetection>> detectionSource, ElapsedTime runtime, Telemetry telemetry) {
-        super(runtime, telemetry);
+    public Camera(Supplier<List<AprilTagDetection>> detectionSource) {
         this.detectionSource = detectionSource;
-    }
-
-    @Override
-    public void init() {
-        telemetry.addData("Camera.init()", true);
     }
 
     @Override

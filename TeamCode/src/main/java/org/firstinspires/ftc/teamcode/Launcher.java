@@ -3,9 +3,6 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
@@ -27,13 +24,13 @@ public class Launcher extends SubSystem {
     private double bottomGateWaitTime = 0.45;
     private final PlanRunner planRunner = add(new PlanRunner());
 
-    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, ElapsedTime runtime, Telemetry telemetry) {
-        super(runtime, telemetry);
+    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate) {
         this.launcher = launcher;
         this.topGate = topGate;
         this.bottomGate = bottomGate;
     }
 
+    @Override
     public void init() {
         launcher.setPositionPIDFCoefficients(5);
 
@@ -43,8 +40,6 @@ public class Launcher extends SubSystem {
 
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);
-
-        telemetry.addData("Launcher.init()", true);
     }
 
     @Override

@@ -12,10 +12,11 @@ import org.junit.Test;
 
 public class DriveRunnerTest {
     private final FakeDashboard dashboard = new FakeDashboard();
-    private final DriveRunner driveRunner = new DriveRunner(dashboard);
 
     @Test
     public void nothingToDrawSendsNothing() {
+        DriveRunner driveRunner = new DriveRunner(dashboard, null);
+
         driveRunner.loop();
 
         assertEquals(0, dashboard.packets.size());
@@ -23,7 +24,7 @@ public class DriveRunnerTest {
 
     @Test
     public void idleWithAPoseSupplierSendsOnePacketPerLoop() {
-        driveRunner.setPoseSupplier(() -> new Pose2d(1, 2, 0));
+        DriveRunner driveRunner = new DriveRunner(dashboard, () -> new Pose2d(1, 2, 0));
 
         driveRunner.loop();
         driveRunner.loop();
@@ -33,6 +34,7 @@ public class DriveRunnerTest {
 
     @Test
     public void aRunningActionIsSentToTheDashboardUntilItFinishes() {
+        DriveRunner driveRunner = new DriveRunner(dashboard, null);
         int[] runsRemaining = {2};
         Action action = packet -> --runsRemaining[0] > 0;
         driveRunner.drive(action);

@@ -72,12 +72,20 @@ public class SimRobot {
      * The simulated devices, wired the way {@link Hardware#fromHardwareMap} wires the real ones.
      */
     public Hardware hardware() {
-        return new Hardware(
-                launcher, topGate, bottomGate,
-                leftFront, rightFront, leftBack, rightBack,
-                turnTable, () -> imu, voltageSensor,
-                ArrayList::new,
-                dashboard);
+        Hardware hardware = new Hardware();
+        hardware.launcher = launcher;
+        hardware.topGate = topGate;
+        hardware.bottomGate = bottomGate;
+        hardware.leftFront = leftFront;
+        hardware.rightFront = rightFront;
+        hardware.leftBack = leftBack;
+        hardware.rightBack = rightBack;
+        hardware.turnTable = turnTable;
+        hardware.imu = () -> imu;
+        hardware.voltageSensor = voltageSensor;
+        hardware.aprilTags = ArrayList::new;
+        hardware.dashboard = dashboard;
+        return hardware;
     }
 
     /**

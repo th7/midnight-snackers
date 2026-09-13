@@ -5,14 +5,15 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import com.qualcomm.robotcore.util.ElapsedTime;
-
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.teamcode.base.Hardware;
+import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
 
@@ -25,11 +26,17 @@ public class CameraTest {
     private static final int OTHER_TAG = 21;
 
     private final List<AprilTagDetection> detections = new ArrayList<>();
-    private final Camera camera = new Camera(() -> detections, new ElapsedTime(), new FakeTelemetry());
+    private final Camera camera = cameraFed(detections);
+
+    /** A robot whose camera sees {@code detections} instead of the simulator's empty view. */
+    private static Camera cameraFed(List<AprilTagDetection> detections) {
+        Hardware hardware = new SimRobot().hardware();
+        hardware.aprilTags = () -> detections;
+        return new Robot(hardware, Alliance.RELATIVE, new FakeTelemetry()).camera;
+    }
 
     @Test
     public void noDetectionsMeansNoPose() {
-        camera.init();
 
         camera.loop();
 
@@ -38,7 +45,6 @@ public class CameraTest {
 
     @Test
     public void threeConsistentGoalDetectionsProduceARoadrunnerPose() {
-        camera.init();
         for (int i = 0; i < 3; i++) {
             detections.clear();
             detections.add(goalDetection(BLUE_GOAL_TAG, 10, 20, Math.PI / 2));
@@ -55,7 +61,6 @@ public class CameraTest {
 
     @Test
     public void detectionsOfOtherTagsAreIgnored() {
-        camera.init();
         for (int i = 0; i < 3; i++) {
             detections.clear();
             detections.add(goalDetection(OTHER_TAG, 10, 20, Math.PI / 2));

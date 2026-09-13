@@ -11,18 +11,15 @@ import java.util.function.Supplier;
 
 public class DriveRunner implements Loopable {
     private final Dashboard dashboard;
+    private final Supplier<Pose2d> poseSupplier;
     private Action roadRunnerAction = null;
-    private Supplier<Pose2d> poseSupplier = null;
-
-    public DriveRunner(Dashboard dashboard) {
-        this.dashboard = dashboard;
-    }
 
     /**
-     * Provide the robot's current pose so it is drawn on the dashboard field view
-     * even when no RoadRunner action is running.
+     * @param poseSupplier the robot's current pose, so it is drawn on the dashboard field view even
+     *                     when no RoadRunner action is running; null to draw nothing then
      */
-    public void setPoseSupplier(Supplier<Pose2d> poseSupplier) {
+    public DriveRunner(Dashboard dashboard, Supplier<Pose2d> poseSupplier) {
+        this.dashboard = dashboard;
         this.poseSupplier = poseSupplier;
     }
 
