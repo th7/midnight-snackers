@@ -110,9 +110,9 @@ public final class SimRunner {
                                       SimDriverStation driverStation) {
         try {
             loopUntilDone(opMode, sim, seconds, recording, driverStation);
-            recording.finish("done");
+            recording.finish(SimRunStream.Outcome.done());
         } catch (RuntimeException | Error e) {
-            recording.finish("failed: " + e);
+            recording.finish(SimRunStream.Outcome.failed(e));
             throw e;
         } finally {
             Path page = outputDir.resolve(fileName(recording.name()) + ".html");
@@ -150,7 +150,7 @@ public final class SimRunner {
         long lastTickAt = startedAt;
         while (true) {
             if (driverStation.stopRequested()) {
-                recording.finish("stopped");
+                recording.finish(SimRunStream.Outcome.stopped());
                 return;
             }
             if (auto != null && auto.done()) {
@@ -162,7 +162,7 @@ public final class SimRunner {
                 if (auto == null) {
                     return; // a TeleOp's time is simply up
                 }
-                recording.finish(String.format("timed out after %.1fs", seconds));
+                recording.finish(SimRunStream.Outcome.timedOut(seconds));
                 throw new AssertionError(String.format(
                         "op mode still running after %.1fs; current step: %s; true pose: %s",
                         seconds, auto.currentStep(), sim.pose()));

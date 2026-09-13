@@ -253,11 +253,19 @@ mode appears without a restart. Class: `SimCatalog`.
 **Child** — The fresh JVM each run executes in, launched with the newly
 built classes first on its classpath. Every class identity is consistent,
 static state starts clean, and a hung op mode is a process that can be
-killed. It builds the catalog, says when the op mode's time begins, then
-prints each tick as one JSON line and finally the outcome; the op mode's
+killed. It builds the catalog, then prints the run stream; the op mode's
 own output goes to stderr. Its standard input is the driver
 station, one line at a time; when the input ends, the run ends stopped.
 Class: `SimChild`.
+
+**Run stream** — The lines the child prints, one JSON object per line, in
+order: one that the op mode's time has begun, each tick as it happens, and
+finally the outcome. Written and read in one place, so the child and the
+bench agree by construction, and every way a run can end is named there. A
+tick's line is also the form the replay page reads, so a run the bench
+knows only by its lines is the same page the child wrote from its own
+recording: the page reads either **source**. Class: `SimRunStream`;
+`SimReplayPage.Source`.
 
 **Run** — One execution of one op mode on a fresh simulated robot, in real
 time. A run has a **phase** (*building*, *starting* while the child JVM

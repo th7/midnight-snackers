@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
+import com.google.gson.JsonArray;
 
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 
@@ -13,9 +14,9 @@ import java.util.List;
  * Everything observed during one simulated run, one entry per op mode loop: the true pose, the
  * plan's current step, the drive powers, the dashboard packets the robot code drew that loop, and
  * for a TeleOp what the driver's gamepads read. Safe to read from another thread (the live view)
- * while the run is still adding to it.
+ * while the run is still adding to it. A source for the replay page, in this JVM.
  */
-public final class SimRecording {
+public final class SimRecording implements SimReplayPage.Source {
     public static final class Tick {
         public final double seconds;
         public final Pose2d truePose;
@@ -63,12 +64,19 @@ public final class SimRecording {
         this.kind = kind;
     }
 
+    @Override
     public String name() {
         return name;
     }
 
+    @Override
     public String kind() {
         return kind;
+    }
+
+    @Override
+    public JsonArray ticksJson(int from) {
+        return SimRunStream.ticksJson(ticksFrom(from));
     }
 
     public synchronized void add(Tick tick) {
@@ -99,8 +107,8 @@ public final class SimRecording {
     }
 
     /**
-     * How the run ended, e.g. "done", "stopped", or "timed out after 40.0s". The first outcome
-     * stands: a later call changes nothing.
+     * How the run ended, one of {@link SimRunStream.Outcome}'s. The first outcome stands: a
+     * later call changes nothing.
      */
     public synchronized void finish(String outcome) {
         if (this.outcome == null) {
@@ -112,6 +120,7 @@ public final class SimRecording {
         return outcome != null;
     }
 
+    @Override
     public synchronized String outcome() {
         return outcome;
     }

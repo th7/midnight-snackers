@@ -1,13 +1,9 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSerializer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,21 +11,38 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 /**
- * Writes a {@link SimRecording} as a single HTML file that replays the run: the field, the true
- * pose, and the dashboard drawing the robot code produced, with play/pause/scrub controls.
- * The page loads nothing from the network, so it can be opened from anywhere the file is.
+ * Writes a run as a single HTML file that replays it: the field, the true pose, and the dashboard
+ * drawing the robot code produced, with play/pause/scrub controls. The page loads nothing from
+ * the network, so it can be opened from anywhere the file is. The run comes from a
+ * {@link Source}: a {@link SimRecording} in this JVM, or a run the bench knows only by the lines
+ * its child streamed ({@link SimRunStream}); the page is the same either way.
  */
 public final class SimReplayPage {
+    /** A run as the page reads it: its ticks in their line form, and its outcome once it has one. */
+    public interface Source {
+        String name();
+
+        /** {@link SimCatalog#AUTO} or {@link SimCatalog#TELEOP}; a TeleOp page shows the controller. */
+        String kind();
+
+        /** The ticks from index {@code from} onward, each as {@link SimRunStream#tickJson}. */
+        JsonArray ticksJson(int from);
+
+        /** How the run ended, or null while it is still running. */
+        String outcome();
+    }
+
     private static final String TEMPLATE = "replay.html";
+    /** "outcome": null says "still running" explicitly. */
+    private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
     private SimReplayPage() {
     }
 
-    public static void write(SimRecording recording, Path page) {
-        String html = page(recording, false);
+    public static void write(Source run, Path page) {
+        String html = page(run, false);
         try {
             Files.createDirectories(page.toAbsolutePath().getParent());
             Files.write(page, html.getBytes(StandardCharsets.UTF_8));
@@ -39,99 +52,30 @@ public final class SimReplayPage {
     }
 
     /**
-     * The page as HTML. A live page starts empty and polls {@code /ticks} for the run as it happens;
-     * a file page embeds the whole recording.
+     * The page as HTML. A live page starts empty and polls {@code /ticks} for the run as it happens,
+     * and while the run is a TeleOp drives it from the controller; a file page embeds the whole run.
      */
-    public static String page(SimRecording recording, boolean live) {
-        return page(recording.name(), recording.kind(), live, ticksJson(live ? List.of() : recording.ticks()), recording.outcome());
-    }
-
-    /**
-     * The page for ticks already in their JSON form, as another JVM streamed them.
-     *
-     * @param kind {@link SimCatalog#AUTO} or {@link SimCatalog#TELEOP}; a TeleOp page shows the
-     *             controller, and while live drives the run from it
-     */
-    public static String page(String name, String kind, boolean live, JsonArray ticks, String outcome) {
+    public static String page(Source run, boolean live) {
         JsonObject root = new JsonObject();
-        root.addProperty("name", name);
-        root.addProperty("kind", kind);
+        root.addProperty("name", run.name());
+        root.addProperty("kind", run.kind());
         root.addProperty("live", live);
-        root.addProperty("outcome", live ? null : outcome);
-        root.add("ticks", live ? new JsonArray() : ticks);
+        root.addProperty("outcome", live ? null : run.outcome());
+        root.add("ticks", live ? new JsonArray() : run.ticksJson(0));
+        // Gson escapes '<' and '>' so the JSON is safe inside a <script> element.
         return template()
-                .replace("__TITLE__", name)
+                .replace("__TITLE__", run.name())
                 .replace("__DATA__", GSON.toJson(root));
     }
 
     /**
      * What a live page fetches: the ticks from {@code from} onward and the outcome once there is one.
      */
-    public static String update(SimRecording recording, int from) {
-        return update(ticksJson(recording.ticksFrom(from)), recording.outcome());
-    }
-
-    public static String update(JsonArray ticksFrom, String outcome) {
+    public static String update(Source run, int from) {
         JsonObject root = new JsonObject();
-        root.addProperty("outcome", outcome);
-        root.add("ticks", ticksFrom);
+        root.addProperty("outcome", run.outcome());
+        root.add("ticks", run.ticksJson(from));
         return GSON.toJson(root);
-    }
-
-    /** One tick in the form the page reads and the child streams. */
-    static JsonObject tickJson(SimRecording.Tick tick) {
-        Gson gson = GSON;
-        JsonObject t = new JsonObject();
-        t.add("t", gson.toJsonTree(tick.seconds));
-        t.add("x", gson.toJsonTree(tick.truePose.position.x));
-        t.add("y", gson.toJsonTree(tick.truePose.position.y));
-        t.add("heading", gson.toJsonTree(tick.truePose.heading.toDouble()));
-        t.addProperty("step", tick.step);
-        t.add("powers", gson.toJsonTree(tick.wheelPowers));
-        JsonArray packets = new JsonArray();
-        for (TelemetryPacket packet : tick.packets) {
-            JsonObject p = new JsonObject();
-            p.add("data", gson.toJsonTree(packet).getAsJsonObject().get("data"));
-            p.add("ops", gson.toJsonTree(packet.fieldOverlay().getOperations()));
-            packets.add(p);
-        }
-        t.add("packets", packets);
-        JsonObject gamepads = new JsonObject();
-        if (tick.gamepad1 != null && !tick.gamepad1.neutral()) {
-            gamepads.add("1", tick.gamepad1.toJson());
-        }
-        if (tick.gamepad2 != null && !tick.gamepad2.neutral()) {
-            gamepads.add("2", tick.gamepad2.toJson());
-        }
-        if (gamepads.size() > 0) {
-            t.add("gamepads", gamepads); // absent means neutral, so a replay stays small
-        }
-        return t;
-    }
-
-    static String toLine(JsonElement json) {
-        return GSON.toJson(json);
-    }
-
-    private static final Gson GSON = gson();
-
-    private static Gson gson() {
-        JsonSerializer<Double> threeDecimals = (value, type, context) ->
-                new JsonPrimitive(Math.round(value * 1000) / 1000d);
-        return new GsonBuilder()
-                .serializeNulls() // "outcome": null says "still running" explicitly
-                .registerTypeAdapter(double.class, threeDecimals)
-                .registerTypeAdapter(Double.class, threeDecimals)
-                .create();
-    }
-
-    private static JsonArray ticksJson(List<SimRecording.Tick> source) {
-        JsonArray ticks = new JsonArray();
-        for (SimRecording.Tick tick : source) {
-            ticks.add(tickJson(tick));
-        }
-        // Gson escapes '<' and '>' so the JSON is safe inside a <script> element.
-        return ticks;
     }
 
     private static String template() {

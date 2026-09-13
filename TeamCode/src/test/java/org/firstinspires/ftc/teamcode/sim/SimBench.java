@@ -45,7 +45,7 @@ public final class SimBench {
         }
     }
 
-    public final class Run {
+    public final class Run implements SimReplayPage.Source {
         public final int id;
         public final SimCatalog.Entry entry;
         public final long startedAtMillis = System.currentTimeMillis();
@@ -73,6 +73,7 @@ public final class SimBench {
             return phase;
         }
 
+        @Override
         public synchronized String outcome() {
             return outcome;
         }
@@ -83,10 +84,11 @@ public final class SimBench {
         }
 
         public synchronized JsonArray ticks() {
-            return ticksFrom(0);
+            return ticksJson(0);
         }
 
-        public synchronized JsonArray ticksFrom(int from) {
+        @Override
+        public synchronized JsonArray ticksJson(int from) {
             JsonArray rest = new JsonArray();
             for (int i = Math.min(from, ticks.size()); i < ticks.size(); i++) {
                 rest.add(ticks.get(i));
@@ -101,6 +103,11 @@ public final class SimBench {
 
         synchronized void addTick(JsonObject tick) {
             ticks.add(tick);
+        }
+
+        /** How far into its time the run is: the last tick's seconds, or none yet. */
+        synchronized double seconds() {
+            return ticks.size() == 0 ? 0 : SimRunStream.seconds(ticks.get(ticks.size() - 1).getAsJsonObject());
         }
 
         synchronized void addLog(String line) {
@@ -133,7 +140,7 @@ public final class SimBench {
         }
 
         /** How long this run may take: a TeleOp its period, an auto its timeout. */
-        double seconds() {
+        double budgetSeconds() {
             return entry.kind.equals(SimCatalog.TELEOP) ? teleOpSeconds : runTimeoutSeconds;
         }
 
@@ -168,7 +175,7 @@ public final class SimBench {
                     return;
                 }
                 if (child == null) {
-                    finish("stopped", "stopped before the build finished");
+                    finish(SimRunStream.Outcome.stopped(), "stopped before the build finished");
                     return;
                 }
                 JsonObject line = new JsonObject();
@@ -183,7 +190,7 @@ public final class SimBench {
             Thread grace = new Thread(() -> {
                 try {
                     if (!process.waitFor((long) (killGraceSeconds * 1000), TimeUnit.MILLISECONDS)) {
-                        finish(String.format("killed %.1fs after Stop: the op mode did not return", killGraceSeconds),
+                        finish(SimRunStream.Outcome.killedAfterStop(killGraceSeconds),
                                 "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
                         process.destroyForcibly();
                     }
@@ -195,8 +202,14 @@ public final class SimBench {
             grace.start();
         }
 
-        String name() {
+        @Override
+        public String name() {
             return entry.name;
+        }
+
+        @Override
+        public String kind() {
+            return entry.kind;
         }
     }
 
@@ -323,7 +336,7 @@ public final class SimBench {
                 .route("GET", "/runs/{id}", (request, params) -> withRun(params, request, this::page))
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
                 .route("GET", "/runs/{id}/ticks", (request, params) -> withRun(params, request, (run, r) ->
-                        Response.json(SimReplayPage.update(run.ticksFrom(r.queryInt("from", 0)), run.outcome()))))
+                        Response.json(SimReplayPage.update(run, r.queryInt("from", 0)))))
                 .route("GET", "/runs/{id}/log", (request, params) -> withRun(params, request, (run, r) ->
                         new Response(200, "text/plain; charset=utf-8", run.log())))
                 .route("POST", "/runs/{id}/gamepad", (request, params) -> withRun(params, request, this::gamepad))
@@ -357,7 +370,7 @@ public final class SimBench {
     }
 
     private Response page(Run run, Request request) {
-        return Response.html(SimReplayPage.page(run.name(), run.entry.kind, true, run.ticks(), run.outcome()));
+        return Response.html(SimReplayPage.page(run, true));
     }
 
     /** {@code POST /run?opmode=<name>}: starts the run and answers its id. */
@@ -433,11 +446,11 @@ public final class SimBench {
             try {
                 result = build.build();
             } catch (RuntimeException e) {
-                run.finish("build failed", e.getMessage());
+                run.finish(SimRunStream.Outcome.buildFailed(), e.getMessage());
                 return;
             }
             if (result.classes == null) {
-                run.finish("build failed", result.diagnostics);
+                run.finish(SimRunStream.Outcome.buildFailed(), result.diagnostics);
                 return;
             }
             classpathFirst = List.of(result.classes);
@@ -447,12 +460,12 @@ public final class SimBench {
         }
         Process child;
         try {
-            List<String> args = new ArrayList<>(List.of("--run", run.entry.name, String.valueOf(run.seconds()),
+            List<String> args = new ArrayList<>(List.of("--run", run.entry.name, String.valueOf(run.budgetSeconds()),
                     outputDir.toAbsolutePath().toString()));
             args.addAll(sources());
             child = SimChild.launch(classpathFirst, args.toArray(new String[0]));
         } catch (RuntimeException e) {
-            run.finish("could not start the child JVM", e.getMessage());
+            run.finish(SimRunStream.Outcome.couldNotStartChild(), e.getMessage());
             return;
         }
         run.launched(child);
@@ -467,7 +480,7 @@ public final class SimBench {
         }, "sim-run-" + run.id + "-log");
         stderr.setDaemon(true);
         stderr.start();
-        double maxSeconds = run.seconds() + killGraceSeconds;
+        double maxSeconds = run.budgetSeconds() + killGraceSeconds;
         CountDownLatch started = new CountDownLatch(1);
         Thread watchdog = new Thread(() -> {
             try {
@@ -475,14 +488,14 @@ public final class SimBench {
                 // catalog is the child's business, and it can be slow.
                 if (!started.await((long) (STARTUP_SECONDS * 1000), TimeUnit.MILLISECONDS)) {
                     if (child.isAlive()) {
-                        run.finish(String.format("killed after %.1fs: the op mode never started", STARTUP_SECONDS),
+                        run.finish(SimRunStream.Outcome.killed(STARTUP_SECONDS, "the op mode never started"),
                                 "the child JVM never said the op mode had started; it was killed");
                         child.destroyForcibly();
                     }
                     return;
                 }
                 if (!child.waitFor((long) (maxSeconds * 1000), TimeUnit.MILLISECONDS)) {
-                    run.finish(String.format("killed after %.1fs: the op mode did not return", maxSeconds),
+                    run.finish(SimRunStream.Outcome.killed(maxSeconds, "the op mode did not return"),
                             "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
                     child.destroyForcibly();
                 }
@@ -492,26 +505,33 @@ public final class SimBench {
         }, "sim-run-" + run.id + "-watchdog");
         watchdog.setDaemon(true);
         watchdog.start();
-        String outcome = null;
+        String[] outcome = {null};
+        SimRunStream.Listener listener = new SimRunStream.Listener() {
+            @Override
+            public void started() {
+                run.started();
+                started.countDown();
+            }
+
+            @Override
+            public void tick(JsonObject tick) {
+                run.addTick(tick);
+            }
+
+            @Override
+            public void finished(String how) {
+                outcome[0] = how;
+            }
+        };
         try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
             for (String line = out.readLine(); line != null; line = out.readLine()) {
-                JsonObject json;
+                if (line.isBlank()) {
+                    continue;
+                }
                 try {
-                    json = GSON.fromJson(line, JsonObject.class);
-                } catch (RuntimeException e) {
+                    SimRunStream.accept(line, listener);
+                } catch (IllegalArgumentException e) {
                     run.addLog("unreadable line from the child: " + line);
-                    continue;
-                }
-                if (json == null) {
-                    continue;
-                }
-                if (json.has("started")) {
-                    run.started();
-                    started.countDown();
-                } else if (json.has("outcome")) {
-                    outcome = json.get("outcome").getAsString();
-                } else {
-                    run.addTick(json);
                 }
             }
         } catch (IOException ignored) {
@@ -524,10 +544,10 @@ public final class SimBench {
             Thread.currentThread().interrupt();
         }
         watchdog.interrupt();
-        if (outcome != null) {
-            run.finish(outcome, null);
+        if (outcome[0] != null) {
+            run.finish(outcome[0], null);
         } else {
-            run.finish("child exited with code " + child.exitValue(), run.log());
+            run.finish(SimRunStream.Outcome.childExited(child.exitValue()), run.log());
         }
     }
 
@@ -550,7 +570,7 @@ public final class SimBench {
     public void stop() {
         Run current = current();
         if (current != null) {
-            current.finish("stopped", "the bench was stopped");
+            current.finish(SimRunStream.Outcome.stopped(), "the bench was stopped");
             Process child = current.child();
             if (child != null) {
                 child.destroyForcibly();
@@ -564,7 +584,6 @@ public final class SimBench {
         JsonArray list = new JsonArray();
         for (int i = runs.size() - 1; i >= 0; i--) {
             Run run = runs.get(i);
-            JsonArray ticks = run.ticks();
             JsonObject item = new JsonObject();
             item.addProperty("id", run.id);
             item.addProperty("name", run.entry.name);
@@ -573,8 +592,8 @@ public final class SimBench {
             item.addProperty("startedAt", run.startedAtMillis);
             item.addProperty("startedBy", run.startedBy);
             item.addProperty("phase", run.phase());
-            item.addProperty("loops", ticks.size());
-            item.addProperty("seconds", ticks.size() == 0 ? 0 : ticks.get(ticks.size() - 1).getAsJsonObject().get("t").getAsDouble());
+            item.addProperty("loops", run.ticks().size());
+            item.addProperty("seconds", run.seconds());
             item.addProperty("outcome", run.outcome());
             item.addProperty("message", run.message());
             list.add(item);

@@ -3,21 +3,22 @@ package org.firstinspires.ftc.teamcode.sim;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 /**
- * Serves a {@link SimRecording} to a browser while the run is still going: the replay page in
- * live mode at {@code /}, and {@code /ticks?from=N} for everything recorded since tick N.
+ * Serves a run to a browser while it is still going: the replay page in live mode at {@code /},
+ * and {@code /ticks?from=N} for everything recorded since tick N. The run is a
+ * {@link SimReplayPage.Source}, normally a {@link SimRecording} in this JVM.
  */
 public final class SimLiveServer {
     private final TinyHttpServer http;
-    private final SimRecording recording;
+    private final SimReplayPage.Source recording;
     private volatile boolean viewerSawOutcome = false;
 
-    private SimLiveServer(SimRecording recording, int port) {
+    private SimLiveServer(SimReplayPage.Source recording, int port) {
         this.recording = recording;
         Router routes = new Router()
                 .route("GET", "/", (request, params) -> Response.html(SimReplayPage.page(recording, true)))
                 .route("GET", "/ticks", (request, params) -> {
                     String body = SimReplayPage.update(recording, request.queryInt("from", 0));
-                    if (recording.finished()) {
+                    if (recording.outcome() != null) {
                         viewerSawOutcome = true;
                     }
                     return Response.json(body);
@@ -28,7 +29,7 @@ public final class SimLiveServer {
     /**
      * @param port the port to listen on, or 0 for any free port (see {@link #port()})
      */
-    public static SimLiveServer start(SimRecording recording, int port) {
+    public static SimLiveServer start(SimReplayPage.Source recording, int port) {
         return new SimLiveServer(recording, port);
     }
 

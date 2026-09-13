@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
@@ -102,6 +103,68 @@ public class SimReplayPageTest {
             assertTrue(keys.add(selectable.group(1)));
         }
         assertTrue("Stop is a control, not an input", html.contains("id=\"stop\""));
+    }
+
+    /**
+     * The bench holds a run only as the lines its child streamed; the page it serves for that run
+     * is the very page the child wrote from its own recording. One page module, two sources.
+     */
+    @Test
+    public void aRunKnownOnlyByItsChildsLinesIsTheSamePageAsTheRecordingItCameFrom() {
+        SimRecording recording = new SimRecording("StickTeleOp", "teleop");
+        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "", new double[]{0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
+        recording.add(new SimRecording.Tick(0.5, new Pose2d(1.0 / 3, 0, 0), "", new double[]{1, 1, 1, 1}, List.of(), State.NEUTRAL, State.NEUTRAL));
+        recording.finish("stopped");
+        JsonArray streamed = new JsonArray();
+        String[] outcome = {null};
+        SimRunStream.Listener parent = new SimRunStream.Listener() {
+            @Override
+            public void started() {
+            }
+
+            @Override
+            public void tick(JsonObject tick) {
+                streamed.add(tick);
+            }
+
+            @Override
+            public void finished(String how) {
+                outcome[0] = how;
+            }
+        };
+        for (SimRecording.Tick tick : recording.ticks()) {
+            SimRunStream.accept(SimRunStream.tick(tick), parent);
+        }
+        SimRunStream.accept(SimRunStream.finished(recording.outcome()), parent);
+        SimReplayPage.Source fromTheChild = new SimReplayPage.Source() {
+            @Override
+            public String name() {
+                return "StickTeleOp";
+            }
+
+            @Override
+            public String kind() {
+                return "teleop";
+            }
+
+            @Override
+            public JsonArray ticksJson(int from) {
+                JsonArray rest = new JsonArray();
+                for (int i = from; i < streamed.size(); i++) {
+                    rest.add(streamed.get(i));
+                }
+                return rest;
+            }
+
+            @Override
+            public String outcome() {
+                return outcome[0];
+            }
+        };
+
+        assertEquals(SimReplayPage.page(recording, false), SimReplayPage.page(fromTheChild, false));
+        assertEquals(SimReplayPage.page(recording, true), SimReplayPage.page(fromTheChild, true));
+        assertEquals(SimReplayPage.update(recording, 1), SimReplayPage.update(fromTheChild, 1));
     }
 
     private static int templateMentions(String text) {

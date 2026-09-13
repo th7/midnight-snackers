@@ -28,10 +28,10 @@ import java.util.Optional;
  * <ul>
  * <li>{@code --list [source...]} prints the catalog as one JSON line.</li>
  * <li>{@code --run <name> <seconds> <replayDir> [source...]} runs the op mode of that name,
- * printing one {@code {"started": true}} line as the op mode's time begins, then each tick as
- * one JSON line as it happens, and finally one {@code {"outcome": ...}} line. Standard input is
- * the driver station: one {@link SimDriverStation#accept line} at a time, and the run ends
- * stopped when the input ends.</li>
+ * printing the {@link SimRunStream}: one line as the op mode's time begins, then each tick as
+ * one line as it happens, and finally one line with the outcome. Standard input is the driver
+ * station: one {@link SimDriverStation#accept line} at a time, and the run ends stopped when
+ * the input ends.</li>
  * </ul>
  * The sources are the classes a fixed catalog was built from ({@link SimCatalog#sources()});
  * given none, the child discovers the catalog as the parent would.
@@ -49,14 +49,12 @@ public final class SimChild {
         PrintStream protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
         if (args.length >= 1 && args[0].equals("--list")) {
-            protocol.println(SimReplayPage.toLine(catalog(args, 1).toJson()));
+            protocol.println(GSON.toJson(catalog(args, 1).toJson()));
             System.exit(0);
         }
         if (args.length >= 4 && args[0].equals("--run")) {
             String outcome = run(catalog(args, 4), args[1], Double.parseDouble(args[2]), Paths.get(args[3]), protocol);
-            JsonObject last = new JsonObject();
-            last.addProperty("outcome", outcome);
-            protocol.println(SimReplayPage.toLine(last));
+            protocol.println(SimRunStream.finished(outcome));
             System.exit(0);
         }
         System.err.println("usage: --list [source...] | --run <op mode name> <seconds> <replay dir> [source...]");
@@ -82,13 +80,13 @@ public final class SimChild {
     private static String run(SimCatalog catalog, String name, double seconds, Path replayDir, PrintStream protocol) {
         Optional<SimCatalog.Entry> entry = catalog.find(name);
         if (entry.isEmpty()) {
-            return "no op mode named " + name;
+            return SimRunStream.Outcome.noOpModeNamed(name);
         }
         OpMode opMode;
         try {
             opMode = entry.get().opMode();
         } catch (RuntimeException e) {
-            return "could not build " + name + ": " + e;
+            return SimRunStream.Outcome.couldNotBuild(name, e);
         }
         SimRecording recording = new SimRecording(entry.get().name, entry.get().kind);
         SimDriverStation driverStation = new SimDriverStation();
@@ -98,9 +96,7 @@ public final class SimChild {
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);
         streamer.start();
-        JsonObject started = new JsonObject();
-        started.addProperty("started", true);
-        protocol.println(SimReplayPage.toLine(started));
+        protocol.println(SimRunStream.started());
         try {
             SimRunner.record(recording, opMode, new SimRobot(), seconds, replayDir, driverStation);
         } catch (RuntimeException | Error e) {
@@ -130,13 +126,13 @@ public final class SimChild {
                 try {
                     driverStation.accept(GSON.fromJson(line, JsonObject.class));
                 } catch (RuntimeException e) {
-                    recording.finish("could not read the driver station: " + e.getMessage());
+                    recording.finish(SimRunStream.Outcome.badDriverStation(e.getMessage()));
                     driverStation.stop();
                     return;
                 }
             }
         } catch (IOException e) {
-            recording.finish("could not read the driver station: " + e);
+            recording.finish(SimRunStream.Outcome.badDriverStation(e.toString()));
         }
         driverStation.stop();
     }
@@ -156,7 +152,7 @@ public final class SimChild {
 
     private static synchronized void flush(SimRecording recording, PrintStream protocol) {
         for (SimRecording.Tick tick : recording.ticksFrom(streamed)) {
-            protocol.println(SimReplayPage.toLine(SimReplayPage.tickJson(tick)));
+            protocol.println(SimRunStream.tick(tick));
             streamed++;
         }
     }
