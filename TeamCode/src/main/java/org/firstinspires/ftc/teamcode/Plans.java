@@ -29,7 +29,7 @@ public class Plans extends SuperSystem {
     private PlanPart move1FootForward() {
         return new Step(
                 "move1FootForward",
-                () -> drive.to(nav.strafeTo(12, 0, 0)),
+                () -> drive.follow(nav.strafeTo(12, 0, 0)),
                 () -> {
                     if (nav.closeTo(12, 0, 0)) {
                         drive.cancel();
@@ -43,7 +43,7 @@ public class Plans extends SuperSystem {
     private PlanPart move6InchesLeft() {
         return new Step(
                 "move6InchesLeft",
-                () -> drive.to(nav.strafeTo(12, -6, 0)),
+                () -> drive.follow(nav.strafeTo(12, -6, 0)),
                 () -> {
                     if (nav.closeTo(12, -6, 0)) {
                         drive.cancel();
@@ -57,7 +57,7 @@ public class Plans extends SuperSystem {
     private PlanPart moveBackTo0_0() {
         return new Step(
                 "moveBackTo0_0",
-                () -> drive.to(nav.strafeTo(0, 0, 0)),
+                () -> drive.follow(nav.strafeTo(0, 0, 0)),
                 () -> {
                     if (nav.closeTo(0, 0, 0)) {
                         drive.cancel();
@@ -96,7 +96,7 @@ public class Plans extends SuperSystem {
     private Step turnToHeadingAtZero(double x, double y, double heading) {
         return new Step(
                 String.format("turnToHeadingAtZero %s", heading),
-                () -> drive.to(nav.strafeTo(x, y, heading)),
+                () -> drive.follow(nav.strafeTo(x, y, heading)),
                 () -> {
                     if (nav.closeTo(x, y, heading)) {
                         drive.cancel();
@@ -131,7 +131,7 @@ public class Plans extends SuperSystem {
     private PlanPart driveTo(double x, double y, double heading) {
         return new Step(
                 String.format("driveTo %s, %s, %s, ", x, y, heading),
-                () -> drive.to(nav.strafeTo(x, y, heading)),
+                () -> drive.follow(nav.strafeTo(x, y, heading)),
                 drive::done
         );
     }
@@ -164,7 +164,7 @@ public class Plans extends SuperSystem {
     private Step backFromZeroALittle() {
         return new Step(
                 "backFromZeroALittle",
-                () -> drive.to(nav.backwardTo(-20, 0, 0)),
+                () -> drive.follow(nav.backwardTo(-20, 0, 0)),
                 drive::done
         );
     }
@@ -172,7 +172,7 @@ public class Plans extends SuperSystem {
     private Step toLoadingZone() {
         return new Step(
                 "toLoadingZone",
-                () -> drive.to(nav.backwardTo(-36, 12, 0)),
+                () -> drive.follow(nav.backwardTo(-36, 12, 0)),
                 drive::done
         );
     }
@@ -183,7 +183,7 @@ public class Plans extends SuperSystem {
                 Step.waitFor("forwardLeftBackwardRight", 5),
                 new Step(
                         "forwardLeftBackwardRight",
-                        () -> drive.to(nav.strafePath(
+                        () -> drive.follow(nav.strafePath(
                                 nav.pose(24, 0, 0),
                                 nav.pose(24, 24, 0),
                                 nav.pose(0, 24, 0),
@@ -199,7 +199,7 @@ public class Plans extends SuperSystem {
         return new Plan(
                 new Step(
                         "driveForward",
-                        () -> drive.to(nav.strafeTo(24, 0, 0)),
+                        () -> drive.follow(nav.strafeTo(24, 0, 0)),
                         drive::done
                 )
         );
