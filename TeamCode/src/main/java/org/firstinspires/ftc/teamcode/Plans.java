@@ -27,45 +27,15 @@ public class Plans extends SuperSystem {
     }
 
     private PlanPart move1FootForward() {
-        return new Step(
-                "move1FootForward",
-                () -> drive.follow(nav.strafeTo(12, 0, 0)),
-                () -> {
-                    if (nav.closeTo(12, 0, 0)) {
-                        drive.cancel();
-                        return true;
-                    };
-                    return false;
-                }
-        );
+        return driveNear("move1FootForward", 12, 0, 0);
     }
 
     private PlanPart move6InchesLeft() {
-        return new Step(
-                "move6InchesLeft",
-                () -> drive.follow(nav.strafeTo(12, -6, 0)),
-                () -> {
-                    if (nav.closeTo(12, -6, 0)) {
-                        drive.cancel();
-                        return true;
-                    };
-                    return false;
-                }
-        );
+        return driveNear("move6InchesLeft", 12, -6, 0);
     }
 
     private PlanPart moveBackTo0_0() {
-        return new Step(
-                "moveBackTo0_0",
-                () -> drive.follow(nav.strafeTo(0, 0, 0)),
-                () -> {
-                    if (nav.closeTo(0, 0, 0)) {
-                        drive.cancel();
-                        return true;
-                    };
-                    return false;
-                }
-        );
+        return driveNear("moveBackTo0_0", 0, 0, 0);
     }
 
     private Plan spin360() {
@@ -94,14 +64,22 @@ public class Plans extends SuperSystem {
     }
 
     private Step turnToHeadingAtZero(double x, double y, double heading) {
+        return driveNear(String.format("turnToHeadingAtZero %s", heading), x, y, heading);
+    }
+
+    /**
+     * Strafes toward the pose and is done as soon as the robot is near it, without waiting for
+     * Road Runner to settle; the rest of the path is cancelled.
+     */
+    private Step driveNear(String name, double x, double y, double heading) {
         return new Step(
-                String.format("turnToHeadingAtZero %s", heading),
+                name,
                 () -> drive.follow(nav.strafeTo(x, y, heading)),
                 () -> {
-                    if (nav.closeTo(x, y, heading)) {
+                    if (nav.near(nav.pose(x, y, heading))) {
                         drive.cancel();
                         return true;
-                    };
+                    }
                     return false;
                 }
         );

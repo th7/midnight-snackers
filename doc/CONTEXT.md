@@ -22,6 +22,31 @@ rest are the drive's to steer. Under the left bumper the driver may hold
 strafe and turn; under the right bumper they hold straight and strafe and
 may hold turn. Class: `Drive.Held`.
 
+**Pose** — A position and heading on the field, in Road Runner coordinates
+(+x forward, +y left, facing the field from the audience), as the alliance
+plays it. Everything Nav takes and gives is a pose; Road Runner's own
+`Pose2d` inside it is read only by Road Runner and the drive's controllers.
+Class: `Nav.Pose`.
+
+**Nav** — Where the robot is on the field and how to get somewhere else.
+`pose(x, y, heading)` makes a pose from coordinates given the blue way, and
+the alliance's mirroring (y and heading negated for red) happens there and
+nowhere else. It answers the **current pose** (where the localizer believes
+the robot is), whether the robot is **near** a pose (within 3 inches and
+6 degrees), the **launch pose**, and builds the strafing and backward paths
+the plans follow. Class: `Nav`.
+
+**Launch pose** — Where to launch from: 40 inches short of the alliance's
+goal on the line from the robot to it, facing the goal. There is none when
+playing for no alliance, which has no goal; then the bumpers just drive,
+and the brain's auto-shoot has nowhere to go.
+
+**Sighting** — Where the goal's AprilTag says the robot is, as the camera
+faces, which is the turntable's heading. The brain turns it back by the
+turntable's offset and, when playing for an alliance, hands it to Nav: the
+first sighting places the robot, a later one nudges its position by at
+most an inch per axis and never its heading. Class: `Camera.sighting()`.
+
 ## The coding server
 
 **Coding server** — The host process teammates reach over the LAN to edit

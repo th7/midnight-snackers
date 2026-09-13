@@ -8,12 +8,16 @@ import com.acmerobotics.roadrunner.Vector2d;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
+import java.util.Optional;
+
 /**
- * 2025-2026 Season
- * Treat all coordinates and heading as if you are playing as blue.
- * If you're red, they will automatically be adjusted.
- * Positive y coordinates will move toward your goal.
- * Positive headings will turn toward your goal.
+ * Where the robot is on the field and how to get somewhere else. Everything in and out is a
+ * {@link Pose} on the field: {@link #pose} makes one from coordinates given the blue way, and
+ * the alliance's mirroring happens there and nowhere else.
+ * <p>
+ * 2025-2026 Season. Treat all coordinates and headings as if you are playing as blue; if you're
+ * red, they are mirrored for you. Positive y moves toward your goal, positive headings turn
+ * toward your goal.
  */
 public class Nav extends SubSystem {
     // COORDINATES!!! ARGH
@@ -24,10 +28,52 @@ public class Nav extends SubSystem {
 
     // Roadrunner Coordinates (this is what we use)
     // +x forward, +y left, straight forward heading is 0
+
+    /**
+     * A position and heading on the field, in Road Runner coordinates, as the alliance plays it.
+     * Only Road Runner itself and the drive's controllers read the {@link #pose2d} inside.
+     */
+    public static class Pose {
+        public final Pose2d pose2d;
+
+        public Pose(Pose2d pose2d) {
+            this.pose2d = pose2d;
+        }
+
+        public double x() {
+            return pose2d.position.x;
+        }
+
+        public double y() {
+            return pose2d.position.y;
+        }
+
+        /** Radians, counterclockwise from +x. */
+        public double heading() {
+            return pose2d.heading.toDouble();
+        }
+
+        /** The same place, turned by {@code radians}. */
+        public Pose rotated(double radians) {
+            return new Pose(new Pose2d(pose2d.position, pose2d.heading.plus(radians)));
+        }
+
+        @Override
+        public String toString() {
+            return String.format("(%.1f, %.1f, %.2f)", x(), y(), heading());
+        }
+    }
+
+    private static final double LAUNCH_DISTANCE = 40;
+    private static final double NEAR_INCHES = 3;
+    private static final double NEAR_RADIANS = Math.PI * 2 / 60;
+    /** The most a later sighting may move the robot, per axis, so one bad frame cannot teleport it. */
+    private static final double SIGHTING_NUDGE_INCHES = 1;
+
     private final int headingSign;
     private final int ySign;
+    /** Where this alliance's goal is; null when playing for no alliance. */
     private final Vector2d launchTarget;
-    private final double targetLaunchDistance = 40;
     private final MecanumDrive mecanumDrive;
     private boolean fieldPositionKnown = false;
 
@@ -43,91 +89,85 @@ public class Nav extends SubSystem {
         mecanumDrive.localizer.update();
     }
 
-    public double relativeHeadingToTarget() {
-        if (!fieldPositionKnown) {
-            return 0;
-        }
-        Pose2d launchPose = launchPose().pose2d;
-        double launchPoseHeadingRads = launchPose.heading.minus(Rotation2d.exp(0));
-        double currentPoseHeadingRads = getPose().heading.minus(Rotation2d.exp(0));
-        double headingRads = -(launchPoseHeadingRads - currentPoseHeadingRads);
-
-        return headingRads;
-    }
-
-    private double angleRadians(Vector2d from, Vector2d to) {
-        return Math.atan2(to.y - from.y, to.x - from.x);
-    }
-
-    private double distanceInches(Vector2d from, Vector2d to) {
-        return Math.sqrt(Math.pow(to.y - from.y, 2) + Math.pow(to.x - from.x, 2));
-    }
-
-    private Vector2d pointAtDistanceInDirection(Vector2d from, double distance, double directionRadians) {
-        double newX = from.x + Math.cos(directionRadians) * distance;
-        double newY = from.y + Math.sin(directionRadians) * distance;
-        return new Vector2d(newX, newY);
-    }
-
-    public Pose launchPose() {
-        Vector2d from = getPose().position;
-        double bearingToTarget = angleRadians(from, launchTarget);
-        double distanceToTarget = distanceInches(from, launchTarget);
-        double distanceError = distanceToTarget - targetLaunchDistance;
-        Vector2d position = pointAtDistanceInDirection(from, distanceError, bearingToTarget);
-        return new Pose(new Pose2d(position, bearingToTarget));
-    }
-
+    /** A pose from coordinates given the blue way, mirrored for the alliance. */
     public Pose pose(double x, double y, double heading) {
         return new Pose(new Pose2d(x, y * this.ySign, heading * this.headingSign));
     }
 
+    /** Where the localizer believes the robot is. */
     public Pose currentPose() {
         return new Pose(getPose());
     }
 
-    private Pose2d getPose() {
-        return mecanumDrive.localizer.getPose();
-    }
-
-    public void setPose(Pose2d pose) {
-        mecanumDrive.localizer.setPose(pose);
-    }
-
+    /** Tells the localizer where the robot is, e.g. where it was placed before an auto. */
     public void setPose(Pose pose) {
-        setPose(pose.pose2d);
+        mecanumDrive.localizer.setPose(pose.pose2d);
     }
 
-    public void setFieldPosition(Pose2d pose) {
+    /**
+     * Where to launch from: {@value #LAUNCH_DISTANCE} inches short of the goal on the line from
+     * the robot to it, facing the goal. Empty when playing for no alliance, which has no goal.
+     */
+    public Optional<Pose> launchPose() {
+        if (launchTarget == null) {
+            return Optional.empty();
+        }
+        Vector2d from = getPose().position;
+        double bearingToTarget = angleRadians(from, launchTarget);
+        double distanceToTarget = distanceInches(from, launchTarget);
+        double distanceError = distanceToTarget - LAUNCH_DISTANCE;
+        Vector2d position = pointAtDistanceInDirection(from, distanceError, bearingToTarget);
+        return Optional.of(new Pose(new Pose2d(position, bearingToTarget)));
+    }
+
+    /**
+     * How far the turntable must turn from straight ahead to face the goal: zero until the camera
+     * has placed the robot on the field, or when there is no goal.
+     */
+    public double relativeHeadingToTarget() {
+        if (!fieldPositionKnown) {
+            return 0;
+        }
+        Optional<Pose> launchPose = launchPose();
+        if (launchPose.isEmpty()) {
+            return 0;
+        }
+        double launchPoseHeadingRads = launchPose.get().pose2d.heading.minus(Rotation2d.exp(0));
+        double currentPoseHeadingRads = getPose().heading.minus(Rotation2d.exp(0));
+        return -(launchPoseHeadingRads - currentPoseHeadingRads);
+    }
+
+    /**
+     * The camera saw where the robot is. The first sighting places the robot there; a later one
+     * nudges its position by at most {@value #SIGHTING_NUDGE_INCHES} inch per axis and leaves the
+     * heading to the localizer.
+     */
+    public void setFieldPosition(Pose sighting) {
         if (!fieldPositionKnown) {
             fieldPositionKnown = true;
-            setPose(pose);
+            setPose(sighting);
             return;
         }
 
         Pose2d currentPose = getPose();
-
-        double xError = pose.position.x - currentPose.position.x;
-        double yError = pose.position.y - currentPose.position.y;
-
-        if (xError > 1) {
-            xError = 1;
-        } else if (xError < -1) {
-            xError = -1;
-        }
-
-        if (yError > 1) {
-            yError = 1;
-        } else if (yError < -1) {
-            yError = -1;
-        }
-
+        double xError = clamp(sighting.x() - currentPose.position.x, SIGHTING_NUDGE_INCHES);
+        double yError = clamp(sighting.y() - currentPose.position.y, SIGHTING_NUDGE_INCHES);
         Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
-        setPose(new Pose2d(adjustedPosition, currentPose.heading));
+        mecanumDrive.localizer.setPose(new Pose2d(adjustedPosition, currentPose.heading));
     }
 
+    /** Whether the robot is within {@value #NEAR_INCHES} inches and six degrees of {@code target}. */
+    public boolean near(Pose target) {
+        Pose2d currentPose = getPose();
+        double headingError = currentPose.heading.minus(target.pose2d.heading);
+        return Math.abs(headingError) <= NEAR_RADIANS
+                && Math.abs(currentPose.position.x - target.x()) <= NEAR_INCHES
+                && Math.abs(currentPose.position.y - target.y()) <= NEAR_INCHES;
+    }
+
+    /** A path backwards through the poses, from where the robot is now. */
     public Action backwardPath(Pose... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
         for (Pose pose : poseList) {
             builder = builder.setReversed(true).splineToSplineHeading(pose.pose2d, Math.PI);
         }
@@ -135,55 +175,39 @@ public class Nav extends SubSystem {
     }
 
     public Action backwardTo(double x, double y, double heading) {
-        Pose pose = pose(x, y, heading);
-        return backwardPath(pose);
+        return backwardPath(pose(x, y, heading));
     }
 
+    /** A path strafing through the poses, from where the robot is now. */
     public Action strafePath(Pose... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
-        for (Nav.Pose pose : poseList) {
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
+        for (Pose pose : poseList) {
             builder = builder.strafeToSplineHeading(pose.pose2d.position, pose.pose2d.heading);
         }
         return builder.build();
     }
 
     public Action strafeTo(double x, double y, double heading) {
-        Pose pose = pose(x, y, heading);
-        return strafePath(pose);
+        return strafePath(pose(x, y, heading));
     }
 
-    public boolean closeTo(double x, double y, double heading) {
-        Pose targetPose = pose(x, y, heading);
-        double headinglimit = Math.PI * 2 / 60;
-        Pose2d currentPose = mecanumDrive.localizer.getPose();
-        double headingerror = currentPose.heading.minus(targetPose.pose2d.heading);
-        if (Math.abs(headingerror) > headinglimit) {
-            return false;
-        }
-
-        double xError = currentPose.position.x - targetPose.x();
-        if (Math.abs(xError) > 3) {
-            return false;
-        }
-
-        double yError = currentPose.position.y - targetPose.pose2d.position.y;
-        if (Math.abs(yError) > 3) {
-            return false;
-        }
-
-        return true;
+    private Pose2d getPose() {
+        return mecanumDrive.localizer.getPose();
     }
 
-    public static class Pose {
-        public final Pose2d pose2d;
+    private static double clamp(double value, double limit) {
+        return Math.max(-limit, Math.min(limit, value));
+    }
 
-        /**
-         * Represents a position and heading. Call .pose2d to use with RoadRunner.
-         */
-        public Pose(Pose2d pose2d) {
-            this.pose2d = pose2d;
-        }
+    private static double angleRadians(Vector2d from, Vector2d to) {
+        return Math.atan2(to.y - from.y, to.x - from.x);
+    }
 
-        public double x() { return pose2d.position.x; }
+    private static double distanceInches(Vector2d from, Vector2d to) {
+        return Math.hypot(to.x - from.x, to.y - from.y);
+    }
+
+    private static Vector2d pointAtDistanceInDirection(Vector2d from, double distance, double directionRadians) {
+        return new Vector2d(from.x + Math.cos(directionRadians) * distance, from.y + Math.sin(directionRadians) * distance);
     }
 }

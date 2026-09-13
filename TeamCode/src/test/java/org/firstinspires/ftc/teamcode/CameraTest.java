@@ -1,10 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
-import com.acmerobotics.roadrunner.Pose2d;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
@@ -40,23 +38,22 @@ public class CameraTest {
 
         camera.loop();
 
-        assertNull(camera.calculateRoadrunnerPose());
+        assertTrue(camera.sighting().isEmpty());
     }
 
     @Test
-    public void threeConsistentGoalDetectionsProduceARoadrunnerPose() {
+    public void threeConsistentGoalDetectionsPlaceTheRobotOnTheField() {
         for (int i = 0; i < 3; i++) {
             detections.clear();
             detections.add(goalDetection(BLUE_GOAL_TAG, 10, 20, Math.PI / 2));
             camera.loop();
         }
 
-        Pose2d pose = camera.calculateRoadrunnerPose();
+        Nav.Pose pose = camera.sighting().get();
 
-        assertNotNull(pose);
-        assertEquals(-10, pose.position.x, DELTA);
-        assertEquals(-20, pose.position.y, DELTA);
-        assertEquals(0, pose.heading.toDouble(), DELTA);
+        assertEquals(-10, pose.x(), DELTA);
+        assertEquals(-20, pose.y(), DELTA);
+        assertEquals(0, pose.heading(), DELTA);
     }
 
     @Test
@@ -67,7 +64,7 @@ public class CameraTest {
             camera.loop();
         }
 
-        assertNull(camera.calculateRoadrunnerPose());
+        assertTrue(camera.sighting().isEmpty());
     }
 
     private AprilTagDetection goalDetection(int id, double x, double y, double yawRadians) {
