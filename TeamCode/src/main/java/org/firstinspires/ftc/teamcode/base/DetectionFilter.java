@@ -19,11 +19,6 @@ public class DetectionFilter {
         this.maxDetectionAgeNano = (long) (0.1 * 1_000_000_000);
     }
 
-    public DetectionFilter(int maxPositionDifference, double maxDetectionAgeSeconds) {
-        this.maxPositionDifference = maxPositionDifference;
-        this.maxDetectionAgeNano = (long) (maxDetectionAgeSeconds * 1_000_000_000);
-    }
-
     public void addDetection(AprilTagDetection detection) {
         storedDetections.add(detection);
         while (storedDetections.size() > detectionCount) {

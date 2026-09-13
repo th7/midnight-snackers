@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.Action;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -11,9 +10,6 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans extends SuperSystem {
     private final Brain brain;
-    private double startedWaitAt;
-    private double timeoutStartedAt;
-    private Motif motif;
 
     public Plans(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable, Brain brain) {
         super(runtime, telemetry, launcher, drive, camera, nav, turntable);
@@ -33,8 +29,6 @@ public class Plans extends SuperSystem {
                 move1FootForward(),
                 move6InchesLeft(),
                 moveBackTo0_0()
-
-
         );
     }
 
@@ -146,28 +140,6 @@ public class Plans extends SuperSystem {
         );
     }
 
-//    public Plan scoreAMotif() {
-//        return new Plan(
-//                detectMotif(),
-//                launchMotif()
-//        );
-//    }
-
-//    public Plan launchMotif() {
-//        return new Plan(
-//                launchMotifFirst(),
-//                launchMotifSecond(),
-//                launchMotifThird()
-//        );
-//    }
-
-    public Plan splineSquiggleSquare() {
-        return new Plan(
-                splineSquiggleSquareStep(),
-                toZeroPosition()
-        );
-    }
-
     private Step launch() {
         return new Step(
                 "launch",
@@ -184,37 +156,6 @@ public class Plans extends SuperSystem {
         );
     }
 
-    private Step splineSquiggleSquareStep() {
-        return new Step(
-                "splineSquiggleSquare",
-                () -> drive.to(splineSquiggleSquarePath()),
-                drive::done
-        );
-    }
-
-    private Action splineSquiggleSquarePath() {
-        return nav.forwardPath(
-                nav.pose(72, 0, 0),
-                nav.pose(96, 0, Math.PI / 4),
-                nav.pose(96, 24, Math.PI * 3 / 4),
-                nav.pose(72, 24, Math.PI * 1),
-                nav.pose(48, 24, Math.PI * 1),
-                nav.pose(24, 24, Math.PI * 3 / 4),
-                nav.pose(24, 48, Math.PI * 3 / 4),
-                nav.pose(0, 48, Math.PI * -3 / 4),
-                nav.pose(0, 24, Math.PI / -2),
-                nav.pose(0, 0, 0)
-        );
-    }
-
-    private Step toZeroPosition() {
-        return new Step(
-                "toZeroPosition",
-                () -> drive.to(nav.strafeTo(0, 0, 0)),
-                drive::done
-        );
-    }
-
     //should be placed against the left side of the tile with the small launch line and against the wall
     private Step setFarLaunchPosition() {
         return new Step(
@@ -223,36 +164,6 @@ public class Plans extends SuperSystem {
                 () -> true
         );
     }
-
-//    private Step moveToScorePosition() {
-//        return new Step(
-//                "moveToScorePosition",
-//                () -> drive.to(nav.strafeTo(33, 33, Math.PI / 4)),
-//                drive::done
-//        );
-//    }
-//
-//    private Step moveFromBackToCloseGoal() {
-//        return new Step(
-//                "moveFromBackToCloseGoal",
-//                () -> drive.drivePathForward(
-//                        nav.pose(12, 12, Math.PI / 4),
-//                        nav.pose(48, 48, Math.PI / 4)
-//                ),
-//                drive::done
-//        );
-//    }
-
-//    private Step getOffLaunchLine() {
-//        return new Step(
-//                "getOffLaunchLine",
-//                () -> drive.drivePathForward(
-//                        nav.pose(24, 24, Math.PI / 4),
-//                        nav.pose(0, 24, Math.PI / 4)
-//                ),
-//                drive::done
-//        );
-//    }
 
     private Step backFromZeroALittle() {
         return new Step(
@@ -270,36 +181,19 @@ public class Plans extends SuperSystem {
         );
     }
 
-//    private Step detectMotif() {
-//        return new Step(
-//                "detectMotif",
-//                () -> {
-//                    timeoutStartedAt = runtime.time();
-//                },
-//                () -> {
-//                    motif = drive.motif();
-//                    return motif != null || runtime.time() > timeoutStartedAt + 3;
-//                }
-//        );
-//    }
-
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
                 Step.waitFor("forwardLeftBackwardRight", 5),
                 new Step(
                         "forwardLeftBackwardRight",
-                        () -> drive.to(forwardLeftBackwardRightAction()),
+                        () -> drive.to(nav.strafePath(
+                                nav.pose(24, 0, 0),
+                                nav.pose(24, 24, 0),
+                                nav.pose(0, 24, 0),
+                                nav.pose(0, 0, 0)
+                        )),
                         drive::done
                 )
-        );
-    }
-
-    public Action forwardLeftBackwardRightAction() {
-        return nav.strafePath(
-                nav.pose(24, 0, 0),
-                nav.pose(24, 24, 0),
-                nav.pose(0, 24, 0),
-                nav.pose(0, 0, 0)
         );
     }
 
@@ -312,40 +206,4 @@ public class Plans extends SuperSystem {
                 )
         );
     }
-
-    enum Motif {
-        GPP,
-        PGP,
-        PPG
-    }
-
-//    private Step launchMotifFirst() {
-//        return new Step(
-//                "launchMotifFirst",
-//                () -> { launcher.launchMotifFirst(motif); },
-//                launcher::gateLaunchDone
-//        );
-//    }
-//
-//    private Step launchMotifSecond() {
-//        return new Step(
-//                "launchMotifSecond",
-//                () -> { launcher.launchMotifSecond(motif); },
-//                launcher::gateLaunchDone
-//        );
-//    }
-//
-//    private Step launchMotifThird() {
-//        return new Step(
-//                "launchMotifThird",
-//                () -> { launcher.launchMotifThird(motif); },
-//                launcher::gateLaunchDone
-//        );
-//    }
-
-//    private detectMotif() {
-//        if (drive.motif()) {
-//            motif = drive.motif();
-//        }
-//    }
 }

@@ -82,7 +82,7 @@ public class Nav extends SubSystem {
         double currentPoseHeadingRads = getPose().heading.minus(Rotation2d.exp(0));
         double headingRads = -(launchPoseHeadingRads - currentPoseHeadingRads);
 
-        return headingRads;//launchPose.minus().heading.toDouble().minus(currentPose.heading);
+        return headingRads;
     }
 
     private double angleRadians(Vector2d from, Vector2d to) {
@@ -110,10 +110,6 @@ public class Nav extends SubSystem {
 
     public Pose pose(double x, double y, double heading) {
         return new Pose(new Pose2d(x, y * this.ySign, heading * this.headingSign));
-    }
-
-    public void setZeroPosition() {
-        setPose(new Pose2d(0, 0, 0));
     }
 
     public Pose currentPose() {
@@ -158,14 +154,6 @@ public class Nav extends SubSystem {
 
         Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
         setPose(new Pose2d(adjustedPosition, currentPose.heading));
-    }
-
-    public Action forwardPath(Pose... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(mecanumDrive.localizer.getPose());
-        for (Nav.Pose pose : poseList) {
-            builder = builder.splineToSplineHeading(pose.pose2d, 0);
-        }
-        return builder.build();
     }
 
     public Action backwardPath(Pose... poseList) {

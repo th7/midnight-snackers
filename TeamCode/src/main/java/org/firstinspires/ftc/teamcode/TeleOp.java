@@ -16,12 +16,6 @@ public abstract class TeleOp extends OpMode {
         if (gamepad1.square) {
             launcher.launchyLaunch();
         }
-//        if (gamepad1.circleWasPressed()) {
-//            launcher.loadyLoad();
-//        }
-//        if (gamepad1.circleWasReleased()) {
-//            launcher.finishLoading();
-//        }
 
         if (gamepad1.triangle) {
             launcher.slowLaunchyLaunch();
@@ -71,12 +65,6 @@ public abstract class TeleOp extends OpMode {
         if (gamepad2.leftBumperWasPressed()) {
             launcher.decreaseBottomGateWaitTime();
         }
-//        if (gamepad2.rightBumperWasPressed()) {
-//            launcher.increaseTopGatePosition();
-//        }
-//        if (gamepad2.leftBumperWasPressed()) {
-//            launcher.decreaseTopGatePosition();
-//        }
         if (gamepad2.dpadUpWasPressed()) {
             launcher.increasePower();
         }
@@ -97,17 +85,5 @@ public abstract class TeleOp extends OpMode {
 
         drive.useDirectPower();
 
-//        if (gamepad1.leftBumperWasPressed()) {
-//            drive.savePose1();
-//        }
-//        if (gamepad1.left_trigger > 0.5) {
-//            drive.goToPose1();
-//        }
-//        if (gamepad1.rightBumperWasPressed()) {
-//            drive.savePose2();
-//        }
-//        if (gamepad1.right_trigger > 0.5) {
-//            drive.goToPose2();
-//        }
     }
 }

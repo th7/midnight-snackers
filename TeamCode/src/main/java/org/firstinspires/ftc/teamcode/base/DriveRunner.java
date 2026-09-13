@@ -53,10 +53,6 @@ public class DriveRunner {
         }
     }
 
-    public void driveOverride(Action action) {
-        roadRunnerAction = action;
-    }
-
     public boolean done() {
         return roadRunnerAction == null;
     }

@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -18,7 +17,6 @@ public class Launcher extends SubSystem {
     private final double bottomGateOpenPosition = 0.5;
     private final double bottomGateClosedPosition = 0.4;
     private final double closeLauncherPower = 1050d;
-    private final double rangedLauncherPower = 1350d;
     private final DcMotorEx launcher;
     private final Servo topGate;
     private final Servo bottomGate; // bottomGate is closer to launcher
@@ -27,10 +25,6 @@ public class Launcher extends SubSystem {
     private double launcherVelocity = 0d;
     private boolean telemetryOn = false;
     private double bottomGateWaitTime = 0.45;
-    private double topGateWaitTime = bottomGateWaitTime;
-    private PIDFCoefficients pidVelocityOrig;
-    private PIDFCoefficients pidOrig;
-    private double PIDFAdjustable = 0;
     private final PlanRunner planRunner = new PlanRunner();
 
     public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, ElapsedTime runtime, Telemetry telemetry) {
@@ -41,10 +35,8 @@ public class Launcher extends SubSystem {
     }
 
     public void init() {
-        pidOrig = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
         launcher.setPositionPIDFCoefficients(5);
 
-        pidVelocityOrig = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
         launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -169,38 +161,6 @@ public class Launcher extends SubSystem {
         launcherVelocity = closeLauncherPower;
     }
 
-    public void setFarLaunchPower() {
-        launcherVelocity = rangedLauncherPower;
-    }
-
-    public void noPower() {
-        launcherVelocity = 0;
-    }
-
-    public void increaseBottomGatePosition() {
-        bottomGatePosition = bottomGatePosition + 0.05;
-    }
-
-    public void decreaseBottomGatePosition() {
-        bottomGatePosition = bottomGatePosition - 0.05;
-    }
-
-    public void increaseTopGatePosition() {
-        topGatePosition = topGatePosition + 0.05;
-    }
-
-    public void decreaseTopGatePosition() {
-        topGatePosition = topGatePosition - 0.05;
-    }
-
-    public void increaseTopGateWaitTime() {
-        topGateWaitTime = topGateWaitTime + 0.0001;
-    }
-
-    public void decreaseTopGateWaitTime() {
-        topGateWaitTime = topGateWaitTime - 0.0001;
-    }
-
     public void increaseBottomGateWaitTime() {
         bottomGateWaitTime = bottomGateWaitTime + 0.0001;
     }
@@ -217,25 +177,12 @@ public class Launcher extends SubSystem {
         telemetry.addData("Launcher", "telemetry on");
         telemetry.addData("launcherStep", planRunner.currentStep());
 
-//        telemetry.addData("adjustable", PIDFAdjustable);
         telemetry.addData("launcherPower", launcher.getPower());
-//        telemetry.addData("launcherTargetPosition", launcher.getTargetPosition());
         telemetry.addData("launcherVelocityTarget", launcherVelocity);
         telemetry.addData("launcherVelocityActual", launcher.getVelocity());
         telemetry.addData("topGatePosition", topGatePosition);
-        telemetry.addData("topGateWaitTime", topGateWaitTime);
         telemetry.addData("bottomGatePosition", bottomGatePosition);
         telemetry.addData("bottomGateWaitTime", bottomGateWaitTime);
-        telemetry.addData("PIDF vel (orig)", "%.04f, %.04f, %.04f, %.04f",
-                pidVelocityOrig.p, pidVelocityOrig.i, pidVelocityOrig.d, pidVelocityOrig.f);
-        PIDFCoefficients pidVelocityModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
-        telemetry.addData("PIDF vel (modified)", "%.04f, %.04f, %.04f, %.04f",
-                pidVelocityModified.p, pidVelocityModified.i, pidVelocityModified.d, pidVelocityModified.f);
-        telemetry.addData("PIDF (orig)", "%.04f, %.04f, %.04f, %.04f",
-                pidOrig.p, pidOrig.i, pidOrig.d, pidOrig.f);
-        PIDFCoefficients pidModified = launcher.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
-        telemetry.addData("PIDF (modified)", "%.04f, %.04f, %.04f, %.04f",
-                pidModified.p, pidModified.i, pidModified.d, pidModified.f);
     }
 
     public boolean launchDone() {
@@ -254,50 +201,4 @@ public class Launcher extends SubSystem {
         return launcherVelocity > 0;
     }
 
-//    public void launchMotifFirst(Plans.Motif motif) {
-//        if (motif == Plans.Motif.GPP) {
-//            gate1Position = gate2OpenPosition;
-//        } else if (motif == Plans.Motif.PGP) {
-//            gate2Position = gate2OpenPosition;
-//        } else if (motif == Plans.Motif.PPG) {
-//            gate3Position = gate2OpenPosition;
-//        } else {
-//            gate1Position = gate2OpenPosition;
-//        }
-//        launchStartedAt = runtime.time();
-//    }
-//
-//    public void launchMotifSecond(Plans.Motif motif) {
-//        if (motif == Plans.Motif.GPP) {
-//            gate2Position = gate2OpenPosition;
-//        } else if (motif == Plans.Motif.PGP) {
-//            gate1Position = gate2OpenPosition;
-//        } else if (motif == Plans.Motif.PPG) {
-//            gate3Position = gate2OpenPosition;
-//        } else {
-//            gate2Position = gate2OpenPosition;
-//        }
-//        launchStartedAt = runtime.time();
-//    }
-//
-//    public void launchMotifThird(Plans.Motif motif) {
-//        if (motif == Plans.Motif.GPP) {
-//            gate3Position = gate2OpenPosition;
-//        } else if (motif == Plans.Motif.PGP) {
-//            gate3Position = gate2OpenPosition;
-//        } else if (motif == Plans.Motif.PPG) {
-//            gate1Position = gate2OpenPosition;
-//        } else {
-//            gate3Position = gate2OpenPosition;
-//        }
-//        launchStartedAt = runtime.time();
-//    }
-
-    public void increaseAdjustable() {
-        PIDFAdjustable = PIDFAdjustable + 0.1;
-    }
-
-    public void decreaseAdjustable() {
-        PIDFAdjustable = PIDFAdjustable - 0.1;
-    }
 }
