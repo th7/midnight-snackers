@@ -162,14 +162,23 @@ public final class SimChild {
     // --- the parent's side ---
 
     /**
-     * Starts a child with {@code classpathFirst} ahead of this JVM's own classpath.
+     * Starts a project's child on {@code classes}, the project's build, and the
+     * {@link SimBuild#libraries() libraries}: nothing of this server's own code, so a class the
+     * project lacks is missing rather than quietly this server's.
      */
-    public static Process launch(List<Path> classpathFirst, String... args) {
+    public static Process launch(Path classes, String... args) {
         List<String> classpath = new ArrayList<>();
-        for (Path path : classpathFirst) {
-            classpath.add(path.toAbsolutePath().toString());
-        }
-        classpath.add(System.getProperty("java.class.path"));
+        classpath.add(classes.toAbsolutePath().toString());
+        classpath.addAll(SimBuild.libraries());
+        return launchWith(classpath, args);
+    }
+
+    /** Starts a child on this JVM's classpath as it is: a fixed catalog (the tests). */
+    public static Process launchOnThisClasspath(String... args) {
+        return launchWith(List.of(System.getProperty("java.class.path")), args);
+    }
+
+    private static Process launchWith(List<String> classpath, String... args) {
         List<String> command = new ArrayList<>();
         command.add(Paths.get(System.getProperty("java.home"), "bin", "java").toString());
         command.add("-cp");

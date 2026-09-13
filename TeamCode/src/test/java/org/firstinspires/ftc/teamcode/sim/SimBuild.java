@@ -1,16 +1,22 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import org.firstinspires.ftc.teamcode.base.OpMode;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,7 +29,7 @@ import javax.tools.ToolProvider;
 
 /**
  * Compiles the robot's main sources, as they are on disk right now, with the JDK's own compiler
- * against this JVM's classpath, and with them the simulator's own sources: everything under the
+ * against the {@link #libraries()}, and with them the simulator's own sources: everything under the
  * harness root that is not a test, with the resources next to it copied along. The simulator
  * runs in the child against the robot sources it was built with, so a simulator that does not
  * fit them fails the build naming the seam, rather than the child failing at run time with a
@@ -109,6 +115,40 @@ public final class SimBuild {
         return sourceRoot;
     }
 
+    /**
+     * What a project is built against and run with: the libraries on this JVM's classpath, and
+     * none of this server's own code. The server's code is the directories on its classpath (its
+     * simulator and tests) and the jar its robot classes come from; the FTC SDK, Road Runner, and
+     * the FtcRobotController module's jar, which no project rebuilds, are libraries. So a class a
+     * project lacks is missing, in its build and in its child, rather than quietly this server's.
+     */
+    public static List<String> libraries() {
+        return librariesOf(List.of(System.getProperty("java.class.path").split(Pattern.quote(File.pathSeparator))),
+                locationOf(OpMode.class));
+    }
+
+    /** {@code classpath} without its directories, its entries that do not exist, and {@code serverRobotClasses}. */
+    static List<String> librariesOf(List<String> classpath, Path serverRobotClasses) {
+        Path robot = serverRobotClasses.toAbsolutePath().normalize();
+        List<String> libraries = new ArrayList<>();
+        for (String entry : classpath) {
+            Path path = Paths.get(entry).toAbsolutePath().normalize();
+            if (Files.isRegularFile(path) && !path.equals(robot)) {
+                libraries.add(entry);
+            }
+        }
+        return libraries;
+    }
+
+    /** Where a class was loaded from: a jar, or a directory of classes. */
+    private static Path locationOf(Class<?> type) {
+        try {
+            return Paths.get(type.getProtectionDomain().getCodeSource().getLocation().toURI());
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("no location for " + type, e);
+        }
+    }
+
     public synchronized Result build() {
         List<Path> sources = sourcesUnder(sourceRoot);
         List<Path> harness = harnessUnder(harnessRoot);
@@ -133,7 +173,7 @@ public final class SimBuild {
         try (StandardJavaFileManager files = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
             List<String> options = List.of(
                     "-d", output.toString(),
-                    "-cp", System.getProperty("java.class.path"),
+                    "-cp", String.join(File.pathSeparator, libraries()),
                     "--release", "17",
                     "-proc:none",
                     "-nowarn",

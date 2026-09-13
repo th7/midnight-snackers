@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -21,6 +22,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -68,9 +70,21 @@ public class SimChildTest {
         }
     }
 
+    /** A project's child runs that project and the libraries: with no simulator in the project, there is no child to run. */
+    @Test
+    public void aChildOverAProjectRunsOnThatProjectAndTheLibrariesAlone() throws Exception {
+        Path empty = folder.getRoot().toPath().resolve("empty");
+        Files.createDirectories(empty);
+
+        Output output = run(SimChild.launch(empty, "--list"));
+
+        assertNotEquals("this server's own SimChild must not stand in for the project's", 0, output.exitCode);
+        assertTrue(output.stderr, output.stderr.contains(SimChild.class.getName()));
+    }
+
     @Test
     public void listPrintsTheRealAutosAsOneJsonLine() throws Exception {
-        Output output = run(SimChild.launch(List.of(), "--list"));
+        Output output = run(SimChild.launchOnThisClasspath("--list"));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertEquals(output.stdout.toString(), 2, output.stdout.size());
@@ -85,7 +99,7 @@ public class SimChildTest {
 
     @Test
     public void aTeleOpRunTakesTheDriverStationFromStdinAndStopEndsIt() throws Exception {
-        Process child = SimChild.launch(List.of(), "--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName());
+        Process child = SimChild.launchOnThisClasspath("--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName());
         Thread drain = new Thread(() -> {
             try {
                 child.getErrorStream().transferTo(java.io.OutputStream.nullOutputStream());
@@ -133,7 +147,7 @@ public class SimChildTest {
 
     @Test
     public void aLineTheChildCannotReadEndsTheRunWithThatAsItsOutcome() throws Exception {
-        Process child = SimChild.launch(List.of(), "--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName());
+        Process child = SimChild.launchOnThisClasspath("--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
         in.write("{\"gamepad\": 1, \"state\": {\"corss\": true}}\n");
         in.flush();
@@ -146,7 +160,7 @@ public class SimChildTest {
 
     @Test
     public void runStreamsATickPerLoopAndThenTheOutcome() throws Exception {
-        Output output = run(SimChild.launch(List.of(), "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()));
+        Output output = run(SimChild.launchOnThisClasspath("--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertEquals(output.stdout.toString(), 6, output.stdout.size());
@@ -165,7 +179,7 @@ public class SimChildTest {
 
     @Test
     public void whatTheOpModePrintsGoesToStderrNotTheStream() throws Exception {
-        Output output = run(SimChild.launch(List.of(), "--run", "Chatty", "2", folder.getRoot().toString(), ChattyAuto.class.getName()));
+        Output output = run(SimChild.launchOnThisClasspath("--run", "Chatty", "2", folder.getRoot().toString(), ChattyAuto.class.getName()));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertTrue(output.stderr, output.stderr.contains("hello from the op mode"));
@@ -179,7 +193,7 @@ public class SimChildTest {
 
     @Test
     public void aTimedOutRunStillReportsItsOutcome() throws Exception {
-        Output output = run(SimChild.launch(List.of(), "--run", "Never done", "0.3", folder.getRoot().toString(), TestAutos.NeverDoneAuto.class.getName()));
+        Output output = run(SimChild.launchOnThisClasspath("--run", "Never done", "0.3", folder.getRoot().toString(), TestAutos.NeverDoneAuto.class.getName()));
 
         JsonObject last = new Gson().fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class);
         assertTrue(last.toString(), last.get("outcome").getAsString().startsWith("timed out"));
@@ -187,7 +201,7 @@ public class SimChildTest {
 
     @Test
     public void anUnknownOpModeIsAnOutcomeToo() throws Exception {
-        Output output = run(SimChild.launch(List.of(), "--run", "org.example.Nope", "1", folder.getRoot().toString()));
+        Output output = run(SimChild.launchOnThisClasspath("--run", "org.example.Nope", "1", folder.getRoot().toString()));
 
         JsonObject last = new Gson().fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class);
         assertTrue(last.toString(), last.get("outcome").getAsString().contains("org.example.Nope"));

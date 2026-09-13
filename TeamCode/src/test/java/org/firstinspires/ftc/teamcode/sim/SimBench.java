@@ -323,7 +323,7 @@ public final class SimBench {
      * @throws SimRunStream.WrongProtocol when the project's simulator speaks a protocol this bench cannot read
      */
     private static SimCatalog list(Path classes) {
-        Process child = SimChild.launch(List.of(classes), "--list");
+        Process child = SimChild.launch(classes, "--list");
         try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
             String first = out.readLine();
             String line;
@@ -471,7 +471,7 @@ public final class SimBench {
     }
 
     private void perform(Run run) {
-        List<Path> classpathFirst = List.of();
+        Path classes = null;
         if (build != null) {
             SimBuild.Result result;
             try {
@@ -484,7 +484,7 @@ public final class SimBench {
                 run.finish(SimRunStream.Outcome.buildFailed(), result.diagnostics);
                 return;
             }
-            classpathFirst = List.of(result.classes);
+            classes = result.classes;
         }
         if (!run.running()) {
             return; // stopped while building
@@ -494,7 +494,8 @@ public final class SimBench {
             List<String> args = new ArrayList<>(List.of("--run", run.entry.name, String.valueOf(run.budgetSeconds()),
                     outputDir.toAbsolutePath().toString()));
             args.addAll(sources());
-            child = SimChild.launch(classpathFirst, args.toArray(new String[0]));
+            child = classes == null ? SimChild.launchOnThisClasspath(args.toArray(new String[0]))
+                    : SimChild.launch(classes, args.toArray(new String[0]));
         } catch (RuntimeException e) {
             run.finish(SimRunStream.Outcome.couldNotStartChild(), e.getMessage());
             return;
