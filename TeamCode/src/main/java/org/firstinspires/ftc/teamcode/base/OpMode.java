@@ -21,9 +21,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     protected Nav nav;
     protected Turntable turntable;
     protected Brain brain;
-//    private long tickCount = 0;
-//    private double lastTickAt = 0;
-//    private double maxTickSeconds = 0;
 
     private Hardware injectedHardware = null;
 
@@ -75,8 +72,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     }
 
     public void loop() {
-//        profileTicks();
-
         if (gamepad2.crossWasPressed()) {
             drive.toggleTelemetry();
         }
@@ -95,17 +90,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         turntable.loop();
         brain.loop();
     }
-
-//    private void profileTicks() {
-//        tickCount += 1;
-//        double currentTickAt = runtime.time();
-//        double lastTickSeconds = currentTickAt - lastTickAt;
-//        lastTickAt = currentTickAt;
-//        if (lastTickSeconds > maxTickSeconds) {
-//            maxTickSeconds = lastTickSeconds;
-//        }
-//        telemetry.addData("Tick (last, avg, max)", "%.03f, %.03f, %.03f", lastTickSeconds, runtime.milliseconds() / tickCount / 1000, maxTickSeconds);
-//    }
 
     protected abstract Nav getNav(MecanumDrive mecanumDrive);
 }

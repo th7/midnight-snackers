@@ -128,10 +128,6 @@ public class Brain extends SuperSystem {
         usingCameraLocalization = !usingCameraLocalization;
     }
 
-    public void enableCameraLocalization() {
-        usingCameraLocalization = true;
-    }
-
     public void disableCameraLocalization() {
         usingCameraLocalization = false;
     }

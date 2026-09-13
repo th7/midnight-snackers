@@ -47,7 +47,7 @@ public class FtcOpModeRegister implements OpModeRegister {
      * There are two mechanisms by which an OpMode may be registered.
      *
      *  1) The preferred method is by means of class annotations in the OpMode itself.
-     *  See, for example the class annotations in {@link org.firstinspires.ftc.robotcontroller.external.samples.ConceptNullOp}.
+     *  See, for example, the class annotations on the op modes in TeamCode.
      *
      *  2) The other, retired,  method is to modify this {@link #register(OpModeManager)}
      *  method to include explicit calls to OpModeManager.register().

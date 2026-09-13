@@ -61,10 +61,6 @@ public class Turntable extends SubSystem {
         telemetry.addData("turnTablePower", turnTable.getPower());
     }
 
-    private boolean closeEnough(double a, double b, double c) {
-        return Math.abs(a - b) < c;
-    }
-
     public void turnTableToLeft() {
         turnTableTargetPosition += 10;
     }
