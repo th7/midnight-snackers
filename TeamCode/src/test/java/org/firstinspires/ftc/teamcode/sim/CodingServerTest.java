@@ -78,6 +78,10 @@ public class CodingServerTest {
         return worktree -> new SimBench(null, worktree.resolve("TeamCode/src/main/java"), worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
     }
 
+    private static String encode(String name) throws java.io.UnsupportedEncodingException {
+        return java.net.URLEncoder.encode(name, "UTF-8");
+    }
+
     private SimBench bench() {
         return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
                 folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 30, 1);
@@ -531,14 +535,14 @@ public class CodingServerTest {
         assertEquals(200, catalog.status);
         assertTrue(catalog.body, catalog.body.contains("\"name\":\"Count to three\""));
         assertTrue(catalog.body, catalog.body.contains("\"name\":\"Never done\""));
-        assertTrue(catalog.body, catalog.body.contains("\"opMode\":\"" + ThreeLoopAuto.class.getName() + "\""));
+        assertTrue(catalog.body, catalog.body.contains("\"where\":\"" + ThreeLoopAuto.class.getName() + "\""));
     }
 
     @Test
     public void aRunStartsAndTheStatusFollowsItToItsOutcomeWithWhoStartedIt() throws Exception {
         String cookie = approvedUser("ada");
 
-        Reply started = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), cookie);
+        Reply started = user("POST", "/sim/run?opmode=" + encode("Count to three"), cookie);
 
         assertEquals(started.body, 200, started.status);
         String id = json(started.body).get("id").getAsString();
@@ -554,18 +558,18 @@ public class CodingServerTest {
         Reply ticks = user("GET", "/sim/runs/" + id + "/ticks?from=0", cookie);
         assertEquals(200, ticks.status);
         assertEquals(3, ticks.body.split("\"step\"").length - 1);
-        assertTrue(folder.getRoot().toPath().resolve("sim").resolve("ThreeLoopAuto.html").toFile().exists());
+        assertTrue(folder.getRoot().toPath().resolve("sim").resolve("Count to three.html").toFile().exists());
     }
 
     @Test
     public void oneRunAtATimePerUserAndTwoUsersRunAtOnce() throws Exception {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
-        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
         assertTrue(user("GET", "/sim/status", ada).body.contains("\"running\":true"));
 
-        Reply adaAgain = user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), ada);
-        Reply bobToo = user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), bob);
+        Reply adaAgain = user("POST", "/sim/run?opmode=" + encode("Count to three"), ada);
+        Reply bobToo = user("POST", "/sim/run?opmode=" + encode("Never done"), bob);
 
         assertEquals(409, adaAgain.status);
         assertTrue(adaAgain.body, adaAgain.body.contains("ada"));
@@ -580,7 +584,7 @@ public class CodingServerTest {
     public void aUsersSimStatusShowsTheirRunsOnly() throws Exception {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
-        assertEquals(200, user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Count to three"), ada).status);
         awaitSimStatus(ada, "\"outcome\":\"done\"");
 
         String bobs = user("GET", "/sim/status", bob).body;
@@ -594,8 +598,8 @@ public class CodingServerTest {
     public void stoppingTheServerStopsEveryUsersBenchAndChild() throws Exception {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
-        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), ada).status);
-        assertEquals(200, user("POST", "/sim/run?opmode=" + NeverDoneAuto.class.getName(), bob).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), bob).status);
         assertEquals(2, benches.size());
 
         server.stop();
@@ -608,15 +612,15 @@ public class CodingServerTest {
 
     @Test
     public void oneUsersBrokenEditDoesNotBreakAnothers() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2));
         GitFixture.commitAll(root, "the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
         assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String version = json(user("GET", "/files/" + key, ada).body).get("version").getAsString();
-        assertEquals(200, user("PUT", "/files/" + key, ada, edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version)).status);
+        assertEquals(200, user("PUT", "/files/" + key, ada, edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version)).status);
 
         Reply adas = user("GET", "/sim/catalog", ada);
         Reply bobs = user("GET", "/sim/catalog", bob);
@@ -624,12 +628,12 @@ public class CodingServerTest {
         assertEquals(500, adas.status);
         assertEquals(bobs.body, 200, bobs.status);
         assertTrue(bobs.body, bobs.body.contains("\"name\":\"Temp\""));
-        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, bob).status);
-        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, bob).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, ada).status);
         String bobsRun = awaitSimStatus(bob, "\"outcome\":\"done\"");
         assertTrue(bobsRun, bobsRun.contains("\"loops\":2"));
         String adasRun = awaitSimStatus(ada, "\"outcome\":\"build failed\"");
-        assertTrue(adasRun, adasRun.contains("TempAuto.java:8"));
+        assertTrue(adasRun, adasRun.contains("Plans.java:" + SimBenchTest.TEMP_LOOPS_LINE));
     }
 
     @Test
@@ -638,7 +642,7 @@ public class CodingServerTest {
 
         assertEquals(403, user("GET", "/sim/catalog", pending).status);
         assertEquals(403, user("GET", "/sim/status", pending).status);
-        assertEquals(403, user("POST", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), pending).status);
+        assertEquals(403, user("POST", "/sim/run?opmode=" + encode("Count to three"), pending).status);
         assertEquals(403, user("GET", "/sim/runs/1/", pending).status);
         assertEquals(403, user("GET", "/sim/runs/1/ticks?from=0", null).status);
     }
@@ -648,24 +652,24 @@ public class CodingServerTest {
         String cookie = approvedUser("ada");
 
         assertEquals(404, user("POST", "/sim/run?opmode=org.example.Nope", cookie).status);
-        assertEquals(405, user("GET", "/sim/run?opmode=" + ThreeLoopAuto.class.getName(), cookie).status);
+        assertEquals(405, user("GET", "/sim/run?opmode=" + encode("Count to three"), cookie).status);
         assertEquals(404, user("GET", "/sim/runs/999/ticks?from=0", cookie).status);
         assertEquals(404, user("GET", "/sim/nope", cookie).status);
     }
 
     @Test
     public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2));
         GitFixture.commitAll(root, "the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
         assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
         String cookie = approvedUser("ada");
         assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
 
         String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
-        assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(4), version)).status);
-        Reply started = user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, cookie);
+        assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempPlans(4), version)).status);
+        Reply started = user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, cookie);
 
         assertEquals(started.body, 200, started.status);
         String status = awaitSimStatus(cookie, "\"outcome\":\"done\"");
@@ -676,24 +680,24 @@ public class CodingServerTest {
 
     @Test
     public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "));
         GitFixture.commitAll(root, "the broken auto");
         serverWith(sourcesBench());
         String cookie = approvedUser("ada");
 
         Reply catalog = user("GET", "/sim/catalog", cookie);
         assertEquals(500, catalog.status);
-        assertTrue(catalog.body, catalog.body.contains("TempAuto.java:8"));
-        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_AUTO_CLASS, cookie).status);
+        assertTrue(catalog.body, catalog.body.contains("Plans.java:" + SimBenchTest.TEMP_LOOPS_LINE));
+        assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, cookie).status);
         String status = awaitSimStatus(cookie, "\"outcome\":\"build failed\"");
-        assertTrue(status, status.contains("TempAuto.java:8"));
+        assertTrue(status, status.contains("Plans.java:" + SimBenchTest.TEMP_LOOPS_LINE));
     }
 
     @Test
     public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
         serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, folder.getRoot().toPath().resolve("sim"), 2, 30, 1));
         String cookie = approvedUser("ada");
-        String id = json(user("POST", "/sim/run?opmode=" + TestAutos.ChattyAuto.class.getName(), cookie).body).get("id").getAsString();
+        String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body).get("id").getAsString();
         awaitSimStatus(cookie, "\"outcome\":\"done\"");
 
         Reply log = user("GET", "/sim/runs/" + id + "/log", cookie);
@@ -707,10 +711,10 @@ public class CodingServerTest {
 
     @Test
     public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
-        SimBenchTest.sourceRootWith(root, SimBenchTest.tempAuto(2));
+        SimBenchTest.sourceRootWith(root, SimBenchTest.tempPlans(2));
         GitFixture.commitAll(root, "the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/auto/TempAuto.java";
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
         admin("POST", "/admin/files/add?path=" + key);
         String cookie = approvedUser("ada");
 
@@ -719,14 +723,14 @@ public class CodingServerTest {
         assertEquals("{\"available\":true,\"ok\":true,\"problems\":[]}", good.body);
 
         String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
-        user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version));
+        user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version));
         Reply broken = user("GET", "/build", cookie);
         assertEquals(200, broken.status);
         JsonObject body = json(broken.body);
         assertEquals(false, body.get("ok").getAsBoolean());
         JsonObject problem = body.getAsJsonArray("problems").get(0).getAsJsonObject();
         assertEquals(key, problem.get("file").getAsString());
-        assertEquals(8, problem.get("line").getAsInt());
+        assertEquals(SimBenchTest.TEMP_LOOPS_LINE, problem.get("line").getAsInt());
         assertTrue(problem.toString(), problem.get("message").getAsString().contains("illegal start of expression"));
         assertEquals(403, user("GET", "/build", login("bob")).status);
     }

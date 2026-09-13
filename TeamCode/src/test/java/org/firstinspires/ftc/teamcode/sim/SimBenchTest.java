@@ -6,6 +6,13 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
+import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
+
+import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
+import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.base.PlanOp;
+import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
@@ -42,25 +49,41 @@ public class SimBenchTest {
         return folder.getRoot().toPath().resolve("sim");
     }
 
-    static final String TEMP_AUTO_CLASS = "org.firstinspires.ftc.teamcode.auto.TempAuto";
+    static final String TEMP_NAME = "Temp";
+    /** The line of {@link #tempPlans} that holds the loop counter, where a compile error is planted. */
+    static final int TEMP_LOOPS_LINE = 10;
 
-    static String tempAuto(int loops) {
-        return "package org.firstinspires.ftc.teamcode.auto;\n"
-                + "import com.qualcomm.robotcore.eventloop.opmode.Autonomous;\n"
-                + "import org.firstinspires.ftc.teamcode.base.RelativeAutoOp;\n"
+    /**
+     * A stand-in for the team's Plans with one {@code @Auto} plan, the way a student's edit adds
+     * one: compiled first on the child's classpath, it is the Plans the registrar finds.
+     */
+    static String tempPlans(int loops, String group) {
+        return "package org.firstinspires.ftc.teamcode;\n"
+                + "import com.qualcomm.robotcore.util.ElapsedTime;\n"
+                + "import org.firstinspires.ftc.robotcore.external.Telemetry;\n"
+                + "import org.firstinspires.ftc.teamcode.base.Auto;\n"
+                + "import org.firstinspires.ftc.teamcode.base.SuperSystem;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
-                + "@Autonomous(name = \"Temp\", group = \"Test\")\n"
-                + "public class TempAuto extends RelativeAutoOp {\n"
+                + "\n"
+                + "public class Plans extends SuperSystem {\n"
                 + "    private int loops = 0;\n"
-                + "    @Override public PlanPart getPlan() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops + "); }\n"
+                + "    public Plans(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable, Brain brain) {\n"
+                + "        super(runtime, telemetry, launcher, drive, camera, nav, turntable);\n"
+                + "    }\n"
+                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
+                + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops + "); }\n"
                 + "}\n";
     }
 
-    /** Writes the auto's source under a temp project and returns the package root. */
+    static String tempPlans(int loops) {
+        return tempPlans(loops, "Test");
+    }
+
+    /** Writes the stand-in Plans under a temp project and returns the package root. */
     static Path sourceRootWith(Path project, String source) throws IOException {
         Path sourceRoot = project.resolve("TeamCode/src/main/java");
-        Path file = sourceRoot.resolve("org/firstinspires/ftc/teamcode/auto/TempAuto.java");
+        Path file = sourceRoot.resolve("org/firstinspires/ftc/teamcode/Plans.java");
         Files.createDirectories(file.getParent());
         Files.write(file, source.getBytes(StandardCharsets.UTF_8));
         // a save within the same second as the previous one must still be noticed
@@ -81,13 +104,13 @@ public class SimBenchTest {
     public void aRunThroughTheChildEndsDoneWithItsTicksAndReplay() throws Exception {
         bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
-        SimBench.Run run = await(bench.start(bench.catalog().find(ThreeLoopAuto.class.getName()).get(), "ada"));
+        SimBench.Run run = await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
 
         assertEquals("done", run.outcome());
         assertEquals("finished", run.phase());
         assertEquals(3, run.ticks().size());
         assertEquals("ada", run.startedBy);
-        assertTrue(Files.isRegularFile(outputDir().resolve("ThreeLoopAuto.html")));
+        assertTrue(Files.isRegularFile(outputDir().resolve("Count to three.html")));
         assertNull(bench.current());
     }
 
@@ -96,7 +119,7 @@ public class SimBenchTest {
         bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
         long startedAt = System.nanoTime();
 
-        SimBench.Run run = await(bench.start(bench.catalog().find(HangingAuto.class.getName()).get(), "ada"));
+        SimBench.Run run = await(bench.start(bench.catalog().find("Hangs").get(), "ada"));
 
         assertTrue(run.outcome(), run.outcome().startsWith("killed"));
         assertTrue(run.outcome(), run.outcome().contains("1.3"));
@@ -105,51 +128,78 @@ public class SimBenchTest {
         assertNull(bench.current());
     }
 
+    /** Registers an auto that never finishes, slowly, the way a big catalog loads slowly. */
+    public static class SlowRegistrar {
+        public static final double SECONDS = 1.5;
+
+        @OpModeRegistrar
+        public static void register(OpModeManager manager) {
+            try {
+                Thread.sleep((long) (SECONDS * 1000));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            manager.register(new OpModeMeta.Builder().setFlavor(OpModeMeta.Flavor.AUTONOMOUS).setName("Slow to start").build(),
+                    new PlanOp(Alliance.RELATIVE, "SlowRegistrar", plans -> new Step("forever", () -> {
+                    }, () -> false)));
+        }
+    }
+
+    @Test
+    public void theRunsTimeStartsWhenTheOpModeDoesNotWhenTheChildJvmDoes() throws Exception {
+        bench = new SimBench(SimCatalog.of(SlowRegistrar.class), null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
+
+        SimBench.Run run = await(bench.start(bench.catalog().find("Slow to start").get(), "ada"));
+
+        assertTrue(run.outcome(), run.outcome().startsWith("timed out after 0.3s"));
+    }
+
     @Test
     public void aCompileErrorIsTheRunsOutcomeAndTheCatalogsToo() throws Exception {
-        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempAuto(2).replace("private int loops = 0;", "private int loops = ;"));
+        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(2).replace("private int loops = 0;", "private int loops = ;"));
         bench = new SimBench(null, sourceRoot, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         try {
             bench.catalog();
             fail("a catalog cannot be listed from sources that do not compile");
         } catch (SimBench.BuildFailed e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("TempAuto.java:8"));
+            assertTrue(e.getMessage(), e.getMessage().contains("Plans.java:" + TEMP_LOOPS_LINE));
         }
-        SimBench.Run run = await(bench.start(new SimCatalog.Entry("Temp", "Test", "auto", TEMP_AUTO_CLASS, null), "ada"));
+        SimBench.Run run = await(bench.start(new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null), "ada"));
         assertEquals("build failed", run.outcome());
-        assertTrue(run.message(), run.message().contains("TempAuto.java:8"));
+        assertTrue(run.message(), run.message().contains("Plans.java:" + TEMP_LOOPS_LINE));
         assertEquals(0, run.ticks().size());
     }
 
     @Test
     public void savedEditsTakeEffectOnTheNextRunWithoutARestart() throws Exception {
-        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempAuto(2));
+        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(2));
         bench = new SimBench(null, sourceRoot, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
-        SimCatalog.Entry temp = bench.catalog().find(TEMP_AUTO_CLASS).get();
-        assertEquals("Temp", temp.name);
+        SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
+        assertEquals("Test", temp.group);
+        assertEquals("Plans.temp()", temp.where);
         assertEquals(2, await(bench.start(temp, "ada")).ticks().size());
 
-        sourceRootWith(folder.getRoot().toPath(), tempAuto(4).replace("name = \"Temp\"", "name = \"Temp v2\""));
+        sourceRootWith(folder.getRoot().toPath(), tempPlans(4, "Test v2"));
 
         SimBench.Run second = await(bench.start(temp, "ada"));
         assertEquals("done", second.outcome());
         assertEquals(4, second.ticks().size());
-        assertEquals("Temp v2", bench.catalog().find(TEMP_AUTO_CLASS).get().name);
+        assertEquals("Test v2", bench.catalog().find(TEMP_NAME).get().group);
     }
 
     @Test
     public void checkCompilesWithoutRunningAndNeverUnderARun() throws Exception {
-        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempAuto(100000));
+        Path sourceRoot = sourceRootWith(folder.getRoot().toPath(), tempPlans(100000));
         bench = new SimBench(null, sourceRoot, outputDir(), 1.0, TELEOP_SECONDS, GRACE_SECONDS);
         assertTrue(bench.check().problems.isEmpty());
         assertNull("nothing ran", bench.current());
-        SimBench.Run run = bench.start(new SimCatalog.Entry("Temp", "Test", "auto", TEMP_AUTO_CLASS, null), "ada");
+        SimBench.Run run = bench.start(new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null), "ada");
         while (!"running".equals(run.phase()) && run.outcome() == null) {
             Thread.sleep(10);
         }
 
-        sourceRootWith(folder.getRoot().toPath(), tempAuto(2).replace("loops = 0", "loops = "));
+        sourceRootWith(folder.getRoot().toPath(), tempPlans(2).replace("loops = 0", "loops = "));
         SimBuild.Result during = bench.check();
 
         assertTrue("the last result, since a rebuild would pull the classes from under the child", during.problems.isEmpty());
@@ -168,7 +218,7 @@ public class SimBenchTest {
     @Test
     public void aTeleOpRunDrivesFromGamepadPostsAndStopEndsIt() throws Exception {
         bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
-        SimBench.Run run = bench.start(bench.catalog().find(StickTeleOp.class.getName()).get(), "ada");
+        SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada");
         awaitRunning(run);
 
         Response pushed = bench.handle("/runs/" + run.id + "/gamepad", post("{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}"), "ada");
@@ -197,7 +247,7 @@ public class SimBenchTest {
     public void aTeleOpRunEndsDoneWhenItsPeriodIsOver() throws Exception {
         bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
 
-        SimBench.Run run = await(bench.start(bench.catalog().find(StickTeleOp.class.getName()).get(), "ada"));
+        SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
 
         assertEquals("done", run.outcome());
         assertTrue(run.ticks().size() > 1);
@@ -206,7 +256,7 @@ public class SimBenchTest {
     @Test
     public void stopEndsAnAutoRunToo() throws Exception {
         bench = new SimBench(SimCatalog.of(TestAutos.NeverDoneAuto.class), null, outputDir(), 30, TELEOP_SECONDS, GRACE_SECONDS);
-        SimBench.Run run = bench.start(bench.catalog().find(TestAutos.NeverDoneAuto.class.getName()).get(), "ada");
+        SimBench.Run run = bench.start(bench.catalog().find("Never done").get(), "ada");
         awaitRunning(run);
         long startedAt = System.nanoTime();
 
@@ -256,7 +306,7 @@ public class SimBenchTest {
     public void theLogKeepsWhatTheChildWroteToStderr() throws Exception {
         bench = new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
-        SimBench.Run run = await(bench.start(bench.catalog().find(TestAutos.ChattyAuto.class.getName()).get(), "ada"));
+        SimBench.Run run = await(bench.start(bench.catalog().find("Chatty").get(), "ada"));
 
         assertTrue(run.log(), run.log().contains("hello from the op mode"));
     }

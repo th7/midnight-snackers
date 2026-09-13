@@ -124,6 +124,6 @@ public class SimBuildTest {
 
         assertNotNull(result.diagnostics, result.classes);
         assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/base/AutoOp.class")));
-        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/auto/DriveForward.class")));
+        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/PlanOpModes.class")));
     }
 }

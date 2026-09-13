@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 public final class SimBench {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final int LOG_LINES = 200;
+    /** How long a child may take to load its catalog and say the op mode has started. */
+    private static final double STARTUP_SECONDS = 60;
 
     /** The sources do not compile; the message is the compiler's diagnostics. */
     public static final class BuildFailed extends RuntimeException {
@@ -65,7 +68,7 @@ public final class SimBench {
             return outcome == null;
         }
 
-        /** {@code building}, {@code running}, or {@code finished}. */
+        /** {@code building}, {@code starting} (the child JVM is up, the op mode not yet), {@code running}, or {@code finished}. */
         public synchronized String phase() {
             return phase;
         }
@@ -107,8 +110,13 @@ public final class SimBench {
             log.addLast(line);
         }
 
-        synchronized void running(Process process) {
+        synchronized void launched(Process process) {
             child = process;
+            phase = "starting";
+        }
+
+        /** The child said the op mode's time has begun. */
+        synchronized void started() {
             phase = "running";
         }
 
@@ -188,8 +196,7 @@ public final class SimBench {
         }
 
         String name() {
-            String name = entry.className.substring(entry.className.lastIndexOf('.') + 1);
-            return name.substring(name.lastIndexOf('$') + 1);
+            return entry.name;
         }
     }
 
@@ -278,6 +285,11 @@ public final class SimBench {
         return build == null ? null : build.sourceRoot();
     }
 
+    /** The sources the child is told to build its catalog from: a fixed catalog's, else none, so it discovers. */
+    private List<String> sources() {
+        return fixedCatalog == null ? List.of() : fixedCatalog.sources();
+    }
+
     private static SimCatalog list(Path classes) {
         Process child = SimChild.launch(List.of(classes), "--list");
         try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
@@ -298,7 +310,7 @@ public final class SimBench {
 
     /**
      * The routes, with {@code path} relative to wherever the caller mounted them: {@code /catalog},
-     * {@code /status}, {@code POST /run?opmode=}, {@code /runs/<id>/}, {@code /runs/<id>/ticks},
+     * {@code /status}, {@code POST /run?opmode=<name>}, {@code /runs/<id>/}, {@code /runs/<id>/ticks},
      * {@code /runs/<id>/log}.
      *
      * @param startedBy the name to record on a run started by this request, or null
@@ -316,7 +328,7 @@ public final class SimBench {
         }
         if (path.equals("/run")) {
             if (!request.method.equals("POST")) {
-                return Response.error(405, "POST /run?opmode=<class name> to start a run");
+                return Response.error(405, "POST /run?opmode=<op mode name> to start a run");
             }
             String opMode = request.query("opmode");
             Optional<SimCatalog.Entry> entry = Optional.empty();
@@ -327,7 +339,7 @@ public final class SimBench {
                     // let the run itself report the build failure, where the tab shows it
                     entry = listed == null ? Optional.empty() : listed.find(opMode);
                     if (entry.isEmpty()) {
-                        entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, opMode, null));
+                        entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null));
                     }
                 }
             }
@@ -439,13 +451,15 @@ public final class SimBench {
         }
         Process child;
         try {
-            child = SimChild.launch(classpathFirst, "--run", run.entry.className, String.valueOf(run.seconds()),
-                    outputDir.toAbsolutePath().toString());
+            List<String> args = new ArrayList<>(List.of("--run", run.entry.name, String.valueOf(run.seconds()),
+                    outputDir.toAbsolutePath().toString()));
+            args.addAll(sources());
+            child = SimChild.launch(classpathFirst, args.toArray(new String[0]));
         } catch (RuntimeException e) {
             run.finish("could not start the child JVM", e.getMessage());
             return;
         }
-        run.running(child);
+        run.launched(child);
         Thread stderr = new Thread(() -> {
             try (BufferedReader err = new BufferedReader(new InputStreamReader(child.getErrorStream(), StandardCharsets.UTF_8))) {
                 for (String line = err.readLine(); line != null; line = err.readLine()) {
@@ -458,8 +472,19 @@ public final class SimBench {
         stderr.setDaemon(true);
         stderr.start();
         double maxSeconds = run.seconds() + killGraceSeconds;
+        CountDownLatch started = new CountDownLatch(1);
         Thread watchdog = new Thread(() -> {
             try {
+                // The run's time starts when the op mode does, not when the JVM does: loading the
+                // catalog is the child's business, and it can be slow.
+                if (!started.await((long) (STARTUP_SECONDS * 1000), TimeUnit.MILLISECONDS)) {
+                    if (child.isAlive()) {
+                        run.finish(String.format("killed after %.1fs: the op mode never started", STARTUP_SECONDS),
+                                "the child JVM never said the op mode had started; it was killed");
+                        child.destroyForcibly();
+                    }
+                    return;
+                }
                 if (!child.waitFor((long) (maxSeconds * 1000), TimeUnit.MILLISECONDS)) {
                     run.finish(String.format("killed after %.1fs: the op mode did not return", maxSeconds),
                             "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
@@ -484,7 +509,10 @@ public final class SimBench {
                 if (json == null) {
                     continue;
                 }
-                if (json.has("outcome")) {
+                if (json.has("started")) {
+                    run.started();
+                    started.countDown();
+                } else if (json.has("outcome")) {
                     outcome = json.get("outcome").getAsString();
                 } else {
                     run.addTick(json);
@@ -543,8 +571,8 @@ public final class SimBench {
             JsonArray ticks = run.ticks();
             JsonObject item = new JsonObject();
             item.addProperty("id", run.id);
-            item.addProperty("opMode", run.entry.className);
             item.addProperty("name", run.entry.name);
+            item.addProperty("where", run.entry.where);
             item.addProperty("kind", run.entry.kind);
             item.addProperty("startedAt", run.startedAtMillis);
             item.addProperty("startedBy", run.startedBy);

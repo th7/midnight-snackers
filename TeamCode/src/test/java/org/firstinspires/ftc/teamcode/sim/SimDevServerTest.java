@@ -59,7 +59,7 @@ public class SimDevServerTest {
 
     @Test
     public void runStartsAnOpModeAndTheStatusFollowsItToItsOutcome() throws Exception {
-        Response started = post("/run?opmode=" + ThreeLoopAuto.class.getName());
+        Response started = post("/run?opmode=" + encode("Count to three"));
         assertEquals(200, started.status);
         String id = started.json("id");
 
@@ -74,16 +74,16 @@ public class SimDevServerTest {
         Response live = get("/runs/" + id + "/");
         assertTrue(live.body.contains("<canvas"));
         assertTrue(live.body.contains("\"live\":true"));
-        assertTrue(folder.getRoot().toPath().resolve("ThreeLoopAuto.html").toFile().exists());
+        assertTrue(folder.getRoot().toPath().resolve("Count to three.html").toFile().exists());
     }
 
     @Test
     public void onlyOneRunAtATimeAndATimedOutRunReportsIt() throws Exception {
-        Response first = post("/run?opmode=" + NeverDoneAuto.class.getName());
+        Response first = post("/run?opmode=" + encode("Never done"));
         assertEquals(200, first.status);
         assertTrue(get("/status").body.contains("\"running\":true"));
 
-        Response second = post("/run?opmode=" + ThreeLoopAuto.class.getName());
+        Response second = post("/run?opmode=" + encode("Count to three"));
 
         assertEquals(409, second.status);
         String status = awaitStatus("\"outcome\":\"timed out");
@@ -92,7 +92,7 @@ public class SimDevServerTest {
 
     @Test
     public void aTeleOpRunIsDrivenFromTheControllerPageAndStoppedFromIt() throws Exception {
-        Response started = post("/run?opmode=" + StickTeleOp.class.getName());
+        Response started = post("/run?opmode=" + encode("Stick"));
         assertEquals(started.body, 200, started.status);
         String id = started.json("id");
 
@@ -120,8 +120,12 @@ public class SimDevServerTest {
     @Test
     public void unknownOpModesAndWrongMethodsAreRejected() throws IOException {
         assertEquals(404, post("/run?opmode=org.example.Nope").status);
-        assertEquals(405, get("/run?opmode=" + ThreeLoopAuto.class.getName()).status);
+        assertEquals(405, get("/run?opmode=" + encode("Count to three")).status);
         assertEquals(404, get("/runs/999/ticks?from=0").status);
+    }
+
+    private static String encode(String name) throws java.io.UnsupportedEncodingException {
+        return java.net.URLEncoder.encode(name, "UTF-8");
     }
 
     private String awaitStatus(String marker) throws Exception {

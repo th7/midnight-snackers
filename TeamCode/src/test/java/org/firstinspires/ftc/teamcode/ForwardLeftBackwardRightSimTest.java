@@ -1,10 +1,11 @@
-package org.firstinspires.ftc.teamcode.auto;
+package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 
+import org.firstinspires.ftc.teamcode.sim.SimCatalog;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
@@ -13,8 +14,8 @@ import org.junit.Test;
 import java.util.List;
 
 /**
- * Runs the real ForwardLeftBackwardRight op mode against the simulated robot.
- * Takes about ten seconds of wall clock: the plan starts with a five second wait.
+ * Runs the real forwardLeftBackwardRight auto, as the registrar registers it, against the
+ * simulated robot. Takes about ten seconds of wall clock: the plan starts with a five second wait.
  */
 public class ForwardLeftBackwardRightSimTest {
     private static final double POSITION_TOLERANCE_INCHES = 2;
@@ -24,7 +25,7 @@ public class ForwardLeftBackwardRightSimTest {
     @Test
     public void drivesTheSquareAndComesBackToWhereItStarted() {
         SimRobot sim = new SimRobot();
-        ForwardLeftBackwardRight opMode = new ForwardLeftBackwardRight();
+        SimCatalog.Entry opMode = SimCatalog.of(PlanOpModes.class).find("forwardLeftBackwardRight").get();
 
         SimRecording recording = SimRunner.run(opMode, sim, TIMEOUT_SECONDS);
         List<Pose2d> trace = recording.poses();

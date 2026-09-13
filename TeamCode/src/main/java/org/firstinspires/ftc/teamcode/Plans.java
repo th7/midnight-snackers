@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.base.Auto;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
@@ -16,6 +17,7 @@ public class Plans extends SuperSystem {
         this.brain = brain;
     }
 
+    @Auto(alliance = Alliance.RELATIVE)
     public Plan scoreAThing() {
         return new Plan(
                 backFromZeroALittle(),
@@ -23,6 +25,7 @@ public class Plans extends SuperSystem {
         );
     }
 
+    @Auto(alliance = Alliance.RELATIVE)
     public Plan spinnyThing() {
         return new Plan(
                 spin360(),
@@ -113,6 +116,8 @@ public class Plans extends SuperSystem {
         );
     }
 
+    @Auto(name = "BlueScoreAThingFromBack", alliance = Alliance.BLUE)
+    @Auto(name = "RedScoreAThingFromBack", alliance = Alliance.RED)
     public Plan scoreAThingFromBack() {
         return new Plan(
                 setFarLaunchPosition(),
@@ -181,6 +186,7 @@ public class Plans extends SuperSystem {
         );
     }
 
+    @Auto(alliance = Alliance.RELATIVE)
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
                 Step.waitFor("forwardLeftBackwardRight", 5),
@@ -197,6 +203,7 @@ public class Plans extends SuperSystem {
         );
     }
 
+    @Auto(alliance = Alliance.RELATIVE)
     public PlanPart driveForward() {
         return new Plan(
                 new Step(

@@ -4,6 +4,9 @@ import org.firstinspires.ftc.robotcore.external.Func;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class FakeTelemetry implements Telemetry {
+    /** How many times {@link #update()} has been called. */
+    public int updates = 0;
+
     @Override
     public Item addData(String caption, String format, Object... args) {
         return null;
@@ -57,6 +60,7 @@ public class FakeTelemetry implements Telemetry {
 
     @Override
     public boolean update() {
+        updates++;
         return false;
     }
 

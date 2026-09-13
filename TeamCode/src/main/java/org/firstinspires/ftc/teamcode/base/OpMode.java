@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Brain;
 import org.firstinspires.ftc.teamcode.Camera;
 import org.firstinspires.ftc.teamcode.Drive;
@@ -24,8 +25,10 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     protected Turntable turntable;
     protected Brain brain;
 
-    private final LoopGroup subsystems = new LoopGroup();
+    private LoopGroup subsystems = new LoopGroup();
     private Hardware injectedHardware = null;
+    /** The telemetry the robot controller gave this op mode, before it was mirrored to the dashboard. */
+    private Telemetry driverStationTelemetry = null;
 
     /**
      * Drive these devices instead of the ones in the robot configuration. A simulation calls this
@@ -42,12 +45,20 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         return injectedHardware != null ? injectedHardware : Hardware.fromHardwareMap(hardwareMap);
     }
 
+    /**
+     * Builds every subsystem afresh. The robot controller keeps one instance of an op mode
+     * registered by instance and calls this for every run, so nothing from an earlier init survives.
+     */
     @Override
     public void init() {
         Hardware hardware = hardware();
+        subsystems = new LoopGroup();
         // Mirror all telemetry to the FTC Dashboard as well as the Driver Station.
         // Must happen before subsystems are built, since they capture the telemetry reference.
-        telemetry = new MultipleTelemetry(telemetry, hardware.dashboard.telemetry());
+        if (driverStationTelemetry == null) {
+            driverStationTelemetry = telemetry;
+        }
+        telemetry = new MultipleTelemetry(driverStationTelemetry, hardware.dashboard.telemetry());
         runtime = new ElapsedTime();
         // Registration order is loop order. Brain goes last because it reads Camera and Nav
         // from this tick and sets the Turntable target.
@@ -80,6 +91,11 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     /** Registers something to tick after the subsystems, in registration order. */
     protected <T extends Loopable> T add(T loopable) {
         return subsystems.add(loopable);
+    }
+
+    /** Where a person finds this op mode's code: its class, unless a subclass knows better. */
+    public String where() {
+        return getClass().getName();
     }
 
     /** Everything this op mode ticks, in order. */
