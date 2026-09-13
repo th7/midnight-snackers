@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import org.firstinspires.ftc.teamcode.sim.TestAutos.GatedAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.junit.Rule;
@@ -58,32 +59,28 @@ public class SimRunnerTest {
     @Test
     public void withALivePortTheRunCanBeWatchedWhileItRunsAndUntilTheViewerHasSeenTheEnd() throws Exception {
         int port = freePort();
-        // long enough that a loaded CI runner's first fetch still lands while the run is in progress
-        double runSeconds = 2.0;
-        Thread runner = new Thread(() -> {
-            try {
-                SimRunner.run(new NeverDoneAuto(), sim, runSeconds, folder.getRoot().toPath(), port);
-            } catch (AssertionError expected) {
-                // the plan never finishes; the run times out by design
-            }
-        });
+        // The auto runs until this test releases it, so the run is in progress for as long as the
+        // first fetch takes, however loaded the machine is. The timeout is only a safety net.
+        GatedAuto auto = new GatedAuto();
+        Thread runner = new Thread(() -> SimRunner.run(auto, sim, 60, folder.getRoot().toPath(), port));
         runner.start();
 
         String duringRun = null;
         String afterRun = null;
-        long deadline = System.nanoTime() + 10_000_000_000L;
+        long deadline = System.nanoTime() + 30_000_000_000L;
         while (System.nanoTime() < deadline) {
             String response = tryGet("http://localhost:" + port + "/ticks?from=0");
             if (response == null) {
                 Thread.sleep(20);
                 continue;
             }
-            if (response.contains("\"outcome\":\"timed out")) {
+            if (response.contains("\"outcome\":\"done\"")) {
                 afterRun = response;
                 break;
             }
-            if (response.contains("\"forever\"")) {
+            if (duringRun == null && response.contains("\"" + GatedAuto.STEP + "\"")) {
                 duringRun = response;
+                auto.release();
             }
             Thread.sleep(20);
         }

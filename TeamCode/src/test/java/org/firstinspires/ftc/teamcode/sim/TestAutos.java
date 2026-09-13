@@ -6,6 +6,8 @@ import org.firstinspires.ftc.teamcode.base.RelativeAutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Tiny autos for exercising the simulator itself. They live outside the auto package, so the
  * catalog never lists them on the real bench.
@@ -66,6 +68,26 @@ public final class TestAutos {
         public PlanPart getPlan() {
             return new Step("forever", () -> {
             }, () -> false);
+        }
+    }
+
+    /**
+     * An auto whose single step waits until the test calls {@link #release()}, so the test decides
+     * when the run ends instead of racing a timeout.
+     */
+    @Autonomous(name = "Gated", group = "Test")
+    public static class GatedAuto extends RelativeAutoOp {
+        public static final String STEP = "wait for the gate";
+        private final AtomicBoolean released = new AtomicBoolean(false);
+
+        public void release() {
+            released.set(true);
+        }
+
+        @Override
+        public PlanPart getPlan() {
+            return new Step(STEP, () -> {
+            }, released::get);
         }
     }
 }
