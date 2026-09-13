@@ -3,10 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import org.firstinspires.ftc.teamcode.base.OpMode;
 
 public abstract class TeleOp extends OpMode {
-    @Override
-    public void init() {
-        super.init();
-        telemetry.addData("TeleOp.init()", true);
+    protected TeleOp(Alliance alliance) {
+        super(alliance);
     }
 
     @Override

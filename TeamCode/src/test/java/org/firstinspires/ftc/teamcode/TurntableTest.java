@@ -3,17 +3,18 @@ package org.firstinspires.ftc.teamcode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.qualcomm.robotcore.util.ElapsedTime;
-
+import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
 public class TurntableTest {
     private static final double DELTA = 0.0001;
 
-    private final FakeDcMotorEx motor = new FakeDcMotorEx();
-    private final Turntable turntable = new Turntable(motor, new ElapsedTime(), new FakeTelemetry());
+    private final SimRobot sim = new SimRobot();
+    private final FakeDcMotorEx motor = sim.turnTable;
+    private final Turntable turntable = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry()).turntable;
 
     @Test
     public void drivesTowardTheTargetPosition() {

@@ -1,8 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.util.ElapsedTime;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Auto;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
@@ -10,12 +7,6 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans extends SuperSystem {
-    private final Brain brain;
-
-    public Plans(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable, Brain brain) {
-        super(runtime, telemetry, launcher, drive, camera, nav, turntable);
-        this.brain = brain;
-    }
 
     @Auto(alliance = Alliance.RELATIVE)
     public Plan scoreAThing() {

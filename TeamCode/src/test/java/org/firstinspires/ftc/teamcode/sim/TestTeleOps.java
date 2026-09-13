@@ -2,9 +2,8 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import org.firstinspires.ftc.teamcode.Nav;
+import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.base.OpMode;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
  * Tiny TeleOps for exercising the simulator itself. Nested classes, so the catalog never lists
@@ -21,9 +20,8 @@ public final class TestTeleOps {
     public static class StickTeleOp extends OpMode {
         public int presses = 0;
 
-        @Override
-        protected Nav getNav(MecanumDrive mecanumDrive) {
-            return Nav.red(mecanumDrive, runtime, telemetry);
+        public StickTeleOp() {
+            super(Alliance.RED);
         }
 
         @Override

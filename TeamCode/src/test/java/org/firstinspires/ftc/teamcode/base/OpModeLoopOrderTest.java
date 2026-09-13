@@ -6,11 +6,9 @@ import static org.junit.Assert.assertTrue;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
@@ -25,9 +23,8 @@ public class OpModeLoopOrderTest {
     private static class TestOp extends OpMode {
         final List<String> onLoops = new ArrayList<>();
 
-        @Override
-        protected Nav getNav(MecanumDrive mecanumDrive) {
-            return Nav.relative(mecanumDrive, runtime, telemetry);
+        TestOp() {
+            super(Alliance.RELATIVE);
         }
 
         @Override
@@ -113,7 +110,8 @@ public class OpModeLoopOrderTest {
 
         List<Loopable> order = opMode.loopOrder();
 
-        assertEquals(opMode.brain, order.get(order.size() - 2));
+        assertEquals(opMode.brain, order.get(order.size() - 3));
+        assertEquals(opMode.plans, order.get(order.size() - 2));
         assertTrue(order.get(order.size() - 1) instanceof PlanRunner);
     }
 }

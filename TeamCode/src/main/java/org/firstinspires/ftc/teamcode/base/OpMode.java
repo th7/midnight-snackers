@@ -1,34 +1,39 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.acmerobotics.roadrunner.Pose2d;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Brain;
 import org.firstinspires.ftc.teamcode.Camera;
 import org.firstinspires.ftc.teamcode.Drive;
 import org.firstinspires.ftc.teamcode.Launcher;
 import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.Turntable;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 import java.util.List;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
-    protected ElapsedTime runtime;
+    private final Alliance alliance;
+    protected Robot robot;
     protected Launcher launcher;
     protected Drive drive;
     protected Camera camera;
-
     protected Nav nav;
     protected Turntable turntable;
     protected Brain brain;
 
-    private LoopGroup subsystems = new LoopGroup();
     private Hardware injectedHardware = null;
     /** The telemetry the robot controller gave this op mode, before it was mirrored to the dashboard. */
     private Telemetry driverStationTelemetry = null;
+
+    protected OpMode(Alliance alliance) {
+        this.alliance = alliance;
+    }
+
+    public Alliance alliance() {
+        return alliance;
+    }
 
     /**
      * Drive these devices instead of the ones in the robot configuration. A simulation calls this
@@ -46,51 +51,30 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     }
 
     /**
-     * Builds every subsystem afresh. The robot controller keeps one instance of an op mode
-     * registered by instance and calls this for every run, so nothing from an earlier init survives.
+     * Builds the robot afresh. The robot controller keeps one instance of an op mode registered by
+     * instance and calls this for every run, so nothing from an earlier init survives.
      */
     @Override
     public void init() {
         Hardware hardware = hardware();
-        subsystems = new LoopGroup();
         // Mirror all telemetry to the FTC Dashboard as well as the Driver Station.
-        // Must happen before subsystems are built, since they capture the telemetry reference.
+        // Must happen before the robot is built, since its subsystems keep the telemetry reference.
         if (driverStationTelemetry == null) {
             driverStationTelemetry = telemetry;
         }
         telemetry = new MultipleTelemetry(driverStationTelemetry, hardware.dashboard.telemetry());
-        runtime = new ElapsedTime();
-        // Registration order is loop order. Brain goes last because it reads Camera and Nav
-        // from this tick and sets the Turntable target.
-        launcher = subsystems.add(new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate, runtime, telemetry));
-        launcher.init();
-        drive = subsystems.add(new Drive(
-                hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack,
-                hardware.dashboard, runtime, telemetry));
-        drive.init();
-        camera = subsystems.add(new Camera(hardware.aprilTags, runtime, telemetry));
-        camera.init();
-        MecanumDrive mecanumDrive = new MecanumDrive(
-                hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront,
-                hardware.imu, hardware.voltageSensor, new Pose2d(0, 0, 0));
-        nav = subsystems.add(getNav(mecanumDrive));
-        nav.init();
-        drive.setPoseSupplier(() -> nav.currentPose().pose2d);
-        turntable = subsystems.add(new Turntable(hardware.turnTable, runtime, telemetry));
-        turntable.init();
-        brain = subsystems.add(new Brain(runtime, telemetry, launcher, drive, camera, nav, turntable));
-        brain.init();
-        telemetry.addData("base.OpMode.init()", true);
+        robot = new Robot(hardware, alliance, telemetry);
+        launcher = robot.launcher;
+        drive = robot.drive;
+        camera = robot.camera;
+        nav = robot.nav;
+        turntable = robot.turntable;
+        brain = robot.brain;
     }
 
-    @Override
-    public void start() {
-        runtime.reset();
-    }
-
-    /** Registers something to tick after the subsystems, in registration order. */
+    /** Registers something to tick after everything registered so far; see {@link Robot#add}. */
     protected <T extends Loopable> T add(T loopable) {
-        return subsystems.add(loopable);
+        return robot.add(loopable);
     }
 
     /** Where a person finds this op mode's code: its class, unless a subclass knows better. */
@@ -100,14 +84,14 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     /** Everything this op mode ticks, in order. */
     public List<Loopable> loopOrder() {
-        return subsystems.members();
+        return robot.loopOrder();
     }
 
-    /** Ticks every registered subsystem, then {@link #onLoop()}. Subclasses override {@link #onLoop()}. */
+    /** Ticks the robot, then {@link #onLoop()}. Subclasses override {@link #onLoop()}. */
     @Override
     public final void loop() {
         handleTelemetryToggles();
-        subsystems.loop();
+        robot.loop();
         onLoop();
     }
 
@@ -127,6 +111,4 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
             camera.toggleTelemetry();
         }
     }
-
-    protected abstract Nav getNav(MecanumDrive mecanumDrive);
 }

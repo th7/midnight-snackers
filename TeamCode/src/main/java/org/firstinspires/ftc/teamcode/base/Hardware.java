@@ -18,60 +18,43 @@ import java.util.function.Supplier;
 /**
  * Everything the op modes touch outside their own code: the configured devices, the camera's
  * detections, and the dashboard. {@link #fromHardwareMap} is the real robot; tests and the
- * simulator build one from fakes.
+ * simulator fill one in from fakes, by name.
  */
 public final class Hardware {
-    public final DcMotorEx launcher;
-    public final Servo topGate;
-    public final Servo bottomGate;
-    public final DcMotorEx leftFront;
-    public final DcMotorEx rightFront;
-    public final DcMotorEx leftBack;
-    public final DcMotorEx rightBack;
-    public final DcMotorEx turnTable;
+    public DcMotorEx launcher;
+    public Servo topGate;
+    public Servo bottomGate;
+    public DcMotorEx leftFront;
+    public DcMotorEx rightFront;
+    public DcMotorEx leftBack;
+    public DcMotorEx rightBack;
+    public DcMotorEx turnTable;
     /**
      * Initialized with the hub orientation from {@link MecanumDrive.Params} on first use.
      */
-    public final LazyImu imu;
-    public final VoltageSensor voltageSensor;
-    public final Supplier<List<AprilTagDetection>> aprilTags;
-    public final Dashboard dashboard;
-
-    public Hardware(DcMotorEx launcher, Servo topGate, Servo bottomGate,
-                    DcMotorEx leftFront, DcMotorEx rightFront, DcMotorEx leftBack, DcMotorEx rightBack,
-                    DcMotorEx turnTable, LazyImu imu, VoltageSensor voltageSensor,
-                    Supplier<List<AprilTagDetection>> aprilTags, Dashboard dashboard) {
-        this.launcher = launcher;
-        this.topGate = topGate;
-        this.bottomGate = bottomGate;
-        this.leftFront = leftFront;
-        this.rightFront = rightFront;
-        this.leftBack = leftBack;
-        this.rightBack = rightBack;
-        this.turnTable = turnTable;
-        this.imu = imu;
-        this.voltageSensor = voltageSensor;
-        this.aprilTags = aprilTags;
-        this.dashboard = dashboard;
-    }
+    public LazyImu imu;
+    public VoltageSensor voltageSensor;
+    public Supplier<List<AprilTagDetection>> aprilTags;
+    public Dashboard dashboard;
 
     /**
      * The devices from the robot configuration. Only valid on the robot controller.
      */
     public static Hardware fromHardwareMap(HardwareMap hardwareMap) {
-        return new Hardware(
-                hardwareMap.get(DcMotorEx.class, "launcher"),
-                hardwareMap.get(Servo.class, "topGate"),
-                hardwareMap.get(Servo.class, "bottomGate"),
-                hardwareMap.get(DcMotorEx.class, "leftFront"),
-                hardwareMap.get(DcMotorEx.class, "rightFront"),
-                hardwareMap.get(DcMotorEx.class, "leftBack"),
-                hardwareMap.get(DcMotorEx.class, "rightBack"),
-                hardwareMap.get(DcMotorEx.class, "turnTable"),
-                new LazyHardwareMapImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
-                        MecanumDrive.PARAMS.logoFacingDirection, MecanumDrive.PARAMS.usbFacingDirection)),
-                hardwareMap.voltageSensor.iterator().next(),
-                AprilTagWebcam.detections(hardwareMap),
-                Dashboard.ftc());
+        Hardware hardware = new Hardware();
+        hardware.launcher = hardwareMap.get(DcMotorEx.class, "launcher");
+        hardware.topGate = hardwareMap.get(Servo.class, "topGate");
+        hardware.bottomGate = hardwareMap.get(Servo.class, "bottomGate");
+        hardware.leftFront = hardwareMap.get(DcMotorEx.class, "leftFront");
+        hardware.rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
+        hardware.leftBack = hardwareMap.get(DcMotorEx.class, "leftBack");
+        hardware.rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
+        hardware.turnTable = hardwareMap.get(DcMotorEx.class, "turnTable");
+        hardware.imu = new LazyHardwareMapImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
+                MecanumDrive.PARAMS.logoFacingDirection, MecanumDrive.PARAMS.usbFacingDirection));
+        hardware.voltageSensor = hardwareMap.voltageSensor.iterator().next();
+        hardware.aprilTags = AprilTagWebcam.detections(hardwareMap);
+        hardware.dashboard = Dashboard.ftc();
+        return hardware;
     }
 }
