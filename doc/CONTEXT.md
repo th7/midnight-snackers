@@ -326,10 +326,13 @@ the op mode under `TeamCode/build/sim`. Class: `SimReplayPage`.
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
 
-**Simulated robot** — A kinematic model on a flat field: motor powers
-become wheel velocities through the tuned drive model, the true pose is
-integrated from those, and the localizer's sensors are written back from
-the true pose. No inertia, slip, or noise. Class: `SimRobot`.
+**Simulated robot** — A kinematic model on a flat, walled field: motor
+powers become wheel velocities through the tuned drive model, the true
+pose is integrated from those and kept inside the walls, and the
+localizer's sensors are written back from the true pose, so the dead
+wheels read nothing while the wheels spin against a wall. The robot is an
+18-inch square on a 144-inch field; a wall stops it dead and lets it slide
+along. No inertia, slip, or noise. Class: `SimRobot`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.

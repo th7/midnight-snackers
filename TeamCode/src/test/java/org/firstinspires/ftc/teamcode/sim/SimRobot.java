@@ -7,6 +7,7 @@ import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Time;
 import com.acmerobotics.roadrunner.Twist2d;
 import com.acmerobotics.roadrunner.Twist2dDual;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.teamcode.base.Hardware;
@@ -21,13 +22,19 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import java.util.ArrayList;
 
 /**
- * A kinematic model of the robot on a flat field. Motor powers set by the robot code become wheel
- * velocities through the drive model Road Runner was tuned with ({@link MecanumDrive.Params}); the
- * true pose is integrated from those, and the sensors the localizer reads (dead wheel encoders and
- * IMU yaw) are written back from the true pose. There is no inertia, slip, or sensor noise.
+ * A kinematic model of the robot on a flat, walled field. Motor powers set by the robot code become
+ * wheel velocities through the drive model Road Runner was tuned with ({@link MecanumDrive.Params});
+ * the true pose is integrated from those, kept inside the walls, and the sensors the localizer
+ * reads (dead wheel encoders and IMU yaw) are written back from the true pose. The robot is an
+ * {@link #ROBOT_SIZE_IN}-inch square; the walls stop it dead and let it slide along them. There is
+ * no inertia, slip, or sensor noise.
  */
 public class SimRobot {
     public static final double BATTERY_VOLTS = 12.5;
+    /** The field is a square of this many inches on a side, centred on the origin, walled all round. */
+    public static final double FIELD_SIZE_IN = 144;
+    /** The robot's footprint is a square of this many inches on a side, centred on its pose. */
+    public static final double ROBOT_SIZE_IN = 18;
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
     /**
      * How the dead wheel encoders are physically wired: the raw count on the rightBack port rises as
@@ -111,12 +118,17 @@ public class SimRobot {
         Twist2dDual<Time> twist = kinematics.forward(new MecanumKinematics.WheelIncrements<>(
                 increment(lf, dtSeconds), increment(lb, dtSeconds),
                 increment(rb, dtSeconds), increment(rf, dtSeconds)));
-        Twist2d delta = twist.value();
-        PoseVelocity2d velocity = twist.velocity().value();
+        Pose2d previous = pose;
+        pose = insideTheWalls(previous.plus(twist.value()));
 
-        pose = pose.plus(delta);
+        // The dead wheels roll on the floor, so they read what the robot actually did: nothing when
+        // the wheels spin against a wall, and only the sliding component when it drives into one at
+        // an angle. Their readings are what TwoDeadWheelLocalizer expects to invert.
+        Twist2d delta = pose.minus(previous);
+        PoseVelocity2d velocity = dtSeconds > 0
+                ? new PoseVelocity2d(delta.line.div(dtSeconds), delta.angle / dtSeconds)
+                : twist.velocity().value();
 
-        // Dead wheel readings are what TwoDeadWheelLocalizer expects to invert.
         parTicks += delta.line.x / drive.inPerTick + deadWheels.parYTicks * delta.angle;
         perpTicks += delta.line.y / drive.inPerTick + deadWheels.perpXTicks * delta.angle;
         double parVelocity = velocity.linearVel.x / drive.inPerTick + deadWheels.parYTicks * velocity.angVel;
@@ -132,6 +144,24 @@ public class SimRobot {
         launcher.measuredVelocity = launcher.commandedVelocity;
         turnTable.currentPosition += (int) Math.round(
                 clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dtSeconds);
+    }
+
+    /**
+     * The pose the walls allow: the same heading, and the position pushed back just far enough that
+     * no corner of the robot's square is beyond a wall. A wall is a straight line, so the square
+     * reaches it at half its side scaled by how far the heading is from square-on. Each axis is
+     * clamped on its own, which is what lets the robot slide along a wall it drives into at an
+     * angle.
+     */
+    private static Pose2d insideTheWalls(Pose2d candidate) {
+        double reach = ROBOT_SIZE_IN / 2 * (Math.abs(candidate.heading.real) + Math.abs(candidate.heading.imag));
+        double limit = FIELD_SIZE_IN / 2 - reach;
+        double x = Math.max(-limit, Math.min(limit, candidate.position.x));
+        double y = Math.max(-limit, Math.min(limit, candidate.position.y));
+        if (x == candidate.position.x && y == candidate.position.y) {
+            return candidate;
+        }
+        return new Pose2d(new Vector2d(x, y), candidate.heading);
     }
 
     /**

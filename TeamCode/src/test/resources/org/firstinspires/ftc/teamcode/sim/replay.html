@@ -193,7 +193,8 @@
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
-  const FIELD_IN = 144, TILE_IN = 24, ROBOT_RADIUS_IN = 9;
+  // The field and robot sizes come from SimRobot, so the page draws what the simulator collides.
+  const FIELD_IN = __FIELD_IN__, TILE_IN = 24, ROBOT_IN = __ROBOT_IN__;
   const canvas = document.getElementById('field');
   const ctx = canvas.getContext('2d');
   const scale = canvas.width / FIELD_IN;
@@ -308,13 +309,19 @@
   }
 
   function drawTrueRobot(tick) {
-    const x = sx(tick.x, tick.y), y = sy(tick.x, tick.y), r = ROBOT_RADIUS_IN * scale;
+    // The robot's square, in field inches: a point (fx, fy) in the robot's own frame lands at
+    // its pose rotated by the heading.
+    const h = ROBOT_IN / 2, cos = Math.cos(tick.heading), sin = Math.sin(tick.heading);
+    const at = (fx, fy) => [tick.x + fx * cos - fy * sin, tick.y + fx * sin + fy * cos];
+    const corners = [at(h, h), at(h, -h), at(-h, -h), at(-h, h)];
     ctx.fillStyle = token('--true-soft');
     ctx.strokeStyle = token('--true');
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-    const hx = tick.x + Math.cos(tick.heading) * ROBOT_RADIUS_IN, hy = tick.y + Math.sin(tick.heading) * ROBOT_RADIUS_IN;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(sx(hx, hy), sy(hx, hy)); ctx.stroke();
+    ctx.beginPath();
+    corners.forEach(([fx, fy], i) => i ? ctx.lineTo(sx(fx, fy), sy(fx, fy)) : ctx.moveTo(sx(fx, fy), sy(fx, fy)));
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const [hx, hy] = at(h, 0);
+    ctx.beginPath(); ctx.moveTo(sx(tick.x, tick.y), sy(tick.x, tick.y)); ctx.lineTo(sx(hx, hy), sy(hx, hy)); ctx.stroke();
   }
 
   function latestPackets(upTo) {
