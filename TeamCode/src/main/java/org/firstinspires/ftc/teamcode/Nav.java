@@ -69,7 +69,7 @@ public class Nav extends SubSystem {
     }
 
     @Override
-    public void loop() {
+    protected void onLoop() {
         mecanumDrive.localizer.update();
     }
 

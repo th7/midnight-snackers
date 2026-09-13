@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.roadrunner.Drawing;
 
 import java.util.function.Supplier;
 
-public class DriveRunner {
+public class DriveRunner implements Loopable {
     private final Dashboard dashboard;
     private Action roadRunnerAction = null;
     private Supplier<Pose2d> poseSupplier = null;
@@ -26,6 +26,7 @@ public class DriveRunner {
         this.poseSupplier = poseSupplier;
     }
 
+    @Override
     public void loop() {
         TelemetryPacket packet = new TelemetryPacket();
         Canvas canvas = packet.fieldOverlay();

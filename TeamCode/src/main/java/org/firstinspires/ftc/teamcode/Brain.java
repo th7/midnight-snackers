@@ -5,24 +5,38 @@ import com.acmerobotics.roadrunner.Rotation2d;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.base.SuperSystem;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Brain extends SuperSystem {
+public class Brain extends SubSystem {
+    private final Launcher launcher;
+    private final Drive drive;
+    private final Camera camera;
+    private final Nav nav;
+    private final Turntable turntable;
     private boolean usingCameraLocalization = true;
     private boolean turnTableToZeroMode = false;
     private boolean turnTableDebugOverride = false;
-    private final PlanRunner planRunner = new PlanRunner();
+    private final PlanRunner planRunner = add(new PlanRunner());
 
     public Brain(ElapsedTime runtime, Telemetry telemetry, Launcher launcher, Drive drive, Camera camera, Nav nav, Turntable turntable) {
-        super(runtime, telemetry, launcher, drive, camera, nav, turntable);
+        super(runtime, telemetry);
+        this.launcher = launcher;
+        this.drive = drive;
+        this.camera = camera;
+        this.nav = nav;
+        this.turntable = turntable;
     }
 
-    public void loop() {
-        planRunner.loop();
+    @Override
+    public void init() {
+        telemetry.addData("Brain.init()", true);
+    }
 
+    @Override
+    protected void onLoop() {
         if (!turnTableDebugOverride) {
             if (turnTableToZeroMode) {
                 turntable.setTurnTablePosition(0);

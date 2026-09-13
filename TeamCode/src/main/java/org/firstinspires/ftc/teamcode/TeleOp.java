@@ -10,9 +10,7 @@ public abstract class TeleOp extends OpMode {
     }
 
     @Override
-    public void loop() {
-        super.loop();
-
+    protected void onLoop() {
         if (gamepad1.square) {
             launcher.launchyLaunch();
         }

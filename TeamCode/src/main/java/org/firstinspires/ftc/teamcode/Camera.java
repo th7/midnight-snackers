@@ -36,7 +36,7 @@ public class Camera extends SubSystem {
     }
 
     @Override
-    public void loop() {
+    protected void onLoop() {
         List<AprilTagDetection> detections = detectionSource.get();
 
         if (detections == null) {
