@@ -88,6 +88,21 @@ public class SimReplayPageTest {
         assertFalse("no placeholder is left behind", html.contains("__FIELD__"));
     }
 
+    /** Where the loose game pieces are, tick by tick, so the page rolls them where the robot pushed them. */
+    @Test
+    public void aTickCarriesWhereTheLoosePiecesAre() {
+        SimRecording recording = new SimRecording("PushAuto");
+        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "1. push", new double[]{1, 1, 1, 1}, List.of(),
+                null, null, new double[][]{{69.27, -60.6}, {10.5, -40.1234}}));
+        recording.add(new SimRecording.Tick(0.5, new Pose2d(1, 0, 0), "1. push", new double[]{1, 1, 1, 1}, List.of()));
+        recording.finish("done");
+
+        String html = SimReplayPage.page(recording, false);
+
+        assertTrue(html, html.contains("\"pieces\":[[69.27,-60.6],[10.5,-40.123]]"));
+        assertEquals("a tick without them carries no pieces key", 1, html.split("\"pieces\"", -1).length - 1 - templateMentions("\"pieces\""));
+    }
+
     @Test
     public void aTeleOpPageCarriesTheDriversInputsTickByTick() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");

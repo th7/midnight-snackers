@@ -234,6 +234,9 @@ public final class SimRunStream {
         if (gamepads.size() > 0) {
             t.add("gamepads", gamepads); // absent means neutral, so a replay stays small
         }
+        if (tick.pieces != null && tick.pieces.length > 0) {
+            t.add("pieces", GSON.toJsonTree(tick.pieces)); // absent means where the field was set up
+        }
         return t;
     }
 

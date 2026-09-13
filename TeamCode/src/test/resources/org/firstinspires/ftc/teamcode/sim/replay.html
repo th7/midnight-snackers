@@ -364,20 +364,35 @@
     ctx.fill();
     ctx.globalAlpha = 1;
   }
+  // A surface (a hive's panel) is seen through from either side and outlined in its colour.
   function facesOf(element) {
     const out = [];
     for (const ring of element.faces) {
       const pts = ring.map(i => element.vertices[i]);
       const n = unit(cross(sub(pts[1], pts[0]), sub(pts[2], pts[0])));
-      if (dot(n, sub(cam.eye, pts[0])) <= 0) continue;
+      if (!element.surface && dot(n, sub(cam.eye, pts[0])) <= 0) continue;
       let depth = 0;
       for (const p of pts) depth += depthOf(p) / pts.length;
-      out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 1); ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'; ctx.lineWidth = 0.75; ctx.stroke(); } });
+      if (element.surface) {
+        out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 0.18); ctx.strokeStyle = element.colour; ctx.lineWidth = 1.5; ctx.stroke(); } });
+      } else {
+        out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 1); ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'; ctx.lineWidth = 0.75; ctx.stroke(); } });
+      }
     }
     return out;
   }
-  function ballOf(piece) {
-    const c = piece.centre;
+  // The loose pieces are where the latest tick that says puts them; the rest are where the field was set up.
+  function pieceCentre(piece, loose, at) {
+    if (!piece.loose) return piece.centre;
+    const i = loose.indexOf(piece);
+    return at && at[i] ? [at[i][0], at[i][1], piece.radius] : piece.centre;
+  }
+  function latestPieces(upTo) {
+    for (let i = upTo; i >= 0; i--) if (ticks[i].pieces) return ticks[i].pieces;
+    return null;
+  }
+  const LOOSE = FIELD.pieces.filter(p => p.loose);
+  function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
       const s = project(c), r = cam.focal * piece.radius / depth;
@@ -499,7 +514,8 @@
   function drawScene(tick) {
     let items = [];
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
-    for (const piece of FIELD.pieces) items.push(ballOf(piece));
+    const at = tick ? latestPieces(index) : null;
+    for (const piece of FIELD.pieces) items.push(ballOf(piece, pieceCentre(piece, LOOSE, at)));
     if (tick) items = items.concat(robotFaces(tick));
     items.sort((a, b) => b.depth - a.depth);
     for (const item of items) item.draw();
