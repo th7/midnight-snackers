@@ -110,7 +110,10 @@ public final class Worktrees {
         MERGED,
         /** There was nothing to merge. */
         NOTHING,
-        /** The worktree has uncommitted changes; {@code files} names them. Commit first. */
+        /**
+         * Uncommitted changes stand in the way; {@code files} names them: for a push every
+         * uncommitted file, for a pull only those the merge would overwrite. Commit first.
+         */
         UNCOMMITTED,
         /** The two branches conflict; {@code files} names where. Nothing was changed. */
         CONFLICTS,
@@ -289,20 +292,23 @@ public final class Worktrees {
      * Merges {@code develop} into the user branch, in the user's worktree: a fast-forward when
      * the branch has no commits of its own, a merge commit otherwise. Conflicts are found first
      * with {@code merge-tree}, which touches no working tree, so a conflicting pull changes
-     * nothing at all.
+     * nothing at all. Uncommitted edits stay uncommitted and ride along, except in a file the
+     * merge would change: those would be overwritten, so the pull is refused naming them, and
+     * nothing changes until the user commits.
      */
     public synchronized Merge pull(String username) {
         Worktree worktree = ensure(username);
-        List<String> changed = changedFiles(worktree);
-        if (!changed.isEmpty()) {
-            return new Merge(Outcome.UNCOMMITTED, changed, null);
-        }
         if (isAncestor(DEVELOP, worktree.branch)) {
             return new Merge(Outcome.NOTHING, List.of(), null);
         }
         MergeTree tree = mergeTree(worktree.branch, DEVELOP);
         if (!tree.conflicts.isEmpty()) {
             return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
+        }
+        List<String> overwritten = new ArrayList<>(changedFiles(worktree));
+        overwritten.retainAll(filesChangedBetween(worktree.branch, tree.tree));
+        if (!overwritten.isEmpty()) {
+            return new Merge(Outcome.UNCOMMITTED, overwritten, null);
         }
         Result merged = run(worktree.path, "-c", "user.name=" + username, "-c", "user.email=" + email(worktree),
                 "merge", "-q", "-m", "Pull " + DEVELOP, DEVELOP);
@@ -450,6 +456,11 @@ public final class Worktrees {
             files.sort(null);
         }
         return new MergeTree(lines[0].trim(), files);
+    }
+
+    /** Root-relative paths, sorted, that differ between two commits or trees. */
+    private List<String> filesChangedBetween(String from, String to) {
+        return nulSeparated(git(root, "diff", "--name-only", "-z", from, to).out);
     }
 
     private List<String> changedFiles(Worktree worktree) {

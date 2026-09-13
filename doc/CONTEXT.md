@@ -134,9 +134,12 @@ the user and, with the command to run, to the coach on the admin page.
 
 **Pull** — `POST /git/pull`: `develop` is merged into the user branch, in
 the user's worktree, a fast-forward when it can be and a merge commit
-otherwise. `develop` does not change. It needs a clean worktree (commit
-first) and refuses, changing nothing, on a merge conflict. The Pull
-button pulses, and wears the count, while the branch is behind.
+otherwise. `develop` does not change. Uncommitted edits stay uncommitted
+and ride along, except in a file the merge would change: those would be
+overwritten, so the pull refuses (commit first), naming only those files
+and changing nothing. It also refuses, changing nothing, on a merge
+conflict. The Pull button pulses, and wears the count, while the branch
+is behind.
 
 **Merge conflict** — `develop` and the user branch changed the same lines
 since they diverged. Not the save **conflict** (a stale base version on

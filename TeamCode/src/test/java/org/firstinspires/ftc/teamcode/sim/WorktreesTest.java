@@ -286,21 +286,74 @@ public class WorktreesTest {
     }
 
     @Test
-    public void pullWithNothingNewOrWithUncommittedChangesDoesNothing() throws IOException {
+    public void pullWithNothingNewDoesNothing() throws IOException {
         Worktrees worktrees = worktrees();
         Worktrees.Worktree ada = worktrees.ensure("ada");
         String head = GitFixture.head(ada.path);
-
-        assertEquals(Worktrees.Outcome.NOTHING, worktrees.pull("ada").outcome);
-
-        commitOnDevelop("README", "on develop\n");
         Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+
+        Worktrees.Merge nothing = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.NOTHING, nothing.outcome);
+        assertEquals(head, GitFixture.head(ada.path));
+        assertEquals("[Mine.java]", worktrees.status("ada").changed.toString());
+    }
+
+    @Test
+    public void pullKeepsUncommittedEditsInFilesDevelopDidNotTouch() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        commitOnDevelop("README", "first on develop\n");
+
+        Worktrees.Merge fastForward = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, fastForward.outcome);
+        assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.head(ada.path));
+        assertEquals("first on develop\n", read(ada.path.resolve("README")));
+        assertEquals("class Mine {}\n", read(ada.path.resolve("Mine.java")));
+        assertEquals("the edit is still uncommitted", "[Mine.java]", worktrees.status("ada").changed.toString());
+
+        worktrees.commit("ada", "mine");
+        Files.write(ada.path.resolve("Mine.java"), "class Mine { int edited; }\n".getBytes(StandardCharsets.UTF_8));
+        commitOnDevelop("README", "second on develop\n");
+        Worktrees.Merge merge = worktrees.pull("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, merge.outcome);
+        assertEquals("a merge commit with both parents", 3, GitFixture.git(ada.path, "rev-list", "--parents", "-1", "HEAD").trim().split(" ").length);
+        assertEquals("second on develop\n", read(ada.path.resolve("README")));
+        assertEquals("class Mine { int edited; }\n", read(ada.path.resolve("Mine.java")));
+        assertEquals("[Mine.java]", worktrees.status("ada").changed.toString());
+        assertEquals("the merge commit took only the merge", "class Mine {}\n", GitFixture.git(ada.path, "show", "HEAD:Mine.java"));
+    }
+
+    @Test
+    public void pullWithUncommittedEditsInFilesDevelopChangedIsRefusedNamingOnlyThose() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        String head = GitFixture.head(ada.path);
+        commitOnDevelop("README", "on develop\n");
+        Files.write(ada.path.resolve("README"), "ada's uncommitted line\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+
         Worktrees.Merge refused = worktrees.pull("ada");
 
         assertEquals(Worktrees.Outcome.UNCOMMITTED, refused.outcome);
-        assertEquals("[Mine.java]", refused.files.toString());
+        assertEquals("[README]", refused.files.toString());
         assertEquals(head, GitFixture.head(ada.path));
-        assertEquals("hello\n", read(ada.path.resolve("README")));
+        assertEquals("ada's uncommitted line\n", read(ada.path.resolve("README")));
+        assertEquals("class Mine {}\n", read(ada.path.resolve("Mine.java")));
+        assertFalse("no merge in progress", Files.exists(gitDir(ada.path).resolve("MERGE_HEAD")));
+
+        Files.write(ada.path.resolve("README"), "hello\n".getBytes(StandardCharsets.UTF_8));
+        commitOnDevelop("New.java", "class New {}\n");
+        Files.write(ada.path.resolve("New.java"), "class New { int ada; }\n".getBytes(StandardCharsets.UTF_8));
+        Worktrees.Merge untracked = worktrees.pull("ada");
+
+        assertEquals("a new file of ada's that develop also adds", Worktrees.Outcome.UNCOMMITTED, untracked.outcome);
+        assertEquals("[New.java]", untracked.files.toString());
+        assertEquals(head, GitFixture.head(ada.path));
+        assertEquals("class New { int ada; }\n", read(ada.path.resolve("New.java")));
     }
 
     @Test
