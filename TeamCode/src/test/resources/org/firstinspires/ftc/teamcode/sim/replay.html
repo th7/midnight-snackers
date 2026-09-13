@@ -8,7 +8,7 @@
   :root {
     color-scheme: light;
     --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc;
-    --field: #fbfaf6; --tile: #e4e1d7; --axis: #c3bfb3; --label: #8f8b80;
+    --field: #fbfaf6; --apron: #ecebe5; --tile: #e4e1d7; --axis: #c3bfb3; --label: #8f8b80;
     --wall: rgba(110, 106, 97, 0.16); --wall-edge: #a7a295;
     --true: #d84a05; --robot-top: #ffcdb3; --robot-side: #f0865a; --trail: rgba(216, 74, 5, 0.45);
     --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7;
@@ -18,7 +18,7 @@
     :root:not([data-theme="light"]) {
       color-scheme: dark;
       --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
-      --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
+      --field: #1c1e22; --apron: #1a1b1e; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
       --wall: rgba(200, 196, 186, 0.12); --wall-edge: #63666e;
       --true: #ff7a3d; --robot-top: #ffb48f; --robot-side: #d9622c; --trail: rgba(255, 122, 61, 0.5);
       --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
@@ -28,7 +28,7 @@
   :root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
-    --field: #1c1e22; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
+    --field: #1c1e22; --apron: #1a1b1e; --tile: #2b2e34; --axis: #4a4d55; --label: #8a877f;
     --wall: rgba(200, 196, 186, 0.12); --wall-edge: #63666e;
     --true: #ff7a3d; --robot-top: #ffb48f; --robot-side: #d9622c; --trail: rgba(255, 122, 61, 0.5);
     --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
@@ -122,7 +122,7 @@
       <input type="range" id="scrub" min="0" value="0" step="1">
       <span class="time mono" id="time"></span>
     </div>
-    <p class="hint" id="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.</p>
+    <p class="hint" id="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left. Dashed outlines on the floor are what the simulator collides.</p>
   </section>
   <aside>
     <dl>
@@ -197,10 +197,12 @@
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
-  // The field, robot and wall sizes come from SimRobot, so the page draws what the simulator collides:
-  // a walled square field, and the robot as a cube standing on it.
-  const FIELD_IN = __FIELD_IN__, TILE_IN = 24, ROBOT_IN = __ROBOT_IN__, WALL_IN = __WALL_IN__;
-  const HALF = FIELD_IN / 2;
+  // The field model, the robot and wall sizes come from SimRobot, so the page draws what the simulator
+  // collides: the walled square field, its elements, tape and game pieces, and the robot as a cube
+  // standing on it.
+  const FIELD_IN = __FIELD_IN__, ROBOT_IN = __ROBOT_IN__, WALL_IN = __WALL_IN__;
+  const FIELD = __FIELD__;
+  const HALF = FIELD_IN / 2, TILE_IN = FIELD_IN / 6;
   const canvas = document.getElementById('field');
   const ctx = canvas.getContext('2d');
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -233,7 +235,8 @@
     cam.u = cross(cam.r, cam.f);
     // Frame the walled field with a margin from whatever angle it is seen; zoom scales from there.
     cam.focal = 1; cam.ox = 0; cam.oy = 0;
-    const top = Math.max(WALL_IN, ROBOT_IN);
+    let top = Math.max(WALL_IN, ROBOT_IN);
+    for (const e of FIELD.elements) for (const v of e.vertices) top = Math.max(top, v[2]);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const x of [-HALF, HALF]) for (const y of [-HALF, HALF]) for (const z of [0, top]) {
       const p = project([x, y, z]);
@@ -253,6 +256,18 @@
     if (close) ctx.closePath();
   }
   const floor = (x, y) => project([x, y, 0]);
+  const depthOf = p => dot(sub(p, cam.eye), cam.f);
+
+  // The ground extends past the walls as far as the model does: the alliance areas are marked out there.
+  const apron = { minX: -HALF, maxX: HALF, minY: -HALF, maxY: HALF };
+  for (const m of FIELD.tape) for (const [x, y] of m.footprint) {
+    apron.minX = Math.min(apron.minX, x - 6); apron.maxX = Math.max(apron.maxX, x + 6);
+    apron.minY = Math.min(apron.minY, y - 6); apron.maxY = Math.max(apron.maxY, y + 6);
+  }
+  for (const e of FIELD.elements) for (const [x, y] of e.vertices) {
+    apron.minX = Math.min(apron.minX, x - 6); apron.maxX = Math.max(apron.maxX, x + 6);
+    apron.minY = Math.min(apron.minY, y - 6); apron.maxY = Math.max(apron.maxY, y + 6);
+  }
 
   // The four walls: the floor corners each runs between, and which way is outside the field.
   const WALLS = [
@@ -292,13 +307,16 @@
     if (teleop) {
       hint.innerHTML = driving()
         ? 'Click a button or press the key shown on it; drag a stick or hold its keys. <kbd>1</kbd> <kbd>2</kbd> pick the gamepad, <kbd>Esc</kbd> stops the run. Click the page first if the keys do nothing.'
-        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.';
+        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left. Dashed outlines on the floor are what the simulator collides.';
     }
   }
 
   function drawFloor() {
     ctx.fillStyle = token('--bg');
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = token('--apron');
+    trace([[apron.minX, apron.minY, 0], [apron.maxX, apron.minY, 0], [apron.maxX, apron.maxY, 0], [apron.minX, apron.maxY, 0]], true);
+    ctx.fill();
     ctx.fillStyle = token('--field');
     trace([[-HALF, -HALF, 0], [HALF, -HALF, 0], [HALF, HALF, 0], [-HALF, HALF, 0]], true);
     ctx.fill();
@@ -319,6 +337,58 @@
     ctx.fillText('+x', px.x, px.y);
     ctx.fillText('+y', py.x, py.y);
     ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    // The gaffer tape, as laid on the floor.
+    for (const mark of FIELD.tape) {
+      ctx.fillStyle = mark.colour;
+      trace(mark.footprint.map(([x, y]) => [x, y, 0]), true);
+      ctx.fill();
+    }
+    // What the simulator collides: the obstacles' footprints, outlined on the floor.
+    ctx.strokeStyle = token('--wall-edge');
+    ctx.setLineDash([3, 3]);
+    for (const obstacle of FIELD.obstacles) {
+      trace(obstacle.footprint.map(([x, y]) => [x, y, 0]), true);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  // Everything that stands on the field is drawn back to front by depth, one face at a time: the
+  // elements' faces, the robot's, and the game pieces as balls. Faces turned away are skipped.
+  const light = unit([-0.5, 0.4, 0.8]);
+  function shade(colour, n, alpha) {
+    ctx.fillStyle = colour;
+    ctx.globalAlpha = alpha;
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.35 * (1 - Math.max(0, dot(n, light)))).toFixed(3) + ')';
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  function facesOf(element) {
+    const out = [];
+    for (const ring of element.faces) {
+      const pts = ring.map(i => element.vertices[i]);
+      const n = unit(cross(sub(pts[1], pts[0]), sub(pts[2], pts[0])));
+      if (dot(n, sub(cam.eye, pts[0])) <= 0) continue;
+      let depth = 0;
+      for (const p of pts) depth += depthOf(p) / pts.length;
+      out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 1); ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'; ctx.lineWidth = 0.75; ctx.stroke(); } });
+    }
+    return out;
+  }
+  function ballOf(piece) {
+    const c = piece.centre;
+    const depth = depthOf(c);
+    return { depth, draw: () => {
+      const s = project(c), r = cam.focal * piece.radius / depth;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = piece.colour; ctx.fill();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x - r * 0.3, s.y - r * 0.3, r * 0.45, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'; ctx.lineWidth = 0.75; ctx.stroke();
+    } };
   }
 
   function drawWall(w) {
@@ -387,7 +457,7 @@
     ctx.restore();
   }
 
-  function drawTrueRobot(tick) {
+  function robotFaces(tick) {
     // The robot's cube, in field inches: a point (fx, fy, z) in the robot's own frame lands at its
     // pose rotated by the heading, standing on the floor.
     const h = ROBOT_IN / 2, cos = Math.cos(tick.heading), sin = Math.sin(tick.heading);
@@ -402,27 +472,37 @@
     // The front face is the true-pose colour; the rest are lit from the audience's left, above. The
     // cube is a little see-through, so what the robot code draws under itself (its localizer's
     // estimate, say) still shows.
-    const light = unit([-0.5, 0.4, 0.8]);
-    ctx.save();
-    ctx.globalAlpha = 0.85;
+    const out = [];
     for (const face of faces) {
       if (dot(face.n, sub(cam.eye, face.pts[0])) <= 0) continue; // faces away from the camera
-      trace(face.pts, true);
-      ctx.fillStyle = token(face.fill);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.3 * (1 - Math.max(0, dot(face.n, light)))).toFixed(3) + ')';
-      ctx.fill();
-      ctx.strokeStyle = token('--true');
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      let depth = 0;
+      for (const p of face.pts) depth += depthOf(p) / face.pts.length;
+      out.push({ depth, draw: () => {
+        trace(face.pts, true);
+        shade(token(face.fill), face.n, 0.85);
+        ctx.strokeStyle = token('--true');
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      } });
     }
-    ctx.restore();
     // The heading, as an arrow on the top face from the centre to the front edge.
     const z = ROBOT_IN + 0.1;
-    ctx.strokeStyle = token('--true');
-    ctx.lineWidth = 2;
-    trace([at(0, 0, z), at(h, 0, z)]); ctx.stroke();
-    trace([at(h - 4, 3, z), at(h, 0, z), at(h - 4, -3, z)]); ctx.stroke();
+    out.push({ depth: depthOf(at(0, 0, z)) - 0.01, draw: () => {
+      ctx.strokeStyle = token('--true');
+      ctx.lineWidth = 2;
+      trace([at(0, 0, z), at(h, 0, z)]); ctx.stroke();
+      trace([at(h - 4, 3, z), at(h, 0, z), at(h - 4, -3, z)]); ctx.stroke();
+    } });
+    return out;
+  }
+
+  function drawScene(tick) {
+    let items = [];
+    for (const element of FIELD.elements) items = items.concat(facesOf(element));
+    for (const piece of FIELD.pieces) items.push(ballOf(piece));
+    if (tick) items = items.concat(robotFaces(tick));
+    items.sort((a, b) => b.depth - a.depth);
+    for (const item of items) item.draw();
   }
 
   function latestPackets(upTo) {
@@ -440,10 +520,10 @@
       drawTrail(index);
       for (const p of packets) drawOps(p.ops);
     }
-    // Back to front: the walls behind the robot, the robot, then the walls between it and the camera.
+    // Back to front: the walls behind the field, what stands on it, then the walls between it and the camera.
     const walls = WALLS.slice().sort((a, b) => wallDistance(b) - wallDistance(a));
     for (const w of walls) if (!wallInFront(w)) drawWall(w);
-    if (tick) drawTrueRobot(tick);
+    drawScene(tick);
     for (const w of walls) if (wallInFront(w)) drawWall(w);
     if (!tick) return;
 

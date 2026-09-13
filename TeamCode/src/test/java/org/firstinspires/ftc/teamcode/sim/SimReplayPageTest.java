@@ -75,6 +75,19 @@ public class SimReplayPageTest {
         assertFalse("no placeholder is left behind", html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__") || html.contains("__WALL_IN__"));
     }
 
+    /**
+     * The field elements, the tape and the game pieces the page draws are the simulator's own
+     * model, obstacles included, so what is drawn is what the robot runs into.
+     */
+    @Test
+    public void thePageCarriesTheFieldModelTheSimulatorCollides() {
+        String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
+
+        assertTrue(html, html.contains("FIELD = " + new Gson().toJson(SimRobot.FIELD.json())));
+        assertTrue(html, html.contains("Flower Assembly"));
+        assertFalse("no placeholder is left behind", html.contains("__FIELD__"));
+    }
+
     @Test
     public void aTeleOpPageCarriesTheDriversInputsTickByTick() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");
