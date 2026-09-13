@@ -160,6 +160,24 @@ public class SourceNavigatorTest {
         assertNull(symbol.definition);
     }
 
+    /** The sources are navigated against the libraries alone: a class of this server's robot is not a symbol in a project that lacks it. */
+    @Test
+    public void aClassOfThisServersRobotIsNotASymbolInAProjectThatLacksIt() throws IOException {
+        String source = "package org.example;\n"
+                + "\n"
+                + "public class Uses {\n"
+                + "    org.firstinspires.ftc.teamcode.base.OpMode opMode;\n"
+                + "    java.util.List<String> names;\n"
+                + "}\n";
+        write("org/example/Uses.java", source);
+
+        Symbol library = definitionAt("org/example/Uses.java", source, "java.util.List<String> names", "List");
+        Symbol server = definitionAt("org/example/Uses.java", source, "org.firstinspires.ftc.teamcode.base.OpMode opMode", "OpMode");
+
+        assertEquals("java.util.List", library.name);
+        assertNull("resolved to this server's own robot class", server);
+    }
+
     @Test
     public void whitespaceAndAKeywordHaveNoSymbol() {
         assertNull(navigator.definition(AUTO, 2, 1));

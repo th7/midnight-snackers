@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.util.List;
 
 public class SimBuildTest {
     @Rule
@@ -201,6 +202,43 @@ public class SimBuildTest {
         SimBuild.Result edited = build.build();
         assertTrue("an edited resource is a change to the simulator", edited.rebuilt);
         assertEquals("<p>two</p>", new String(Files.readAllBytes(edited.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
+    }
+
+    /** What a project is built against and run with: this JVM's jars, none of this server's own code. */
+    @Test
+    public void theLibrariesAreThisJvmsJarsWithoutThisServersOwnCode() {
+        List<String> libraries = SimBuild.libraries();
+        String gson = locationOf(com.google.gson.Gson.class);
+        String serverRobot = locationOf(org.firstinspires.ftc.teamcode.base.OpMode.class);
+        String serverSimulator = locationOf(SimBuild.class);
+
+        assertTrue(libraries.toString(), libraries.contains(gson));
+        assertFalse("this server's robot classes: " + serverRobot, libraries.contains(serverRobot));
+        assertFalse("this server's simulator: " + serverSimulator, libraries.contains(serverSimulator));
+        for (String library : libraries) {
+            assertTrue(library, Files.isRegularFile(Paths.get(library)));
+        }
+    }
+
+    @Test
+    public void librariesOfKeepsOnlyExistingFilesThatAreNotThisServersRobotClasses() throws IOException {
+        Path dir = Files.createDirectories(folder.getRoot().toPath().resolve("classes"));
+        Path library = Files.createFile(folder.getRoot().toPath().resolve("lib.jar"));
+        Path robot = Files.createFile(folder.getRoot().toPath().resolve("robot.jar"));
+        Path gone = folder.getRoot().toPath().resolve("gone");
+
+        List<String> libraries = SimBuild.librariesOf(
+                List.of(dir.toString(), library.toString(), robot.toString(), gone.toString()), robot);
+
+        assertEquals(List.of(library.toString()), libraries);
+    }
+
+    private static String locationOf(Class<?> type) {
+        try {
+            return Paths.get(type.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

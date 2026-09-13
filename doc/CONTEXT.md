@@ -215,10 +215,10 @@ The source set is enumerated and matched exactly, never resolved against
 the filesystem.
 
 **Build** — Compiling a project's main sources as they are on disk with
-the JDK's own compiler, together with that project's **simulator** —
-everything under its `TeamCode/src/test/java` that is not a test, with
-the resources next to it copied along — cached by a fingerprint of all
-three trees. The simulator runs in the child against the sources it was
+the JDK's own compiler against the **libraries**, together with that
+project's **simulator** — everything under its `TeamCode/src/test/java`
+that is not a test, with the resources next to it copied along — cached
+by a fingerprint of all three trees. The simulator runs in the child against the sources it was
 just built with, so a simulator that does not fit them fails the build
 naming the seam, rather than the child failing at run time with a
 linkage error nobody can read. The Edit tab asks for a build after every
@@ -243,6 +243,15 @@ every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
 runs on the current classpath. Class: `SimBench`.
 
+**Libraries** — What a project is built against, navigated against, and
+run with: the jars on the server's classpath, and none of the server's
+own code. The server's code is the directories on its classpath (its
+simulator and tests) and the jar its robot classes come from; the FTC
+SDK, Road Runner, and the FtcRobotController module's jar, which no
+project rebuilds, are libraries. So a class a project lacks is missing —
+in its build, in its child, and to the navigator — rather than quietly
+the server's. Method: `SimBuild.libraries()`.
+
 **Bench page** — The standalone page for one developer at
 `./gradlew :TeamCode:simDev` (http://localhost:8765/), with no login.
 Class: `SimDevServer`.
@@ -261,11 +270,11 @@ the real bench, and Road Runner's vendored code is not ours to simulate.
 The child reports the catalog after each build, so a newly written op
 mode appears without a restart. Class: `SimCatalog`.
 
-**Child** — The fresh JVM each run executes in, launched with the newly
+**Child** — The fresh JVM each run executes in, launched on the newly
 built classes — the project's robot sources and its simulator, built
-together — first on its classpath. Every class identity is consistent,
-static state starts clean, and a hung op mode is a process that can be
-killed. It says its **protocol** first, builds the catalog, then prints
+together — and the libraries, nothing else. Every class identity is
+consistent, static state starts clean, and a hung op mode is a process
+that can be killed. It says its **protocol** first, builds the catalog, then prints
 the run stream; the op mode's own output goes to stderr. Its standard
 input is the driver station, one line at a time; when the input ends,
 the run ends stopped. Class: `SimChild`.

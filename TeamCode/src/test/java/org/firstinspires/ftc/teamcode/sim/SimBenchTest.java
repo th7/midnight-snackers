@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -79,10 +80,11 @@ public class SimBenchTest {
         return project;
     }
 
-    /** A temp project with the stand-in Plans as its robot and the real simulator. */
+    /** A temp project that is the real one with the stand-in Plans as its plans: the child sees nothing but the project. */
     static Path projectWith(Path project, String plans) throws IOException {
+        realProjectCopiedUnder(project);
         sourceRootWith(project, plans);
-        return simulatorInto(project);
+        return project;
     }
 
     /** A copy of the real project (main sources and simulator) under a temp directory, for a test that changes one of them. */
@@ -279,6 +281,19 @@ public class SimBenchTest {
         assertEquals(run.message(), "build failed", run.outcome());
         assertTrue(run.message(), run.message().contains("sim/SimRobot.java"));
         assertEquals(0, run.ticks().size());
+    }
+
+    /** The child sees the project and the libraries, so a class the project lacks is missing, not this server's. */
+    @Test
+    public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {
+        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
+        Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/base/BlueTeleOp.java"));
+        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+
+        SimCatalog catalog = bench.catalog();
+
+        assertTrue(catalog.find("RedTeleOp").isPresent());
+        assertFalse("this server has a BlueTeleOp; the project does not", catalog.find("BlueTeleOp").isPresent());
     }
 
     /** A project from before the child said its protocol: its first line is content, and it still runs. */

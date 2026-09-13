@@ -12,6 +12,7 @@ import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +30,7 @@ import java.util.regex.Pattern;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.tools.JavaCompiler;
@@ -247,8 +249,8 @@ public final class SourceNavigator {
             return null;
         }
         Element element = analysis.trees.getElement(path);
-        if (element == null) {
-            return null;
+        if (element == null || element.asType().getKind() == TypeKind.ERROR) {
+            return null; // a name javac could not resolve: a typo, or a class from outside the libraries
         }
         Tree leaf = path.getLeaf();
         if (!(leaf instanceof IdentifierTree || leaf instanceof MemberSelectTree || leaf instanceof MemberReferenceTree)) {
@@ -376,7 +378,7 @@ public final class SourceNavigator {
         Analysis made;
         try {
             List<String> options = List.of(
-                    "-cp", System.getProperty("java.class.path"),
+                    "-cp", String.join(File.pathSeparator, SimBuild.libraries()),
                     "--release", "17",
                     "-proc:none",
                     "-nowarn",
