@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
 import org.bouncycastle.crypto.generators.SCrypt;
@@ -52,7 +53,9 @@ import java.util.stream.Stream;
  * branch off {@code develop}, under the state directory. The host checkout is never written by a
  * user's save. The Edit tab's Commit, Pull, and Push buttons commit the user's edits on their
  * branch, bring {@code develop} into it, and land it on {@code develop}; a merge conflict changes
- * nothing and sends the user to their coach. The Simulate tab runs the autonomous op modes on the
+ * nothing and sends the user to their coach. The admin page shows each login's changed files and
+ * commits ahead of and behind {@code develop}, and has a Pull button that does the user's pull for
+ * them. The Simulate tab runs the autonomous op modes on the
  * simulated robot through a {@link SimBench} per worktree, one run at a time per user. Every run
  * recompiles that worktree's main sources and runs in a child JVM, so a saved edit is what the
  * next run executes.
@@ -781,9 +784,37 @@ public final class CodingServer {
             synchronized (this) {
                 merge = worktrees.pull(session.username);
             }
-            return merged("pull", session, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull");
+            return merged("pull", session.username, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull", Voice.USER);
         }
     }
+
+    /**
+     * {@code POST /admin/logins/<id>/pull}: the same pull, asked for by the admin on the user's
+     * behalf, so the reply and the record on the admin page name the user and never send the
+     * coach to the coach. 404 without a worktree to pull into.
+     */
+    private Response adminPull(String id) {
+        Session found = sessionById(id);
+        if (found == null) {
+            return Response.error(404, "no login with id " + id);
+        }
+        if (worktrees.find(found.username) == null) {
+            return Response.error(404, found.username + " has no worktree yet: approve the login first");
+        }
+        Worktrees.Merge merge;
+        try {
+            synchronized (this) {
+                merge = worktrees.pull(found.username);
+            }
+        } catch (Worktrees.GitFailed e) {
+            return Response.error(500, "git failed for " + found.username + ": " + e.getMessage());
+        }
+        return merged("pull", found.username, merge, "pulled " + Worktrees.DEVELOP + " into " + found.username + "'s worktree",
+                "nothing to pull for " + found.username, Voice.ADMIN);
+    }
+
+    /** Whom a pull or push reply addresses: the user it happened to, or the admin who asked for it. */
+    private enum Voice { USER, ADMIN }
 
     /** {@code POST /git/push}: lands the user's commits on develop. */
     private Response gitPush(Session session) {
@@ -797,7 +828,7 @@ public final class CodingServer {
             String nothing = merge.remote != null && merge.remote.outcome.equals("pushed")
                     ? "nothing new of yours to push; pushed " + Worktrees.DEVELOP + " to " + merge.remote.name
                     : "nothing to push" + (merge.remote != null && merge.remote.outcome.equals("failed") ? remoteSuffix(merge.remote) : "");
-            return merged("push", session, merge, did, nothing);
+            return merged("push", session.username, merge, did, nothing, Voice.USER);
         }
     }
 
@@ -813,14 +844,19 @@ public final class CodingServer {
         }
     }
 
-    /** The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the reason otherwise. */
-    private Response merged(String op, Session session, Worktrees.Merge merge, String did, String nothing) {
+    /**
+     * The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the
+     * reason otherwise. Recorded as the user's last merge for the admin page, whoever asked.
+     */
+    private Response merged(String op, String username, Worktrees.Merge merge, String did, String nothing, Voice voice) {
         JsonObject reply = new JsonObject();
         reply.addProperty("op", op);
         reply.addProperty("outcome", merge.outcome == Worktrees.Outcome.MERGED ? (op.equals("pull") ? "pulled" : "pushed")
                 : merge.outcome.name().toLowerCase(Locale.ROOT));
         reply.add("files", GSON.toJsonTree(merge.files));
         reply.addProperty("detail", merge.detail);
+        String whose = voice == Voice.USER ? "your" : username + "'s";
+        String help = voice == Voice.USER ? "; ask your coach for help" : "";
         int status;
         switch (merge.outcome) {
             case MERGED:
@@ -833,16 +869,16 @@ public final class CodingServer {
                 break;
             case UNCOMMITTED:
                 status = 409;
-                reply.addProperty("message", "commit first: " + String.join(", ", merge.files));
+                reply.addProperty("message", (voice == Voice.USER ? "" : username + " must ") + "commit first: " + String.join(", ", merge.files));
                 break;
             case CONFLICTS:
                 status = 409;
-                reply.addProperty("message", "your changes conflict with " + Worktrees.DEVELOP + " in "
-                        + String.join(", ", merge.files) + "; ask your coach for help");
+                reply.addProperty("message", whose + " changes conflict with " + Worktrees.DEVELOP + " in "
+                        + String.join(", ", merge.files) + help);
                 break;
             default:
                 status = 409;
-                reply.addProperty("message", "git could not " + op + "; ask your coach for help: " + merge.detail);
+                reply.addProperty("message", "git could not " + op + help + ": " + merge.detail);
                 break;
         }
         if (merge.remote == null) {
@@ -857,7 +893,8 @@ public final class CodingServer {
         synchronized (this) {
             JsonObject record = GSON.fromJson(GSON.toJson(reply), JsonObject.class);
             record.addProperty("atMillis", System.currentTimeMillis());
-            lastMergeByUsername.put(session.username, record);
+            record.addProperty("by", voice.name().toLowerCase(Locale.ROOT));
+            lastMergeByUsername.put(username, record);
         }
         return Response.json(status, GSON.toJson(reply));
     }
@@ -868,6 +905,7 @@ public final class CodingServer {
         body.add("changed", GSON.toJsonTree(status.changed));
         body.addProperty("ahead", status.ahead);
         body.addProperty("behind", status.behind);
+        body.addProperty("head", status.head);
         return body;
     }
 
@@ -920,6 +958,7 @@ public final class CodingServer {
                 .route("GET", "/admin", (request, params) -> Response.html(page("admin.html")))
                 .route("GET", "/admin/logins", (request, params) -> Response.json(logins()))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
+                .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route("POST", "/admin/logins/{id}/{decision}", (request, params) -> decide(params.get("id"), params.get("decision")))
                 .route("GET", "/admin/tree", (request, params) -> tree(request.query("dir")))
                 .route("GET", "/admin/files", (request, params) -> Response.json(GSON.toJson(fileList(false))))
@@ -1032,9 +1071,17 @@ public final class CodingServer {
         return GSON.toJson(body);
     }
 
+    /**
+     * Every login, with its worktree's status (what {@code GET /git/status} tells the user: the
+     * changed files, ahead and behind) once it has a worktree, and how its last pull or push
+     * ended. A status git cannot give is null with the reason in {@code statusError}, so one
+     * broken worktree does not take the listing down.
+     */
     private synchronized String logins() {
         JsonArray list = new JsonArray();
         long now = System.currentTimeMillis();
+        Map<String, JsonElement> statusByUsername = new LinkedHashMap<>();
+        Map<String, String> statusErrorByUsername = new LinkedHashMap<>();
         for (Session session : sessions.values()) {
             JsonObject item = new JsonObject();
             item.addProperty("id", session.id);
@@ -1046,6 +1093,17 @@ public final class CodingServer {
             Worktrees.Worktree worktree = worktrees.find(session.username);
             item.addProperty("worktree", worktree == null ? null : worktree.path.toString());
             item.addProperty("branch", worktree == null ? null : worktree.branch);
+            if (worktree != null && !statusByUsername.containsKey(session.username)) {
+                // once per username, however many logins it has
+                try {
+                    statusByUsername.put(session.username, statusJson(worktrees.status(session.username)));
+                } catch (Worktrees.GitFailed e) {
+                    statusByUsername.put(session.username, JsonNull.INSTANCE);
+                    statusErrorByUsername.put(session.username, e.getMessage());
+                }
+            }
+            item.add("status", worktree == null ? JsonNull.INSTANCE : statusByUsername.get(session.username));
+            item.addProperty("statusError", statusErrorByUsername.get(session.username));
             item.add("lastMerge", lastMergeByUsername.get(session.username));
             list.add(item);
         }
@@ -1054,13 +1112,17 @@ public final class CodingServer {
         return GSON.toJson(root);
     }
 
-    private synchronized Response decide(String id, String verb) {
-        Session found;
+    /** The session with that id, or null when the id is not a number or nobody has it. */
+    private synchronized Session sessionById(String id) {
         try {
-            found = sessions.get(Integer.parseInt(id));
+            return sessions.get(Integer.parseInt(id));
         } catch (NumberFormatException e) {
-            found = null;
+            return null;
         }
+    }
+
+    private synchronized Response decide(String id, String verb) {
+        Session found = sessionById(id);
         if (found == null) {
             return Response.error(404, "no login with id " + id);
         }

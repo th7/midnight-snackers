@@ -66,6 +66,18 @@
   .urls { display: grid; gap: 4px; }
   .recipe { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .recipe .why { color: var(--bad); }
+  .git { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .result { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .result.ok { color: var(--ok); }
+  .result.bad { color: var(--bad); }
+  button.pull { position: relative; }
+  button.pull .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent); }
+  button.pull.behind:not(:disabled) { animation: behind 1.6s ease-in-out infinite; }
+  @keyframes behind {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(47, 91, 215, 0.45); }
+    50% { box-shadow: 0 0 0 5px rgba(47, 91, 215, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) { button.pull.behind:not(:disabled) { animation: none; border-color: var(--accent); } }
 </style>
 </head>
 <body>
@@ -133,6 +145,55 @@
     return seconds < 60 ? seconds + 's ago' : Math.floor(seconds / 60) + 'm ago';
   }
 
+  function plural(n, one, many) {
+    return n + ' ' + (n === 1 ? one : many);
+  }
+
+  function pill(cls, text, title) {
+    var el = document.createElement('span');
+    el.className = 'pill ' + cls;
+    el.textContent = text;
+    if (title) { el.title = title; }
+    return el;
+  }
+
+  /** What the user's worktree holds against its branch and develop: the same status the user's Edit tab shows. */
+  function renderStatus(login) {
+    var status = login.status;
+    var git = document.createElement('div');
+    git.className = 'git';
+    if (!status) {
+      git.appendChild(pill('bad', 'no status', login.statusError || ''));
+      return git;
+    }
+    var changed = status.changed.length;
+    git.appendChild(pill(changed ? 'warn' : 'muted', changed ? plural(changed, 'file', 'files') + ' changed' : 'nothing to commit',
+        status.changed.join('\n')));
+    git.appendChild(pill(status.ahead ? 'ok' : 'muted', plural(status.ahead, 'commit', 'commits') + ' to push'));
+    git.appendChild(pill(status.behind ? 'warn' : 'muted', plural(status.behind, 'commit', 'commits') + ' to pull'));
+    return git;
+  }
+
+  /** What the admin's last Pull for each login said, by login id, so a refresh does not wipe it. */
+  var resultByLogin = {};
+  var pulling = {};
+
+  function pull(login) {
+    pulling[login.id] = true;
+    refresh();
+    fetch('/admin/logins/' + login.id + '/pull', { method: 'POST' }).then(function (r) {
+      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
+    }).catch(function () {
+      return { ok: false, text: 'could not reach the server' };
+    }).then(function (reply) {
+      var result;
+      try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
+      resultByLogin[login.id] = { text: result.message, kind: reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : 'bad' };
+      delete pulling[login.id];
+      refresh();
+    });
+  }
+
   function renderLogins(logins) {
     loginsEl.innerHTML = '';
     if (!logins.length) {
@@ -143,7 +204,17 @@
       var meta = login.address + ' · ' + age(login.ageSeconds) + (login.file ? ' · editing ' + login.file : '')
           + (login.branch ? ' · ' + login.branch : '');
       var el = row(login.state, login.username, meta);
-      if (login.worktree) { el.querySelector('.meta').title = login.worktree; }
+      if (login.worktree) {
+        el.querySelector('.meta').title = login.worktree;
+        el.firstChild.appendChild(renderStatus(login));
+      }
+      var result = resultByLogin[login.id];
+      if (result) {
+        var line = document.createElement('div');
+        line.className = 'result ' + result.kind;
+        line.textContent = result.text;
+        el.appendChild(line);
+      }
       var last = login.lastMerge;
       var remoteFailed = last && login.lastMerge.remote && login.lastMerge.remote.outcome === 'failed';
       if (last && (last.outcome === 'conflicts' || last.outcome === 'refused' || remoteFailed)) {
@@ -169,6 +240,29 @@
       pill.className = 'pill ' + ({ pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' })[login.state];
       pill.textContent = login.state;
       actions.appendChild(pill);
+      if (login.worktree) {
+        var status = login.status;
+        var behind = status ? status.behind : 0;
+        var pullButton = button('Pull', 'pull' + (behind > 0 ? ' behind' : ''), function () { pull(login); });
+        if (behind > 0) {
+          var badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = behind;
+          pullButton.appendChild(badge);
+        }
+        if (pulling[login.id]) {
+          pullButton.disabled = true;
+          pullButton.title = 'pulling…';
+        } else if (!status) {
+          pullButton.disabled = true;
+          pullButton.title = 'git could not read the worktree';
+        } else {
+          // uncommitted edits ride along; the pull itself refuses, naming them, only where develop changed the same file
+          pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from develop into ' + login.username + '\'s branch'
+              : login.username + '\'s branch has everything on develop';
+        }
+        actions.appendChild(pullButton);
+      }
       if (login.state === 'pending') {
         actions.appendChild(button('Approve', 'primary', function () { post('/admin/logins/' + login.id + '/approve').then(refresh); }));
         actions.appendChild(button('Deny', 'danger', function () { post('/admin/logins/' + login.id + '/deny').then(refresh); }));
@@ -272,7 +366,7 @@
   });
   loadEditable().then(function () { browse(''); });
   refresh();
-  setInterval(refresh, 1000);
+  setInterval(refresh, 2000);  // each listing asks git about every worktree, as the Edit tab does at this pace
 })();
 </script>
 </body>

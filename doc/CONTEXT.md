@@ -67,7 +67,12 @@ listener, per user, so a run started there is recorded as theirs. Class:
 
 **Admin** — The person at the host machine. Only they can reach the admin
 listener, where they decide logins and pick the editable set. There is no
-admin login; being on the machine is the credential.
+admin login; being on the machine is the credential. The admin page
+lists every login with its worktree's **status** (the same changed,
+ahead and behind that `GET /git/status` gives the user; null until the
+worktree exists, and null with a **statusError** when git cannot read
+it, so one broken worktree does not blank the list), how its last pull
+or push ended, and a Pull button.
 
 **User** — A teammate on the LAN who has logged in with a username. Users
 reach only the user listener.
@@ -114,8 +119,9 @@ the user's worktree becomes one commit on the user branch, authored by
 the username. Nothing to commit is a success that says so. An empty
 message is refused. `GET /git/status` reports the uncommitted files
 (**changed**), the commits the branch has that `develop` lacks
-(**ahead**), and the commits `develop` has that the branch lacks
-(**behind**).
+(**ahead**), the commits `develop` has that the branch lacks
+(**behind**), and the branch's tip (**head**), which moves on a commit
+and on any pull or push, whoever asked for it.
 
 **Push** — `POST /git/push`: the user branch is merged into `develop` with
 a merge commit, and then the user branch and worktree are fast-forwarded
@@ -139,7 +145,14 @@ and ride along, except in a file the merge would change: those would be
 overwritten, so the pull refuses (commit first), naming only those files
 and changing nothing. It also refuses, changing nothing, on a merge
 conflict. The Pull button pulses, and wears the count, while the branch
-is behind.
+is behind. The admin can press Pull for a user too,
+`POST /admin/logins/<id>/pull`: the same merge in that user's worktree,
+with the same refusals, so a teammate who has walked away from a stale
+branch is brought up to date without their browser. Their editor
+notices by the **head** in the status moving under it: a file with
+nothing typed since its last save is reloaded; one with unsaved typing
+is left alone, and its next save is the usual conflict with a reload to
+offer.
 
 **Merge conflict** — `develop` and the user branch changed the same lines
 since they diverged. Not the save **conflict** (a stale base version on

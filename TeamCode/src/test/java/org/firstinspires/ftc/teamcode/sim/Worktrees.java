@@ -81,12 +81,15 @@ public final class Worktrees {
         public final int ahead;
         /** Commits on {@code develop} that the user branch lacks: what a pull would bring. */
         public final int behind;
+        /** The branch's tip: it moves when the user commits, and when anyone pulls or pushes for them. */
+        public final String head;
 
-        Status(String branch, List<String> changed, int ahead, int behind) {
+        Status(String branch, List<String> changed, int ahead, int behind, String head) {
             this.branch = branch;
             this.changed = changed;
             this.ahead = ahead;
             this.behind = behind;
+            this.head = head;
         }
     }
 
@@ -265,7 +268,7 @@ public final class Worktrees {
     public synchronized Status status(String username) {
         Worktree worktree = ensure(username);
         return new Status(worktree.branch, changedFiles(worktree),
-                count(DEVELOP + ".." + worktree.branch), count(worktree.branch + ".." + DEVELOP));
+                count(DEVELOP + ".." + worktree.branch), count(worktree.branch + ".." + DEVELOP), head(worktree));
     }
 
     /**

@@ -211,6 +211,7 @@
   var saveTimer = null;
   var saving = false;
   var dirtyWhileSaving = false;
+  var pendingSave = false;  // an edit is waiting for the pause before it is saved
 
   // --- the editor: CodeMirror from the bundle the host serves; one fresh state per file, so undo is per file ---
   var editable = new CM.Compartment();
@@ -362,9 +363,15 @@
 
   function scheduleSave() {
     if (!open) { return; }
+    pendingSave = true;
     setStatus('saving…', 'muted');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(save, SAVE_DELAY_MS);
+  }
+
+  /** Whether what the editor shows is what is on disk: nothing typed since the last save landed. */
+  function clean() {
+    return !!open && !!open.version && !pendingSave && !saving && !dirtyWhileSaving;
   }
 
   /** Ctrl-S / Cmd-S: save what is in the editor now instead of after the pause. */
@@ -378,6 +385,7 @@
     if (!open) { return; }
     if (saving) { dirtyWhileSaving = true; return; }
     saving = true;
+    pendingSave = false;
     var path = open.path;
     var content = docText();
     fetch(fileUrl(path), {
@@ -570,13 +578,28 @@
     var resultEl = document.getElementById('git-result');
     var busy = false;
     var behind = 0;
+    var head = null;  // the branch tip last seen, so a pull the coach did for this user is noticed
 
     function say(text, kind) {
       resultEl.textContent = text;
       resultEl.className = kind || '';
     }
 
+    /** The tip moved without a button here being pressed: someone pulled or pushed for this user, so what is open may be stale. */
+    function tipMoved(status) {
+      if (head === null || head === status.head || busy) { head = status.head; return; }
+      head = status.head;
+      if (open && open.readOnly) {
+        viewSource(open.path);
+      } else if (clean()) {
+        load(open.path);  // a file with unsaved typing is left alone: its next save says "changed on the host" and offers a reload
+      }
+      refreshNow();
+      scheduleCheck();
+    }
+
     function render(status) {
+      tipMoved(status);
       var n = status.changed.length;
       changedEl.textContent = n ? n + (n === 1 ? ' file changed' : ' files changed') + ' since your last commit' : 'nothing to commit';
       changedEl.title = status.changed.join('\n');
@@ -635,6 +658,7 @@
         if (!reply) { return; }
         if (!reply.ok) { say(reply.text, 'bad'); }
         else { var result = JSON.parse(reply.text); say(result.message, result.committed ? 'ok' : ''); }
+        head = null;  // the tip moved by this user's own hand: nothing to reload
         refresh();
       });
     }
@@ -652,6 +676,7 @@
         refreshNow();
         scheduleCheck();
       }
+      head = null;  // this user moved the tip themselves, and what is open was just reloaded
       refresh();
     }
 
