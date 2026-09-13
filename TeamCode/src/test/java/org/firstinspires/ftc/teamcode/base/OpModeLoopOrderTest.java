@@ -74,6 +74,39 @@ public class OpModeLoopOrderTest {
         assertEquals(List.of("onLoop"), opMode.onLoops);
     }
 
+    /**
+     * The robot controller keeps one instance of an op mode registered by instance and calls
+     * {@code init()} on it for every run, so a second init must leave the loop as the first did.
+     */
+    @Test
+    public void initialisingAgainTicksEachSubsystemOnce() {
+        TestAuto opMode = initialised(new TestAuto());
+        List<Loopable> first = List.copyOf(opMode.loopOrder());
+
+        opMode.init();
+
+        assertEquals(first.size(), opMode.loopOrder().size());
+        assertEquals(
+                List.of(opMode.launcher, opMode.drive, opMode.camera, opMode.nav, opMode.turntable, opMode.brain),
+                opMode.loopOrder().subList(0, 6));
+    }
+
+    @Test
+    public void initialisingAgainStillMirrorsTelemetryToTheDashboardOnce() {
+        SimRobot sim = new SimRobot();
+        TestOp opMode = new TestOp();
+        opMode.useHardware(sim.hardware());
+        opMode.telemetry = new FakeTelemetry();
+        opMode.gamepad1 = new Gamepad();
+        opMode.gamepad2 = new Gamepad();
+        opMode.init();
+        opMode.init();
+
+        opMode.telemetry.update();
+
+        assertEquals(1, ((FakeTelemetry) sim.dashboard.telemetry()).updates);
+    }
+
     @Test
     public void autoOpTicksItsPlanAfterEverySubsystem() {
         TestAuto opMode = initialised(new TestAuto());
