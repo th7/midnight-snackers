@@ -48,12 +48,19 @@ public class RedTeleOpSimTest {
             }
             return true;
         });
-        // The robot has inertia: it coasts on after the stick is released, and this waits for it to rest.
-        double[] lastSeen = {Double.NaN};
+        // The robot has inertia: it coasts on after the stick is released, and this waits for it to
+        // rest: no movement over a tenth of a second of the simulation's time. Two wall-clock polls
+        // can fall within one loop of the simulation and see the same pose while it still coasts.
+        long[] lastNanos = {sim.nanoTime()};
+        double[] lastSeen = {sim.pose().position.x};
         await("came to rest", () -> {
+            if (sim.nanoTime() - lastNanos[0] < 100_000_000L) {
+                return false;
+            }
             double x = sim.pose().position.x;
             boolean resting = Math.abs(x - lastSeen[0]) < 0.01;
             lastSeen[0] = x;
+            lastNanos[0] = sim.nanoTime();
             return resting;
         });
         double restingX = sim.pose().position.x;
