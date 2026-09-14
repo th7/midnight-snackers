@@ -7,7 +7,8 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-
+import java.util.ArrayList;
+import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Brain;
@@ -15,9 +16,6 @@ import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A robot is built once per run from the hardware and the alliance. Everything a subsystem used to
@@ -35,8 +33,7 @@ public class RobotTest {
         }
 
         @Override
-        protected void onLoop() {
-        }
+        protected void onLoop() {}
     }
 
     private static class Coordinator extends SuperSystem {
@@ -57,7 +54,14 @@ public class RobotTest {
     @Test
     public void buildsEverySubsystemWithBrainLastThenThePlans() {
         assertEquals(
-                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain, robot.plans),
+                List.of(
+                        robot.launcher,
+                        robot.drive,
+                        robot.camera,
+                        robot.nav,
+                        robot.turntable,
+                        robot.brain,
+                        robot.plans),
                 robot.loopOrder());
     }
 

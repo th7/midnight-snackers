@@ -117,7 +117,9 @@ public class Drive extends SubSystem {
     public boolean toward(Nav.Pose target, Held held) {
         fastDrive.setDestination(target.pose2d);
         fastDrive.update(robot.nav.currentPose().pose2d);
-        power(held.straightOr(fastDrive.straightPower()), held.strafeOr(fastDrive.strafePower()),
+        power(
+                held.straightOr(fastDrive.straightPower()),
+                held.strafeOr(fastDrive.strafePower()),
                 held.turnOr(fastDrive.turnPower()));
         return fastDrive.doneMoving();
     }
@@ -149,8 +151,8 @@ public class Drive extends SubSystem {
         if (!done()) {
             return;
         }
-        MoveData moveData = MoveData.straight(straight, 0f, 1f)
-                .add(MoveData.strafe(strafe, 0f, 1f), MoveData.turn(turn, 0f, 1f));
+        MoveData moveData =
+                MoveData.straight(straight, 0f, 1f).add(MoveData.strafe(strafe, 0f, 1f), MoveData.turn(turn, 0f, 1f));
         leftFront.setPower(moveData.frontLeftPower());
         rightFront.setPower(moveData.frontRightPower());
         leftBack.setPower(moveData.rearLeftPower());

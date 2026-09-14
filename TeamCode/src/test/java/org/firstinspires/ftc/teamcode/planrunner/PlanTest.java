@@ -4,9 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.junit.Test;
-
 import java.util.ArrayList;
+import org.junit.Test;
 
 public class PlanTest {
     private final ArrayList<String> started = new ArrayList<>();
@@ -66,8 +65,7 @@ public class PlanTest {
         Plan inner = new Plan(instantStep("inner1"), instantStep("inner2"));
         Plan plan = new Plan(inner, instantStep("outer"));
 
-        while (!plan.done()) {
-        }
+        while (!plan.done()) {}
 
         assertEquals(3, started.size());
         assertEquals("inner1", started.get(0));

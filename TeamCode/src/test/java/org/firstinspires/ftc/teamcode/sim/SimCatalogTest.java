@@ -12,7 +12,7 @@ import com.google.gson.JsonArray;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
-
+import java.util.List;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.PlanOpModes;
 import org.firstinspires.ftc.teamcode.base.AutoOp;
@@ -22,8 +22,6 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.junit.Test;
-
-import java.util.List;
 
 public class SimCatalogTest {
     private final SimCatalog catalog = SimCatalog.discover();
@@ -37,7 +35,8 @@ public class SimCatalogTest {
         assertEquals("Plans.driveForward()", forward.where);
         assertTrue(catalog.find("BlueScoreAThingFromBack").isPresent());
         assertTrue(catalog.find("RedScoreAThingFromBack").isPresent());
-        assertTrue("discovered, so another JVM lists the same without being told where to look",
+        assertTrue(
+                "discovered, so another JVM lists the same without being told where to look",
                 catalog.sources().isEmpty());
     }
 
@@ -49,9 +48,15 @@ public class SimCatalogTest {
         assertEquals("TeleOp", red.group);
         assertEquals(RedTeleOp.class.getName(), red.where);
         assertTrue(catalog.find("BlueTeleOp").isPresent());
-        assertFalse("Road Runner's tuning op modes are not ours to simulate", catalog.find("LocalizationTest").isPresent());
-        assertFalse("nested test op modes never reach the bench", catalog.find("Count to three").isPresent());
-        assertFalse("nested test op modes never reach the bench", catalog.find("Stick").isPresent());
+        assertFalse(
+                "Road Runner's tuning op modes are not ours to simulate",
+                catalog.find("LocalizationTest").isPresent());
+        assertFalse(
+                "nested test op modes never reach the bench",
+                catalog.find("Count to three").isPresent());
+        assertFalse(
+                "nested test op modes never reach the bench",
+                catalog.find("Stick").isPresent());
     }
 
     @Test
@@ -98,7 +103,8 @@ public class SimCatalogTest {
         assertEquals("Stick", stick.name);
         assertEquals("teleop", stick.kind);
         assertEquals("Test", stick.group);
-        assertEquals(List.of(StickTeleOp.class.getName(), ThreeLoopAuto.class.getName(), PlanOpModes.class.getName()),
+        assertEquals(
+                List.of(StickTeleOp.class.getName(), ThreeLoopAuto.class.getName(), PlanOpModes.class.getName()),
                 fixed.sources());
     }
 
@@ -161,7 +167,10 @@ public class SimCatalogTest {
         assertEquals("Plans.driveForward()", parsed.find("driveForward").get().where);
         assertTrue(parsed.sources().isEmpty());
 
-        JsonArray json = new Gson().fromJson("[{\"name\":\"Fresh\",\"group\":\"New\",\"kind\":\"teleop\",\"where\":\"org.example.FreshTeleOp\"}]", JsonArray.class);
+        JsonArray json = new Gson()
+                .fromJson(
+                        "[{\"name\":\"Fresh\",\"group\":\"New\",\"kind\":\"teleop\",\"where\":\"org.example.FreshTeleOp\"}]",
+                        JsonArray.class);
         SimCatalog.Entry entry = SimCatalog.fromJson(json).find("Fresh").get();
         assertEquals("Fresh", entry.name);
         assertEquals("New", entry.group);

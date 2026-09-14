@@ -6,10 +6,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -24,6 +20,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 /**
  * The bench core shared by the simulation bench and the coding server's Simulate tab: the
@@ -58,6 +56,7 @@ public final class SimBench {
         public final String startedBy;
         /** Where the robot is placed as the run starts: the op mode's start pose when the run was started. */
         public final Pose2d start;
+
         private final JsonArray ticks = new JsonArray();
         private final Deque<String> log = new ArrayDeque<>();
         private String phase = "building";
@@ -115,7 +114,9 @@ public final class SimBench {
 
         /** How far into its time the run is: the last tick's seconds, or none yet. */
         synchronized double seconds() {
-            return ticks.size() == 0 ? 0 : SimRunStream.seconds(ticks.get(ticks.size() - 1).getAsJsonObject());
+            return ticks.size() == 0
+                    ? 0
+                    : SimRunStream.seconds(ticks.get(ticks.size() - 1).getAsJsonObject());
         }
 
         synchronized void addLog(String line) {
@@ -195,17 +196,20 @@ public final class SimBench {
                 process.destroyForcibly();
                 return;
             }
-            Thread grace = new Thread(() -> {
-                try {
-                    if (!process.waitFor((long) (killGraceSeconds * 1000), TimeUnit.MILLISECONDS)) {
-                        finish(SimRunStream.Outcome.killedAfterStop(killGraceSeconds),
-                                "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
-                        process.destroyForcibly();
-                    }
-                } catch (InterruptedException ignored) {
-                    // stopping
-                }
-            }, "sim-run-" + id + "-stop");
+            Thread grace = new Thread(
+                    () -> {
+                        try {
+                            if (!process.waitFor((long) (killGraceSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                                finish(
+                                        SimRunStream.Outcome.killedAfterStop(killGraceSeconds),
+                                        "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
+                                process.destroyForcibly();
+                            }
+                        } catch (InterruptedException ignored) {
+                            // stopping
+                        }
+                    },
+                    "sim-run-" + id + "-stop");
             grace.setDaemon(true);
             grace.start();
         }
@@ -246,8 +250,13 @@ public final class SimBench {
      * @param killGraceSeconds  how long past its time the child may live before it is killed
      * @throws IllegalStateException when the start poses remembered under {@code outputDir} cannot be read
      */
-    public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, double runTimeoutSeconds,
-                    double teleOpSeconds, double killGraceSeconds) {
+    public SimBench(
+            SimCatalog fixedCatalog,
+            Path project,
+            Path outputDir,
+            double runTimeoutSeconds,
+            double teleOpSeconds,
+            double killGraceSeconds) {
         if ((fixedCatalog == null) == (project == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
@@ -334,7 +343,8 @@ public final class SimBench {
      */
     private static SimCatalog list(Path classes) {
         Process child = SimChild.launch(classes, "--list");
-        try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
+        try (BufferedReader out =
+                new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
             String first = out.readLine();
             String line;
             try {
@@ -373,26 +383,45 @@ public final class SimBench {
         return new Router()
                 .route("GET", "/catalog", (request, params) -> catalogJson())
                 .route("GET", "/status", (request, params) -> Response.json(status()))
-                .route("GET", "/start", (request, params) -> withOpMode(request, name ->
-                        Response.json(GSON.toJson(StartPoses.toJson(startPoses.get(name))))))
+                .route(
+                        "GET",
+                        "/start",
+                        (request, params) -> withOpMode(
+                                request, name -> Response.json(GSON.toJson(StartPoses.toJson(startPoses.get(name))))))
                 .route("PUT", "/start", (request, params) -> withOpMode(request, name -> place(name, request.body)))
-                .route("GET", "/place", (request, params) -> withOpMode(request, name ->
-                        Response.html(SimReplayPage.placement(name, kindOf(name), startPoses.get(name)))))
+                .route(
+                        "GET",
+                        "/place",
+                        (request, params) -> withOpMode(
+                                request,
+                                name -> Response.html(
+                                        SimReplayPage.placement(name, kindOf(name), startPoses.get(name)))))
                 .route("POST", "/run", (request, params) -> run(request.query("opmode"), startedBy))
                 .route("GET", "/runs/{id}", (request, params) -> withRun(params, request, this::page))
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
-                .route("GET", "/runs/{id}/ticks", (request, params) -> withRun(params, request, (run, r) ->
-                        Response.json(SimReplayPage.update(run, r.queryInt("from", 0)))))
-                .route("GET", "/runs/{id}/log", (request, params) -> withRun(params, request, (run, r) ->
-                        new Response(200, "text/plain; charset=utf-8", run.log())))
+                .route(
+                        "GET",
+                        "/runs/{id}/ticks",
+                        (request, params) -> withRun(
+                                params,
+                                request,
+                                (run, r) -> Response.json(SimReplayPage.update(run, r.queryInt("from", 0)))))
+                .route(
+                        "GET",
+                        "/runs/{id}/log",
+                        (request, params) -> withRun(
+                                params, request, (run, r) -> new Response(200, "text/plain; charset=utf-8", run.log())))
                 .route("POST", "/runs/{id}/gamepad", (request, params) -> withRun(params, request, this::gamepad))
-                .route("POST", "/runs/{id}/stop", (request, params) -> withRun(params, request, (run, r) -> {
-                    if (!run.running()) {
-                        return Response.error(409, "the run is over: " + run.outcome());
-                    }
-                    run.stop();
-                    return Response.json("{}");
-                }));
+                .route(
+                        "POST",
+                        "/runs/{id}/stop",
+                        (request, params) -> withRun(params, request, (run, r) -> {
+                            if (!run.running()) {
+                                return Response.error(409, "the run is over: " + run.outcome());
+                            }
+                            run.stop();
+                            return Response.json("{}");
+                        }));
     }
 
     private interface RunRoute {
@@ -433,7 +462,9 @@ public final class SimBench {
     /** The op mode's kind as last listed, or auto when it has not been. */
     private synchronized String kindOf(String opMode) {
         SimCatalog known = fixedCatalog != null ? fixedCatalog : listed;
-        return known == null ? SimCatalog.AUTO : known.find(opMode).map(entry -> entry.kind).orElse(SimCatalog.AUTO);
+        return known == null
+                ? SimCatalog.AUTO
+                : known.find(opMode).map(entry -> entry.kind).orElse(SimCatalog.AUTO);
     }
 
     private Response withRun(java.util.Map<String, String> params, Request request, RunRoute route) {
@@ -478,8 +509,12 @@ public final class SimBench {
         Run run = start(entry.get(), startedBy);
         if (run == null) {
             Run current = current();
-            return Response.error(409, "a run is already in progress"
-                    + (current != null && current.startedBy != null ? " (started by " + current.startedBy + ")" : ""));
+            return Response.error(
+                    409,
+                    "a run is already in progress"
+                            + (current != null && current.startedBy != null
+                                    ? " (started by " + current.startedBy + ")"
+                                    : ""));
         }
         JsonObject body = new JsonObject();
         body.addProperty("id", run.id);
@@ -506,7 +541,8 @@ public final class SimBench {
             return Response.error(409, "the run is over: " + run.outcome());
         }
         if (!run.send(line)) {
-            return Response.error(409, "the run is not taking input" + (run.phase().equals("building") ? " while building" : ""));
+            return Response.error(
+                    409, "the run is not taking input" + (run.phase().equals("building") ? " while building" : ""));
         }
         return Response.json("{}");
     }
@@ -545,50 +581,61 @@ public final class SimBench {
         }
         Process child;
         try {
-            List<String> args = new ArrayList<>(List.of("--run", run.entry.name, String.valueOf(run.budgetSeconds()),
+            List<String> args = new ArrayList<>(List.of(
+                    "--run",
+                    run.entry.name,
+                    String.valueOf(run.budgetSeconds()),
                     outputDir.toAbsolutePath().toString()));
             args.addAll(sources());
-            child = classes == null ? SimChild.launchOnThisClasspath(args.toArray(new String[0]))
+            child = classes == null
+                    ? SimChild.launchOnThisClasspath(args.toArray(new String[0]))
                     : SimChild.launch(classes, args.toArray(new String[0]));
         } catch (RuntimeException e) {
             run.finish(SimRunStream.Outcome.couldNotStartChild(), e.getMessage());
             return;
         }
         run.launched(child);
-        Thread stderr = new Thread(() -> {
-            try (BufferedReader err = new BufferedReader(new InputStreamReader(child.getErrorStream(), StandardCharsets.UTF_8))) {
-                for (String line = err.readLine(); line != null; line = err.readLine()) {
-                    run.addLog(line);
-                }
-            } catch (IOException ignored) {
-                // the child went away
-            }
-        }, "sim-run-" + run.id + "-log");
+        Thread stderr = new Thread(
+                () -> {
+                    try (BufferedReader err =
+                            new BufferedReader(new InputStreamReader(child.getErrorStream(), StandardCharsets.UTF_8))) {
+                        for (String line = err.readLine(); line != null; line = err.readLine()) {
+                            run.addLog(line);
+                        }
+                    } catch (IOException ignored) {
+                        // the child went away
+                    }
+                },
+                "sim-run-" + run.id + "-log");
         stderr.setDaemon(true);
         stderr.start();
         double maxSeconds = run.budgetSeconds() + killGraceSeconds;
         CountDownLatch started = new CountDownLatch(1);
-        Thread watchdog = new Thread(() -> {
-            try {
-                // The run's time starts when the op mode does, not when the JVM does: loading the
-                // catalog is the child's business, and it can be slow.
-                if (!started.await((long) (STARTUP_SECONDS * 1000), TimeUnit.MILLISECONDS)) {
-                    if (child.isAlive()) {
-                        run.finish(SimRunStream.Outcome.killed(STARTUP_SECONDS, "the op mode never started"),
-                                "the child JVM never said the op mode had started; it was killed");
-                        child.destroyForcibly();
+        Thread watchdog = new Thread(
+                () -> {
+                    try {
+                        // The run's time starts when the op mode does, not when the JVM does: loading the
+                        // catalog is the child's business, and it can be slow.
+                        if (!started.await((long) (STARTUP_SECONDS * 1000), TimeUnit.MILLISECONDS)) {
+                            if (child.isAlive()) {
+                                run.finish(
+                                        SimRunStream.Outcome.killed(STARTUP_SECONDS, "the op mode never started"),
+                                        "the child JVM never said the op mode had started; it was killed");
+                                child.destroyForcibly();
+                            }
+                            return;
+                        }
+                        if (!child.waitFor((long) (maxSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                            run.finish(
+                                    SimRunStream.Outcome.killed(maxSeconds, "the op mode did not return"),
+                                    "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
+                            child.destroyForcibly();
+                        }
+                    } catch (InterruptedException ignored) {
+                        // stopping
                     }
-                    return;
-                }
-                if (!child.waitFor((long) (maxSeconds * 1000), TimeUnit.MILLISECONDS)) {
-                    run.finish(SimRunStream.Outcome.killed(maxSeconds, "the op mode did not return"),
-                            "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
-                    child.destroyForcibly();
-                }
-            } catch (InterruptedException ignored) {
-                // stopping
-            }
-        }, "sim-run-" + run.id + "-watchdog");
+                },
+                "sim-run-" + run.id + "-watchdog");
         watchdog.setDaemon(true);
         watchdog.start();
         String[] outcome = {null};
@@ -609,7 +656,8 @@ public final class SimBench {
                 outcome[0] = how;
             }
         };
-        try (BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
+        try (BufferedReader out =
+                new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
             boolean first = true;
             for (String line = out.readLine(); line != null; line = out.readLine()) {
                 if (line.isBlank()) {
@@ -672,10 +720,14 @@ public final class SimBench {
         if (Math.hypot(fromOrigin.line.x, fromOrigin.line.y) < 1e-9 && Math.abs(fromOrigin.angle) < 1e-9) {
             return true;
         }
-        run.finish(SimRunStream.Outcome.cannotPlace(childProtocol), "the simulator in these sources speaks protocol "
-                + childProtocol + " and starts the robot at the origin on its own; placing it elsewhere needs protocol "
-                + SimRunStream.PLACED_PROTOCOL + ": the sources are older than the server. Pull develop, or place the robot"
-                + " back at the origin.");
+        run.finish(
+                SimRunStream.Outcome.cannotPlace(childProtocol),
+                "the simulator in these sources speaks protocol "
+                        + childProtocol
+                        + " and starts the robot at the origin on its own; placing it elsewhere needs protocol "
+                        + SimRunStream.PLACED_PROTOCOL
+                        + ": the sources are older than the server. Pull develop, or place the robot"
+                        + " back at the origin.");
         return false;
     }
 

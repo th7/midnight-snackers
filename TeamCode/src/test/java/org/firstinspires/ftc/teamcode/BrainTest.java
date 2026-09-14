@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
@@ -13,9 +15,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /** The brain places the robot on the field from what the camera sees, less the turntable's turn. */
 public class BrainTest {
@@ -52,8 +51,11 @@ public class BrainTest {
 
         assertEquals(-10, robot.nav.currentPose().x(), DELTA);
         assertEquals(-20, robot.nav.currentPose().y(), DELTA);
-        assertEquals("the camera's heading is the turntable's, so the robot's is that less the turn",
-                -Math.PI / 2, robot.nav.currentPose().heading(), DELTA);
+        assertEquals(
+                "the camera's heading is the turntable's, so the robot's is that less the turn",
+                -Math.PI / 2,
+                robot.nav.currentPose().heading(),
+                DELTA);
     }
 
     @Test

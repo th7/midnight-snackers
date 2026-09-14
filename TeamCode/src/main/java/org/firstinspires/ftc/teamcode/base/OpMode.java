@@ -1,11 +1,9 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-
+import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Alliance;
-
-import java.util.List;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     private final Alliance alliance;
@@ -78,8 +76,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     }
 
     /** Per-op-mode work that runs after every subsystem has ticked. */
-    protected void onLoop() {
-    }
+    protected void onLoop() {}
 
     private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {

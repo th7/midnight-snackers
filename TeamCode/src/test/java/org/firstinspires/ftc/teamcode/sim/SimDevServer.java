@@ -3,14 +3,12 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
-
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 /**
  * The simulation bench: a page listing every runnable autonomous op mode, a Run control that
@@ -26,6 +24,7 @@ public final class SimDevServer {
     public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
     /** A match's driver-controlled period. */
     public static final double DEFAULT_TELEOP_SECONDS = 120;
+
     public static final double DEFAULT_KILL_GRACE_SECONDS = 5;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
@@ -48,8 +47,13 @@ public final class SimDevServer {
     public static void main(String[] args) throws InterruptedException {
         String portValue = System.getenv(PORT_ENV);
         int port = portValue == null || portValue.isBlank() ? DEFAULT_PORT : Integer.parseInt(portValue.trim());
-        SimBench bench = new SimBench(null, Path.of("..").toAbsolutePath().normalize(), SimRunner.DEFAULT_OUTPUT_DIR,
-                DEFAULT_RUN_TIMEOUT_SECONDS, DEFAULT_TELEOP_SECONDS, DEFAULT_KILL_GRACE_SECONDS);
+        SimBench bench = new SimBench(
+                null,
+                Path.of("..").toAbsolutePath().normalize(),
+                SimRunner.DEFAULT_OUTPUT_DIR,
+                DEFAULT_RUN_TIMEOUT_SECONDS,
+                DEFAULT_TELEOP_SECONDS,
+                DEFAULT_KILL_GRACE_SECONDS);
         SimDevServer server = start(bench, port);
         System.out.println("Simulation bench: " + server.url() + "  (runs the sources as saved; Ctrl-C to stop)");
         Thread.currentThread().join();

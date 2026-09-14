@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.base;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.Gamepad;
-
+import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Brain;
@@ -13,8 +13,6 @@ import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-
-import java.util.List;
 
 /**
  * Every subsystem, built afresh for one run of an op mode, plus what they all share: the alliance
@@ -50,9 +48,16 @@ public final class Robot implements Loopable {
         launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate);
         drive = new Drive(hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack);
         camera = new Camera(hardware.aprilTags);
-        nav = new Nav(new MecanumDrive(
-                hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront,
-                hardware.imu, hardware.voltageSensor, new Pose2d(0, 0, 0)), alliance);
+        nav = new Nav(
+                new MecanumDrive(
+                        hardware.leftFront,
+                        hardware.leftBack,
+                        hardware.rightBack,
+                        hardware.rightFront,
+                        hardware.imu,
+                        hardware.voltageSensor,
+                        new Pose2d(0, 0, 0)),
+                alliance);
         turntable = new Turntable(hardware.turnTable);
         brain = new Brain();
         plans = new Plans();

@@ -5,7 +5,6 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDCoefficients;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
-
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
@@ -56,20 +55,16 @@ public class FakeDcMotorEx implements DcMotorEx {
     }
 
     @Override
-    public void setPIDCoefficients(RunMode mode, PIDCoefficients pidCoefficients) {
-    }
+    public void setPIDCoefficients(RunMode mode, PIDCoefficients pidCoefficients) {}
 
     @Override
-    public void setPIDFCoefficients(RunMode mode, PIDFCoefficients pidfCoefficients) {
-    }
+    public void setPIDFCoefficients(RunMode mode, PIDFCoefficients pidfCoefficients) {}
 
     @Override
-    public void setVelocityPIDFCoefficients(double p, double i, double d, double f) {
-    }
+    public void setVelocityPIDFCoefficients(double p, double i, double d, double f) {}
 
     @Override
-    public void setPositionPIDFCoefficients(double p) {
-    }
+    public void setPositionPIDFCoefficients(double p) {}
 
     @Override
     public PIDCoefficients getPIDCoefficients(RunMode mode) {
@@ -82,8 +77,7 @@ public class FakeDcMotorEx implements DcMotorEx {
     }
 
     @Override
-    public void setTargetPositionTolerance(int tolerance) {
-    }
+    public void setTargetPositionTolerance(int tolerance) {}
 
     @Override
     public int getTargetPositionTolerance() {
@@ -101,8 +95,7 @@ public class FakeDcMotorEx implements DcMotorEx {
     }
 
     @Override
-    public void setCurrentAlert(double current, CurrentUnit unit) {
-    }
+    public void setCurrentAlert(double current, CurrentUnit unit) {}
 
     @Override
     public boolean isOverCurrent() {
@@ -115,8 +108,7 @@ public class FakeDcMotorEx implements DcMotorEx {
     }
 
     @Override
-    public void setMotorType(MotorConfigurationType motorType) {
-    }
+    public void setMotorType(MotorConfigurationType motorType) {}
 
     @Override
     public DcMotorController getController() {
@@ -139,8 +131,7 @@ public class FakeDcMotorEx implements DcMotorEx {
     }
 
     @Override
-    public void setPowerFloat() {
-    }
+    public void setPowerFloat() {}
 
     @Override
     public boolean getPowerFloat() {
@@ -218,10 +209,8 @@ public class FakeDcMotorEx implements DcMotorEx {
     }
 
     @Override
-    public void resetDeviceConfigurationForOpMode() {
-    }
+    public void resetDeviceConfigurationForOpMode() {}
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

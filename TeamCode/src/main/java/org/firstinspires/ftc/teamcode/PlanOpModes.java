@@ -2,12 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
-
-import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.Auto;
-import org.firstinspires.ftc.teamcode.base.PlanOp;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -15,14 +9,17 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
+import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
+import org.firstinspires.ftc.teamcode.base.Auto;
+import org.firstinspires.ftc.teamcode.base.PlanOp;
+import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
 /**
  * Registers an autonomous op mode for every {@link Auto} annotation in {@link Plans}. The robot
  * controller calls {@link #register(OpModeManager)} at startup, as it does every registrar.
  */
 public final class PlanOpModes {
-    private PlanOpModes() {
-    }
+    private PlanOpModes() {}
 
     @OpModeRegistrar
     public static void register(OpModeManager manager) {
@@ -46,10 +43,12 @@ public final class PlanOpModes {
                 continue;
             }
             String where = plans.getSimpleName() + "." + method.getName() + "()";
-            if (!Modifier.isPublic(method.getModifiers()) || method.getParameterCount() != 0
+            if (!Modifier.isPublic(method.getModifiers())
+                    || method.getParameterCount() != 0
                     || !PlanPart.class.isAssignableFrom(method.getReturnType())) {
-                throw new IllegalStateException("@Auto needs a public method with no parameters that returns a PlanPart; "
-                        + where + " is not one");
+                throw new IllegalStateException(
+                        "@Auto needs a public method with no parameters that returns a PlanPart; " + where
+                                + " is not one");
             }
             for (Auto auto : autos) {
                 String name = auto.name().isEmpty() ? method.getName() : auto.name();

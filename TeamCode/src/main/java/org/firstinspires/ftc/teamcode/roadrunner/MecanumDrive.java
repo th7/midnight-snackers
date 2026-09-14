@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.roadrunner;
 
 import androidx.annotation.NonNull;
-
 import com.acmerobotics.dashboard.canvas.Canvas;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
@@ -38,29 +37,23 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-
-import org.firstinspires.ftc.teamcode.roadrunner.messages.DriveCommandMessage;
-import org.firstinspires.ftc.teamcode.roadrunner.messages.MecanumCommandMessage;
-import org.firstinspires.ftc.teamcode.roadrunner.messages.PoseMessage;
-
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.roadrunner.messages.DriveCommandMessage;
+import org.firstinspires.ftc.teamcode.roadrunner.messages.MecanumCommandMessage;
+import org.firstinspires.ftc.teamcode.roadrunner.messages.PoseMessage;
 
 @Config
 public final class MecanumDrive {
     public static Params PARAMS = new Params();
     public final MecanumKinematics kinematics = new MecanumKinematics(
             PARAMS.inPerTick * PARAMS.trackWidthTicks, PARAMS.inPerTick / PARAMS.lateralInPerTick);
-    public final TurnConstraints defaultTurnConstraints = new TurnConstraints(
-            PARAMS.maxAngVel, -PARAMS.maxAngAccel, PARAMS.maxAngAccel);
-    public final VelConstraint defaultVelConstraint =
-            new MinVelConstraint(Arrays.asList(
-                    kinematics.new WheelVelConstraint(PARAMS.maxWheelVel),
-                    new AngularVelConstraint(PARAMS.maxAngVel)
-            ));
+    public final TurnConstraints defaultTurnConstraints =
+            new TurnConstraints(PARAMS.maxAngVel, -PARAMS.maxAngAccel, PARAMS.maxAngAccel);
+    public final VelConstraint defaultVelConstraint = new MinVelConstraint(Arrays.asList(
+            kinematics.new WheelVelConstraint(PARAMS.maxWheelVel), new AngularVelConstraint(PARAMS.maxAngVel)));
     public final AccelConstraint defaultAccelConstraint =
             new ProfileAccelConstraint(PARAMS.minProfileAccel, PARAMS.maxProfileAccel);
     public final DcMotorEx leftFront, leftBack, rightBack, rightFront;
@@ -74,8 +67,9 @@ public final class MecanumDrive {
     private final DownsampledWriter mecanumCommandWriter = new DownsampledWriter("MECANUM_COMMAND", 50_000_000);
 
     public MecanumDrive(HardwareMap hardwareMap) {
-        this(hardwareMap, new Pose2d(0,0,0));
+        this(hardwareMap, new Pose2d(0, 0, 0));
     }
+
     public MecanumDrive(HardwareMap hardwareMap, Pose2d pose) {
         // TODO: make sure your config has motors with these names (or change them)
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
@@ -86,8 +80,10 @@ public final class MecanumDrive {
                 hardwareMap.get(DcMotorEx.class, "leftBack"),
                 hardwareMap.get(DcMotorEx.class, "rightBack"),
                 hardwareMap.get(DcMotorEx.class, "rightFront"),
-                new LazyHardwareMapImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
-                        PARAMS.logoFacingDirection, PARAMS.usbFacingDirection)),
+                new LazyHardwareMapImu(
+                        hardwareMap,
+                        "imu",
+                        new RevHubOrientationOnRobot(PARAMS.logoFacingDirection, PARAMS.usbFacingDirection)),
                 hardwareMap.voltageSensor.iterator().next(),
                 pose);
 
@@ -102,8 +98,14 @@ public final class MecanumDrive {
      * Build the drive from already-resolved devices, so it can run on fakes as well as on the robot.
      * The dead wheels are read through the rightBack (parallel) and leftFront (perpendicular) encoder ports.
      */
-    public MecanumDrive(DcMotorEx leftFront, DcMotorEx leftBack, DcMotorEx rightBack, DcMotorEx rightFront,
-                        LazyImu lazyImu, VoltageSensor voltageSensor, Pose2d pose) {
+    public MecanumDrive(
+            DcMotorEx leftFront,
+            DcMotorEx leftBack,
+            DcMotorEx rightBack,
+            DcMotorEx rightFront,
+            LazyImu lazyImu,
+            VoltageSensor voltageSensor,
+            Pose2d pose) {
         this.leftFront = leftFront;
         this.leftBack = leftBack;
         this.rightBack = rightBack;
@@ -127,8 +129,8 @@ public final class MecanumDrive {
     }
 
     public void setDrivePowers(PoseVelocity2d powers) {
-        MecanumKinematics.WheelVelocities<Time> wheelVels = new MecanumKinematics(1).inverse(
-                PoseVelocity2dDual.constant(powers, 1));
+        MecanumKinematics.WheelVelocities<Time> wheelVels =
+                new MecanumKinematics(1).inverse(PoseVelocity2dDual.constant(powers, 1));
 
         double maxPowerMag = 1;
         for (DualNum<Time> power : wheelVels.all()) {
@@ -150,7 +152,6 @@ public final class MecanumDrive {
         }
 
         estimatedPoseWriter.write(new PoseMessage(localizer.getPose()));
-
 
         return vel;
     }
@@ -176,22 +177,19 @@ public final class MecanumDrive {
         return new TrajectoryActionBuilder(
                 TurnAction::new,
                 FollowTrajectoryAction::new,
-                new TrajectoryBuilderParams(
-                        1e-6,
-                        new ProfileParams(
-                                0.25, 0.1, 1e-2
-                        )
-                ),
-                beginPose, 0.0,
+                new TrajectoryBuilderParams(1e-6, new ProfileParams(0.25, 0.1, 1e-2)),
+                beginPose,
+                0.0,
                 defaultTurnConstraints,
-                defaultVelConstraint, defaultAccelConstraint
-        );
+                defaultVelConstraint,
+                defaultAccelConstraint);
     }
 
     public static class Params {
         // IMU orientation
         // TODO: fill in these values based on
-        //   see https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html?highlight=imu#physical-hub-mounting
+        //   see
+        // https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html?highlight=imu#physical-hub-mounting
         public RevHubOrientationOnRobot.LogoFacingDirection logoFacingDirection =
                 RevHubOrientationOnRobot.LogoFacingDirection.DOWN;
         public RevHubOrientationOnRobot.UsbFacingDirection usbFacingDirection =
@@ -204,7 +202,7 @@ public final class MecanumDrive {
 
         // feedforward parameters (in tick units)
         public double kS = 0.9891921306123841;
-        public double kV =  0.0001281158359065848;
+        public double kV = 0.0001281158359065848;
         public double kA = 0.00005;
 
         // path profile parameters (in inches)
@@ -236,8 +234,7 @@ public final class MecanumDrive {
             timeTrajectory = t;
 
             List<Double> disps = com.acmerobotics.roadrunner.Math.range(
-                    0, t.path.length(),
-                    Math.max(2, (int) Math.ceil(t.path.length() / 2)));
+                    0, t.path.length(), Math.max(2, (int) Math.ceil(t.path.length() / 2)));
             xPoints = new double[disps.size()];
             yPoints = new double[disps.size()];
             for (int i = 0; i < disps.size(); i++) {
@@ -262,8 +259,7 @@ public final class MecanumDrive {
             PoseVelocity2d robotVelRobot = updatePoseEstimate();
             Pose2d error = txWorldTarget.value().minusExp(localizer.getPose());
 
-            if ((t >= timeTrajectory.duration && error.position.norm() < 0.1
-                    && robotVelRobot.linearVel.norm() < 0.1)
+            if ((t >= timeTrajectory.duration && error.position.norm() < 0.1 && robotVelRobot.linearVel.norm() < 0.1)
                     || t >= timeTrajectory.duration + PARAMS.trajectoryTimeout) {
 
                 leftFront.setPower(0);
@@ -275,24 +271,26 @@ public final class MecanumDrive {
             }
 
             PoseVelocity2dDual<Time> command = new HolonomicController(
-                    PARAMS.axialGain, PARAMS.lateralGain, PARAMS.headingGain,
-                    PARAMS.axialVelGain, PARAMS.lateralVelGain, PARAMS.headingVelGain
-            )
+                            PARAMS.axialGain,
+                            PARAMS.lateralGain,
+                            PARAMS.headingGain,
+                            PARAMS.axialVelGain,
+                            PARAMS.lateralVelGain,
+                            PARAMS.headingVelGain)
                     .compute(txWorldTarget, localizer.getPose(), robotVelRobot);
             driveCommandWriter.write(new DriveCommandMessage(command));
 
             MecanumKinematics.WheelVelocities<Time> wheelVels = kinematics.inverse(command);
             double voltage = voltageSensor.getVoltage();
 
-            final MotorFeedforward feedforward = new MotorFeedforward(PARAMS.kS,
-                    PARAMS.kV / PARAMS.inPerTick, PARAMS.kA / PARAMS.inPerTick);
+            final MotorFeedforward feedforward =
+                    new MotorFeedforward(PARAMS.kS, PARAMS.kV / PARAMS.inPerTick, PARAMS.kA / PARAMS.inPerTick);
             double leftFrontPower = feedforward.compute(wheelVels.leftFront) / voltage;
             double leftBackPower = feedforward.compute(wheelVels.leftBack) / voltage;
             double rightBackPower = feedforward.compute(wheelVels.rightBack) / voltage;
             double rightFrontPower = feedforward.compute(wheelVels.rightFront) / voltage;
-            mecanumCommandWriter.write(new MecanumCommandMessage(
-                    voltage, leftFrontPower, leftBackPower, rightBackPower, rightFrontPower
-            ));
+            mecanumCommandWriter.write(
+                    new MecanumCommandMessage(voltage, leftFrontPower, leftBackPower, rightBackPower, rightFrontPower));
 
             leftFront.setPower(leftFrontPower);
             leftBack.setPower(leftBackPower);
@@ -356,8 +354,7 @@ public final class MecanumDrive {
             targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
             PoseVelocity2d robotVelRobot = updatePoseEstimate();
 
-            if ((t >= turn.duration && error.heading.toDouble() < 0.1
-                    && robotVelRobot.angVel < 0.1)
+            if ((t >= turn.duration && error.heading.toDouble() < 0.1 && robotVelRobot.angVel < 0.1)
                     || t >= turn.duration + PARAMS.trajectoryTimeout) {
                 leftFront.setPower(0);
                 leftBack.setPower(0);
@@ -368,23 +365,25 @@ public final class MecanumDrive {
             }
 
             PoseVelocity2dDual<Time> command = new HolonomicController(
-                    PARAMS.axialGain, PARAMS.lateralGain, PARAMS.headingGain,
-                    PARAMS.axialVelGain, PARAMS.lateralVelGain, PARAMS.headingVelGain
-            )
+                            PARAMS.axialGain,
+                            PARAMS.lateralGain,
+                            PARAMS.headingGain,
+                            PARAMS.axialVelGain,
+                            PARAMS.lateralVelGain,
+                            PARAMS.headingVelGain)
                     .compute(txWorldTarget, localizer.getPose(), robotVelRobot);
             driveCommandWriter.write(new DriveCommandMessage(command));
 
             MecanumKinematics.WheelVelocities<Time> wheelVels = kinematics.inverse(command);
             double voltage = voltageSensor.getVoltage();
-            final MotorFeedforward feedforward = new MotorFeedforward(PARAMS.kS,
-                    PARAMS.kV / PARAMS.inPerTick, PARAMS.kA / PARAMS.inPerTick);
+            final MotorFeedforward feedforward =
+                    new MotorFeedforward(PARAMS.kS, PARAMS.kV / PARAMS.inPerTick, PARAMS.kA / PARAMS.inPerTick);
             double leftFrontPower = feedforward.compute(wheelVels.leftFront) / voltage;
             double leftBackPower = feedforward.compute(wheelVels.leftBack) / voltage;
             double rightBackPower = feedforward.compute(wheelVels.rightBack) / voltage;
             double rightFrontPower = feedforward.compute(wheelVels.rightFront) / voltage;
-            mecanumCommandWriter.write(new MecanumCommandMessage(
-                    voltage, leftFrontPower, leftBackPower, rightBackPower, rightFrontPower
-            ));
+            mecanumCommandWriter.write(
+                    new MecanumCommandMessage(voltage, leftFrontPower, leftBackPower, rightBackPower, rightFrontPower));
 
             leftFront.setPower(feedforward.compute(wheelVels.leftFront) / voltage);
             leftBack.setPower(feedforward.compute(wheelVels.leftBack) / voltage);

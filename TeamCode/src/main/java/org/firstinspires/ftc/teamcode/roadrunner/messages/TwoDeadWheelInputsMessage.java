@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.roadrunner.messages;
 
 import com.acmerobotics.roadrunner.ftc.PositionVelocityPair;
-
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
@@ -17,7 +16,11 @@ public final class TwoDeadWheelInputsMessage {
     public double yRotationRate;
     public double zRotationRate;
 
-    public TwoDeadWheelInputsMessage(PositionVelocityPair par, PositionVelocityPair perp, YawPitchRollAngles angles, AngularVelocity angularVelocity) {
+    public TwoDeadWheelInputsMessage(
+            PositionVelocityPair par,
+            PositionVelocityPair perp,
+            YawPitchRollAngles angles,
+            AngularVelocity angularVelocity) {
         this.timestamp = System.nanoTime();
         this.par = par;
         this.perp = perp;

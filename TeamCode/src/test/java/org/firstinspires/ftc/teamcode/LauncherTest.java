@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
-
 import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;

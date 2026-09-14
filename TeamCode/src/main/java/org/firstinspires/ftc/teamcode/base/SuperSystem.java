@@ -31,6 +31,5 @@ public abstract class SuperSystem extends SubSystem {
     }
 
     @Override
-    protected void onLoop() {
-    }
+    protected void onLoop() {}
 }

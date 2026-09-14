@@ -5,16 +5,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
-
-import org.junit.After;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.junit.After;
+import org.junit.Test;
 
 public class SimLiveServerTest {
     private final SimRecording recording = new SimRecording("LiveAuto");
@@ -68,7 +66,7 @@ public class SimLiveServerTest {
     }
 
     private SimRecording.Tick tick(double seconds, String step) {
-        return new SimRecording.Tick(seconds, new Pose2d(0, 0, 0), step, new double[]{0, 0, 0, 0}, List.of());
+        return new SimRecording.Tick(seconds, new Pose2d(0, 0, 0), step, new double[] {0, 0, 0, 0}, List.of());
     }
 
     private String get(String path) throws IOException {

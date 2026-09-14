@@ -4,6 +4,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SourceNavigator.Location;
 import org.firstinspires.ftc.teamcode.sim.SourceNavigator.Symbol;
 import org.firstinspires.ftc.teamcode.sim.SourceNavigator.Usages;
@@ -11,13 +17,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
-import java.util.List;
 
 public class SourceNavigatorTest {
     @Rule
@@ -86,7 +85,7 @@ public class SourceNavigatorTest {
                 if (column < 0) {
                     throw new AssertionError("no " + token + " on " + lines[i]);
                 }
-                return new int[] { i + 1, column + 1 };
+                return new int[] {i + 1, column + 1};
             }
         }
         throw new AssertionError("no line holding " + lineText);
@@ -109,7 +108,8 @@ public class SourceNavigatorTest {
     private static void assertLocation(String file, String source, String lineText, String token, Location location) {
         assertNotNull("no location", location);
         int[] where = at(source, lineText, token);
-        assertEquals(file + ":" + where[0] + ":" + where[1], location.file + ":" + location.line + ":" + location.column);
+        assertEquals(
+                file + ":" + where[0] + ":" + where[1], location.file + ":" + location.line + ":" + location.column);
         assertEquals(source.split("\n")[where[0] - 1].trim(), location.text);
     }
 
@@ -172,7 +172,8 @@ public class SourceNavigatorTest {
         write("org/example/Uses.java", source);
 
         Symbol library = definitionAt("org/example/Uses.java", source, "java.util.List<String> names", "List");
-        Symbol server = definitionAt("org/example/Uses.java", source, "org.firstinspires.ftc.teamcode.base.OpMode opMode", "OpMode");
+        Symbol server = definitionAt(
+                "org/example/Uses.java", source, "org.firstinspires.ftc.teamcode.base.OpMode opMode", "OpMode");
 
         assertEquals("java.util.List", library.name);
         assertNull("resolved to this server's own robot class", server);
@@ -195,7 +196,8 @@ public class SourceNavigatorTest {
         assertEquals("org.example.Plans.count()", fromDeclaration.symbol.name);
         assertEquals(1, fromDeclaration.usages.size());
         assertLocation(AUTO, AUTO_SOURCE, "int total = Plans.count();", "count", fromDeclaration.usages.get(0));
-        assertEquals(fromDeclaration.usages.get(0).toString(), fromCall.usages.get(0).toString());
+        assertEquals(
+                fromDeclaration.usages.get(0).toString(), fromCall.usages.get(0).toString());
         assertLocation(PLANS, PLANS_SOURCE, "public static int count() {", "count", fromCall.symbol.definition);
     }
 
@@ -206,7 +208,9 @@ public class SourceNavigatorTest {
         assertEquals(usages.usages.toString(), 3, usages.usages.size());
         assertLocation(AUTO, AUTO_SOURCE, "private final Plans plans = new Plans();", "Plans", usages.usages.get(0));
         int[] construction = at(AUTO_SOURCE, "private final Plans plans = new Plans();", "Plans", 2);
-        assertEquals(AUTO + ":" + construction[0] + ":" + construction[1], usages.usages.get(1).toString());
+        assertEquals(
+                AUTO + ":" + construction[0] + ":" + construction[1],
+                usages.usages.get(1).toString());
         assertLocation(AUTO, AUTO_SOURCE, "int total = Plans.count();", "Plans", usages.usages.get(2));
     }
 
@@ -256,9 +260,14 @@ public class SourceNavigatorTest {
 
     @Test
     public void anEditIsNoticed() throws IOException {
-        assertEquals(1, usagesAt(PLANS, PLANS_SOURCE, "public static int count() {", "count").usages.size());
+        assertEquals(
+                1,
+                usagesAt(PLANS, PLANS_SOURCE, "public static int count() {", "count")
+                        .usages
+                        .size());
 
-        String edited = AUTO_SOURCE.replace("return total + names.size();", "return total + names.size() + Plans.count();");
+        String edited =
+                AUTO_SOURCE.replace("return total + names.size();", "return total + names.size() + Plans.count();");
         write(AUTO, edited);
 
         Usages usages = usagesAt(PLANS, PLANS_SOURCE, "public static int count() {", "count");

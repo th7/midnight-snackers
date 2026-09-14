@@ -3,9 +3,6 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-
-import org.firstinspires.ftc.teamcode.base.OpMode;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
@@ -20,6 +17,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.firstinspires.ftc.teamcode.base.OpMode;
 
 /**
  * The JVM a simulated run happens in. The server launches one per run with the freshly compiled
@@ -45,8 +43,7 @@ public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
     private static final Gson GSON = new Gson();
 
-    private SimChild() {
-    }
+    private SimChild() {}
 
     public static void main(String[] args) {
         PrintStream protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);

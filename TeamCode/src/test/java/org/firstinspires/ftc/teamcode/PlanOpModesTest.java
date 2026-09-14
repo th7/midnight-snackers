@@ -5,7 +5,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-
+import java.util.List;
+import java.util.stream.Collectors;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.base.Auto;
 import org.firstinspires.ftc.teamcode.base.AutoOp;
@@ -16,9 +17,6 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Every plan method in {@link Plans} that carries {@link Auto} is an autonomous op mode on the
@@ -31,9 +29,17 @@ public class PlanOpModesTest {
     public void registersAnAutonomousOpModeForEveryAutoPlan() {
         PlanOpModes.register(manager);
 
-        List<String> names = manager.registrations.stream().map(r -> r.meta.name).sorted().collect(Collectors.toList());
-        assertEquals(List.of("BlueScoreAThingFromBack", "RedScoreAThingFromBack", "driveForward",
-                "forwardLeftBackwardRight", "scoreAThing", "spinnyThing"), names);
+        List<String> names =
+                manager.registrations.stream().map(r -> r.meta.name).sorted().collect(Collectors.toList());
+        assertEquals(
+                List.of(
+                        "BlueScoreAThingFromBack",
+                        "RedScoreAThingFromBack",
+                        "driveForward",
+                        "forwardLeftBackwardRight",
+                        "scoreAThing",
+                        "spinnyThing"),
+                names);
         for (FakeOpModeManager.Registration registration : manager.registrations) {
             assertEquals(registration.meta.name, OpModeMeta.Flavor.AUTONOMOUS, registration.meta.flavor);
             assertEquals(registration.meta.name, "Autonomous", registration.meta.group);
@@ -121,7 +127,9 @@ public class PlanOpModesTest {
     }
 
     private AutoOp registered(String name) {
-        return (AutoOp) manager.find(name).orElseThrow(() -> new AssertionError("nothing registered as " + name)).opMode();
+        return (AutoOp) manager.find(name)
+                .orElseThrow(() -> new AssertionError("nothing registered as " + name))
+                .opMode();
     }
 
     private static AutoOp initialised(AutoOp opMode) {

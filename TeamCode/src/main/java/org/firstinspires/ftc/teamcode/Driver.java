@@ -1,11 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-
+import java.util.Optional;
 import org.firstinspires.ftc.teamcode.Drive.Held;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
-
-import java.util.Optional;
 
 /** Drives the robot from the gamepads. A TeleOp adds one; an auto has no driver. */
 public class Driver extends SuperSystem {
@@ -35,8 +33,10 @@ public class Driver extends SuperSystem {
 
     @Override
     protected void onLoop() {
-        if (Math.abs(gamepad1.left_stick_x) > TAKEOVER || Math.abs(gamepad1.left_stick_y) > TAKEOVER
-                || Math.abs(gamepad1.right_stick_x) > TAKEOVER || Math.abs(gamepad1.right_stick_y) > TAKEOVER) {
+        if (Math.abs(gamepad1.left_stick_x) > TAKEOVER
+                || Math.abs(gamepad1.left_stick_y) > TAKEOVER
+                || Math.abs(gamepad1.right_stick_x) > TAKEOVER
+                || Math.abs(gamepad1.right_stick_y) > TAKEOVER) {
             drive.cancel();
         }
 
@@ -81,7 +81,7 @@ public class Driver extends SuperSystem {
             drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
 
-        //adjust settings using second controller
+        // adjust settings using second controller
         if (gamepad2.rightBumperWasPressed()) {
             launcher.increaseBottomGateWaitTime();
         }

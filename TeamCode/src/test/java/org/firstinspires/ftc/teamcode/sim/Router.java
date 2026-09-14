@@ -1,13 +1,12 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 /**
  * Which method and path reach which handler, said once per server. A route's pattern is a path
@@ -53,7 +52,9 @@ public final class Router implements Function<Request, Response> {
             for (int i = 0; i < segments.length; i++) {
                 String segment = segments[i];
                 if (rest && i == segments.length - 1) {
-                    params.put(segment.substring(1, segment.length() - 2), String.join("/", java.util.Arrays.copyOfRange(parts, i, parts.length)));
+                    params.put(
+                            segment.substring(1, segment.length() - 2),
+                            String.join("/", java.util.Arrays.copyOfRange(parts, i, parts.length)));
                 } else if (segment.startsWith("{") && segment.endsWith("}")) {
                     params.put(segment.substring(1, segment.length() - 1), parts[i]);
                 } else if (!segment.equals(parts[i])) {
@@ -84,6 +85,7 @@ public final class Router implements Function<Request, Response> {
 
     /** Either a route or a mount, in the order added. */
     private final List<Object> entries = new ArrayList<>();
+
     private Function<Request, Response> guard = request -> null;
 
     public Router route(String method, String pattern, Handler handler) {

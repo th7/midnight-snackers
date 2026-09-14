@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;

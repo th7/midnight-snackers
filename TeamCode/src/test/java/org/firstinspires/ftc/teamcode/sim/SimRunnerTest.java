@@ -6,6 +6,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.GatedAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
@@ -14,10 +17,6 @@ import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 public class SimRunnerTest {
     @Rule
@@ -50,9 +49,14 @@ public class SimRunnerTest {
 
         station.set(1, state("{\"left_stick_y\": -1, \"cross\": true}"));
         await("drove forward", () -> sim.pose().position.x > 6);
-        await("recorded the press", () -> lastGamepad1(recording) != null && lastGamepad1(recording).pressed.contains("cross"));
+        await(
+                "recorded the press",
+                () -> lastGamepad1(recording) != null
+                        && lastGamepad1(recording).pressed.contains("cross"));
         station.set(1, State.NEUTRAL);
-        await("recorded the release", () -> lastGamepad1(recording) != null && lastGamepad1(recording).neutral());
+        await(
+                "recorded the release",
+                () -> lastGamepad1(recording) != null && lastGamepad1(recording).neutral());
         station.set(1, state("{\"cross\": true}"));
         await("recorded the second press", () -> lastGamepad1(recording).pressed.contains("cross"));
 
@@ -69,8 +73,13 @@ public class SimRunnerTest {
 
     @Test
     public void aTeleOpEndsDoneWhenItsTimeIsUp() {
-        SimRecording recording = SimRunner.record(new SimRecording("StickTeleOp", "teleop"), new StickTeleOp(), sim, 0.2,
-                folder.getRoot().toPath(), new SimDriverStation());
+        SimRecording recording = SimRunner.record(
+                new SimRecording("StickTeleOp", "teleop"),
+                new StickTeleOp(),
+                sim,
+                0.2,
+                folder.getRoot().toPath(),
+                new SimDriverStation());
 
         assertEquals("done", recording.outcome());
         assertTrue(recording.ticks().size() > 1);
@@ -81,8 +90,13 @@ public class SimRunnerTest {
         SimDriverStation station = new SimDriverStation();
         station.stop();
 
-        SimRecording recording = SimRunner.record(new SimRecording("NeverDoneAuto"), new NeverDoneAuto(), sim, 5,
-                folder.getRoot().toPath(), station);
+        SimRecording recording = SimRunner.record(
+                new SimRecording("NeverDoneAuto"),
+                new NeverDoneAuto(),
+                sim,
+                5,
+                folder.getRoot().toPath(),
+                station);
 
         assertEquals("stopped", recording.outcome());
     }
@@ -109,7 +123,8 @@ public class SimRunnerTest {
     @Test
     public void keepsEveryLoopsPoseButThinsDrawingsToTwentyPerSecond() {
 
-        SimRecording recording = SimRunner.run(new ThreeLoopAuto(), sim, 5, folder.getRoot().toPath());
+        SimRecording recording =
+                SimRunner.run(new ThreeLoopAuto(), sim, 5, folder.getRoot().toPath());
 
         // Three loops a few milliseconds apart: the first carries the dashboard drawing, the rest don't.
         assertEquals(3, recording.poses().size());
@@ -122,7 +137,8 @@ public class SimRunnerTest {
     public void aRunFromACatalogEntryIsNamedAsTheDriverStationNamesIt() {
         Path out = folder.getRoot().toPath();
 
-        SimRecording recording = SimRunner.run(SimCatalog.of(ThreeLoopAuto.class).find("Count to three").get(), sim, 5, out);
+        SimRecording recording = SimRunner.run(
+                SimCatalog.of(ThreeLoopAuto.class).find("Count to three").get(), sim, 5, out);
 
         assertEquals("Count to three", recording.name());
         assertEquals("auto", recording.kind());
@@ -143,8 +159,7 @@ public class SimRunnerTest {
     public void anAnonymousSubclassIsNamedAfterItsNearestNamedClass() {
         Path out = folder.getRoot().toPath();
 
-        SimRunner.run(new ThreeLoopAuto() {
-        }, sim, 5, out);
+        SimRunner.run(new ThreeLoopAuto() {}, sim, 5, out);
 
         assertTrue(Files.exists(out.resolve("ThreeLoopAuto.html")));
     }
@@ -155,7 +170,8 @@ public class SimRunnerTest {
         // The auto runs until this test releases it, so the run is in progress for as long as the
         // first fetch takes, however loaded the machine is. The timeout is only a safety net.
         GatedAuto auto = new GatedAuto();
-        Thread runner = new Thread(() -> SimRunner.run(auto, sim, 60, folder.getRoot().toPath(), port));
+        Thread runner =
+                new Thread(() -> SimRunner.run(auto, sim, 60, folder.getRoot().toPath(), port));
         runner.start();
 
         String duringRun = null;
@@ -188,8 +204,8 @@ public class SimRunnerTest {
     public void aTimedOutRunStillWritesTheReplayBeforeFailing() throws Exception {
         Path out = folder.getRoot().toPath();
 
-        AssertionError error = assertThrows(AssertionError.class,
-                () -> SimRunner.run(new NeverDoneAuto(), sim, 0.1, out));
+        AssertionError error =
+                assertThrows(AssertionError.class, () -> SimRunner.run(new NeverDoneAuto(), sim, 0.1, out));
 
         assertTrue(error.getMessage(), error.getMessage().contains("forever"));
         Path page = out.resolve("NeverDoneAuto.html");

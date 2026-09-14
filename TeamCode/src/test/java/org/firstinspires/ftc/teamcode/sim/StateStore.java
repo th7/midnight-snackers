@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -23,8 +22,7 @@ import java.util.Set;
 final class StateStore {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
-    private StateStore() {
-    }
+    private StateStore() {}
 
     /** The object in a store file, null when there is no file yet, and a failure to start when it cannot be read. */
     static JsonObject load(Path file) {
@@ -32,7 +30,8 @@ final class StateStore {
             return null;
         }
         try {
-            JsonObject object = GSON.fromJson(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), JsonObject.class);
+            JsonObject object =
+                    GSON.fromJson(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), JsonObject.class);
             if (object == null) {
                 throw new IllegalStateException("empty");
             }
@@ -50,7 +49,11 @@ final class StateStore {
         try {
             ownerOnlyDirectory(dir);
             Path temp = posix
-                    ? Files.createTempFile(dir, "." + file.getFileName(), ".saving", PosixFilePermissions.asFileAttribute(ownerOnlyFile))
+                    ? Files.createTempFile(
+                            dir,
+                            "." + file.getFileName(),
+                            ".saving",
+                            PosixFilePermissions.asFileAttribute(ownerOnlyFile))
                     : Files.createTempFile(dir, "." + file.getFileName(), ".saving");
             try {
                 Files.write(temp, GSON.toJson(body).getBytes(StandardCharsets.UTF_8));

@@ -4,7 +4,6 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,14 +31,28 @@ public final class SimDriverStation {
     public static final class State {
         /** The on/off inputs, by the SDK's PlayStation field names. */
         public static final List<String> BUTTONS = List.of(
-                "dpad_up", "dpad_down", "dpad_left", "dpad_right",
-                "cross", "circle", "square", "triangle",
-                "left_bumper", "right_bumper", "left_stick_button", "right_stick_button",
-                "share", "options", "touchpad", "ps");
+                "dpad_up",
+                "dpad_down",
+                "dpad_left",
+                "dpad_right",
+                "cross",
+                "circle",
+                "square",
+                "triangle",
+                "left_bumper",
+                "right_bumper",
+                "left_stick_button",
+                "right_stick_button",
+                "share",
+                "options",
+                "touchpad",
+                "ps");
         /** The 0 to 1 inputs. */
         public static final List<String> TRIGGERS = List.of("left_trigger", "right_trigger");
         /** The -1 to 1 inputs; a stick pushed forward reads negative y, as on the robot. */
-        public static final List<String> AXES = List.of("left_stick_x", "left_stick_y", "right_stick_x", "right_stick_y");
+        public static final List<String> AXES =
+                List.of("left_stick_x", "left_stick_y", "right_stick_x", "right_stick_y");
+
         public static final State NEUTRAL = new State(new float[6], Set.of());
 
         public final float leftStickX;
@@ -109,8 +122,13 @@ public final class SimDriverStation {
         }
 
         public boolean neutral() {
-            return pressed.isEmpty() && leftStickX == 0 && leftStickY == 0 && rightStickX == 0 && rightStickY == 0
-                    && leftTrigger == 0 && rightTrigger == 0;
+            return pressed.isEmpty()
+                    && leftStickX == 0
+                    && leftStickY == 0
+                    && rightStickX == 0
+                    && rightStickY == 0
+                    && leftTrigger == 0
+                    && rightTrigger == 0;
         }
 
         /**
@@ -156,9 +174,12 @@ public final class SimDriverStation {
                 return false;
             }
             State that = (State) other;
-            return leftStickX == that.leftStickX && leftStickY == that.leftStickY
-                    && rightStickX == that.rightStickX && rightStickY == that.rightStickY
-                    && leftTrigger == that.leftTrigger && rightTrigger == that.rightTrigger
+            return leftStickX == that.leftStickX
+                    && leftStickY == that.leftStickY
+                    && rightStickX == that.rightStickX
+                    && rightStickY == that.rightStickY
+                    && leftTrigger == that.leftTrigger
+                    && rightTrigger == that.rightTrigger
                     && pressed.equals(that.pressed);
         }
 

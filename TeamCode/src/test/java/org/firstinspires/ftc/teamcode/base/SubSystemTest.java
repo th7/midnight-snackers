@@ -2,10 +2,9 @@ package org.firstinspires.ftc.teamcode.base;
 
 import static org.junit.Assert.assertEquals;
 
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.Test;
 
 public class SubSystemTest {
     private final List<String> ticks = new ArrayList<>();

@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Vector2d;
-
 import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
@@ -64,8 +63,8 @@ public class NavTest {
 
         assertEquals(40, distance(launch, goal), DELTA);
         assertEquals(Math.atan2(goal.y - launch.y(), goal.x - launch.x()), launch.heading(), DELTA);
-        assertEquals("on the line from the robot to the goal",
-                Math.atan2(goal.y - 5, goal.x - 10), launch.heading(), DELTA);
+        assertEquals(
+                "on the line from the robot to the goal", Math.atan2(goal.y - 5, goal.x - 10), launch.heading(), DELTA);
     }
 
     @Test
@@ -97,7 +96,11 @@ public class NavTest {
         nav.setFieldPosition(nav.pose(20, 19.5, 0));
         assertEquals(11, nav.currentPose().x(), DELTA);
         assertEquals(19.5, nav.currentPose().y(), DELTA);
-        assertEquals("a later sighting never changes the heading", 0.5, nav.currentPose().heading(), DELTA);
+        assertEquals(
+                "a later sighting never changes the heading",
+                0.5,
+                nav.currentPose().heading(),
+                DELTA);
     }
 
     @Test

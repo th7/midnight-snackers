@@ -66,5 +66,4 @@ public final class SimLiveServer {
     public void stop() {
         http.stop();
     }
-
 }

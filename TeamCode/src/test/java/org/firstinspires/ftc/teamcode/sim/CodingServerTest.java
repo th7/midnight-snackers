@@ -9,18 +9,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.google.gson.JsonObject;
 import com.google.gson.Gson;
-
-import org.bouncycastle.crypto.generators.SCrypt;
-import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
-import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
+import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -37,6 +27,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
+import org.bouncycastle.crypto.generators.SCrypt;
+import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
+import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class CodingServerTest {
     @Rule
@@ -83,8 +81,13 @@ public class CodingServerTest {
     }
 
     private SimBench bench() {
-        return new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class), null,
-                folder.getRoot().toPath().resolve("sim"), RUN_TIMEOUT_SECONDS, 30, 1);
+        return new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class),
+                null,
+                folder.getRoot().toPath().resolve("sim"),
+                RUN_TIMEOUT_SECONDS,
+                30,
+                1);
     }
 
     private CodingServer serverWith(SimBench bench) {
@@ -158,7 +161,9 @@ public class CodingServerTest {
         Reply approved = admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
 
         assertEquals(200, approved.status);
-        assertEquals("{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}", user("GET", "/me", cookie).body);
+        assertEquals(
+                "{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}",
+                user("GET", "/me", cookie).body);
         Reply page = user("GET", "/", cookie);
         assertTrue(page.body, page.body.contains("id=\"editor\""));
         assertEquals(200, user("GET", "/files", cookie).status);
@@ -262,7 +267,9 @@ public class CodingServerTest {
         assertEquals(200, top.status);
         assertTrue(top.body, top.body.contains("{\"name\":\"README.md\",\"type\":\"file\",\"path\":\"README.md\"}"));
         assertTrue(top.body, top.body.contains("{\"name\":\"TeamCode\",\"type\":\"dir\",\"path\":\"TeamCode\"}"));
-        assertTrue(sub.body, sub.body.contains("{\"name\":\"build.gradle\",\"type\":\"file\",\"path\":\"TeamCode/build.gradle\"}"));
+        assertTrue(
+                sub.body,
+                sub.body.contains("{\"name\":\"build.gradle\",\"type\":\"file\",\"path\":\"TeamCode/build.gradle\"}"));
         assertTrue(sub.body, sub.body.contains("{\"name\":\"src\",\"type\":\"dir\",\"path\":\"TeamCode/src\"}"));
         assertEquals(400, admin("GET", "/admin/tree?dir=TeamCode/build.gradle").status);
         assertEquals(400, admin("GET", "/admin/tree?dir=nope").status);
@@ -318,7 +325,8 @@ public class CodingServerTest {
     private Path worktreeOf(String username) throws IOException {
         for (var element : json(admin("GET", "/admin/logins").body).getAsJsonArray("logins")) {
             JsonObject login = element.getAsJsonObject();
-            if (login.get("username").getAsString().equals(username) && !login.get("worktree").isJsonNull()) {
+            if (login.get("username").getAsString().equals(username)
+                    && !login.get("worktree").isJsonNull()) {
                 return Path.of(login.get("worktree").getAsString());
             }
         }
@@ -367,13 +375,16 @@ public class CodingServerTest {
     public void anEditFromTheCurrentVersionIsWrittenToDisk() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         Files.write(file("Plans.java"), "old".getBytes(StandardCharsets.UTF_8));
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
 
         Reply written = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("new content\n", version));
 
         assertEquals(written.body, 200, written.status);
         assertEquals("new content\n", new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
-        assertEquals(sha256("new content\n".getBytes(StandardCharsets.UTF_8)),
+        assertEquals(
+                sha256("new content\n".getBytes(StandardCharsets.UTF_8)),
                 json(written.body).get("version").getAsString());
     }
 
@@ -382,12 +393,18 @@ public class CodingServerTest {
         String cookie = approvedEditorOf("Plans.java");
         Files.write(file("Plans.java"), "on disk".getBytes(StandardCharsets.UTF_8));
 
-        Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("mine", sha256("something else".getBytes(StandardCharsets.UTF_8))));
+        Reply refused = user(
+                "PUT",
+                "/files/TeamCode/Plans.java",
+                cookie,
+                edit("mine", sha256("something else".getBytes(StandardCharsets.UTF_8))));
 
         assertEquals(409, refused.status);
         JsonObject json = json(refused.body);
         assertEquals("on disk", json.get("content").getAsString());
-        assertEquals(sha256("on disk".getBytes(StandardCharsets.UTF_8)), json.get("version").getAsString());
+        assertEquals(
+                sha256("on disk".getBytes(StandardCharsets.UTF_8)),
+                json.get("version").getAsString());
         assertEquals("on disk", new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
     }
 
@@ -395,7 +412,9 @@ public class CodingServerTest {
     public void aChangeMadeOnTheHostBetweenReadAndWriteIsAConflict() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         Files.write(file("Plans.java"), "v1".getBytes(StandardCharsets.UTF_8));
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
         Files.write(file("Plans.java"), "v2 from the IDE".getBytes(StandardCharsets.UTF_8));
 
         Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("v2 from the browser", version));
@@ -408,21 +427,31 @@ public class CodingServerTest {
     public void writesLeaveNoTemporaryFilesAndKeepLineEndings() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         Files.write(file("Plans.java"), "a\r\nb\r\n".getBytes(StandardCharsets.UTF_8));
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
 
         Reply written = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("a\r\nb\r\nc", version));
 
         assertEquals(200, written.status);
         assertArrayEquals("a\r\nb\r\nc".getBytes(StandardCharsets.UTF_8), Files.readAllBytes(file("Plans.java")));
-        assertEquals("[Plans.java]", Arrays.toString(file("Plans.java").getParent().toFile().list()));
+        assertEquals(
+                "[Plans.java]",
+                Arrays.toString(file("Plans.java").getParent().toFile().list()));
     }
 
     @Test
     public void anOversizedEditIsRefused() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
 
-        Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, edit("x".repeat(TinyHttpServer.MAX_BODY_BYTES + 1), version));
+        Reply refused = user(
+                "PUT",
+                "/files/TeamCode/Plans.java",
+                cookie,
+                edit("x".repeat(TinyHttpServer.MAX_BODY_BYTES + 1), version));
 
         assertEquals(413, refused.status);
         assertEquals(0, Files.size(file("Plans.java")));
@@ -431,12 +460,13 @@ public class CodingServerTest {
     @Test
     public void aFileThatIsNotUtf8IsListedButNotEditable() throws IOException {
         String cookie = approvedEditorOf("logo.bin");
-        Files.write(file("logo.bin"), new byte[]{(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3});
+        Files.write(file("logo.bin"), new byte[] {(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3});
 
         assertTrue(user("GET", "/files", cookie).body.contains("\"path\":\"TeamCode/logo.bin\""));
         assertEquals(415, user("GET", "/files/TeamCode/logo.bin", cookie).status);
         assertEquals(415, user("PUT", "/files/TeamCode/logo.bin", cookie, edit("text", "whatever")).status);
-        assertArrayEquals(new byte[]{(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3}, Files.readAllBytes(file("logo.bin")));
+        assertArrayEquals(
+                new byte[] {(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3}, Files.readAllBytes(file("logo.bin")));
     }
 
     @Test
@@ -464,7 +494,10 @@ public class CodingServerTest {
         assertTrue(files, files.contains("{\"path\":\"TeamCode/Drive.java\",\"editors\":[\"bob\"]}"));
         assertTrue(files, files.contains("{\"path\":\"TeamCode/Plans.java\",\"editors\":[\"ada\"]}"));
         String logins = admin("GET", "/admin/logins").body;
-        assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"approved\",\"ageSeconds\":0,\"file\":\"TeamCode/Drive.java\""));
+        assertTrue(
+                logins,
+                logins.contains(
+                        "\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"approved\",\"ageSeconds\":0,\"file\":\"TeamCode/Drive.java\""));
     }
 
     // --- pages ---
@@ -558,7 +591,12 @@ public class CodingServerTest {
         Reply ticks = user("GET", "/sim/runs/" + id + "/ticks?from=0", cookie);
         assertEquals(200, ticks.status);
         assertEquals(3, ticks.body.split("\"step\"").length - 1);
-        assertTrue(folder.getRoot().toPath().resolve("sim").resolve("Count to three.html").toFile().exists());
+        assertTrue(folder.getRoot()
+                .toPath()
+                .resolve("sim")
+                .resolve("Count to three.html")
+                .toFile()
+                .exists());
     }
 
     @Test
@@ -619,8 +657,16 @@ public class CodingServerTest {
         assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
-        String version = json(user("GET", "/files/" + key, ada).body).get("version").getAsString();
-        assertEquals(200, user("PUT", "/files/" + key, ada, edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version)).status);
+        String version =
+                json(user("GET", "/files/" + key, ada).body).get("version").getAsString();
+        assertEquals(
+                200,
+                user(
+                                "PUT",
+                                "/files/" + key,
+                                ada,
+                                edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version))
+                        .status);
 
         Reply adas = user("GET", "/sim/catalog", ada);
         Reply bobs = user("GET", "/sim/catalog", bob);
@@ -646,15 +692,23 @@ public class CodingServerTest {
         assertEquals(403, user("GET", "/sim/runs/1/", pending).status);
         assertEquals(403, user("GET", "/sim/runs/1/ticks?from=0", null).status);
         assertEquals(403, user("GET", "/sim/start?opmode=" + encode("Count to three"), pending).status);
-        assertEquals(403, user("PUT", "/sim/start?opmode=" + encode("Count to three"), pending, "{\"x\":1,\"y\":2,\"heading\":0}").status);
+        assertEquals(
+                403,
+                user("PUT", "/sim/start?opmode=" + encode("Count to three"), pending, "{\"x\":1,\"y\":2,\"heading\":0}")
+                        .status);
         assertEquals(403, user("GET", "/sim/place?opmode=" + encode("Count to three"), pending).status);
     }
 
     /** Where each user places the robot for an op mode is their own bench's to remember, under their worktree. */
     @Test
     public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
-        serverWith(worktree -> new SimBench(SimCatalog.of(ThreeLoopAuto.class), null,
-                worktree.resolve("TeamCode/build/sim"), RUN_TIMEOUT_SECONDS, 30, 1));
+        serverWith(worktree -> new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class),
+                null,
+                worktree.resolve("TeamCode/build/sim"),
+                RUN_TIMEOUT_SECONDS,
+                30,
+                1));
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String start = "/sim/start?opmode=" + encode("Count to three");
@@ -695,7 +749,8 @@ public class CodingServerTest {
         String cookie = approvedUser("ada");
         assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
 
-        String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
+        String version =
+                json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
         assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempPlans(4), version)).status);
         Reply started = user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, cookie);
 
@@ -723,9 +778,17 @@ public class CodingServerTest {
 
     @Test
     public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
-        serverWith(new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, folder.getRoot().toPath().resolve("sim"), 2, 30, 1));
+        serverWith(new SimBench(
+                SimCatalog.of(TestAutos.ChattyAuto.class),
+                null,
+                folder.getRoot().toPath().resolve("sim"),
+                2,
+                30,
+                1));
         String cookie = approvedUser("ada");
-        String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body).get("id").getAsString();
+        String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body)
+                .get("id")
+                .getAsString();
         awaitSimStatus(cookie, "\"outcome\":\"done\"");
 
         Reply log = user("GET", "/sim/runs/" + id + "/log", cookie);
@@ -750,7 +813,8 @@ public class CodingServerTest {
         assertEquals(200, good.status);
         assertEquals("{\"available\":true,\"ok\":true,\"problems\":[]}", good.body);
 
-        String version = json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
+        String version =
+                json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
         user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version));
         Reply broken = user("GET", "/build", cookie);
         assertEquals(200, broken.status);
@@ -869,7 +933,8 @@ public class CodingServerTest {
         String exports = bundle.substring(bundle.indexOf("window.CM="));
         exports = exports.substring(0, exports.indexOf("}") + 1);
 
-        java.util.regex.Matcher names = java.util.regex.Pattern.compile("\\bCM\\.(\\w+)").matcher(page);
+        java.util.regex.Matcher names =
+                java.util.regex.Pattern.compile("\\bCM\\.(\\w+)").matcher(page);
         java.util.Set<String> used = new java.util.TreeSet<>();
         while (names.find()) {
             used.add(names.group(1));
@@ -877,7 +942,8 @@ public class CodingServerTest {
 
         assertTrue("the page uses the editor: " + used, used.size() >= 5);
         for (String name : used) {
-            assertTrue(name + " is not exported by the bundle: " + exports, exports.matches("(?s).*\\b" + name + ":.*"));
+            assertTrue(
+                    name + " is not exported by the bundle: " + exports, exports.matches("(?s).*\\b" + name + ":.*"));
         }
     }
 
@@ -898,7 +964,9 @@ public class CodingServerTest {
 
         restart();
 
-        assertEquals("{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}", user("GET", "/me", cookie).body);
+        assertEquals(
+                "{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}",
+                user("GET", "/me", cookie).body);
         assertEquals(200, user("GET", "/files/TeamCode/Plans.java", cookie).status);
         assertEquals(id, idOf("ada"));
         assertTrue(user("GET", "/", cookie).body.contains("id=\"editor\""));
@@ -914,7 +982,9 @@ public class CodingServerTest {
         String logins = admin("GET", "/admin/logins").body;
         assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"pending\""));
         admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
-        assertEquals("{\"state\":\"approved\",\"username\":\"bob\",\"branch\":\"coding/bob\"}", user("GET", "/me", cookie).body);
+        assertEquals(
+                "{\"state\":\"approved\",\"username\":\"bob\",\"branch\":\"coding/bob\"}",
+                user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -939,7 +1009,11 @@ public class CodingServerTest {
 
         assertEquals(adaId, idOf("ada"));
         assertFalse(adaId.equals(idOf("bob")));
-        assertEquals(2, json(admin("GET", "/admin/logins").body).getAsJsonArray("logins").size());
+        assertEquals(
+                2,
+                json(admin("GET", "/admin/logins").body)
+                        .getAsJsonArray("logins")
+                        .size());
     }
 
     /**
@@ -965,10 +1039,23 @@ public class CodingServerTest {
         byte[] hash = Base64.getDecoder().decode(kdf.get("hash").getAsString());
         assertTrue("salt of " + salt.length + " bytes", salt.length >= 16);
         assertTrue("hash of " + hash.length + " bytes", hash.length >= 32);
-        assertArrayEquals(SCrypt.generate(secretOf(ada).getBytes(StandardCharsets.UTF_8), salt,
-                kdf.get("n").getAsInt(), kdf.get("r").getAsInt(), kdf.get("p").getAsInt(), hash.length), hash);
-        assertFalse("every session gets its own salt",
-                kdf.get("salt").getAsString().equals(storedSession("bob").getAsJsonObject("secret").get("salt").getAsString()));
+        assertArrayEquals(
+                SCrypt.generate(
+                        secretOf(ada).getBytes(StandardCharsets.UTF_8),
+                        salt,
+                        kdf.get("n").getAsInt(),
+                        kdf.get("r").getAsInt(),
+                        kdf.get("p").getAsInt(),
+                        hash.length),
+                hash);
+        assertFalse(
+                "every session gets its own salt",
+                kdf.get("salt")
+                        .getAsString()
+                        .equals(storedSession("bob")
+                                .getAsJsonObject("secret")
+                                .get("salt")
+                                .getAsString()));
         if (Files.getFileStore(sessionsFile()).supportsFileAttributeView(PosixFileAttributeView.class)) {
             assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(sessionsFile())));
             assertEquals("rwx------", PosixFilePermissions.toString(Files.getPosixFilePermissions(stateDir())));
@@ -979,13 +1066,16 @@ public class CodingServerTest {
     public void aCookieWithARealIdAndTheWrongSecretIsNoSession() throws IOException {
         String cookie = login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
-        String forged = cookie.substring(0, cookie.lastIndexOf('.') + 1) + "B".repeat(secretOf(cookie).length());
+        String forged = cookie.substring(0, cookie.lastIndexOf('.') + 1)
+                + "B".repeat(secretOf(cookie).length());
 
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
         restart();
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
         assertEquals(403, user("GET", "/files", forged).status);
-        assertEquals("{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}", user("GET", "/me", cookie).body);
+        assertEquals(
+                "{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}",
+                user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -1022,7 +1112,8 @@ public class CodingServerTest {
         GitFixture.init(otherRoot);
         Files.createFile(otherRoot.resolve("Other.java"));
         SimBench otherBench = bench();
-        CodingServer other = CodingServer.start(otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        CodingServer other = CodingServer.start(
+                otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         try {
             assertEquals("{\"files\":[]}", request(other.adminUrl(), "GET", "/admin/files", null, null).body);
             request(other.adminUrl(), "POST", "/admin/files/add?path=Other.java", null, null);
@@ -1033,9 +1124,12 @@ public class CodingServerTest {
         restart();
 
         assertEquals("{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files").body);
-        other = CodingServer.start(otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        other = CodingServer.start(
+                otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         try {
-            assertEquals("{\"files\":[{\"path\":\"Other.java\"}]}", request(other.adminUrl(), "GET", "/admin/files", null, null).body);
+            assertEquals(
+                    "{\"files\":[{\"path\":\"Other.java\"}]}",
+                    request(other.adminUrl(), "GET", "/admin/files", null, null).body);
         } finally {
             other.stop();
         }
@@ -1045,13 +1139,18 @@ public class CodingServerTest {
     @Test
     public void nothingIsWrittenUnderTheProjectRootOutsideDotGit() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
         assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit("class Plans {}", version)).status);
 
         String[] names = folder.getRoot().list();
         Arrays.sort(names);
         assertEquals("[.git, README, TeamCode]", Arrays.toString(names));
-        assertEquals("[Plans.java]", Arrays.toString(folder.getRoot().toPath().resolve("TeamCode").toFile().list()));
+        assertEquals(
+                "[Plans.java]",
+                Arrays.toString(
+                        folder.getRoot().toPath().resolve("TeamCode").toFile().list()));
         assertTrue(worktreeOf("ada").startsWith(stateDir()));
     }
 
@@ -1060,7 +1159,8 @@ public class CodingServerTest {
     @Test
     public void approvingALoginMakesAWorktreeAndASaveChangesItNotTheHostCheckout() throws IOException {
         folder.newFolder("TeamCode");
-        Files.write(root.resolve("TeamCode").resolve("Plans.java"), "class Plans {}\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                root.resolve("TeamCode").resolve("Plans.java"), "class Plans {}\n".getBytes(StandardCharsets.UTF_8));
         GitFixture.commitAll(root, "the file");
         assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Plans.java").status);
         String cookie = approvedUser("ada");
@@ -1069,11 +1169,22 @@ public class CodingServerTest {
         assertTrue(logins, logins.contains("\"branch\":\"coding/ada\""));
         Path worktree = worktreeOf("ada");
         assertTrue(worktree.toString(), worktree.startsWith(stateDir()));
-        assertEquals("coding/ada", GitFixture.git(worktree, "rev-parse", "--abbrev-ref", "HEAD").trim());
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
-        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit("class Plans { int edited; }\n", version)).status);
-        assertEquals("class Plans { int edited; }\n", new String(Files.readAllBytes(worktree.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
-        assertEquals("class Plans {}\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(
+                "coding/ada",
+                GitFixture.git(worktree, "rev-parse", "--abbrev-ref", "HEAD").trim());
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
+        assertEquals(
+                200,
+                user("PUT", "/files/TeamCode/Plans.java", cookie, edit("class Plans { int edited; }\n", version))
+                        .status);
+        assertEquals(
+                "class Plans { int edited; }\n",
+                new String(Files.readAllBytes(worktree.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans {}\n",
+                new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertEquals("the host checkout is clean", "", GitFixture.git(root, "status", "--porcelain"));
     }
 
@@ -1081,27 +1192,45 @@ public class CodingServerTest {
     public void twoUsersEditingTheSameFileDoNotConflict() throws IOException {
         String ada = approvedEditorOf("Plans.java");
         String bob = approvedUser("bob");
-        String adaVersion = json(user("GET", "/files/TeamCode/Plans.java", ada).body).get("version").getAsString();
-        String bobVersion = json(user("GET", "/files/TeamCode/Plans.java", bob).body).get("version").getAsString();
+        String adaVersion = json(user("GET", "/files/TeamCode/Plans.java", ada).body)
+                .get("version")
+                .getAsString();
+        String bobVersion = json(user("GET", "/files/TeamCode/Plans.java", bob).body)
+                .get("version")
+                .getAsString();
 
         assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", ada, edit("ada's", adaVersion)).status);
         assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", bob, edit("bob's", bobVersion)).status);
 
-        assertEquals("ada's", json(user("GET", "/files/TeamCode/Plans.java", ada).body).get("content").getAsString());
-        assertEquals("bob's", json(user("GET", "/files/TeamCode/Plans.java", bob).body).get("content").getAsString());
+        assertEquals(
+                "ada's",
+                json(user("GET", "/files/TeamCode/Plans.java", ada).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                "bob's",
+                json(user("GET", "/files/TeamCode/Plans.java", bob).body)
+                        .get("content")
+                        .getAsString());
         assertNotEquals(worktreeOf("ada"), worktreeOf("bob"));
     }
 
     @Test
     public void theSameUsernameApprovedAgainSeesTheEarlierSave() throws IOException {
         String first = approvedEditorOf("Plans.java");
-        String version = json(user("GET", "/files/TeamCode/Plans.java", first).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", first).body)
+                .get("version")
+                .getAsString();
         assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", first, edit("ada's", version)).status);
 
         String second = approvedUser("ada");
 
         assertNotEquals(first, second);
-        assertEquals("ada's", json(user("GET", "/files/TeamCode/Plans.java", second).body).get("content").getAsString());
+        assertEquals(
+                "ada's",
+                json(user("GET", "/files/TeamCode/Plans.java", second).body)
+                        .get("content")
+                        .getAsString());
         assertEquals(1, worktreeOf("ada").getParent().toFile().list().length);
     }
 
@@ -1143,7 +1272,8 @@ public class CodingServerTest {
         SimBench bench = bench();
 
         try {
-            CodingServer.start(plain, worktree -> bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir()).stop();
+            CodingServer.start(plain, worktree -> bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir())
+                    .stop();
             fail("no repository, no worktrees, no server");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains(plain.toString()));
@@ -1153,14 +1283,20 @@ public class CodingServerTest {
     @Test
     public void approvedWorktreesAndTheirUncommittedEditsSurviveARestart() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
         assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit("ada's", version)).status);
         Path before = worktreeOf("ada");
 
         restart();
 
         assertEquals(before, worktreeOf("ada"));
-        assertEquals("ada's", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals(
+                "ada's",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
     }
 
     @Test
@@ -1184,10 +1320,12 @@ public class CodingServerTest {
         Path home = state.getRoot().toPath().resolve("home");
         Path underHome = home.resolve(".local/state/midnight-snackers/coding-server");
 
-        assertEquals(xdg.resolve("midnight-snackers/coding-server"),
+        assertEquals(
+                xdg.resolve("midnight-snackers/coding-server"),
                 CodingServer.stateDir(Map.of("XDG_STATE_HOME", xdg.toString(), "HOME", home.toString())));
         assertEquals(underHome, CodingServer.stateDir(Map.of("HOME", home.toString())));
-        assertEquals(underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "relative/state", "HOME", home.toString())));
+        assertEquals(
+                underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "relative/state", "HOME", home.toString())));
         assertEquals(underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "", "HOME", home.toString())));
     }
 
@@ -1201,7 +1339,8 @@ public class CodingServerTest {
     }
 
     private JsonObject storedSession(String username) throws IOException {
-        for (var element : json(new String(Files.readAllBytes(sessionsFile()), StandardCharsets.UTF_8)).getAsJsonArray("sessions")) {
+        for (var element : json(new String(Files.readAllBytes(sessionsFile()), StandardCharsets.UTF_8))
+                .getAsJsonArray("sessions")) {
             if (element.getAsJsonObject().get("username").getAsString().equals(username)) {
                 return element.getAsJsonObject();
             }
@@ -1219,7 +1358,9 @@ public class CodingServerTest {
 
     private String savedEditor(String content) throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("version").getAsString();
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
         assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit(content, version)).status);
         return cookie;
     }
@@ -1239,7 +1380,10 @@ public class CodingServerTest {
         assertEquals("ada|my change\n", GitFixture.git(worktree, "log", "-1", "--format=%an|%s"));
         assertEquals("class Plans { int edited; }\n", GitFixture.git(worktree, "show", "HEAD:TeamCode/Plans.java"));
         assertEquals("", GitFixture.git(worktree, "status", "--porcelain"));
-        assertEquals("1", GitFixture.git(root, "rev-list", "--count", "develop..coding/ada").trim());
+        assertEquals(
+                "1",
+                GitFixture.git(root, "rev-list", "--count", "develop..coding/ada")
+                        .trim());
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
     }
@@ -1252,7 +1396,10 @@ public class CodingServerTest {
 
         assertEquals(committed.body, 200, committed.status);
         assertFalse(json(committed.body).get("committed").getAsBoolean());
-        assertEquals("0", GitFixture.git(root, "rev-list", "--count", "develop..coding/ada").trim());
+        assertEquals(
+                "0",
+                GitFixture.git(root, "rev-list", "--count", "develop..coding/ada")
+                        .trim());
     }
 
     @Test
@@ -1263,7 +1410,10 @@ public class CodingServerTest {
         assertEquals(400, user("POST", "/git/commit", cookie, message("   ")).status);
         assertEquals(400, user("POST", "/git/commit", cookie, "not json").status);
         assertEquals(405, user("GET", "/git/commit", cookie).status);
-        assertEquals("0", GitFixture.git(root, "rev-list", "--count", "develop..coding/ada").trim());
+        assertEquals(
+                "0",
+                GitFixture.git(root, "rev-list", "--count", "develop..coding/ada")
+                        .trim());
     }
 
     @Test
@@ -1277,7 +1427,8 @@ public class CodingServerTest {
         GitFixture.commitAll(root, "a commit on develop");
         JsonObject later = json(user("GET", "/git/status", cookie).body);
 
-        assertEquals("[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
         assertEquals(0, before.get("ahead").getAsInt());
         assertEquals("coding/ada", before.get("branch").getAsString());
         assertEquals("[]", after.getAsJsonArray("changed").toString());
@@ -1320,14 +1471,20 @@ public class CodingServerTest {
     public void pullBringsDevelopIntoTheWorktreeAndTheOpenFile() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
-        assertEquals(1, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
+        assertEquals(
+                1, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
 
         Reply pulled = user("POST", "/git/pull", cookie);
 
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
-        assertEquals("class Plans { int fromDevelop; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
-        assertEquals(0, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
+        assertEquals(
+                "class Plans { int fromDevelop; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                0, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
     }
 
@@ -1341,9 +1498,16 @@ public class CodingServerTest {
         Reply pulled = user("POST", "/git/pull", cookie);
 
         assertEquals(pulled.body, 200, pulled.status);
-        assertEquals("on develop\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
-        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
-        assertEquals(2, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
+        assertEquals(
+                "on develop\n",
+                new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int mine; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                2, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
         assertEquals("develop did not move", develop, GitFixture.commitOf(root, "develop"));
     }
 
@@ -1357,15 +1521,28 @@ public class CodingServerTest {
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
-        assertEquals("on develop\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
-        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
-        assertEquals("[\"TeamCode/Plans.java\"]", json(user("GET", "/git/status", cookie).body).getAsJsonArray("changed").toString());
+        assertEquals(
+                "on develop\n",
+                new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int mine; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]",
+                json(user("GET", "/git/status", cookie).body)
+                        .getAsJsonArray("changed")
+                        .toString());
 
         Reply committed = user("POST", "/git/commit", cookie, message("mine"));
 
         assertEquals(committed.body, 200, committed.status);
-        assertEquals("[\"TeamCode/Plans.java\"]", json(committed.body).getAsJsonArray("files").toString());
-        assertEquals(1, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]",
+                json(committed.body).getAsJsonArray("files").toString());
+        assertEquals(
+                1, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
     }
 
     @Test
@@ -1379,11 +1556,20 @@ public class CodingServerTest {
 
         assertEquals(409, refused.status);
         assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
-        assertEquals("[\"TeamCode/Plans.java\"]", json(refused.body).getAsJsonArray("files").toString());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]",
+                json(refused.body).getAsJsonArray("files").toString());
         assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
-        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
-        assertEquals("nothing of develop's arrived", "hello\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int mine; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                "nothing of develop's arrived",
+                "hello\n",
+                new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
     }
 
     @Test
@@ -1416,11 +1602,18 @@ public class CodingServerTest {
         assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
-        assertEquals("class Plans { int ada; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals(
+                "class Plans { int ada; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         String logins = admin("GET", "/admin/logins").body;
-        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+        assertTrue(
+                logins,
+                logins.contains(
+                        "\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
         String page = admin("GET", "/admin").body;
         assertTrue(page, page.contains("login.lastMerge"));
         assertTrue(page, page.contains("git merge develop"));
@@ -1463,7 +1656,8 @@ public class CodingServerTest {
         commitOnDevelop("README", "on develop\n");
         JsonObject later = loginOf("ada").getAsJsonObject("status");
 
-        assertEquals("[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
         assertEquals(0, before.get("ahead").getAsInt());
         assertEquals(0, before.get("behind").getAsInt());
         assertEquals("[]", after.getAsJsonArray("changed").toString());
@@ -1504,28 +1698,42 @@ public class CodingServerTest {
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
         assertTrue(pulled.body, json(pulled.body).get("message").getAsString().contains("ada"));
-        assertEquals("class Plans { int fromDevelop; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
+        assertEquals(
+                "class Plans { int fromDevelop; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
         assertEquals(0, loginOf("ada").getAsJsonObject("status").get("behind").getAsInt());
         assertEquals(develop, GitFixture.commitOf(root, "coding/ada"));
         assertEquals("develop did not move", develop, GitFixture.commitOf(root, "develop"));
-        assertEquals("pull", loginOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
-        assertEquals("pulled", loginOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
+        assertEquals(
+                "pull", loginOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
+        assertEquals(
+                "pulled",
+                loginOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
     }
 
     @Test
     public void anAdminPullMovesTheTipTheUsersStatusReportsSoTheirEditorReloadsWhatIsOpen() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        String before = json(user("GET", "/git/status", cookie).body).get("head").getAsString();
+        String before =
+                json(user("GET", "/git/status", cookie).body).get("head").getAsString();
         assertEquals(GitFixture.commitOf(root, "coding/ada"), before);
         commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
-        assertEquals("a commit on develop alone moves nothing of the user's", before, json(user("GET", "/git/status", cookie).body).get("head").getAsString());
+        assertEquals(
+                "a commit on develop alone moves nothing of the user's",
+                before,
+                json(user("GET", "/git/status", cookie).body).get("head").getAsString());
 
         assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/pull").status);
 
-        assertEquals(GitFixture.commitOf(root, "develop"), json(user("GET", "/git/status", cookie).body).get("head").getAsString());
+        assertEquals(
+                GitFixture.commitOf(root, "develop"),
+                json(user("GET", "/git/status", cookie).body).get("head").getAsString());
         String dashboard = user("GET", "/", cookie).body;
         assertTrue(dashboard, dashboard.contains("status.head"));
-        assertTrue("a tip that moved under a clean editor reloads the open file", dashboard.contains("load(open.path)"));
+        assertTrue(
+                "a tip that moved under a clean editor reloads the open file", dashboard.contains("load(open.path)"));
     }
 
     @Test
@@ -1539,7 +1747,9 @@ public class CodingServerTest {
 
         assertEquals(listing.body, 200, listing.status);
         assertTrue(loginOf("ada").get("status").isJsonNull());
-        assertTrue(loginOf("ada").toString(), loginOf("ada").get("statusError").getAsString().contains("coding/ada"));
+        assertTrue(
+                loginOf("ada").toString(),
+                loginOf("ada").get("statusError").getAsString().contains("coding/ada"));
         assertEquals(0, loginOf("bob").getAsJsonObject("status").get("behind").getAsInt());
         assertTrue(loginOf("bob").get("statusError").isJsonNull());
         String page = admin("GET", "/admin").body;
@@ -1570,12 +1780,21 @@ public class CodingServerTest {
 
         assertEquals(409, refused.status);
         assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
-        assertEquals("[\"TeamCode/Plans.java\"]", json(refused.body).getAsJsonArray("files").toString());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]",
+                json(refused.body).getAsJsonArray("files").toString());
         assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("ada"));
         assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
-        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
-        assertEquals("nothing of develop's arrived", "hello\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int mine; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                "nothing of develop's arrived",
+                "hello\n",
+                new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
     }
 
     @Test
@@ -1588,9 +1807,20 @@ public class CodingServerTest {
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(root, "coding/ada"));
-        assertEquals("on develop\n", new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
-        assertEquals("class Plans { int mine; }\n", json(user("GET", "/files/TeamCode/Plans.java", cookie).body).get("content").getAsString());
-        assertEquals("[\"TeamCode/Plans.java\"]", loginOf("ada").getAsJsonObject("status").getAsJsonArray("changed").toString());
+        assertEquals(
+                "on develop\n",
+                new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int mine; }\n",
+                json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]",
+                loginOf("ada")
+                        .getAsJsonObject("status")
+                        .getAsJsonArray("changed")
+                        .toString());
     }
 
     @Test
@@ -1607,12 +1837,17 @@ public class CodingServerTest {
         JsonObject body = json(conflicted.body);
         assertEquals("conflicts", body.get("outcome").getAsString());
         assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
-        assertFalse("the coach is not told to ask the coach: " + body, body.get("message").getAsString().contains("coach"));
+        assertFalse(
+                "the coach is not told to ask the coach: " + body,
+                body.get("message").getAsString().contains("coach"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
         String logins = admin("GET", "/admin/logins").body;
-        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+        assertTrue(
+                logins,
+                logins.contains(
+                        "\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
     }
 
     @Test
@@ -1645,7 +1880,9 @@ public class CodingServerTest {
 
         assertEquals(pushed.body, 200, pushed.status);
         assertEquals("pushed", json(pushed.body).get("outcome").getAsString());
-        assertEquals("class Plans { int mine; }\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int mine; }\n",
+                new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
         assertEquals("ada", GitFixture.git(root, "log", "-1", "--format=%an").trim());
@@ -1690,11 +1927,16 @@ public class CodingServerTest {
         assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
-        assertEquals("class Plans { int develop; }\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(
+                "class Plans { int develop; }\n",
+                new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
         String logins = admin("GET", "/admin/logins").body;
-        assertTrue(logins, logins.contains("\"lastMerge\":{\"op\":\"push\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+        assertTrue(
+                logins,
+                logins.contains(
+                        "\"lastMerge\":{\"op\":\"push\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
     }
 
     @Test
@@ -1711,7 +1953,9 @@ public class CodingServerTest {
         assertEquals("refused", body.get("outcome").getAsString());
         assertTrue(body.toString(), body.get("message").getAsString().contains("coach"));
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
-        assertEquals("the coach's unsaved work\n", new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(
+                "the coach's unsaved work\n",
+                new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertFalse(Files.exists(root.resolve(".git/MERGE_HEAD")));
         String logins = admin("GET", "/admin/logins").body;
         assertTrue(logins, logins.contains("\"op\":\"push\",\"outcome\":\"refused\""));
@@ -1748,7 +1992,12 @@ public class CodingServerTest {
 
     @Test
     public void whenOriginIsUnreachableThePushStillLandsAndTheAdminSeesTheProblem() throws IOException {
-        GitFixture.git(root, "remote", "add", "origin", state.getRoot().toPath().resolve("no-such-origin.git").toString());
+        GitFixture.git(
+                root,
+                "remote",
+                "add",
+                "origin",
+                state.getRoot().toPath().resolve("no-such-origin.git").toString());
         String cookie = savedEditor("class Plans { int mine; }\n");
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
         String oldDevelop = GitFixture.commitOf(root, "develop");
@@ -1796,7 +2045,15 @@ public class CodingServerTest {
     public void aJumpToADefinitionLandsInAFileTheUserMayReadButNotEdit() throws IOException {
         String cookie = navigatingUser();
 
-        Reply definition = user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "int total = Plans.count();", "count"), cookie);
+        Reply definition = user(
+                "GET",
+                nav(
+                        "definition",
+                        SRC + "Auto.java",
+                        SourceNavigatorTest.AUTO_SOURCE,
+                        "int total = Plans.count();",
+                        "count"),
+                cookie);
 
         assertEquals(definition.body, 200, definition.status);
         JsonObject body = json(definition.body);
@@ -1813,15 +2070,41 @@ public class CodingServerTest {
         JsonObject plans = json(source.body);
         assertEquals(SourceNavigatorTest.PLANS_SOURCE, plans.get("content").getAsString());
         assertFalse(plans.get("editable").getAsBoolean());
-        assertEquals(sha256(SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8)), plans.get("version").getAsString());
-        assertTrue(json(user("GET", "/source/" + SRC + "Auto.java", cookie).body).get("editable").getAsBoolean());
-        assertEquals("editing is still only the editable set", 404, user("GET", "/files/" + SRC + "Plans.java", cookie).status);
+        assertEquals(
+                sha256(SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8)),
+                plans.get("version").getAsString());
+        assertTrue(json(user("GET", "/source/" + SRC + "Auto.java", cookie).body)
+                .get("editable")
+                .getAsBoolean());
+        assertEquals(
+                "editing is still only the editable set",
+                404,
+                user("GET", "/files/" + SRC + "Plans.java", cookie).status);
         assertEquals(404, user("GET", "/source/README", cookie).status);
-        assertEquals(404, user("GET", "/source/TeamCode/src/main/java/org/example/../example/Plans.java", cookie).status);
-        assertEquals(405, user("PUT", "/source/" + SRC + "Plans.java", cookie, edit("x", plans.get("version").getAsString())).status);
+        assertEquals(
+                404, user("GET", "/source/TeamCode/src/main/java/org/example/../example/Plans.java", cookie).status);
+        assertEquals(
+                405,
+                user(
+                                "PUT",
+                                "/source/" + SRC + "Plans.java",
+                                cookie,
+                                edit("x", plans.get("version").getAsString()))
+                        .status);
         String pending = login("bob");
         assertEquals(403, user("GET", "/source/" + SRC + "Plans.java", pending).status);
-        assertEquals(403, user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "int total = Plans.count();", "count"), pending).status);
+        assertEquals(
+                403,
+                user(
+                                "GET",
+                                nav(
+                                        "definition",
+                                        SRC + "Auto.java",
+                                        SourceNavigatorTest.AUTO_SOURCE,
+                                        "int total = Plans.count();",
+                                        "count"),
+                                pending)
+                        .status);
         assertEquals(403, user("GET", "/nav/usages?file=x&line=1&column=1", pending).status);
     }
 
@@ -1829,7 +2112,10 @@ public class CodingServerTest {
     public void aSymbolFromOutsideTheSourcesHasNoFileAndNothingUnderTheCursorIsA404() throws IOException {
         String cookie = navigatingUser();
 
-        Reply list = user("GET", nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "List<String> names", "List"), cookie);
+        Reply list = user(
+                "GET",
+                nav("definition", SRC + "Auto.java", SourceNavigatorTest.AUTO_SOURCE, "List<String> names", "List"),
+                cookie);
         assertEquals(list.body, 200, list.status);
         assertEquals("java.util.List", json(list.body).get("symbol").getAsString());
         assertTrue(list.body, json(list.body).get("file").isJsonNull());
@@ -1843,24 +2129,47 @@ public class CodingServerTest {
     public void usagesComeFromTheUsersOwnWorktree() throws IOException {
         String ada = navigatingUser();
         String bob = approvedUser("bob");
-        String version = json(user("GET", "/files/" + SRC + "Auto.java", ada).body).get("version").getAsString();
-        String edited = SourceNavigatorTest.AUTO_SOURCE.replace("return total + names.size();", "return total + names.size() + Plans.count();");
+        String version = json(user("GET", "/files/" + SRC + "Auto.java", ada).body)
+                .get("version")
+                .getAsString();
+        String edited = SourceNavigatorTest.AUTO_SOURCE.replace(
+                "return total + names.size();", "return total + names.size() + Plans.count();");
         assertEquals(200, user("PUT", "/files/" + SRC + "Auto.java", ada, edit(edited, version)).status);
 
-        Reply adas = user("GET", nav("usages", SRC + "Plans.java", SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count"), ada);
-        Reply bobs = user("GET", nav("usages", SRC + "Plans.java", SourceNavigatorTest.PLANS_SOURCE, "public static int count() {", "count"), bob);
+        Reply adas = user(
+                "GET",
+                nav(
+                        "usages",
+                        SRC + "Plans.java",
+                        SourceNavigatorTest.PLANS_SOURCE,
+                        "public static int count() {",
+                        "count"),
+                ada);
+        Reply bobs = user(
+                "GET",
+                nav(
+                        "usages",
+                        SRC + "Plans.java",
+                        SourceNavigatorTest.PLANS_SOURCE,
+                        "public static int count() {",
+                        "count"),
+                bob);
 
         assertEquals(adas.body, 200, adas.status);
         JsonObject body = json(adas.body);
         assertEquals("org.example.Plans.count()", body.get("symbol").getAsString());
-        assertEquals(SRC + "Plans.java", body.getAsJsonObject("definition").get("file").getAsString());
+        assertEquals(
+                SRC + "Plans.java",
+                body.getAsJsonObject("definition").get("file").getAsString());
         assertEquals(2, body.getAsJsonArray("usages").size());
         JsonObject second = body.getAsJsonArray("usages").get(1).getAsJsonObject();
         assertEquals(SRC + "Auto.java", second.get("file").getAsString());
         int[] where = SourceNavigatorTest.at(edited, "return total + names.size() + Plans.count();", "count");
         assertEquals(where[0], second.get("line").getAsInt());
         assertEquals(where[1], second.get("column").getAsInt());
-        assertEquals("return total + names.size() + Plans.count();", second.get("text").getAsString());
+        assertEquals(
+                "return total + names.size() + Plans.count();",
+                second.get("text").getAsString());
         assertEquals(1, json(bobs.body).getAsJsonArray("usages").size());
     }
 
@@ -1935,7 +2244,8 @@ public class CodingServerTest {
         }
         int status = connection.getResponseCode();
         try (InputStream in = status < 400 ? connection.getInputStream() : connection.getErrorStream()) {
-            return new Reply(status, in == null ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8), connection);
+            return new Reply(
+                    status, in == null ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8), connection);
         } finally {
             connection.disconnect();
         }

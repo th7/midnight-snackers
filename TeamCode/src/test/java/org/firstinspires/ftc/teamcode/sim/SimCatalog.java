@@ -6,11 +6,6 @@ import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
-import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.OpMode;
-import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,6 +28,9 @@ import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
+import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
+import org.firstinspires.ftc.teamcode.base.OpMode;
+import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 
 /**
  * The op modes that can be run in the simulator, exactly as the robot controller would list them:
@@ -46,12 +44,14 @@ public final class SimCatalog {
     public static final String TEAMCODE_PACKAGE = "org.firstinspires.ftc.teamcode";
     /** Vendored Road Runner code: its op modes and registrars are not ours to simulate. */
     public static final String ROADRUNNER_PACKAGE = TEAMCODE_PACKAGE + ".roadrunner";
+
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
 
     public static final class Entry {
         /** The name on the driver station, unique in the catalog. */
         public final String name;
+
         public final String group;
         /** {@link #AUTO} or {@link #TELEOP}: an auto runs until its plan is done, a TeleOp until the driver stops it. */
         public final String kind;
@@ -117,7 +117,8 @@ public final class SimCatalog {
         for (Class<?> source : sources) {
             List<Entry> found = entriesFrom(source);
             if (found == null) {
-                throw new IllegalArgumentException(source.getName() + " is neither an annotated op mode nor a registrar");
+                throw new IllegalArgumentException(
+                        source.getName() + " is neither an annotated op mode nor a registrar");
             }
             entries.addAll(found);
             names.add(source.getName());
@@ -133,8 +134,12 @@ public final class SimCatalog {
             if (!item.has("kind") || !item.has("where")) {
                 throw new IllegalArgumentException("a listing without the kind and place of each op mode: " + item);
             }
-            entries.add(new Entry(item.get("name").getAsString(), item.get("group").getAsString(),
-                    item.get("kind").getAsString(), item.get("where").getAsString(), null));
+            entries.add(new Entry(
+                    item.get("name").getAsString(),
+                    item.get("group").getAsString(),
+                    item.get("kind").getAsString(),
+                    item.get("where").getAsString(),
+                    null));
         }
         return new SimCatalog(Collections.unmodifiableList(entries), List.of());
     }
@@ -179,7 +184,8 @@ public final class SimCatalog {
         for (Entry entry : entries) {
             Entry other = byName.put(entry.name, entry);
             if (other != null) {
-                throw new IllegalStateException("two op modes are named " + entry.name + ": " + other.where + " and " + entry.where);
+                throw new IllegalStateException(
+                        "two op modes are named " + entry.name + ": " + other.where + " and " + entry.where);
             }
         }
         entries.sort(Comparator.comparing((Entry e) -> e.kind).thenComparing(e -> e.name));
@@ -216,7 +222,11 @@ public final class SimCatalog {
         TeleOp teleOp = type.getAnnotation(TeleOp.class);
         String name = auto != null ? auto.name() : teleOp != null ? teleOp.name() : "";
         String group = auto != null ? auto.group() : teleOp != null ? teleOp.group() : "";
-        return new Entry(name.isEmpty() ? type.getSimpleName() : name, group, kindOf(type), type.getName(),
+        return new Entry(
+                name.isEmpty() ? type.getSimpleName() : name,
+                group,
+                kindOf(type),
+                type.getName(),
                 () -> construct(type));
     }
 
@@ -238,8 +248,9 @@ public final class SimCatalog {
             registrar.setAccessible(true);
             registrar.invoke(null, manager);
         } catch (InvocationTargetException e) {
-            throw new IllegalStateException("the registrar " + registrar.getDeclaringClass().getName() + "." + registrar.getName()
-                    + " failed", e.getCause());
+            throw new IllegalStateException(
+                    "the registrar " + registrar.getDeclaringClass().getName() + "." + registrar.getName() + " failed",
+                    e.getCause());
         } catch (IllegalAccessException | IllegalArgumentException e) {
             throw new IllegalStateException("could not call the registrar " + registrar, e);
         }
@@ -255,8 +266,8 @@ public final class SimCatalog {
                     ? ((OpMode) registration.instance).where()
                     : registration.type.getName();
             String kind = registration.meta.flavor == OpModeMeta.Flavor.TELEOP ? TELEOP : AUTO;
-            entries.add(new Entry(registration.meta.name, registration.meta.group, kind, where,
-                    () -> (OpMode) registration.opMode()));
+            entries.add(new Entry(registration.meta.name, registration.meta.group, kind, where, () ->
+                    (OpMode) registration.opMode()));
         }
         return entries;
     }
@@ -288,7 +299,8 @@ public final class SimCatalog {
                     if (Files.isDirectory(packageDir)) {
                         try (Stream<Path> files = Files.walk(packageDir)) {
                             files.filter(Files::isRegularFile)
-                                    .forEach(file -> classFiles.add(root.relativize(file).toString().replace(File.separatorChar, '/')));
+                                    .forEach(file -> classFiles.add(
+                                            root.relativize(file).toString().replace(File.separatorChar, '/')));
                         }
                     }
                 } else if (location.isFile()) {
@@ -311,7 +323,9 @@ public final class SimCatalog {
             if (!classFile.endsWith(".class")) {
                 continue;
             }
-            String rest = classFile.substring(0, classFile.length() - ".class".length()).replace('/', '.');
+            String rest = classFile
+                    .substring(0, classFile.length() - ".class".length())
+                    .replace('/', '.');
             if (rest.contains("$") || rest.endsWith(".package-info") || rest.endsWith(".module-info")) {
                 continue; // nested classes are not op modes
             }

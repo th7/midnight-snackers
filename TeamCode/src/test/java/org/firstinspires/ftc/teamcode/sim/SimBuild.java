@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import org.firstinspires.ftc.teamcode.base.OpMode;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -19,13 +17,13 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
+import org.firstinspires.ftc.teamcode.base.OpMode;
 
 /**
  * Compiles the robot's main sources, as they are on disk right now, with the JDK's own compiler
@@ -41,9 +39,10 @@ import javax.tools.ToolProvider;
  */
 public final class SimBuild {
     /** What a compile error in the simulator's own sources means, said once ahead of them. */
-    static final String SIMULATOR_DOES_NOT_FIT = "the simulator does not fit these robot sources: it was built from the code"
-            + " the server runs from, and these sources came from another version of it. Pull develop; if that does not help,"
-            + " the coach brings develop and the server's checkout to the same code and restarts the server.";
+    static final String SIMULATOR_DOES_NOT_FIT =
+            "the simulator does not fit these robot sources: it was built from the code"
+                    + " the server runs from, and these sources came from another version of it. Pull develop; if that does not help,"
+                    + " the coach brings develop and the server's checkout to the same code and restarts the server.";
 
     /**
      * One compiler error: the file relative to the source root, its line, and the message. A
@@ -67,6 +66,7 @@ public final class SimBuild {
         public final Path classes;
         /** Compiler errors when the build failed, otherwise empty. */
         public final String diagnostics;
+
         public final List<Problem> problems;
         /** False when the sources had not changed and the previous output was reused. */
         public final boolean rebuilt;
@@ -80,7 +80,8 @@ public final class SimBuild {
                 if (text.length() > 0) {
                     text.append('\n');
                 }
-                text.append(problem.file.isEmpty() ? "" : problem.file + ":" + problem.line + ": ").append(problem.message);
+                text.append(problem.file.isEmpty() ? "" : problem.file + ":" + problem.line + ": ")
+                        .append(problem.message);
             }
             this.diagnostics = text.toString();
         }
@@ -90,6 +91,7 @@ public final class SimBuild {
     private final Path harnessRoot;
     /** The simulator's resources, next to its sources ({@code src/test/resources}); copied into the output as they are. */
     private final Path resourcesRoot;
+
     private final Path buildRoot;
     private String lastFingerprint;
     private Result lastResult;
@@ -123,7 +125,8 @@ public final class SimBuild {
      * project lacks is missing, in its build and in its child, rather than quietly this server's.
      */
     public static List<String> libraries() {
-        return librariesOf(List.of(System.getProperty("java.class.path").split(Pattern.quote(File.pathSeparator))),
+        return librariesOf(
+                List.of(System.getProperty("java.class.path").split(Pattern.quote(File.pathSeparator))),
                 locationOf(OpMode.class));
     }
 
@@ -143,7 +146,8 @@ public final class SimBuild {
     /** Where a class was loaded from: a jar, or a directory of classes. */
     private static Path locationOf(Class<?> type) {
         try {
-            return Paths.get(type.getProtectionDomain().getCodeSource().getLocation().toURI());
+            return Paths.get(
+                    type.getProtectionDomain().getCodeSource().getLocation().toURI());
         } catch (URISyntaxException e) {
             throw new IllegalStateException("no location for " + type, e);
         }
@@ -153,7 +157,8 @@ public final class SimBuild {
         List<Path> sources = sourcesUnder(sourceRoot);
         List<Path> harness = harnessUnder(harnessRoot);
         List<Path> resources = filesUnder(resourcesRoot);
-        String fingerprint = fingerprintOf(sourceRoot, sources) + fingerprintOf(harnessRoot, harness)
+        String fingerprint = fingerprintOf(sourceRoot, sources)
+                + fingerprintOf(harnessRoot, harness)
                 + fingerprintOf(resourcesRoot, resources);
         if (fingerprint.equals(lastFingerprint) && lastResult != null) {
             return new Result(lastResult.classes, lastResult.problems, false);
@@ -170,14 +175,19 @@ public final class SimBuild {
         }
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         boolean ok;
-        try (StandardJavaFileManager files = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
+        try (StandardJavaFileManager files =
+                compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
             List<String> options = List.of(
-                    "-d", output.toString(),
-                    "-cp", String.join(File.pathSeparator, libraries()),
-                    "--release", "17",
+                    "-d",
+                    output.toString(),
+                    "-cp",
+                    String.join(File.pathSeparator, libraries()),
+                    "--release",
+                    "17",
                     "-proc:none",
                     "-nowarn",
-                    "-encoding", "UTF-8");
+                    "-encoding",
+                    "UTF-8");
             List<java.io.File> sourceFiles = new ArrayList<>();
             for (Path source : sources) {
                 sourceFiles.add(source.toFile());
@@ -186,7 +196,9 @@ public final class SimBuild {
                 sourceFiles.add(source.toFile());
             }
             Iterable<? extends JavaFileObject> units = files.getJavaFileObjectsFromFiles(sourceFiles);
-            ok = sourceFiles.isEmpty() || compiler.getTask(null, files, diagnostics, options, null, units).call();
+            ok = sourceFiles.isEmpty()
+                    || compiler.getTask(null, files, diagnostics, options, null, units)
+                            .call();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -213,7 +225,8 @@ public final class SimBuild {
         try (Stream<Path> walk = Files.walk(mainDir)) {
             List<Path> kotlin = walk.filter(p -> p.toString().endsWith(".kt")).collect(Collectors.toList());
             if (!kotlin.isEmpty()) {
-                throw new IllegalStateException("cannot build for the simulator: Kotlin sources are not compiled here: " + kotlin);
+                throw new IllegalStateException(
+                        "cannot build for the simulator: Kotlin sources are not compiled here: " + kotlin);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -233,7 +246,8 @@ public final class SimBuild {
      */
     static List<Path> harnessUnder(Path harnessRoot) {
         try (Stream<Path> walk = Files.walk(harnessRoot)) {
-            return walk.filter(p -> p.toString().endsWith(".java") && !p.getFileName().toString().endsWith("Test.java")
+            return walk.filter(p -> p.toString().endsWith(".java")
+                            && !p.getFileName().toString().endsWith("Test.java")
                             && Files.isRegularFile(p))
                     .sorted(Comparator.comparing(Path::toString))
                     .collect(Collectors.toList());
@@ -248,7 +262,9 @@ public final class SimBuild {
             return List.of();
         }
         try (Stream<Path> walk = Files.walk(root)) {
-            return walk.filter(Files::isRegularFile).sorted(Comparator.comparing(Path::toString)).collect(Collectors.toList());
+            return walk.filter(Files::isRegularFile)
+                    .sorted(Comparator.comparing(Path::toString))
+                    .collect(Collectors.toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -271,7 +287,8 @@ public final class SimBuild {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             for (Path source : sources) {
-                String line = sourceRoot.relativize(source) + "|" + Files.size(source) + "|" + Files.getLastModifiedTime(source).toMillis() + "\n";
+                String line = sourceRoot.relativize(source) + "|" + Files.size(source) + "|"
+                        + Files.getLastModifiedTime(source).toMillis() + "\n";
                 digest.update(line.getBytes(StandardCharsets.UTF_8));
             }
             StringBuilder hex = new StringBuilder();
@@ -293,13 +310,19 @@ public final class SimBuild {
             if (d.getKind() != Diagnostic.Kind.ERROR) {
                 continue;
             }
-            Path file = d.getSource() == null ? null : Path.of(d.getSource().toUri()).toAbsolutePath().normalize();
+            Path file = d.getSource() == null
+                    ? null
+                    : Path.of(d.getSource().toUri()).toAbsolutePath().normalize();
             if (file != null && file.startsWith(harnessRoot)) {
                 simulator = true;
-                problems.add(new Problem("", d.getLineNumber(),
-                        "simulator " + relative(harnessRoot, file) + ":" + d.getLineNumber() + ": " + d.getMessage(null)));
+                problems.add(new Problem(
+                        "",
+                        d.getLineNumber(),
+                        "simulator " + relative(harnessRoot, file) + ":" + d.getLineNumber() + ": "
+                                + d.getMessage(null)));
             } else {
-                problems.add(new Problem(file == null ? "" : relative(sourceRoot, file), d.getLineNumber(), d.getMessage(null)));
+                problems.add(new Problem(
+                        file == null ? "" : relative(sourceRoot, file), d.getLineNumber(), d.getMessage(null)));
             }
         }
         if (simulator) {
