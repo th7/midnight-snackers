@@ -4,6 +4,11 @@ import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+/**
+ * One part of a plan: something to start, and a test of whether it is done. A <b>timed</b> step is
+ * done once enough time has passed on the clock it is given, which is the robot's
+ * ({@code robot.clock}), never the system's, so a simulation can own time.
+ */
 public class Step implements PlanPart {
     private final String name;
     private final Runnable start;
@@ -23,11 +28,11 @@ public class Step implements PlanPart {
         this.clock = clock;
     }
 
-    public Step(String name, Runnable start, LongPredicate elapsedNanosChecker) {
-        this(name, start, elapsedNanosChecker, System::nanoTime);
-    }
-
-    Step(String name, Runnable start, LongPredicate elapsedNanosChecker, LongSupplier clock) {
+    /**
+     * A timed step: done when {@code elapsedNanosChecker} accepts the nanoseconds since it started,
+     * measured on {@code clock}.
+     */
+    public Step(String name, Runnable start, LongPredicate elapsedNanosChecker, LongSupplier clock) {
         this.name = name;
         this.start = start;
         this.done = () -> elapsedNanosChecker.test(clock.getAsLong() - nanoStartedAt);
@@ -38,8 +43,9 @@ public class Step implements PlanPart {
         return (elapsedNanos) -> elapsedNanos / 1_000_000_000d > seconds;
     }
 
-    public static Step waitFor(String label, double seconds) {
-        return new Step(label + " waitFor " + seconds, () -> {}, Step.secondsElapsed(seconds));
+    /** A step that does nothing but wait {@code seconds} on {@code clock}. */
+    public static Step waitFor(String label, double seconds, LongSupplier clock) {
+        return new Step(label + " waitFor " + seconds, () -> {}, Step.secondsElapsed(seconds), clock);
     }
 
     public boolean done() {

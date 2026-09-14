@@ -4,13 +4,28 @@ import com.acmerobotics.roadrunner.DualNum;
 import com.acmerobotics.roadrunner.MecanumKinematics;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.PoseVelocity2d;
+import com.acmerobotics.roadrunner.PoseVelocity2dDual;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Time;
 import com.acmerobotics.roadrunner.Twist2d;
-import com.acmerobotics.roadrunner.Twist2dDual;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.dyn4j.dynamics.Body;
+import org.dyn4j.dynamics.BodyFixture;
+import org.dyn4j.dynamics.Settings;
+import org.dyn4j.geometry.Geometry;
+import org.dyn4j.geometry.MassType;
+import org.dyn4j.geometry.Transform;
+import org.dyn4j.geometry.Vector2;
+import org.dyn4j.geometry.hull.GiftWrap;
+import org.dyn4j.world.World;
+import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.base.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
@@ -21,46 +36,92 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 
 /**
- * A kinematic model of the robot on the season's field ({@link SimField}). Motor powers set by
- * the robot code become wheel velocities through the drive model Road Runner was tuned with
- * ({@link MecanumDrive.Params}); the true pose is integrated from those, kept inside the walls and
- * out of the field elements, and the sensors the localizer reads (dead wheel encoders and IMU yaw)
- * are written back from the true pose. The robot is an {@link #ROBOT_SIZE_IN}-inch cube; the
- * walls, {@link #WALL_HEIGHT_IN} inches high, and the field's obstacles stop it dead and let it
- * slide along them. The field's loose game pieces are balls the robot pushes ahead of itself:
- * they roll on with the speed they were given, slow to a stop, and stop at the walls, the
- * obstacles and each other. The robot has no inertia, slip, or sensor noise, and nothing pushes
- * it back.
+ * The robot on the season's field ({@link SimField}), as rigid bodies in a dyn4j world: the robot,
+ * the walls, the field's obstacles, and the balls. The robot is driven by the model Road Runner
+ * was tuned with ({@link MecanumDrive.Params}): each wheel's motor, at its commanded power, pushes
+ * its wheel toward the speed the tuned kS and kV give, at the rate the tuned kA allows, so the
+ * robot takes time to get up to speed and to stop, and its true pose comes out of the engine
+ * integrating that push against whatever it runs into. The walls and the obstacles stop it and
+ * let it slide along them; a ball it pushes rolls on and slows; a ball pinned against a wall
+ * stops the robot short of it, since nothing goes through anything. The sensors the localizer
+ * reads (dead wheel encoders and IMU yaw) are written back from the true pose, so the dead
+ * wheels read nothing while the wheels spin against a wall.
+ * <p>
+ * The robot starts with {@link #PRELOAD} balls in it. The launcher is on the turntable, and its
+ * gates feed it as the robot code drives them: with the top gate open a ball drops from the hopper
+ * into the chamber, and with the bottom gate open the chambered ball drops into the flywheel and
+ * leaves at a speed set by the flywheel's, on an arc under gravity. A ball that goes in through a
+ * hive cell's mouth has scored and rests in the cell; one that meets any other panel of the hive
+ * bounces off; one that comes down on the floor rolls on; one that clears a wall is out. The
+ * model is planar apart from that flight: only the robot's footprint collides, nothing goes over a
+ * wall or under a hive by being low, and a flying ball meets only the hives, the floor and the
+ * walls. The clock is the world's ({@link #nanoTime()}), read by the robot code through its
+ * hardware, so a run is the same every time and need not take real time. The world moves in
+ * steps of at most {@link #MAX_STEP_SECONDS} however long the caller waited, so nothing is jumped
+ * over.
+ * <p>
+ * The launcher's throw ({@link #LAUNCH_HEIGHT_IN} and the constants around it) and the turntable's
+ * speed are guesses until measured on the robot, calibrated so the robot code's close launch from
+ * its launch distance reaches the nearer cell's mouth.
  */
 public class SimRobot {
     public static final double BATTERY_VOLTS = 12.5;
-    /** The season's field: its walls, and the elements the robot runs into. */
+    /** The season's field: its walls, the elements the robot runs into, and the hives' cells. */
     public static final SimField FIELD = SimField.load();
     /** The field is a square of this many inches between the walls, centred on the origin. */
     public static final double FIELD_SIZE_IN = FIELD.size;
     /**
-     * The walls are this many inches high. The model is planar, so nothing ever goes over them;
-     * the replay page draws them at this height.
+     * The walls are this many inches high. A driving robot never goes over them; a flying ball
+     * that clears one is out of the field.
      */
     public static final double WALL_HEIGHT_IN = FIELD.wallHeight;
     /**
      * The robot is a cube of this many inches on a side, centred on its pose and standing on the
-     * floor. Only its footprint collides, with the walls and with the obstacles: the field elements
-     * that stand lower than this.
+     * floor. Only its footprint collides, with the walls, the obstacles and the balls.
      */
     public static final double ROBOT_SIZE_IN = 18;
+    /** How many balls the robot starts with, in its hopper: what it can launch before it is empty. */
+    public static final int PRELOAD = 3;
+    /** A quarter inch at full speed: far less than the thinnest obstacle. */
+    public static final double MAX_STEP_SECONDS = 0.005;
+    /** Where a launched ball leaves the robot: this high off the floor, and this far ahead of the robot's centre. */
+    public static final double LAUNCH_HEIGHT_IN = 14;
+
+    public static final double LAUNCH_AHEAD_IN = 6;
+    /** A launched ball leaves this far above horizontal. */
+    public static final double LAUNCH_ANGLE_RADIANS = Math.toRadians(45);
+    /**
+     * How fast a launched ball leaves, in inches per second, for each encoder tick per second of
+     * the flywheel: a close launch (1050 ticks per second) from 40 inches reaches the mouth of the
+     * nearer cell.
+     */
+    public static final double LAUNCH_IN_PER_S_PER_TICK_PER_S = 0.189;
+
+    private static final double ROBOT_MASS_KG = 15;
+    /** Heavy for pollen, but a ball that light next to the robot is what the engine's solver handles worst. */
+    private static final double BALL_MASS_KG = 0.5;
 
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
-    /** A quarter inch at full speed: far less than the thinnest obstacle. */
-    private static final double MAX_STEP_SECONDS = 0.005;
-    /** A rolling ball loses its speed with this time constant, and is at rest below {@link #REST_SPEED}. */
-    private static final double ROLL_SECONDS = 0.4;
+    /** A rolling ball loses its speed with this time constant, and is at rest below {@link #REST_SPEED_IN_PER_S}. */
+    private static final double ROLL_SECONDS = 0.8;
 
-    private static final double REST_SPEED = 0.5;
-    /** How much of the closing speed a ball keeps, bouncing off a wall, an obstacle or another ball. */
+    private static final double REST_SPEED_IN_PER_S = 0.5;
+    /** How much of the closing speed a ball keeps, bouncing off a wall, an obstacle, the robot, a hive or another ball. */
     private static final double BOUNCE = 0.3;
-    /** How many times over the balls' contacts are settled each step; a chain of them halves its overlap each time. */
-    private static final int SETTLING_PASSES = 6;
+
+    private static final double GRAVITY_IN_PER_S2 = 386.09;
+    /** A ball that comes down on the floor slower than this, upward speed lost, rolls rather than bouncing again. */
+    private static final double LANDING_SPEED_IN_PER_S = 25;
+    /** A gate servo is open from this position on: nearer the position the robot code opens it to than the one it closes it to. */
+    private static final double TOP_GATE_OPENS_AT = 0.8;
+
+    private static final double BOTTOM_GATE_OPENS_AT = 0.45;
+    /** Metres per inch: the engine works in metres, everything here is in inches. */
+    private static final double IN = 0.0254;
+    /** How far into a body the engine lets another rest: a fiftieth of an inch. */
+    private static final double CONTACT_TOLERANCE_IN = 0.02;
+    /** The walls are this thick, so nothing gets through one in a step. */
+    private static final double WALL_THICKNESS_M = 1;
     /**
      * How the dead wheel encoders are physically wired: the raw count on the rightBack port rises as
      * the robot moves forward, and the raw count on the leftFront port falls as it moves left.
@@ -98,30 +159,145 @@ public class SimRobot {
     private final TwoDeadWheelLocalizer.Params deadWheels = TwoDeadWheelLocalizer.PARAMS;
     private final MecanumKinematics kinematics =
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
-    private Pose2d pose = new Pose2d(0, 0, 0);
+    private final World<Body> world = new World<>();
+    private final Body robot;
+    /** The simulation's clock: nanoseconds since the world was made, advanced by {@link #step}. */
+    private long nanos = 0;
+    /** Where the robot was after the last step, for the sensors. */
+    private Pose2d previous = new Pose2d(0, 0, 0);
+
     private double parTicks = 0;
     private double perpTicks = 0;
-    /** The loose game pieces, {x, y} each, and their velocities, in {@link SimField#loosePieces}' order. */
-    private final double[][] pieces;
+    /** The balls: the field's loose pieces in {@link SimField#loosePieces}' order, then the preload. */
+    private final Ball[] balls;
+    /** The balls in the robot's hopper, above the top gate, in the order they will drop. */
+    private final Deque<Ball> hopper = new ArrayDeque<>();
+    /** The ball between the gates, or null. */
+    private Ball chambered = null;
 
-    private final double[][] pieceVelocities;
-    private final double[] pieceRadii;
+    private final Map<SimField.Cell, Integer> scoredIn = new LinkedHashMap<>();
 
-    public SimRobot() {
-        int n = FIELD.loosePieces.size();
-        pieces = new double[n][];
-        pieceVelocities = new double[n][];
-        pieceRadii = new double[n];
-        for (int i = 0; i < n; i++) {
-            SimField.Piece piece = FIELD.loosePieces.get(i);
-            pieces[i] = new double[] {piece.x, piece.y};
-            pieceVelocities[i] = new double[] {0, 0};
-            pieceRadii[i] = piece.radius;
+    /** Where a ball is, and what it is doing. */
+    private enum Where {
+        /** On the floor, in the engine's world. */
+        ROLLING,
+        /** In the air, on its arc. */
+        FLYING,
+        /** In the robot. */
+        HELD,
+        /** In a hive cell, at rest. */
+        SCORED,
+        /** Over a wall and out of the field, at rest where it came down. */
+        OUT
+    }
+
+    private static final class Ball {
+        final double radius;
+        final Body body;
+        Where where;
+        /** The position, and while flying the velocity, of a ball that is not in the engine's world. */
+        double x, y, z, vx, vy, vz;
+
+        Ball(double radius, Body body) {
+            this.radius = radius;
+            this.body = body;
         }
     }
 
+    public SimRobot() {
+        Settings settings = world.getSettings();
+        settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
+        settings.setMaximumAtRestLinearVelocity(REST_SPEED_IN_PER_S * IN);
+        settings.setMinimumAtRestTime(0.25);
+        settings.setVelocityConstraintSolverIterations(20);
+        settings.setPositionConstraintSolverIterations(10);
+        world.setGravity(World.ZERO_GRAVITY);
+
+        double half = FIELD_SIZE_IN / 2 * IN;
+        double reach = half + WALL_THICKNESS_M / 2;
+        double length = 2 * half + 2 * WALL_THICKNESS_M;
+        world.addBody(wall(reach, 0, WALL_THICKNESS_M, length));
+        world.addBody(wall(-reach, 0, WALL_THICKNESS_M, length));
+        world.addBody(wall(0, reach, length, WALL_THICKNESS_M));
+        world.addBody(wall(0, -reach, length, WALL_THICKNESS_M));
+        for (SimField.Obstacle obstacle : FIELD.obstacles) {
+            world.addBody(obstacleBody(obstacle));
+        }
+
+        robot = new Body();
+        BodyFixture footprint = robot.addFixture(Geometry.createRectangle(ROBOT_SIZE_IN * IN, ROBOT_SIZE_IN * IN));
+        footprint.setDensity(ROBOT_MASS_KG / (ROBOT_SIZE_IN * IN * ROBOT_SIZE_IN * IN));
+        footprint.setFriction(0);
+        footprint.setRestitution(0);
+        robot.setMass(MassType.NORMAL);
+        robot.setAtRestDetectionEnabled(false);
+        robot.setLinearDamping(0);
+        robot.setAngularDamping(0);
+        world.addBody(robot);
+
+        int loose = FIELD.loosePieces.size();
+        balls = new Ball[loose + PRELOAD];
+        for (int i = 0; i < balls.length; i++) {
+            double radius = i < loose ? FIELD.loosePieces.get(i).radius : FIELD.loosePieces.get(0).radius;
+            balls[i] = new Ball(radius, ballBody(radius));
+            if (i < loose) {
+                SimField.Piece piece = FIELD.loosePieces.get(i);
+                placePiece(i, piece.x, piece.y);
+            } else {
+                balls[i].where = Where.HELD;
+                hopper.add(balls[i]);
+            }
+        }
+        for (SimField.Cell cell : FIELD.cells) {
+            scoredIn.put(cell, 0);
+        }
+    }
+
+    private static Body wall(double x, double y, double width, double height) {
+        Body wall = new Body();
+        BodyFixture fixture = wall.addFixture(Geometry.createRectangle(width, height));
+        fixture.setFriction(0);
+        fixture.setRestitution(0);
+        wall.setMass(MassType.INFINITE);
+        wall.translate(x, y);
+        return wall;
+    }
+
+    /** An obstacle as a static convex body: the hull of its footprint, in metres. */
+    private static Body obstacleBody(SimField.Obstacle obstacle) {
+        Vector2[] points = new Vector2[obstacle.footprint.length];
+        for (int i = 0; i < points.length; i++) {
+            points[i] = new Vector2(obstacle.footprint[i][0] * IN, obstacle.footprint[i][1] * IN);
+        }
+        Vector2[] hull = new GiftWrap().generate(points);
+        Body body = new Body();
+        try {
+            BodyFixture fixture = body.addFixture(Geometry.createPolygon(hull));
+            fixture.setFriction(0);
+            fixture.setRestitution(0);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(obstacle.name + " is not a convex footprint the engine can hold", e);
+        }
+        body.setMass(MassType.INFINITE);
+        return body;
+    }
+
+    private static Body ballBody(double radius) {
+        Body body = new Body();
+        BodyFixture fixture = body.addFixture(Geometry.createCircle(radius * IN));
+        fixture.setDensity(BALL_MASS_KG / (Math.PI * radius * IN * radius * IN));
+        fixture.setFriction(0);
+        fixture.setRestitution(BOUNCE);
+        fixture.setRestitutionVelocity(0);
+        body.setMass(MassType.NORMAL);
+        body.setLinearDamping(1 / ROLL_SECONDS);
+        body.setAngularDamping(1 / ROLL_SECONDS);
+        return body;
+    }
+
     /**
-     * The simulated devices, wired the way {@link Hardware#fromHardwareMap} wires the real ones.
+     * The simulated devices, wired the way {@link Hardware#fromHardwareMap} wires the real ones,
+     * on the simulation's clock.
      */
     public Hardware hardware() {
         Hardware hardware = new Hardware();
@@ -137,72 +313,390 @@ public class SimRobot {
         hardware.voltageSensor = voltageSensor;
         hardware.aprilTags = ArrayList::new;
         hardware.dashboard = dashboard;
+        hardware.clock = this::nanoTime;
         return hardware;
+    }
+
+    /**
+     * The simulation's clock, in nanoseconds since the world was made: what the robot code's timers
+     * read, through its hardware. It advances only when the world does.
+     */
+    public long nanoTime() {
+        return nanos;
     }
 
     /**
      * Where the robot really is, as opposed to where its localizer thinks it is.
      */
     public Pose2d pose() {
-        return pose;
+        Transform transform = robot.getTransform();
+        return new Pose2d(
+                transform.getTranslationX() / IN, transform.getTranslationY() / IN, transform.getRotationAngle());
     }
 
     /**
-     * Put the robot somewhere; its IMU reads the new heading at once. A pose beyond a wall or in
-     * an obstacle is placed against it, since the field holds whatever the robot is given.
+     * Put the robot somewhere, at rest; its IMU reads the new heading at once. A pose beyond a wall
+     * or in an obstacle is placed against it, since the field holds whatever the robot is given.
      */
     public void setPose(Pose2d pose) {
-        this.pose = onTheField(pose);
-        imu.yawRadians = this.pose.heading.toDouble();
-    }
-
-    /** Where the loose game pieces are, {x, y} each in {@link SimField#loosePieces}' order. */
-    public double[][] pieces() {
-        double[][] copy = new double[pieces.length][];
-        for (int i = 0; i < pieces.length; i++) {
-            copy[i] = pieces[i].clone();
-        }
-        return copy;
-    }
-
-    /** Set a loose game piece down somewhere, at rest. */
-    public void placePiece(int index, double x, double y) {
-        pieces[index] = new double[] {x, y};
-        pieceVelocities[index] = new double[] {0, 0};
+        Pose2d placed = onTheField(pose);
+        // Out of the world and back in, so the engine forgets what the robot was touching.
+        world.removeBody(robot);
+        Transform transform = robot.getTransform();
+        transform.setTranslation(placed.position.x * IN, placed.position.y * IN);
+        transform.setRotation(placed.heading.toDouble());
+        robot.setLinearVelocity(new Vector2());
+        robot.setAngularVelocity(0);
+        robot.clearForce();
+        robot.clearTorque();
+        world.addBody(robot);
+        previous = pose();
+        imu.yawRadians = previous.heading.toDouble();
     }
 
     /**
-     * Advance the world by {@code dtSeconds} using the motor powers currently commanded. The world
-     * moves in steps of at most {@link #MAX_STEP_SECONDS}, so the robot never jumps over an
-     * obstacle between two of them, however long the caller waited.
+     * Where the balls are, {x, y, z} each: the field's loose pieces in {@link SimField#loosePieces}'
+     * order, then the robot's preload; null for a ball held in the robot.
+     */
+    public double[][] pieces() {
+        double[][] out = new double[balls.length][];
+        for (int i = 0; i < balls.length; i++) {
+            Ball ball = balls[i];
+            switch (ball.where) {
+                case ROLLING:
+                    Transform t = ball.body.getTransform();
+                    out[i] = new double[] {t.getTranslationX() / IN, t.getTranslationY() / IN, ball.radius};
+                    break;
+                case HELD:
+                    out[i] = null;
+                    break;
+                default:
+                    out[i] = new double[] {ball.x, ball.y, ball.z};
+            }
+        }
+        return out;
+    }
+
+    /** Set a ball down on the floor somewhere, at rest, whatever it was doing. */
+    public void placePiece(int index, double x, double y) {
+        Ball ball = balls[index];
+        if (ball.where == Where.HELD) {
+            hopper.remove(ball);
+            if (chambered == ball) {
+                chambered = null;
+            }
+        }
+        if (ball.where == Where.ROLLING) {
+            world.removeBody(ball.body); // and back in below, so the engine forgets what it was touching
+        }
+        ball.where = Where.ROLLING;
+        ball.body.getTransform().setTranslation(x * IN, y * IN);
+        ball.body.setLinearVelocity(new Vector2());
+        ball.body.setAngularVelocity(0);
+        ball.body.setAtRest(false);
+        world.addBody(ball.body);
+    }
+
+    /** How many balls the robot holds: in its hopper and its chamber. */
+    public int held() {
+        return hopper.size() + (chambered == null ? 0 : 1);
+    }
+
+    /** How many balls are in that alliance's hive, "Blue" or "Red". */
+    public int scored(String alliance) {
+        int total = 0;
+        for (Map.Entry<SimField.Cell, Integer> entry : scoredIn.entrySet()) {
+            if (entry.getKey().alliance.equals(alliance)) {
+                total += entry.getValue();
+            }
+        }
+        return total;
+    }
+
+    /** How many balls each alliance has in its hive, by "Blue" and "Red". */
+    public Map<String, Integer> scored() {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (SimField.Cell cell : scoredIn.keySet()) {
+            out.merge(cell.alliance, scoredIn.get(cell), Integer::sum);
+        }
+        return out;
+    }
+
+    /**
+     * Advance the world by {@code dtSeconds} using the motor powers and servo positions currently
+     * commanded. The world moves in steps of at most {@link #MAX_STEP_SECONDS}, so the robot never
+     * jumps over an obstacle between two of them, however long the caller waited.
      */
     public void step(double dtSeconds) {
+        nanos += Math.round(dtSeconds * 1e9);
         int steps = Math.max(1, (int) Math.ceil(dtSeconds / MAX_STEP_SECONDS));
         for (int i = 0; i < steps; i++) {
             substep(dtSeconds / steps);
         }
     }
 
-    private void substep(double dtSeconds) {
-        double lf = wheelVelocity(leftFront, LEFT_FRONT_MOUNT);
-        double lb = wheelVelocity(leftBack, LEFT_BACK_MOUNT);
-        double rb = wheelVelocity(rightBack, RIGHT_BACK_MOUNT);
-        double rf = wheelVelocity(rightFront, RIGHT_FRONT_MOUNT);
+    private void substep(double dt) {
+        // The flywheel and the turntable are simple: the flywheel is at its commanded speed, the
+        // turntable turns at a rate set by its power.
+        launcher.measuredVelocity = launcher.commandedVelocity;
+        turnTable.currentPosition +=
+                (int) Math.round(clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dt);
 
-        Twist2dDual<Time> twist = kinematics.forward(new MecanumKinematics.WheelIncrements<>(
-                increment(lf, dtSeconds), increment(lb, dtSeconds),
-                increment(rb, dtSeconds), increment(rf, dtSeconds)));
-        Pose2d previous = pose;
-        pose = onTheField(previous.plus(twist.value()));
-        rollThePieces(dtSeconds);
+        driveTheRobot(dt);
+        feedTheLauncher();
+        world.step(1, dt);
+        flyTheBalls(dt);
+        readTheSensors(dt);
+    }
 
-        // The dead wheels roll on the floor, so they read what the robot actually did: nothing when
-        // the wheels spin against a wall, and only the sliding component when it drives into one at
-        // an angle. Their readings are what TwoDeadWheelLocalizer expects to invert.
+    /**
+     * The motors push the robot: each wheel's acceleration from the tuned model, turned into a
+     * force and a torque on the robot through the drive's kinematics, for the engine to integrate.
+     */
+    private void driveTheRobot(double dt) {
+        Vector2 linear = robot.getLinearVelocity();
+        double heading = robot.getTransform().getRotationAngle();
+        double cos = Math.cos(heading), sin = Math.sin(heading);
+        double vx = linear.x / IN, vy = linear.y / IN;
+        PoseVelocity2d inRobotFrame =
+                new PoseVelocity2d(new Vector2d(cos * vx + sin * vy, -sin * vx + cos * vy), robot.getAngularVelocity());
+        MecanumKinematics.WheelVelocities<Time> wheels =
+                kinematics.inverse(PoseVelocity2dDual.constant(inRobotFrame, 1));
+
+        double lf = wheelAcceleration(leftFront, LEFT_FRONT_MOUNT, wheels.leftFront.value(), dt);
+        double lb = wheelAcceleration(leftBack, LEFT_BACK_MOUNT, wheels.leftBack.value(), dt);
+        double rb = wheelAcceleration(rightBack, RIGHT_BACK_MOUNT, wheels.rightBack.value(), dt);
+        double rf = wheelAcceleration(rightFront, RIGHT_FRONT_MOUNT, wheels.rightFront.value(), dt);
+        // The forward kinematics are linear, so they take the wheels' accelerations to the robot's.
+        Twist2d acceleration = kinematics
+                .forward(new MecanumKinematics.WheelIncrements<>(dual(lf), dual(lb), dual(rb), dual(rf)))
+                .value();
+        double ax = cos * acceleration.line.x - sin * acceleration.line.y;
+        double ay = sin * acceleration.line.x + cos * acceleration.line.y;
+        double mass = robot.getMass().getMass();
+        robot.applyForce(new Vector2(ax * IN * mass, ay * IN * mass));
+        robot.applyTorque(acceleration.angle * robot.getMass().getInertia());
+    }
+
+    /**
+     * A wheel's acceleration, in inches per second squared, from the model the drive was tuned
+     * with: volts = kS * sign(v) + kV * v + kA * a, with the wheel at {@code velocity} inches per
+     * second and the motor at its commanded power. Below kS the motor cannot start the wheel, and
+     * a wheel that friction would stop within the step stops.
+     */
+    private double wheelAcceleration(FakeDcMotorEx motor, int mount, double velocity, double dt) {
+        int direction = motor.getDirection() == DcMotorSimple.Direction.REVERSE ? -1 : 1;
+        double volts = mount * direction * clamp(motor.power) * BATTERY_VOLTS;
+        double ticksPerSecond = velocity / drive.inPerTick;
+        boolean creeping = Math.abs(ticksPerSecond) <= drive.kS / drive.kA * dt;
+        if (creeping && Math.abs(volts) <= drive.kS) {
+            return -velocity / dt;
+        }
+        double sign = ticksPerSecond != 0 ? Math.signum(ticksPerSecond) : Math.signum(volts);
+        double acceleration = (volts - drive.kS * sign - drive.kV * ticksPerSecond) / drive.kA;
+        return acceleration * drive.inPerTick;
+    }
+
+    private static DualNum<Time> dual(double value) {
+        return new DualNum<>(new double[] {value, 0});
+    }
+
+    /**
+     * The gates feed the launcher: with the top gate open a ball drops from the hopper into the
+     * empty chamber; with the bottom gate open the chambered ball drops into the flywheel and
+     * leaves the robot.
+     */
+    private void feedTheLauncher() {
+        if (topGate.position >= TOP_GATE_OPENS_AT && chambered == null && !hopper.isEmpty()) {
+            chambered = hopper.poll();
+        }
+        if (bottomGate.position >= BOTTOM_GATE_OPENS_AT && chambered != null) {
+            launch(chambered);
+            chambered = null;
+        }
+    }
+
+    /**
+     * A ball leaves the launcher, which faces where the turntable does, at a speed set by the
+     * flywheel's, plus the robot's own.
+     */
+    private void launch(Ball ball) {
+        Pose2d pose = pose();
+        double aim = pose.heading.toDouble() + turnTableOffsetRadians();
+        double speed = Math.abs(launcher.measuredVelocity) * LAUNCH_IN_PER_S_PER_TICK_PER_S;
+        Vector2 robotVelocity = robot.getLinearVelocity();
+        ball.where = Where.FLYING;
+        ball.x = pose.position.x + LAUNCH_AHEAD_IN * Math.cos(aim);
+        ball.y = pose.position.y + LAUNCH_AHEAD_IN * Math.sin(aim);
+        ball.z = LAUNCH_HEIGHT_IN;
+        ball.vx = robotVelocity.x / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.cos(aim);
+        ball.vy = robotVelocity.y / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.sin(aim);
+        ball.vz = speed * Math.sin(LAUNCH_ANGLE_RADIANS);
+    }
+
+    /** How far the turntable, and so the launcher, has turned from straight ahead, counter-clockwise. */
+    private double turnTableOffsetRadians() {
+        return (double) turnTable.currentPosition / Turntable.TICKS_PER_REVOLUTION * 2 * Math.PI;
+    }
+
+    /**
+     * The flying balls move on under gravity. One that crosses a hive cell's mouth going in has
+     * scored; one that meets another panel of a hive bounces off it; one that comes down on the
+     * floor bounces or, slow enough, lands and rolls; one that reaches a wall bounces off it, or
+     * is out if it is over it.
+     */
+    private void flyTheBalls(double dt) {
+        for (Ball ball : balls) {
+            if (ball.where != Where.FLYING) {
+                continue;
+            }
+            double[] from = {ball.x, ball.y, ball.z};
+            ball.vz -= GRAVITY_IN_PER_S2 * dt;
+            ball.x += ball.vx * dt;
+            ball.y += ball.vy * dt;
+            ball.z += ball.vz * dt;
+            if (meetsAHive(ball, from)) {
+                continue;
+            }
+            if (ball.z < ball.radius) {
+                ball.z = ball.radius;
+                if (-ball.vz < LANDING_SPEED_IN_PER_S) {
+                    land(ball);
+                    continue;
+                }
+                ball.vz = -ball.vz * BOUNCE;
+            }
+            double limit = FIELD_SIZE_IN / 2 - ball.radius;
+            for (int axis = 0; axis < 2; axis++) {
+                double position = axis == 0 ? ball.x : ball.y;
+                if (Math.abs(position) <= limit) {
+                    continue;
+                }
+                if (ball.z - ball.radius > WALL_HEIGHT_IN) {
+                    ball.where = Where.OUT;
+                    ball.z = ball.radius;
+                    break;
+                }
+                double clamped = Math.signum(position) * limit;
+                if (axis == 0) {
+                    ball.x = clamped;
+                    ball.vx = -ball.vx * BOUNCE;
+                } else {
+                    ball.y = clamped;
+                    ball.vy = -ball.vy * BOUNCE;
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether the ball's move from {@code from} met a hive: through a cell's mouth, scoring, or
+     * against another panel, bouncing off. A panel is met where the move crosses its plane inside
+     * its ring.
+     */
+    private boolean meetsAHive(Ball ball, double[] from) {
+        double[] to = {ball.x, ball.y, ball.z};
+        for (SimField.Cell cell : FIELD.cells) {
+            for (double[][] panel : cell.panels) {
+                double[] normal = panel == cell.mouth ? cell.mouthNormal : SimField.normal(panel);
+                double[] hit = crossing(panel, normal, from, to);
+                if (hit == null) {
+                    continue;
+                }
+                boolean goingIn = side(normal, panel[0], from) > 0;
+                if (panel == cell.mouth && goingIn) {
+                    score(ball, cell);
+                    return true;
+                }
+                double along = ball.vx * normal[0] + ball.vy * normal[1] + ball.vz * normal[2];
+                ball.vx -= (1 + BOUNCE) * along * normal[0];
+                ball.vy -= (1 + BOUNCE) * along * normal[1];
+                ball.vz -= (1 + BOUNCE) * along * normal[2];
+                double back = goingIn ? CONTACT_TOLERANCE_IN : -CONTACT_TOLERANCE_IN;
+                ball.x = hit[0] + back * normal[0];
+                ball.y = hit[1] + back * normal[1];
+                ball.z = hit[2] + back * normal[2];
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The ball is in the cell: at rest inside it, beside any already there. */
+    private void score(Ball ball, SimField.Cell cell) {
+        int already = scoredIn.get(cell);
+        scoredIn.put(cell, already + 1);
+        ball.where = Where.SCORED;
+        ball.x = cell.centre[0];
+        ball.y = cell.centre[1] + 2 * ball.radius * (already % 2 == 0 ? already / 2 : -(already + 1) / 2);
+        ball.z = cell.centre[2];
+        ball.vx = ball.vy = ball.vz = 0;
+    }
+
+    /** The ball comes down on the floor and rolls on with the speed it had along it. */
+    private void land(Ball ball) {
+        ball.where = Where.ROLLING;
+        world.addBody(ball.body);
+        ball.body.getTransform().setTranslation(ball.x * IN, ball.y * IN);
+        ball.body.setLinearVelocity(new Vector2(ball.vx * IN, ball.vy * IN));
+        ball.body.setAngularVelocity(0);
+        ball.body.setAtRest(false);
+    }
+
+    /** Which side of the plane through {@code point} with {@code normal} the position is on: positive along the normal. */
+    private static double side(double[] normal, double[] point, double[] position) {
+        return (position[0] - point[0]) * normal[0]
+                + (position[1] - point[1]) * normal[1]
+                + (position[2] - point[2]) * normal[2];
+    }
+
+    /**
+     * Where the move from {@code from} to {@code to} crosses the panel's plane, if it does and the
+     * crossing is inside the panel's ring; else null.
+     */
+    private static double[] crossing(double[][] panel, double[] normal, double[] from, double[] to) {
+        double before = side(normal, panel[0], from);
+        double after = side(normal, panel[0], to);
+        if (before == 0 || (before > 0) == (after > 0)) {
+            return null;
+        }
+        double t = before / (before - after);
+        double[] hit = {
+            from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t
+        };
+        // Inside the ring, seen along the normal's largest axis, where the ring is widest.
+        int drop = 0;
+        for (int axis = 1; axis < 3; axis++) {
+            if (Math.abs(normal[axis]) > Math.abs(normal[drop])) {
+                drop = axis;
+            }
+        }
+        int u = (drop + 1) % 3, v = (drop + 2) % 3;
+        boolean inside = false;
+        for (int i = 0, j = panel.length - 1; i < panel.length; j = i++) {
+            double[] a = panel[i], b = panel[j];
+            if ((a[v] > hit[v]) != (b[v] > hit[v]) && hit[u] < (b[u] - a[u]) * (hit[v] - a[v]) / (b[v] - a[v]) + a[u]) {
+                inside = !inside;
+            }
+        }
+        return inside ? hit : null;
+    }
+
+    /**
+     * The dead wheels roll on the floor, so they read what the robot actually did: nothing when
+     * the wheels spin against a wall, and only the sliding component when it drives into one at
+     * an angle. Their readings are what TwoDeadWheelLocalizer expects to invert.
+     */
+    private void readTheSensors(double dt) {
+        Pose2d pose = pose();
         Twist2d delta = pose.minus(previous);
-        PoseVelocity2d velocity = dtSeconds > 0
-                ? new PoseVelocity2d(delta.line.div(dtSeconds), delta.angle / dtSeconds)
-                : twist.velocity().value();
+        previous = pose;
+        Vector2 linear = robot.getLinearVelocity();
+        double heading = pose.heading.toDouble();
+        double cos = Math.cos(heading), sin = Math.sin(heading);
+        double vx = linear.x / IN, vy = linear.y / IN;
+        PoseVelocity2d velocity =
+                new PoseVelocity2d(new Vector2d(cos * vx + sin * vy, -sin * vx + cos * vy), robot.getAngularVelocity());
 
         parTicks += delta.line.x / drive.inPerTick + deadWheels.parYTicks * delta.angle;
         perpTicks += delta.line.y / drive.inPerTick + deadWheels.perpXTicks * delta.angle;
@@ -213,12 +707,8 @@ public class SimRobot {
         leftFront.currentPosition = (int) Math.round(PERP_RAW_SIGN * perpTicks);
         leftFront.measuredVelocity = PERP_RAW_SIGN * perpVelocity;
 
-        imu.yawRadians = pose.heading.toDouble();
+        imu.yawRadians = heading;
         imu.yawRateRadiansPerSecond = velocity.angVel;
-
-        launcher.measuredVelocity = launcher.commandedVelocity;
-        turnTable.currentPosition +=
-                (int) Math.round(clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dtSeconds);
     }
 
     /**
@@ -246,158 +736,6 @@ public class SimRobot {
             return candidate;
         }
         return new Pose2d(new Vector2d(x, y), candidate.heading);
-    }
-
-    /**
-     * The loose pieces roll on and slow down, are pushed ahead of the robot with its speed, and
-     * stop at each other, at the obstacles and at the walls, keeping a little bounce. The
-     * contacts are settled a few times over, so a ball pushed into the next moves it on rather
-     * than staying in the robot.
-     */
-    private void rollThePieces(double dt) {
-        double[][] robot = corners(pose.position, pose.heading);
-        double keep = Math.exp(-dt / ROLL_SECONDS);
-        for (int i = 0; i < pieces.length; i++) {
-            double[] p = pieces[i], v = pieceVelocities[i];
-            p[0] += v[0] * dt;
-            p[1] += v[1] * dt;
-            v[0] *= keep;
-            v[1] *= keep;
-            if (Math.hypot(v[0], v[1]) < REST_SPEED) {
-                v[0] = 0;
-                v[1] = 0;
-            }
-        }
-        for (int pass = 0; pass < SETTLING_PASSES; pass++) {
-            for (int i = 0; i < pieces.length; i++) {
-                double[] p = pieces[i], v = pieceVelocities[i];
-                double[] push = pushCircleOutOf(robot, p, pieceRadii[i]);
-                if (push != null) {
-                    p[0] += push[0];
-                    p[1] += push[1];
-                    if (pass == 0) {
-                        // The ball leaves the robot's edge at least as fast as the edge came: the push in one step.
-                        double length = Math.hypot(push[0], push[1]);
-                        double[] n = {push[0] / length, push[1] / length};
-                        double along = v[0] * n[0] + v[1] * n[1];
-                        double atLeast = length / dt;
-                        if (along < atLeast) {
-                            v[0] += (atLeast - along) * n[0];
-                            v[1] += (atLeast - along) * n[1];
-                        }
-                    }
-                }
-                for (int j = i + 1; j < pieces.length; j++) {
-                    bounceApart(i, j);
-                }
-                for (SimField.Obstacle obstacle : FIELD.obstacles) {
-                    double[] out = pushCircleOutOf(obstacle.footprint, pieces[i], pieceRadii[i]);
-                    if (out != null) {
-                        bounceOff(i, out);
-                    }
-                }
-                double limit = FIELD_SIZE_IN / 2 - pieceRadii[i];
-                for (int axis = 0; axis < 2; axis++) {
-                    if (pieces[i][axis] > limit) {
-                        double[] in = new double[2];
-                        in[axis] = limit - pieces[i][axis];
-                        bounceOff(i, in);
-                    } else if (pieces[i][axis] < -limit) {
-                        double[] in = new double[2];
-                        in[axis] = -limit - pieces[i][axis];
-                        bounceOff(i, in);
-                    }
-                }
-            }
-        }
-    }
-
-    /** Move a ball by the push and turn the speed it had into the push around, keeping {@link #BOUNCE} of it. */
-    private void bounceOff(int i, double[] push) {
-        double[] p = pieces[i], v = pieceVelocities[i];
-        p[0] += push[0];
-        p[1] += push[1];
-        double length = Math.hypot(push[0], push[1]);
-        double[] n = {push[0] / length, push[1] / length};
-        double along = v[0] * n[0] + v[1] * n[1];
-        if (along < 0) {
-            v[0] -= (1 + BOUNCE) * along * n[0];
-            v[1] -= (1 + BOUNCE) * along * n[1];
-        }
-    }
-
-    /** Two balls that overlap are moved apart equally, and trade the speed they close at, keeping {@link #BOUNCE} of it. */
-    private void bounceApart(int i, int j) {
-        double[] a = pieces[i], b = pieces[j];
-        double dx = b[0] - a[0], dy = b[1] - a[1];
-        double distance = Math.hypot(dx, dy);
-        double touching = pieceRadii[i] + pieceRadii[j];
-        if (distance >= touching) {
-            return;
-        }
-        double[] n = distance > 0 ? new double[] {dx / distance, dy / distance} : new double[] {1, 0};
-        double apart = (touching - distance) / 2;
-        a[0] -= apart * n[0];
-        a[1] -= apart * n[1];
-        b[0] += apart * n[0];
-        b[1] += apart * n[1];
-        double[] va = pieceVelocities[i], vb = pieceVelocities[j];
-        double closing = (va[0] - vb[0]) * n[0] + (va[1] - vb[1]) * n[1];
-        if (closing > 0) {
-            double exchange = (1 + BOUNCE) * closing / 2;
-            va[0] -= exchange * n[0];
-            va[1] -= exchange * n[1];
-            vb[0] += exchange * n[0];
-            vb[1] += exchange * n[1];
-        }
-    }
-
-    /**
-     * The shortest move that takes a ball out of a convex polygon (wound counter-clockwise), or
-     * null when they do not touch: away from the nearest edge, or out of the nearest side when the
-     * centre is inside.
-     */
-    private static double[] pushCircleOutOf(double[][] polygon, double[] centre, double radius) {
-        double leastInside = Double.NEGATIVE_INFINITY;
-        double[] leastInsideNormal = null;
-        boolean inside = true;
-        double nearest = Double.POSITIVE_INFINITY;
-        double[] nearestPoint = null;
-        for (int i = 0; i < polygon.length; i++) {
-            double[] a = polygon[i], b = polygon[(i + 1) % polygon.length];
-            double ex = b[0] - a[0], ey = b[1] - a[1];
-            double length = Math.hypot(ex, ey);
-            if (length == 0) {
-                continue;
-            }
-            double[] outward = {ey / length, -ex / length};
-            double signed = (centre[0] - a[0]) * outward[0] + (centre[1] - a[1]) * outward[1];
-            if (signed > 0) {
-                inside = false;
-            } else if (signed > leastInside) {
-                leastInside = signed;
-                leastInsideNormal = outward;
-            }
-            double t =
-                    Math.max(0, Math.min(1, ((centre[0] - a[0]) * ex + (centre[1] - a[1]) * ey) / (length * length)));
-            double[] point = {a[0] + t * ex, a[1] + t * ey};
-            double distance = Math.hypot(centre[0] - point[0], centre[1] - point[1]);
-            if (distance < nearest) {
-                nearest = distance;
-                nearestPoint = point;
-            }
-        }
-        if (inside) {
-            double out = radius - leastInside;
-            return new double[] {leastInsideNormal[0] * out, leastInsideNormal[1] * out};
-        }
-        if (nearest >= radius || nearest == 0) {
-            return null;
-        }
-        double out = radius - nearest;
-        return new double[] {
-            (centre[0] - nearestPoint[0]) / nearest * out, (centre[1] - nearestPoint[1]) / nearest * out
-        };
     }
 
     /**
@@ -490,27 +828,12 @@ public class SimRobot {
         return new double[] {x / polygon.length, y / polygon.length};
     }
 
-    /**
-     * Wheel surface velocity in inches per second for a motor's commanded power, inverting the
-     * feedforward model the drive was tuned with: volts = kS + kV * ticksPerSecond.
-     * The SDK applies the motor's direction on the way to the terminals; the mount decides which
-     * way the wheel turns for positive terminal power.
-     */
-    private double wheelVelocity(FakeDcMotorEx motor, int mount) {
-        int direction = motor.getDirection() == DcMotorSimple.Direction.REVERSE ? -1 : 1;
-        double volts = mount * direction * clamp(motor.power) * BATTERY_VOLTS;
-        if (Math.abs(volts) <= drive.kS) {
-            return 0;
-        }
-        double ticksPerSecond = (volts - Math.signum(volts) * drive.kS) / drive.kV;
-        return ticksPerSecond * drive.inPerTick;
-    }
-
-    private static DualNum<Time> increment(double velocity, double dtSeconds) {
-        return new DualNum<>(new double[] {velocity * dtSeconds, velocity});
-    }
-
     private static double clamp(double power) {
         return Math.max(-1, Math.min(1, power));
+    }
+
+    /** The bodies in the world, for a test of the model itself. */
+    List<Body> bodies() {
+        return world.getBodies();
     }
 }

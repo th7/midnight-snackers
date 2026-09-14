@@ -33,7 +33,7 @@ public class BrainTest {
     private void see(Robot robot, double x, double y, double yawRadians) {
         for (int i = 0; i < 3; i++) {
             detections.clear();
-            long now = System.nanoTime();
+            long now = sim.nanoTime();
             Pose3D robotPose = new Pose3D(
                     new Position(DistanceUnit.INCH, x, y, 0, now),
                     new YawPitchRollAngles(AngleUnit.RADIANS, yawRadians, 0, 0, now));

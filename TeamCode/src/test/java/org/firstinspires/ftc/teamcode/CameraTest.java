@@ -23,13 +23,34 @@ public class CameraTest {
     private static final int OTHER_TAG = 21;
 
     private final List<AprilTagDetection> detections = new ArrayList<>();
-    private final Camera camera = cameraFed(detections);
+    private final SimRobot sim = new SimRobot();
+    private final Camera camera = cameraFed(sim, detections);
 
     /** A robot whose camera sees {@code detections} instead of the simulator's empty view. */
-    private static Camera cameraFed(List<AprilTagDetection> detections) {
-        Hardware hardware = new SimRobot().hardware();
+    private static Camera cameraFed(SimRobot sim, List<AprilTagDetection> detections) {
+        Hardware hardware = sim.hardware();
         hardware.aprilTags = () -> detections;
         return new Robot(hardware, Alliance.RELATIVE, new FakeTelemetry()).camera;
+    }
+
+    /** A detection's age is judged on the robot's clock, the one its frames are stamped with. */
+    @Test
+    public void aSightingGoesStaleATenthOfASecondAfterItsFrameOnTheRobotsClock() {
+        for (int i = 0; i < 3; i++) {
+            detections.clear();
+            detections.add(goalDetection(BLUE_GOAL_TAG, 10, 20, Math.PI / 2));
+            camera.loop();
+        }
+        assertTrue(camera.sighting().isPresent());
+        detections.clear();
+
+        sim.step(0.09);
+        camera.loop();
+        assertTrue("still fresh", camera.sighting().isPresent());
+
+        sim.step(0.02);
+        camera.loop();
+        assertTrue("stale", camera.sighting().isEmpty());
     }
 
     @Test
@@ -67,7 +88,7 @@ public class CameraTest {
     }
 
     private AprilTagDetection goalDetection(int id, double x, double y, double yawRadians) {
-        long now = System.nanoTime();
+        long now = sim.nanoTime();
         Pose3D robotPose = new Pose3D(
                 new Position(DistanceUnit.INCH, x, y, 0, now),
                 new YawPitchRollAngles(AngleUnit.RADIANS, yawRadians, 0, 0, now));

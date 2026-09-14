@@ -7,6 +7,16 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 ## The robot
 
+**Hardware** — Everything the op modes touch outside their own code: the
+configured devices, the camera's detections, the dashboard, and the
+**clock**, the time in nanoseconds that every timer in the robot code
+reads and nothing else does: a step that waits, the trajectory followers,
+the camera's check of a detection's age. On the robot the clock is the
+system's; in the simulator it is the simulated clock. A timed step must
+name its clock, so a forgotten one is a compile error. Class: `Hardware`;
+`Robot.clock`.
+
+
 **Drive** — The subsystem that moves the robot. Whoever is driving gives it
 one **intent** per loop and it writes the wheel motors itself: **manual**
 (straight, strafe and turn powers from the sticks), **toward** (a pose the
@@ -315,8 +325,14 @@ only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Class: `SimRunStream`;
 `SimReplayPage.Source`.
 
-**Run** — One execution of one op mode on a fresh simulated robot, in real
-time. A run has a **phase** (*building*, *starting* while the child JVM
+**Run** — One execution of one op mode on a fresh simulated robot, on the
+simulation's own clock: the world moves one **loop period** (20 ms, about
+what a loop takes on the robot) between one op mode loop and the next,
+whatever the machine is doing, so a run is the same tick for tick every
+time it is made. A run's **pace** says whether it is held to real time:
+a run somebody drives or watches live is (`REAL_TIME`), a run nobody
+watches, such as a test, goes as fast as the machine can (`FASTEST`).
+A run has a **phase** (*building*, *starting* while the child JVM
 loads the catalog, *running* from the moment the op mode's time begins,
 *finished*), a
 **message** (compile errors, or why it was killed), and when finished an
@@ -324,10 +340,10 @@ loads the catalog, *running* from the moment the op mode's time begins,
 protocol*, or *child exited with code N*. It starts from the op mode's
 **start pose** as it was when the run was started. An **auto run** is done when its plan is, and times
 out when the plan is not done within the **run timeout** (60 s on the
-bench). A **TeleOp run** has no plan: it is driven from the controller
+bench, of simulated time). A **TeleOp run** has no plan: it is driven from the controller
 until the driver presses Stop, or is done when its **period** is over
 (120 s on the bench, a match's driver-controlled period). Either kind is
-*stopped* when the driver presses Stop.
+*stopped* when the driver presses Stop. Class: `SimRunner`; `SimRunner.Pace`.
 
 **Driver station** — What the driver does during a run: the state of the
 two **gamepads** and the **Stop** button; and before it, where the robot
@@ -359,8 +375,10 @@ pressed, tick by tick, and the keys go back to play/pause and stepping.
 
 **Tick** — One entry in a run's recording, one per op mode loop: the true
 pose, the plan's current step (empty for a TeleOp), the drive powers, the
-dashboard packets drawn that loop, where the loose game pieces are, and
-for a TeleOp what each gamepad read. Class: `SimRecording`.
+dashboard packets drawn that loop, where the balls are (each as x, y, z, or
+nothing for one held in the robot), how many balls the robot **holds**, how
+many each alliance has **scored**, and for a TeleOp what each gamepad read.
+Class: `SimRecording`.
 
 **Replay** — A run's ticks written as a single self-contained HTML page
 with the field, the true pose, and play/pause/scrub controls, named after
@@ -377,20 +395,42 @@ simulated robot's, so the page draws what the simulator collides. Class:
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
 
-**Simulated robot** — A kinematic model on the field: motor powers become
-wheel velocities through the tuned drive model, the true pose is
-integrated from those and kept inside the walls and out of the obstacles,
-and the localizer's sensors are written back from the true pose, so the
-dead wheels read nothing while the wheels spin against a wall. The robot
-is an 18-inch cube; a wall or an obstacle stops it dead and lets it slide
-along, and a robot placed beyond a wall or in an obstacle is placed
-against it. The **loose pieces** are balls the robot pushes ahead of itself:
-they roll on with the speed they were given, slow to a stop, and stop at
-the walls, the obstacles and each other, with a little bounce; nothing
-pushes the robot back. The model is planar: only the robot's footprint
-collides, and nothing goes over a wall or under a hive by being low. No
-inertia, slip, or noise. The world moves in steps of at most 5 ms whatever
-the loop rate, so nothing is jumped over. Class: `SimRobot`.
+**Simulated robot** — The robot, the walls, the field's obstacles and the
+balls as rigid bodies in a **dyn4j** world, driven by the model Road Runner
+was tuned with: each wheel's motor, at its commanded power, pushes its wheel
+toward the speed the tuned kS and kV give, at the rate the tuned kA
+allows, so the robot takes time to get up to speed and to stop, and its
+true pose comes out of the engine integrating that push against whatever
+it runs into. The localizer's sensors are written back from the true
+pose, so the dead wheels read nothing while the wheels spin against a
+wall. The robot is an 18-inch cube; a wall or an obstacle stops it and
+lets it slide along, a robot pushed into something off-centre pivots on
+it, and a robot placed beyond a wall or in an obstacle is placed against
+it, at rest. The balls are pushed ahead of the robot, roll on with the
+speed they were given, slow to a stop, and stop at the walls, the
+obstacles and each other with a little bounce; a ball pinned against a
+wall stops the robot short of it, since nothing goes through anything.
+The robot starts with three balls (its **preload**) in its **hopper**;
+the launcher is on the turntable, and its gates feed it as the robot
+code drives them: with the top gate open a ball drops from the hopper
+into the **chamber**, and with the bottom gate open the chambered ball
+drops into the flywheel and leaves at a speed set by the flywheel's, on
+an arc under gravity. A ball that goes in through a cell's mouth has
+scored and rests in the cell; one that meets any other panel of a hive
+bounces off; one that comes down on the floor rolls on; one that clears a
+wall is out. The model is planar apart from that flight: only the robot's
+footprint collides, nothing goes over a wall or under a hive by being low,
+and a flying ball meets only the hives, the floor and the walls. No slip
+or sensor noise. The launcher's throw and the turntable's speed are
+guesses until measured on the robot, calibrated so the code's close
+launch from its launch distance reaches the nearer cell's mouth. The
+world moves in steps of at most 5 ms whatever the loop rate, so nothing
+is jumped over. Class: `SimRobot`.
+
+**Simulated clock** — The simulation's time, in nanoseconds since the
+world was made, advanced only when the world is stepped. The robot code
+reads it through its hardware's clock, so a simulated run need not take
+real time and comes out the same every time. Method: `SimRobot.nanoTime`.
 
 **Field** — The season's field as the simulator has it, reduced from
 FIRST's CAD by `tools/field/step_to_field.py` to `field.json`: the
@@ -406,7 +446,10 @@ are only drawn, each cell as its six flat **panels** (two sides, a
 bottom, two tops and a back), seen through and outlined in the alliance's
 colour. The game pieces on the floor in the open are **loose**, the
 simulator's to roll; the rest (the flowers' stacks, the rows outside the
-walls, the nectar in the hives) stay put. Everything is in the field frame
+walls, the nectar in the hives) stay put. Each hive's two **cells** are
+what a launched ball scores in: a cell is its six panels, one of which is
+its **mouth**, the rib at its lower, open end, facing out of the cell and
+down, which a ball has scored by crossing going in. Everything is in the field frame
 Road Runner uses, in inches: the origin at the centre, +x away from the
 audience, +y to the audience's left. Class: `SimField`.
 

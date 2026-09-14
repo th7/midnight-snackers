@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.base;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.LongSupplier;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Brain;
@@ -25,6 +27,9 @@ public final class Robot implements Loopable {
     public final Gamepad gamepad2;
     public final Telemetry telemetry;
     public final Dashboard dashboard;
+    /** The hardware's clock, in nanoseconds: what every timer here runs on. */
+    public final LongSupplier clock;
+
     public final Launcher launcher;
     public final Drive drive;
     public final Camera camera;
@@ -45,9 +50,10 @@ public final class Robot implements Loopable {
         this.gamepad2 = gamepad2;
         this.telemetry = telemetry;
         this.dashboard = hardware.dashboard;
+        this.clock = Objects.requireNonNull(hardware.clock, "the hardware has no clock");
         launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate);
         drive = new Drive(hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack);
-        camera = new Camera(hardware.aprilTags);
+        camera = new Camera(hardware.aprilTags, clock);
         nav = new Nav(
                 new MecanumDrive(
                         hardware.leftFront,
@@ -56,7 +62,8 @@ public final class Robot implements Loopable {
                         hardware.rightFront,
                         hardware.imu,
                         hardware.voltageSensor,
-                        new Pose2d(0, 0, 0)),
+                        new Pose2d(0, 0, 0),
+                        clock),
                 alliance);
         turntable = new Turntable(hardware.turnTable);
         brain = new Brain();

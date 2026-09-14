@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.roadrunner.Pose2d;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
@@ -12,16 +13,18 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class Camera extends SubSystem {
-    private final DetectionFilter detectionFilter = new DetectionFilter();
+    private final DetectionFilter detectionFilter;
     private final Supplier<List<AprilTagDetection>> detectionSource;
     private boolean telemetryOn = false;
     private AprilTagDetection goalDetection;
 
     /**
      * @param detectionSource the latest AprilTag detections; {@link AprilTagWebcam#detections} on the robot.
+     * @param clock the robot's clock, which the detections' frames are stamped on, to judge their age
      */
-    public Camera(Supplier<List<AprilTagDetection>> detectionSource) {
+    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier clock) {
         this.detectionSource = detectionSource;
+        this.detectionFilter = new DetectionFilter(clock);
     }
 
     @Override

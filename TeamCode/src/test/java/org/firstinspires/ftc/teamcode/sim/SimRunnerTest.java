@@ -13,6 +13,7 @@ import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.GatedAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.sim.TestAutos.WaitingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.junit.Rule;
 import org.junit.Test;
@@ -36,6 +37,74 @@ public class SimRunnerTest {
         assertNull("an auto's ticks carry no driver inputs", recording.ticks().get(0).gamepad1);
         assertEquals("auto", recording.kind());
         assertTrue(Files.exists(out.resolve("ThreeLoopAuto.html")));
+    }
+
+    // --- time: a run is a fixed number of loops, the same every time, paced to real time only when watched ---
+
+    @Test
+    public void theWorldMovesOneLoopPeriodPerLoopOnTheSimulatedClock() {
+        SimRecording recording =
+                SimRunner.run(new WaitingAuto(), sim, 10, folder.getRoot().toPath());
+
+        java.util.List<SimRecording.Tick> ticks = recording.ticks();
+        for (int i = 0; i < ticks.size(); i++) {
+            assertEquals("tick " + i, i * SimRunner.LOOP_SECONDS, ticks.get(i).seconds, 1e-9);
+        }
+        assertEquals(
+                "the world moved once per loop", ticks.size() * SimRunner.LOOP_SECONDS, sim.nanoTime() / 1e9, 1e-9);
+        // The loops at 0, 0.02, ... 2.00 s are still waiting; the one at 2.02 s finds the wait over.
+        assertEquals((int) Math.ceil(WaitingAuto.SECONDS / SimRunner.LOOP_SECONDS) + 2, ticks.size());
+    }
+
+    @Test
+    public void everyRunOfAnAutoIsTheSameTickForTick() {
+        SimRecording first = SimRunner.run(
+                new WaitingAuto(), new SimRobot(), 10, folder.getRoot().toPath());
+        SimRecording second = SimRunner.run(
+                new WaitingAuto(), new SimRobot(), 10, folder.getRoot().toPath());
+
+        assertEquals(first.ticks().size(), second.ticks().size());
+        for (int i = 0; i < first.ticks().size(); i++) {
+            assertEquals(first.ticks().get(i).seconds, second.ticks().get(i).seconds, 0);
+            assertEquals(first.ticks().get(i).truePose, second.ticks().get(i).truePose);
+        }
+    }
+
+    @Test
+    public void anAutoRunsAsFastAsItCanUnlessItIsWatched() {
+        long before = System.nanoTime();
+
+        SimRunner.run(new WaitingAuto(), sim, 10, folder.getRoot().toPath());
+
+        double wallSeconds = (System.nanoTime() - before) / 1e9;
+        assertTrue(
+                "two simulated seconds took " + wallSeconds + "s of wall clock", wallSeconds < WaitingAuto.SECONDS / 2);
+    }
+
+    @Test
+    public void aRunFromADriverStationKeepsToRealTimeSoTheDriverCanDriveIt() {
+        long before = System.nanoTime();
+
+        SimRunner.record(
+                new SimRecording("StickTeleOp", "teleop"),
+                new StickTeleOp(),
+                sim,
+                0.3,
+                folder.getRoot().toPath(),
+                new SimDriverStation());
+
+        double wallSeconds = (System.nanoTime() - before) / 1e9;
+        assertTrue("0.3 simulated seconds took " + wallSeconds + "s of wall clock", wallSeconds >= 0.25);
+    }
+
+    @Test
+    public void anAutosTimeoutIsOnTheSimulatedClock() {
+        AssertionError error = assertThrows(
+                AssertionError.class,
+                () -> SimRunner.run(new WaitingAuto(), sim, 1, folder.getRoot().toPath()));
+
+        assertTrue(error.getMessage(), error.getMessage().contains("1.0s"));
+        assertEquals("the world stopped when the timeout fell", 1, sim.nanoTime() / 1e9, SimRunner.LOOP_SECONDS + 1e-9);
     }
 
     @Test

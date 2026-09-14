@@ -18,7 +18,7 @@ import org.junit.Test;
  */
 public class AutoOpTest {
     private static AutoOp autoFor(Alliance alliance) {
-        AutoOp opMode = new PlanOp(alliance, "AutoOpTest", plans -> Step.waitFor("wait", 1));
+        AutoOp opMode = new PlanOp(alliance, "AutoOpTest", plans -> new Step("wait", () -> {}, () -> false));
         opMode.useHardware(new SimRobot().hardware());
         opMode.telemetry = new FakeTelemetry();
         opMode.gamepad1 = new Gamepad();
@@ -43,11 +43,12 @@ public class AutoOpTest {
 
     @Test
     public void aPlanOpSaysWhereItsPlanIsAndAnyOtherAutoIsFoundByItsClass() {
-        AutoOp planOp = new PlanOp(Alliance.RELATIVE, "Plans.somewhere()", plans -> Step.waitFor("wait", 1));
+        AutoOp planOp =
+                new PlanOp(Alliance.RELATIVE, "Plans.somewhere()", plans -> new Step("wait", () -> {}, () -> false));
         AutoOp classy = new AutoOp(Alliance.RELATIVE) {
             @Override
             public PlanPart getPlan() {
-                return Step.waitFor("wait", 1);
+                return new Step("wait", () -> {}, () -> false);
             }
         };
 
