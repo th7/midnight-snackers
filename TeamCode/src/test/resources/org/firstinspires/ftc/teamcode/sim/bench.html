@@ -44,6 +44,7 @@
   .opmode + .opmode { border-top: 1px solid var(--line); }
   .opmode .name { font-weight: 600; }
   .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .opmode .actions { display: flex; gap: 6px; }
   .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   button { font: inherit; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
   button.run { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
@@ -75,7 +76,7 @@
 <body>
 <header>
   <h1>Sim Bench</h1>
-  <p class="sub">Run an op mode on the simulated robot and watch it drive; drive a TeleOp yourself from the on-screen controller. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
+  <p class="sub">Run an op mode on the simulated robot and watch it drive; drive a TeleOp yourself from the on-screen controller. Place first to choose where the robot starts; each op mode remembers its place. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
 </header>
 <main>
   <aside>
@@ -99,7 +100,7 @@
       <span id="stage-state"></span>
     </div>
     <pre id="run-message" hidden></pre>
-    <div class="empty" id="stage-empty">Pick an op mode and press Run. The live view appears here.</div>
+    <div class="empty" id="stage-empty">Pick an op mode and press Place to choose where the robot starts, or Run. The live view appears here.</div>
     <iframe id="stage" title="Live view of the current run" hidden></iframe>
   </section>
 </main>
@@ -121,6 +122,8 @@
   const stageState = document.getElementById('stage-state');
   const history = document.querySelector('#history tbody');
   let shownRunId = null;
+  // The op mode whose placement page the stage shows, or null when it shows a run.
+  let placingName = null;
   let running = false;
 
   // "Autonomous" or "TeleOp", then the op mode's own group when it says something more.
@@ -150,10 +153,16 @@
       const name = document.createElement('div'); name.className = 'name'; name.textContent = entry.name;
       const cls = document.createElement('div'); cls.className = 'cls mono'; cls.textContent = entry.where; cls.title = entry.where;
       text.append(name, cls);
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const place = document.createElement('button');
+      place.className = 'place'; place.textContent = 'Place'; place.title = 'Choose where the robot starts';
+      place.addEventListener('click', () => showPlacement(entry));
       const button = document.createElement('button');
       button.className = 'run'; button.textContent = 'Run'; button.dataset.opmode = entry.name;
       button.addEventListener('click', () => run(entry));
-      row.append(text, button);
+      actions.append(place, button);
+      row.append(text, actions);
       list.appendChild(row);
     }
   }
@@ -174,10 +183,23 @@
   function show(id, name) {
     if (shownRunId === id) return;
     shownRunId = id;
+    placingName = null;
     stageTitle.textContent = 'Run ' + id + ': ' + name;
     stageEmpty.hidden = true;
     stage.hidden = false;
     stage.src = '/runs/' + id + '/';
+  }
+
+  // The placement page: the robot where the op mode's runs start, to drag into place.
+  function showPlacement(entry) {
+    shownRunId = null;
+    placingName = entry.name;
+    stageTitle.textContent = 'Place ' + entry.name;
+    stageState.innerHTML = '';
+    runMessage.hidden = true;
+    stageEmpty.hidden = true;
+    stage.hidden = false;
+    stage.src = '/place?opmode=' + encodeURIComponent(entry.name);
   }
 
   function messageOf(run) {
@@ -217,7 +239,7 @@
     stageState.innerHTML = shown ? pill(shown) : '';
     runMessage.textContent = messageOf(shown);
     runMessage.hidden = !messageOf(shown);
-    if (status.runs.length && shownRunId === null) show(status.runs[0].id, status.runs[0].name);
+    if (status.runs.length && shownRunId === null && placingName === null) show(status.runs[0].id, status.runs[0].name);
   }
 
   let pollTimer = null;

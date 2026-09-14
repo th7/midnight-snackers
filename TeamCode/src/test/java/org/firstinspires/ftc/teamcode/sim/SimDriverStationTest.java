@@ -5,12 +5,15 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.junit.Test;
+
+import java.util.Optional;
 
 public class SimDriverStationTest {
     private static JsonObject json(String text) {
@@ -139,5 +142,52 @@ public class SimDriverStationTest {
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> station.accept(json("{\"nonsense\": 1}")));
         assertTrue(e.getMessage(), e.getMessage().contains("nonsense"));
+    }
+
+    /** Before the run, the bench places the robot: the runner waits for that line, and reads the pose from it. */
+    @Test
+    public void theStartLinePlacesTheRobotAndTheRunnerWaitsForIt() throws Exception {
+        SimDriverStation station = new SimDriverStation();
+        Pose2d placed = new Pose2d(-60, 12, Math.PI / 2);
+        JsonObject line = SimDriverStation.startLine(placed);
+        assertEquals("{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":1.5707963267948966}}", line.toString());
+        Thread later = new Thread(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            station.accept(line);
+        });
+        later.start();
+
+        Optional<Pose2d> start = station.awaitPlacement();
+
+        assertTrue(start.isPresent());
+        assertEquals(-60, start.get().position.x, 0);
+        assertEquals(12, start.get().position.y, 0);
+        assertEquals(Math.PI / 2, start.get().heading.toDouble(), 1e-9);
+        assertFalse(station.stopRequested());
+    }
+
+    @Test
+    public void stopBeforePlacementEndsTheWaitWithNoPose() throws Exception {
+        SimDriverStation station = new SimDriverStation();
+        station.accept(json("{\"stop\": true}"));
+
+        assertFalse(station.awaitPlacement().isPresent());
+    }
+
+    @Test
+    public void aStartLineThatIsNotAPoseIsRefusedByName() {
+        SimDriverStation station = new SimDriverStation();
+
+        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
+                () -> station.accept(json("{\"start\": {\"x\": 1, \"y\": 2}}")));
+        assertTrue(missing.getMessage(), missing.getMessage().contains("heading"));
+        IllegalArgumentException notANumber = assertThrows(IllegalArgumentException.class,
+                () -> station.accept(json("{\"start\": {\"x\": \"far\", \"y\": 2, \"heading\": 0}}")));
+        assertTrue(notANumber.getMessage(), notANumber.getMessage().contains("far"));
+        assertThrows(IllegalArgumentException.class, () -> station.accept(json("{\"start\": 7}")));
     }
 }

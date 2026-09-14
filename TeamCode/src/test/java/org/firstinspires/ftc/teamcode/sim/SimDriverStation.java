@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
@@ -8,16 +9,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
 
 /**
- * What the driver does during a run: the state of the two gamepads and the Stop button. The
- * controller page sends it, the bench relays it, and the runner copies the gamepad states into the
- * op mode's gamepads before every loop, the way the robot controller copies in each packet from the
- * real driver station, so the SDK's own edge detection ({@code crossWasPressed()}) sees presses and
- * releases exactly as it does on the robot. A state holds until the next one replaces it, like a
- * real gamepad. Safe to set from another thread while the run reads it.
+ * What the driver does during a run: the state of the two gamepads and the Stop button; and before
+ * it, where the robot is placed ({@link #startLine}), which the child waits for before its run
+ * starts. The controller page sends the gamepads, the bench relays them, and the runner copies the
+ * gamepad states into the op mode's gamepads before every loop, the way the robot controller
+ * copies in each packet from the real driver station, so the SDK's own edge detection
+ * ({@code crossWasPressed()}) sees presses and releases exactly as it does on the robot. A state
+ * holds until the next one replaces it, like a real gamepad. Safe to set from another thread while
+ * the run reads it.
  */
 public final class SimDriverStation {
     /**
@@ -170,6 +175,36 @@ public final class SimDriverStation {
 
     private final State[] states = {State.NEUTRAL, State.NEUTRAL};
     private volatile boolean stopRequested = false;
+    private final CountDownLatch placed = new CountDownLatch(1);
+    private volatile Pose2d start;
+
+    /** The line that places the robot before the run: {@code {"start": {"x": .., "y": .., "heading": ..}}}. */
+    public static JsonObject startLine(Pose2d start) {
+        JsonObject line = new JsonObject();
+        line.add("start", StartPoses.toJson(start));
+        return line;
+    }
+
+    /** The robot is placed: the run may start. */
+    public void place(Pose2d pose) {
+        start = Objects.requireNonNull(pose, "start");
+        placed.countDown();
+    }
+
+    /**
+     * Waits until the robot is placed, or Stop is pressed first.
+     *
+     * @return where it was placed, or empty when the run was stopped (or this thread interrupted) before it was placed
+     */
+    public Optional<Pose2d> awaitPlacement() {
+        try {
+            placed.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        }
+        return Optional.ofNullable(start);
+    }
 
     /**
      * @param gamepad 1 or 2
@@ -188,9 +223,10 @@ public final class SimDriverStation {
         states[1].applyTo(gamepad2);
     }
 
-    /** The driver pressed Stop: the run ends after the loop in progress. */
+    /** The driver pressed Stop: the run ends after the loop in progress, or never starts if not yet placed. */
     public void stop() {
         stopRequested = true;
+        placed.countDown();
     }
 
     public boolean stopRequested() {
@@ -198,12 +234,19 @@ public final class SimDriverStation {
     }
 
     /**
-     * One line of what the bench sends the child: {@code {"gamepad": 1, "state": {...}}} or
-     * {@code {"stop": true}}.
+     * One line of what the bench sends the child: the {@link #startLine start line} that places
+     * the robot, {@code {"gamepad": 1, "state": {...}}}, or {@code {"stop": true}}.
      *
-     * @throws IllegalArgumentException for anything else
+     * @throws IllegalArgumentException for anything else, a start that is not a pose included
      */
     public void accept(JsonObject line) {
+        if (line.has("start")) {
+            if (!line.get("start").isJsonObject()) {
+                throw new IllegalArgumentException("not a start pose: " + line.get("start"));
+            }
+            place(StartPoses.fromJson(line.getAsJsonObject("start")));
+            return;
+        }
         if (line.has("gamepad") && line.has("state")) {
             set(line.get("gamepad").getAsInt(), State.fromJson(line.getAsJsonObject("state")));
             return;

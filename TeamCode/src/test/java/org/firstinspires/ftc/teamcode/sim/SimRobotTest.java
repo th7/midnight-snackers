@@ -82,6 +82,27 @@ public class SimRobotTest {
         assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
     }
 
+    /** A robot placed beyond a wall is placed against it instead: the walls hold whatever pose it is given. */
+    @Test
+    public void aRobotPlacedOutsideTheWallsIsPlacedAgainstThem() {
+        double edge = SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2;
+
+        sim.setPose(new Pose2d(1000, -1000, 0));
+
+        assertEquals(edge, sim.pose().position.x, DELTA);
+        assertEquals(-edge, sim.pose().position.y, DELTA);
+        assertEquals(0, sim.pose().heading.toDouble(), DELTA);
+
+        sim.setPose(new Pose2d(1000, 0, Math.PI / 4));
+        assertEquals("a turned robot reaches the wall with its corner", SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2 * Math.sqrt(2),
+                sim.pose().position.x, DELTA);
+        assertEquals(Math.PI / 4, sim.pose().heading.toDouble(), DELTA);
+
+        Pose2d inside = new Pose2d(12, -7, 1);
+        sim.setPose(inside);
+        assertEquals("a pose inside the walls is placed as it is", inside, sim.pose());
+    }
+
     @Test
     public void theWallStopsTheRobotWhereItsFrontEdgeMeetsIt() {
         robotDrive();

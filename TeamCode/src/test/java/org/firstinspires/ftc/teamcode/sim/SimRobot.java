@@ -144,10 +144,13 @@ public class SimRobot {
         return pose;
     }
 
-    /** Put the robot somewhere; its IMU reads the new heading at once. */
+    /**
+     * Put the robot somewhere; its IMU reads the new heading at once. A pose beyond a wall or in
+     * an obstacle is placed against it, since the field holds whatever the robot is given.
+     */
     public void setPose(Pose2d pose) {
-        this.pose = pose;
-        imu.yawRadians = pose.heading.toDouble();
+        this.pose = onTheField(pose);
+        imu.yawRadians = this.pose.heading.toDouble();
     }
 
     /** Where the loose game pieces are, {x, y} each in {@link SimField#loosePieces}' order. */
@@ -187,7 +190,7 @@ public class SimRobot {
                 increment(lf, dtSeconds), increment(lb, dtSeconds),
                 increment(rb, dtSeconds), increment(rf, dtSeconds)));
         Pose2d previous = pose;
-        pose = insideTheWalls(clearOfTheObstacles(previous.plus(twist.value())));
+        pose = onTheField(previous.plus(twist.value()));
         rollThePieces(dtSeconds);
 
         // The dead wheels roll on the floor, so they read what the robot actually did: nothing when
@@ -216,13 +219,22 @@ public class SimRobot {
     }
 
     /**
+     * The pose the field allows: {@link #clearOfTheObstacles clear of the obstacles} and
+     * {@link #insideTheWalls inside the walls}, in that order, so a robot pushed out of an
+     * obstacle at the wall still ends inside the field.
+     */
+    public static Pose2d onTheField(Pose2d candidate) {
+        return insideTheWalls(clearOfTheObstacles(candidate));
+    }
+
+    /**
      * The pose the walls allow: the same heading, and the position pushed back just far enough that
      * no corner of the robot's square is beyond a wall. A wall is a straight line, so the square
      * reaches it at half its side scaled by how far the heading is from square-on. Each axis is
      * clamped on its own, which is what lets the robot slide along a wall it drives into at an
      * angle.
      */
-    private static Pose2d insideTheWalls(Pose2d candidate) {
+    public static Pose2d insideTheWalls(Pose2d candidate) {
         double reach = ROBOT_SIZE_IN / 2 * (Math.abs(candidate.heading.real) + Math.abs(candidate.heading.imag));
         double limit = FIELD_SIZE_IN / 2 - reach;
         double x = Math.max(-limit, Math.min(limit, candidate.position.x));

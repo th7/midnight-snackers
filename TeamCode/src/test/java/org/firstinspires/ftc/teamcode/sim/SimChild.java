@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
@@ -31,8 +32,9 @@ import java.util.Optional;
  * <li>{@code --run <name> <seconds> <replayDir> [source...]} runs the op mode of that name,
  * printing the {@link SimRunStream}: one line as the op mode's time begins, then each tick as
  * one line as it happens, and finally one line with the outcome. Standard input is the driver
- * station: one {@link SimDriverStation#accept line} at a time, and the run ends stopped when
- * the input ends.</li>
+ * station: one {@link SimDriverStation#accept line} at a time. The first must place the robot
+ * ({@link SimDriverStation#startLine}); the run starts there, and until then Stop ends it
+ * unstarted. The run ends stopped when the input ends.</li>
  * </ul>
  * The sources are the classes a fixed catalog was built from ({@link SimCatalog#sources()});
  * given none, the child discovers the catalog as the parent would.
@@ -95,12 +97,20 @@ public final class SimChild {
         Thread driver = new Thread(() -> readDriverStation(driverStation, recording), "sim-driver-station");
         driver.setDaemon(true);
         driver.start();
+        // The run starts once the bench has placed the robot; Stop before that ends it unstarted.
+        Optional<Pose2d> start = driverStation.awaitPlacement();
+        if (start.isEmpty()) {
+            recording.finish(SimRunStream.Outcome.stopped());
+            return recording.outcome();
+        }
+        SimRobot sim = new SimRobot();
+        sim.setPose(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);
         streamer.start();
         protocol.println(SimRunStream.started());
         try {
-            SimRunner.record(recording, opMode, new SimRobot(), seconds, replayDir, driverStation);
+            SimRunner.record(recording, opMode, sim, seconds, replayDir, driverStation);
         } catch (RuntimeException | Error e) {
             // the outcome is on the recording
         }

@@ -70,6 +70,14 @@
   .legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin-top: 8px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; }
   kbd { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink); }
+  canvas.moving, canvas.turning { cursor: grabbing; }
+
+  /* placing: the start pose as numbers, next to the field the robot is dragged on */
+  #placement { display: grid; gap: 10px; }
+  #placement label { display: grid; grid-template-columns: 6ch 1fr 3ch; gap: 8px; align-items: center; color: var(--muted); }
+  #placement input { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); width: 100%; min-width: 0; }
+  #placement .unit { color: var(--muted); font-size: 12px; }
+  .place-msg { color: var(--muted); font-size: 13px; margin: 0; min-height: 1.2em; }
 
   /* the controller: a PlayStation-style gamepad, every input clickable and labelled with its key */
   .controller-panel { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
@@ -125,16 +133,23 @@
     <p class="hint" id="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left. Dashed outlines on the floor are what the simulator collides.</p>
   </section>
   <aside>
-    <dl>
+    <div id="placement" hidden>
+      <p class="section-label">Start pose</p>
+      <label>x <input id="start-x" type="number" step="0.5" class="mono"><span class="unit">in</span></label>
+      <label>y <input id="start-y" type="number" step="0.5" class="mono"><span class="unit">in</span></label>
+      <label>heading <input id="start-heading" type="number" step="1" class="mono"><span class="unit">&deg;</span></label>
+      <p class="place-msg" id="place-msg" role="status"></p>
+    </div>
+    <dl id="pose-panel">
       <dt id="step-label">step</dt><dd class="mono" id="step"></dd>
       <dt>true pose</dt><dd class="mono" id="pose"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
-    <div>
+    <div id="powers-panel">
       <p class="section-label">Drive motor power</p>
       <div id="powers" class="mono"></div>
     </div>
-    <div>
+    <div id="data-panel">
       <p class="section-label">Dashboard telemetry</p>
       <table id="data" class="mono"></table>
     </div>
@@ -197,6 +212,9 @@
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
+  // Placing: no run, just the robot where the op mode's runs will start, to drag into place.
+  const placing = !!rec.placing;
+  const start = placing ? { x: rec.placing.x, y: rec.placing.y, heading: rec.placing.heading } : null;
   // The field model, the robot and wall sizes come from SimRobot, so the page draws what the simulator
   // collides: the walled square field, its elements, tape and game pieces, and the robot as a cube
   // standing on it.
@@ -249,6 +267,19 @@
     cam.oy = canvas.height / 2 - cam.focal * (minY + maxY) / 2;
   }
 
+  // The field point at height z under a canvas point: the ray from the eye through it, met with that plane.
+  function pointOnPlane(sx, sy, z) {
+    const a = (sx - cam.ox) / cam.focal, b = -(sy - cam.oy) / cam.focal;
+    const d = [cam.f[0] + a * cam.r[0] + b * cam.u[0], cam.f[1] + a * cam.r[1] + b * cam.u[1], cam.f[2] + a * cam.r[2] + b * cam.u[2]];
+    const t = (z - cam.eye[2]) / d[2];
+    return t > 0 ? [cam.eye[0] + t * d[0], cam.eye[1] + t * d[1]] : null;
+  }
+  // A pointer event's position in canvas pixels.
+  function canvasPoint(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left) * canvas.width / rect.width, y: (e.clientY - rect.top) * canvas.height / rect.height };
+  }
+
   // A polygon or a line of 3D points as a canvas path. Straight lines stay straight in perspective.
   function trace(points, close) {
     ctx.beginPath();
@@ -280,8 +311,8 @@
   const wallInFront = w => cam.eye[0] * w.out[0] + cam.eye[1] * w.out[1] > HALF;
   const wallDistance = w => Math.hypot(cam.eye[0] - (w.a[0] + w.b[0]) / 2, cam.eye[1] - (w.a[1] + w.b[1]) / 2, cam.eye[2] - WALL_IN / 2);
 
-  document.getElementById('title').textContent = rec.name;
-  document.title = rec.name + (rec.live ? ' live' : ' replay');
+  document.getElementById('title').textContent = placing ? 'Place ' + rec.name : rec.name;
+  document.title = placing ? 'Place ' + rec.name : rec.name + (rec.live ? ' live' : ' replay');
 
   const play = document.getElementById('play'), speed = document.getElementById('speed'),
         scrub = document.getElementById('scrub'), time = document.getElementById('time'),
@@ -296,6 +327,11 @@
   const driving = () => rec.live && !rec.outcome && !rec.disconnected;
 
   function updateOutcome() {
+    if (placing) {
+      document.getElementById('outcome').textContent = 'Where this op mode starts. Drag the robot to move it and the handle in front of it to turn it; every move is saved.';
+      hint.innerHTML = 'Drag the field to orbit, scroll to zoom, double-click to reset the view. Hold <kbd>shift</kbd> while turning to snap to 45&deg;. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.';
+      return;
+    }
     const loops = ticks.length ? ticks.length + ' loops, ' + ticks[ticks.length - 1].t.toFixed(2) + ' s' : 'no loops yet';
     let state;
     if (rec.outcome) state = 'outcome: ' + rec.outcome;
@@ -514,11 +550,31 @@
   function drawScene(tick) {
     let items = [];
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
-    const at = tick ? latestPieces(index) : null;
+    const at = tick && !placing ? latestPieces(index) : null;
     for (const piece of FIELD.pieces) items.push(ballOf(piece, pieceCentre(piece, LOOSE, at)));
     if (tick) items = items.concat(robotFaces(tick));
     items.sort((a, b) => b.depth - a.depth);
     for (const item of items) item.draw();
+  }
+
+  // Where the robot is grabbed to turn it: on the floor, this far in front of its centre.
+  const HANDLE_OUT = ROBOT_IN / 2 + 10, HANDLE_R = 3, HANDLE_GRAB = 6;
+  const handleAt = pose => [pose.x + HANDLE_OUT * Math.cos(pose.heading), pose.y + HANDLE_OUT * Math.sin(pose.heading)];
+
+  function drawHandle(pose) {
+    const [hx, hy] = handleAt(pose);
+    const front = [pose.x + ROBOT_IN / 2 * Math.cos(pose.heading), pose.y + ROBOT_IN / 2 * Math.sin(pose.heading)];
+    ctx.strokeStyle = token('--true');
+    ctx.fillStyle = token('--robot-top');
+    ctx.lineWidth = 1.5;
+    trace([[front[0], front[1], 0.1], [hx - HANDLE_R * Math.cos(pose.heading), hy - HANDLE_R * Math.sin(pose.heading), 0.1]]); ctx.stroke();
+    const rim = [];
+    for (let i = 0; i < 24; i++) {
+      const a = i / 24 * 2 * Math.PI;
+      rim.push([hx + HANDLE_R * Math.cos(a), hy + HANDLE_R * Math.sin(a), 0.1]);
+    }
+    trace(rim, true);
+    ctx.fill(); ctx.stroke();
   }
 
   function latestPackets(upTo) {
@@ -529,18 +585,20 @@
   function render() {
     aimCamera();
     drawFloor();
-    if (!driving()) renderController(recordedState(index));
-    const tick = ticks.length ? ticks[index] : null;
-    const packets = tick ? latestPackets(index) : [];
-    if (tick) {
+    if (!driving() && !placing) renderController(recordedState(index));
+    const tick = placing ? start : ticks.length ? ticks[index] : null;
+    const packets = tick && !placing ? latestPackets(index) : [];
+    if (tick && !placing) {
       drawTrail(index);
       for (const p of packets) drawOps(p.ops);
     }
     // Back to front: the walls behind the field, what stands on it, then the walls between it and the camera.
     const walls = WALLS.slice().sort((a, b) => wallDistance(b) - wallDistance(a));
     for (const w of walls) if (!wallInFront(w)) drawWall(w);
+    if (placing) drawHandle(start);
     drawScene(tick);
     for (const w of walls) if (wallInFront(w)) drawWall(w);
+    if (placing) { renderPlacement(); return; }
     if (!tick) return;
 
     time.textContent = tick.t.toFixed(2) + ' s';
@@ -600,21 +658,115 @@
   scrub.addEventListener('input', () => { setPlaying(false); if (following) setFollowing(false); setIndex(parseInt(scrub.value, 10)); });
   follow.addEventListener('click', () => setFollowing(!following));
 
-  // Orbit: drag the field to turn it, scroll to zoom, double-click to go back to the audience's view.
+  // --- placing: the robot is dragged to where the run starts, and the handle in front of it turns it ---
+  const placement = document.getElementById('placement');
+  const startX = document.getElementById('start-x'), startY = document.getElementById('start-y'), startHeading = document.getElementById('start-heading');
+  const placeMsg = document.getElementById('place-msg');
+  const round3 = v => Math.round(v * 1000) / 1000;
+  const wrap = h => Math.atan2(Math.sin(h), Math.cos(h));
+  // The pose the walls allow, as the simulator keeps it: no corner of the robot's square beyond a wall.
+  function insideTheWalls(pose) {
+    const reach = ROBOT_IN / 2 * (Math.abs(Math.cos(pose.heading)) + Math.abs(Math.sin(pose.heading)));
+    const limit = HALF - reach;
+    return { x: clamp(pose.x, -limit, limit), y: clamp(pose.y, -limit, limit), heading: pose.heading };
+  }
+  function renderPlacement() {
+    if (document.activeElement !== startX) startX.value = start.x.toFixed(1);
+    if (document.activeElement !== startY) startY.value = start.y.toFixed(1);
+    if (document.activeElement !== startHeading) startHeading.value = (start.heading * 180 / Math.PI).toFixed(0);
+  }
+  // What is under a canvas point: the handle, the robot (its top or its footprint), or the field.
+  function under(px, py) {
+    const [hx, hy] = handleAt(start);
+    const onFloor = pointOnPlane(px, py, 0);
+    if (onFloor && Math.hypot(onFloor[0] - hx, onFloor[1] - hy) <= HANDLE_GRAB) return { what: 'turn' };
+    const cos = Math.cos(start.heading), sin = Math.sin(start.heading);
+    for (const z of [ROBOT_IN, 0]) {
+      const p = pointOnPlane(px, py, z);
+      if (!p) continue;
+      const dx = p[0] - start.x, dy = p[1] - start.y;
+      const fx = dx * cos + dy * sin, fy = -dx * sin + dy * cos;
+      if (Math.abs(fx) <= ROBOT_IN / 2 && Math.abs(fy) <= ROBOT_IN / 2) return { what: 'move', z, offset: [start.x - p[0], start.y - p[1]] };
+    }
+    return null;
+  }
+  let saveTimer = null, saving = false, saveAgain = false, dragging = false;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(putStart, 150);
+  }
+  function putStart() {
+    if (saving) { saveAgain = true; return; }
+    saving = true;
+    fetch('start?opmode=' + encodeURIComponent(rec.name), { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                                             body: JSON.stringify({ x: round3(start.x), y: round3(start.y), heading: round3(start.heading) }) })
+      .then(async r => {
+        if (!r.ok) { placeMsg.textContent = 'The bench refused the pose: ' + (await r.text()); return; }
+        const placed = await r.json();
+        if (!dragging && !saveAgain) { Object.assign(start, placed); render(); }
+        placeMsg.textContent = 'Saved.';
+      })
+      .catch(() => { placeMsg.textContent = 'Could not reach the bench; the pose is not saved.'; })
+      .then(() => { saving = false; if (saveAgain) { saveAgain = false; putStart(); } });
+  }
+  function setStart(pose) {
+    Object.assign(start, insideTheWalls({ x: pose.x, y: pose.y, heading: wrap(pose.heading) }));
+    render();
+    save();
+  }
+  if (placing) {
+    placement.hidden = false;
+    for (const id of ['pose-panel', 'powers-panel', 'data-panel']) document.getElementById(id).hidden = true;
+    document.querySelector('.controls').hidden = true;
+    document.querySelector('.legend').hidden = true;
+    const fromInputs = () => {
+      const x = parseFloat(startX.value), y = parseFloat(startY.value), deg = parseFloat(startHeading.value);
+      if ([x, y, deg].some(v => !isFinite(v))) return;
+      setStart({ x, y, heading: deg * Math.PI / 180 });
+    };
+    for (const input of [startX, startY, startHeading]) input.addEventListener('change', fromInputs);
+  }
+
+  // Drag: while placing, the robot or its handle; otherwise, or anywhere else, orbit the field.
+  // Scroll to zoom, double-click to go back to the audience's view.
   canvas.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
-    canvas.classList.add('orbiting');
-    let last = { x: e.clientX, y: e.clientY };
-    const move = ev => {
-      view.az -= (ev.clientX - last.x) * 0.008;
-      view.el = clamp(view.el + (ev.clientY - last.y) * 0.008, 0.12, 1.5);
-      last = { x: ev.clientX, y: ev.clientY };
-      render();
-    };
+    const p = canvasPoint(e);
+    const grabbed = placing ? under(p.x, p.y) : null;
+    let move;
+    if (grabbed && grabbed.what === 'move') {
+      dragging = true;
+      canvas.classList.add('moving');
+      move = ev => {
+        const q = canvasPoint(ev);
+        const on = pointOnPlane(q.x, q.y, grabbed.z);
+        if (on) setStart({ x: on[0] + grabbed.offset[0], y: on[1] + grabbed.offset[1], heading: start.heading });
+      };
+    } else if (grabbed && grabbed.what === 'turn') {
+      dragging = true;
+      canvas.classList.add('turning');
+      move = ev => {
+        const q = canvasPoint(ev);
+        const on = pointOnPlane(q.x, q.y, 0);
+        if (!on) return;
+        const step = ev.shiftKey ? Math.PI / 4 : Math.PI / 180;
+        setStart({ x: start.x, y: start.y, heading: Math.round(Math.atan2(on[1] - start.y, on[0] - start.x) / step) * step });
+      };
+    } else {
+      canvas.classList.add('orbiting');
+      let last = { x: e.clientX, y: e.clientY };
+      move = ev => {
+        view.az -= (ev.clientX - last.x) * 0.008;
+        view.el = clamp(view.el + (ev.clientY - last.y) * 0.008, 0.12, 1.5);
+        last = { x: ev.clientX, y: ev.clientY };
+        render();
+      };
+    }
     const release = () => {
-      canvas.classList.remove('orbiting');
+      dragging = false;
+      canvas.classList.remove('orbiting', 'moving', 'turning');
       canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', release); canvas.removeEventListener('pointercancel', release);
     };
     canvas.addEventListener('pointermove', move);
@@ -633,7 +785,7 @@
   const controller = document.getElementById('controller');
   const controllerMsg = document.getElementById('controller-msg');
   const STICK_TRAVEL = 14; // how far the knob moves, in viewBox units, at full deflection
-  panel.hidden = !teleop;
+  panel.hidden = !teleop || placing;
   if (teleop) document.getElementById('step-label').textContent = 'plan';
 
   const keyText = code => ({ ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc' }[code]
@@ -809,6 +961,7 @@
   keyMap.set(stop.dataset.key, { stop: true });
 
   document.addEventListener('keydown', e => {
+    if (placing) return;
     if (!driving() || !teleop) {
       if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
       if (e.code === 'ArrowRight') { setPlaying(false); setIndex(index + 1); }
@@ -863,7 +1016,7 @@
   new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   updateOutcome();
   setIndex(0);
-  renderController(driving() ? sent[selected] : recordedState(index));
+  if (!placing) renderController(driving() ? sent[selected] : recordedState(index));
 })();
 </script>
 </body>

@@ -296,11 +296,17 @@ public class SimBenchTest {
         assertFalse("this server has a BlueTeleOp; the project does not", catalog.find("BlueTeleOp").isPresent());
     }
 
-    /** A project from before the child said its protocol: its first line is content, and it still runs. */
+    /** A child from before the bench placed the robot starts itself, at the origin, as such a child did. */
+    static void placesItself(Path project) throws IOException {
+        edit(project, SIM_CHILD, "driverStation.awaitPlacement()", "java.util.Optional.of(new com.acmerobotics.roadrunner.Pose2d(0, 0, 0))");
+    }
+
+    /** A project from before the child said its protocol: its first line is content, and it still runs, from the origin. */
     @Test
     public void aChildThatPrintsNoHelloIsAVersionOneChildAndStillRuns() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
         edit(project, SIM_CHILD, "protocol.println(SimRunStream.hello());", "");
+        placesItself(project);
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
 
         assertTrue(bench.catalog().find("BlueTeleOp").isPresent());
@@ -308,6 +314,34 @@ public class SimBenchTest {
 
         assertEquals(run.message() + "\n" + run.log(), "done", run.outcome());
         assertTrue(run.ticks().size() > 0);
+        assertEquals(0, run.ticks().get(0).getAsJsonObject().get("x").getAsDouble(), 0.001);
+    }
+
+    /**
+     * A child from before the bench placed the robot starts itself at the origin, so the bench
+     * lets it when that is the start pose, and refuses by name, with the fix, when it is not:
+     * a run from the wrong place is not a run.
+     */
+    @Test
+    public void aChildFromBeforePlacementRunsFromTheOriginAndIsRefusedAnywhereElse() throws Exception {
+        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
+        int before = SimRunStream.PLACED_PROTOCOL - 1;
+        edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + before + ";");
+        placesItself(project);
+        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
+
+        SimBench.Run atTheOrigin = await(bench.start(BLUE_TELEOP, "ada"));
+        assertEquals(atTheOrigin.message() + "\n" + atTheOrigin.log(), "done", atTheOrigin.outcome());
+        assertTrue(atTheOrigin.ticks().size() > 0);
+
+        assertEquals(200, routes().handle(put("/start?opmode=BlueTeleOp", "{\"x\": 24, \"y\": 0, \"heading\": 0}")).status);
+        SimBench.Run elsewhere = await(bench.start(BLUE_TELEOP, "ada"));
+
+        assertEquals(SimRunStream.Outcome.cannotPlace(before), elsewhere.outcome());
+        assertTrue(elsewhere.message(), elsewhere.message().toLowerCase().contains("pull"));
+        assertTrue(elsewhere.message(), elsewhere.message().contains("protocol " + before));
+        assertEquals(0, elsewhere.ticks().size());
+        assertNull(bench.current());
     }
 
     /** A project whose simulator speaks a protocol this server cannot read is refused by name, not misread. */
@@ -465,6 +499,92 @@ public class SimBenchTest {
 
     private static TinyHttpServer.Request get(String path) {
         return TinyHttpServer.Request.of("GET", path, "");
+    }
+
+    private static TinyHttpServer.Request put(String path, String body) {
+        return TinyHttpServer.Request.of("PUT", path, body);
+    }
+
+    private static String encode(String name) throws java.io.UnsupportedEncodingException {
+        return java.net.URLEncoder.encode(name, "UTF-8");
+    }
+
+    private static com.google.gson.JsonObject json(String body) {
+        return new com.google.gson.Gson().fromJson(body, com.google.gson.JsonObject.class);
+    }
+
+    /** The origin, as the bench answers it for an op mode nobody has placed the robot for. */
+    private static final String ORIGIN = "{\"x\":0.0,\"y\":0.0,\"heading\":0.0}";
+    /** How far from the field's centre a robot at {@code heading} can be before a corner of it is beyond a wall. */
+    private static double limitAt(double heading) {
+        return SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2 * (Math.abs(Math.cos(heading)) + Math.abs(Math.sin(heading)));
+    }
+
+    /**
+     * The start pose is where the robot is placed before a run, per op mode: the run starts
+     * there, and it is remembered by the bench over its output directory, so a restart keeps it.
+     */
+    @Test
+    public void theStartPoseIsRememberedPerOpModeAndTheRunStartsThere() throws Exception {
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class, TestAutos.NeverDoneAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        Response before = routes().handle(get("/start?opmode=" + encode("Count to three")));
+        assertEquals(before.body, 200, before.status);
+        assertEquals(ORIGIN, before.body);
+
+        Response placed = routes().handle(put("/start?opmode=" + encode("Count to three"), "{\"x\": -60, \"y\": 1000, \"heading\": 1.5}"));
+
+        assertEquals(placed.body, 200, placed.status);
+        com.google.gson.JsonObject stored = json(placed.body);
+        assertEquals(-60, stored.get("x").getAsDouble(), 0);
+        assertEquals("kept inside the walls", limitAt(1.5), stored.get("y").getAsDouble(), 0.001);
+        assertEquals(1.5, stored.get("heading").getAsDouble(), 0);
+        assertEquals(placed.body, routes().handle(get("/start?opmode=" + encode("Count to three"))).body);
+        assertEquals("another op mode has its own", ORIGIN, routes().handle(get("/start?opmode=" + encode("Never done"))).body);
+
+        SimBench.Run run = await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
+        assertEquals(run.message(), "done", run.outcome());
+        com.google.gson.JsonObject first = run.ticks().get(0).getAsJsonObject();
+        assertEquals(-60, first.get("x").getAsDouble(), 0.001);
+        assertEquals(limitAt(1.5), first.get("y").getAsDouble(), 0.001);
+        assertEquals(1.5, first.get("heading").getAsDouble(), 0.001);
+        com.google.gson.JsonObject origin = await(bench.start(bench.catalog().find("Never done").get(), "ada")).ticks().get(0).getAsJsonObject();
+        assertEquals(0, origin.get("x").getAsDouble(), 0.001);
+
+        bench.stop();
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        assertEquals("remembered across a restart", placed.body, routes().handle(get("/start?opmode=" + encode("Count to three"))).body);
+    }
+
+    @Test
+    public void aStartThatIsNotAPoseIsRefusedAndNothingIsRemembered() throws Exception {
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        String start = "/start?opmode=" + encode("Count to three");
+
+        assertEquals(400, routes().handle(put("/start", ORIGIN)).status);
+        Response missing = routes().handle(put(start, "{\"x\": 1, \"y\": 2}"));
+        assertEquals(400, missing.status);
+        assertTrue(missing.body, missing.body.contains("heading"));
+        assertEquals(400, routes().handle(put(start, "{\"x\": \"far\", \"y\": 2, \"heading\": 0}")).status);
+        assertEquals(400, routes().handle(put(start, "nope")).status);
+        assertEquals(405, routes().handle(post(start, ORIGIN)).status);
+        assertEquals(400, routes().handle(get("/start")).status);
+
+        assertEquals(ORIGIN, routes().handle(get(start)).body);
+    }
+
+    /** The placement page: the field with the robot where the run will start, to drag into place. */
+    @Test
+    public void thePlacementPageShowsTheRobotWhereTheRunWillStart() throws Exception {
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        routes().handle(put("/start?opmode=" + encode("Count to three"), "{\"x\": 12, \"y\": -6, \"heading\": 0.5}"));
+
+        Response page = routes().handle(get("/place?opmode=" + encode("Count to three")));
+
+        assertEquals(200, page.status);
+        assertTrue(page.body, page.body.contains("<canvas"));
+        assertTrue(page.body, page.body.contains("\"name\":\"Count to three\""));
+        assertTrue(page.body, page.body.contains("\"placing\":{\"x\":12.0,\"y\":-6.0,\"heading\":0.5}"));
+        assertEquals(400, routes().handle(get("/place")).status);
     }
 
     @Test

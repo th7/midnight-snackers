@@ -103,6 +103,23 @@ public class SimReplayPageTest {
         assertEquals("a tick without them carries no pieces key", 1, html.split("\"pieces\"", -1).length - 1 - templateMentions("\"pieces\""));
     }
 
+    /** The placement page: the same field, the robot where the run will start, and the inputs to move it. */
+    @Test
+    public void thePlacementPageCarriesTheStartPoseAndTheInputsToMoveIt() {
+        String html = SimReplayPage.placement("SquareAuto", "auto", new Pose2d(12.5, -3, 0.5));
+
+        assertTrue(html, html.contains("<canvas"));
+        assertTrue(html, html.contains("\"name\":\"SquareAuto\""));
+        assertTrue(html, html.contains("\"placing\":{\"x\":12.5,\"y\":-3.0,\"heading\":0.5}"));
+        for (String id : List.of("start-x", "start-y", "start-heading")) {
+            assertTrue(id, html.contains("id=\"" + id + "\""));
+        }
+        assertTrue("saves the pose to the bench", html.contains("'start?opmode='"));
+        assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
+        assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
+        assertFalse("a replay is not a placement", SimReplayPage.page(new SimRecording("SquareAuto"), false).contains("\"placing\":{"));
+    }
+
     @Test
     public void aTeleOpPageCarriesTheDriversInputsTickByTick() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");

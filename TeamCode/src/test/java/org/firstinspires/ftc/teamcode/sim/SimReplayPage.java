@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -14,9 +15,10 @@ import java.nio.file.Path;
 
 /**
  * Writes a run as a single HTML file that replays it: the field in three dimensions, the true pose,
- * and the dashboard drawing the robot code produced, with play/pause/scrub controls. The field
- * model, the robot and wall sizes come from {@link SimRobot}, so the page draws what the simulator
- * collides.
+ * and the dashboard drawing the robot code produced, with play/pause/scrub controls; and the same
+ * page as the {@link #placement placement page}, where the robot is dragged to where a run starts.
+ * The field model, the robot and wall sizes come from {@link SimRobot}, so the page draws what the
+ * simulator collides.
  * The page loads nothing from
  * the network, so it can be opened from anywhere the file is. The run comes from a
  * {@link Source}: a {@link SimRecording} in this JVM, or a run the bench knows only by the lines
@@ -65,9 +67,29 @@ public final class SimReplayPage {
         root.addProperty("live", live);
         root.addProperty("outcome", live ? null : run.outcome());
         root.add("ticks", live ? new JsonArray() : run.ticksJson(0));
+        return fill(run.name(), root);
+    }
+
+    /**
+     * The placement page: the same field, with the robot where {@code opMode}'s runs will start,
+     * to drag into place. It saves each move to the bench at {@code PUT start?opmode=<name>}, a
+     * path relative to its own, so it works wherever the bench's routes are mounted.
+     */
+    public static String placement(String opMode, String kind, Pose2d start) {
+        JsonObject root = new JsonObject();
+        root.addProperty("name", opMode);
+        root.addProperty("kind", kind);
+        root.addProperty("live", false);
+        root.addProperty("outcome", (String) null);
+        root.add("ticks", new JsonArray());
+        root.add("placing", StartPoses.toJson(start));
+        return fill(opMode, root);
+    }
+
+    private static String fill(String title, JsonObject root) {
         // Gson escapes '<' and '>' so the JSON is safe inside a <script> element.
         return template()
-                .replace("__TITLE__", run.name())
+                .replace("__TITLE__", title)
                 .replace("__FIELD_IN__", String.valueOf(SimRobot.FIELD_SIZE_IN))
                 .replace("__ROBOT_IN__", String.valueOf(SimRobot.ROBOT_SIZE_IN))
                 .replace("__WALL_IN__", String.valueOf(SimRobot.WALL_HEIGHT_IN))
