@@ -290,10 +290,11 @@ mode appears without a restart. Class: `SimCatalog`.
 built classes — the project's robot sources and its simulator, built
 together — and the libraries, nothing else. Every class identity is
 consistent, static state starts clean, and a hung op mode is a process
-that can be killed. It says its **protocol** first, builds the catalog, then prints
-the run stream; the op mode's own output goes to stderr. Its standard
-input is the driver station, one line at a time; when the input ends,
-the run ends stopped. Class: `SimChild`.
+that can be killed. It says its **protocol** first, builds the catalog, waits to
+be **placed**, then prints the run stream; the op mode's own output goes
+to stderr. Its standard input is the driver station, one line at a time:
+the first places the robot, and until it comes Stop ends the run
+unstarted; when the input ends, the run ends stopped. Class: `SimChild`.
 
 **Run stream** — The lines the child prints, one JSON object per line, in
 order: which protocol it speaks, one that the op mode's time has begun,
@@ -304,7 +305,11 @@ bench, so the lines carry a **protocol** version: the bench refuses, by
 name and with whose the fix is, a child newer than itself or older than
 the oldest it still reads, rather than misreading it; and a test pins
 what a child of that oldest version printed. A child from before the
-version line prints content first and is that oldest version. A tick's
+version line prints content first and is that oldest version. The
+version also says what the child reads: from version 3 a child waits to
+be placed, so the bench places it first thing; an older child places
+itself at the origin, so the bench lets it run when that is the start
+pose and refuses it by name, with the fix, otherwise. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Class: `SimRunStream`;
@@ -316,7 +321,8 @@ loads the catalog, *running* from the moment the op mode's time begins,
 *finished*), a
 **message** (compile errors, or why it was killed), and when finished an
 **outcome**: *done*, *stopped*, *timed out*, *build failed*, *wrong
-protocol*, or *child exited with code N*. An **auto run** is done when its plan is, and times
+protocol*, or *child exited with code N*. It starts from the op mode's
+**start pose** as it was when the run was started. An **auto run** is done when its plan is, and times
 out when the plan is not done within the **run timeout** (60 s on the
 bench). A **TeleOp run** has no plan: it is driven from the controller
 until the driver presses Stop, or is done when its **period** is over
@@ -324,7 +330,9 @@ until the driver presses Stop, or is done when its **period** is over
 *stopped* when the driver presses Stop.
 
 **Driver station** — What the driver does during a run: the state of the
-two **gamepads** and the **Stop** button. The controller page sends it to
+two **gamepads** and the **Stop** button; and before it, where the robot
+is placed, the **start line** the bench sends first and the child waits
+for. The controller page sends the gamepads and Stop to
 the bench (`POST /runs/<id>/gamepad`, `POST /runs/<id>/stop`), the bench
 checks it and relays it to the child on standard input, and the runner
 copies each gamepad's state into the op mode's gamepad before every loop
@@ -375,7 +383,8 @@ integrated from those and kept inside the walls and out of the obstacles,
 and the localizer's sensors are written back from the true pose, so the
 dead wheels read nothing while the wheels spin against a wall. The robot
 is an 18-inch cube; a wall or an obstacle stops it dead and lets it slide
-along. The **loose pieces** are balls the robot pushes ahead of itself:
+along, and a robot placed beyond a wall or in an obstacle is placed
+against it. The **loose pieces** are balls the robot pushes ahead of itself:
 they roll on with the speed they were given, slow to a stop, and stop at
 the walls, the obstacles and each other, with a little bounce; nothing
 pushes the robot back. The model is planar: only the robot's footprint
@@ -403,3 +412,20 @@ audience, +y to the audience's left. Class: `SimField`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.
+
+**Start pose** — Where the robot is placed on the field before a run: its
+true pose as the op mode's time begins, in the same frame as every tick.
+It says nothing to the robot code, which believes what its localizer and
+its plan tell it, exactly as when a person sets the robot down on the
+real field. One per op mode, by name, kept by the bench in
+`start-poses.json` under its output directory (`TeamCode/build/sim`, the
+worktree's own on the coding server) so it outlives the server and each
+user has their own; the origin until someone places the robot.
+`GET /start?opmode=<name>` answers it and `PUT /start` places it, where
+the field allows, so a pose beyond a wall or in an obstacle lands
+against it. Chosen on
+the **placement page** (`GET /place?opmode=<name>`, the Place button
+next to Run): the replay page's field with the robot where the run will
+start, dragged to move it and its handle dragged to turn it, or typed
+in inches and degrees; every move is saved. Class: `StartPoses`;
+`SimReplayPage.placement`.

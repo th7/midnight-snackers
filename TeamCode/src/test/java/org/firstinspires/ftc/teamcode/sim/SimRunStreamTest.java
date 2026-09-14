@@ -99,6 +99,17 @@ public class SimRunStreamTest {
         String hello = SimRunStream.hello();
         assertEquals(1, hello.split("\n").length);
         assertNull("a hello is consumed; the next line is content", SimRunStream.afterHello(hello));
+        assertEquals(SimRunStream.PROTOCOL, SimRunStream.protocolOf(hello));
+    }
+
+    /** A child of this version waits to be placed before its run starts; the bench places one that old. */
+    @Test
+    public void aChildOfThisVersionWaitsToBePlaced() {
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.PLACED_PROTOCOL);
+        assertEquals("a version-1 child places itself at the origin", 1, SimRunStream.protocolOf("{\"started\":true}"));
+        assertTrue(SimRunStream.protocolOf("{\"protocol\":" + SimRunStream.PLACED_PROTOCOL + "}") >= SimRunStream.PLACED_PROTOCOL);
+        assertTrue(Outcome.cannotPlace(1).startsWith("wrong protocol"));
+        assertTrue(Outcome.cannotPlace(1).contains("place"));
     }
 
     /**
@@ -109,6 +120,7 @@ public class SimRunStreamTest {
     public void aVersionOneChildPrintsNoHelloSoItsFirstLineIsContentAndStillReads() {
         assertEquals(1, SimRunStream.OLDEST_PROTOCOL_READ);
         assertEquals("a catalog line comes back as it was", "[]", SimRunStream.afterHello("[]"));
+        assertEquals(1, SimRunStream.protocolOf("[]"));
         Heard heard = new Heard();
         String[] versionOne = {
                 "{\"started\":true}",

@@ -55,6 +55,24 @@ public class SimDevServerTest {
         assertTrue(page.body, page.body.contains("run.message"));
         assertTrue(page.body, page.body.contains("id=\"problem\""));
         assertFalse(page.body, page.body.contains("__PROBLEM__"));
+        assertTrue("every op mode can be placed before it is run", page.body.contains("'/place?opmode='"));
+    }
+
+    /** The robot is placed from the placement page, which saves the start pose to the bench, and the bench remembers it. */
+    @Test
+    public void theRobotIsPlacedFromThePlacementPageAndTheBenchRemembersIt() throws Exception {
+        Response placed = request("PUT", "/start?opmode=" + encode("Stick"), "{\"x\": 24, \"y\": -12, \"heading\": 0.5}");
+        assertEquals(placed.body, 200, placed.status);
+
+        Response page = get("/place?opmode=" + encode("Stick"));
+
+        assertEquals(200, page.status);
+        assertTrue(page.body, page.body.contains("\"placing\":{\"x\":24.0,\"y\":-12.0,\"heading\":0.5}"));
+        assertTrue(page.body, page.body.contains("id=\"start-x\""));
+        assertTrue(page.body, page.body.contains("'start?opmode='"));
+        assertEquals("{\"x\":24.0,\"y\":-12.0,\"heading\":0.5}", get("/start?opmode=" + encode("Stick")).body);
+        assertEquals("{\"x\":0.0,\"y\":0.0,\"heading\":0.0}", get("/start?opmode=" + encode("Count to three")).body);
+        assertEquals(400, request("PUT", "/start?opmode=" + encode("Stick"), "{\"x\": 24}").status);
     }
 
     @Test

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
@@ -70,6 +71,20 @@ public class SimChildTest {
         }
     }
 
+    /** The origin, where a run starts unless it is placed elsewhere. */
+    private static final Pose2d ORIGIN = new Pose2d(0, 0, 0);
+
+    /**
+     * Places the robot, as the bench does first thing: a child of this version waits for the
+     * line before its run starts. The input stays open, since its end would end the run.
+     */
+    private static Process placed(Process child, Pose2d start) throws IOException {
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        in.write(new Gson().toJson(SimDriverStation.startLine(start)) + "\n");
+        in.flush();
+        return child;
+    }
+
     /** A project's child runs that project and the libraries: with no simulator in the project, there is no child to run. */
     @Test
     public void aChildOverAProjectRunsOnThatProjectAndTheLibrariesAlone() throws Exception {
@@ -113,6 +128,7 @@ public class SimChildTest {
         Gson gson = new Gson();
 
         in.write("{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}\n");
+        in.write(gson.toJson(SimDriverStation.startLine(ORIGIN)) + "\n");
         in.flush();
         assertEquals(SimRunStream.hello(), out.readLine());
         String first = out.readLine();
@@ -147,7 +163,7 @@ public class SimChildTest {
 
     @Test
     public void aLineTheChildCannotReadEndsTheRunWithThatAsItsOutcome() throws Exception {
-        Process child = SimChild.launchOnThisClasspath("--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName());
+        Process child = placed(SimChild.launchOnThisClasspath("--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName()), ORIGIN);
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
         in.write("{\"gamepad\": 1, \"state\": {\"corss\": true}}\n");
         in.flush();
@@ -160,7 +176,7 @@ public class SimChildTest {
 
     @Test
     public void runStreamsATickPerLoopAndThenTheOutcome() throws Exception {
-        Output output = run(SimChild.launchOnThisClasspath("--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()));
+        Output output = run(placed(SimChild.launchOnThisClasspath("--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()), ORIGIN));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertEquals(output.stdout.toString(), 6, output.stdout.size());
@@ -179,7 +195,7 @@ public class SimChildTest {
 
     @Test
     public void whatTheOpModePrintsGoesToStderrNotTheStream() throws Exception {
-        Output output = run(SimChild.launchOnThisClasspath("--run", "Chatty", "2", folder.getRoot().toString(), ChattyAuto.class.getName()));
+        Output output = run(placed(SimChild.launchOnThisClasspath("--run", "Chatty", "2", folder.getRoot().toString(), ChattyAuto.class.getName()), ORIGIN));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertTrue(output.stderr, output.stderr.contains("hello from the op mode"));
@@ -193,10 +209,40 @@ public class SimChildTest {
 
     @Test
     public void aTimedOutRunStillReportsItsOutcome() throws Exception {
-        Output output = run(SimChild.launchOnThisClasspath("--run", "Never done", "0.3", folder.getRoot().toString(), TestAutos.NeverDoneAuto.class.getName()));
+        Output output = run(placed(SimChild.launchOnThisClasspath("--run", "Never done", "0.3", folder.getRoot().toString(), TestAutos.NeverDoneAuto.class.getName()), ORIGIN));
 
         JsonObject last = new Gson().fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class);
         assertTrue(last.toString(), last.get("outcome").getAsString().startsWith("timed out"));
+    }
+
+    /** The run starts where the bench placed the robot: the first tick is the start pose, kept inside the walls. */
+    @Test
+    public void theRunStartsWhereTheRobotWasPlaced() throws Exception {
+        Pose2d start = new Pose2d(-60, 1000, Math.PI / 2);
+
+        Output output = run(placed(SimChild.launchOnThisClasspath("--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()), start));
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        JsonObject first = new Gson().fromJson(output.stdout.get(2), JsonObject.class);
+        assertEquals(-60, first.get("x").getAsDouble(), 0.001);
+        assertEquals("placed against the wall, not beyond it", SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2, first.get("y").getAsDouble(), 0.001);
+        assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);
+    }
+
+    /** Until it is placed, the child has not started: Stop then ends the run stopped, with no ticks. */
+    @Test
+    public void stopBeforePlacementEndsTheRunStopped() throws Exception {
+        Process child = SimChild.launchOnThisClasspath("--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        in.write("{\"stop\": true}\n");
+        in.flush();
+
+        Output output = run(child);
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        assertEquals(output.stdout.toString(), 2, output.stdout.size());
+        assertEquals(SimRunStream.hello(), output.stdout.get(0));
+        assertEquals("stopped", new Gson().fromJson(output.stdout.get(1), JsonObject.class).get("outcome").getAsString());
     }
 
     @Test

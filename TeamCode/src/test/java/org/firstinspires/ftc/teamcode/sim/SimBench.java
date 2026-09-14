@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Twist2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -38,6 +40,8 @@ public final class SimBench {
     private static final int LOG_LINES = 200;
     /** How long a child may take to load its catalog and say the op mode has started. */
     private static final double STARTUP_SECONDS = 60;
+    /** Where the robot is placed for each op mode, remembered under the output directory. */
+    static final String START_POSES_FILE = "start-poses.json";
 
     /** The sources do not compile; the message is the compiler's diagnostics. */
     public static final class BuildFailed extends RuntimeException {
@@ -52,6 +56,8 @@ public final class SimBench {
         public final long startedAtMillis = System.currentTimeMillis();
         /** Who started it, or null when the bench's own page did. */
         public final String startedBy;
+        /** Where the robot is placed as the run starts: the op mode's start pose when the run was started. */
+        public final Pose2d start;
         private final JsonArray ticks = new JsonArray();
         private final Deque<String> log = new ArrayDeque<>();
         private String phase = "building";
@@ -59,10 +65,11 @@ public final class SimBench {
         private String message;
         private Process child;
 
-        Run(int id, SimCatalog.Entry entry, String startedBy) {
+        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start) {
             this.id = id;
             this.entry = entry;
             this.startedBy = startedBy;
+            this.start = start;
         }
 
         public synchronized boolean running() {
@@ -225,6 +232,7 @@ public final class SimBench {
     private final double runTimeoutSeconds;
     private final double teleOpSeconds;
     private final double killGraceSeconds;
+    private final StartPoses startPoses;
     private final List<Run> runs = new ArrayList<>();
     private SimCatalog listed;
     private Path listedFrom;
@@ -236,6 +244,7 @@ public final class SimBench {
      * @param runTimeoutSeconds how long an auto may take to finish its plan before the run times out
      * @param teleOpSeconds     how long a TeleOp runs when the driver never presses Stop
      * @param killGraceSeconds  how long past its time the child may live before it is killed
+     * @throws IllegalStateException when the start poses remembered under {@code outputDir} cannot be read
      */
     public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, double runTimeoutSeconds,
                     double teleOpSeconds, double killGraceSeconds) {
@@ -248,6 +257,7 @@ public final class SimBench {
         this.runTimeoutSeconds = runTimeoutSeconds;
         this.teleOpSeconds = teleOpSeconds;
         this.killGraceSeconds = killGraceSeconds;
+        this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
     }
 
     /**
@@ -352,8 +362,10 @@ public final class SimBench {
 
     /**
      * The routes, to mount wherever the caller likes: {@code /catalog}, {@code /status},
-     * {@code POST /run?opmode=<name>}, {@code /runs/<id>/}, {@code /runs/<id>/ticks?from=<n>},
-     * {@code /runs/<id>/log}, {@code POST /runs/<id>/gamepad}, {@code POST /runs/<id>/stop}.
+     * {@code /start?opmode=<name>} ({@code GET} the start pose, {@code PUT} one),
+     * {@code /place?opmode=<name>} (the placement page), {@code POST /run?opmode=<name>},
+     * {@code /runs/<id>/}, {@code /runs/<id>/ticks?from=<n>}, {@code /runs/<id>/log},
+     * {@code POST /runs/<id>/gamepad}, {@code POST /runs/<id>/stop}.
      *
      * @param startedBy the name to record on a run started through these routes, or null
      */
@@ -361,6 +373,11 @@ public final class SimBench {
         return new Router()
                 .route("GET", "/catalog", (request, params) -> catalogJson())
                 .route("GET", "/status", (request, params) -> Response.json(status()))
+                .route("GET", "/start", (request, params) -> withOpMode(request, name ->
+                        Response.json(GSON.toJson(StartPoses.toJson(startPoses.get(name))))))
+                .route("PUT", "/start", (request, params) -> withOpMode(request, name -> place(name, request.body)))
+                .route("GET", "/place", (request, params) -> withOpMode(request, name ->
+                        Response.html(SimReplayPage.placement(name, kindOf(name), startPoses.get(name)))))
                 .route("POST", "/run", (request, params) -> run(request.query("opmode"), startedBy))
                 .route("GET", "/runs/{id}", (request, params) -> withRun(params, request, this::page))
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
@@ -380,6 +397,43 @@ public final class SimBench {
 
     private interface RunRoute {
         Response handle(Run run, Request request);
+    }
+
+    private interface OpModeRoute {
+        Response handle(String opMode);
+    }
+
+    private static Response withOpMode(Request request, OpModeRoute route) {
+        String name = request.query("opmode");
+        if (name == null || name.isBlank()) {
+            return Response.error(400, "which op mode? " + request.path + "?opmode=<name>");
+        }
+        return route.handle(name);
+    }
+
+    /**
+     * {@code PUT /start?opmode=<name>} with {@code {"x": .., "y": .., "heading": ..}}: places the
+     * robot for that op mode's runs, against a wall or an obstacle when the pose is beyond one, and
+     * answers the pose as placed. A body that is not a pose is a 400 naming what is wrong.
+     */
+    private Response place(String opMode, String body) {
+        Pose2d pose;
+        try {
+            JsonObject json = GSON.fromJson(body, JsonObject.class);
+            if (json == null) {
+                throw new IllegalArgumentException("expected {\"x\": .., \"y\": .., \"heading\": ..}");
+            }
+            pose = StartPoses.fromJson(json);
+        } catch (RuntimeException e) {
+            return Response.error(400, "not a start pose: " + e.getMessage());
+        }
+        return Response.json(GSON.toJson(StartPoses.toJson(startPoses.put(opMode, pose))));
+    }
+
+    /** The op mode's kind as last listed, or auto when it has not been. */
+    private synchronized String kindOf(String opMode) {
+        SimCatalog known = fixedCatalog != null ? fixedCatalog : listed;
+        return known == null ? SimCatalog.AUTO : known.find(opMode).map(entry -> entry.kind).orElse(SimCatalog.AUTO);
     }
 
     private Response withRun(java.util.Map<String, String> params, Request request, RunRoute route) {
@@ -457,12 +511,12 @@ public final class SimBench {
         return Response.json("{}");
     }
 
-    /** Starts a run, or returns null while another is in progress. */
+    /** Starts a run from the op mode's start pose, or returns null while another is in progress. */
     public synchronized Run start(SimCatalog.Entry entry, String startedBy) {
         if (current() != null) {
             return null;
         }
-        Run run = new Run(runs.size() + 1, entry, startedBy);
+        Run run = new Run(runs.size() + 1, entry, startedBy, startPoses.get(entry.name));
         runs.add(run);
         Thread thread = new Thread(() -> perform(run), "sim-run-" + run.id);
         thread.setDaemon(true);
@@ -563,13 +617,19 @@ public final class SimBench {
                 }
                 if (first) {
                     first = false;
+                    int protocol;
                     try {
-                        line = SimRunStream.afterHello(line);
+                        protocol = SimRunStream.protocolOf(line);
                     } catch (SimRunStream.WrongProtocol e) {
                         run.finish(SimRunStream.Outcome.wrongProtocol(e.childProtocol), e.getMessage());
                         child.destroyForcibly();
                         break;
                     }
+                    if (!place(run, protocol)) {
+                        child.destroyForcibly();
+                        break;
+                    }
+                    line = SimRunStream.afterHello(line);
                     if (line == null) {
                         continue; // the hello, consumed
                     }
@@ -595,6 +655,28 @@ public final class SimBench {
         } else {
             run.finish(SimRunStream.Outcome.childExited(child.exitValue()), run.log());
         }
+    }
+
+    /**
+     * Places the robot for the run. A child that waits to be placed is told where; one from before
+     * that places itself at the origin, so it may run when that is the start pose and not otherwise.
+     *
+     * @return false when the run cannot start where the robot is placed, with the run finished saying why
+     */
+    private static boolean place(Run run, int childProtocol) {
+        if (childProtocol >= SimRunStream.PLACED_PROTOCOL) {
+            run.send(SimDriverStation.startLine(run.start)); // a child already gone ends the run by its exit code
+            return true;
+        }
+        Twist2d fromOrigin = run.start.minus(StartPoses.ORIGIN);
+        if (Math.hypot(fromOrigin.line.x, fromOrigin.line.y) < 1e-9 && Math.abs(fromOrigin.angle) < 1e-9) {
+            return true;
+        }
+        run.finish(SimRunStream.Outcome.cannotPlace(childProtocol), "the simulator in these sources speaks protocol "
+                + childProtocol + " and starts the robot at the origin on its own; placing it elsewhere needs protocol "
+                + SimRunStream.PLACED_PROTOCOL + ": the sources are older than the server. Pull develop, or place the robot"
+                + " back at the origin.");
+        return false;
     }
 
     /** The run in progress, or null. */

@@ -66,6 +66,15 @@ public final class SimRunStream {
             return "wrong protocol: the simulator speaks " + childProtocol + ", this server " + PROTOCOL;
         }
 
+        /**
+         * The child's simulator is from before the bench placed the robot, and the robot is placed
+         * somewhere other than the origin, where such a child starts on its own; the run's message
+         * says whose the fix is.
+         */
+        public static String cannotPlace(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol + " and cannot place the robot; placing needs " + PLACED_PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -100,13 +109,20 @@ public final class SimRunStream {
     }
 
     /**
-     * The version of these lines. Bump it when a change would leave a bench of the old version
-     * misreading a child of the new; then {@link #OLDEST_PROTOCOL_READ} says how old a child a
-     * bench still reads, and the test of the oldest one pins what such a child printed.
+     * The version of these lines, and of what the child reads. Bump it when a change would leave
+     * a bench of the old version misreading a child of the new, or sending it a line it cannot
+     * read; then {@link #OLDEST_PROTOCOL_READ} says how old a child a bench still reads, and the
+     * test of the oldest one pins what such a child printed.
      */
-    public static final int PROTOCOL = 2;
+    public static final int PROTOCOL = 3;
     /** The oldest child a bench still reads. A child of version 1 prints no hello: its first line is content. */
     public static final int OLDEST_PROTOCOL_READ = 1;
+    /**
+     * From this version on, a child waits to be placed ({@link SimDriverStation#startLine}) before
+     * its run starts, and the bench places it first thing. An older child places itself at the
+     * origin, so the bench lets it run from there and refuses to run it from anywhere else.
+     */
+    public static final int PLACED_PROTOCOL = 3;
 
     /** The child speaks a protocol this bench cannot read; the message names both and whose the fix is. */
     public static final class WrongProtocol extends RuntimeException {
@@ -137,14 +153,24 @@ public final class SimRunStream {
      * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than the oldest it reads
      */
     public static String afterHello(String firstLine) {
+        return protocolOf(firstLine) == 1 ? firstLine : null;
+    }
+
+    /**
+     * The protocol the child's first line says it speaks: 1 when the line is content, since a
+     * version-1 child prints no hello.
+     *
+     * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than the oldest it reads
+     */
+    public static int protocolOf(String firstLine) {
         JsonObject json;
         try {
             json = GSON.fromJson(firstLine, JsonObject.class);
         } catch (RuntimeException e) {
-            return firstLine; // a catalog line is an array: content
+            return 1; // a catalog line is an array: content
         }
         if (json == null || !json.has("protocol")) {
-            return firstLine;
+            return 1;
         }
         int child = json.get("protocol").getAsInt();
         if (child > PROTOCOL) {
@@ -157,7 +183,7 @@ public final class SimRunStream {
                     + " protocol " + OLDEST_PROTOCOL_READ + " to " + PROTOCOL + ": the sources are older than the server."
                     + " Pull develop.");
         }
-        return null;
+        return child;
     }
 
     public static String started() {

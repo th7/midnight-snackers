@@ -47,6 +47,7 @@
   .opmode + .opmode { border-top: 1px solid var(--line); }
   .opmode .name { font-weight: 600; }
   .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .opmode .actions { display: flex; gap: 6px; }
   .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   .msg { color: var(--bad); min-height: 1.4em; margin: 4px 20px 0; }
   .note { color: var(--muted); margin: 0 20px 8px; font-size: 12px; }
@@ -169,7 +170,7 @@
   <aside>
     <div>
       <p class="section-label" style="margin-top: 12px">Op modes</p>
-      <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next. A TeleOp is driven from the controller under the live view.</p>
+      <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next. Place first to choose where the robot starts; each op mode remembers its place. A TeleOp is driven from the controller under the live view.</p>
       <div class="opmodes" id="opmodes"></div>
       <p class="msg" id="msg" role="status"></p>
     </div>
@@ -190,7 +191,7 @@
       <span id="stage-state"></span>
     </div>
     <pre id="run-message" hidden></pre>
-    <div class="stage-empty" id="stage-empty">Pick an op mode and press Run. The live view appears here.</div>
+    <div class="stage-empty" id="stage-empty">Pick an op mode and press Place to choose where the robot starts, or Run. The live view appears here.</div>
     <iframe id="stage" title="Live view of the current run" hidden></iframe>
   </section>
 </main>
@@ -732,6 +733,8 @@
     var history = document.querySelector('#history tbody');
     var catalog = [];
     var shownRunId = null;
+    // The op mode whose placement page the stage shows, or null when it shows a run.
+    var placingName = null;
     var running = false;
     var pollTimer = null;
 
@@ -767,13 +770,22 @@
         text.firstChild.textContent = entry.name;
         text.lastChild.textContent = entry.where;
         text.lastChild.title = entry.where;
+        var actions = document.createElement('div');
+        actions.className = 'actions';
+        var place = document.createElement('button');
+        place.className = 'place';
+        place.textContent = 'Place';
+        place.title = 'Choose where the robot starts';
+        place.addEventListener('click', function () { showPlacement(entry); });
         var button = document.createElement('button');
         button.className = 'primary run';
         button.textContent = 'Run';
         button.disabled = running;
         button.addEventListener('click', function () { run(entry); });
+        actions.appendChild(place);
+        actions.appendChild(button);
         row.appendChild(text);
-        row.appendChild(button);
+        row.appendChild(actions);
         list.appendChild(row);
       });
     }
@@ -790,10 +802,23 @@
     function show(id, name) {
       if (shownRunId === id) { return; }
       shownRunId = id;
+      placingName = null;
       stageTitle.textContent = 'Run ' + id + ': ' + name;
       stageEmpty.hidden = true;
       stage.hidden = false;
       stage.src = '/sim/runs/' + id + '/';
+    }
+
+    // The placement page: the robot where the op mode's runs start, to drag into place.
+    function showPlacement(entry) {
+      shownRunId = null;
+      placingName = entry.name;
+      stageTitle.textContent = 'Place ' + entry.name;
+      stageState.innerHTML = '';
+      runMessage.hidden = true;
+      stageEmpty.hidden = true;
+      stage.hidden = false;
+      stage.src = '/sim/place?opmode=' + encodeURIComponent(entry.name);
     }
 
     // A TeleOp is driven from the keyboard, so the live view gets it as soon as it loads.
@@ -833,7 +858,7 @@
       stageState.innerHTML = shown ? pill(shown) + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
       runMessage.textContent = messageOf(shown);
       runMessage.hidden = !messageOf(shown);
-      if (status.runs.length && shownRunId === null) { show(status.runs[0].id, status.runs[0].name); }
+      if (status.runs.length && shownRunId === null && placingName === null) { show(status.runs[0].id, status.runs[0].name); }
     }
 
     function poll() {

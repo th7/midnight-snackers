@@ -645,6 +645,34 @@ public class CodingServerTest {
         assertEquals(403, user("POST", "/sim/run?opmode=" + encode("Count to three"), pending).status);
         assertEquals(403, user("GET", "/sim/runs/1/", pending).status);
         assertEquals(403, user("GET", "/sim/runs/1/ticks?from=0", null).status);
+        assertEquals(403, user("GET", "/sim/start?opmode=" + encode("Count to three"), pending).status);
+        assertEquals(403, user("PUT", "/sim/start?opmode=" + encode("Count to three"), pending, "{\"x\":1,\"y\":2,\"heading\":0}").status);
+        assertEquals(403, user("GET", "/sim/place?opmode=" + encode("Count to three"), pending).status);
+    }
+
+    /** Where each user places the robot for an op mode is their own bench's to remember, under their worktree. */
+    @Test
+    public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
+        serverWith(worktree -> new SimBench(SimCatalog.of(ThreeLoopAuto.class), null,
+                worktree.resolve("TeamCode/build/sim"), RUN_TIMEOUT_SECONDS, 30, 1));
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        String start = "/sim/start?opmode=" + encode("Count to three");
+
+        Reply placed = user("PUT", start, ada, "{\"x\": 24, \"y\": -12, \"heading\": 0.5}");
+
+        assertEquals(placed.body, 200, placed.status);
+        assertEquals("{\"x\":24.0,\"y\":-12.0,\"heading\":0.5}", user("GET", start, ada).body);
+        assertEquals("{\"x\":0.0,\"y\":0.0,\"heading\":0.0}", user("GET", start, bob).body);
+        Reply page = user("GET", "/sim/place?opmode=" + encode("Count to three"), ada);
+        assertEquals(200, page.status);
+        assertTrue(page.body, page.body.contains("\"placing\":{\"x\":24.0,\"y\":-12.0,\"heading\":0.5}"));
+        Reply started = user("POST", "/sim/run?opmode=" + encode("Count to three"), ada);
+        assertEquals(started.body, 200, started.status);
+        String id = json(started.body).get("id").getAsString();
+        awaitSimStatus(ada, "\"outcome\":\"done\"");
+        String ticks = user("GET", "/sim/runs/" + id + "/ticks?from=0", ada).body;
+        assertTrue(ticks, ticks.contains("\"x\":24.0,\"y\":-12.0,\"heading\":0.5"));
     }
 
     @Test
@@ -770,6 +798,7 @@ public class CodingServerTest {
         assertTrue(page, page.contains("'/sim/run?opmode='"));
         assertTrue(page, page.contains("'/sim/status'"));
         assertTrue(page, page.contains("'/sim/runs/'"));
+        assertTrue(page, page.contains("'/sim/place?opmode='"));
         assertTrue(page, page.contains("location.hash"));
         assertHiddenWins(page);
     }
