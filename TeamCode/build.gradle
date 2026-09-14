@@ -31,6 +31,19 @@ repositories {
     }
 }
 
+// The one palantir-java-format version: Spotless runs it in CI, and the coding server runs the
+// same library in process over what a user commits, so what it commits is what spotlessCheck
+// accepts. Named once here and used in both places below; JavaFormatterTest fails if the version
+// on the test classpath ever stops being this one.
+ext.palantirJavaFormatVersion = '2.98.0'
+
+// palantir-java-format reads javac's own trees. Its jar asks for the exports in its manifest,
+// which the JVM honours only on the module path, so a classpath run has to be told here. Both
+// JVMs that format -- the unit tests and the coding server -- get them.
+ext.javacExports = ['api', 'code', 'file', 'main', 'parser', 'tree', 'util'].collect {
+    "--add-exports=jdk.compiler/com.sun.tools.javac.${it}=ALL-UNNAMED".toString()
+}
+
 // Java formatting. CI runs the same check as the second line, so run the first before pushing:
 //   ./gradlew :TeamCode:spotlessApply    formats every Java file under TeamCode
 //   ./gradlew :TeamCode:spotlessCheck    fails on any file the formatter would change
@@ -38,9 +51,31 @@ repositories {
 spotless {
     java {
         target 'src/**/*.java'
-        palantirJavaFormat('2.98.0')
+        palantirJavaFormat(palantirJavaFormatVersion)
         removeUnusedImports()
     }
+}
+
+// The unit tests, the bench and the coding server run on a plain JVM, not on Android. Say so --
+// after the Android plugin, which sets these classpaths to 'android' as it evaluates -- so that a
+// library published in both flavours resolves to its JVM one: palantir-java-format calls guava's
+// Suppliers as a java.util.function.Supplier, which only guava-jre implements.
+afterEvaluate {
+    configurations.matching { it.name.toLowerCase().endsWith('unittestruntimeclasspath') }.configureEach {
+        attributes {
+            attribute(
+                    org.gradle.api.attributes.java.TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                    objects.named(
+                            org.gradle.api.attributes.java.TargetJvmEnvironment,
+                            org.gradle.api.attributes.java.TargetJvmEnvironment.STANDARD_JVM))
+        }
+    }
+}
+
+tasks.withType(Test).configureEach {
+    jvmArgs javacExports
+    // What Spotless is configured with, so the gate test can hold the classpath to it.
+    systemProperty 'palantirJavaFormat.version', palantirJavaFormatVersion
 }
 
 dependencies {
@@ -57,6 +92,8 @@ dependencies {
     testImplementation "org.dyn4j:dyn4j:6.0.0"
     // scrypt, for the coding server's session store
     testImplementation "org.bouncycastle:bcprov-jdk18on:1.79"
+    // the formatter the coding server runs before it commits: the version Spotless checks with
+    testImplementation "com.palantir.javaformat:palantir-java-format:$palantirJavaFormatVersion"
 }
 
 // The simulation bench: a dev server that runs the autonomous op modes on the simulated robot
@@ -87,5 +124,6 @@ afterEvaluate {
         classpath = unitTest.classpath
         mainClass = 'org.firstinspires.ftc.teamcode.sim.CodingServer'
         workingDir = rootDir
+        jvmArgs javacExports
     }
 }
