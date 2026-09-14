@@ -242,7 +242,9 @@ public final class SimRunner {
                     thisLoop,
                     auto == null ? driverStation.state(1) : null,
                     auto == null ? driverStation.state(2) : null,
-                    sim.pieces()));
+                    sim.pieces(),
+                    sim.held(),
+                    sim.scored()));
 
             sim.step(LOOP_SECONDS);
             loops++;

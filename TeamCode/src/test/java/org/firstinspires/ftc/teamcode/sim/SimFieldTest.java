@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.JsonArray;
@@ -132,6 +133,44 @@ public class SimFieldTest {
                     "only the hives' panels are seen through: " + element.name,
                     !element.surface || element.group.contains("Hive"));
         }
+    }
+
+    /**
+     * A cell is what the simulator scores in: its six panels, one of which is the <b>mouth</b> the
+     * ball comes in through, the rib at the lower, open end, facing out of the cell and down.
+     */
+    @Test
+    public void eachHiveHasTwoCellsAndEachCellAMouthFacingOutAndDown() {
+        assertEquals(4, field.cells.size());
+        int blue = 0, red = 0;
+        for (SimField.Cell cell : field.cells) {
+            assertTrue(cell.name, cell.name.startsWith(cell.alliance + " Cell"));
+            assertEquals(cell.name + " panels", 6, cell.panels.size());
+            assertTrue(cell.name + "'s mouth is one of its panels", cell.panels.contains(cell.mouth));
+            assertTrue(cell.name + "'s mouth is a rib", cell.mouthName.endsWith("Goal Rib"));
+            assertTrue(cell.name + "'s mouth is below its centre", cell.mouthCentre[2] < cell.centre[2]);
+            assertTrue(cell.name + "'s mouth faces down: " + cell.mouthNormal[2], cell.mouthNormal[2] < -0.3);
+            assertEquals(cell.name + "'s mouth faces along x", 0, cell.mouthNormal[1], 0.05);
+            assertEquals(
+                    "a unit normal",
+                    1,
+                    Math.sqrt(cell.mouthNormal[0] * cell.mouthNormal[0]
+                            + cell.mouthNormal[1] * cell.mouthNormal[1]
+                            + cell.mouthNormal[2] * cell.mouthNormal[2]),
+                    1e-6);
+            if (cell.alliance.equals("Blue")) {
+                blue++;
+                assertTrue("a blue mouth faces the audience: " + cell.mouthNormal[0], cell.mouthNormal[0] < 0);
+            } else {
+                red++;
+                assertEquals("Red", cell.alliance);
+                assertTrue("a red mouth faces away from the audience: " + cell.mouthNormal[0], cell.mouthNormal[0] > 0);
+            }
+        }
+        assertEquals(2, blue);
+        assertEquals(2, red);
+        assertNotNull(field.cell("Blue Cell (Audience) <1>"));
+        assertNull(field.cell("Green Cell"));
     }
 
     /** The frame's top bar joins the two hives, and each hive hangs from it by its pivot brackets. */

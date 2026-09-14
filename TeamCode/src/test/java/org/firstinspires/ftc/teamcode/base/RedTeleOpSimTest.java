@@ -48,6 +48,14 @@ public class RedTeleOpSimTest {
             }
             return true;
         });
+        // The robot has inertia: it coasts on after the stick is released, and this waits for it to rest.
+        double[] lastSeen = {Double.NaN};
+        await("came to rest", () -> {
+            double x = sim.pose().position.x;
+            boolean resting = Math.abs(x - lastSeen[0]) < 0.01;
+            lastSeen[0] = x;
+            return resting;
+        });
         double restingX = sim.pose().position.x;
 
         station.set(1, state("{\"right_stick_x\": -1}"));

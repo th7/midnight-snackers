@@ -143,6 +143,7 @@
     <dl id="pose-panel">
       <dt id="step-label">step</dt><dd class="mono" id="step"></dd>
       <dt>true pose</dt><dd class="mono" id="pose"></dd>
+      <dt>balls</dt><dd class="mono" id="balls"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -417,11 +418,20 @@
     }
     return out;
   }
-  // The loose pieces are where the latest tick that says puts them; the rest are where the field was set up.
-  function pieceCentre(piece, loose, at) {
-    if (!piece.loose) return piece.centre;
-    const i = loose.indexOf(piece);
-    return at && at[i] ? [at[i][0], at[i][1], piece.radius] : piece.centre;
+  // The balls are where the latest tick that says puts them, [x, y, z] each: the field's loose pieces
+  // first, then the robot's preload, which look like the first loose piece; a ball held in the robot
+  // is null and not drawn. Without a tick, the loose pieces are where the field was set up.
+  function ballsAt(at) {
+    const loose = LOOSE, spec = loose[0] || { colour: '#888', radius: 1.4 };
+    const out = [];
+    const n = at ? at.length : loose.length;
+    for (let i = 0; i < n; i++) {
+      const piece = i < loose.length ? loose[i] : spec;
+      const c = at ? at[i] : piece.centre;
+      if (!c) continue;
+      out.push(ballOf(piece, [c[0], c[1], c.length > 2 ? c[2] : piece.radius]));
+    }
+    return out;
   }
   function latestPieces(upTo) {
     for (let i = upTo; i >= 0; i--) if (ticks[i].pieces) return ticks[i].pieces;
@@ -551,7 +561,8 @@
     let items = [];
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
     const at = tick && !placing ? latestPieces(index) : null;
-    for (const piece of FIELD.pieces) items.push(ballOf(piece, pieceCentre(piece, LOOSE, at)));
+    for (const piece of FIELD.pieces) if (!piece.loose) items.push(ballOf(piece, piece.centre));
+    items = items.concat(ballsAt(at));
     if (tick) items = items.concat(robotFaces(tick));
     items.sort((a, b) => b.depth - a.depth);
     for (const item of items) item.draw();
@@ -607,6 +618,9 @@
     document.getElementById('pose').textContent =
       'x ' + tick.x.toFixed(1) + ' in, y ' + tick.y.toFixed(1) + ' in, ' + (tick.heading * 180 / Math.PI).toFixed(1) + '°';
     document.getElementById('loop').textContent = (index + 1) + ' / ' + ticks.length;
+    const scored = tick.scored || {};
+    document.getElementById('balls').textContent =
+      'held ' + (tick.held || 0) + ', blue ' + (scored.Blue || 0) + ', red ' + (scored.Red || 0);
 
     const names = ['LF', 'RF', 'LB', 'RB'];
     document.getElementById('powers').innerHTML = tick.powers.map((p, i) => {

@@ -8,6 +8,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * The lines a run's child prints, one JSON object per line, in order: {@code {"protocol": N}}
@@ -266,6 +268,18 @@ public final class SimRunStream {
         }
         if (tick.pieces != null && tick.pieces.length > 0) {
             t.add("pieces", GSON.toJsonTree(tick.pieces)); // absent means where the field was set up
+        }
+        if (tick.held > 0) {
+            t.addProperty("held", tick.held); // absent means none
+        }
+        JsonObject scored = new JsonObject();
+        for (Map.Entry<String, Integer> entry : new TreeMap<>(tick.scored).entrySet()) {
+            if (entry.getValue() > 0) {
+                scored.addProperty(entry.getKey(), entry.getValue());
+            }
+        }
+        if (scored.size() > 0) {
+            t.add("scored", scored); // absent means nothing scored
         }
         return t;
     }

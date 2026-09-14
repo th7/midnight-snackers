@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -77,6 +78,36 @@ public class SimRunStreamTest {
                 0);
         assertEquals("rounded to three decimals on the wire", 0.333, SimRunStream.seconds(heard.ticks.get(1)), 0);
         assertEquals("done", heard.outcome);
+    }
+
+    /**
+     * A tick says where every ball is, {x, y, z} each, or null for one held in the robot; how many
+     * the robot holds; and how many each alliance has scored, when any of that is worth saying.
+     */
+    @Test
+    public void aTickCarriesTheBallsWhatTheRobotHoldsAndTheScore() {
+        Heard heard = new Heard();
+        SimRecording.Tick balls = new SimRecording.Tick(
+                1,
+                new Pose2d(0, 0, 0),
+                "",
+                new double[] {0, 0, 0, 0},
+                List.of(),
+                null,
+                null,
+                new double[][] {{1, 2, 1.39}, null, {3, 4, 30.5}},
+                1,
+                java.util.Map.of("Red", 2));
+
+        SimRunStream.accept(SimRunStream.tick(balls), heard);
+        SimRunStream.accept(SimRunStream.tick(tick(2, "quiet")), heard);
+
+        JsonObject first = heard.ticks.get(0);
+        assertEquals("[[1.0,2.0,1.39],null,[3.0,4.0,30.5]]", first.get("pieces").toString());
+        assertEquals(1, first.get("held").getAsInt());
+        assertEquals(2, first.getAsJsonObject("scored").get("Red").getAsInt());
+        JsonObject quiet = heard.ticks.get(1);
+        assertFalse("nothing held, nothing scored: nothing said", quiet.has("held") || quiet.has("scored"));
     }
 
     @Test

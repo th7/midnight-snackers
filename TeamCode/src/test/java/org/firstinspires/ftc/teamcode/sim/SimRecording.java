@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 
 /**
@@ -29,10 +30,16 @@ public final class SimRecording implements SimReplayPage.Source {
         /** What gamepad 2 read this loop; null for an auto. */
         public final State gamepad2;
         /**
-         * Where the field's loose game pieces are, {x, y} each in {@link SimField#loosePieces}'
-         * order; null when the tick does not say, and they are where the field was set up.
+         * Where the balls are, {x, y, z} each: the field's loose game pieces in
+         * {@link SimField#loosePieces}' order, then the robot's preload; a ball held in the robot
+         * is null. Null as a whole when the tick does not say, and they are where the field was
+         * set up.
          */
         public final double[][] pieces;
+        /** How many balls the robot holds. */
+        public final int held;
+        /** How many balls each alliance has in its hive, by "Blue" and "Red"; absent means none. */
+        public final Map<String, Integer> scored;
 
         public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
             this(seconds, truePose, step, wheelPowers, packets, null, null);
@@ -58,6 +65,20 @@ public final class SimRecording implements SimReplayPage.Source {
                 State gamepad1,
                 State gamepad2,
                 double[][] pieces) {
+            this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, pieces, 0, Map.of());
+        }
+
+        public Tick(
+                double seconds,
+                Pose2d truePose,
+                String step,
+                double[] wheelPowers,
+                List<TelemetryPacket> packets,
+                State gamepad1,
+                State gamepad2,
+                double[][] pieces,
+                int held,
+                Map<String, Integer> scored) {
             this.seconds = seconds;
             this.truePose = truePose;
             this.step = step;
@@ -66,6 +87,8 @@ public final class SimRecording implements SimReplayPage.Source {
             this.gamepad1 = gamepad1;
             this.gamepad2 = gamepad2;
             this.pieces = pieces;
+            this.held = held;
+            this.scored = scored;
         }
     }
 
