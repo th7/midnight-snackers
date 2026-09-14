@@ -44,7 +44,10 @@
   .opmode + .opmode { border-top: 1px solid var(--line); }
   .opmode .name { font-weight: 600; }
   .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .opmode .actions { display: flex; gap: 6px; }
+  .opmode .actions { display: flex; gap: 6px; align-items: center; }
+  .opmode .seed { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+  .opmode .seed input { font: inherit; width: 4.5em; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .opmode .seed input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   button { font: inherit; padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
   button.run { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
@@ -58,6 +61,7 @@
   .empty { border: 1px dashed var(--line); border-radius: 6px; padding: 48px 20px; text-align: center; color: var(--muted); }
   .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .pill.ok { color: var(--ok); background: var(--ok-soft); }
+  .pill.muted { color: var(--muted); background: var(--line); font-weight: 500; }
   .pill.bad { color: var(--bad); background: var(--bad-soft); }
   .pill.live { color: var(--live); background: var(--live-soft); }
   .pill.live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--live); margin-right: 6px; vertical-align: 1px; }
@@ -76,7 +80,7 @@
 <body>
 <header>
   <h1>Sim Bench</h1>
-  <p class="sub">Run an op mode on the simulated robot and watch it drive; drive a TeleOp yourself from the on-screen controller. Place first to choose where the robot starts; each op mode remembers its place. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
+  <p class="sub">Run an op mode on the simulated robot and watch it drive; drive a TeleOp yourself from the on-screen controller. Place first to choose where the robot starts, and set a seed to choose which robot: each seed is its own imperfect robot, the same one every run, and a blank seed is the exact tuned model. Each op mode remembers its place and its seed. Each run rebuilds the sources as saved. One run at a time, in real time.</p>
 </header>
 <main>
   <aside>
@@ -89,7 +93,7 @@
     <div>
       <p class="section-label">Runs</p>
       <table id="history">
-        <thead><tr><th>#</th><th>Op mode</th><th>Outcome</th><th class="num">Loops</th><th class="num">s</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Op mode</th><th class="num">Seed</th><th>Outcome</th><th class="num">Loops</th><th class="num">s</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -155,15 +159,48 @@
       text.append(name, cls);
       const actions = document.createElement('div');
       actions.className = 'actions';
+      const seed = document.createElement('label');
+      seed.className = 'seed'; seed.title = 'Which robot: a seed for an imperfect robot, the same one every run; blank for the exact tuned model';
+      seed.append('seed ');
+      const seedInput = document.createElement('input');
+      seedInput.type = 'number'; seedInput.step = '1'; seedInput.placeholder = 'exact';
+      seedInput.value = seedValue(entry.seed);
+      seedInput.addEventListener('change', () => setSeed(entry, seedInput));
+      seed.appendChild(seedInput);
       const place = document.createElement('button');
       place.className = 'place'; place.textContent = 'Place'; place.title = 'Choose where the robot starts';
       place.addEventListener('click', () => showPlacement(entry));
       const button = document.createElement('button');
       button.className = 'run'; button.textContent = 'Run'; button.dataset.opmode = entry.name;
       button.addEventListener('click', () => run(entry));
-      actions.append(place, button);
+      actions.append(seed, place, button);
       row.append(text, actions);
       list.appendChild(row);
+    }
+  }
+
+  // The seed as the input shows it: blank for the exact robot.
+  function seedValue(seed) {
+    return seed === null || seed === undefined ? '' : String(seed);
+  }
+
+  function seedLabel(run) {
+    return run.seed === null || run.seed === undefined ? 'exact' : String(run.seed);
+  }
+
+  // Sets which robot the op mode runs on, as typed in its row: a whole number, or blank for the exact robot.
+  async function setSeed(entry, input) {
+    const typed = input.value.trim();
+    const seed = typed === '' ? null : Number(typed);
+    if (seed !== null && !Number.isInteger(seed)) { msg.textContent = 'A seed is a whole number.'; input.value = seedValue(entry.seed); return; }
+    try {
+      const response = await fetch('/seed?opmode=' + encodeURIComponent(entry.name), { method: 'PUT', body: JSON.stringify({ seed }) });
+      if (!response.ok) { msg.textContent = 'Could not set the seed: ' + (await response.text()); input.value = seedValue(entry.seed); return; }
+      entry.seed = (await response.json()).seed;
+      input.value = seedValue(entry.seed);
+      msg.textContent = '';
+    } catch (e) {
+      msg.textContent = 'Lost the bench process: ' + e;
     }
   }
 
@@ -227,6 +264,7 @@
       '<tr class="' + (run.id === shownRunId ? 'current' : '') + '">' +
       '<td class="mono">' + run.id + '</td>' +
       '<td>' + escapeHtml(run.name) + '</td>' +
+      '<td class="num mono">' + seedLabel(run) + '</td>' +
       '<td>' + pill(run) + '</td>' +
       '<td class="num mono">' + run.loops + '</td>' +
       '<td class="num mono">' + run.seconds.toFixed(1) + '</td>' +
@@ -236,7 +274,7 @@
       link.addEventListener('click', e => { e.preventDefault(); show(parseInt(link.dataset.id, 10), link.dataset.name); renderStatus(status); });
     }
     const shown = status.runs.find(r => r.id === shownRunId);
-    stageState.innerHTML = shown ? pill(shown) : '';
+    stageState.innerHTML = shown ? pill(shown) + ' <span class="pill muted" title="Which robot the run is on">seed ' + seedLabel(shown) + '</span>' : '';
     runMessage.textContent = messageOf(shown);
     runMessage.hidden = !messageOf(shown);
     if (status.runs.length && shownRunId === null && placingName === null) show(status.runs[0].id, status.runs[0].name);

@@ -62,6 +62,20 @@ public class SimDevServerTest {
         assertTrue(page.body, page.body.contains("id=\"problem\""));
         assertFalse(page.body, page.body.contains("__PROBLEM__"));
         assertTrue("every op mode can be placed before it is run", page.body.contains("'/place?opmode='"));
+        assertTrue("every op mode's seed is shown and edited in its row", page.body.contains("'/seed?opmode='"));
+        assertTrue(page.body, page.body.contains("\"seed\":1"));
+    }
+
+    /** Each op mode's seed is set from its row and the bench remembers it; the runs say which seed they were made on. */
+    @Test
+    public void theSeedIsSetFromTheOpModesRowAndTheBenchRemembersIt() throws Exception {
+        Response set = request("PUT", "/seed?opmode=" + encode("Stick"), "{\"seed\": 9}");
+        assertEquals(set.body, 200, set.status);
+
+        assertEquals("{\"seed\":9}", get("/seed?opmode=" + encode("Stick")).body);
+        assertEquals("{\"seed\":1}", get("/seed?opmode=" + encode("Count to three")).body);
+        assertTrue(get("/").body, get("/").body.contains("\"seed\":9"));
+        assertEquals(400, request("PUT", "/seed?opmode=" + encode("Stick"), "{\"seed\": \"x\"}").status);
     }
 
     /** The robot is placed from the placement page, which saves the start pose to the bench, and the bench remembers it. */

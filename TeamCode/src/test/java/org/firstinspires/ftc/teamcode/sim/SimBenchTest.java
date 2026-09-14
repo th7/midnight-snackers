@@ -348,6 +348,7 @@ public class SimBenchTest {
         edit(project, SIM_CHILD, "protocol.println(SimRunStream.hello());", "");
         placesItself(project);
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
+        exactRobot("BlueTeleOp"); // such a child cannot run a seeded one
 
         assertTrue(bench.catalog().find("BlueTeleOp").isPresent());
         SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
@@ -369,6 +370,7 @@ public class SimBenchTest {
         edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + before + ";");
         placesItself(project);
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
+        exactRobot("BlueTeleOp"); // such a child cannot run a seeded one
 
         SimBench.Run atTheOrigin = await(bench.start(BLUE_TELEOP, "ada"));
         assertEquals(atTheOrigin.message() + "\n" + atTheOrigin.log(), "done", atTheOrigin.outcome());
@@ -382,6 +384,84 @@ public class SimBenchTest {
         assertTrue(elsewhere.message(), elsewhere.message().toLowerCase().contains("pull"));
         assertTrue(elsewhere.message(), elsewhere.message().contains("protocol " + before));
         assertEquals(0, elsewhere.ticks().size());
+        assertNull(bench.current());
+    }
+
+    // --- the seed: which robot an op mode runs on, set per op mode, carried by each run ---
+
+    @Test
+    public void eachOpModeHasASeedTheCatalogShowsAndARouteSets() throws Exception {
+        bench = new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        String opMode = "opmode=" + encode("Count to three");
+
+        assertEquals("{\"seed\":1}", routes().handle(get("/seed?" + opMode)).body);
+        assertTrue(
+                routes().handle(get("/catalog")).body,
+                routes().handle(get("/catalog")).body.contains("\"seed\":1"));
+
+        Response set = routes().handle(put("/seed?" + opMode, "{\"seed\": 5}"));
+        assertEquals(set.body, 200, set.status);
+        assertEquals("{\"seed\":5}", set.body);
+        assertEquals("{\"seed\":5}", routes().handle(get("/seed?" + opMode)).body);
+        assertTrue(routes().handle(get("/catalog")).body.contains("\"seed\":5"));
+
+        Response exact = routes().handle(put("/seed?" + opMode, "{\"seed\": null}"));
+        assertEquals(exact.body, 200, exact.status);
+        assertEquals("{\"seed\":null}", exact.body);
+        assertTrue(routes().handle(get("/catalog")).body.contains("\"seed\":null"));
+
+        assertEquals(400, routes().handle(put("/seed?" + opMode, "{\"seed\": \"lucky\"}")).status);
+        assertEquals(400, routes().handle(put("/seed?" + opMode, "{}")).status);
+        assertEquals(400, routes().handle(put("/seed?" + opMode, "not json")).status);
+        assertEquals(400, routes().handle(put("/seed", "{\"seed\": 1}")).status);
+    }
+
+    @Test
+    public void aRunIsMadeOnTheOpModesSeedAndSaysSo() throws Exception {
+        bench = new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": 5}")).status);
+
+        SimBench.Run seeded = await(bench.start(entry, "ada"));
+        assertEquals(Long.valueOf(5), seeded.seed);
+        assertEquals("done", seeded.outcome());
+        assertTrue(seeded.log(), seeded.log().contains(SimNoise.seeded(5).toString()));
+        assertTrue(bench.status(), bench.status().contains("\"seed\":5"));
+
+        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": null}")).status);
+        SimBench.Run exact = await(bench.start(entry, "ada"));
+        assertNull(exact.seed);
+        assertTrue(exact.log(), exact.log().contains(SimNoise.NONE.toString()));
+        assertTrue(bench.status(), bench.status().contains("\"seed\":null"));
+    }
+
+    /**
+     * A child from before the seed runs the exact robot whatever it is told, so the bench lets it
+     * when that is the op mode's robot, and refuses by name, with the fix, when a seed is set: a
+     * run on the wrong robot is not a run.
+     */
+    @Test
+    public void aChildFromBeforeTheSeedRunsTheExactRobotAndIsRefusedASeed() throws Exception {
+        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
+        int before = SimRunStream.SEEDED_PROTOCOL - 1;
+        edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + before + ";");
+        edit(project, SIM_CHILD, "driverStation.seed()", "null");
+        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
+        assertEquals(200, routes().handle(put("/seed?opmode=BlueTeleOp", "{\"seed\": null}")).status);
+
+        SimBench.Run exact = await(bench.start(BLUE_TELEOP, "ada"));
+        assertEquals(exact.message() + "\n" + exact.log(), "done", exact.outcome());
+        assertTrue(exact.ticks().size() > 0);
+
+        assertEquals(200, routes().handle(put("/seed?opmode=BlueTeleOp", "{\"seed\": 3}")).status);
+        SimBench.Run seeded = await(bench.start(BLUE_TELEOP, "ada"));
+
+        assertEquals(SimRunStream.Outcome.cannotSeed(before), seeded.outcome());
+        assertTrue(seeded.message(), seeded.message().toLowerCase().contains("pull"));
+        assertTrue(seeded.message(), seeded.message().contains("protocol " + before));
+        assertEquals(0, seeded.ticks().size());
         assertNull(bench.current());
     }
 
@@ -551,6 +631,11 @@ public class SimBenchTest {
         return bench.routes("ada");
     }
 
+    /** Clears the op mode's seed, so its runs are on the exact robot: what every run was before there were seeds. */
+    private void exactRobot(String opMode) throws Exception {
+        assertEquals(200, routes().handle(put("/seed?opmode=" + encode(opMode), "{\"seed\": null}")).status);
+    }
+
     private static TinyHttpServer.Request post(String path, String body) {
         return TinyHttpServer.Request.of("POST", path, body);
     }
@@ -610,6 +695,9 @@ public class SimBenchTest {
                 ORIGIN,
                 routes().handle(get("/start?opmode=" + encode("Never done"))).body);
 
+        // On the exact robot, so each run starts on its pose rather than near it, as a seeded robot is set down.
+        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": null}")).status);
+        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Never done"), "{\"seed\": null}")).status);
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
         assertEquals(run.message(), "done", run.outcome());

@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -181,6 +182,46 @@ public class SimDriverStationTest {
         assertEquals(12, start.get().position.y, 0);
         assertEquals(Math.PI / 2, start.get().heading.toDouble(), 1e-9);
         assertFalse(station.stopRequested());
+    }
+
+    /** The start line also says which robot: a seed for the noise, or none for the exact robot. */
+    @Test
+    public void theStartLineCarriesTheSeedWhenThereIsOne() {
+        SimDriverStation station = new SimDriverStation();
+        Pose2d placed = new Pose2d(-60, 12, 0);
+        JsonObject seeded = SimDriverStation.startLine(placed, 7L);
+        assertEquals("{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7}", seeded.toString());
+        assertEquals(
+                "no seed, no key",
+                SimDriverStation.startLine(placed).toString(),
+                SimDriverStation.startLine(placed, null).toString());
+
+        station.accept(seeded);
+
+        assertEquals(Long.valueOf(7), station.seed());
+        assertEquals(-60, station.awaitPlacement().get().position.x, 0);
+    }
+
+    @Test
+    public void aStartLineWithoutASeedIsTheExactRobot() {
+        SimDriverStation station = new SimDriverStation();
+
+        station.accept(SimDriverStation.startLine(new Pose2d(0, 0, 0)));
+
+        assertNull(station.seed());
+    }
+
+    @Test
+    public void aSeedThatIsNotAWholeNumberIsRefusedByName() {
+        SimDriverStation station = new SimDriverStation();
+
+        IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> station.accept(json("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"seed\": \"lucky\"}")));
+        assertTrue(e.getMessage(), e.getMessage().contains("lucky"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> station.accept(json("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"seed\": 1.5}")));
     }
 
     @Test

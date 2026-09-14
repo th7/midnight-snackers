@@ -47,14 +47,16 @@
   .opmode + .opmode { border-top: 1px solid var(--line); }
   .opmode .name { font-weight: 600; }
   .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .opmode .actions { display: flex; gap: 6px; }
+  .opmode .actions { display: flex; gap: 6px; align-items: center; }
+  .opmode .seed { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+  .opmode .seed input { font: inherit; width: 4.5em; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
   .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   .msg { color: var(--bad); min-height: 1.4em; margin: 4px 20px 0; }
   .note { color: var(--muted); margin: 0 20px 8px; font-size: 12px; }
   .runs { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; table-layout: fixed; }
   th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  col.id { width: 2.2em; } col.by { width: 4.5em; } col.outcome { width: 5.5em; } col.show { width: 3.4em; }
+  col.id { width: 2.2em; } col.seed { width: 3.6em; } col.by { width: 4.5em; } col.outcome { width: 5.5em; } col.show { width: 3.4em; }
   th { border-top: 0; color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
   tr.current td { background: var(--hover); }
   td a { color: var(--accent); }
@@ -170,7 +172,7 @@
   <aside>
     <div>
       <p class="section-label" style="margin-top: 12px">Op modes</p>
-      <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next. Place first to choose where the robot starts; each op mode remembers its place. A TeleOp is driven from the controller under the live view.</p>
+      <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next. Place first to choose where the robot starts, and set a seed to choose which robot: each seed is its own imperfect robot, the same one every run, and a blank seed is the exact tuned model. Each op mode remembers its place and its seed. A TeleOp is driven from the controller under the live view.</p>
       <div class="opmodes" id="opmodes"></div>
       <p class="msg" id="msg" role="status"></p>
     </div>
@@ -178,8 +180,8 @@
       <p class="section-label">Runs</p>
       <div class="runs">
         <table id="history">
-          <colgroup><col class="id"><col><col class="by"><col class="outcome"><col class="show"></colgroup>
-          <thead><tr><th>#</th><th>Op mode</th><th>By</th><th>Outcome</th><th></th></tr></thead>
+          <colgroup><col class="id"><col><col class="seed"><col class="by"><col class="outcome"><col class="show"></colgroup>
+          <thead><tr><th>#</th><th>Op mode</th><th>Seed</th><th>By</th><th>Outcome</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -785,6 +787,18 @@
         text.lastChild.title = entry.where;
         var actions = document.createElement('div');
         actions.className = 'actions';
+        var seed = document.createElement('label');
+        seed.className = 'seed';
+        seed.title = 'Which robot: a seed for an imperfect robot, the same one every run; blank for the exact tuned model';
+        seed.appendChild(document.createTextNode('seed '));
+        var seedInput = document.createElement('input');
+        seedInput.type = 'number';
+        seedInput.step = '1';
+        seedInput.placeholder = 'exact';
+        seedInput.value = seedValue(entry.seed);
+        seedInput.addEventListener('change', function () { setSeed(entry, seedInput); });
+        seed.appendChild(seedInput);
+        actions.appendChild(seed);
         var place = document.createElement('button');
         place.className = 'place';
         place.textContent = 'Place';
@@ -801,6 +815,27 @@
         row.appendChild(actions);
         list.appendChild(row);
       });
+    }
+
+    // The seed as the input shows it: blank for the exact robot.
+    function seedValue(seed) {
+      return seed === null || seed === undefined ? '' : String(seed);
+    }
+
+    function seedLabel(run) {
+      return run.seed === null || run.seed === undefined ? 'exact' : String(run.seed);
+    }
+
+    // Sets which robot the op mode runs on, as typed in its row: a whole number, or blank for the exact robot.
+    function setSeed(entry, input) {
+      var typed = input.value.trim();
+      var seed = typed === '' ? null : Number(typed);
+      if (seed !== null && !Number.isInteger(seed)) { msg.textContent = 'A seed is a whole number.'; input.value = seedValue(entry.seed); return; }
+      fetch('/sim/seed?opmode=' + encodeURIComponent(entry.name), { method: 'PUT', body: JSON.stringify({ seed: seed }) }).then(function (r) {
+        if (r.status === 403) { location.reload(); return; }
+        if (!r.ok) { return r.text().then(function (t) { msg.textContent = 'Could not set the seed: ' + t; input.value = seedValue(entry.seed); }); }
+        return r.json().then(function (set) { entry.seed = set.seed; input.value = seedValue(entry.seed); msg.textContent = ''; });
+      }).catch(function (e) { msg.textContent = 'Lost the host: ' + e; });
     }
 
     function run(entry) {
@@ -858,6 +893,7 @@
         return '<tr class="' + (run.id === shownRunId ? 'current' : '') + '" title="' + title + '">' +
           '<td class="mono">' + run.id + '</td>' +
           '<td>' + escapeHtml(run.name) + '</td>' +
+          '<td class="mono">' + seedLabel(run) + '</td>' +
           '<td>' + escapeHtml(run.startedBy || '') + '</td>' +
           '<td>' + pill(run) + '</td>' +
           '<td><a href="/sim/runs/' + run.id + '/" data-id="' + run.id + '" data-name="' + escapeHtml(run.name) + '">show</a></td>' +
@@ -868,7 +904,7 @@
       });
       var shown = null;
       status.runs.forEach(function (r) { if (r.id === shownRunId) { shown = r; } });
-      stageState.innerHTML = shown ? pill(shown) + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
+      stageState.innerHTML = shown ? pill(shown) + ' <span class="pill muted" title="Which robot the run is on">seed ' + seedLabel(shown) + '</span>' + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
       runMessage.textContent = messageOf(shown);
       runMessage.hidden = !messageOf(shown);
       if (status.runs.length && shownRunId === null && placingName === null) { show(status.runs[0].id, status.runs[0].name); }

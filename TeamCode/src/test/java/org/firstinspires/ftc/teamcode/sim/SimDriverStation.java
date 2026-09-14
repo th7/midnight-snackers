@@ -198,18 +198,41 @@ public final class SimDriverStation {
     private volatile boolean stopRequested = false;
     private final CountDownLatch placed = new CountDownLatch(1);
     private volatile Pose2d start;
+    private volatile Long seed;
 
-    /** The line that places the robot before the run: {@code {"start": {"x": .., "y": .., "heading": ..}}}. */
+    /** The line that places the exact robot before the run: {@code {"start": {"x": .., "y": .., "heading": ..}}}. */
     public static JsonObject startLine(Pose2d start) {
+        return startLine(start, null);
+    }
+
+    /**
+     * The line that places the robot before the run and says which robot it is: {@code {"start":
+     * {"x": .., "y": .., "heading": ..}, "seed": ..}}, with no seed for the exact robot.
+     */
+    public static JsonObject startLine(Pose2d start, Long seed) {
         JsonObject line = new JsonObject();
         line.add("start", StartPoses.toJson(start));
+        if (seed != null) {
+            line.addProperty("seed", seed);
+        }
         return line;
     }
 
-    /** The robot is placed: the run may start. */
+    /** The robot is placed: the run may start, on the exact robot. */
     public void place(Pose2d pose) {
+        place(pose, null);
+    }
+
+    /** The robot is placed: the run may start, on the robot drawn from {@code seed}, or the exact one for null. */
+    public void place(Pose2d pose, Long seed) {
         start = Objects.requireNonNull(pose, "start");
+        this.seed = seed;
         placed.countDown();
+    }
+
+    /** Which robot the run is on, once placed: a {@link SimNoise} seed, or null for the exact robot. */
+    public Long seed() {
+        return seed;
     }
 
     /**
@@ -258,14 +281,14 @@ public final class SimDriverStation {
      * One line of what the bench sends the child: the {@link #startLine start line} that places
      * the robot, {@code {"gamepad": 1, "state": {...}}}, or {@code {"stop": true}}.
      *
-     * @throws IllegalArgumentException for anything else, a start that is not a pose included
+     * @throws IllegalArgumentException for anything else, a start that is not a pose or a seed that is not a whole number included
      */
     public void accept(JsonObject line) {
         if (line.has("start")) {
             if (!line.get("start").isJsonObject()) {
                 throw new IllegalArgumentException("not a start pose: " + line.get("start"));
             }
-            place(StartPoses.fromJson(line.getAsJsonObject("start")));
+            place(StartPoses.fromJson(line.getAsJsonObject("start")), StartPoses.seedFromJson(line.get("seed")));
             return;
         }
         if (line.has("gamepad") && line.has("state")) {

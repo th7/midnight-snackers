@@ -5,6 +5,7 @@ import com.acmerobotics.roadrunner.Twist2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -56,6 +57,8 @@ public final class SimBench {
         public final String startedBy;
         /** Where the robot is placed as the run starts: the op mode's start pose when the run was started. */
         public final Pose2d start;
+        /** Which robot the run is on: the op mode's seed when the run was started, or null for the exact robot. */
+        public final Long seed;
 
         private final JsonArray ticks = new JsonArray();
         private final Deque<String> log = new ArrayDeque<>();
@@ -64,11 +67,12 @@ public final class SimBench {
         private String message;
         private Process child;
 
-        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start) {
+        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed) {
             this.id = id;
             this.entry = entry;
             this.startedBy = startedBy;
             this.start = start;
+            this.seed = seed;
         }
 
         public synchronized boolean running() {
@@ -393,6 +397,12 @@ public final class SimBench {
                 .route("PUT", "/start", (request, params) -> withOpMode(request, name -> place(name, request.body)))
                 .route(
                         "GET",
+                        "/seed",
+                        (request, params) ->
+                                withOpMode(request, name -> Response.json(seedJson(startPoses.seed(name)))))
+                .route("PUT", "/seed", (request, params) -> withOpMode(request, name -> seed(name, request.body)))
+                .route(
+                        "GET",
                         "/place",
                         (request, params) -> withOpMode(
                                 request,
@@ -461,6 +471,32 @@ public final class SimBench {
         return Response.json(GSON.toJson(StartPoses.toJson(startPoses.put(opMode, pose))));
     }
 
+    /**
+     * {@code PUT /seed?opmode=<name>} with {@code {"seed": <whole number or null>}}: sets which
+     * robot that op mode's runs are made on, null for the exact robot, and answers it. A body
+     * that is not that is a 400 naming what is wrong.
+     */
+    private Response seed(String opMode, String body) {
+        Long seed;
+        try {
+            JsonObject json = GSON.fromJson(body, JsonObject.class);
+            if (json == null || !json.has("seed")) {
+                throw new IllegalArgumentException("expected {\"seed\": <whole number, or null for the exact robot>}");
+            }
+            seed = StartPoses.seedFromJson(json.get("seed"));
+        } catch (RuntimeException e) {
+            return Response.error(400, "not a seed: " + e.getMessage());
+        }
+        return Response.json(seedJson(startPoses.putSeed(opMode, seed)));
+    }
+
+    /** {@code {"seed": ..}}, null for the exact robot. */
+    private static String seedJson(Long seed) {
+        JsonObject json = new JsonObject();
+        json.add("seed", StartPoses.seedToJson(seed));
+        return GSON.toJson(json);
+    }
+
     /** The op mode's kind as last listed, or auto when it has not been. */
     private synchronized String kindOf(String opMode) {
         SimCatalog known = fixedCatalog != null ? fixedCatalog : listed;
@@ -477,14 +513,26 @@ public final class SimBench {
         return route.handle(run, request);
     }
 
+    /** The catalog as JSON, each op mode with the {@code seed} its runs are made on. */
     private Response catalogJson() {
         try {
-            return Response.json(GSON.toJson(catalog().toJson()));
+            return Response.json(GSON.toJson(withSeeds(catalog().toJson())));
         } catch (BuildFailed e) {
             return Response.error(500, "the sources do not compile:\n" + e.getMessage());
         } catch (SimRunStream.WrongProtocol e) {
             return Response.error(500, e.getMessage());
         }
+    }
+
+    /** Each catalog entry with its op mode's seed added, null for the exact robot. */
+    public JsonArray withSeeds(JsonArray catalog) {
+        for (JsonElement entry : catalog) {
+            JsonObject item = entry.getAsJsonObject();
+            item.add(
+                    "seed",
+                    StartPoses.seedToJson(startPoses.seed(item.get("name").getAsString())));
+        }
+        return catalog;
     }
 
     private Response page(Run run, Request request) {
@@ -554,7 +602,7 @@ public final class SimBench {
         if (current() != null) {
             return null;
         }
-        Run run = new Run(runs.size() + 1, entry, startedBy, startPoses.get(entry.name));
+        Run run = new Run(runs.size() + 1, entry, startedBy, startPoses.get(entry.name), startPoses.seed(entry.name));
         runs.add(run);
         Thread thread = new Thread(() -> perform(run), "sim-run-" + run.id);
         thread.setDaemon(true);
@@ -708,14 +756,28 @@ public final class SimBench {
     }
 
     /**
-     * Places the robot for the run. A child that waits to be placed is told where; one from before
-     * that places itself at the origin, so it may run when that is the start pose and not otherwise.
+     * Places the robot for the run, and says which robot. A child that waits to be placed is told
+     * where and, when the op mode runs on a seed, which robot; one from before the seed runs the
+     * exact robot, so it may run when that is the op mode's robot and not otherwise; one from
+     * before placing places itself at the origin, so it may run when that is the start pose and
+     * not otherwise.
      *
      * @return false when the run cannot start where the robot is placed, with the run finished saying why
      */
     private static boolean place(Run run, int childProtocol) {
+        if (run.seed != null && childProtocol < SimRunStream.SEEDED_PROTOCOL) {
+            run.finish(
+                    SimRunStream.Outcome.cannotSeed(childProtocol),
+                    "the simulator in these sources speaks protocol "
+                            + childProtocol
+                            + " and runs the exact robot on its own; a seed needs protocol "
+                            + SimRunStream.SEEDED_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or clear the seed.");
+            return false;
+        }
         if (childProtocol >= SimRunStream.PLACED_PROTOCOL) {
-            run.send(SimDriverStation.startLine(run.start)); // a child already gone ends the run by its exit code
+            run.send(SimDriverStation.startLine(
+                    run.start, run.seed)); // a child already gone ends the run by its exit code
             return true;
         }
         Twist2d fromOrigin = run.start.minus(StartPoses.ORIGIN);
@@ -773,6 +835,7 @@ public final class SimBench {
             item.addProperty("kind", run.entry.kind);
             item.addProperty("startedAt", run.startedAtMillis);
             item.addProperty("startedBy", run.startedBy);
+            item.add("seed", StartPoses.seedToJson(run.seed));
             item.addProperty("phase", run.phase());
             item.addProperty("loops", run.ticks().size());
             item.addProperty("seconds", run.seconds());

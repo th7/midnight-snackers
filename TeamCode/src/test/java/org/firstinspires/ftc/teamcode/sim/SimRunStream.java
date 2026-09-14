@@ -76,6 +76,15 @@ public final class SimRunStream {
                     + " and cannot place the robot; placing needs " + PLACED_PROTOCOL;
         }
 
+        /**
+         * The child's simulator is from before the seed, and the op mode runs on one; such a child
+         * runs the exact robot whatever it is told. The run's message says whose the fix is.
+         */
+        public static String cannotSeed(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and cannot run a seeded robot; a seed needs " + SEEDED_PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -115,7 +124,7 @@ public final class SimRunStream {
      * read; then {@link #OLDEST_PROTOCOL_READ} says how old a child a bench still reads, and the
      * test of the oldest one pins what such a child printed.
      */
-    public static final int PROTOCOL = 3;
+    public static final int PROTOCOL = 4;
     /** The oldest child a bench still reads. A child of version 1 prints no hello: its first line is content. */
     public static final int OLDEST_PROTOCOL_READ = 1;
     /**
@@ -124,6 +133,12 @@ public final class SimRunStream {
      * origin, so the bench lets it run from there and refuses to run it from anywhere else.
      */
     public static final int PLACED_PROTOCOL = 3;
+    /**
+     * From this version on, the start line may name a {@link SimNoise} seed and the child runs the
+     * robot drawn from it. An older child runs the exact robot whatever it is told, so the bench
+     * lets it run when that is the op mode's robot and refuses to run it on a seed.
+     */
+    public static final int SEEDED_PROTOCOL = 4;
 
     /** The child speaks a protocol this bench cannot read; the message names both and whose the fix is. */
     public static final class WrongProtocol extends RuntimeException {

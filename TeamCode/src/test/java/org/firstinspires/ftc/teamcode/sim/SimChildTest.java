@@ -268,6 +268,28 @@ public class SimChildTest {
         assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);
     }
 
+    /**
+     * A start line with a seed runs the robot drawn from it: set down near the start pose, not on
+     * it, and named in the child's log so the run can say which robot it was.
+     */
+    @Test
+    public void aSeedOnTheStartLineRunsTheRobotDrawnFromIt() throws Exception {
+        Pose2d start = new Pose2d(-60, 12, 0);
+        Process child = SimChild.launchOnThisClasspath(
+                "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        in.write(new Gson().toJson(SimDriverStation.startLine(start, 7L)) + "\n");
+        in.flush();
+
+        Output output = run(child);
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        JsonObject first = new Gson().fromJson(output.stdout.get(2), JsonObject.class);
+        double dx = first.get("x").getAsDouble() + 60, dy = first.get("y").getAsDouble() - 12;
+        assertTrue("set down near the pose: " + first, Math.hypot(dx, dy) > 0.01 && Math.hypot(dx, dy) < 3);
+        assertTrue(output.stderr, output.stderr.contains(SimNoise.seeded(7).toString()));
+    }
+
     /** Until it is placed, the child has not started: Stop then ends the run stopped, with no ticks. */
     @Test
     public void stopBeforePlacementEndsTheRunStopped() throws Exception {

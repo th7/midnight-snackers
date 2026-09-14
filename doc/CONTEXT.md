@@ -323,9 +323,10 @@ together — and the libraries, nothing else. Every class identity is
 consistent, static state starts clean, and a hung op mode is a process
 that can be killed. It says its **protocol** first, builds the catalog, waits to
 be **placed**, then prints the run stream; the op mode's own output goes
-to stderr. Its standard input is the driver station, one line at a time:
-the first places the robot, and until it comes Stop ends the run
-unstarted; when the input ends, the run ends stopped. Class: `SimChild`.
+to stderr, after a line naming the robot the run is on. Its standard
+input is the driver station, one line at a time: the first places the
+robot and says which robot (its seed, or none for the exact robot), and
+until it comes Stop ends the run unstarted; when the input ends, the run ends stopped. Class: `SimChild`.
 
 **Run stream** — The lines the child prints, one JSON object per line, in
 order: which protocol it speaks, one that the op mode's time has begun,
@@ -340,7 +341,11 @@ version line prints content first and is that oldest version. The
 version also says what the child reads: from version 3 a child waits to
 be placed, so the bench places it first thing; an older child places
 itself at the origin, so the bench lets it run when that is the start
-pose and refuses it by name, with the fix, otherwise. A tick's
+pose and refuses it by name, with the fix, otherwise. From version 4 the
+start line may carry the op mode's seed and the child runs the robot
+drawn from it; an older child runs the exact robot whatever it is told,
+so the bench lets it run when that is the op mode's robot and refuses it
+by name, with the fix, when a seed is set. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Class: `SimRunStream`;
@@ -360,7 +365,8 @@ loads the catalog, *running* from the moment the op mode's time begins,
 **message** (compile errors, or why it was killed), and when finished an
 **outcome**: *done*, *stopped*, *timed out*, *build failed*, *wrong
 protocol*, or *child exited with code N*. It starts from the op mode's
-**start pose** as it was when the run was started. An **auto run** is done when its plan is, and times
+**start pose**, on the op mode's **seed**, as they were when the run was
+started. An **auto run** is done when its plan is, and times
 out when the plan is not done within the **run timeout** (60 s on the
 bench, of simulated time). A **TeleOp run** has no plan: it is driven from the controller
 until the driver presses Stop, or is done when its **period** is over
@@ -468,8 +474,20 @@ braking, slips. A robot **set down** at a start pose lands near it, as a
 hand puts it, about half an inch and two degrees off. The loop period is
 about 33 ms (thirty hertz), varied, with the odd **hiccup** of 80 to
 200 ms. A robot without noise is the tuned model exactly, with the loop
-at 20 ms: what every run had before there was noise, and what the bench
-still runs. Class: `SimNoise`; `SimRobot.setDown`.
+at 20 ms: what every run had before there was noise. Class: `SimNoise`;
+`SimRobot.setDown`.
+
+**Seed** — Which robot an op mode's runs are made on, kept by the bench
+beside the op mode's start pose (in `start-poses.json`, so per user on
+the coding server): a whole number, drawn into a robot by the noise, or
+none for the exact robot. Seed 1 until someone sets it, so a run is made
+on an imperfect robot unless someone asks for the exact one. Shown and
+edited in the op mode's row on the bench page and the Simulate tab (a
+blank seed is the exact robot), answered by `GET /seed?opmode=<name>`
+and set by `PUT /seed` with `{"seed": <n or null>}`, listed with each op
+mode in the catalog, carried by each run (`/status` says which seed a
+run was made on, and the run's log names the robot drawn) and sent to
+the child on the start line. Class: `StartPoses`; `SimBench.Run.seed`.
 
 **Simulated clock** — The simulation's time, in nanoseconds since the
 world was made, advanced only when the world is stepped. The robot code
