@@ -46,6 +46,21 @@ public class StepTest {
         assertTrue(step.done());
     }
 
+    /** A wait is a timed step on the clock it is given, so a simulated clock can run it. */
+    @Test
+    public void waitForCountsOnTheGivenClock() {
+        nanoNow = 7_000_000_000L;
+        Step step = Step.waitFor("settle", 0.25, () -> nanoNow);
+
+        assertFalse(step.done());
+        nanoNow += 250_000_000L;
+        assertFalse(step.done());
+
+        nanoNow += 1;
+        assertTrue(step.done());
+        assertEquals("settle waitFor 0.25", step.currentStep());
+    }
+
     @Test
     public void currentStepIsTheName() {
         Step step = new Step("step name", () -> {}, () -> true, () -> nanoNow);

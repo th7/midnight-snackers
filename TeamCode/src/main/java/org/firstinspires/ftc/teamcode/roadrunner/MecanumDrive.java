@@ -6,7 +6,6 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.AccelConstraint;
 import com.acmerobotics.roadrunner.Action;
-import com.acmerobotics.roadrunner.Actions;
 import com.acmerobotics.roadrunner.AngularVelConstraint;
 import com.acmerobotics.roadrunner.DualNum;
 import com.acmerobotics.roadrunner.HolonomicController;
@@ -41,6 +40,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.LongSupplier;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.DriveCommandMessage;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.MecanumCommandMessage;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.PoseMessage;
@@ -65,6 +65,13 @@ public final class MecanumDrive {
     private final DownsampledWriter targetPoseWriter = new DownsampledWriter("TARGET_POSE", 50_000_000);
     private final DownsampledWriter driveCommandWriter = new DownsampledWriter("DRIVE_COMMAND", 50_000_000);
     private final DownsampledWriter mecanumCommandWriter = new DownsampledWriter("MECANUM_COMMAND", 50_000_000);
+    /** The clock the trajectory followers run on: the robot's, so a simulation can own time. */
+    private final LongSupplier clock;
+
+    /** Seconds on the drive's clock, in place of {@code Actions.now()}. */
+    private double now() {
+        return clock.getAsLong() * 1e-9;
+    }
 
     public MecanumDrive(HardwareMap hardwareMap) {
         this(hardwareMap, new Pose2d(0, 0, 0));
@@ -85,7 +92,8 @@ public final class MecanumDrive {
                         "imu",
                         new RevHubOrientationOnRobot(PARAMS.logoFacingDirection, PARAMS.usbFacingDirection)),
                 hardwareMap.voltageSensor.iterator().next(),
-                pose);
+                pose,
+                System::nanoTime);
 
         LynxFirmware.throwIfModulesAreOutdated(hardwareMap);
 
@@ -105,7 +113,9 @@ public final class MecanumDrive {
             DcMotorEx rightFront,
             LazyImu lazyImu,
             VoltageSensor voltageSensor,
-            Pose2d pose) {
+            Pose2d pose,
+            LongSupplier clock) {
+        this.clock = clock;
         this.leftFront = leftFront;
         this.leftBack = leftBack;
         this.rightBack = rightBack;
@@ -248,10 +258,10 @@ public final class MecanumDrive {
         public boolean run(@NonNull TelemetryPacket p) {
             double t;
             if (beginTs < 0) {
-                beginTs = Actions.now();
+                beginTs = now();
                 t = 0;
             } else {
-                t = Actions.now() - beginTs;
+                t = now() - beginTs;
             }
 
             Pose2dDual<Time> txWorldTarget = timeTrajectory.get(t);
@@ -343,10 +353,10 @@ public final class MecanumDrive {
         public boolean run(@NonNull TelemetryPacket p) {
             double t;
             if (beginTs < 0) {
-                beginTs = Actions.now();
+                beginTs = now();
                 t = 0;
             } else {
-                t = Actions.now() - beginTs;
+                t = now() - beginTs;
             }
 
             Pose2dDual<Time> txWorldTarget = turn.get(t);

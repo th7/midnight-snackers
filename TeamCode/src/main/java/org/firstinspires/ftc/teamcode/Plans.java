@@ -115,7 +115,7 @@ public class Plans extends SuperSystem {
     @Auto(alliance = Alliance.RELATIVE)
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
-                Step.waitFor("forwardLeftBackwardRight", 5),
+                Step.waitFor("forwardLeftBackwardRight", 5, robot.clock),
                 new Step(
                         "forwardLeftBackwardRight",
                         () -> drive.follow(nav.strafePath(

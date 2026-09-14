@@ -13,7 +13,8 @@ import org.junit.Test;
 
 /**
  * Runs the real forwardLeftBackwardRight auto, as the registrar registers it, against the
- * simulated robot. Takes about ten seconds of wall clock: the plan starts with a five second wait.
+ * simulated robot, on the simulation's clock, so the plan's five second wait and the drive along
+ * the square take a fraction of a second of wall clock and come out the same every time.
  * The plan is relative to wherever the robot is placed, and the robot is placed in the open near
  * the audience wall: the middle of the field, where the simulator puts a robot by default, is
  * inside this season's frame, and a 24-inch square from there runs into a leg.

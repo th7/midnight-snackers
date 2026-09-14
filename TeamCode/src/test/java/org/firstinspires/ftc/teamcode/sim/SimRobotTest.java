@@ -12,6 +12,22 @@ public class SimRobotTest {
 
     private final SimRobot sim = new SimRobot();
 
+    // --- the clock: the simulation owns time, and the robot code reads it through its hardware ---
+
+    @Test
+    public void theClockStartsAtZeroAndAdvancesExactlyWithTheWorld() {
+        assertEquals(0, sim.nanoTime());
+
+        sim.step(0.5);
+        sim.step(0.02);
+
+        assertEquals(520_000_000L, sim.nanoTime());
+        assertEquals(
+                "the hardware's clock is the world's",
+                520_000_000L,
+                sim.hardware().clock.getAsLong());
+    }
+
     @Test
     public void withTheRobotsMotorDirectionsForwardPowerDrivesStraightAheadNearMaxSpeed() {
         robotDrive();
@@ -432,7 +448,8 @@ public class SimRobotTest {
                 sim.rightFront,
                 () -> sim.imu,
                 sim.voltageSensor,
-                new Pose2d(0, 0, 0));
+                new Pose2d(0, 0, 0),
+                sim::nanoTime);
     }
 
     private void setPowers(double leftFront, double rightFront, double leftBack, double rightBack) {

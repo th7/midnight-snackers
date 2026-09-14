@@ -99,6 +99,9 @@ public class SimRobot {
     private final MecanumKinematics kinematics =
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private Pose2d pose = new Pose2d(0, 0, 0);
+    /** The simulation's clock: nanoseconds since the world was made, advanced by {@link #step}. */
+    private long nanos = 0;
+
     private double parTicks = 0;
     private double perpTicks = 0;
     /** The loose game pieces, {x, y} each, and their velocities, in {@link SimField#loosePieces}' order. */
@@ -137,7 +140,16 @@ public class SimRobot {
         hardware.voltageSensor = voltageSensor;
         hardware.aprilTags = ArrayList::new;
         hardware.dashboard = dashboard;
+        hardware.clock = this::nanoTime;
         return hardware;
+    }
+
+    /**
+     * The simulation's clock, in nanoseconds since the world was made: what the robot code's timers
+     * read, through its hardware. It advances only when the world does.
+     */
+    public long nanoTime() {
+        return nanos;
     }
 
     /**
@@ -177,6 +189,7 @@ public class SimRobot {
      * obstacle between two of them, however long the caller waited.
      */
     public void step(double dtSeconds) {
+        nanos += Math.round(dtSeconds * 1e9);
         int steps = Math.max(1, (int) Math.ceil(dtSeconds / MAX_STEP_SECONDS));
         for (int i = 0; i < steps; i++) {
             substep(dtSeconds / steps);

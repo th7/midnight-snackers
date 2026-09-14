@@ -64,10 +64,10 @@ public class Launcher extends SubSystem {
                 ensureFlywheelReady(),
                 launchCloseTopGate(),
                 launchOpenBottomGate(),
-                Step.waitFor("ball to fall into launcher", 0.15),
+                Step.waitFor("ball to fall into launcher", 0.15, robot.clock),
                 launchCloseBottomGate(),
                 launchOpenTopGate(),
-                Step.waitFor("ball to fall into bottom position", 0.15));
+                Step.waitFor("ball to fall into bottom position", 0.15, robot.clock));
     }
 
     private Step ensureFlywheelReady() {
@@ -87,7 +87,8 @@ public class Launcher extends SubSystem {
                 () -> {
                     topGatePosition = topGateClosedPosition;
                 },
-                Step.secondsElapsed(0.05));
+                Step.secondsElapsed(0.05),
+                robot.clock);
     }
 
     private Step launchOpenBottomGate() {
@@ -96,7 +97,8 @@ public class Launcher extends SubSystem {
                 () -> {
                     bottomGatePosition = bottomGateOpenPosition;
                 },
-                Step.secondsElapsed(0.05));
+                Step.secondsElapsed(0.05),
+                robot.clock);
     }
 
     private Step launchCloseBottomGate() {
@@ -105,7 +107,8 @@ public class Launcher extends SubSystem {
                 () -> {
                     bottomGatePosition = bottomGateClosedPosition;
                 },
-                Step.secondsElapsed(0.08));
+                Step.secondsElapsed(0.08),
+                robot.clock);
     }
 
     private Step launchOpenTopGate() {
@@ -114,7 +117,8 @@ public class Launcher extends SubSystem {
                 () -> {
                     topGatePosition = topGateOpenPosition;
                 },
-                Step.secondsElapsed(0.05));
+                Step.secondsElapsed(0.05),
+                robot.clock);
     }
 
     public void slowLaunchyLaunch() {
@@ -124,7 +128,7 @@ public class Launcher extends SubSystem {
     }
 
     private Plan slowLaunchPlan() {
-        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8));
+        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8, robot.clock));
     }
 
     public void increasePower() {

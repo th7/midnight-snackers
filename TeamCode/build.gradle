@@ -53,6 +53,8 @@ dependencies {
 
     testImplementation "junit:junit:4.13.2"
     testImplementation "com.google.code.gson:gson:2.11.0"
+    // dyn4j, the rigid-body engine the simulated robot, the walls, the obstacles and the balls move in
+    testImplementation "org.dyn4j:dyn4j:6.0.0"
     // scrypt, for the coding server's session store
     testImplementation "org.bouncycastle:bcprov-jdk18on:1.79"
 }

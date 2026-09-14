@@ -90,7 +90,7 @@ public class PlanOpModesTest {
     public static class WrongShape extends Plans {
         @Auto(alliance = Alliance.RELATIVE)
         public PlanPart needsAnArgument(int inches) {
-            return Step.waitFor("wait", inches);
+            return new Step("wait", () -> {}, () -> false);
         }
     }
 
@@ -107,12 +107,12 @@ public class PlanOpModesTest {
     public static class Twice extends Plans {
         @Auto(name = "Same", alliance = Alliance.RED)
         public PlanPart one() {
-            return Step.waitFor("one", 1);
+            return new Step("one", () -> {}, () -> false);
         }
 
         @Auto(name = "Same", alliance = Alliance.BLUE)
         public PlanPart two() {
-            return Step.waitFor("two", 1);
+            return new Step("two", () -> {}, () -> false);
         }
     }
 

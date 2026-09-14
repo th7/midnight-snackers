@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import java.util.List;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.AprilTagWebcam;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
@@ -15,8 +16,8 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 /**
  * Everything the op modes touch outside their own code: the configured devices, the camera's
- * detections, and the dashboard. {@link #fromHardwareMap} is the real robot; tests and the
- * simulator fill one in from fakes, by name.
+ * detections, the dashboard, and the clock. {@link #fromHardwareMap} is the real robot; tests and
+ * the simulator fill one in from fakes, by name.
  */
 public final class Hardware {
     public DcMotorEx launcher;
@@ -35,6 +36,12 @@ public final class Hardware {
     public VoltageSensor voltageSensor;
     public Supplier<List<AprilTagDetection>> aprilTags;
     public Dashboard dashboard;
+    /**
+     * The time, in nanoseconds from an arbitrary origin, as {@link System#nanoTime()} gives it. Every
+     * timer in the robot code reads this and nothing else, so a simulation can own time: run faster
+     * than real time, and the same way every time.
+     */
+    public LongSupplier clock;
 
     /**
      * The devices from the robot configuration. Only valid on the robot controller.
@@ -57,6 +64,7 @@ public final class Hardware {
         hardware.voltageSensor = hardwareMap.voltageSensor.iterator().next();
         hardware.aprilTags = AprilTagWebcam.detections(hardwareMap);
         hardware.dashboard = Dashboard.ftc();
+        hardware.clock = System::nanoTime;
         return hardware;
     }
 }

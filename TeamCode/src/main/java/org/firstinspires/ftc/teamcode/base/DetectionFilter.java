@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.base;
 
 import java.util.LinkedList;
+import java.util.function.LongSupplier;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
@@ -12,10 +13,15 @@ public class DetectionFilter {
     private final LinkedList<AprilTagDetection> storedDetections = new LinkedList<>();
     private final int detectionCount = 3;
     private final int maxPositionDifference;
+    private final LongSupplier clock;
 
-    public DetectionFilter() {
+    /**
+     * @param clock the clock the detections' {@code frameAcquisitionNanoTime} is on: the robot's
+     */
+    public DetectionFilter(LongSupplier clock) {
         this.maxPositionDifference = 1;
         this.maxDetectionAgeNano = (long) (0.1 * 1_000_000_000);
+        this.clock = clock;
     }
 
     public void addDetection(AprilTagDetection detection) {
@@ -76,6 +82,6 @@ public class DetectionFilter {
 
     public long lastDetectionAgeNano() {
         AprilTagDetection lastDetection = storedDetections.getLast();
-        return System.nanoTime() - lastDetection.frameAcquisitionNanoTime;
+        return clock.getAsLong() - lastDetection.frameAcquisitionNanoTime;
     }
 }

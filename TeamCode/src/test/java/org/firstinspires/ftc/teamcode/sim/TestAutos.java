@@ -69,6 +69,17 @@ public final class TestAutos {
         }
     }
 
+    /** An auto that waits {@link #SECONDS} on the robot's clock, then is done. */
+    @Autonomous(name = "Wait two seconds", group = "Test")
+    public static class WaitingAuto extends TestAuto {
+        public static final double SECONDS = 2;
+
+        @Override
+        public PlanPart getPlan() {
+            return Step.waitFor("wait", SECONDS, robot.clock);
+        }
+    }
+
     @Autonomous(name = "Never done", group = "Test")
     public static class NeverDoneAuto extends TestAuto {
         @Override

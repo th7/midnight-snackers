@@ -54,15 +54,15 @@ public class LauncherTest {
         assertEquals(TOP_GATE_CLOSED, sim.topGate.position, DELTA);
     }
 
+    /** The launch's timed steps run on the robot's clock, which is the simulation's. */
     @Test
-    public void launchRunsToCompletionAndParksTheGates() throws InterruptedException {
+    public void launchRunsToCompletionOnTheSimulatedClockAndParksTheGates() {
         sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
         launcher.launchyLaunch();
 
-        long deadline = System.nanoTime() + 2_000_000_000L;
-        while (!launcher.launchDone() && System.nanoTime() < deadline) {
+        for (int loops = 0; !launcher.launchDone() && loops < 100; loops++) {
             launcher.loop();
-            Thread.sleep(1);
+            sim.step(0.02);
         }
 
         assertTrue(launcher.launchDone());

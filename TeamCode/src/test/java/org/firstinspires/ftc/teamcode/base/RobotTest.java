@@ -139,4 +139,14 @@ public class RobotTest {
     public void theDashboardIsTheHardwaresDashboard() {
         assertSame(sim.dashboard, robot.dashboard);
     }
+
+    /** Every timer in the robot code reads the hardware's clock, so a simulation can own time. */
+    @Test
+    public void theRobotRunsOnItsHardwaresClock() {
+        assertEquals(0, robot.clock.getAsLong());
+
+        sim.step(1.5);
+
+        assertEquals(1_500_000_000L, robot.clock.getAsLong());
+    }
 }

@@ -126,7 +126,7 @@ public class SimCatalogTest {
 
         @Override
         public PlanPart getPlan() {
-            return Step.waitFor("wait", 1);
+            return new Step("wait", () -> {}, () -> false);
         }
     }
 

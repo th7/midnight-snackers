@@ -11,26 +11,38 @@ import org.firstinspires.ftc.teamcode.base.OpMode;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 
 /**
- * Runs an op mode against a {@link SimRobot} in real time, the way the robot controller would:
- * init, start, then loop. An auto loops until its plan is done, and failing that within its
- * timeout is an error; a TeleOp loops on the {@link SimDriverStation}'s gamepads until the driver
- * presses Stop or its time is up. Every run, finished or not, leaves a replay page named after
- * the op mode in the output directory.
+ * Runs an op mode against a {@link SimRobot} the way the robot controller would: init, start, then
+ * loop. Time is the simulation's: the world moves {@link #LOOP_SECONDS} between one loop and the
+ * next, whatever the machine is doing, and the op mode's clock is the world's, so a run is the same
+ * tick for tick every time it is made. An auto loops until its plan is done, and failing that within
+ * its timeout is an error; a TeleOp loops on the {@link SimDriverStation}'s gamepads until the
+ * driver presses Stop or its time is up. Every run, finished or not, leaves a replay page named
+ * after the op mode in the output directory.
  * <p>
- * To watch an auto run as it happens, set {@code SIM_LIVE} to a port and open that port in a browser:
+ * A run's {@link Pace} says whether to hold it to real time. A run nobody watches goes as fast as
+ * the machine can; one driven from a driver station or watched live keeps to real time, so it can
+ * be driven and followed. To watch an auto run as it happens, set {@code SIM_LIVE} to a port and
+ * open that port in a browser:
  * <pre>
  * SIM_LIVE=8765 ./gradlew :TeamCode:testDebugUnitTest --rerun --tests '*ForwardLeftBackwardRightSimTest*'
  * </pre>
  * The page at http://localhost:8765/ follows the run and stays up until it has shown the end
  * (at most {@link #LIVE_HOLD_SECONDS} after the run finishes).
- * <p>
- * Real time because Road Runner actions and {@code Step} timers read the system clock.
  */
 public final class SimRunner {
+    /** Whether a run keeps to real time or goes as fast as it can; either way it is the same run. */
+    public enum Pace {
+        /** One loop period of wall clock per loop, at least: for a run somebody drives or watches. */
+        REAL_TIME,
+        /** No waiting: for a run nobody is watching, such as a test. */
+        FASTEST
+    }
+
     public static final Path DEFAULT_OUTPUT_DIR = Paths.get("build", "sim");
     public static final String LIVE_PORT_ENV = "SIM_LIVE";
     public static final double LIVE_HOLD_SECONDS = 30;
-    private static final long TICK_MILLIS = 5;
+    /** How far the world moves between one op mode loop and the next: about what a loop takes on the robot. */
+    public static final double LOOP_SECONDS = 0.02;
     /**
      * Poses are kept for every loop, but the dashboard drawings (which repeat the whole planned
      * path and pose history each loop) only this often, so a replay stays around a megabyte.
@@ -40,6 +52,8 @@ public final class SimRunner {
     private SimRunner() {}
 
     /**
+     * Runs an auto as fast as the machine can, unless {@code SIM_LIVE} names a port to watch it on.
+     *
      * @return what happened, loop by loop
      * @throws AssertionError if the plan is not done within {@code timeoutSeconds}
      */
@@ -94,7 +108,9 @@ public final class SimRunner {
             System.out.println("Simulation live view: " + live.url());
         }
         try {
-            return record(recording, opMode, sim, timeoutSeconds, outputDir);
+            // A run somebody is watching keeps to real time; a run nobody is watching need not.
+            Pace pace = live == null ? Pace.FASTEST : Pace.REAL_TIME;
+            return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation(), pace);
         } finally {
             if (live != null) {
                 live.awaitViewerSawOutcome(LIVE_HOLD_SECONDS);
@@ -105,18 +121,20 @@ public final class SimRunner {
 
     /**
      * Run an auto into a recording the caller already holds, so it can be watched while this is in
-     * progress. The recording always ends with an outcome and a replay page, even when this throws.
+     * progress, in real time. The recording always ends with an outcome and a replay page, even
+     * when this throws.
      */
     public static SimRecording record(
             SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
-        return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation());
+        return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation(), Pace.REAL_TIME);
     }
 
     /**
-     * Run any op mode into a recording the caller already holds, driven from {@code driverStation}.
-     * An auto ends done when its plan is, or fails by timing out after {@code seconds}; a TeleOp
-     * ends done when {@code seconds} are up. Either ends stopped when the driver station says so.
-     * The recording always ends with an outcome and a replay page, even when this throws.
+     * Run any op mode into a recording the caller already holds, driven from {@code driverStation}
+     * in real time, so the driver can drive it. An auto ends done when its plan is, or fails by
+     * timing out after {@code seconds}; a TeleOp ends done when {@code seconds} are up. Either ends
+     * stopped when the driver station says so. The recording always ends with an outcome and a
+     * replay page, even when this throws.
      */
     public static SimRecording record(
             SimRecording recording,
@@ -125,8 +143,20 @@ public final class SimRunner {
             double seconds,
             Path outputDir,
             SimDriverStation driverStation) {
+        return record(recording, opMode, sim, seconds, outputDir, driverStation, Pace.REAL_TIME);
+    }
+
+    /** {@link #record(SimRecording, OpMode, SimRobot, double, Path, SimDriverStation)} at the given pace. */
+    public static SimRecording record(
+            SimRecording recording,
+            OpMode opMode,
+            SimRobot sim,
+            double seconds,
+            Path outputDir,
+            SimDriverStation driverStation,
+            Pace pace) {
         try {
-            loopUntilDone(opMode, sim, seconds, recording, driverStation);
+            loopUntilDone(opMode, sim, seconds, recording, driverStation, pace);
             recording.finish(SimRunStream.Outcome.done());
         } catch (RuntimeException | Error e) {
             recording.finish(SimRunStream.Outcome.failed(e));
@@ -151,8 +181,18 @@ public final class SimRunner {
         }
     }
 
+    /**
+     * The op mode's time begins at its first loop, at the world's clock as it then stands. Each
+     * loop happens, is recorded, and then the world moves one loop period; so a tick's time is a
+     * whole number of loop periods, and the last tick is one period behind the world.
+     */
     private static void loopUntilDone(
-            OpMode opMode, SimRobot sim, double seconds, SimRecording recording, SimDriverStation driverStation) {
+            OpMode opMode,
+            SimRobot sim,
+            double seconds,
+            SimRecording recording,
+            SimDriverStation driverStation,
+            Pace pace) {
         AutoOp auto = opMode instanceof AutoOp ? (AutoOp) opMode : null;
         opMode.useHardware(sim.hardware());
         opMode.telemetry = new FakeTelemetry();
@@ -163,8 +203,9 @@ public final class SimRunner {
 
         int packetsSeen = sim.dashboard.packets.size();
         double lastDrawingAt = Double.NEGATIVE_INFINITY;
-        long startedAt = System.nanoTime();
-        long lastTickAt = startedAt;
+        long startedAtNanos = sim.nanoTime();
+        long wallStartedAt = System.nanoTime();
+        int loops = 0;
         while (true) {
             if (driverStation.stopRequested()) {
                 recording.finish(SimRunStream.Outcome.stopped());
@@ -173,8 +214,7 @@ public final class SimRunner {
             if (auto != null && auto.done()) {
                 return;
             }
-            long now = System.nanoTime();
-            double elapsed = seconds(now - startedAt);
+            double elapsed = (sim.nanoTime() - startedAtNanos) / 1e9;
             if (elapsed > seconds) {
                 if (auto == null) {
                     return; // a TeleOp's time is simply up
@@ -184,8 +224,6 @@ public final class SimRunner {
                         "op mode still running after %.1fs; current step: %s; true pose: %s",
                         seconds, auto.currentStep(), sim.pose()));
             }
-            sim.step(seconds(now - lastTickAt));
-            lastTickAt = now;
             driverStation.applyTo(opMode.gamepad1, opMode.gamepad2);
             opMode.loop();
 
@@ -205,7 +243,26 @@ public final class SimRunner {
                     auto == null ? driverStation.state(1) : null,
                     auto == null ? driverStation.state(2) : null,
                     sim.pieces()));
-            sleep();
+
+            sim.step(LOOP_SECONDS);
+            loops++;
+            if (pace == Pace.REAL_TIME) {
+                holdToRealTime(wallStartedAt + (long) (loops * LOOP_SECONDS * 1e9));
+            }
+        }
+    }
+
+    /** Waits until the wall clock reaches {@code wallNanos}; a machine that is already late does not wait. */
+    private static void holdToRealTime(long wallNanos) {
+        long remaining = wallNanos - System.nanoTime();
+        if (remaining <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(remaining / 1_000_000, (int) (remaining % 1_000_000));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         }
     }
 
@@ -223,18 +280,5 @@ public final class SimRunner {
             type = type.getSuperclass();
         }
         return type.getSimpleName();
-    }
-
-    private static double seconds(long nanos) {
-        return nanos / 1_000_000_000d;
-    }
-
-    private static void sleep() {
-        try {
-            Thread.sleep(TICK_MILLIS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
     }
 }
