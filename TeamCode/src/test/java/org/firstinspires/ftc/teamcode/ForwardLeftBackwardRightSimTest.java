@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.roadrunner.Pose2d;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SimCatalog;
+import org.firstinspires.ftc.teamcode.sim.SimNoise;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
@@ -54,5 +55,33 @@ public class ForwardLeftBackwardRightSimTest {
         assertEquals("end x", x0, end.position.x, POSITION_TOLERANCE_INCHES);
         assertEquals("end y", y0, end.position.y, POSITION_TOLERANCE_INCHES);
         assertEquals("end heading", 0, end.heading.toDouble(), HEADING_TOLERANCE_RADIANS);
+    }
+
+    /**
+     * The same auto on a robot whose motors, battery, traction, placement and loop timing are off
+     * their tuned values, as a real one's are. The plan is relative to wherever the robot was set
+     * down, so the square is judged from there.
+     */
+    @Test
+    public void drivesTheSquareOnAnImperfectRobotToo() {
+        for (long seed = 1; seed <= 5; seed++) {
+            SimRobot sim = new SimRobot(SimNoise.seeded(seed));
+            sim.setDown(START);
+            Pose2d placed = sim.pose();
+            SimCatalog.Entry opMode = SimCatalog.of(PlanOpModes.class)
+                    .find("forwardLeftBackwardRight")
+                    .get();
+
+            SimRunner.run(opMode, sim, TIMEOUT_SECONDS, SimRunner.DEFAULT_OUTPUT_DIR.resolve("seed-" + seed));
+
+            Pose2d end = sim.pose();
+            assertEquals("seed " + seed + " end x", placed.position.x, end.position.x, POSITION_TOLERANCE_INCHES);
+            assertEquals("seed " + seed + " end y", placed.position.y, end.position.y, POSITION_TOLERANCE_INCHES);
+            assertEquals(
+                    "seed " + seed + " end heading",
+                    placed.heading.toDouble(),
+                    end.heading.toDouble(),
+                    HEADING_TOLERANCE_RADIANS);
+        }
     }
 }

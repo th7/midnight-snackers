@@ -45,7 +45,11 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * let it slide along them; a ball it pushes rolls on and slows; a ball pinned against a wall
  * stops the robot short of it, since nothing goes through anything. The sensors the localizer
  * reads (dead wheel encoders and IMU yaw) are written back from the true pose, so the dead
- * wheels read nothing while the wheels spin against a wall.
+ * wheels read nothing while the wheels spin against a wall. A robot made with {@link SimNoise}
+ * is off that model the ways a real robot is: its motors each a little off their tuning, its
+ * battery fresh or flat and sagging under load, its traction limited so it can slip, and set
+ * down near a pose rather than on it. The noise is in the mechanisms only; the sensors still
+ * read exactly what the robot did.
  * <p>
  * The robot starts with {@link #PRELOAD} balls in it. The launcher is on the turntable, and its
  * gates feed it as the robot code drives them: with the top gate open a ball drops from the hopper
@@ -133,6 +137,13 @@ public class SimRobot {
 
     private static final int PERP_RAW_SIGN = -1;
     /**
+     * The hub reports an encoder's velocity in multiples of this many ticks per second, and Road
+     * Runner's encoder wrapper relies on it: it reads a velocity's remainder modulo this as a
+     * count of 16-bit overflows to undo. A velocity reported between the steps is read as tens of
+     * inches a second, so the encoders here report what the hub would.
+     */
+    private static final double HUB_VELOCITY_STEP_TICKS_PER_S = 20;
+    /**
      * How the drive motors are physically mounted: the back motors are mirrored, so positive
      * terminal power spins those wheels backwards. That is why {@link MecanumDrive} reverses them;
      * with those directions applied, positive power means wheel-forward on every corner.
@@ -154,6 +165,9 @@ public class SimRobot {
     public final FakeImu imu = new FakeImu();
     public final FakeVoltageSensor voltageSensor = new FakeVoltageSensor(BATTERY_VOLTS);
     public final FakeDashboard dashboard = new FakeDashboard();
+
+    /** How this robot differs from the tuned model; {@link SimNoise#NONE} for the model exactly. */
+    private final SimNoise noise;
 
     private final MecanumDrive.Params drive = MecanumDrive.PARAMS;
     private final TwoDeadWheelLocalizer.Params deadWheels = TwoDeadWheelLocalizer.PARAMS;
@@ -204,7 +218,15 @@ public class SimRobot {
         }
     }
 
+    /** The tuned model exactly: a robot with {@link SimNoise#NONE}. */
     public SimRobot() {
+        this(SimNoise.NONE);
+    }
+
+    /** A robot as far off the tuned model as {@code noise} says. */
+    public SimRobot(SimNoise noise) {
+        this.noise = noise;
+        voltageSensor.voltage = noise.batteryVolts(0, 0);
         Settings settings = world.getSettings();
         settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
         settings.setMaximumAtRestLinearVelocity(REST_SPEED_IN_PER_S * IN);
@@ -325,6 +347,11 @@ public class SimRobot {
         return nanos;
     }
 
+    /** How this robot differs from the tuned model. */
+    public SimNoise noise() {
+        return noise;
+    }
+
     /**
      * Where the robot really is, as opposed to where its localizer thinks it is.
      */
@@ -352,6 +379,15 @@ public class SimRobot {
         world.addBody(robot);
         previous = pose();
         imu.yawRadians = previous.heading.toDouble();
+    }
+
+    /**
+     * Set the robot down where a person would, asked to put it at {@code pose}: near it, as near
+     * as the robot's {@link #noise() noise} says a hand gets, and exactly on it without noise.
+     * Otherwise {@link #setPose}: at rest, on the field, its IMU reading the new heading.
+     */
+    public void setDown(Pose2d pose) {
+        setPose(noise.placed(pose));
     }
 
     /**
@@ -442,6 +478,13 @@ public class SimRobot {
         turnTable.currentPosition +=
                 (int) Math.round(clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dt);
 
+        // The battery sags under the drive's load and drains with the run; the motors get what it reads.
+        double drivePower = Math.abs(clamp(leftFront.power))
+                + Math.abs(clamp(rightFront.power))
+                + Math.abs(clamp(leftBack.power))
+                + Math.abs(clamp(rightBack.power));
+        voltageSensor.voltage = noise.batteryVolts(nanos / 1e9, drivePower);
+
         driveTheRobot(dt);
         feedTheLauncher();
         world.step(1, dt);
@@ -463,10 +506,14 @@ public class SimRobot {
         MecanumKinematics.WheelVelocities<Time> wheels =
                 kinematics.inverse(PoseVelocity2dDual.constant(inRobotFrame, 1));
 
-        double lf = wheelAcceleration(leftFront, LEFT_FRONT_MOUNT, wheels.leftFront.value(), dt);
-        double lb = wheelAcceleration(leftBack, LEFT_BACK_MOUNT, wheels.leftBack.value(), dt);
-        double rb = wheelAcceleration(rightBack, RIGHT_BACK_MOUNT, wheels.rightBack.value(), dt);
-        double rf = wheelAcceleration(rightFront, RIGHT_FRONT_MOUNT, wheels.rightFront.value(), dt);
+        double lf = wheelAcceleration(
+                leftFront, LEFT_FRONT_MOUNT, noise.motor(SimNoise.LEFT_FRONT), wheels.leftFront.value(), dt);
+        double lb = wheelAcceleration(
+                leftBack, LEFT_BACK_MOUNT, noise.motor(SimNoise.LEFT_BACK), wheels.leftBack.value(), dt);
+        double rb = wheelAcceleration(
+                rightBack, RIGHT_BACK_MOUNT, noise.motor(SimNoise.RIGHT_BACK), wheels.rightBack.value(), dt);
+        double rf = wheelAcceleration(
+                rightFront, RIGHT_FRONT_MOUNT, noise.motor(SimNoise.RIGHT_FRONT), wheels.rightFront.value(), dt);
         // The forward kinematics are linear, so they take the wheels' accelerations to the robot's.
         Twist2d acceleration = kinematics
                 .forward(new MecanumKinematics.WheelIncrements<>(dual(lf), dual(lb), dual(rb), dual(rf)))
@@ -481,20 +528,27 @@ public class SimRobot {
     /**
      * A wheel's acceleration, in inches per second squared, from the model the drive was tuned
      * with: volts = kS * sign(v) + kV * v + kA * a, with the wheel at {@code velocity} inches per
-     * second and the motor at its commanded power. Below kS the motor cannot start the wheel, and
-     * a wheel that friction would stop within the step stops.
+     * second and the motor at its commanded power on the battery as it reads now. This motor's
+     * kS, kV and kA are the tuned ones by its {@code factors}. Below kS the motor cannot start the
+     * wheel, and a wheel that friction would stop within the step stops. Whatever the motor asks,
+     * the floor gives no more acceleration than its traction, driving or braking.
      */
-    private double wheelAcceleration(FakeDcMotorEx motor, int mount, double velocity, double dt) {
+    private double wheelAcceleration(
+            FakeDcMotorEx motor, int mount, SimNoise.Motor factors, double velocity, double dt) {
         int direction = motor.getDirection() == DcMotorSimple.Direction.REVERSE ? -1 : 1;
-        double volts = mount * direction * clamp(motor.power) * BATTERY_VOLTS;
+        double volts = mount * direction * clamp(motor.power) * voltageSensor.voltage;
+        double kS = drive.kS * factors.kS, kV = drive.kV * factors.kV, kA = drive.kA * factors.kA;
         double ticksPerSecond = velocity / drive.inPerTick;
-        boolean creeping = Math.abs(ticksPerSecond) <= drive.kS / drive.kA * dt;
-        if (creeping && Math.abs(volts) <= drive.kS) {
-            return -velocity / dt;
+        boolean creeping = Math.abs(ticksPerSecond) <= kS / kA * dt;
+        double acceleration;
+        if (creeping && Math.abs(volts) <= kS) {
+            acceleration = -velocity / dt;
+        } else {
+            double sign = ticksPerSecond != 0 ? Math.signum(ticksPerSecond) : Math.signum(volts);
+            acceleration = (volts - kS * sign - kV * ticksPerSecond) / kA * drive.inPerTick;
         }
-        double sign = ticksPerSecond != 0 ? Math.signum(ticksPerSecond) : Math.signum(volts);
-        double acceleration = (volts - drive.kS * sign - drive.kV * ticksPerSecond) / drive.kA;
-        return acceleration * drive.inPerTick;
+        double traction = noise.tractionInPerS2;
+        return Math.max(-traction, Math.min(traction, acceleration));
     }
 
     private static DualNum<Time> dual(double value) {
@@ -703,12 +757,17 @@ public class SimRobot {
         double parVelocity = velocity.linearVel.x / drive.inPerTick + deadWheels.parYTicks * velocity.angVel;
         double perpVelocity = velocity.linearVel.y / drive.inPerTick + deadWheels.perpXTicks * velocity.angVel;
         rightBack.currentPosition = (int) Math.round(PAR_RAW_SIGN * parTicks);
-        rightBack.measuredVelocity = PAR_RAW_SIGN * parVelocity;
+        rightBack.measuredVelocity = asTheHubReports(PAR_RAW_SIGN * parVelocity);
         leftFront.currentPosition = (int) Math.round(PERP_RAW_SIGN * perpTicks);
-        leftFront.measuredVelocity = PERP_RAW_SIGN * perpVelocity;
+        leftFront.measuredVelocity = asTheHubReports(PERP_RAW_SIGN * perpVelocity);
 
         imu.yawRadians = heading;
         imu.yawRateRadiansPerSecond = velocity.angVel;
+    }
+
+    /** An encoder velocity as the hub reports it: to the nearest {@link #HUB_VELOCITY_STEP_TICKS_PER_S}. */
+    private static double asTheHubReports(double ticksPerSecond) {
+        return Math.round(ticksPerSecond / HUB_VELOCITY_STEP_TICKS_PER_S) * HUB_VELOCITY_STEP_TICKS_PER_S;
     }
 
     /**

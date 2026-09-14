@@ -347,10 +347,11 @@ recording: the page reads either **source**. Class: `SimRunStream`;
 `SimReplayPage.Source`.
 
 **Run** — One execution of one op mode on a fresh simulated robot, on the
-simulation's own clock: the world moves one **loop period** (20 ms, about
-what a loop takes on the robot) between one op mode loop and the next,
-whatever the machine is doing, so a run is the same tick for tick every
-time it is made. A run's **pace** says whether it is held to real time:
+simulation's own clock: the world moves one **loop period** between one op
+mode loop and the next, whatever the machine is doing, so a run is the
+same tick for tick every time it is made. The period is 20 ms exactly on
+a robot without noise, and on a robot with **noise** it varies the way a
+real loop does, the same sequence for the same seed. A run's **pace** says whether it is held to real time:
 a run somebody drives or watches live is (`REAL_TIME`), a run nobody
 watches, such as a test, goes as fast as the machine can (`FASTEST`).
 A run has a **phase** (*building*, *starting* while the child JVM
@@ -441,17 +442,40 @@ scored and rests in the cell; one that meets any other panel of a hive
 bounces off; one that comes down on the floor rolls on; one that clears a
 wall is out. The model is planar apart from that flight: only the robot's
 footprint collides, nothing goes over a wall or under a hive by being low,
-and a flying ball meets only the hives, the floor and the walls. No slip
-or sensor noise. The launcher's throw and the turntable's speed are
-guesses until measured on the robot, calibrated so the code's close
-launch from its launch distance reaches the nearer cell's mouth. The
-world moves in steps of at most 5 ms whatever the loop rate, so nothing
-is jumped over. Class: `SimRobot`.
+and a flying ball meets only the hives, the floor and the walls. No
+sensor noise, ever: the sensors read exactly what the robot did, as the
+hub would report it, which for an encoder's velocity is to the nearest
+20 ticks per second (Road Runner's encoder wrapper reads the remainder
+as a count of the hub's 16-bit overflows, so anything finer is read as
+tens of inches a second). The
+launcher's throw and the turntable's speed are guesses until measured on
+the robot, calibrated so the code's close launch from its launch distance
+reaches the nearer cell's mouth. The world moves in steps of at most 5 ms
+whatever the loop rate, so nothing is jumped over. Class: `SimRobot`.
+
+**Noise** — How a run's robot differs from the tuned model, the ways a
+real robot does, drawn once per run from a **seed**: the same robot for
+the same seed, another robot for another. The noise is in the mechanisms
+only, never the sensors, so a gap between where the robot is and where
+its localizer believes it is comes from the robot code. Each drive
+motor's kS, kV and kA are within a tenth of the tuned values, each its
+own way, so the robot drifts under equal power. The **battery** starts
+anywhere from flat (12.0 V) to fresh (13.8 V), sags in proportion to the
+drive power commanded and drains as the run goes on; the sensor reads it
+exactly and the motors get what it reads. The floor gives only so much
+**traction** (0.3 to 0.6 g): a wheel that asks for more, driving or
+braking, slips. A robot **set down** at a start pose lands near it, as a
+hand puts it, about half an inch and two degrees off. The loop period is
+about 33 ms (thirty hertz), varied, with the odd **hiccup** of 80 to
+200 ms. A robot without noise is the tuned model exactly, with the loop
+at 20 ms: what every run had before there was noise, and what the bench
+still runs. Class: `SimNoise`; `SimRobot.setDown`.
 
 **Simulated clock** — The simulation's time, in nanoseconds since the
 world was made, advanced only when the world is stepped. The robot code
 reads it through its hardware's clock, so a simulated run need not take
-real time and comes out the same every time. Method: `SimRobot.nanoTime`.
+real time and comes out the same every time (for the same seed, on a
+robot with noise). Method: `SimRobot.nanoTime`.
 
 **Field** — The season's field as the simulator has it, reduced from
 FIRST's CAD by `tools/field/step_to_field.py` to `field.json`: the
