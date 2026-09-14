@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'com.diffplug.spotless'
 
 //
 // build.gradle in TeamCode
@@ -27,6 +28,18 @@ android {
 repositories {
     maven {
         url = 'https://maven.brott.dev/'
+    }
+}
+
+// Java formatting. CI runs the same check as the second line, so run the first before pushing:
+//   ./gradlew :TeamCode:spotlessApply    formats every Java file under TeamCode
+//   ./gradlew :TeamCode:spotlessCheck    fails on any file the formatter would change
+// palantir-java-format has no options to argue about: 4-space indent, 120 columns.
+spotless {
+    java {
+        target 'src/**/*.java'
+        palantirJavaFormat('2.98.0')
+        removeUnusedImports()
     }
 }
 
