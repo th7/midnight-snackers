@@ -296,6 +296,27 @@ public class SimBenchTest {
         assertEquals(0, run.ticks().size());
     }
 
+    /** A child that dies instead of listing the op modes is not a silent failure: the error says what it printed. */
+    @Test
+    public void aChildThatCannotListTheOpModesSaysWhatItPrinted() throws Exception {
+        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
+        edit(
+                project,
+                SIM_CHILD,
+                "            protocol.println(GSON.toJson(catalog(args, 1).toJson()));",
+                "            if (args.length > 0) throw new IllegalStateException(\"no catalog today\");");
+        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+
+        try {
+            bench.catalog();
+            fail("a catalog cannot be listed by a child that dies first");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("did not list the op modes"));
+            assertTrue(e.getMessage(), e.getMessage().contains("no catalog today"));
+            assertTrue(e.getMessage(), e.getMessage().contains("exit"));
+        }
+    }
+
     /** The child sees the project and the libraries, so a class the project lacks is missing, not this server's. */
     @Test
     public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {

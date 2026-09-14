@@ -33,7 +33,8 @@ import org.firstinspires.ftc.teamcode.base.OpMode;
  * fit them fails the build naming the seam, rather than the child failing at run time with a
  * linkage error nobody can read. About a second for the whole tree, so a simulated run can
  * always execute what was last saved. Output goes to a fresh directory under the build root each
- * time any of the trees changes; only the latest is kept. This is not the Android build: no
+ * time any of the trees changes; only the latest is kept, and whatever an earlier server run
+ * left under the build root is cleared by the first build. This is not the Android build: no
  * Kotlin, no desugaring, no annotation processing. A Kotlin file is refused by name rather than
  * skipped.
  */
@@ -95,7 +96,6 @@ public final class SimBuild {
     private final Path buildRoot;
     private String lastFingerprint;
     private Result lastResult;
-    private int builds = 0;
 
     /**
      * @param sourceRoot  the package root, e.g. {@code TeamCode/src/main/java}
@@ -167,11 +167,15 @@ public final class SimBuild {
         if (compiler == null) {
             throw new IllegalStateException("this JVM has no Java compiler; run the server on a JDK, not a JRE");
         }
-        Path output = buildRoot.resolve("build-" + (++builds));
+        Path output;
         try {
-            Files.createDirectories(output);
+            if (lastResult == null) {
+                clearBuildRoot(); // what an earlier server run left, which a new build must not land on
+            }
+            Files.createDirectories(buildRoot);
+            output = Files.createTempDirectory(buildRoot, "build-");
         } catch (IOException e) {
-            throw new UncheckedIOException("could not create " + output, e);
+            throw new UncheckedIOException("could not create a build directory under " + buildRoot, e);
         }
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         boolean ok;
@@ -333,6 +337,16 @@ public final class SimBuild {
 
     private static String relative(Path root, Path file) {
         return root.relativize(file).toString().replace('\\', '/');
+    }
+
+    /** Everything under the build root: the output of earlier builds, this server's or an earlier one's. */
+    private void clearBuildRoot() throws IOException {
+        if (!Files.isDirectory(buildRoot)) {
+            return;
+        }
+        try (Stream<Path> children = Files.list(buildRoot)) {
+            children.forEach(SimBuild::deleteTree);
+        }
     }
 
     private static void deleteTree(Path root) {

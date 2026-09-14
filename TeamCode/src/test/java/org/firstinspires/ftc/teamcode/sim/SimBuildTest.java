@@ -209,6 +209,37 @@ public class SimBuildTest {
                 new String(Files.readAllBytes(edited.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
     }
 
+    /**
+     * A server that restarts builds into the same build root as the last one, which left its
+     * output behind: the new build must not trip over it, and must clear it, since only the
+     * latest build is kept.
+     */
+    @Test
+    public void aBuildAfterARestartDoesNotTripOverWhatTheLastServerLeft() throws IOException {
+        SimBuild before = build();
+        write("demo/Greeter.java", GREETER);
+        Path page = folder.getRoot().toPath().resolve("src/test/resources/demo/page.html");
+        Files.createDirectories(page.getParent());
+        Files.write(page, "<p>one</p>".getBytes(StandardCharsets.UTF_8));
+        Path left = before.build().classes;
+        assertTrue(Files.exists(left.resolve("demo/page.html")));
+
+        SimBuild after = new SimBuild(sourceRoot, harnessRoot, buildRoot);
+        SimBuild.Result result = after.build();
+
+        assertNotNull(result.diagnostics, result.classes);
+        assertEquals(
+                "<p>one</p>",
+                new String(Files.readAllBytes(result.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
+        assertFalse("what the last server left is cleared", Files.exists(left));
+        try (java.util.stream.Stream<Path> children = Files.list(buildRoot)) {
+            assertEquals(
+                    "only the latest build is kept",
+                    List.of(result.classes),
+                    children.collect(java.util.stream.Collectors.toList()));
+        }
+    }
+
     /** What a project is built against and run with: this JVM's jars, none of this server's own code. */
     @Test
     public void theLibrariesAreThisJvmsJarsWithoutThisServersOwnCode() {

@@ -356,10 +356,12 @@ public final class SimBench {
             if (line == null && first != null) {
                 line = out.readLine();
             }
-            child.getErrorStream().transferTo(java.io.OutputStream.nullOutputStream());
+            String said = new String(child.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
             if (!child.waitFor(60, TimeUnit.SECONDS) || line == null) {
                 child.destroyForcibly();
-                throw new IllegalStateException("the simulation child did not list the op modes");
+                throw new IllegalStateException("the simulation child did not list the op modes"
+                        + (child.isAlive() ? " within 60s" : " (exit " + child.exitValue() + ")")
+                        + (said.isBlank() ? " and printed nothing" : "; it printed:\n" + said.strip()));
             }
             return SimCatalog.fromJson(GSON.fromJson(line, JsonArray.class));
         } catch (IOException e) {
