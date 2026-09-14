@@ -101,7 +101,7 @@ public final class SimChild {
             return recording.outcome();
         }
         SimRobot sim = new SimRobot();
-        sim.setPose(start.get());
+        sim.setDown(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);
         streamer.start();

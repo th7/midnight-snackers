@@ -157,6 +157,39 @@ public class SimRobotTest {
         assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
     }
 
+    /**
+     * The hub reports an encoder's velocity in multiples of 20 ticks per second, and Road Runner's
+     * encoder wrapper relies on that to undo the hub's 16-bit overflow: it reads the remainder as
+     * a count of overflows. A velocity reported between the hub's steps is read as tens of inches
+     * a second, so the simulated encoders report what the hub would.
+     */
+    @Test
+    public void theRobotsOwnLocalizerReadsACreepingRobotAsCreeping() {
+        SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(new SimNoise.Motor(0.9, 1, 1)));
+        MecanumDrive drive = new MecanumDrive(
+                creeper.leftFront,
+                creeper.leftBack,
+                creeper.rightBack,
+                creeper.rightFront,
+                () -> creeper.imu,
+                creeper.voltageSensor,
+                new Pose2d(0, 0, 0),
+                creeper::nanoTime);
+        drive.localizer.update();
+        // The tuned kS, as the feedforward applies it at a standstill: a tenth of it too much for these motors.
+        double power = MecanumDrive.PARAMS.kS / SimRobot.BATTERY_VOLTS;
+        creeper.leftFront.setPower(power);
+        creeper.rightFront.setPower(power);
+        creeper.leftBack.setPower(power);
+        creeper.rightBack.setPower(power);
+        creeper.step(3.0); // several of the drive's time constants (kA / kV, 0.4 s), so the creep has settled
+
+        double creep = 0.1 * MecanumDrive.PARAMS.kS / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
+        assertEquals(
+                "inches per second", creep, drive.localizer.update().linearVel.norm(), 0.02);
+        assertEquals("a multiple of the hub's step", 0, Math.round(creeper.rightBack.getVelocity()) % 20);
+    }
+
     // --- the walls and the obstacles ---
 
     /** A robot placed beyond a wall is placed against it instead: the walls hold whatever pose it is given. */

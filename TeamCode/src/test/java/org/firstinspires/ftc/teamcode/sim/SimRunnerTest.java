@@ -71,6 +71,62 @@ public class SimRunnerTest {
     }
 
     @Test
+    public void withNoiseTheLoopPeriodVariesAndTheTicksStillSayWhenTheyWere() {
+        SimRobot noisy = new SimRobot(SimNoise.seeded(4));
+
+        SimRecording recording =
+                SimRunner.run(new WaitingAuto(), noisy, 10, folder.getRoot().toPath());
+
+        java.util.List<SimRecording.Tick> ticks = recording.ticks();
+        java.util.Set<Long> periods = new java.util.HashSet<>();
+        for (int i = 1; i < ticks.size(); i++) {
+            double period = ticks.get(i).seconds - ticks.get(i - 1).seconds;
+            assertTrue("tick " + i + " period " + period, period >= SimNoise.LEAST_LOOP_SECONDS);
+            periods.add(Math.round(period * 1e6));
+        }
+        assertTrue("the periods vary: " + periods, periods.size() > 10);
+        assertEquals(
+                "about thirty loops a second",
+                ticks.size() / (WaitingAuto.SECONDS + 0.05),
+                1 / SimNoise.LOOP_SECONDS,
+                6);
+        assertEquals(
+                "the last tick is one period behind the world",
+                noisy.nanoTime() / 1e9,
+                ticks.get(ticks.size() - 1).seconds,
+                SimNoise.LONGEST_HICCUP_SECONDS + 1e-9);
+    }
+
+    @Test
+    public void everyRunWithTheSameSeedIsTheSameTickForTick() {
+        SimRecording first = SimRunner.run(
+                new WaitingAuto(),
+                new SimRobot(SimNoise.seeded(4)),
+                10,
+                folder.getRoot().toPath());
+        SimRecording second = SimRunner.run(
+                new WaitingAuto(),
+                new SimRobot(SimNoise.seeded(4)),
+                10,
+                folder.getRoot().toPath());
+        SimRecording other = SimRunner.run(
+                new WaitingAuto(),
+                new SimRobot(SimNoise.seeded(5)),
+                10,
+                folder.getRoot().toPath());
+
+        assertEquals(first.ticks().size(), second.ticks().size());
+        for (int i = 0; i < first.ticks().size(); i++) {
+            assertEquals(first.ticks().get(i).seconds, second.ticks().get(i).seconds, 0);
+            assertEquals(first.ticks().get(i).truePose, second.ticks().get(i).truePose);
+        }
+        assertFalse(
+                "another seed is another run",
+                first.ticks().size() == other.ticks().size()
+                        && first.ticks().get(1).seconds == other.ticks().get(1).seconds);
+    }
+
+    @Test
     public void anAutoRunsAsFastAsItCanUnlessItIsWatched() {
         long before = System.nanoTime();
 

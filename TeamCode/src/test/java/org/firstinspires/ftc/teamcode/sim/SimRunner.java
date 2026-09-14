@@ -12,9 +12,11 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 
 /**
  * Runs an op mode against a {@link SimRobot} the way the robot controller would: init, start, then
- * loop. Time is the simulation's: the world moves {@link #LOOP_SECONDS} between one loop and the
- * next, whatever the machine is doing, and the op mode's clock is the world's, so a run is the same
- * tick for tick every time it is made. An auto loops until its plan is done, and failing that within
+ * loop. Time is the simulation's: the world moves one loop period between one loop and the next,
+ * whatever the machine is doing, and the op mode's clock is the world's, so a run is the same tick
+ * for tick every time it is made. The loop period is {@link #LOOP_SECONDS} exactly, unless the
+ * robot's {@link SimNoise noise} varies it the way a real loop varies, and then it is the same
+ * sequence of periods for the same seed. An auto loops until its plan is done, and failing that within
  * its timeout is an error; a TeleOp loops on the {@link SimDriverStation}'s gamepads until the
  * driver presses Stop or its time is up. Every run, finished or not, leaves a replay page named
  * after the op mode in the output directory.
@@ -183,8 +185,9 @@ public final class SimRunner {
 
     /**
      * The op mode's time begins at its first loop, at the world's clock as it then stands. Each
-     * loop happens, is recorded, and then the world moves one loop period; so a tick's time is a
-     * whole number of loop periods, and the last tick is one period behind the world.
+     * loop happens, is recorded, and then the world moves one loop period (the robot's noise says
+     * how long); so a tick's time is the sum of the periods before it, and the last tick is one
+     * period behind the world.
      */
     private static void loopUntilDone(
             OpMode opMode,
@@ -205,7 +208,6 @@ public final class SimRunner {
         double lastDrawingAt = Double.NEGATIVE_INFINITY;
         long startedAtNanos = sim.nanoTime();
         long wallStartedAt = System.nanoTime();
-        int loops = 0;
         while (true) {
             if (driverStation.stopRequested()) {
                 recording.finish(SimRunStream.Outcome.stopped());
@@ -246,10 +248,9 @@ public final class SimRunner {
                     sim.held(),
                     sim.scored()));
 
-            sim.step(LOOP_SECONDS);
-            loops++;
+            sim.step(sim.noise().nextLoopSeconds());
             if (pace == Pace.REAL_TIME) {
-                holdToRealTime(wallStartedAt + (long) (loops * LOOP_SECONDS * 1e9));
+                holdToRealTime(wallStartedAt + (sim.nanoTime() - startedAtNanos));
             }
         }
     }
