@@ -40,7 +40,8 @@
   .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
   aside { align-self: start; display: grid; gap: 18px; }
   .opmodes { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0; }
-  .opmode { display: grid; gap: 6px; padding: 8px 14px; min-width: 0; }
+  .opmode { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px 14px; min-width: 0; }
+  .opmode > div { min-width: 0; }
   .opmode + .opmode { border-top: 1px solid var(--line); }
   .opmode .name { font-weight: 600; }
   .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -43,7 +43,8 @@
   @media (max-width: 760px) { .panel { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
   #simulate aside { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; overflow-x: hidden; }
   .opmodes { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0; }
-  .opmode { display: grid; gap: 6px; padding: 8px 14px; min-width: 0; }
+  .opmode { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px 14px; min-width: 0; }
+  .opmode > div { min-width: 0; }
   .opmode + .opmode { border-top: 1px solid var(--line); }
   .opmode .name { font-weight: 600; }
   .opmode .cls { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
