@@ -76,7 +76,7 @@ public final class SimDevServer {
         JsonArray catalog;
         String problem = "";
         try {
-            catalog = bench.catalog().toJson();
+            catalog = bench.withSeeds(bench.catalog().toJson());
         } catch (SimBench.BuildFailed e) {
             catalog = new JsonArray();
             problem = "the sources do not compile:\n" + e.getMessage();

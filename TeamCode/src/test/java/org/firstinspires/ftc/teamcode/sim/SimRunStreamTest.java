@@ -144,6 +144,9 @@ public class SimRunStreamTest {
     @Test
     public void aChildOfThisVersionWaitsToBePlaced() {
         assertTrue(SimRunStream.PROTOCOL >= SimRunStream.PLACED_PROTOCOL);
+        assertEquals("a seeded child, from protocol 4 on", 4, SimRunStream.SEEDED_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.SEEDED_PROTOCOL);
+        assertTrue(SimRunStream.SEEDED_PROTOCOL > SimRunStream.PLACED_PROTOCOL);
         assertEquals("a version-1 child places itself at the origin", 1, SimRunStream.protocolOf("{\"started\":true}"));
         assertTrue(SimRunStream.protocolOf("{\"protocol\":" + SimRunStream.PLACED_PROTOCOL + "}")
                 >= SimRunStream.PLACED_PROTOCOL);

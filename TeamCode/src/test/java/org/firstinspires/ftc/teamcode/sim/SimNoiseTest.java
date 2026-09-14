@@ -153,7 +153,8 @@ public class SimNoiseTest {
         String line = SimNoise.NONE.withBattery(13.8, 0.2, 0.004).toString();
 
         assertTrue(line, line.startsWith("seed 0:"));
-        assertTrue(line, line.contains("lf kS×1.000 kV×1.000 kA×1.000"));
+        assertTrue(line, line.contains("lf kS x1.000 kV x1.000 kA x1.000"));
+        assertTrue("ASCII, so any log carries it: " + line, line.chars().allMatch(c -> c < 128));
         assertTrue(line, line.contains("battery 13.80 V sag 0.20 V/power drain 0.0040 V/s"));
         assertTrue(line, line.contains("traction Infinity g"));
         assertTrue(line, line.contains("loop 20 ms"));

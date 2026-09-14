@@ -100,7 +100,9 @@ public final class SimChild {
             recording.finish(SimRunStream.Outcome.stopped());
             return recording.outcome();
         }
-        SimRobot sim = new SimRobot();
+        Long seed = driverStation.seed();
+        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : SimNoise.seeded(seed));
+        System.err.println("Robot: " + sim.noise());
         sim.setDown(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);

@@ -721,12 +721,41 @@ public class CodingServerTest {
         Reply page = user("GET", "/sim/place?opmode=" + encode("Count to three"), ada);
         assertEquals(200, page.status);
         assertTrue(page.body, page.body.contains("\"placing\":{\"x\":24.0,\"y\":-12.0,\"heading\":0.5}"));
+        // On the exact robot, so the run starts on the pose rather than near it as a seeded robot is set down.
+        assertEquals(200, user("PUT", "/sim/seed?opmode=" + encode("Count to three"), ada, "{\"seed\": null}").status);
         Reply started = user("POST", "/sim/run?opmode=" + encode("Count to three"), ada);
         assertEquals(started.body, 200, started.status);
         String id = json(started.body).get("id").getAsString();
         awaitSimStatus(ada, "\"outcome\":\"done\"");
         String ticks = user("GET", "/sim/runs/" + id + "/ticks?from=0", ada).body;
         assertTrue(ticks, ticks.contains("\"x\":24.0,\"y\":-12.0,\"heading\":0.5"));
+    }
+
+    /** Which robot each user runs an op mode on is their own bench's to remember too. */
+    @Test
+    public void eachUserSeedsTheRobotOnTheirOwnBench() throws Exception {
+        serverWith(worktree -> new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class),
+                null,
+                worktree.resolve("TeamCode/build/sim"),
+                RUN_TIMEOUT_SECONDS,
+                30,
+                1));
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        String seed = "/sim/seed?opmode=" + encode("Count to three");
+
+        Reply set = user("PUT", seed, ada, "{\"seed\": 4}");
+
+        assertEquals(set.body, 200, set.status);
+        assertEquals("{\"seed\":4}", user("GET", seed, ada).body);
+        assertEquals("{\"seed\":1}", user("GET", seed, bob).body);
+        assertTrue(user("GET", "/sim/catalog", ada).body.contains("\"seed\":4"));
+        assertTrue(user("GET", "/sim/catalog", bob).body.contains("\"seed\":1"));
+        Reply started = user("POST", "/sim/run?opmode=" + encode("Count to three"), ada);
+        assertEquals(started.body, 200, started.status);
+        awaitSimStatus(ada, "\"outcome\":\"done\"");
+        assertTrue(user("GET", "/sim/status", ada).body.contains("\"seed\":4"));
     }
 
     @Test

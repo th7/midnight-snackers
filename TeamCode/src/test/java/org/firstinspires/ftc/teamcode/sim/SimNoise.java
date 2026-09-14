@@ -279,18 +279,18 @@ public final class SimNoise {
                 pose.heading.toDouble() + draws.nextGaussian() * placementRadians);
     }
 
-    /** The robot in a line, for a failure to name: the seed and everything drawn from it. */
+    /** The robot in a line, for a failure to name and a log to carry: the seed and everything drawn from it, in ASCII. */
     @Override
     public String toString() {
         StringBuilder motors = new StringBuilder();
         String[] names = {"lf", "rf", "lb", "rb"};
         for (int wheel = 0; wheel < 4; wheel++) {
             Motor motor = this.motors[wheel];
-            motors.append(String.format(" %s kS×%.3f kV×%.3f kA×%.3f", names[wheel], motor.kS, motor.kV, motor.kA));
+            motors.append(String.format(" %s kS x%.3f kV x%.3f kA x%.3f", names[wheel], motor.kS, motor.kV, motor.kA));
         }
         return String.format(
                 "seed %d:%s; battery %.2f V sag %.2f V/power drain %.4f V/s; traction %.2f g;"
-                        + " placement ±%.2f in ±%.1f°; loop %.0f ms spread %.2f hiccups %.0f%%",
+                        + " placement +-%.2f in +-%.1f deg; loop %.0f ms spread %.2f hiccups %.0f%%",
                 seed,
                 motors,
                 freshVolts,
