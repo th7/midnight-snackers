@@ -375,6 +375,17 @@
     return !!open && !!open.version && !pendingSave && !saving && !dirtyWhileSaving;
   }
 
+  /**
+   * Shows the host's text for what is open again: after a pull, a push, or a commit, which
+   * formats the Java it commits. A file with unsaved typing is left alone -- its next save says
+   * "changed on the host" and offers a reload.
+   */
+  function reloadOpen() {
+    if (!open) { return; }
+    if (open.readOnly) { viewSource(open.path); }
+    else if (clean()) { load(open.path); }
+  }
+
   /** Ctrl-S / Cmd-S: save what is in the editor now instead of after the pause. */
   function saveNow() {
     if (!open || !open.version) { return; }
@@ -590,11 +601,7 @@
     function tipMoved(status) {
       if (head === null || head === status.head || busy) { head = status.head; return; }
       head = status.head;
-      if (open && open.readOnly) {
-        viewSource(open.path);
-      } else if (clean()) {
-        load(open.path);  // a file with unsaved typing is left alone: its next save says "changed on the host" and offers a reload
-      }
+      reloadOpen();
       refreshNow();
       scheduleCheck();
     }
@@ -658,8 +665,14 @@
       post('/git/commit', { message: message.trim() }).then(function (reply) {
         if (!reply) { return; }
         if (!reply.ok) { say(reply.text, 'bad'); }
-        else { var result = JSON.parse(reply.text); say(result.message, result.committed ? 'ok' : ''); }
-        head = null;  // the tip moved by this user's own hand: nothing to reload
+        else {
+          var result = JSON.parse(reply.text);
+          if (result.warning) { say(result.message + '; ' + result.warning, 'warn'); }
+          else { say(result.message, result.committed ? 'ok' : ''); }
+          // the commit formats the Java it takes: what is open may have been rewritten under the editor
+          if (open && result.formatted.indexOf(open.path) >= 0) { reloadOpen(); }
+        }
+        head = null;  // the tip moved by this user's own hand: nothing else to reload
         refresh();
       });
     }

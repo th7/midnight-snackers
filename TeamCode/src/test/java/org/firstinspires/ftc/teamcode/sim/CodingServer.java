@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -253,10 +254,13 @@ public final class CodingServer {
      *                  created on demand
      * @throws IllegalStateException when a store under {@code stateDir} exists but cannot be read,
      *                               rather than starting over and silently logging everyone out;
-     *                               or when git, the repository, or {@code develop} is missing
+     *                               when git, the repository, or {@code develop} is missing; or
+     *                               when this JVM cannot run the formatter every Commit goes
+     *                               through
      */
     public static CodingServer start(
             Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+        JavaFormatter.check();
         return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir);
     }
 
@@ -486,16 +490,20 @@ public final class CodingServer {
             return new Current(Response.error(404, "could not read " + key + ": " + e.getMessage()));
         }
         try {
-            String content = StandardCharsets.UTF_8
-                    .newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
-                    .toString();
-            return new Current(content, version(bytes));
+            return new Current(utf8(bytes), version(bytes));
         } catch (CharacterCodingException e) {
             return new Current(Response.error(415, key + " is not UTF-8 text, so it cannot be edited here"));
         }
+    }
+
+    /** A file's bytes as text, refusing anything that is not UTF-8 rather than replacing it with question marks. */
+    private static String utf8(byte[] bytes) throws CharacterCodingException {
+        return StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes))
+                .toString();
     }
 
     /** The version of a file is the SHA-256 of its bytes: stateless, and it notices edits made outside the server. */
@@ -546,15 +554,8 @@ public final class CodingServer {
             return Response.json(409, GSON.toJson(body));
         }
         byte[] bytes = edit.get("content").getAsString().getBytes(StandardCharsets.UTF_8);
-        Path target = worktree.resolve(key);
         try {
-            Path temp = Files.createTempFile(target.getParent(), "." + target.getFileName(), ".editing");
-            try {
-                Files.write(temp, bytes);
-                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
+            replace(worktree.resolve(key), bytes);
         } catch (IOException e) {
             return Response.error(500, "could not write " + key + ": " + e.getMessage());
         }
@@ -562,6 +563,17 @@ public final class CodingServer {
         body.addProperty("path", key);
         body.addProperty("version", version(bytes));
         return Response.json(GSON.toJson(body));
+    }
+
+    /** Writes a file whole, through a temporary next to it, so a reader never sees half of it. */
+    private static void replace(Path target, byte[] bytes) throws IOException {
+        Path temp = Files.createTempFile(target.getParent(), "." + target.getFileName(), ".editing");
+        try {
+            Files.write(temp, bytes);
+            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temp);
+        }
     }
 
     private Response login(Request request) {
@@ -802,7 +814,11 @@ public final class CodingServer {
         return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
     }
 
-    /** {@code POST /git/commit} with a JSON body naming the message. */
+    /**
+     * {@code POST /git/commit} with a JSON body naming the message. The user's uncommitted Java is
+     * formatted first, so what is committed is what {@code spotlessCheck} accepts and their push
+     * never fails CI on formatting alone.
+     */
     private Response gitCommit(Session session, String requestBody) {
         {
             JsonObject body;
@@ -819,21 +835,80 @@ public final class CodingServer {
                 return Response.error(400, "a commit needs a message");
             }
             Worktrees.Commit commit;
+            Formatting formatting;
             synchronized (this) {
                 // under the server's lock, so a save in flight lands before or after, never inside
+                formatting = format(worktreeOf(session).path, worktrees.uncommitted(session.username));
                 commit = worktrees.commit(session.username, message);
             }
             JsonObject reply = new JsonObject();
             reply.addProperty("committed", commit.made);
             reply.addProperty("commit", commit.commit);
             reply.add("files", GSON.toJsonTree(commit.files));
+            reply.add("formatted", GSON.toJsonTree(formatting.formatted));
+            reply.addProperty("warning", formatting.warning());
             reply.addProperty(
                     "message",
                     commit.made
-                            ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files")
+                            ? "committed " + count(commit.files.size(), "file") + formatting.said()
                             : "nothing to commit");
             return Response.json(GSON.toJson(reply));
         }
+    }
+
+    private static String count(int n, String noun) {
+        return n + " " + noun + (n == 1 ? "" : "s");
+    }
+
+    /** What formatting the uncommitted Java did: the files it rewrote, and the ones it could not. */
+    private static final class Formatting {
+        final List<String> formatted = new ArrayList<>();
+        /** A file the formatter left alone, against what stopped it: it is committed as the user wrote it. */
+        final List<String> refused = new ArrayList<>();
+
+        String said() {
+            return formatted.isEmpty() ? "" : ", formatted " + count(formatted.size(), "file");
+        }
+
+        String warning() {
+            return refused.isEmpty()
+                    ? null
+                    : "could not format " + String.join(", ", refused) + "; committed as you wrote "
+                            + (refused.size() == 1 ? "it" : "them");
+        }
+    }
+
+    /**
+     * Rewrites every uncommitted {@code .java} file in the worktree as the formatter would have it.
+     * A file it cannot read or parse is left exactly as the user saved it and named in the warning:
+     * a commit is a save point, and a save point that refuses half-written code is no use.
+     */
+    private static Formatting format(Path worktree, List<String> uncommitted) {
+        Formatting formatting = new Formatting();
+        for (String key : uncommitted) {
+            if (!key.endsWith(".java")) {
+                continue;
+            }
+            Path file = worktree.resolve(key);
+            if (!Files.isRegularFile(file)) {
+                continue; // deleted, or never a file: git has it either way
+            }
+            try {
+                byte[] before = Files.readAllBytes(file);
+                byte[] after = JavaFormatter.format(utf8(before)).getBytes(StandardCharsets.UTF_8);
+                if (!Arrays.equals(before, after)) {
+                    replace(file, after);
+                    formatting.formatted.add(key);
+                }
+            } catch (JavaFormatter.Unparseable e) {
+                formatting.refused.add(key + " (" + e.getMessage() + ")");
+            } catch (CharacterCodingException e) {
+                formatting.refused.add(key + " (it is not UTF-8 text)");
+            } catch (IOException e) {
+                formatting.refused.add(key + " (" + e.getMessage() + ")");
+            }
+        }
+        return formatting;
     }
 
     /** {@code POST /git/pull}: brings develop into the user's branch. */

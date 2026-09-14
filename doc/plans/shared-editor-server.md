@@ -1,3 +1,58 @@
+# Coding server: Commit formats the user's Java first
+
+## Batch 10 · what is committed is what CI accepts
+
+`POST /git/commit` runs palantir-java-format — imports ordered, the unused
+ones removed, then the text formatted — over every uncommitted `.java`
+file in the user's worktree before `git add -A`, under the server lock so
+a save cannot land inside it. What gets committed is what
+`spotlessCheck` accepts, so a student's push never fails CI on formatting.
+The reply gains `formatted` (the files the formatter changed) and the Edit
+tab reloads the open file after a commit so the editor shows the formatted
+text. A file the formatter cannot parse is committed as the user wrote it
+and named in a `warning`; the commit is still a save point.
+
+An editor buffer with unsaved typing at commit time is left alone and
+overwrites the formatting on its next save. The next commit puts it back,
+which is better than blocking the commit.
+
+Mechanism: format in process with the palantir-java-format library on the
+test classpath, which is what `codingServer` runs on; shelling out to
+`./gradlew :TeamCode:spotlessApply` per click would cost seconds of Gradle
+startup and would format files the user never touched. The three steps and
+their order are exactly what Spotless's `palantirJavaFormat` step does, so
+reproducing them reproduces CI. On JDK 21 the library needs
+`--add-exports jdk.compiler/com.sun.tools.javac.*` on both
+`testDebugUnitTest` and the `codingServer` task; and the JVM flavour of
+guava, which this Android module does not resolve by default.
+
+Tests first:
+
+1. `CodingServerTest`: a commit of a badly indented Java file commits
+   palantir's output, reports it under `formatted`, and a second commit
+   has nothing to do.
+2. A non-Java file and an already-formatted Java file are committed
+   byte-for-byte and are absent from `formatted`.
+3. A file with a syntax error is committed as saved, with a warning naming
+   it and where it went wrong, and the commit still succeeds.
+4. Formatting happens only on Commit. A save leaves the file exactly as
+   sent.
+5. The Edit tab reloads the current file after `/git/commit` replies.
+6. Two gates in `JavaFormatterTest`, since "the server formats what CI
+   checks" is otherwise prose. The version on the test classpath equals
+   the Spotless plugin's, both read from one `palantirJavaFormatVersion`
+   property at build time and compared through a system property — absent
+   it the test fails rather than passing on nothing. And, over behaviour
+   rather than a version string: every `.java` file under `TeamCode/src`
+   is already exactly what the formatter would write, which CI's own
+   `spotlessCheck` says of the same corpus. A version bump, a changed
+   step, or a step Spotless runs that the formatter does not, all show up
+   there.
+
+Then implement, and update the Commit entry in `doc/CONTEXT.md`.
+
+---
+
 # Coding server: Push reaches origin
 
 ## Batch 9 · develop is pushed to origin after every push

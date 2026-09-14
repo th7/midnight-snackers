@@ -285,6 +285,14 @@ public final class Worktrees {
     }
 
     /**
+     * The user's uncommitted files alone, root-relative with '/' separators, sorted: what a commit
+     * would take, without the counts {@link #status} pays git for.
+     */
+    public synchronized List<String> uncommitted(String username) {
+        return changedFiles(ensure(username));
+    }
+
+    /**
      * Every uncommitted change in the user's worktree, new files included, as one commit on the
      * user branch authored by the username.
      *

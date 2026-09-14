@@ -1367,7 +1367,7 @@ public class CodingServerTest {
 
     @Test
     public void commitMakesOneCommitOnTheUserBranchAuthoredByTheUsername() throws IOException {
-        String cookie = savedEditor("class Plans { int edited; }\n");
+        String cookie = savedEditor(FORMATTED);
         String develop = GitFixture.commitOf(root, "develop");
 
         Reply committed = user("POST", "/git/commit", cookie, message("my change"));
@@ -1378,7 +1378,7 @@ public class CodingServerTest {
         assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("files").toString());
         Path worktree = worktreeOf("ada");
         assertEquals("ada|my change\n", GitFixture.git(worktree, "log", "-1", "--format=%an|%s"));
-        assertEquals("class Plans { int edited; }\n", GitFixture.git(worktree, "show", "HEAD:TeamCode/Plans.java"));
+        assertEquals(FORMATTED, GitFixture.git(worktree, "show", "HEAD:TeamCode/Plans.java"));
         assertEquals("", GitFixture.git(worktree, "status", "--porcelain"));
         assertEquals(
                 "1",
@@ -1460,6 +1460,150 @@ public class CodingServerTest {
         assertTrue(page, page.contains("prompt("));
     }
 
+    // --- commit formats the Java it commits ---
+
+    /** As a student types it. */
+    private static final String BADLY_INDENTED = "class Plans {\n  int edited;\n      void go( ) {int x=1;}\n}\n";
+
+    /** As palantir-java-format writes it, which is what spotlessCheck accepts. */
+    private static final String FORMATTED =
+            "class Plans {\n    int edited;\n\n    void go() {\n        int x = 1;\n    }\n}\n";
+
+    /**
+     * A one-field {@code Plans.java} already in the formatter's shape, so the pull and push tests
+     * below stay about merging: a commit of this changes the branch and nothing in the file.
+     */
+    private static String plans(String field) {
+        return "class Plans {\n    int " + field + ";\n}\n";
+    }
+
+    private void save(String cookie, String name, String content) throws IOException {
+        String version = json(user("GET", "/files/TeamCode/" + name, cookie).body)
+                .get("version")
+                .getAsString();
+        Reply written = user("PUT", "/files/TeamCode/" + name, cookie, edit(content, version));
+        assertEquals(written.body, 200, written.status);
+    }
+
+    private String contentOf(String cookie, String name) throws IOException {
+        return json(user("GET", "/files/TeamCode/" + name, cookie).body)
+                .get("content")
+                .getAsString();
+    }
+
+    @Test
+    public void commitFormatsTheJavaItCommitsAndNamesWhatItChanged() throws IOException {
+        String cookie = savedEditor(BADLY_INDENTED);
+
+        Reply committed = user("POST", "/git/commit", cookie, message("my change"));
+
+        assertEquals(committed.body, 200, committed.status);
+        JsonObject body = json(committed.body);
+        assertTrue(body.get("committed").getAsBoolean());
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]", body.getAsJsonArray("formatted").toString());
+        assertTrue(
+                body.get("message").getAsString(),
+                body.get("message").getAsString().contains("formatted"));
+        Path worktree = worktreeOf("ada");
+        assertEquals(FORMATTED, GitFixture.git(worktree, "show", "HEAD:TeamCode/Plans.java"));
+        assertEquals("the formatted text is what is on disk too", FORMATTED, contentOf(cookie, "Plans.java"));
+        assertEquals("nothing left uncommitted", "", GitFixture.git(worktree, "status", "--porcelain"));
+    }
+
+    @Test
+    public void aSecondCommitOfFormattedWorkHasNothingToDo() throws IOException {
+        String cookie = savedEditor(BADLY_INDENTED);
+        assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
+
+        Reply again = user("POST", "/git/commit", cookie, message("again"));
+
+        assertEquals(again.body, 200, again.status);
+        JsonObject body = json(again.body);
+        assertFalse(body.get("committed").getAsBoolean());
+        assertEquals("[]", body.getAsJsonArray("formatted").toString());
+        assertEquals("nothing to commit", body.get("message").getAsString());
+    }
+
+    @Test
+    public void aFileThatIsNotJavaAndJavaThatIsAlreadyFormattedAreCommittedByteForByte() throws IOException {
+        String notJava = "class  Notes {  this file is not Java  }\n";
+        String cookie = approvedEditorOf("Plans.java", "notes.txt");
+        save(cookie, "Plans.java", FORMATTED);
+        save(cookie, "notes.txt", notJava);
+
+        Reply committed = user("POST", "/git/commit", cookie, message("both"));
+
+        assertEquals(committed.body, 200, committed.status);
+        JsonObject body = json(committed.body);
+        assertEquals(
+                "[\"TeamCode/Plans.java\",\"TeamCode/notes.txt\"]",
+                body.getAsJsonArray("files").toString());
+        assertEquals("[]", body.getAsJsonArray("formatted").toString());
+        assertEquals("committed 2 files", body.get("message").getAsString());
+        Path worktree = worktreeOf("ada");
+        assertEquals(FORMATTED, GitFixture.git(worktree, "show", "HEAD:TeamCode/Plans.java"));
+        assertEquals(notJava, GitFixture.git(worktree, "show", "HEAD:TeamCode/notes.txt"));
+    }
+
+    @Test
+    public void javaTheFormatterCannotParseIsCommittedAsWrittenAndNamedInAWarning() throws IOException {
+        String broken = "class Plans { this is not java\n";
+        String cookie = savedEditor(broken);
+
+        Reply committed = user("POST", "/git/commit", cookie, message("halfway through"));
+
+        assertEquals(committed.body, 200, committed.status);
+        JsonObject body = json(committed.body);
+        assertTrue("the commit is still a save point", body.get("committed").getAsBoolean());
+        assertEquals("[]", body.getAsJsonArray("formatted").toString());
+        String warning = body.get("warning").getAsString();
+        assertTrue(warning, warning.contains("TeamCode/Plans.java"));
+        assertTrue(warning, warning.contains("1:16: error: illegal start of type"));
+        assertEquals(broken, GitFixture.git(worktreeOf("ada"), "show", "HEAD:TeamCode/Plans.java"));
+    }
+
+    @Test
+    public void aSaveIsNotFormatted() throws IOException {
+        String cookie = savedEditor(BADLY_INDENTED);
+
+        assertEquals(BADLY_INDENTED, contentOf(cookie, "Plans.java"));
+        assertEquals(BADLY_INDENTED, new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
+        assertEquals(
+                "[\"TeamCode/Plans.java\"]",
+                json(user("GET", "/git/status", cookie).body)
+                        .getAsJsonArray("changed")
+                        .toString());
+    }
+
+    @Test
+    public void theEditTabReloadsWhatIsOpenAfterACommitSoTheFormattedTextIsShown() throws IOException {
+        String page = user("GET", "/", approvedUser("ada")).body;
+
+        assertTrue(page, page.contains("function reloadOpen("));
+        String commit = functionBody(page, "commit");
+        assertTrue(commit, commit.contains("'/git/commit'"));
+        assertTrue(commit, commit.contains("result.formatted"));
+        assertTrue(commit, commit.contains("reloadOpen("));
+    }
+
+    /** The body of a top-level {@code function name() {...}} in the page, braces matched. */
+    private static String functionBody(String page, String name) {
+        int at = page.indexOf("function " + name + "(");
+        assertTrue("no function " + name + " in the page", at >= 0);
+        int open = page.indexOf('{', at);
+        int depth = 0;
+        for (int i = open; i < page.length(); i++) {
+            if (page.charAt(i) == '{') {
+                depth++;
+            } else if (page.charAt(i) == '}' && --depth == 0) {
+                return page.substring(open, i + 1);
+            }
+        }
+        fail("function " + name + " in the page is never closed");
+        return null;
+    }
+
     // --- pull ---
 
     private void commitOnDevelop(String file, String content) throws IOException {
@@ -1470,7 +1614,7 @@ public class CodingServerTest {
     @Test
     public void pullBringsDevelopIntoTheWorktreeAndTheOpenFile() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         assertEquals(
                 1, json(user("GET", "/git/status", cookie).body).get("behind").getAsInt());
 
@@ -1479,7 +1623,7 @@ public class CodingServerTest {
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
         assertEquals(
-                "class Plans { int fromDevelop; }\n",
+                plans("fromDevelop"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1490,7 +1634,7 @@ public class CodingServerTest {
 
     @Test
     public void pullMergesWhenTheUserHasCommitsOfTheirOwn() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
         commitOnDevelop("README", "on develop\n");
         String develop = GitFixture.commitOf(root, "develop");
@@ -1502,7 +1646,7 @@ public class CodingServerTest {
                 "on develop\n",
                 new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
         assertEquals(
-                "class Plans { int mine; }\n",
+                plans("mine"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1513,7 +1657,7 @@ public class CodingServerTest {
 
     @Test
     public void pullKeepsAnUncommittedEditThatDevelopDidNotTouch() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         commitOnDevelop("README", "on develop\n");
 
         Reply pulled = user("POST", "/git/pull", cookie);
@@ -1525,7 +1669,7 @@ public class CodingServerTest {
                 "on develop\n",
                 new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
         assertEquals(
-                "class Plans { int mine; }\n",
+                plans("mine"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1547,8 +1691,8 @@ public class CodingServerTest {
 
     @Test
     public void pullWithAnUncommittedEditInAFileDevelopChangedIsRefusedNamingIt() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        String cookie = savedEditor(plans("mine"));
+        commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         commitOnDevelop("README", "on develop\n");
         String head = GitFixture.commitOf(root, "coding/ada");
 
@@ -1562,7 +1706,7 @@ public class CodingServerTest {
         assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(
-                "class Plans { int mine; }\n",
+                plans("mine"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1587,9 +1731,9 @@ public class CodingServerTest {
 
     @Test
     public void aPullThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
-        String cookie = savedEditor("class Plans { int ada; }\n");
+        String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        commitOnDevelop("TeamCode/Plans.java", plans("develop"));
         String head = GitFixture.commitOf(root, "coding/ada");
         String develop = GitFixture.commitOf(root, "develop");
 
@@ -1603,7 +1747,7 @@ public class CodingServerTest {
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals(
-                "class Plans { int ada; }\n",
+                plans("ada"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1689,7 +1833,7 @@ public class CodingServerTest {
     @Test
     public void theAdminCanPullDevelopIntoALoginsWorktree() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         String develop = GitFixture.commitOf(root, "develop");
         assertEquals(1, loginOf("ada").getAsJsonObject("status").get("behind").getAsInt());
 
@@ -1699,7 +1843,7 @@ public class CodingServerTest {
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
         assertTrue(pulled.body, json(pulled.body).get("message").getAsString().contains("ada"));
         assertEquals(
-                "class Plans { int fromDevelop; }\n",
+                plans("fromDevelop"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1719,7 +1863,7 @@ public class CodingServerTest {
         String before =
                 json(user("GET", "/git/status", cookie).body).get("head").getAsString();
         assertEquals(GitFixture.commitOf(root, "coding/ada"), before);
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         assertEquals(
                 "a commit on develop alone moves nothing of the user's",
                 before,
@@ -1771,8 +1915,8 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullWithAnUncommittedEditInAFileDevelopChangedIsRefusedNamingItAndTheUser() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int fromDevelop; }\n");
+        String cookie = savedEditor(plans("mine"));
+        commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         commitOnDevelop("README", "on develop\n");
         String head = GitFixture.commitOf(root, "coding/ada");
 
@@ -1787,7 +1931,7 @@ public class CodingServerTest {
         assertTrue(refused.body, json(refused.body).get("message").getAsString().contains("commit first"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(
-                "class Plans { int mine; }\n",
+                plans("mine"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1799,7 +1943,7 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullKeepsAnUncommittedEditThatDevelopDidNotTouch() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         commitOnDevelop("README", "on develop\n");
 
         Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
@@ -1811,7 +1955,7 @@ public class CodingServerTest {
                 "on develop\n",
                 new String(Files.readAllBytes(worktreeOf("ada").resolve("README")), StandardCharsets.UTF_8));
         assertEquals(
-                "class Plans { int mine; }\n",
+                plans("mine"),
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
@@ -1825,9 +1969,9 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullThatConflictsChangesNothingAndShowsTheCoachTheRecipe() throws IOException {
-        String cookie = savedEditor("class Plans { int ada; }\n");
+        String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        commitOnDevelop("TeamCode/Plans.java", plans("develop"));
         String head = GitFixture.commitOf(root, "coding/ada");
         String develop = GitFixture.commitOf(root, "develop");
 
@@ -1872,7 +2016,7 @@ public class CodingServerTest {
 
     @Test
     public void pushLandsTheUsersCommitsOnDevelopAndTheHostCheckoutShowsThem() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
         String oldDevelop = GitFixture.commitOf(root, "develop");
 
@@ -1881,7 +2025,7 @@ public class CodingServerTest {
         assertEquals(pushed.body, 200, pushed.status);
         assertEquals("pushed", json(pushed.body).get("outcome").getAsString());
         assertEquals(
-                "class Plans { int mine; }\n",
+                plans("mine"),
                 new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
@@ -1895,7 +2039,7 @@ public class CodingServerTest {
 
     @Test
     public void pushWithUncommittedChangesIsRefusedAndWithNothingNewSaysSo() throws IOException {
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         String develop = GitFixture.commitOf(root, "develop");
 
         Reply refused = user("POST", "/git/push", cookie);
@@ -1912,9 +2056,9 @@ public class CodingServerTest {
 
     @Test
     public void aPushThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
-        String cookie = savedEditor("class Plans { int ada; }\n");
+        String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
-        commitOnDevelop("TeamCode/Plans.java", "class Plans { int develop; }\n");
+        commitOnDevelop("TeamCode/Plans.java", plans("develop"));
         String develop = GitFixture.commitOf(root, "develop");
         String head = GitFixture.commitOf(root, "coding/ada");
 
@@ -1928,7 +2072,7 @@ public class CodingServerTest {
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(
-                "class Plans { int develop; }\n",
+                plans("develop"),
                 new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
@@ -1941,7 +2085,7 @@ public class CodingServerTest {
 
     @Test
     public void aPushIsRefusedWhenTheHostsUncommittedEditWouldBeOverwrittenAndTheEditIsIntact() throws IOException {
-        String cookie = savedEditor("class Plans { int ada; }\n");
+        String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
         Files.write(root.resolve("TeamCode/Plans.java"), "the coach's unsaved work\n".getBytes(StandardCharsets.UTF_8));
         String develop = GitFixture.commitOf(root, "develop");
@@ -1976,7 +2120,7 @@ public class CodingServerTest {
     public void pushLandsOnOriginTooAndTheReplySaysSo() throws IOException {
         Path origin = state.getRoot().toPath().resolve("origin.git");
         GitFixture.withOrigin(root, origin);
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
 
         Reply pushed = user("POST", "/git/push", cookie);
@@ -1998,7 +2142,7 @@ public class CodingServerTest {
                 "add",
                 "origin",
                 state.getRoot().toPath().resolve("no-such-origin.git").toString());
-        String cookie = savedEditor("class Plans { int mine; }\n");
+        String cookie = savedEditor(plans("mine"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
         String oldDevelop = GitFixture.commitOf(root, "develop");
 

@@ -124,14 +124,35 @@ the login, so git's refusal, if any, is the admin's to see. Class:
 the worktree is made. Saves are uncommitted changes in the worktree
 until the user presses Commit.
 
-**Commit** — `POST /git/commit` with a message: every uncommitted change in
-the user's worktree becomes one commit on the user branch, authored by
-the username. Nothing to commit is a success that says so. An empty
+**Commit** — `POST /git/commit` with a message: the **formatter** runs over
+every uncommitted `.java` file in the worktree first, and then every
+uncommitted change there becomes one commit on the user branch, authored
+by the username. The reply names the files the formatter changed
+(**formatted**), and the Edit tab reloads what is open so the editor shows
+the formatted text; a file with unsaved typing is left alone and its next
+save overwrites the formatting, which the next commit puts back. Nothing
+to commit is a success that says so. An empty
 message is refused. `GET /git/status` reports the uncommitted files
 (**changed**), the commits the branch has that `develop` lacks
 (**ahead**), the commits `develop` has that the branch lacks
 (**behind**), and the branch's tip (**head**), which moves on a commit
 and on any pull or push, whoever asked for it.
+
+**Formatter** — palantir-java-format, run in the server's own process over
+one file's text: imports ordered, the unused ones removed, then the text
+formatted — the three steps, in the order, that Spotless's
+`palantirJavaFormat` step runs in CI, at the one version
+`TeamCode/build.gradle` names for both. So what a commit writes is what
+`./gradlew :TeamCode:spotlessCheck` accepts, and a teammate's push never
+fails CI on formatting alone. Shelling out to `spotlessApply` per click
+would cost seconds of Gradle startup and would format files the user never
+touched. Only Commit formats: a save writes exactly what the editor sent.
+A file it cannot read or parse is committed as the user wrote it and named
+in the reply's **warning**, since a commit is a save point and a save point
+that refuses half-written code is no use. It reads javac's own trees, so
+the JVM running it needs the `--add-exports` that `javacExports` passes;
+the server checks it can format before it starts, rather than failing on
+someone's first Commit. Class: `JavaFormatter`.
 
 **Push** — `POST /git/push`: the user branch is merged into `develop` with
 a merge commit, and then the user branch and worktree are fast-forwarded
