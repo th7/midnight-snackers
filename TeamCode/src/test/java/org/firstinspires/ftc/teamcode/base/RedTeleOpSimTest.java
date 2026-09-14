@@ -6,16 +6,14 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-
+import java.util.List;
+import java.util.function.BooleanSupplier;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
 import org.junit.Test;
-
-import java.util.List;
-import java.util.function.BooleanSupplier;
 
 /**
  * Runs the real RedTeleOp against the simulated robot, driven from a simulated gamepad the way
@@ -29,8 +27,8 @@ public class RedTeleOpSimTest {
         SimRobot sim = new SimRobot();
         SimDriverStation station = new SimDriverStation();
         SimRecording recording = new SimRecording("RedTeleOp", "teleop");
-        Thread runner = new Thread(() -> SimRunner.record(recording, new RedTeleOp(), sim, TIMEOUT_SECONDS,
-                SimRunner.DEFAULT_OUTPUT_DIR, station));
+        Thread runner = new Thread(() -> SimRunner.record(
+                recording, new RedTeleOp(), sim, TIMEOUT_SECONDS, SimRunner.DEFAULT_OUTPUT_DIR, station));
         runner.start();
 
         station.set(1, state("{\"left_stick_y\": -1}"));
@@ -60,8 +58,9 @@ public class RedTeleOpSimTest {
         runner.join(10_000);
         assertFalse("the run ended when the driver pressed Stop", runner.isAlive());
         assertEquals("stopped", recording.outcome());
-        assertTrue("the replay carries the driver's inputs", recording.ticks().stream().anyMatch(
-                tick -> tick.gamepad1 != null && tick.gamepad1.leftStickY == -1));
+        assertTrue(
+                "the replay carries the driver's inputs",
+                recording.ticks().stream().anyMatch(tick -> tick.gamepad1 != null && tick.gamepad1.leftStickY == -1));
     }
 
     private static State state(String json) {

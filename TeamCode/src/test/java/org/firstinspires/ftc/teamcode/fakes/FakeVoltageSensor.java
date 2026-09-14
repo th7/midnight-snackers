@@ -35,10 +35,8 @@ public class FakeVoltageSensor implements VoltageSensor {
     }
 
     @Override
-    public void resetDeviceConfigurationForOpMode() {
-    }
+    public void resetDeviceConfigurationForOpMode() {}
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

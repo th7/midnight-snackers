@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -81,11 +80,13 @@ public final class SimField {
 
     /** Between the walls, in inches; the field is a square of this side centred on the origin. */
     public final double size;
+
     public final double wallHeight;
     public final List<Element> elements;
     public final List<Obstacle> obstacles;
     /** The game pieces the simulator rolls, in the order the page and the ticks name them. */
     public final List<Piece> loosePieces;
+
     private final JsonObject json;
 
     private SimField(JsonObject json) {
@@ -96,9 +97,13 @@ public final class SimField {
         List<Element> elements = new ArrayList<>();
         for (int i = 0; i < json.getAsJsonArray("elements").size(); i++) {
             JsonObject e = json.getAsJsonArray("elements").get(i).getAsJsonObject();
-            elements.add(new Element(e.get("group").getAsString(), e.get("name").getAsString(), e.get("colour").getAsString(),
+            elements.add(new Element(
+                    e.get("group").getAsString(),
+                    e.get("name").getAsString(),
+                    e.get("colour").getAsString(),
                     e.has("surface") && e.get("surface").getAsBoolean(),
-                    gson.fromJson(e.get("vertices"), double[][].class), gson.fromJson(e.get("faces"), int[][].class)));
+                    gson.fromJson(e.get("vertices"), double[][].class),
+                    gson.fromJson(e.get("faces"), int[][].class)));
         }
         this.elements = Collections.unmodifiableList(elements);
         List<Piece> loose = new ArrayList<>();
@@ -107,8 +112,12 @@ public final class SimField {
             JsonObject p = pieces.get(i).getAsJsonObject();
             if (p.get("loose").getAsBoolean()) {
                 JsonArray centre = p.getAsJsonArray("centre");
-                loose.add(new Piece(p.get("name").getAsString(), centre.get(0).getAsDouble(), centre.get(1).getAsDouble(),
-                        centre.get(2).getAsDouble(), p.get("radius").getAsDouble()));
+                loose.add(new Piece(
+                        p.get("name").getAsString(),
+                        centre.get(0).getAsDouble(),
+                        centre.get(1).getAsDouble(),
+                        centre.get(2).getAsDouble(),
+                        p.get("radius").getAsDouble()));
             }
         }
         this.loosePieces = Collections.unmodifiableList(loose);
@@ -116,7 +125,8 @@ public final class SimField {
         JsonArray array = json.getAsJsonArray("obstacles");
         for (int i = 0; i < array.size(); i++) {
             JsonObject o = array.get(i).getAsJsonObject();
-            obstacles.add(new Obstacle(o.get("name").getAsString(), gson.fromJson(o.get("footprint"), double[][].class)));
+            obstacles.add(
+                    new Obstacle(o.get("name").getAsString(), gson.fromJson(o.get("footprint"), double[][].class)));
         }
         this.obstacles = Collections.unmodifiableList(obstacles);
     }
@@ -127,7 +137,8 @@ public final class SimField {
             if (in == null) {
                 throw new IllegalStateException("missing resource " + MODEL + " next to " + SimField.class.getName());
             }
-            return new SimField(new Gson().fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class));
+            return new SimField(
+                    new Gson().fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

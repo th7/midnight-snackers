@@ -9,11 +9,9 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
-
+import java.util.Optional;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.junit.Test;
-
-import java.util.Optional;
 
 public class SimDriverStationTest {
     private static JsonObject json(String text) {
@@ -23,7 +21,8 @@ public class SimDriverStationTest {
     @Test
     public void aStateAppliedToAGamepadSetsItsFieldsAndTheEdgeDetectionSeesOnePress() {
         Gamepad gamepad = new Gamepad();
-        State state = State.fromJson(json("{\"cross\": true, \"left_stick_y\": -1, \"right_trigger\": 0.7, \"dpad_left\": true}"));
+        State state = State.fromJson(
+                json("{\"cross\": true, \"left_stick_y\": -1, \"right_trigger\": 0.7, \"dpad_left\": true}"));
 
         state.applyTo(gamepad);
 
@@ -56,7 +55,9 @@ public class SimDriverStationTest {
             assertTrue(button, Gamepad.class.getField(aliasOf(button)).getBoolean(gamepad));
             for (String other : State.BUTTONS) {
                 if (!other.equals(button)) {
-                    assertFalse(button + " also pressed " + other, Gamepad.class.getField(other).getBoolean(gamepad));
+                    assertFalse(
+                            button + " also pressed " + other,
+                            Gamepad.class.getField(other).getBoolean(gamepad));
                 }
             }
         }
@@ -65,14 +66,22 @@ public class SimDriverStationTest {
     /** The field the SDK serializes each button as; the PlayStation names are aliases of the Xbox ones. */
     private static String aliasOf(String button) {
         switch (button) {
-            case "cross": return "a";
-            case "circle": return "b";
-            case "square": return "x";
-            case "triangle": return "y";
-            case "share": return "back";
-            case "options": return "start";
-            case "ps": return "guide";
-            default: return button;
+            case "cross":
+                return "a";
+            case "circle":
+                return "b";
+            case "square":
+                return "x";
+            case "triangle":
+                return "y";
+            case "share":
+                return "back";
+            case "options":
+                return "start";
+            case "ps":
+                return "guide";
+            default:
+                return button;
         }
     }
 
@@ -90,19 +99,22 @@ public class SimDriverStationTest {
         assertEquals(0, State.NEUTRAL.toJson().size());
         assertTrue(State.NEUTRAL.neutral());
         assertFalse(state.neutral());
-        assertTrue("neutral inputs are not carried", State.fromJson(json("{\"cross\": false, \"left_stick_x\": 0}")).neutral());
+        assertTrue(
+                "neutral inputs are not carried",
+                State.fromJson(json("{\"cross\": false, \"left_stick_x\": 0}")).neutral());
     }
 
     @Test
     public void axesAreClampedAndUnknownInputsAreRefused() {
-        State state = State.fromJson(json("{\"left_stick_x\": -7, \"right_stick_y\": 3, \"right_trigger\": 2, \"left_trigger\": -1}"));
+        State state = State.fromJson(
+                json("{\"left_stick_x\": -7, \"right_stick_y\": 3, \"right_trigger\": 2, \"left_trigger\": -1}"));
 
         assertEquals(-1, state.leftStickX, 0);
         assertEquals(1, state.rightStickY, 0);
         assertEquals(1, state.rightTrigger, 0);
         assertEquals(0, state.leftTrigger, 0);
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> State.fromJson(json("{\"corss\": true}")));
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> State.fromJson(json("{\"corss\": true}")));
         assertTrue(e.getMessage(), e.getMessage().contains("corss"));
     }
 
@@ -140,7 +152,8 @@ public class SimDriverStationTest {
         station.accept(json("{\"stop\": true}"));
         assertTrue(station.stopRequested());
 
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> station.accept(json("{\"nonsense\": 1}")));
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> station.accept(json("{\"nonsense\": 1}")));
         assertTrue(e.getMessage(), e.getMessage().contains("nonsense"));
     }
 
@@ -182,10 +195,11 @@ public class SimDriverStationTest {
     public void aStartLineThatIsNotAPoseIsRefusedByName() {
         SimDriverStation station = new SimDriverStation();
 
-        IllegalArgumentException missing = assertThrows(IllegalArgumentException.class,
-                () -> station.accept(json("{\"start\": {\"x\": 1, \"y\": 2}}")));
+        IllegalArgumentException missing = assertThrows(
+                IllegalArgumentException.class, () -> station.accept(json("{\"start\": {\"x\": 1, \"y\": 2}}")));
         assertTrue(missing.getMessage(), missing.getMessage().contains("heading"));
-        IllegalArgumentException notANumber = assertThrows(IllegalArgumentException.class,
+        IllegalArgumentException notANumber = assertThrows(
+                IllegalArgumentException.class,
                 () -> station.accept(json("{\"start\": {\"x\": \"far\", \"y\": 2, \"heading\": 0}}")));
         assertTrue(notANumber.getMessage(), notANumber.getMessage().contains("far"));
         assertThrows(IllegalArgumentException.class, () -> station.accept(json("{\"start\": 7}")));

@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.base.OpMode;
 
@@ -10,8 +9,7 @@ import org.firstinspires.ftc.teamcode.base.OpMode;
  * them on the real bench.
  */
 public final class TestTeleOps {
-    private TestTeleOps() {
-    }
+    private TestTeleOps() {}
 
     /**
      * Drives straight from gamepad 1's left stick and counts the presses of its cross button.

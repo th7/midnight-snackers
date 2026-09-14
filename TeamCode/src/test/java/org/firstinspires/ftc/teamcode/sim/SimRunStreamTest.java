@@ -8,12 +8,10 @@ import static org.junit.Assert.fail;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.JsonObject;
-
-import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
+import org.junit.Test;
 
 /**
  * The lines the child prints are written and read in one place, so the parent and the child
@@ -47,7 +45,8 @@ public class SimRunStreamTest {
     private static SimRecording.Tick tick(double seconds, String step) {
         TelemetryPacket packet = new TelemetryPacket();
         packet.put("xError", 0.25);
-        return new SimRecording.Tick(seconds, new Pose2d(12.5, -3, Math.PI / 2), step, new double[]{1, 0.75, -0.5, 0.25}, List.of(packet));
+        return new SimRecording.Tick(
+                seconds, new Pose2d(12.5, -3, Math.PI / 2), step, new double[] {1, 0.75, -0.5, 0.25}, List.of(packet));
     }
 
     @Test
@@ -67,7 +66,15 @@ public class SimRunStreamTest {
         assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);
         assertEquals("2. driveTo 24, 0, 0", first.get("step").getAsString());
         assertEquals(4, first.getAsJsonArray("powers").size());
-        assertEquals(0.25, first.getAsJsonArray("packets").get(0).getAsJsonObject().getAsJsonObject("data").get("xError").getAsDouble(), 0);
+        assertEquals(
+                0.25,
+                first.getAsJsonArray("packets")
+                        .get(0)
+                        .getAsJsonObject()
+                        .getAsJsonObject("data")
+                        .get("xError")
+                        .getAsDouble(),
+                0);
         assertEquals("rounded to three decimals on the wire", 0.333, SimRunStream.seconds(heard.ticks.get(1)), 0);
         assertEquals("done", heard.outcome);
     }
@@ -107,7 +114,8 @@ public class SimRunStreamTest {
     public void aChildOfThisVersionWaitsToBePlaced() {
         assertTrue(SimRunStream.PROTOCOL >= SimRunStream.PLACED_PROTOCOL);
         assertEquals("a version-1 child places itself at the origin", 1, SimRunStream.protocolOf("{\"started\":true}"));
-        assertTrue(SimRunStream.protocolOf("{\"protocol\":" + SimRunStream.PLACED_PROTOCOL + "}") >= SimRunStream.PLACED_PROTOCOL);
+        assertTrue(SimRunStream.protocolOf("{\"protocol\":" + SimRunStream.PLACED_PROTOCOL + "}")
+                >= SimRunStream.PLACED_PROTOCOL);
         assertTrue(Outcome.cannotPlace(1).startsWith("wrong protocol"));
         assertTrue(Outcome.cannotPlace(1).contains("place"));
     }
@@ -123,9 +131,9 @@ public class SimRunStreamTest {
         assertEquals(1, SimRunStream.protocolOf("[]"));
         Heard heard = new Heard();
         String[] versionOne = {
-                "{\"started\":true}",
-                "{\"t\":0.5,\"x\":1.0,\"y\":2.0,\"heading\":0.0,\"step\":\"1. go\",\"powers\":[0.5,0.5,0.5,0.5],\"packets\":[]}",
-                "{\"outcome\":\"done\"}",
+            "{\"started\":true}",
+            "{\"t\":0.5,\"x\":1.0,\"y\":2.0,\"heading\":0.0,\"step\":\"1. go\",\"powers\":[0.5,0.5,0.5,0.5],\"packets\":[]}",
+            "{\"outcome\":\"done\"}",
         };
         String first = SimRunStream.afterHello(versionOne[0]);
         assertEquals(versionOne[0], first);
@@ -148,7 +156,8 @@ public class SimRunStreamTest {
             assertEquals(newer, e.childProtocol);
             assertTrue(e.getMessage(), e.getMessage().contains("protocol " + newer));
             assertTrue(e.getMessage(), e.getMessage().contains("protocol " + SimRunStream.PROTOCOL));
-            assertTrue("the fix is the server's, not the sources'", e.getMessage().contains("server"));
+            assertTrue(
+                    "the fix is the server's, not the sources'", e.getMessage().contains("server"));
         }
     }
 

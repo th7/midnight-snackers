@@ -6,13 +6,11 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.junit.Test;
 
 /**
  * The field model is what the season's CAD says, reduced: the walls where the perimeter stands,
@@ -23,9 +21,11 @@ public class SimFieldTest {
 
     @Test
     public void theWallsStandWhereTheCadsPerimeterDoes() {
-        assertTrue("a competition field is 141 in between the walls, give or take an inch: " + field.size,
+        assertTrue(
+                "a competition field is 141 in between the walls, give or take an inch: " + field.size,
                 field.size > 140 && field.size < 142);
-        assertTrue("the perimeter is a foot high, give or take: " + field.wallHeight,
+        assertTrue(
+                "the perimeter is a foot high, give or take: " + field.wallHeight,
                 field.wallHeight > 11 && field.wallHeight < 13);
     }
 
@@ -45,7 +45,9 @@ public class SimFieldTest {
             }
         }
         assertEquals("four flowers, one at each wall", 4, flowers);
-        assertTrue("the field is set up with game pieces", field.json().getAsJsonArray("pieces").size() > 0);
+        assertTrue(
+                "the field is set up with game pieces",
+                field.json().getAsJsonArray("pieces").size() > 0);
     }
 
     @Test
@@ -55,7 +57,8 @@ public class SimFieldTest {
             for (int[] face : element.faces) {
                 assertTrue(element.name + " has a face of " + face.length + " vertices", face.length >= 3);
                 for (int index : face) {
-                    assertTrue(element.name + " names vertex " + index + " of " + element.vertices.length,
+                    assertTrue(
+                            element.name + " names vertex " + index + " of " + element.vertices.length,
                             index >= 0 && index < element.vertices.length);
                 }
             }
@@ -94,7 +97,9 @@ public class SimFieldTest {
         for (int i = 0; i < tape.size(); i++) {
             JsonObject mark = tape.get(i).getAsJsonObject();
             colours.add(mark.get("colour").getAsString());
-            assertTrue("a mark is a strip of four corners", mark.getAsJsonArray("footprint").size() == 4);
+            assertTrue(
+                    "a mark is a strip of four corners",
+                    mark.getAsJsonArray("footprint").size() == 4);
         }
         assertEquals("red and blue", 2, colours.size());
     }
@@ -123,7 +128,9 @@ public class SimFieldTest {
             }
         }
         for (SimField.Element element : field.elements) {
-            assertTrue("only the hives' panels are seen through: " + element.name, !element.surface || element.group.contains("Hive"));
+            assertTrue(
+                    "only the hives' panels are seen through: " + element.name,
+                    !element.surface || element.group.contains("Hive"));
         }
     }
 
@@ -150,9 +157,12 @@ public class SimFieldTest {
         for (SimField.Piece piece : field.loosePieces) {
             assertEquals("Pollen", piece.name);
             assertEquals(piece.name + " rests on the floor", piece.radius, piece.z, 0.25);
-            assertTrue(piece.name + " is inside the walls", Math.abs(piece.x) < half - piece.radius / 2 && Math.abs(piece.y) < half - piece.radius / 2);
+            assertTrue(
+                    piece.name + " is inside the walls",
+                    Math.abs(piece.x) < half - piece.radius / 2 && Math.abs(piece.y) < half - piece.radius / 2);
             for (SimField.Obstacle obstacle : field.obstacles) {
-                assertTrue(piece.name + " is not held in " + obstacle.name, !inside(obstacle.footprint, piece.x, piece.y));
+                assertTrue(
+                        piece.name + " is not held in " + obstacle.name, !inside(obstacle.footprint, piece.x, piece.y));
             }
         }
         JsonArray pieces = field.json().getAsJsonArray("pieces");

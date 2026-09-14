@@ -10,20 +10,12 @@ public class Plans extends SuperSystem {
 
     @Auto(alliance = Alliance.RELATIVE)
     public Plan scoreAThing() {
-        return new Plan(
-                backFromZeroALittle(),
-                launchAll()
-        );
+        return new Plan(backFromZeroALittle(), launchAll());
     }
 
     @Auto(alliance = Alliance.RELATIVE)
     public Plan spinnyThing() {
-        return new Plan(
-                spin360(),
-                move1FootForward(),
-                move6InchesLeft(),
-                moveBackTo0_0()
-        );
+        return new Plan(spin360(), move1FootForward(), move6InchesLeft(), moveBackTo0_0());
     }
 
     private PlanPart move1FootForward() {
@@ -39,12 +31,7 @@ public class Plans extends SuperSystem {
     }
 
     private Plan spin360() {
-        return new Plan(
-                turnLeft(),
-                turnBackward(),
-                turnRight(),
-                turnForward()
-        );
+        return new Plan(turnLeft(), turnBackward(), turnRight(), turnForward());
     }
 
     private Step turnRight() {
@@ -72,29 +59,20 @@ public class Plans extends SuperSystem {
      * Road Runner to settle; the rest of the path is cancelled.
      */
     private Step driveNear(String name, double x, double y, double heading) {
-        return new Step(
-                name,
-                () -> drive.follow(nav.strafeTo(x, y, heading)),
-                () -> {
-                    if (nav.near(nav.pose(x, y, heading))) {
-                        drive.cancel();
-                        return true;
-                    }
-                    return false;
-                }
-        );
+        return new Step(name, () -> drive.follow(nav.strafeTo(x, y, heading)), () -> {
+            if (nav.near(nav.pose(x, y, heading))) {
+                drive.cancel();
+                return true;
+            }
+            return false;
+        });
     }
 
     @Auto(name = "BlueScoreAThingFromBack", alliance = Alliance.BLUE)
     @Auto(name = "RedScoreAThingFromBack", alliance = Alliance.RED)
     public Plan scoreAThingFromBack() {
         return new Plan(
-                setFarLaunchPosition(),
-                moveToBackWall(),
-                moveToBackWallScorePosition(),
-                launchAll(),
-                toLoadingZone()
-        );
+                setFarLaunchPosition(), moveToBackWall(), moveToBackWallScorePosition(), launchAll(), toLoadingZone());
     }
 
     private PlanPart moveToBackWall() {
@@ -103,56 +81,35 @@ public class Plans extends SuperSystem {
 
     private PlanPart moveToBackWallScorePosition() {
         return driveTo(60, 12, 0);
-        //not correct pose
+        // not correct pose
     }
 
     private PlanPart driveTo(double x, double y, double heading) {
         return new Step(
                 String.format("driveTo %s, %s, %s, ", x, y, heading),
                 () -> drive.follow(nav.strafeTo(x, y, heading)),
-                drive::done
-        );
+                drive::done);
     }
 
     private Step launch() {
-        return new Step(
-                "launch",
-                launcher::launchyLaunch,
-                launcher::launchDone
-        );
+        return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
     }
 
     private Plan launchAll() {
-        return new Plan(
-                launch(),
-                launch(),
-                launch()
-        );
+        return new Plan(launch(), launch(), launch());
     }
 
-    //should be placed against the left side of the tile with the small launch line and against the wall
+    // should be placed against the left side of the tile with the small launch line and against the wall
     private Step setFarLaunchPosition() {
-        return new Step(
-                "setBackPosition",
-                () -> nav.setPose(nav.pose(-63.5, 15.375, 0)),
-                () -> true
-        );
+        return new Step("setBackPosition", () -> nav.setPose(nav.pose(-63.5, 15.375, 0)), () -> true);
     }
 
     private Step backFromZeroALittle() {
-        return new Step(
-                "backFromZeroALittle",
-                () -> drive.follow(nav.backwardTo(-20, 0, 0)),
-                drive::done
-        );
+        return new Step("backFromZeroALittle", () -> drive.follow(nav.backwardTo(-20, 0, 0)), drive::done);
     }
 
     private Step toLoadingZone() {
-        return new Step(
-                "toLoadingZone",
-                () -> drive.follow(nav.backwardTo(-36, 12, 0)),
-                drive::done
-        );
+        return new Step("toLoadingZone", () -> drive.follow(nav.backwardTo(-36, 12, 0)), drive::done);
     }
 
     @Auto(alliance = Alliance.RELATIVE)
@@ -162,24 +119,12 @@ public class Plans extends SuperSystem {
                 new Step(
                         "forwardLeftBackwardRight",
                         () -> drive.follow(nav.strafePath(
-                                nav.pose(24, 0, 0),
-                                nav.pose(24, 24, 0),
-                                nav.pose(0, 24, 0),
-                                nav.pose(0, 0, 0)
-                        )),
-                        drive::done
-                )
-        );
+                                nav.pose(24, 0, 0), nav.pose(24, 24, 0), nav.pose(0, 24, 0), nav.pose(0, 0, 0))),
+                        drive::done));
     }
 
     @Auto(alliance = Alliance.RELATIVE)
     public PlanPart driveForward() {
-        return new Plan(
-                new Step(
-                        "driveForward",
-                        () -> drive.follow(nav.strafeTo(24, 0, 0)),
-                        drive::done
-                )
-        );
+        return new Plan(new Step("driveForward", () -> drive.follow(nav.strafeTo(24, 0, 0)), drive::done));
     }
 }

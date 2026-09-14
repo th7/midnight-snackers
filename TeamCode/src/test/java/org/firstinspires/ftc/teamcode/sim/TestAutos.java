@@ -1,21 +1,18 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.base.AutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Tiny autos for exercising the simulator itself. Nested classes, so the catalog never lists
  * them on the real bench.
  */
 public final class TestAutos {
-    private TestAutos() {
-    }
+    private TestAutos() {}
 
     /** An auto for no alliance in particular, like every auto here. */
     public abstract static class TestAuto extends AutoOp {
@@ -33,8 +30,7 @@ public final class TestAutos {
 
         @Override
         public PlanPart getPlan() {
-            return new Step("count to three", () -> {
-            }, () -> ++loops >= 3);
+            return new Step("count to three", () -> {}, () -> ++loops >= 3);
         }
     }
 
@@ -58,15 +54,18 @@ public final class TestAutos {
     public static class HangingAuto extends TestAuto {
         @Override
         public PlanPart getPlan() {
-            return new Step("hang", () -> {
-                while (true) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        // keep hanging: the point is that nothing in-process can stop this
-                    }
-                }
-            }, () -> false);
+            return new Step(
+                    "hang",
+                    () -> {
+                        while (true) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                                // keep hanging: the point is that nothing in-process can stop this
+                            }
+                        }
+                    },
+                    () -> false);
         }
     }
 
@@ -74,8 +73,7 @@ public final class TestAutos {
     public static class NeverDoneAuto extends TestAuto {
         @Override
         public PlanPart getPlan() {
-            return new Step("forever", () -> {
-            }, () -> false);
+            return new Step("forever", () -> {}, () -> false);
         }
     }
 
@@ -94,8 +92,7 @@ public final class TestAutos {
 
         @Override
         public PlanPart getPlan() {
-            return new Step(STEP, () -> {
-            }, released::get);
+            return new Step(STEP, () -> {}, released::get);
         }
     }
 }

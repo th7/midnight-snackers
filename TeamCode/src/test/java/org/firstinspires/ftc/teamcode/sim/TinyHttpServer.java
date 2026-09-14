@@ -38,11 +38,17 @@ public final class TinyHttpServer {
         public final Map<String, String> query;
         /** Header names lower-cased. */
         public final Map<String, String> headers;
+
         public final String body;
         public final InetAddress remoteAddress;
 
-        public Request(String method, String path, Map<String, String> query, Map<String, String> headers, String body,
-                       InetAddress remoteAddress) {
+        public Request(
+                String method,
+                String path,
+                Map<String, String> query,
+                Map<String, String> headers,
+                String body,
+                InetAddress remoteAddress) {
             this.method = method;
             this.path = path;
             this.query = query;
@@ -63,7 +69,11 @@ public final class TinyHttpServer {
          * @param headers header names lower-cased
          */
         public static Request of(String method, String target, Map<String, String> headers, String body) {
-            return parse(method + " " + target, headers, body.getBytes(StandardCharsets.UTF_8), InetAddress.getLoopbackAddress());
+            return parse(
+                    method + " " + target,
+                    headers,
+                    body.getBytes(StandardCharsets.UTF_8),
+                    InetAddress.getLoopbackAddress());
         }
 
         public String query(String key) {
@@ -162,7 +172,8 @@ public final class TinyHttpServer {
      * @param bind the one address to listen on; the operating system then refuses connections
      *             arriving on any other interface
      */
-    public static TinyHttpServer start(InetAddress bind, int port, String threadName, Function<Request, Response> handler) {
+    public static TinyHttpServer start(
+            InetAddress bind, int port, String threadName, Function<Request, Response> handler) {
         try {
             ServerSocket socket = new ServerSocket(port, 50, bind);
             TinyHttpServer server = new TinyHttpServer(socket, handler);
@@ -171,7 +182,8 @@ public final class TinyHttpServer {
             acceptor.start();
             return server;
         } catch (IOException e) {
-            throw new UncheckedIOException("could not listen on " + (bind == null ? "*" : bind.getHostAddress()) + ":" + port, e);
+            throw new UncheckedIOException(
+                    "could not listen on " + (bind == null ? "*" : bind.getHostAddress()) + ":" + port, e);
         }
     }
 
@@ -211,8 +223,8 @@ public final class TinyHttpServer {
 
     private void handle(Socket connection) {
         try (connection;
-             InputStream in = new BufferedInputStream(connection.getInputStream());
-             OutputStream out = connection.getOutputStream()) {
+                InputStream in = new BufferedInputStream(connection.getInputStream());
+                OutputStream out = connection.getOutputStream()) {
             String requestLine = readLine(in);
             if (requestLine == null) {
                 return;
@@ -221,7 +233,9 @@ public final class TinyHttpServer {
             for (String line = readLine(in); line != null && !line.isEmpty(); line = readLine(in)) {
                 int colon = line.indexOf(':');
                 if (colon > 0) {
-                    headers.put(line.substring(0, colon).trim().toLowerCase(Locale.ROOT), line.substring(colon + 1).trim());
+                    headers.put(
+                            line.substring(0, colon).trim().toLowerCase(Locale.ROOT),
+                            line.substring(colon + 1).trim());
                 }
             }
             long length = contentLength(headers);
@@ -292,23 +306,32 @@ public final class TinyHttpServer {
         return line.toString(StandardCharsets.ISO_8859_1);
     }
 
-    private static Request parse(String requestLine, Map<String, String> headers, byte[] body, InetAddress remoteAddress) {
+    private static Request parse(
+            String requestLine, Map<String, String> headers, byte[] body, InetAddress remoteAddress) {
         String[] parts = requestLine.split(" ");
         String method = parts.length > 0 ? parts[0] : "GET";
         String target = parts.length > 1 ? parts[1] : "/";
         int q = target.indexOf('?');
-        String path = URLDecoder.decode((q < 0 ? target : target.substring(0, q)).replace("+", "%2B"), StandardCharsets.UTF_8);
+        String path = URLDecoder.decode(
+                (q < 0 ? target : target.substring(0, q)).replace("+", "%2B"), StandardCharsets.UTF_8);
         Map<String, String> query = new HashMap<>();
         if (q >= 0) {
             for (String pair : target.substring(q + 1).split("&")) {
                 int eq = pair.indexOf('=');
                 String key = eq < 0 ? pair : pair.substring(0, eq);
                 String value = eq < 0 ? "" : pair.substring(eq + 1);
-                query.put(URLDecoder.decode(key, StandardCharsets.UTF_8), URLDecoder.decode(value, StandardCharsets.UTF_8));
+                query.put(
+                        URLDecoder.decode(key, StandardCharsets.UTF_8),
+                        URLDecoder.decode(value, StandardCharsets.UTF_8));
             }
         }
-        return new Request(method, path, query, Collections.unmodifiableMap(headers),
-                new String(body, StandardCharsets.UTF_8), remoteAddress);
+        return new Request(
+                method,
+                path,
+                query,
+                Collections.unmodifiableMap(headers),
+                new String(body, StandardCharsets.UTF_8),
+                remoteAddress);
     }
 
     private static void write(OutputStream out, Response response) throws IOException {
@@ -318,7 +341,8 @@ public final class TinyHttpServer {
                 + "Content-Length: " + bytes.length + "\r\n"
                 + "Cache-Control: no-store\r\n"
                 + "Connection: close\r\n");
-        response.headers.forEach((name, value) -> head.append(name).append(": ").append(value).append("\r\n"));
+        response.headers.forEach(
+                (name, value) -> head.append(name).append(": ").append(value).append("\r\n"));
         head.append("\r\n");
         out.write(head.toString().getBytes(StandardCharsets.US_ASCII));
         out.write(bytes);
@@ -327,17 +351,28 @@ public final class TinyHttpServer {
 
     private static String reason(int status) {
         switch (status) {
-            case 200: return "OK";
-            case 400: return "Bad Request";
-            case 403: return "Forbidden";
-            case 404: return "Not Found";
-            case 405: return "Method Not Allowed";
-            case 409: return "Conflict";
-            case 413: return "Payload Too Large";
-            case 415: return "Unsupported Media Type";
-            case 429: return "Too Many Requests";
-            case 500: return "Internal Server Error";
-            default: return "Status " + status;
+            case 200:
+                return "OK";
+            case 400:
+                return "Bad Request";
+            case 403:
+                return "Forbidden";
+            case 404:
+                return "Not Found";
+            case 405:
+                return "Method Not Allowed";
+            case 409:
+                return "Conflict";
+            case 413:
+                return "Payload Too Large";
+            case 415:
+                return "Unsupported Media Type";
+            case 429:
+                return "Too Many Requests";
+            case 500:
+                return "Internal Server Error";
+            default:
+                return "Status " + status;
         }
     }
 }

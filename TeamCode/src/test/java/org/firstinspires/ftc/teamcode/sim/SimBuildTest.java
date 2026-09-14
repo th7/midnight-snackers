@@ -8,10 +8,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,6 +15,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.List;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class SimBuildTest {
     @Rule
@@ -53,11 +52,11 @@ public class SimBuildTest {
     }
 
     /** A stand-in for the simulator's own sources: something that uses the robot's. */
-    private static final String BENCH = "package demo;\n"
-            + "public class Bench { String said = new Greeter().greet(); }\n";
+    private static final String BENCH =
+            "package demo;\n" + "public class Bench { String said = new Greeter().greet(); }\n";
 
-    private static final String GREETER = "package demo;\n"
-            + "public class Greeter { public String greet() { return \"hi\"; } }\n";
+    private static final String GREETER =
+            "package demo;\n" + "public class Greeter { public String greet() { return \"hi\"; } }\n";
 
     @Test
     public void compilesASourceTreeIntoAFreshDirectory() throws IOException {
@@ -85,7 +84,8 @@ public class SimBuildTest {
         assertEquals(1, result.problems.size());
         assertEquals("demo/Broken.java", result.problems.get(0).file);
         assertEquals(3, result.problems.get(0).line);
-        assertTrue(result.problems.get(0).message, result.problems.get(0).message.contains("illegal start of expression"));
+        assertTrue(
+                result.problems.get(0).message, result.problems.get(0).message.contains("illegal start of expression"));
     }
 
     @Test
@@ -141,7 +141,8 @@ public class SimBuildTest {
 
         assertNotNull(result.diagnostics, result.classes);
         assertTrue(Files.isRegularFile(result.classes.resolve("demo/Greeter.class")));
-        assertTrue("the simulator runs in the child, so it is built with the robot",
+        assertTrue(
+                "the simulator runs in the child, so it is built with the robot",
                 Files.isRegularFile(result.classes.resolve("demo/Bench.class")));
         assertFalse("its tests are not the simulator", Files.exists(result.classes.resolve("demo/BenchTest.class")));
     }
@@ -194,14 +195,18 @@ public class SimBuildTest {
         SimBuild.Result result = build.build();
 
         assertNotNull(result.diagnostics, result.classes);
-        assertEquals("<p>one</p>", new String(Files.readAllBytes(result.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
+        assertEquals(
+                "<p>one</p>",
+                new String(Files.readAllBytes(result.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
         assertFalse(build.build().rebuilt);
 
         Files.write(page, "<p>two</p>".getBytes(StandardCharsets.UTF_8));
         Files.setLastModifiedTime(page, FileTime.fromMillis(System.currentTimeMillis() + 2000));
         SimBuild.Result edited = build.build();
         assertTrue("an edited resource is a change to the simulator", edited.rebuilt);
-        assertEquals("<p>two</p>", new String(Files.readAllBytes(edited.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
+        assertEquals(
+                "<p>two</p>",
+                new String(Files.readAllBytes(edited.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
     }
 
     /** What a project is built against and run with: this JVM's jars, none of this server's own code. */
@@ -235,7 +240,11 @@ public class SimBuildTest {
 
     private static String locationOf(Class<?> type) {
         try {
-            return Paths.get(type.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
+            return Paths.get(type.getProtectionDomain()
+                            .getCodeSource()
+                            .getLocation()
+                            .toURI())
+                    .toString();
         } catch (java.net.URISyntaxException e) {
             throw new IllegalStateException(e);
         }
@@ -257,7 +266,8 @@ public class SimBuildTest {
     public void theRealMainSourcesCompile() throws IOException {
         Path real = Paths.get("src/main/java").toAbsolutePath();
         assertTrue("tests run from the TeamCode module directory: " + real, Files.isDirectory(real));
-        SimBuild build = new SimBuild(real, emptyHarness(), folder.getRoot().toPath().resolve("classes"));
+        SimBuild build =
+                new SimBuild(real, emptyHarness(), folder.getRoot().toPath().resolve("classes"));
 
         SimBuild.Result result = build.build();
 

@@ -2,12 +2,10 @@ package org.firstinspires.ftc.teamcode.fakes;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
-
-import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 
 /**
  * Records what a registrar registers, the way the robot controller's manager would keep it.

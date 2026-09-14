@@ -1,15 +1,9 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-import org.junit.After;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +21,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.junit.After;
+import org.junit.Test;
 
 public class TinyHttpServerTest {
     private TinyHttpServer server;
@@ -41,7 +39,8 @@ public class TinyHttpServerTest {
     }
 
     private TinyHttpServer echoServer() {
-        return server(request -> Response.json("{\"path\":\"" + request.path + "\",\"q\":\"" + request.query("q") + "\"}"));
+        return server(
+                request -> Response.json("{\"path\":\"" + request.path + "\",\"q\":\"" + request.query("q") + "\"}"));
     }
 
     @After
@@ -123,7 +122,8 @@ public class TinyHttpServerTest {
 
     @Test
     public void aLoopbackBoundServerIsUnreachableFromTheLan() throws IOException {
-        server = TinyHttpServer.start(InetAddress.getLoopbackAddress(), 0, "test-admin", request -> Response.json("{}"));
+        server =
+                TinyHttpServer.start(InetAddress.getLoopbackAddress(), 0, "test-admin", request -> Response.json("{}"));
         assertTrue(server.bindAddress().isLoopbackAddress());
         InetAddress lan = firstNonLoopbackAddress();
 
@@ -167,7 +167,8 @@ public class TinyHttpServerTest {
         }
         int status = connection.getResponseCode();
         try (InputStream in = status < 400 ? connection.getInputStream() : connection.getErrorStream()) {
-            return new Reply(status, in == null ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8), connection);
+            return new Reply(
+                    status, in == null ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8), connection);
         } finally {
             connection.disconnect();
         }

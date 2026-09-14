@@ -4,7 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-
+import java.util.ArrayList;
+import java.util.List;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Driver;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
@@ -12,9 +13,6 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Brain reads Camera and Nav from the current tick and sets the Turntable target, so the order

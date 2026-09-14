@@ -1,10 +1,9 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import java.util.function.Function;
 import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-
-import java.util.function.Function;
 
 /**
  * An auto whose plan is chosen when it is made: one of these per {@link Auto} annotation, so a

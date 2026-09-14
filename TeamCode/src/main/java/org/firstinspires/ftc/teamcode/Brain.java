@@ -1,11 +1,10 @@
 package org.firstinspires.ftc.teamcode;
 
+import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.SuperSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
-
-import java.util.Optional;
 
 public class Brain extends SuperSystem {
     private boolean usingCameraLocalization;
@@ -77,21 +76,11 @@ public class Brain extends SuperSystem {
     }
 
     private Plan autoShootFastPlan() {
-        return new Plan(
-                moveToLaunchPose(),
-                launch(),
-                launch(),
-                launch()
-        );
+        return new Plan(moveToLaunchPose(), launch(), launch(), launch());
     }
 
     private Plan autoShootSlowPlan() {
-        return new Plan(
-                moveToLaunchPose(),
-                launchSlow(),
-                launchSlow(),
-                launchSlow()
-        );
+        return new Plan(moveToLaunchPose(), launchSlow(), launchSlow(), launchSlow());
     }
 
     private Step moveToLaunchPose() {
@@ -99,23 +88,15 @@ public class Brain extends SuperSystem {
                 "moveToLaunchPose",
                 () -> {},
                 () -> nav.launchPose().map(drive::toward).orElse(true) // nowhere to go without a goal
-        );
+                );
     }
 
     private Step launch() {
-        return new Step(
-                "launchSlow",
-                launcher::launchyLaunch,
-                launcher::launchDone
-        );
+        return new Step("launchSlow", launcher::launchyLaunch, launcher::launchDone);
     }
 
     private Step launchSlow() {
-        return new Step(
-                "launchSlow",
-                launcher::slowLaunchyLaunch,
-                launcher::launchDone
-        );
+        return new Step("launchSlow", launcher::slowLaunchyLaunch, launcher::launchDone);
     }
 
     private void setTelemetry() {

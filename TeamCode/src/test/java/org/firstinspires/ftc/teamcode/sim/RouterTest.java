@@ -3,11 +3,10 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.junit.Test;
-
-import java.util.Map;
 
 /**
  * A router is the one place a server says which method and path reach which handler, so 404,
@@ -29,9 +28,7 @@ public class RouterTest {
 
     @Test
     public void routesByMethodAndPathAndSaysNotFoundOtherwise() {
-        Router router = new Router()
-                .route("GET", "/status", say("status"))
-                .route("POST", "/run", say("ran"));
+        Router router = new Router().route("GET", "/status", say("status")).route("POST", "/run", say("ran"));
 
         assertEquals("status", router.handle(get("/status")).body);
         assertEquals("ran", router.handle(post("/run")).body);
@@ -42,9 +39,8 @@ public class RouterTest {
 
     @Test
     public void aKnownPathWithTheWrongMethodIs405NamingWhatIsAllowed() {
-        Router router = new Router()
-                .route("GET", "/files/{key*}", say("read"))
-                .route("PUT", "/files/{key*}", say("written"));
+        Router router =
+                new Router().route("GET", "/files/{key*}", say("read")).route("PUT", "/files/{key*}", say("written"));
 
         Response refused = router.handle(post("/files/a/b.java"));
 
@@ -69,15 +65,16 @@ public class RouterTest {
     @Test
     public void aMountedRouterAnswersUnderItsPrefixWithThePrefixStripped() {
         Router bench = new Router().route("GET", "/status", say("bench status"));
-        Router server = new Router()
-                .route("GET", "/", say("page"))
-                .mount("/sim", bench);
+        Router server = new Router().route("GET", "/", say("page")).mount("/sim", bench);
 
         assertEquals("bench status", server.handle(get("/sim/status")).body);
         assertEquals("page", server.handle(get("/")).body);
         assertEquals(404, server.handle(get("/status")).status);
         assertEquals(404, server.handle(get("/simstatus")).status);
-        assertEquals("the mount's own not-found names the full path", "not found: /sim/nope", server.handle(get("/sim/nope")).body);
+        assertEquals(
+                "the mount's own not-found names the full path",
+                "not found: /sim/nope",
+                server.handle(get("/sim/nope")).body);
     }
 
     @Test
@@ -96,13 +93,12 @@ public class RouterTest {
     @Test
     public void aGuardRefusesEveryRouteAndMountItCoversButNotWhatIsNotThere() {
         Router guarded = new Router()
-                .guard(request -> "yes".equals(request.header("x-approved")) ? null : Response.error(403, "not approved"))
+                .guard(request ->
+                        "yes".equals(request.header("x-approved")) ? null : Response.error(403, "not approved"))
                 .route("GET", "/files", say("files"))
                 .route("POST", "/git/push", say("pushed"))
                 .mount("/sim", new Router().route("GET", "/status", say("status")));
-        Router server = new Router()
-                .route("GET", "/", say("login"))
-                .mount("", guarded);
+        Router server = new Router().route("GET", "/", say("login")).mount("", guarded);
 
         assertEquals("login", server.handle(get("/")).body);
         assertEquals(403, server.handle(get("/files")).status);
@@ -118,7 +114,8 @@ public class RouterTest {
     @Test
     public void theGuardAnswersForEverythingUnderAMountsPrefixBeforeTheMountedRouterIsChosen() {
         Router server = new Router()
-                .guard(request -> "yes".equals(request.header("x-approved")) ? null : Response.error(403, "not approved"))
+                .guard(request ->
+                        "yes".equals(request.header("x-approved")) ? null : Response.error(403, "not approved"))
                 .mount("/sim", request -> {
                     throw new IllegalStateException("chose a router for a request the guard should have refused");
                 });

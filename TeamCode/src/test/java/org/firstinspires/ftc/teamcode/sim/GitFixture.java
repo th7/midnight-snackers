@@ -11,8 +11,7 @@ import java.util.List;
 
 /** Temp repositories for the tests: made with the real git, with a {@code develop} branch and a commit on it. */
 final class GitFixture {
-    private GitFixture() {
-    }
+    private GitFixture() {}
 
     /** A new repository at {@code root} whose only branch is {@code develop}, with one commit holding {@code README}. */
     static void init(Path root) throws IOException {
@@ -33,7 +32,17 @@ final class GitFixture {
     /** Commits everything under {@code cwd}'s tree, and returns the new commit. */
     static String commitAll(Path cwd, String message) throws IOException {
         git(cwd, "add", "-A");
-        git(cwd, "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-q", "--allow-empty", "-m", message);
+        git(
+                cwd,
+                "-c",
+                "user.name=fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                message);
         return head(cwd);
     }
 
@@ -50,7 +59,10 @@ final class GitFixture {
         List<String> command = new ArrayList<>();
         command.add("git");
         command.addAll(List.of(args));
-        Process process = new ProcessBuilder(command).directory(cwd.toFile()).redirectErrorStream(false).start();
+        Process process = new ProcessBuilder(command)
+                .directory(cwd.toFile())
+                .redirectErrorStream(false)
+                .start();
         String out;
         String err;
         try {

@@ -7,13 +7,11 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-
+import java.util.List;
+import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.AprilTagWebcam;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-
-import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Everything the op modes touch outside their own code: the configured devices, the camera's
@@ -33,6 +31,7 @@ public final class Hardware {
      * Initialized with the hub orientation from {@link MecanumDrive.Params} on first use.
      */
     public LazyImu imu;
+
     public VoltageSensor voltageSensor;
     public Supplier<List<AprilTagDetection>> aprilTags;
     public Dashboard dashboard;
@@ -50,8 +49,11 @@ public final class Hardware {
         hardware.leftBack = hardwareMap.get(DcMotorEx.class, "leftBack");
         hardware.rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
         hardware.turnTable = hardwareMap.get(DcMotorEx.class, "turnTable");
-        hardware.imu = new LazyHardwareMapImu(hardwareMap, "imu", new RevHubOrientationOnRobot(
-                MecanumDrive.PARAMS.logoFacingDirection, MecanumDrive.PARAMS.usbFacingDirection));
+        hardware.imu = new LazyHardwareMapImu(
+                hardwareMap,
+                "imu",
+                new RevHubOrientationOnRobot(
+                        MecanumDrive.PARAMS.logoFacingDirection, MecanumDrive.PARAMS.usbFacingDirection));
         hardware.voltageSensor = hardwareMap.voltageSensor.iterator().next();
         hardware.aprilTags = AprilTagWebcam.detections(hardwareMap);
         hardware.dashboard = Dashboard.ftc();

@@ -1,16 +1,15 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.DetectionFilter;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.function.Supplier;
 
 public class Camera extends SubSystem {
     private final DetectionFilter detectionFilter = new DetectionFilter();
@@ -66,13 +65,22 @@ public class Camera extends SubSystem {
                 Position position = goalDetection.robotPose.getPosition();
                 YawPitchRollAngles orientation = goalDetection.robotPose.getOrientation();
                 if (position != null && orientation != null) {
-                    telemetry.addData("ftc x, y, h(rads)", "%.02f, %.02f, %.02f", position.x, position.y, orientation.getYaw(AngleUnit.RADIANS));
+                    telemetry.addData(
+                            "ftc x, y, h(rads)",
+                            "%.02f, %.02f, %.02f",
+                            position.x,
+                            position.y,
+                            orientation.getYaw(AngleUnit.RADIANS));
                 }
 
                 Optional<Nav.Pose> sighting = sighting();
                 if (sighting.isPresent()) {
-                    telemetry.addData("roadrunner x, y, h(rads)", "%.02f, %.02f, %.02f",
-                            sighting.get().x(), sighting.get().y(), -sighting.get().heading());
+                    telemetry.addData(
+                            "roadrunner x, y, h(rads)",
+                            "%.02f, %.02f, %.02f",
+                            sighting.get().x(),
+                            sighting.get().y(),
+                            -sighting.get().heading());
                 }
             }
         }
@@ -91,7 +99,8 @@ public class Camera extends SubSystem {
         if (position == null || orientation == null) {
             return Optional.empty();
         }
-        return Optional.of(new Nav.Pose(new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2)));
+        return Optional.of(new Nav.Pose(
+                new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2)));
     }
 
     public void toggleTelemetry() {

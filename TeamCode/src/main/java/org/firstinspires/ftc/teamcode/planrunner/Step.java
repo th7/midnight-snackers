@@ -39,12 +39,7 @@ public class Step implements PlanPart {
     }
 
     public static Step waitFor(String label, double seconds) {
-        return new Step(
-                label + " waitFor " + seconds,
-                () -> {
-                },
-                Step.secondsElapsed(seconds)
-        );
+        return new Step(label + " waitFor " + seconds, () -> {}, Step.secondsElapsed(seconds));
     }
 
     public boolean done() {

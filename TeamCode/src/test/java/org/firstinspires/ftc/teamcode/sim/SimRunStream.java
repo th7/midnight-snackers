@@ -7,7 +7,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
-
 import java.util.List;
 
 /**
@@ -33,8 +32,7 @@ public final class SimRunStream {
 
     /** How a run ended, as the pages show it. */
     public static final class Outcome {
-        private Outcome() {
-        }
+        private Outcome() {}
 
         /** An auto's plan finished, or a TeleOp's period was over. */
         public static String done() {
@@ -72,7 +70,8 @@ public final class SimRunStream {
          * says whose the fix is.
          */
         public static String cannotPlace(int childProtocol) {
-            return "wrong protocol: the simulator speaks " + childProtocol + " and cannot place the robot; placing needs " + PLACED_PROTOCOL;
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and cannot place the robot; placing needs " + PLACED_PROTOCOL;
         }
 
         public static String couldNotStartChild() {
@@ -136,8 +135,7 @@ public final class SimRunStream {
 
     private static final Gson GSON = gson();
 
-    private SimRunStream() {
-    }
+    private SimRunStream() {}
 
     /** The child's first line, before the catalog or the run: which protocol it speaks. */
     public static String hello() {
@@ -174,14 +172,20 @@ public final class SimRunStream {
         }
         int child = json.get("protocol").getAsInt();
         if (child > PROTOCOL) {
-            throw new WrongProtocol(child, "the simulator in these sources speaks protocol " + child + " and this server speaks"
-                    + " protocol " + PROTOCOL + ": the server is older than the sources. Restart the server from a checkout"
-                    + " with the newer code.");
+            throw new WrongProtocol(
+                    child,
+                    "the simulator in these sources speaks protocol " + child + " and this server speaks"
+                            + " protocol " + PROTOCOL
+                            + ": the server is older than the sources. Restart the server from a checkout"
+                            + " with the newer code.");
         }
         if (child < OLDEST_PROTOCOL_READ) {
-            throw new WrongProtocol(child, "the simulator in these sources speaks protocol " + child + " and this server reads"
-                    + " protocol " + OLDEST_PROTOCOL_READ + " to " + PROTOCOL + ": the sources are older than the server."
-                    + " Pull develop.");
+            throw new WrongProtocol(
+                    child,
+                    "the simulator in these sources speaks protocol " + child + " and this server reads"
+                            + " protocol " + OLDEST_PROTOCOL_READ + " to " + PROTOCOL
+                            + ": the sources are older than the server."
+                            + " Pull develop.");
         }
         return child;
     }
@@ -275,8 +279,8 @@ public final class SimRunStream {
     }
 
     private static Gson gson() {
-        JsonSerializer<Double> threeDecimals = (value, type, context) ->
-                new JsonPrimitive(Math.round(value * 1000) / 1000d);
+        JsonSerializer<Double> threeDecimals =
+                (value, type, context) -> new JsonPrimitive(Math.round(value * 1000) / 1000d);
         return new GsonBuilder()
                 .registerTypeAdapter(double.class, threeDecimals)
                 .registerTypeAdapter(Double.class, threeDecimals)

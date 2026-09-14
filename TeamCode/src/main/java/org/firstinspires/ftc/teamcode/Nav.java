@@ -5,10 +5,9 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
+import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-
-import java.util.Optional;
 
 /**
  * Where the robot is on the field and how to get somewhere else. Everything in and out is a
@@ -21,7 +20,8 @@ import java.util.Optional;
  */
 public class Nav extends SubSystem {
     // COORDINATES!!! ARGH
-    // Imagine facing the field from the audience. Blue goal is forward left, red goal is forward right. Any further mention of left/right or forward/backward is relative to this perspective.
+    // Imagine facing the field from the audience. Blue goal is forward left, red goal is forward right. Any further
+    // mention of left/right or forward/backward is relative to this perspective.
 
     // FTC Coordinates
     // +x backward, +y right, straight forward heading is PI/2
@@ -74,6 +74,7 @@ public class Nav extends SubSystem {
     private final int ySign;
     /** Where this alliance's goal is; null when playing for no alliance. */
     private final Vector2d launchTarget;
+
     private final MecanumDrive mecanumDrive;
     private boolean fieldPositionKnown = false;
 
@@ -208,6 +209,7 @@ public class Nav extends SubSystem {
     }
 
     private static Vector2d pointAtDistanceInDirection(Vector2d from, double distance, double directionRadians) {
-        return new Vector2d(from.x + Math.cos(directionRadians) * distance, from.y + Math.sin(directionRadians) * distance);
+        return new Vector2d(
+                from.x + Math.cos(directionRadians) * distance, from.y + Math.sin(directionRadians) * distance);
     }
 }

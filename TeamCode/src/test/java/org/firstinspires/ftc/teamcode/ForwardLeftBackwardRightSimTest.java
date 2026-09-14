@@ -4,14 +4,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
-
+import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SimCatalog;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
 import org.junit.Test;
-
-import java.util.List;
 
 /**
  * Runs the real forwardLeftBackwardRight auto, as the registrar registers it, against the
@@ -30,18 +28,27 @@ public class ForwardLeftBackwardRightSimTest {
     public void drivesTheSquareAndComesBackToWhereItStarted() {
         SimRobot sim = new SimRobot();
         sim.setPose(START);
-        SimCatalog.Entry opMode = SimCatalog.of(PlanOpModes.class).find("forwardLeftBackwardRight").get();
+        SimCatalog.Entry opMode = SimCatalog.of(PlanOpModes.class)
+                .find("forwardLeftBackwardRight")
+                .get();
 
         SimRecording recording = SimRunner.run(opMode, sim, TIMEOUT_SECONDS);
         List<Pose2d> trace = recording.poses();
 
         double x0 = START.position.x, y0 = START.position.y;
-        assertTrue("never reached the forward corner", trace.stream().anyMatch(
-                p -> p.position.x > x0 + 22 && Math.abs(p.position.y - y0) < POSITION_TOLERANCE_INCHES));
-        assertTrue("never reached the far corner", trace.stream().anyMatch(
-                p -> p.position.x > x0 + 22 && p.position.y > y0 + 22));
-        assertTrue("never reached the left corner", trace.stream().anyMatch(
-                p -> Math.abs(p.position.x - x0) < POSITION_TOLERANCE_INCHES && p.position.y > y0 + 22));
+        assertTrue(
+                "never reached the forward corner",
+                trace.stream()
+                        .anyMatch(p ->
+                                p.position.x > x0 + 22 && Math.abs(p.position.y - y0) < POSITION_TOLERANCE_INCHES));
+        assertTrue(
+                "never reached the far corner",
+                trace.stream().anyMatch(p -> p.position.x > x0 + 22 && p.position.y > y0 + 22));
+        assertTrue(
+                "never reached the left corner",
+                trace.stream()
+                        .anyMatch(p ->
+                                Math.abs(p.position.x - x0) < POSITION_TOLERANCE_INCHES && p.position.y > y0 + 22));
         Pose2d end = sim.pose();
         assertEquals("end x", x0, end.position.x, POSITION_TOLERANCE_INCHES);
         assertEquals("end y", y0, end.position.y, POSITION_TOLERANCE_INCHES);

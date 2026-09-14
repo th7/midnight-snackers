@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import java.util.LinkedList;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
-
-import java.util.LinkedList;
 
 /**
  * Track 3 detections. Only return "clean" detection if all x and y readings are within maxPositionDifference (default 1) and most recent detection is less than maxDetectionAgeSeconds old (default 0.1).

@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.fakes;
 
 import com.qualcomm.robotcore.hardware.IMU;
-
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
@@ -71,10 +70,8 @@ public class FakeImu implements IMU {
     }
 
     @Override
-    public void resetDeviceConfigurationForOpMode() {
-    }
+    public void resetDeviceConfigurationForOpMode() {}
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

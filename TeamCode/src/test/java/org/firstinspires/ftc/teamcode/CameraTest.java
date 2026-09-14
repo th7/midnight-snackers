@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
@@ -14,9 +16,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class CameraTest {
     private static final double DELTA = 0.0001;

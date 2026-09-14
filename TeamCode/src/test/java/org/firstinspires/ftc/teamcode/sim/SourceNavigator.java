@@ -11,12 +11,10 @@ import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,12 +25,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
@@ -99,9 +96,15 @@ public final class SourceNavigator {
 
     /** The tree kinds whose element is the thing a user means when the cursor is on them. */
     private static final Set<Tree.Kind> NAMED = Set.of(
-            Tree.Kind.IDENTIFIER, Tree.Kind.MEMBER_SELECT, Tree.Kind.MEMBER_REFERENCE,
-            Tree.Kind.VARIABLE, Tree.Kind.METHOD,
-            Tree.Kind.CLASS, Tree.Kind.INTERFACE, Tree.Kind.ENUM, Tree.Kind.ANNOTATION_TYPE,
+            Tree.Kind.IDENTIFIER,
+            Tree.Kind.MEMBER_SELECT,
+            Tree.Kind.MEMBER_REFERENCE,
+            Tree.Kind.VARIABLE,
+            Tree.Kind.METHOD,
+            Tree.Kind.CLASS,
+            Tree.Kind.INTERFACE,
+            Tree.Kind.ENUM,
+            Tree.Kind.ANNOTATION_TYPE,
             Tree.Kind.TYPE_PARAMETER);
 
     /** One analysis of the whole tree, kept until a source changes. */
@@ -110,6 +113,7 @@ public final class SourceNavigator {
         final SourcePositions positions;
         /** By source-root-relative key, in key order. */
         final Map<String, CompilationUnitTree> units = new LinkedHashMap<>();
+
         final Map<String, String> texts = new LinkedHashMap<>();
         final List<String> files = new ArrayList<>();
         final StandardJavaFileManager fileManager;
@@ -183,7 +187,9 @@ public final class SourceNavigator {
                 }
             }.scan(unit, null);
         }
-        usages.sort(Comparator.comparing((Location l) -> l.file).thenComparingInt(l -> l.line).thenComparingInt(l -> l.column));
+        usages.sort(Comparator.comparing((Location l) -> l.file)
+                .thenComparingInt(l -> l.line)
+                .thenComparingInt(l -> l.column));
         return new Usages(symbolOf(analysis, target), usages);
     }
 
@@ -219,25 +225,45 @@ public final class SourceNavigator {
             }
 
             @Override
-            public Void visitIdentifier(IdentifierTree node, Void p) { return remember(); }
+            public Void visitIdentifier(IdentifierTree node, Void p) {
+                return remember();
+            }
 
             @Override
-            public Void visitMemberSelect(MemberSelectTree node, Void p) { remember(); return super.visitMemberSelect(node, p); }
+            public Void visitMemberSelect(MemberSelectTree node, Void p) {
+                remember();
+                return super.visitMemberSelect(node, p);
+            }
 
             @Override
-            public Void visitMemberReference(MemberReferenceTree node, Void p) { remember(); return super.visitMemberReference(node, p); }
+            public Void visitMemberReference(MemberReferenceTree node, Void p) {
+                remember();
+                return super.visitMemberReference(node, p);
+            }
 
             @Override
-            public Void visitVariable(com.sun.source.tree.VariableTree node, Void p) { remember(); return super.visitVariable(node, p); }
+            public Void visitVariable(com.sun.source.tree.VariableTree node, Void p) {
+                remember();
+                return super.visitVariable(node, p);
+            }
 
             @Override
-            public Void visitMethod(com.sun.source.tree.MethodTree node, Void p) { remember(); return super.visitMethod(node, p); }
+            public Void visitMethod(com.sun.source.tree.MethodTree node, Void p) {
+                remember();
+                return super.visitMethod(node, p);
+            }
 
             @Override
-            public Void visitClass(com.sun.source.tree.ClassTree node, Void p) { remember(); return super.visitClass(node, p); }
+            public Void visitClass(com.sun.source.tree.ClassTree node, Void p) {
+                remember();
+                return super.visitClass(node, p);
+            }
 
             @Override
-            public Void visitTypeParameter(com.sun.source.tree.TypeParameterTree node, Void p) { remember(); return super.visitTypeParameter(node, p); }
+            public Void visitTypeParameter(com.sun.source.tree.TypeParameterTree node, Void p) {
+                remember();
+                return super.visitTypeParameter(node, p);
+            }
 
             private Void remember() {
                 deepest[0] = getCurrentPath();
@@ -253,10 +279,13 @@ public final class SourceNavigator {
             return null; // a name javac could not resolve: a typo, or a class from outside the libraries
         }
         Tree leaf = path.getLeaf();
-        if (!(leaf instanceof IdentifierTree || leaf instanceof MemberSelectTree || leaf instanceof MemberReferenceTree)) {
+        if (!(leaf instanceof IdentifierTree
+                || leaf instanceof MemberSelectTree
+                || leaf instanceof MemberReferenceTree)) {
             // a declaration: only its name means the thing, not its modifiers, type, or body
             String name = element.getKind() == ElementKind.CONSTRUCTOR
-                    ? element.getEnclosingElement().getSimpleName().toString() : element.getSimpleName().toString();
+                    ? element.getEnclosingElement().getSimpleName().toString()
+                    : element.getSimpleName().toString();
             long start = analysis.positions.getStartPosition(unit, leaf);
             long at = wordFrom(analysis.texts.get(file), name, Math.max(0, start));
             if (at < 0 || offset < at || offset >= at + name.length()) {
@@ -275,7 +304,8 @@ public final class SourceNavigator {
             if (key != null) {
                 long start = analysis.positions.getStartPosition(unit, declaration.getLeaf());
                 String name = element.getKind() == ElementKind.CONSTRUCTOR
-                        ? element.getEnclosingElement().getSimpleName().toString() : element.getSimpleName().toString();
+                        ? element.getEnclosingElement().getSimpleName().toString()
+                        : element.getSimpleName().toString();
                 long at = wordFrom(analysis.texts.get(key), name, Math.max(0, start));
                 location = locationOf(analysis, unit, key, at < 0 ? Math.max(0, start) : at);
             }
@@ -285,13 +315,18 @@ public final class SourceNavigator {
 
     private static String nameOf(Element element) {
         switch (element.getKind()) {
-            case CLASS: case INTERFACE: case ENUM: case ANNOTATION_TYPE: {
+            case CLASS:
+            case INTERFACE:
+            case ENUM:
+            case ANNOTATION_TYPE: {
                 String qualified = ((TypeElement) element).getQualifiedName().toString();
                 return qualified.isEmpty() ? element.getSimpleName().toString() : qualified;
             }
-            case METHOD: case CONSTRUCTOR:
+            case METHOD:
+            case CONSTRUCTOR:
                 return ownerOf(element) + element.toString();
-            case FIELD: case ENUM_CONSTANT:
+            case FIELD:
+            case ENUM_CONSTANT:
                 return ownerOf(element) + element.getSimpleName();
             case PACKAGE:
                 return ((PackageElement) element).getQualifiedName().toString();
@@ -326,7 +361,8 @@ public final class SourceNavigator {
 
     /** The first whole-word occurrence of {@code name} at or after {@code from}, or -1. */
     private static long wordFrom(String text, String name, long from) {
-        Matcher matcher = Pattern.compile("(?<![\\p{L}\\p{N}_$])" + Pattern.quote(name) + "(?![\\p{L}\\p{N}_$])").matcher(text);
+        Matcher matcher = Pattern.compile("(?<![\\p{L}\\p{N}_$])" + Pattern.quote(name) + "(?![\\p{L}\\p{N}_$])")
+                .matcher(text);
         return matcher.find((int) Math.min(from, text.length())) ? matcher.start() : -1;
     }
 
@@ -356,7 +392,9 @@ public final class SourceNavigator {
      */
     private static Trees treesOf(JavacTask task) {
         try {
-            return (Trees) Trees.class.getMethod("instance", javax.tools.JavaCompiler.CompilationTask.class).invoke(null, task);
+            return (Trees) Trees.class
+                    .getMethod("instance", javax.tools.JavaCompiler.CompilationTask.class)
+                    .invoke(null, task);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("could not get the compiler's trees", e);
         }
@@ -378,17 +416,20 @@ public final class SourceNavigator {
         Analysis made;
         try {
             List<String> options = List.of(
-                    "-cp", String.join(File.pathSeparator, SimBuild.libraries()),
-                    "--release", "17",
+                    "-cp",
+                    String.join(File.pathSeparator, SimBuild.libraries()),
+                    "--release",
+                    "17",
                     "-proc:none",
                     "-nowarn",
-                    "-encoding", "UTF-8");
+                    "-encoding",
+                    "UTF-8");
             List<java.io.File> sourceFiles = new ArrayList<>();
             for (Path source : sources) {
                 sourceFiles.add(source.toFile());
             }
             Iterable<? extends JavaFileObject> units = files.getJavaFileObjectsFromFiles(sourceFiles);
-            JavacTask task = (JavacTask) compiler.getTask(null, files, diagnostic -> { }, options, null, units);
+            JavacTask task = (JavacTask) compiler.getTask(null, files, diagnostic -> {}, options, null, units);
             Trees trees = treesOf(task);
             made = new Analysis(trees, trees.getSourcePositions(), files);
             if (!sources.isEmpty()) {
@@ -396,9 +437,13 @@ public final class SourceNavigator {
                 task.analyze();
                 for (CompilationUnitTree unit : parsed) {
                     Path path = Path.of(unit.getSourceFile().toUri());
-                    String key = sourceRoot.relativize(path.toAbsolutePath().normalize()).toString().replace('\\', '/');
+                    String key = sourceRoot
+                            .relativize(path.toAbsolutePath().normalize())
+                            .toString()
+                            .replace('\\', '/');
                     made.units.put(key, unit);
-                    made.texts.put(key, unit.getSourceFile().getCharContent(true).toString());
+                    made.texts.put(
+                            key, unit.getSourceFile().getCharContent(true).toString());
                     made.files.add(key);
                 }
             }

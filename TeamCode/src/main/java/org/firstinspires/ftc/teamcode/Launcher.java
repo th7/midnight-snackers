@@ -67,8 +67,7 @@ public class Launcher extends SubSystem {
                 Step.waitFor("ball to fall into launcher", 0.15),
                 launchCloseBottomGate(),
                 launchOpenTopGate(),
-                Step.waitFor("ball to fall into bottom position", 0.15)
-        );
+                Step.waitFor("ball to fall into bottom position", 0.15));
     }
 
     private Step ensureFlywheelReady() {
@@ -79,8 +78,7 @@ public class Launcher extends SubSystem {
                         setCloseLaunchPower();
                     }
                 },
-                this::flywheelReady
-        );
+                this::flywheelReady);
     }
 
     private Step launchCloseTopGate() {
@@ -89,8 +87,7 @@ public class Launcher extends SubSystem {
                 () -> {
                     topGatePosition = topGateClosedPosition;
                 },
-                Step.secondsElapsed(0.05)
-        );
+                Step.secondsElapsed(0.05));
     }
 
     private Step launchOpenBottomGate() {
@@ -99,8 +96,7 @@ public class Launcher extends SubSystem {
                 () -> {
                     bottomGatePosition = bottomGateOpenPosition;
                 },
-                Step.secondsElapsed(0.05)
-        );
+                Step.secondsElapsed(0.05));
     }
 
     private Step launchCloseBottomGate() {
@@ -109,8 +105,7 @@ public class Launcher extends SubSystem {
                 () -> {
                     bottomGatePosition = bottomGateClosedPosition;
                 },
-                Step.secondsElapsed(0.08)
-        );
+                Step.secondsElapsed(0.08));
     }
 
     private Step launchOpenTopGate() {
@@ -119,8 +114,7 @@ public class Launcher extends SubSystem {
                 () -> {
                     topGatePosition = topGateOpenPosition;
                 },
-                Step.secondsElapsed(0.05)
-        );
+                Step.secondsElapsed(0.05));
     }
 
     public void slowLaunchyLaunch() {
@@ -130,10 +124,7 @@ public class Launcher extends SubSystem {
     }
 
     private Plan slowLaunchPlan() {
-        return new Plan(
-                launchPlan(),
-                Step.waitFor("slow launch", 0.8)
-        );
+        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8));
     }
 
     public void increasePower() {
@@ -193,5 +184,4 @@ public class Launcher extends SubSystem {
     private boolean launcherOn() {
         return launcherVelocity > 0;
     }
-
 }

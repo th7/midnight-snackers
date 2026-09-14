@@ -33,12 +33,10 @@ public class FakeTelemetry implements Telemetry {
     }
 
     @Override
-    public void clear() {
-    }
+    public void clear() {}
 
     @Override
-    public void clearAll() {
-    }
+    public void clearAll() {}
 
     @Override
     public Object addAction(Runnable action) {
@@ -51,12 +49,10 @@ public class FakeTelemetry implements Telemetry {
     }
 
     @Override
-    public void speak(String text) {
-    }
+    public void speak(String text) {}
 
     @Override
-    public void speak(String text, String languageCode, String countryCode) {
-    }
+    public void speak(String text, String languageCode, String countryCode) {}
 
     @Override
     public boolean update() {
@@ -85,8 +81,7 @@ public class FakeTelemetry implements Telemetry {
     }
 
     @Override
-    public void setAutoClear(boolean autoClear) {
-    }
+    public void setAutoClear(boolean autoClear) {}
 
     @Override
     public int getMsTransmissionInterval() {
@@ -94,8 +89,7 @@ public class FakeTelemetry implements Telemetry {
     }
 
     @Override
-    public void setMsTransmissionInterval(int msTransmissionInterval) {
-    }
+    public void setMsTransmissionInterval(int msTransmissionInterval) {}
 
     @Override
     public String getItemSeparator() {
@@ -103,8 +97,7 @@ public class FakeTelemetry implements Telemetry {
     }
 
     @Override
-    public void setItemSeparator(String itemSeparator) {
-    }
+    public void setItemSeparator(String itemSeparator) {}
 
     @Override
     public String getCaptionValueSeparator() {
@@ -112,12 +105,10 @@ public class FakeTelemetry implements Telemetry {
     }
 
     @Override
-    public void setCaptionValueSeparator(String captionValueSeparator) {
-    }
+    public void setCaptionValueSeparator(String captionValueSeparator) {}
 
     @Override
-    public void setDisplayFormat(DisplayFormat displayFormat) {
-    }
+    public void setDisplayFormat(DisplayFormat displayFormat) {}
 
     @Override
     public Log log() {

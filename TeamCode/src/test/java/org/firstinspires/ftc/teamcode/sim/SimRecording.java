@@ -3,12 +3,10 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.JsonArray;
-
-import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 
 /**
  * Everything observed during one simulated run, one entry per op mode loop: the true pose, the
@@ -24,6 +22,7 @@ public final class SimRecording implements SimReplayPage.Source {
         public final String step;
         /** leftFront, rightFront, leftBack, rightBack */
         public final double[] wheelPowers;
+
         public final List<TelemetryPacket> packets;
         /** What gamepad 1 read this loop; null for an auto, which is not driven. */
         public final State gamepad1;
@@ -39,13 +38,26 @@ public final class SimRecording implements SimReplayPage.Source {
             this(seconds, truePose, step, wheelPowers, packets, null, null);
         }
 
-        public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets,
-                    State gamepad1, State gamepad2) {
+        public Tick(
+                double seconds,
+                Pose2d truePose,
+                String step,
+                double[] wheelPowers,
+                List<TelemetryPacket> packets,
+                State gamepad1,
+                State gamepad2) {
             this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, null);
         }
 
-        public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets,
-                    State gamepad1, State gamepad2, double[][] pieces) {
+        public Tick(
+                double seconds,
+                Pose2d truePose,
+                String step,
+                double[] wheelPowers,
+                List<TelemetryPacket> packets,
+                State gamepad1,
+                State gamepad2,
+                double[][] pieces) {
             this.seconds = seconds;
             this.truePose = truePose;
             this.step = step;

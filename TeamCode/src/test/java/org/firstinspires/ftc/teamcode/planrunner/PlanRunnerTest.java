@@ -10,8 +10,7 @@ public class PlanRunnerTest {
     private final PlanRunner planRunner = new PlanRunner();
 
     private Step instantStep(String name) {
-        return new Step(name, () -> {
-        }, () -> true);
+        return new Step(name, () -> {}, () -> true);
     }
 
     @Test

@@ -4,6 +4,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
@@ -11,12 +16,6 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 
 public class SimDevServerTest {
     private static final double RUN_TIMEOUT_SECONDS = 0.3;
@@ -28,8 +27,15 @@ public class SimDevServerTest {
 
     private SimDevServer server() {
         if (server == null) {
-            server = SimDevServer.start(new SimBench(SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class, StickTeleOp.class), null,
-                    folder.getRoot().toPath(), RUN_TIMEOUT_SECONDS, 30, 1), 0);
+            server = SimDevServer.start(
+                    new SimBench(
+                            SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class, StickTeleOp.class),
+                            null,
+                            folder.getRoot().toPath(),
+                            RUN_TIMEOUT_SECONDS,
+                            30,
+                            1),
+                    0);
         }
         return server;
     }
@@ -61,7 +67,8 @@ public class SimDevServerTest {
     /** The robot is placed from the placement page, which saves the start pose to the bench, and the bench remembers it. */
     @Test
     public void theRobotIsPlacedFromThePlacementPageAndTheBenchRemembersIt() throws Exception {
-        Response placed = request("PUT", "/start?opmode=" + encode("Stick"), "{\"x\": 24, \"y\": -12, \"heading\": 0.5}");
+        Response placed =
+                request("PUT", "/start?opmode=" + encode("Stick"), "{\"x\": 24, \"y\": -12, \"heading\": 0.5}");
         assertEquals(placed.body, 200, placed.status);
 
         Response page = get("/place?opmode=" + encode("Stick"));
@@ -92,7 +99,11 @@ public class SimDevServerTest {
         Response live = get("/runs/" + id + "/");
         assertTrue(live.body.contains("<canvas"));
         assertTrue(live.body.contains("\"live\":true"));
-        assertTrue(folder.getRoot().toPath().resolve("Count to three.html").toFile().exists());
+        assertTrue(folder.getRoot()
+                .toPath()
+                .resolve("Count to three.html")
+                .toFile()
+                .exists());
     }
 
     @Test

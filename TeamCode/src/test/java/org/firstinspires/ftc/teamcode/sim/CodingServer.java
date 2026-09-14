@@ -6,11 +6,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-
-import org.bouncycastle.crypto.generators.SCrypt;
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
-import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -38,6 +33,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
+import org.bouncycastle.crypto.generators.SCrypt;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
+import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 /**
  * The coding server: teammates on the LAN log in with a username, the person at this machine
@@ -78,17 +76,24 @@ public final class CodingServer {
     private static final String COOKIE = "session";
     /** What the pages load besides themselves: the editor, bundled so the host serves it without internet. */
     private static final Set<String> STATIC = Set.of("codemirror.js");
+
     private static final String SESSIONS_FILE = "sessions.json";
     private static final String EDITABLE_FILE = "editable.json";
     /** scrypt at 16 MiB and roughly 50 ms per guess: sized for a stolen store, not for the LAN. */
     private static final int SCRYPT_N = 1 << 14;
+
     private static final int SCRYPT_R = 8;
     private static final int SCRYPT_P = 1;
     private static final int SALT_BYTES = 16;
     private static final int HASH_BYTES = 32;
     private static final int SECRET_BYTES = 16;
 
-    enum State { PENDING, APPROVED, DENIED, REVOKED }
+    enum State {
+        PENDING,
+        APPROVED,
+        DENIED,
+        REVOKED
+    }
 
     private static final class Session {
         final int id;
@@ -135,8 +140,12 @@ public final class CodingServer {
                     throw new IllegalStateException("not an address: " + address);
                 }
             }
-            return new Session(item.get("id").getAsInt(), item.get("username").getAsString(), parsed,
-                    item.get("createdAtMillis").getAsLong(), Secret.fromJson(item.getAsJsonObject("secret")),
+            return new Session(
+                    item.get("id").getAsInt(),
+                    item.get("username").getAsString(),
+                    parsed,
+                    item.get("createdAtMillis").getAsLong(),
+                    Secret.fromJson(item.getAsJsonObject("secret")),
                     State.valueOf(item.get("state").getAsString().toUpperCase(Locale.ROOT)));
         }
     }
@@ -160,7 +169,8 @@ public final class CodingServer {
         static Secret of(String secret, SecureRandom random) {
             byte[] salt = new byte[SALT_BYTES];
             random.nextBytes(salt);
-            return new Secret(SCRYPT_N, SCRYPT_R, SCRYPT_P, salt, derive(secret, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, HASH_BYTES));
+            return new Secret(
+                    SCRYPT_N, SCRYPT_R, SCRYPT_P, salt, derive(secret, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, HASH_BYTES));
         }
 
         boolean matches(String secret) {
@@ -186,7 +196,10 @@ public final class CodingServer {
             if (!"scrypt".equals(item.get("kdf").getAsString())) {
                 throw new IllegalStateException("unknown kdf " + item.get("kdf"));
             }
-            return new Secret(item.get("n").getAsInt(), item.get("r").getAsInt(), item.get("p").getAsInt(),
+            return new Secret(
+                    item.get("n").getAsInt(),
+                    item.get("r").getAsInt(),
+                    item.get("p").getAsInt(),
                     Base64.getDecoder().decode(item.get("salt").getAsString()),
                     Base64.getDecoder().decode(item.get("hash").getAsString()));
         }
@@ -204,12 +217,14 @@ public final class CodingServer {
     private final Map<String, SourceNavigator> navigatorByUsername = new LinkedHashMap<>();
     /** Each user's bench routes, recording runs as started by them; by username, made with the bench. */
     private final Map<String, Router> benchRoutesByUsername = new LinkedHashMap<>();
+
     private final Router userRoutes = userRoutes();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
     /** By id, in id order. */
     private final Map<Integer, Session> sessions = new LinkedHashMap<>();
+
     private int nextSessionId = 1;
     /**
      * Root-relative paths with '/' separators, exactly as users must name them. A user-supplied
@@ -217,7 +232,8 @@ public final class CodingServer {
      */
     private final TreeSet<String> editable = new TreeSet<>();
 
-    private CodingServer(Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+    private CodingServer(
+            Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
         this.worktrees = new Worktrees(this.root, this.stateDir, "git");
@@ -239,7 +255,8 @@ public final class CodingServer {
      *                               rather than starting over and silently logging everyone out;
      *                               or when git, the repository, or {@code develop} is missing
      */
-    public static CodingServer start(Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+    public static CodingServer start(
+            Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
         return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir);
     }
 
@@ -265,13 +282,24 @@ public final class CodingServer {
     /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
     public static void main(String[] args) throws InterruptedException {
         Path root = Path.of("").toAbsolutePath();
-        SimBench.Factory benches = worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
-                SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS, SimDevServer.DEFAULT_TELEOP_SECONDS, SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
-        CodingServer server = start(root, benches, InetAddress.getLoopbackAddress(),
-                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT), port(USER_PORT_ENV, DEFAULT_USER_PORT), stateDir(System.getenv()));
+        SimBench.Factory benches = worktree -> new SimBench(
+                null,
+                worktree,
+                worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
+                SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS,
+                SimDevServer.DEFAULT_TELEOP_SECONDS,
+                SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
+        CodingServer server = start(
+                root,
+                benches,
+                InetAddress.getLoopbackAddress(),
+                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT),
+                port(USER_PORT_ENV, DEFAULT_USER_PORT),
+                stateDir(System.getenv()));
         System.out.println("Coding server");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
-        System.out.println("  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
+        System.out.println(
+                "  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
         System.out.println("  state  " + server.stateDir);
         System.out.println("  trees  " + server.worktrees.directory());
         Thread.currentThread().join();
@@ -346,10 +374,14 @@ public final class CodingServer {
      */
     private Router userRoutes() {
         Router approved = new Router()
-                .guard(request -> isApproved(sessionOf(request)) ? null : Response.error(403, "not an approved session"))
+                .guard(request ->
+                        isApproved(sessionOf(request)) ? null : Response.error(403, "not an approved session"))
                 .route("GET", "/files", (request, params) -> Response.json(GSON.toJson(fileList(true))))
                 .route("GET", "/files/{key*}", (request, params) -> file(sessionOf(request), params.get("key"), null))
-                .route("PUT", "/files/{key*}", (request, params) -> file(sessionOf(request), params.get("key"), request.body))
+                .route(
+                        "PUT",
+                        "/files/{key*}",
+                        (request, params) -> file(sessionOf(request), params.get("key"), request.body))
                 .mount("/sim", request -> benchRoutesOf(sessionOf(request)))
                 .route("GET", "/nav/{op}", (request, params) -> navigate(sessionOf(request), params.get("op"), request))
                 .route("GET", "/source/{key*}", (request, params) -> source(sessionOf(request), params.get("key")))
@@ -357,14 +389,23 @@ public final class CodingServer {
                 .route("POST", "/git/commit", (request, params) -> gitCommit(sessionOf(request), request.body))
                 .route("POST", "/git/pull", (request, params) -> gitPull(sessionOf(request)))
                 .route("POST", "/git/push", (request, params) -> gitPush(sessionOf(request)))
-                .route("GET", "/build", (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))));
+                .route(
+                        "GET",
+                        "/build",
+                        (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))));
         return new Router()
-                .route("GET", "/", (request, params) ->
-                        Response.html(isApproved(sessionOf(request)) ? page("dashboard.html") : page("login.html")))
+                .route(
+                        "GET",
+                        "/",
+                        (request, params) -> Response.html(
+                                isApproved(sessionOf(request)) ? page("dashboard.html") : page("login.html")))
                 .route("POST", "/login", (request, params) -> login(request))
-                .route("GET", "/static/{name}", (request, params) -> STATIC.contains(params.get("name"))
-                        ? new Response(200, "application/javascript; charset=utf-8", page(params.get("name")))
-                        : Response.error(404, "not found: " + request.path))
+                .route(
+                        "GET",
+                        "/static/{name}",
+                        (request, params) -> STATIC.contains(params.get("name"))
+                                ? new Response(200, "application/javascript; charset=utf-8", page(params.get("name")))
+                                : Response.error(404, "not found: " + request.path))
                 .route("GET", "/me", (request, params) -> Response.json(GSON.toJson(me(sessionOf(request)))))
                 .mount("", approved);
     }
@@ -379,7 +420,8 @@ public final class CodingServer {
             return userRoutes.handle(request);
         } catch (Worktrees.GitFailed e) {
             Session session = sessionOf(request);
-            return Response.error(500, "git failed for " + (session == null ? "?" : session.username) + ": " + e.getMessage());
+            return Response.error(
+                    500, "git failed for " + (session == null ? "?" : session.username) + ": " + e.getMessage());
         }
     }
 
@@ -444,10 +486,12 @@ public final class CodingServer {
             return new Current(Response.error(404, "could not read " + key + ": " + e.getMessage()));
         }
         try {
-            String content = StandardCharsets.UTF_8.newDecoder()
+            String content = StandardCharsets.UTF_8
+                    .newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes)).toString();
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
             return new Current(content, version(bytes));
         } catch (CharacterCodingException e) {
             return new Current(Response.error(415, key + " is not UTF-8 text, so it cannot be edited here"));
@@ -535,8 +579,13 @@ public final class CodingServer {
             random.nextBytes(bytes);
             String secret = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
             int id = nextSessionId++;
-            session = new Session(id, username, request.remoteAddress, System.currentTimeMillis(),
-                    Secret.of(secret, random), State.PENDING);
+            session = new Session(
+                    id,
+                    username,
+                    request.remoteAddress,
+                    System.currentTimeMillis(),
+                    Secret.of(secret, random),
+                    State.PENDING);
             session.token = id + "." + secret;
             sessions.put(id, session);
             try {
@@ -618,6 +667,7 @@ public final class CodingServer {
         final Path worktree;
         /** The source root's key, with a trailing slash, so a file's key is this plus the navigator's name for it. */
         final String prefix;
+
         final SourceNavigator navigator;
 
         Sources(Path worktree, String prefix, SourceNavigator navigator) {
@@ -698,7 +748,9 @@ public final class CodingServer {
             return Response.error(404, "nothing at " + key + ":" + line + ":" + column);
         }
         JsonObject body = symbolJson(sources, usages.symbol);
-        body.add("definition", usages.symbol.definition == null ? null : locationJson(sources, usages.symbol.definition));
+        body.add(
+                "definition",
+                usages.symbol.definition == null ? null : locationJson(sources, usages.symbol.definition));
         JsonArray list = new JsonArray();
         for (SourceNavigator.Location usage : usages.usages) {
             list.add(locationJson(sources, usage));
@@ -759,7 +811,10 @@ public final class CodingServer {
             } catch (RuntimeException e) {
                 body = null;
             }
-            String message = body == null || !body.has("message") || body.get("message").isJsonNull() ? "" : body.get("message").getAsString().trim();
+            String message =
+                    body == null || !body.has("message") || body.get("message").isJsonNull()
+                            ? ""
+                            : body.get("message").getAsString().trim();
             if (message.isEmpty()) {
                 return Response.error(400, "a commit needs a message");
             }
@@ -772,7 +827,11 @@ public final class CodingServer {
             reply.addProperty("committed", commit.made);
             reply.addProperty("commit", commit.commit);
             reply.add("files", GSON.toJsonTree(commit.files));
-            reply.addProperty("message", commit.made ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files") : "nothing to commit");
+            reply.addProperty(
+                    "message",
+                    commit.made
+                            ? "committed " + commit.files.size() + (commit.files.size() == 1 ? " file" : " files")
+                            : "nothing to commit");
             return Response.json(GSON.toJson(reply));
         }
     }
@@ -784,7 +843,8 @@ public final class CodingServer {
             synchronized (this) {
                 merge = worktrees.pull(session.username);
             }
-            return merged("pull", session.username, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull", Voice.USER);
+            return merged(
+                    "pull", session.username, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull", Voice.USER);
         }
     }
 
@@ -809,12 +869,20 @@ public final class CodingServer {
         } catch (Worktrees.GitFailed e) {
             return Response.error(500, "git failed for " + found.username + ": " + e.getMessage());
         }
-        return merged("pull", found.username, merge, "pulled " + Worktrees.DEVELOP + " into " + found.username + "'s worktree",
-                "nothing to pull for " + found.username, Voice.ADMIN);
+        return merged(
+                "pull",
+                found.username,
+                merge,
+                "pulled " + Worktrees.DEVELOP + " into " + found.username + "'s worktree",
+                "nothing to pull for " + found.username,
+                Voice.ADMIN);
     }
 
     /** Whom a pull or push reply addresses: the user it happened to, or the admin who asked for it. */
-    private enum Voice { USER, ADMIN }
+    private enum Voice {
+        USER,
+        ADMIN
+    }
 
     /** {@code POST /git/push}: lands the user's commits on develop. */
     private Response gitPush(Session session) {
@@ -824,10 +892,15 @@ public final class CodingServer {
                 merge = worktrees.push(session.username);
             }
             String did = "pushed to " + Worktrees.DEVELOP + remoteSuffix(merge.remote)
-                    + (merge.detail == null ? "" : "; but your worktree is not up to date; commit and pull: " + merge.detail);
+                    + (merge.detail == null
+                            ? ""
+                            : "; but your worktree is not up to date; commit and pull: " + merge.detail);
             String nothing = merge.remote != null && merge.remote.outcome.equals("pushed")
                     ? "nothing new of yours to push; pushed " + Worktrees.DEVELOP + " to " + merge.remote.name
-                    : "nothing to push" + (merge.remote != null && merge.remote.outcome.equals("failed") ? remoteSuffix(merge.remote) : "");
+                    : "nothing to push"
+                            + (merge.remote != null && merge.remote.outcome.equals("failed")
+                                    ? remoteSuffix(merge.remote)
+                                    : "");
             return merged("push", session.username, merge, did, nothing, Voice.USER);
         }
     }
@@ -838,9 +911,12 @@ public final class CodingServer {
             return "";
         }
         switch (remote.outcome) {
-            case "pushed": return " and to " + remote.name;
-            case "up to date": return " (" + remote.name + " already had it)";
-            default: return "; could not push to " + remote.name + ", ask your coach: " + remote.detail;
+            case "pushed":
+                return " and to " + remote.name;
+            case "up to date":
+                return " (" + remote.name + " already had it)";
+            default:
+                return "; could not push to " + remote.name + ", ask your coach: " + remote.detail;
         }
     }
 
@@ -848,11 +924,15 @@ public final class CodingServer {
      * The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the
      * reason otherwise. Recorded as the user's last merge for the admin page, whoever asked.
      */
-    private Response merged(String op, String username, Worktrees.Merge merge, String did, String nothing, Voice voice) {
+    private Response merged(
+            String op, String username, Worktrees.Merge merge, String did, String nothing, Voice voice) {
         JsonObject reply = new JsonObject();
         reply.addProperty("op", op);
-        reply.addProperty("outcome", merge.outcome == Worktrees.Outcome.MERGED ? (op.equals("pull") ? "pulled" : "pushed")
-                : merge.outcome.name().toLowerCase(Locale.ROOT));
+        reply.addProperty(
+                "outcome",
+                merge.outcome == Worktrees.Outcome.MERGED
+                        ? (op.equals("pull") ? "pulled" : "pushed")
+                        : merge.outcome.name().toLowerCase(Locale.ROOT));
         reply.add("files", GSON.toJsonTree(merge.files));
         reply.addProperty("detail", merge.detail);
         String whose = voice == Voice.USER ? "your" : username + "'s";
@@ -869,12 +949,17 @@ public final class CodingServer {
                 break;
             case UNCOMMITTED:
                 status = 409;
-                reply.addProperty("message", (voice == Voice.USER ? "" : username + " must ") + "commit first: " + String.join(", ", merge.files));
+                reply.addProperty(
+                        "message",
+                        (voice == Voice.USER ? "" : username + " must ") + "commit first: "
+                                + String.join(", ", merge.files));
                 break;
             case CONFLICTS:
                 status = 409;
-                reply.addProperty("message", whose + " changes conflict with " + Worktrees.DEVELOP + " in "
-                        + String.join(", ", merge.files) + help);
+                reply.addProperty(
+                        "message",
+                        whose + " changes conflict with " + Worktrees.DEVELOP + " in " + String.join(", ", merge.files)
+                                + help);
                 break;
             default:
                 status = 409;
@@ -939,7 +1024,9 @@ public final class CodingServer {
         Path sourceRoot = bench.sourceRoot();
         for (SimBuild.Problem p : result.problems) {
             JsonObject problem = new JsonObject();
-            String file = p.file.isEmpty() ? "" : worktree.relativize(sourceRoot.resolve(p.file)).toString().replace('\\', '/');
+            String file = p.file.isEmpty()
+                    ? ""
+                    : worktree.relativize(sourceRoot.resolve(p.file)).toString().replace('\\', '/');
             problem.addProperty("file", file);
             problem.addProperty("line", p.line);
             problem.addProperty("message", p.message);
@@ -959,7 +1046,10 @@ public final class CodingServer {
                 .route("GET", "/admin/logins", (request, params) -> Response.json(logins()))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
-                .route("POST", "/admin/logins/{id}/{decision}", (request, params) -> decide(params.get("id"), params.get("decision")))
+                .route(
+                        "POST",
+                        "/admin/logins/{id}/{decision}",
+                        (request, params) -> decide(params.get("id"), params.get("decision")))
                 .route("GET", "/admin/tree", (request, params) -> tree(request.query("dir")))
                 .route("GET", "/admin/files", (request, params) -> Response.json(GSON.toJson(fileList(false))))
                 .route("POST", "/admin/files/add", (request, params) -> addEditable(request.query("path")))
@@ -1011,7 +1101,9 @@ public final class CodingServer {
         children.sort((a, b) -> {
             boolean da = Files.isDirectory(a);
             boolean db = Files.isDirectory(b);
-            return da != db ? (da ? -1 : 1) : a.getFileName().toString().compareTo(b.getFileName().toString());
+            return da != db
+                    ? (da ? -1 : 1)
+                    : a.getFileName().toString().compareTo(b.getFileName().toString());
         });
         JsonArray entries = new JsonArray();
         for (Path child : children) {
@@ -1055,7 +1147,9 @@ public final class CodingServer {
         try {
             for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 for (InetAddress address : Collections.list(nic.getInetAddresses())) {
-                    if (!address.isLoopbackAddress() && !address.isLinkLocalAddress() && address.getAddress().length == 4) {
+                    if (!address.isLoopbackAddress()
+                            && !address.isLinkLocalAddress()
+                            && address.getAddress().length == 4) {
                         addresses.add(address.getHostAddress());
                     }
                 }
@@ -1132,13 +1226,19 @@ public final class CodingServer {
                 try {
                     worktrees.ensure(found.username);
                 } catch (Worktrees.GitFailed e) {
-                    return Response.error(500, "could not make a worktree for " + found.username + ": " + e.getMessage());
+                    return Response.error(
+                            500, "could not make a worktree for " + found.username + ": " + e.getMessage());
                 }
                 found.state = State.APPROVED;
                 break;
-            case "deny": found.state = State.DENIED; break;
-            case "revoke": found.state = State.REVOKED; break;
-            default: return Response.error(404, "POST /admin/logins/<id>/approve|deny|revoke");
+            case "deny":
+                found.state = State.DENIED;
+                break;
+            case "revoke":
+                found.state = State.REVOKED;
+                break;
+            default:
+                return Response.error(404, "POST /admin/logins/<id>/approve|deny|revoke");
         }
         saveSessions();
         return Response.json(GSON.toJson(me(found)));
@@ -1158,7 +1258,8 @@ public final class CodingServer {
                 nextSessionId = Math.max(nextSessionId, session.id + 1);
             }
         } catch (RuntimeException e) {
-            throw new IllegalStateException("could not read the sessions in " + stateDir.resolve(SESSIONS_FILE) + ": " + e, e);
+            throw new IllegalStateException(
+                    "could not read the sessions in " + stateDir.resolve(SESSIONS_FILE) + ": " + e, e);
         }
     }
 
@@ -1186,7 +1287,8 @@ public final class CodingServer {
                 }
             }
         } catch (RuntimeException e) {
-            throw new IllegalStateException("could not read the editable files in " + stateDir.resolve(EDITABLE_FILE) + ": " + e, e);
+            throw new IllegalStateException(
+                    "could not read the editable files in " + stateDir.resolve(EDITABLE_FILE) + ": " + e, e);
         }
     }
 
@@ -1209,7 +1311,8 @@ public final class CodingServer {
     private static String page(String name) {
         try (InputStream in = CodingServer.class.getResourceAsStream(name)) {
             if (in == null) {
-                throw new IllegalStateException("missing resource " + name + " next to " + CodingServer.class.getName());
+                throw new IllegalStateException(
+                        "missing resource " + name + " next to " + CodingServer.class.getName());
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

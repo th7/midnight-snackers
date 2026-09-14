@@ -10,7 +10,7 @@ import com.acmerobotics.roadrunner.Twist2d;
 import com.acmerobotics.roadrunner.Twist2dDual;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-
+import java.util.ArrayList;
 import org.firstinspires.ftc.teamcode.base.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
@@ -19,8 +19,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
-
-import java.util.ArrayList;
 
 /**
  * A kinematic model of the robot on the season's field ({@link SimField}). Motor powers set by
@@ -51,11 +49,13 @@ public class SimRobot {
      * that stand lower than this.
      */
     public static final double ROBOT_SIZE_IN = 18;
+
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
     /** A quarter inch at full speed: far less than the thinnest obstacle. */
     private static final double MAX_STEP_SECONDS = 0.005;
     /** A rolling ball loses its speed with this time constant, and is at rest below {@link #REST_SPEED}. */
     private static final double ROLL_SECONDS = 0.4;
+
     private static final double REST_SPEED = 0.5;
     /** How much of the closing speed a ball keeps, bouncing off a wall, an obstacle or another ball. */
     private static final double BOUNCE = 0.3;
@@ -69,6 +69,7 @@ public class SimRobot {
      * proven right by the localizer tracking the true pose, not by inspection.
      */
     private static final int PAR_RAW_SIGN = 1;
+
     private static final int PERP_RAW_SIGN = -1;
     /**
      * How the drive motors are physically mounted: the back motors are mirrored, so positive
@@ -76,6 +77,7 @@ public class SimRobot {
      * with those directions applied, positive power means wheel-forward on every corner.
      */
     private static final int LEFT_FRONT_MOUNT = 1;
+
     private static final int RIGHT_FRONT_MOUNT = 1;
     private static final int LEFT_BACK_MOUNT = -1;
     private static final int RIGHT_BACK_MOUNT = -1;
@@ -94,13 +96,14 @@ public class SimRobot {
 
     private final MecanumDrive.Params drive = MecanumDrive.PARAMS;
     private final TwoDeadWheelLocalizer.Params deadWheels = TwoDeadWheelLocalizer.PARAMS;
-    private final MecanumKinematics kinematics = new MecanumKinematics(
-            drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
+    private final MecanumKinematics kinematics =
+            new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private Pose2d pose = new Pose2d(0, 0, 0);
     private double parTicks = 0;
     private double perpTicks = 0;
     /** The loose game pieces, {x, y} each, and their velocities, in {@link SimField#loosePieces}' order. */
     private final double[][] pieces;
+
     private final double[][] pieceVelocities;
     private final double[] pieceRadii;
 
@@ -111,8 +114,8 @@ public class SimRobot {
         pieceRadii = new double[n];
         for (int i = 0; i < n; i++) {
             SimField.Piece piece = FIELD.loosePieces.get(i);
-            pieces[i] = new double[]{piece.x, piece.y};
-            pieceVelocities[i] = new double[]{0, 0};
+            pieces[i] = new double[] {piece.x, piece.y};
+            pieceVelocities[i] = new double[] {0, 0};
             pieceRadii[i] = piece.radius;
         }
     }
@@ -164,8 +167,8 @@ public class SimRobot {
 
     /** Set a loose game piece down somewhere, at rest. */
     public void placePiece(int index, double x, double y) {
-        pieces[index] = new double[]{x, y};
-        pieceVelocities[index] = new double[]{0, 0};
+        pieces[index] = new double[] {x, y};
+        pieceVelocities[index] = new double[] {0, 0};
     }
 
     /**
@@ -214,8 +217,8 @@ public class SimRobot {
         imu.yawRateRadiansPerSecond = velocity.angVel;
 
         launcher.measuredVelocity = launcher.commandedVelocity;
-        turnTable.currentPosition += (int) Math.round(
-                clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dtSeconds);
+        turnTable.currentPosition +=
+                (int) Math.round(clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dtSeconds);
     }
 
     /**
@@ -332,7 +335,7 @@ public class SimRobot {
         if (distance >= touching) {
             return;
         }
-        double[] n = distance > 0 ? new double[]{dx / distance, dy / distance} : new double[]{1, 0};
+        double[] n = distance > 0 ? new double[] {dx / distance, dy / distance} : new double[] {1, 0};
         double apart = (touching - distance) / 2;
         a[0] -= apart * n[0];
         a[1] -= apart * n[1];
@@ -375,7 +378,8 @@ public class SimRobot {
                 leastInside = signed;
                 leastInsideNormal = outward;
             }
-            double t = Math.max(0, Math.min(1, ((centre[0] - a[0]) * ex + (centre[1] - a[1]) * ey) / (length * length)));
+            double t =
+                    Math.max(0, Math.min(1, ((centre[0] - a[0]) * ex + (centre[1] - a[1]) * ey) / (length * length)));
             double[] point = {a[0] + t * ex, a[1] + t * ey};
             double distance = Math.hypot(centre[0] - point[0], centre[1] - point[1]);
             if (distance < nearest) {
@@ -385,13 +389,15 @@ public class SimRobot {
         }
         if (inside) {
             double out = radius - leastInside;
-            return new double[]{leastInsideNormal[0] * out, leastInsideNormal[1] * out};
+            return new double[] {leastInsideNormal[0] * out, leastInsideNormal[1] * out};
         }
         if (nearest >= radius || nearest == 0) {
             return null;
         }
         double out = radius - nearest;
-        return new double[]{(centre[0] - nearestPoint[0]) / nearest * out, (centre[1] - nearestPoint[1]) / nearest * out};
+        return new double[] {
+            (centre[0] - nearestPoint[0]) / nearest * out, (centre[1] - nearestPoint[1]) / nearest * out
+        };
     }
 
     /**
@@ -422,9 +428,10 @@ public class SimRobot {
         double[][] corners = new double[4][];
         double[][] local = {{h, h}, {-h, h}, {-h, -h}, {h, -h}};
         for (int i = 0; i < 4; i++) {
-            corners[i] = new double[]{
-                    position.x + local[i][0] * heading.real - local[i][1] * heading.imag,
-                    position.y + local[i][0] * heading.imag + local[i][1] * heading.real};
+            corners[i] = new double[] {
+                position.x + local[i][0] * heading.real - local[i][1] * heading.imag,
+                position.y + local[i][0] * heading.imag + local[i][1] * heading.real
+            };
         }
         return corners;
     }
@@ -437,7 +444,7 @@ public class SimRobot {
     private static Vector2d pushOutOf(double[][] obstacle, double[][] robot) {
         double leastOverlap = Double.POSITIVE_INFINITY;
         double[] leastAxis = null;
-        for (double[][] polygon : new double[][][]{obstacle, robot}) {
+        for (double[][] polygon : new double[][][] {obstacle, robot}) {
             for (int i = 0; i < polygon.length; i++) {
                 double[] a = polygon[i], b = polygon[(i + 1) % polygon.length];
                 double length = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -458,7 +465,8 @@ public class SimRobot {
         }
         // Push the robot away from the obstacle, whichever way along the axis that is.
         double[] robotCentre = centre(robot), obstacleCentre = centre(obstacle);
-        double side = (robotCentre[0] - obstacleCentre[0]) * leastAxis[0] + (robotCentre[1] - obstacleCentre[1]) * leastAxis[1];
+        double side = (robotCentre[0] - obstacleCentre[0]) * leastAxis[0]
+                + (robotCentre[1] - obstacleCentre[1]) * leastAxis[1];
         double sign = side < 0 ? -1 : 1;
         return new Vector2d(sign * leastAxis[0] * leastOverlap, sign * leastAxis[1] * leastOverlap);
     }
@@ -470,7 +478,7 @@ public class SimRobot {
             min = Math.min(min, along);
             max = Math.max(max, along);
         }
-        return new double[]{min, max};
+        return new double[] {min, max};
     }
 
     private static double[] centre(double[][] polygon) {
@@ -479,7 +487,7 @@ public class SimRobot {
             x += p[0];
             y += p[1];
         }
-        return new double[]{x / polygon.length, y / polygon.length};
+        return new double[] {x / polygon.length, y / polygon.length};
     }
 
     /**
@@ -499,7 +507,7 @@ public class SimRobot {
     }
 
     private static DualNum<Time> increment(double velocity, double dtSeconds) {
-        return new DualNum<>(new double[]{velocity * dtSeconds, velocity});
+        return new DualNum<>(new double[] {velocity * dtSeconds, velocity});
     }
 
     private static double clamp(double power) {

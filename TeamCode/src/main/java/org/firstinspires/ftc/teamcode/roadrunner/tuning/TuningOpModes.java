@@ -22,14 +22,12 @@ import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
-
-import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
+import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 
 /**
  * Registers the Road Runner tuning op modes for the mecanum drive with its two dead wheels.
@@ -38,8 +36,7 @@ public final class TuningOpModes {
     public static final String GROUP = "quickstart";
     public static final boolean DISABLED = false;
 
-    private TuningOpModes() {
-    }
+    private TuningOpModes() {}
 
     private static OpModeMeta metaForClass(Class<? extends OpMode> cls) {
         return new OpModeMeta.Builder()
@@ -59,9 +56,7 @@ public final class TuningOpModes {
 
             List<EncoderGroup> encoderGroups = new ArrayList<>();
             encoderGroups.add(new LynxQuadratureEncoderGroup(
-                    hardwareMap.getAll(LynxModule.class),
-                    Arrays.asList(dl.par, dl.perp)
-            ));
+                    hardwareMap.getAll(LynxModule.class), Arrays.asList(dl.par, dl.perp)));
             List<EncoderRef> parEncs = new ArrayList<>(), perpEncs = new ArrayList<>();
             parEncs.add(new EncoderRef(0, 0));
             perpEncs.add(new EncoderRef(0, 1));
@@ -73,25 +68,19 @@ public final class TuningOpModes {
                     MecanumDrive.PARAMS.minProfileAccel,
                     MecanumDrive.PARAMS.maxProfileAccel,
                     encoderGroups,
-                    Arrays.asList(
-                            md.leftFront,
-                            md.leftBack
-                    ),
-                    Arrays.asList(
-                            md.rightFront,
-                            md.rightBack
-                    ),
+                    Arrays.asList(md.leftFront, md.leftBack),
+                    Arrays.asList(md.rightFront, md.rightBack),
                     new ArrayList<>(),
                     new ArrayList<>(),
                     parEncs,
                     perpEncs,
                     md.lazyImu,
                     md.voltageSensor,
-                    () -> new MotorFeedforward(MecanumDrive.PARAMS.kS,
+                    () -> new MotorFeedforward(
+                            MecanumDrive.PARAMS.kS,
                             MecanumDrive.PARAMS.kV / MecanumDrive.PARAMS.inPerTick,
                             MecanumDrive.PARAMS.kA / MecanumDrive.PARAMS.inPerTick),
-                    0
-            );
+                    0);
         };
 
         manager.register(metaForClass(AngularRampLogger.class), new AngularRampLogger(dvf));
@@ -114,8 +103,7 @@ public final class TuningOpModes {
                     LateralRampLogger.class,
                     ManualFeedforwardTuner.class,
                     MecanumMotorDirectionDebugger.class,
-                    ManualFeedbackTuner.class
-            )) {
+                    ManualFeedbackTuner.class)) {
                 configRoot.putVariable(c.getSimpleName(), ReflectionConfig.createVariableFromClass(c));
             }
         });

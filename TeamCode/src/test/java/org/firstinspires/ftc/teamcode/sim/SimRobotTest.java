@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
-
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.junit.Test;
 
@@ -75,7 +74,8 @@ public class SimRobotTest {
 
         Pose2d truePose = sim.pose();
         Pose2d estimated = drive.localizer.getPose();
-        assertTrue("the arc should have turned the robot; heading=" + truePose.heading.toDouble(),
+        assertTrue(
+                "the arc should have turned the robot; heading=" + truePose.heading.toDouble(),
                 Math.abs(truePose.heading.toDouble()) > 0.2);
         assertEquals(truePose.position.x, estimated.position.x, 0.5);
         assertEquals(truePose.position.y, estimated.position.y, 0.5);
@@ -94,8 +94,11 @@ public class SimRobotTest {
         assertEquals(0, sim.pose().heading.toDouble(), DELTA);
 
         sim.setPose(new Pose2d(1000, 0, Math.PI / 4));
-        assertEquals("a turned robot reaches the wall with its corner", SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2 * Math.sqrt(2),
-                sim.pose().position.x, DELTA);
+        assertEquals(
+                "a turned robot reaches the wall with its corner",
+                SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2 * Math.sqrt(2),
+                sim.pose().position.x,
+                DELTA);
         assertEquals(Math.PI / 4, sim.pose().heading.toDouble(), DELTA);
 
         Pose2d inside = new Pose2d(12, -7, 1);
@@ -252,8 +255,10 @@ public class SimRobotTest {
         double y = -28;
         double nearestFace = Double.POSITIVE_INFINITY;
         for (SimField.Obstacle part : SimRobot.FIELD.obstacles) {
-            boolean inThePath = part.name.startsWith("Frame") && minX(part.footprint) < 0
-                    && maxY(part.footprint) > y - halfRobot && minY(part.footprint) < y + halfRobot;
+            boolean inThePath = part.name.startsWith("Frame")
+                    && minX(part.footprint) < 0
+                    && maxY(part.footprint) > y - halfRobot
+                    && minY(part.footprint) < y + halfRobot;
             if (inThePath) {
                 nearestFace = Math.min(nearestFace, minX(part.footprint));
             }
@@ -331,7 +336,9 @@ public class SimRobotTest {
         double[] ball = sim.pieces()[0];
         double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
         assertTrue("the robot drove; x=" + sim.pose().position.x, sim.pose().position.x > 0);
-        assertTrue("the ball is ahead of the robot's front edge: " + ball[0] + " vs " + front, ball[0] - BALL >= front - 0.01);
+        assertTrue(
+                "the ball is ahead of the robot's front edge: " + ball[0] + " vs " + front,
+                ball[0] - BALL >= front - 0.01);
         assertEquals(-40, ball[1], 0.01);
     }
 
@@ -383,7 +390,8 @@ public class SimRobotTest {
         double[] first = sim.pieces()[0], second = sim.pieces()[1];
         double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
         assertTrue("both ahead of the robot", first[0] - BALL >= front - 0.01 && second[0] - BALL >= front - 0.01);
-        assertTrue("not through each other: " + first[0] + " and " + second[0], second[0] - first[0] >= 2 * BALL - 0.01);
+        assertTrue(
+                "not through each other: " + first[0] + " and " + second[0], second[0] - first[0] >= 2 * BALL - 0.01);
     }
 
     @Test
@@ -418,8 +426,13 @@ public class SimRobotTest {
      */
     private MecanumDrive robotDrive() {
         return new MecanumDrive(
-                sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront,
-                () -> sim.imu, sim.voltageSensor, new Pose2d(0, 0, 0));
+                sim.leftFront,
+                sim.leftBack,
+                sim.rightBack,
+                sim.rightFront,
+                () -> sim.imu,
+                sim.voltageSensor,
+                new Pose2d(0, 0, 0));
     }
 
     private void setPowers(double leftFront, double rightFront, double leftBack, double rightBack) {

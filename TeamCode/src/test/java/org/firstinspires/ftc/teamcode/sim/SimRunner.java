@@ -2,15 +2,13 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.Gamepad;
-
-import org.firstinspires.ftc.teamcode.base.AutoOp;
-import org.firstinspires.ftc.teamcode.base.OpMode;
-import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.base.AutoOp;
+import org.firstinspires.ftc.teamcode.base.OpMode;
+import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 
 /**
  * Runs an op mode against a {@link SimRobot} in real time, the way the robot controller would:
@@ -39,8 +37,7 @@ public final class SimRunner {
      */
     private static final double DRAWING_PERIOD_SECONDS = 0.05;
 
-    private SimRunner() {
-    }
+    private SimRunner() {}
 
     /**
      * @return what happened, loop by loop
@@ -63,21 +60,35 @@ public final class SimRunner {
         return run(entry, sim, timeoutSeconds, outputDir, null);
     }
 
-    private static SimRecording run(SimCatalog.Entry entry, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
+    private static SimRecording run(
+            SimCatalog.Entry entry, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
         if (!entry.kind.equals(SimCatalog.AUTO)) {
             throw new IllegalArgumentException(entry.name + " is a TeleOp; run it from a driver station with record()");
         }
-        return run(new SimRecording(entry.name, entry.kind), (AutoOp) entry.opMode(), sim, timeoutSeconds, outputDir, livePort);
+        return run(
+                new SimRecording(entry.name, entry.kind),
+                (AutoOp) entry.opMode(),
+                sim,
+                timeoutSeconds,
+                outputDir,
+                livePort);
     }
 
     /**
      * @param livePort serve a live view on this port while the run is in progress, or null for none
      */
-    public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
+    public static SimRecording run(
+            AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
         return run(new SimRecording(nameOf(opMode)), opMode, sim, timeoutSeconds, outputDir, livePort);
     }
 
-    private static SimRecording run(SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
+    private static SimRecording run(
+            SimRecording recording,
+            AutoOp opMode,
+            SimRobot sim,
+            double timeoutSeconds,
+            Path outputDir,
+            Integer livePort) {
         SimLiveServer live = livePort == null ? null : SimLiveServer.start(recording, livePort);
         if (live != null) {
             System.out.println("Simulation live view: " + live.url());
@@ -96,7 +107,8 @@ public final class SimRunner {
      * Run an auto into a recording the caller already holds, so it can be watched while this is in
      * progress. The recording always ends with an outcome and a replay page, even when this throws.
      */
-    public static SimRecording record(SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
+    public static SimRecording record(
+            SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
         return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation());
     }
 
@@ -106,8 +118,13 @@ public final class SimRunner {
      * ends done when {@code seconds} are up. Either ends stopped when the driver station says so.
      * The recording always ends with an outcome and a replay page, even when this throws.
      */
-    public static SimRecording record(SimRecording recording, OpMode opMode, SimRobot sim, double seconds, Path outputDir,
-                                      SimDriverStation driverStation) {
+    public static SimRecording record(
+            SimRecording recording,
+            OpMode opMode,
+            SimRobot sim,
+            double seconds,
+            Path outputDir,
+            SimDriverStation driverStation) {
         try {
             loopUntilDone(opMode, sim, seconds, recording, driverStation);
             recording.finish(SimRunStream.Outcome.done());
@@ -134,8 +151,8 @@ public final class SimRunner {
         }
     }
 
-    private static void loopUntilDone(OpMode opMode, SimRobot sim, double seconds, SimRecording recording,
-                                      SimDriverStation driverStation) {
+    private static void loopUntilDone(
+            OpMode opMode, SimRobot sim, double seconds, SimRecording recording, SimDriverStation driverStation) {
         AutoOp auto = opMode instanceof AutoOp ? (AutoOp) opMode : null;
         opMode.useHardware(sim.hardware());
         opMode.telemetry = new FakeTelemetry();
@@ -179,8 +196,11 @@ public final class SimRunner {
                 lastDrawingAt = elapsed;
             }
             packetsSeen = allPackets.size();
-            recording.add(new SimRecording.Tick(elapsed, sim.pose(), auto != null ? auto.currentStep() : "",
-                    new double[]{sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power},
+            recording.add(new SimRecording.Tick(
+                    elapsed,
+                    sim.pose(),
+                    auto != null ? auto.currentStep() : "",
+                    new double[] {sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power},
                     thisLoop,
                     auto == null ? driverStation.state(1) : null,
                     auto == null ? driverStation.state(2) : null,

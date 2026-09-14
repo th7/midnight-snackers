@@ -9,12 +9,6 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-
-import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -25,6 +19,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class SimReplayPageTest {
     @Rule
@@ -34,14 +32,22 @@ public class SimReplayPageTest {
     public void writesASelfContainedPageCarryingEveryRecordedTick() throws IOException {
         SimRecording recording = new SimRecording("SquareAuto");
         TelemetryPacket packet = new TelemetryPacket();
-        packet.fieldOverlay().setStroke("#4CAF50").strokePolyline(new double[]{0, 24}, new double[]{0, 24});
+        packet.fieldOverlay().setStroke("#4CAF50").strokePolyline(new double[] {0, 24}, new double[] {0, 24});
         packet.put("xError", 0.25);
-        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "1. waitFor 5.0",
-                new double[]{0, 0, 0, 0}, List.of()));
-        recording.add(new SimRecording.Tick(0.5, new Pose2d(12.5, -3, Math.PI / 2), "2. driveTo 24, 0, 0",
-                new double[]{1, 0.75, -0.5, 0.25}, List.of(packet)));
-        recording.add(new SimRecording.Tick(1.0 / 3, new Pose2d(1.0 / 3, 0, 0), "3. rounding",
-                new double[]{1, 0.75, -0.5, 0.25}, List.of(packet)));
+        recording.add(new SimRecording.Tick(
+                0.0, new Pose2d(0, 0, 0), "1. waitFor 5.0", new double[] {0, 0, 0, 0}, List.of()));
+        recording.add(new SimRecording.Tick(
+                0.5,
+                new Pose2d(12.5, -3, Math.PI / 2),
+                "2. driveTo 24, 0, 0",
+                new double[] {1, 0.75, -0.5, 0.25},
+                List.of(packet)));
+        recording.add(new SimRecording.Tick(
+                1.0 / 3,
+                new Pose2d(1.0 / 3, 0, 0),
+                "3. rounding",
+                new double[] {1, 0.75, -0.5, 0.25},
+                List.of(packet)));
         recording.finish("done");
         Path page = folder.getRoot().toPath().resolve("SquareAuto.html");
 
@@ -72,7 +78,9 @@ public class SimReplayPageTest {
         assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
         assertTrue(html, html.contains("ROBOT_IN = " + SimRobot.ROBOT_SIZE_IN));
         assertTrue(html, html.contains("WALL_IN = " + SimRobot.WALL_HEIGHT_IN));
-        assertFalse("no placeholder is left behind", html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__") || html.contains("__WALL_IN__"));
+        assertFalse(
+                "no placeholder is left behind",
+                html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__") || html.contains("__WALL_IN__"));
     }
 
     /**
@@ -92,15 +100,20 @@ public class SimReplayPageTest {
     @Test
     public void aTickCarriesWhereTheLoosePiecesAre() {
         SimRecording recording = new SimRecording("PushAuto");
-        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "1. push", new double[]{1, 1, 1, 1}, List.of(),
-                null, null, new double[][]{{69.27, -60.6}, {10.5, -40.1234}}));
-        recording.add(new SimRecording.Tick(0.5, new Pose2d(1, 0, 0), "1. push", new double[]{1, 1, 1, 1}, List.of()));
+        recording.add(new SimRecording.Tick(
+                0.0, new Pose2d(0, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of(), null, null, new double[][] {
+                    {69.27, -60.6}, {10.5, -40.1234}
+                }));
+        recording.add(new SimRecording.Tick(0.5, new Pose2d(1, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of()));
         recording.finish("done");
 
         String html = SimReplayPage.page(recording, false);
 
         assertTrue(html, html.contains("\"pieces\":[[69.27,-60.6],[10.5,-40.123]]"));
-        assertEquals("a tick without them carries no pieces key", 1, html.split("\"pieces\"", -1).length - 1 - templateMentions("\"pieces\""));
+        assertEquals(
+                "a tick without them carries no pieces key",
+                1,
+                html.split("\"pieces\"", -1).length - 1 - templateMentions("\"pieces\""));
     }
 
     /** The placement page: the same field, the robot where the run will start, and the inputs to move it. */
@@ -117,15 +130,20 @@ public class SimReplayPageTest {
         assertTrue("saves the pose to the bench", html.contains("'start?opmode='"));
         assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
-        assertFalse("a replay is not a placement", SimReplayPage.page(new SimRecording("SquareAuto"), false).contains("\"placing\":{"));
+        assertFalse(
+                "a replay is not a placement",
+                SimReplayPage.page(new SimRecording("SquareAuto"), false).contains("\"placing\":{"));
     }
 
     @Test
     public void aTeleOpPageCarriesTheDriversInputsTickByTick() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");
-        State driving = State.fromJson(new Gson().fromJson("{\"cross\": true, \"left_stick_y\": -1}", JsonObject.class));
-        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "", new double[]{0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
-        recording.add(new SimRecording.Tick(0.5, new Pose2d(3, 0, 0), "", new double[]{1, 1, 1, 1}, List.of(), driving, State.NEUTRAL));
+        State driving =
+                State.fromJson(new Gson().fromJson("{\"cross\": true, \"left_stick_y\": -1}", JsonObject.class));
+        recording.add(new SimRecording.Tick(
+                0.0, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
+        recording.add(new SimRecording.Tick(
+                0.5, new Pose2d(3, 0, 0), "", new double[] {1, 1, 1, 1}, List.of(), driving, State.NEUTRAL));
         recording.finish("stopped");
 
         String html = SimReplayPage.page(recording, false);
@@ -133,7 +151,10 @@ public class SimReplayPageTest {
         assertTrue(html, html.contains("\"kind\":\"teleop\""));
         assertTrue(html, html.contains("\"gamepads\":{\"1\":{\"cross\":true,\"left_stick_y\":-1.0}}"));
         assertFalse("a neutral gamepad is not carried", html.contains("\"2\":{}"));
-        assertEquals("only the ticks with input carry a gamepads key", 1, html.split("\"gamepads\"", -1).length - 1 - templateMentions("\"gamepads\""));
+        assertEquals(
+                "only the ticks with input carry a gamepads key",
+                1,
+                html.split("\"gamepads\"", -1).length - 1 - templateMentions("\"gamepads\""));
     }
 
     @Test
@@ -145,19 +166,23 @@ public class SimReplayPageTest {
         List<String> inputs = new ArrayList<>(State.BUTTONS);
         inputs.addAll(State.TRIGGERS);
         for (String input : inputs) {
-            Matcher clickable = Pattern.compile("data-button=\"" + input + "\"[^>]*data-key=\"([A-Za-z0-9]+)\"").matcher(html);
+            Matcher clickable = Pattern.compile("data-button=\"" + input + "\"[^>]*data-key=\"([A-Za-z0-9]+)\"")
+                    .matcher(html);
             assertTrue(input + " is clickable and has a keyboard shortcut", clickable.find());
             assertTrue(input + " shares its key " + clickable.group(1), keys.add(clickable.group(1)));
         }
         for (String stick : List.of("left", "right")) {
-            Matcher draggable = Pattern.compile("data-stick=\"" + stick + "\"[^>]*data-keys=\"([A-Za-z0-9]+) ([A-Za-z0-9]+) ([A-Za-z0-9]+) ([A-Za-z0-9]+)\"").matcher(html);
+            Matcher draggable = Pattern.compile("data-stick=\"" + stick
+                            + "\"[^>]*data-keys=\"([A-Za-z0-9]+) ([A-Za-z0-9]+) ([A-Za-z0-9]+) ([A-Za-z0-9]+)\"")
+                    .matcher(html);
             assertTrue(stick + " stick is draggable and has four keys, up down left right", draggable.find());
             for (int i = 1; i <= 4; i++) {
                 assertTrue(stick + " stick shares its key " + draggable.group(i), keys.add(draggable.group(i)));
             }
         }
         for (String gamepad : List.of("1", "2")) {
-            Matcher selectable = Pattern.compile("data-gamepad=\"" + gamepad + "\"[^>]*data-key=\"([A-Za-z0-9]+)\"").matcher(html);
+            Matcher selectable = Pattern.compile("data-gamepad=\"" + gamepad + "\"[^>]*data-key=\"([A-Za-z0-9]+)\"")
+                    .matcher(html);
             assertTrue("gamepad " + gamepad + " can be selected by key", selectable.find());
             assertTrue(keys.add(selectable.group(1)));
         }
@@ -171,15 +196,22 @@ public class SimReplayPageTest {
     @Test
     public void aRunKnownOnlyByItsChildsLinesIsTheSamePageAsTheRecordingItCameFrom() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");
-        recording.add(new SimRecording.Tick(0.0, new Pose2d(0, 0, 0), "", new double[]{0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
-        recording.add(new SimRecording.Tick(0.5, new Pose2d(1.0 / 3, 0, 0), "", new double[]{1, 1, 1, 1}, List.of(), State.NEUTRAL, State.NEUTRAL));
+        recording.add(new SimRecording.Tick(
+                0.0, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
+        recording.add(new SimRecording.Tick(
+                0.5,
+                new Pose2d(1.0 / 3, 0, 0),
+                "",
+                new double[] {1, 1, 1, 1},
+                List.of(),
+                State.NEUTRAL,
+                State.NEUTRAL));
         recording.finish("stopped");
         JsonArray streamed = new JsonArray();
         String[] outcome = {null};
         SimRunStream.Listener parent = new SimRunStream.Listener() {
             @Override
-            public void started() {
-            }
+            public void started() {}
 
             @Override
             public void tick(JsonObject tick) {

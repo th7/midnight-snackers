@@ -8,11 +8,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
@@ -21,6 +16,10 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.stream.Stream;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class WorktreesTest {
     @Rule
@@ -67,7 +66,9 @@ public class WorktreesTest {
         assertEquals(worktrees.directory().resolve("ada-lovelace"), ada.path);
         assertTrue(ada.path.startsWith(stateDir));
         assertEquals(develop, GitFixture.head(ada.path));
-        assertEquals("coding/ada-lovelace", GitFixture.git(ada.path, "rev-parse", "--abbrev-ref", "HEAD").trim());
+        assertEquals(
+                "coding/ada-lovelace",
+                GitFixture.git(ada.path, "rev-parse", "--abbrev-ref", "HEAD").trim());
         assertEquals("hello\n", read(ada.path.resolve("README")));
         String listed = GitFixture.git(root, "worktree", "list", "--porcelain");
         assertTrue(listed, listed.contains("worktree " + ada.path.toRealPath()));
@@ -96,11 +97,22 @@ public class WorktreesTest {
     @Test
     public void nastyUsernamesGiveValidRefsInsideTheWorktreesDirectory() throws IOException {
         Worktrees worktrees = worktrees();
-        String[] names = { "..", "a/b", "über", "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", "-leading", "trailing-", ".git", "refs/heads/develop" };
+        String[] names = {
+            "..",
+            "a/b",
+            "über",
+            "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
+            "-leading",
+            "trailing-",
+            ".git",
+            "refs/heads/develop"
+        };
 
         for (String name : names) {
             Worktrees.Worktree worktree = worktrees.ensure(name);
-            assertTrue(name + " -> " + worktree.path, worktree.path.toRealPath().startsWith(worktrees.directory().toRealPath()));
+            assertTrue(
+                    name + " -> " + worktree.path,
+                    worktree.path.toRealPath().startsWith(worktrees.directory().toRealPath()));
             assertEquals(name, worktrees.directory(), worktree.path.getParent());
             assertTrue(name + " -> " + worktree.slug, worktree.slug.matches("[a-z0-9]([a-z0-9-]*[a-z0-9])?"));
             assertTrue(name + " -> " + worktree.branch, worktree.branch.startsWith("coding/"));
@@ -108,8 +120,15 @@ public class WorktreesTest {
             assertEquals(name, "hello\n", read(worktree.path.resolve("README")));
         }
         assertEquals(names.length, worktrees.directory().toFile().list().length);
-        assertEquals("develop is still the only branch outside coding/", "develop\n",
-                GitFixture.git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/", "--exclude=refs/heads/coding/*"));
+        assertEquals(
+                "develop is still the only branch outside coding/",
+                "develop\n",
+                GitFixture.git(
+                        root,
+                        "for-each-ref",
+                        "--format=%(refname:short)",
+                        "refs/heads/",
+                        "--exclude=refs/heads/coding/*"));
     }
 
     // --- what outlives the process ---
@@ -186,7 +205,8 @@ public class WorktreesTest {
     public void nothingIsWrittenUnderTheProjectRootOutsideDotGit() throws IOException {
         worktrees().ensure("ada");
 
-        assertEquals("[.git, README]", java.util.Arrays.toString(sorted(root.toFile().list())));
+        assertEquals(
+                "[.git, README]", java.util.Arrays.toString(sorted(root.toFile().list())));
     }
 
     private static String[] sorted(String[] names) {
@@ -216,14 +236,18 @@ public class WorktreesTest {
         assertTrue(commit.made);
         assertEquals("[New.java, README]", commit.files.toString());
         assertEquals(commit.commit, GitFixture.head(ada.path));
-        assertEquals("Ada Lovelace|ada-lovelace@coding-server.invalid|my change\n",
+        assertEquals(
+                "Ada Lovelace|ada-lovelace@coding-server.invalid|my change\n",
                 GitFixture.git(ada.path, "log", "-1", "--format=%an|%ae|%s"));
         assertEquals("ada's\n", GitFixture.git(ada.path, "show", "HEAD:README"));
         assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
         assertEquals("[]", after.changed.toString());
         assertEquals(1, after.ahead);
         assertEquals(0, after.behind);
-        assertEquals("develop did not move", GitFixture.commitOf(root, "develop"), GitFixture.git(root, "rev-parse", "develop").trim());
+        assertEquals(
+                "develop did not move",
+                GitFixture.commitOf(root, "develop"),
+                GitFixture.git(root, "rev-parse", "develop").trim());
         assertNotEquals(commit.commit, GitFixture.commitOf(root, "develop"));
     }
 
@@ -280,8 +304,15 @@ public class WorktreesTest {
 
         assertEquals(Worktrees.Outcome.MERGED, merge.outcome);
         assertEquals("second on develop\n", read(ada.path.resolve("README")));
-        assertEquals("a merge commit with both parents", 3, GitFixture.git(ada.path, "rev-list", "--parents", "-1", "HEAD").trim().split(" ").length);
-        assertEquals("ada", GitFixture.git(ada.path, "log", "-1", "--format=%an").trim());
+        assertEquals(
+                "a merge commit with both parents",
+                3,
+                GitFixture.git(ada.path, "rev-list", "--parents", "-1", "HEAD")
+                        .trim()
+                        .split(" ")
+                        .length);
+        assertEquals(
+                "ada", GitFixture.git(ada.path, "log", "-1", "--format=%an").trim());
         assertEquals(0, worktrees.status("ada").behind);
         assertEquals(2, worktrees.status("ada").ahead);
         assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
@@ -314,7 +345,10 @@ public class WorktreesTest {
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.head(ada.path));
         assertEquals("first on develop\n", read(ada.path.resolve("README")));
         assertEquals("class Mine {}\n", read(ada.path.resolve("Mine.java")));
-        assertEquals("the edit is still uncommitted", "[Mine.java]", worktrees.status("ada").changed.toString());
+        assertEquals(
+                "the edit is still uncommitted",
+                "[Mine.java]",
+                worktrees.status("ada").changed.toString());
 
         worktrees.commit("ada", "mine");
         Files.write(ada.path.resolve("Mine.java"), "class Mine { int edited; }\n".getBytes(StandardCharsets.UTF_8));
@@ -322,11 +356,20 @@ public class WorktreesTest {
         Worktrees.Merge merge = worktrees.pull("ada");
 
         assertEquals(Worktrees.Outcome.MERGED, merge.outcome);
-        assertEquals("a merge commit with both parents", 3, GitFixture.git(ada.path, "rev-list", "--parents", "-1", "HEAD").trim().split(" ").length);
+        assertEquals(
+                "a merge commit with both parents",
+                3,
+                GitFixture.git(ada.path, "rev-list", "--parents", "-1", "HEAD")
+                        .trim()
+                        .split(" ")
+                        .length);
         assertEquals("second on develop\n", read(ada.path.resolve("README")));
         assertEquals("class Mine { int edited; }\n", read(ada.path.resolve("Mine.java")));
         assertEquals("[Mine.java]", worktrees.status("ada").changed.toString());
-        assertEquals("the merge commit took only the merge", "class Mine {}\n", GitFixture.git(ada.path, "show", "HEAD:Mine.java"));
+        assertEquals(
+                "the merge commit took only the merge",
+                "class Mine {}\n",
+                GitFixture.git(ada.path, "show", "HEAD:Mine.java"));
     }
 
     @Test
@@ -376,7 +419,10 @@ public class WorktreesTest {
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals("ada's line\n", read(ada.path.resolve("README")));
         assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
-        assertFalse("no merge in progress", Files.exists(ada.path.resolve(".git")) && Files.exists(gitDir(ada.path).resolve("MERGE_HEAD")));
+        assertFalse(
+                "no merge in progress",
+                Files.exists(ada.path.resolve(".git"))
+                        && Files.exists(gitDir(ada.path).resolve("MERGE_HEAD")));
     }
 
     private static Path gitDir(Path worktree) throws IOException {
@@ -403,8 +449,15 @@ public class WorktreesTest {
         assertNull(pushed.detail);
         String develop = GitFixture.commitOf(root, "develop");
         assertEquals(2, parentsOf(root, "develop"));
-        assertEquals(oldDevelop + " " + mine, GitFixture.git(root, "rev-list", "--parents", "-1", "develop").trim().substring(develop.length() + 1));
-        assertEquals("the host checkout, on develop, shows the pushed file", "class Mine {}\n", read(root.resolve("Mine.java")));
+        assertEquals(
+                oldDevelop + " " + mine,
+                GitFixture.git(root, "rev-list", "--parents", "-1", "develop")
+                        .trim()
+                        .substring(develop.length() + 1));
+        assertEquals(
+                "the host checkout, on develop, shows the pushed file",
+                "class Mine {}\n",
+                read(root.resolve("Mine.java")));
         assertEquals(develop, GitFixture.head(root));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertEquals("the user branch was fast-forwarded to develop", develop, GitFixture.head(ada.path));
@@ -427,7 +480,9 @@ public class WorktreesTest {
         assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
         assertEquals(2, parentsOf(root, "develop"));
         assertEquals("class Mine {}\n", GitFixture.git(root, "show", "develop:Mine.java"));
-        assertEquals("ada", GitFixture.git(root, "log", "-1", "--format=%an", "develop").trim());
+        assertEquals(
+                "ada",
+                GitFixture.git(root, "log", "-1", "--format=%an", "develop").trim());
         assertFalse("the host checkout, on main, is untouched", Files.exists(root.resolve("Mine.java")));
         assertEquals(mainHead, GitFixture.head(root));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
@@ -522,7 +577,9 @@ public class WorktreesTest {
 
     private Worktrees.Worktree committedWorker(Worktrees worktrees, String username, String file) throws IOException {
         Worktrees.Worktree worktree = worktrees.ensure(username);
-        Files.write(worktree.path.resolve(file), ("class " + file.replace(".java", "") + " {}\n").getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                worktree.path.resolve(file),
+                ("class " + file.replace(".java", "") + " {}\n").getBytes(StandardCharsets.UTF_8));
         worktrees.commit(username, file);
         return worktree;
     }
@@ -540,7 +597,9 @@ public class WorktreesTest {
         assertEquals("pushed", pushed.remote.outcome);
         assertNull(pushed.remote.detail);
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
-        assertEquals("only develop went to origin", "refs/heads/develop\n",
+        assertEquals(
+                "only develop went to origin",
+                "refs/heads/develop\n",
                 GitFixture.git(origin, "for-each-ref", "--format=%(refname)"));
 
         Worktrees.Merge again = worktrees.push("ada");
@@ -578,7 +637,12 @@ public class WorktreesTest {
 
     @Test
     public void whenOriginCannotBeReachedThePushStillLandsOnDevelopAndTheProblemIsReported() throws IOException {
-        GitFixture.git(root, "remote", "add", "origin", folder.getRoot().toPath().resolve("no-such-origin.git").toString());
+        GitFixture.git(
+                root,
+                "remote",
+                "add",
+                "origin",
+                folder.getRoot().toPath().resolve("no-such-origin.git").toString());
         Worktrees worktrees = worktrees();
         committedWorker(worktrees, "ada", "Mine.java");
         String oldDevelop = GitFixture.commitOf(root, "develop");
@@ -597,7 +661,8 @@ public class WorktreesTest {
     public void whenOriginHasMovedOnThePushIsNotForcedAndSaysSo() throws IOException {
         Path origin = origin();
         Path elsewhere = folder.getRoot().toPath().resolve("elsewhere");
-        GitFixture.git(folder.getRoot().toPath(), "clone", "-q", "-b", "develop", origin.toString(), elsewhere.toString());
+        GitFixture.git(
+                folder.getRoot().toPath(), "clone", "-q", "-b", "develop", origin.toString(), elsewhere.toString());
         Files.write(elsewhere.resolve("Theirs.java"), "class Theirs {}\n".getBytes(StandardCharsets.UTF_8));
         GitFixture.commitAll(elsewhere, "pushed from another machine");
         GitFixture.git(elsewhere, "push", "-q", "origin", "develop");
@@ -609,7 +674,9 @@ public class WorktreesTest {
 
         assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
         assertEquals("failed", pushed.remote.outcome);
-        assertTrue(pushed.remote.detail, pushed.remote.detail.contains("rejected") || pushed.remote.detail.contains("fetch first"));
+        assertTrue(
+                pushed.remote.detail,
+                pushed.remote.detail.contains("rejected") || pushed.remote.detail.contains("fetch first"));
         assertEquals("origin was not forced", theirs, GitFixture.commitOf(origin, "develop"));
         assertEquals("class Mine {}\n", GitFixture.git(root, "show", "develop:Mine.java"));
     }

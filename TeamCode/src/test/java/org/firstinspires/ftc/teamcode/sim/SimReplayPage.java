@@ -5,7 +5,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -43,8 +42,7 @@ public final class SimReplayPage {
     /** "outcome": null says "still running" explicitly. */
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
-    private SimReplayPage() {
-    }
+    private SimReplayPage() {}
 
     public static void write(Source run, Path page) {
         String html = page(run, false);
@@ -110,7 +108,8 @@ public final class SimReplayPage {
     private static String template() {
         try (InputStream in = SimReplayPage.class.getResourceAsStream(TEMPLATE)) {
             if (in == null) {
-                throw new IllegalStateException("missing resource " + TEMPLATE + " next to " + SimReplayPage.class.getName());
+                throw new IllegalStateException(
+                        "missing resource " + TEMPLATE + " next to " + SimReplayPage.class.getName());
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

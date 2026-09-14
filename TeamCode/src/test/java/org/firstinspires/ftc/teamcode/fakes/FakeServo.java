@@ -38,8 +38,7 @@ public class FakeServo implements Servo {
     }
 
     @Override
-    public void scaleRange(double min, double max) {
-    }
+    public void scaleRange(double min, double max) {}
 
     @Override
     public Manufacturer getManufacturer() {
@@ -62,10 +61,8 @@ public class FakeServo implements Servo {
     }
 
     @Override
-    public void resetDeviceConfigurationForOpMode() {
-    }
+    public void resetDeviceConfigurationForOpMode() {}
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }
