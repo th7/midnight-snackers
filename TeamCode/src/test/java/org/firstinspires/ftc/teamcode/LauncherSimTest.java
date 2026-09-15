@@ -42,14 +42,20 @@ public class LauncherSimTest {
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
     }
 
+    /**
+     * The preload is what a hive is short of: the three nectar the blue hive is set up with are
+     * three fifths of its load and four pollen are four eighths, so launching the lot empties the
+     * robot, fills the hive and tips it, which drops everything that was in it on the floor.
+     */
     @Test
-    public void threeLaunchesEmptyTheRobot() {
+    public void thePreloadEmptiesTheRobotAndFillsTheHive() {
         SimField.Cell cell = sim.upturnedCell("Blue");
-        int already = sim.scored("Blue");
+        double leaning = sim.tilt("Blue");
+        assertEquals("three fifths full to start with", 0.6, sim.load("Blue"), 0.001);
         sim.setPose(facing(cell, LAUNCH_DISTANCE));
         robot.launcher.setCloseLaunchPower();
 
-        for (int launch = 0; launch < 3; launch++) {
+        for (int launch = 0; launch < SimRobot.PRELOAD; launch++) {
             robot.launcher.launchyLaunch();
             int loops = 0;
             while (!robot.launcher.launchDone() && loops++ < 200) {
@@ -60,7 +66,8 @@ public class LauncherSimTest {
         sim.step(3.0);
 
         assertEquals(0, sim.held());
-        assertEquals(already + 3, sim.scored("Blue"));
+        assertEquals("the hive tipped", -leaning, sim.tilt("Blue"), 0.001);
+        assertEquals("and the cell that went under dropped what was in it", 0, sim.scored("Blue"));
     }
 
     /** The pose {@code distance} inches out from the cell's mouth, facing it, as the hive leans now. */

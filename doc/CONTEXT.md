@@ -484,7 +484,8 @@ it, at rest. The balls are pushed ahead of the robot, roll on with the
 speed they were given, slow to a stop, and stop at the walls, the
 obstacles and each other with a little bounce; a ball pinned against a
 wall stops the robot short of it, since nothing goes through anything.
-The robot starts with three balls (its **preload**) in its **hopper**;
+The robot starts with four pollen (its **preload**) in its **hopper**,
+which with the three nectar a hive is set up with is enough to fill one;
 the launcher is on the turntable, and its gates feed it as the robot
 code drives them: with the top gate open a ball drops from the hopper
 into the **chamber**, and with the bottom gate open the chambered ball
