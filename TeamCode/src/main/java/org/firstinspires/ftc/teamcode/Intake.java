@@ -24,7 +24,7 @@ public class Intake extends SubSystem {
 
     /** The motor says what the intake is doing from the start, not from the first loop. */
     @Override
-    public void init() {
+    protected void onInit() {
         driveTheMotor();
     }
 
@@ -32,6 +32,9 @@ public class Intake extends SubSystem {
     protected void onLoop() {
         driveTheMotor();
     }
+
+    @Override
+    protected void onTelemetry() {}
 
     /** Take pollen in. */
     public void on() {

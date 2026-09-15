@@ -20,7 +20,6 @@ public class Launcher extends SubSystem {
     private double topGatePosition = topGateOpenPosition;
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
-    private boolean telemetryOn = false;
     private double bottomGateWaitTime = 0.45;
     private final PlanRunner planRunner = add(new PlanRunner());
 
@@ -31,7 +30,7 @@ public class Launcher extends SubSystem {
     }
 
     @Override
-    public void init() {
+    protected void onInit() {
         launcher.setPositionPIDFCoefficients(5);
 
         launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
@@ -47,10 +46,6 @@ public class Launcher extends SubSystem {
         launcher.setVelocity(launcherVelocity);
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);
-
-        if (telemetryOn) {
-            setTelemetry();
-        }
     }
 
     public void launchyLaunch() {
@@ -157,12 +152,8 @@ public class Launcher extends SubSystem {
         bottomGateWaitTime = bottomGateWaitTime - 0.0001;
     }
 
-    public void toggleTelemetry() {
-        telemetryOn = !telemetryOn;
-    }
-
-    private void setTelemetry() {
-        telemetry.addData("Launcher", "telemetry on");
+    @Override
+    protected void onTelemetry() {
         telemetry.addData("launcherStep", planRunner.currentStep());
 
         telemetry.addData("launcherPower", launcher.getPower());

@@ -15,7 +15,6 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 public class Camera extends SubSystem {
     private final DetectionFilter detectionFilter;
     private final Supplier<List<AprilTagDetection>> detectionSource;
-    private boolean telemetryOn = false;
     private AprilTagDetection goalDetection;
 
     /**
@@ -26,6 +25,9 @@ public class Camera extends SubSystem {
         this.detectionSource = detectionSource;
         this.detectionFilter = new DetectionFilter(clock);
     }
+
+    @Override
+    protected void onInit() {}
 
     @Override
     protected void onLoop() {
@@ -42,14 +44,10 @@ public class Camera extends SubSystem {
         }
 
         goalDetection = detectionFilter.getCleanDetection();
-
-        if (telemetryOn) {
-            setTelemetry();
-        }
     }
 
-    private void setTelemetry() {
-        telemetry.addData("Camera", "telemetry on");
+    @Override
+    protected void onTelemetry() {
         telemetry.addData("detectionFilter.maxDetectionAgeNano", detectionFilter.maxDetectionAgeNano);
         telemetry.addData("detectionFilter.lastDetectionAgeNano", detectionFilter.lastDetectionAgeNano());
         telemetry.addData("detectionFilter.lastDetectionIsRecent", detectionFilter.lastDetectionIsRecent());
@@ -104,9 +102,5 @@ public class Camera extends SubSystem {
         }
         return Optional.of(new Nav.Pose(
                 new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2)));
-    }
-
-    public void toggleTelemetry() {
-        telemetryOn = !telemetryOn;
     }
 }

@@ -14,9 +14,12 @@ public class Brain extends SuperSystem {
 
     /** The camera may place the robot on the field only when playing for an alliance. */
     @Override
-    public void init() {
+    protected void onInit() {
         usingCameraLocalization = robot.alliance.usesCameraLocalization();
     }
+
+    @Override
+    protected void onTelemetry() {}
 
     @Override
     protected void onLoop() {

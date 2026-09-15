@@ -8,6 +8,16 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans extends SuperSystem {
 
+    @Override
+    protected void onInit() {}
+
+    /** The plans are looked up when an op mode runs one; there is nothing to do each tick. */
+    @Override
+    protected void onLoop() {}
+
+    @Override
+    protected void onTelemetry() {}
+
     @Auto(alliance = Alliance.RELATIVE)
     public Plan scoreAThing() {
         return new Plan(backFromZeroALittle(), launchAll());

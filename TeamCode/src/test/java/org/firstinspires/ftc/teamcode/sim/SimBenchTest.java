@@ -131,6 +131,9 @@ public class SimBenchTest {
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"
+                + "    protected void onInit() { }\n"
+                + "    protected void onLoop() { }\n"
+                + "    protected void onTelemetry() { }\n"
                 + "}\n";
     }
 

@@ -33,7 +33,13 @@ public class SubSystemsAreTickedTest {
     /** A subsystem written but never wired in, for the check below to catch. */
     private static class Stray extends SubSystem {
         @Override
+        protected void onInit() {}
+
+        @Override
         protected void onLoop() {}
+
+        @Override
+        protected void onTelemetry() {}
     }
 
     /** Of these subsystems, the ones no op mode ticks. */
