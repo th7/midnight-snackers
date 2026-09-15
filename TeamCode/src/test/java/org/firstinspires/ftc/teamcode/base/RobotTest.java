@@ -56,6 +56,7 @@ public class RobotTest {
         assertEquals(
                 List.of(
                         robot.launcher,
+                        robot.intake,
                         robot.drive,
                         robot.camera,
                         robot.nav,

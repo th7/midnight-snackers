@@ -58,8 +58,15 @@ public class OpModeLoopOrderTest {
         Robot robot = opMode.robot;
 
         assertEquals(
-                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain),
-                opMode.loopOrder().subList(0, 6));
+                List.of(
+                        robot.launcher,
+                        robot.intake,
+                        robot.drive,
+                        robot.camera,
+                        robot.nav,
+                        robot.turntable,
+                        robot.brain),
+                opMode.loopOrder().subList(0, 7));
     }
 
     @Test
@@ -96,8 +103,15 @@ public class OpModeLoopOrderTest {
         Robot robot = opMode.robot;
         assertEquals(first.size(), opMode.loopOrder().size());
         assertEquals(
-                List.of(robot.launcher, robot.drive, robot.camera, robot.nav, robot.turntable, robot.brain),
-                opMode.loopOrder().subList(0, 6));
+                List.of(
+                        robot.launcher,
+                        robot.intake,
+                        robot.drive,
+                        robot.camera,
+                        robot.nav,
+                        robot.turntable,
+                        robot.brain),
+                opMode.loopOrder().subList(0, 7));
     }
 
     @Test

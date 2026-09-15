@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Brain;
 import org.firstinspires.ftc.teamcode.Camera;
 import org.firstinspires.ftc.teamcode.Drive;
+import org.firstinspires.ftc.teamcode.Intake;
 import org.firstinspires.ftc.teamcode.Launcher;
 import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.Plans;
@@ -31,6 +32,7 @@ public final class Robot implements Loopable {
     public final LongSupplier clock;
 
     public final Launcher launcher;
+    public final Intake intake;
     public final Drive drive;
     public final Camera camera;
     public final Nav nav;
@@ -52,6 +54,7 @@ public final class Robot implements Loopable {
         this.dashboard = hardware.dashboard;
         this.clock = Objects.requireNonNull(hardware.clock, "the hardware has no clock");
         launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate);
+        intake = new Intake(hardware.intake);
         drive = new Drive(hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack);
         camera = new Camera(hardware.aprilTags, clock);
         nav = new Nav(
@@ -70,7 +73,7 @@ public final class Robot implements Loopable {
         plans = new Plans();
         // Registration order is loop order. Brain goes after the subsystems it coordinates because
         // it reads Camera and Nav from this tick and sets the Turntable target.
-        for (SubSystem subSystem : List.of(launcher, drive, camera, nav, turntable, brain, plans)) {
+        for (SubSystem subSystem : List.of(launcher, intake, drive, camera, nav, turntable, brain, plans)) {
             add(subSystem);
         }
     }
