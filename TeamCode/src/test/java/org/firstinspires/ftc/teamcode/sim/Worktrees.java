@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
  * One git worktree per username, on its own branch off {@code develop}, kept under the coding
  * server's state directory so nothing is written under the project root except what git itself
  * records under {@code .git}. Owned by the username, not the session, so logging in again finds
- * the same work.
+ * the same work. Removing one takes the directory alone: the branch and the mapping to it stay,
+ * so the same user can be given the same worktree back.
  * <p>
  * Every git call goes through here. The constructor checks what the server needs before it
  * starts: a git of at least {@link #MIN_GIT_MAJOR}.{@link #MIN_GIT_MINOR}, a root that is the top
@@ -95,6 +96,37 @@ public final class Worktrees {
             this.ahead = ahead;
             this.behind = behind;
             this.head = head;
+        }
+    }
+
+    /** What a user has that {@code develop} does not: what removing their worktree would throw away. */
+    public static final class Unsaved {
+        /** Root-relative paths with '/' separators, sorted: the uncommitted files in the worktree. */
+        public final List<String> changed;
+        /** Commits on the user branch that {@code develop} lacks. */
+        public final int ahead;
+
+        Unsaved(List<String> changed, int ahead) {
+            this.changed = changed;
+            this.ahead = ahead;
+        }
+
+        /** Nothing would be lost: nothing uncommitted, and nothing {@code develop} does not have. */
+        public boolean none() {
+            return changed.isEmpty() && ahead == 0;
+        }
+    }
+
+    /** What removing a user's worktree did, or would not do. */
+    public static final class Removal {
+        /** Whether the worktree directory was taken away. */
+        public final boolean removed;
+        /** What stood in the way; null unless the removal was refused. */
+        public final Unsaved refused;
+
+        Removal(boolean removed, Unsaved refused) {
+            this.removed = removed;
+            this.refused = refused;
         }
     }
 
@@ -269,6 +301,52 @@ public final class Worktrees {
             throw e;
         }
         return made;
+    }
+
+    // --- removing a user's worktree ---
+
+    /**
+     * What the user has that {@code develop} does not: the uncommitted files in their worktree and
+     * the commits their branch is ahead by. Nothing for a username with no worktree, and nothing
+     * uncommitted when its directory has gone; asking never makes one.
+     */
+    public synchronized Unsaved unsaved(String username) {
+        Worktree worktree = byUsername.get(username);
+        if (worktree == null) {
+            return new Unsaved(List.of(), 0);
+        }
+        List<String> changed = Files.isDirectory(worktree.path) ? changedFiles(worktree) : List.of();
+        return new Unsaved(changed, count(DEVELOP + ".." + worktree.branch));
+    }
+
+    /**
+     * Takes the username's worktree directory away, leaving their branch and the mapping to it, so
+     * that {@link #ensure} makes the same worktree again, on the same branch, with everything they
+     * committed. Work {@code develop} does not have — uncommitted files, or commits ahead — is
+     * refused unless {@code force}, and then nothing is touched.
+     *
+     * @return what was removed, or what stood in the way; nothing removed and nothing refused when
+     *         the username has no worktree
+     * @throws GitFailed when git refuses
+     */
+    public synchronized Removal remove(String username, boolean force) {
+        Worktree worktree = byUsername.get(username);
+        if (worktree == null) {
+            return new Removal(false, null);
+        }
+        if (!force) {
+            Unsaved unsaved = unsaved(username);
+            if (!unsaved.none()) {
+                return new Removal(false, unsaved);
+            }
+        }
+        if (Files.isDirectory(worktree.path)) {
+            git(root, "worktree", "remove", "--force", worktree.path.toString());
+        } else {
+            // the directory has gone by other means; git still holds the administrative files
+            git(root, "worktree", "prune");
+        }
+        return new Removal(true, null);
     }
 
     // --- status and commit ---

@@ -1,3 +1,61 @@
+# Coding server: the admin can delete a user
+
+## Batch 11 · a user leaves, their branch stays
+
+`POST /admin/users/delete?username=<name>`, the Delete button on the user's
+row: every session that username has is forgotten, their bench and its child
+stop, and their worktree directory goes. Their branch `coding/<slug>` stays,
+and so does the mapping to it, so a teammate who logs in again and is
+approved gets the same worktree back on the same branch, with everything
+they committed and under the same slug. `Worktrees.ensure` already recreates
+a missing directory on the stored branch; delete is the other half of that
+door.
+
+Work `develop` does not have — uncommitted files, or commits ahead — is
+refused with 409, naming it, and nothing is touched. The admin asks again
+with `force` to take it anyway, which is what the page's Delete anyway
+does: the warning the admin reads is the one the server enforced, not one
+the page worked out for itself, so a `confirm()` cannot be the only thing
+standing between a teammate's week and `git worktree remove`. The refusal
+is decided before the bench is stopped, so a user whose work is kept keeps
+their run too.
+
+Mechanism: the judgment is `Worktrees.unsaved`, and `Worktrees.remove` asks
+it again itself, so a caller that skips the check still cannot throw work
+away. Removing takes the directory alone — `git worktree remove --force`,
+or `git worktree prune` when the directory has already gone — never the
+branch and never the `worktrees.json` record, since dropping the record
+while the branch stands would hand the returning user `<slug>-2` and orphan
+`coding/<slug>` for good.
+
+Tests first:
+
+1. `WorktreesTest`: remove takes the directory and leaves the branch, the
+   mapping and the store entry; `ensure` after it rebuilds the same
+   worktree on the same branch with its commits.
+2. Remove refuses over uncommitted files, and over commits `develop` lacks,
+   touching nothing; forced, it takes the directory and the commits are
+   still on the branch.
+3. A username nobody has, and a directory that has already gone, neither
+   throw nor make a worktree; the removed user's slug is still theirs and
+   still taken for everyone else.
+4. `CodingServerTest`: deleting a user ends every one of their logins (both
+   cookies are logged out), takes their worktree, leaves their branch, and
+   leaves everyone else's row, worktree and running simulation alone.
+5. The refusal is a 409 naming the changed files and the commits, the login
+   still works, and a refused delete leaves their running simulation alone.
+6. A deleted user who logs in again and is approved reads the file they
+   committed, from the same worktree path.
+7. Deleting stops their bench and its child, and a later login gets a bench
+   of its own; the route is 404 on the user port; a user nobody has is 404
+   and no username is 400; a deleted user is still gone after a restart,
+   sessions file included.
+
+Then implement, and update `doc/CONTEXT.md`: a **Delete** entry, and the
+**User listing**, **Session** and **Slug** entries that it changes.
+
+---
+
 # Coding server: Commit formats the user's Java first
 
 ## Batch 10 · what is committed is what CI accepts
@@ -260,7 +318,8 @@ JVM. `/sim/status` and the run list are the user's own.
   checkout's own state, committed or not, is irrelevant to a new worktree.
 - **Reuse.** A second login with an existing username, once approved, gets
   the existing worktree. Revoking keeps the worktree. Nothing in this
-  batch deletes one; the admin can `git worktree remove` by hand.
+  batch deletes one; the admin can `git worktree remove` by hand. Batch 11
+  gives them a Delete button that does it.
 - **A missing directory** (someone deleted it) is recreated by `ensure` on
   the existing branch after `git worktree prune`, and a line saying so is
   printed. Uncommitted work in a deleted directory was already gone;
@@ -554,7 +613,7 @@ follows the recipe, and the second Push lands.
 
 ## Left out, on purpose
 
-- Deleting worktrees from the admin page.
+- Deleting worktrees from the admin page. Done in batch 11.
 - Showing a worktree's diff on the admin page.
 - A cap on how many runs the host executes at once. One child JVM per
   user in real time is expected to be fine for a team's laptop; measure
