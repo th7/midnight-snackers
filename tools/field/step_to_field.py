@@ -734,13 +734,16 @@ def holds(cell, p):
 FLOWER_PIPE = 'Flower HIPS Pipe'
 
 
-def flower_of(name, pipes):
+def flower_of(name, parts):
     """A flower: the tower at a wall whose four pipes make the <b>bore</b> a stack of pollen stands
     in. The bore is a circle on the floor -- the axis midway between the pipes and the radius the
     nearest of them leaves clear -- with the <b>gap</b> between two neighbouring pipes, which is
     what keeps a pollen in the bore rather than out between them, and the <b>lip</b> the pipes
-    begin at, below which the bore's wall reaches nothing. Each pipe comes in as the points that
-    bound it, in the field frame."""
+    begin at, below which the bore's wall reaches nothing. The <b>nest</b> is the ring around the
+    bottom of the bore that the ball at the bottom sits in the middle of: the flower's lowest part
+    over the bore, its base plate, and how high it stands is how far that ball has to climb to
+    leave. Each part comes in as (name, the points that bound it) in the field frame."""
+    pipes = [pts for part, pts in parts if part == FLOWER_PIPE]
     axes, radii = [], []
     for pts in pipes:
         low = [min(c) for c in zip(*pts)]
@@ -752,8 +755,13 @@ def flower_of(name, pipes):
     bore = min(math.hypot(a[0] - x, a[1] - y) - r for a, r in zip(axes, radii))
     gap = min(math.hypot(a[0] - b[0], a[1] - b[1]) - ra - rb
               for i, (a, ra) in enumerate(zip(axes, radii)) for b, rb in list(zip(axes, radii))[i + 1:])
+    over_the_bore = [pts for part, pts in parts
+                     if min(p[0] for p in pts) <= x <= max(p[0] for p in pts)
+                     and min(p[1] for p in pts) <= y <= max(p[1] for p in pts)]
+    nest = min(max(p[2] for p in pts) for pts in over_the_bore)
     return {'name': name, 'axis': [round(x, 2), round(y, 2)], 'bore': round(bore, 2),
-            'gap': round(gap, 2), 'lip': round(min(p[2] for pts in pipes for p in pts), 2)}
+            'gap': round(gap, 2), 'lip': round(min(p[2] for pts in pipes for p in pts), 2),
+            'nest': round(nest, 2)}
 
 
 def in_a_flower(piece, flowers):
@@ -819,7 +827,7 @@ def build(step_path):
             continue
         elements.append({'group': top, 'name': clean(name), 'colour': colour_for(name, cad_colour), 'cad': pts})
 
-    out_elements, out_obstacles, seen, flower_pipes = [], [], {}, {}
+    out_elements, out_obstacles, seen, flower_parts = [], [], {}, {}
     for e in elements:
         points = [to_field(p) for p in e['cad']]
         shape = polygons(points)
@@ -828,8 +836,8 @@ def build(step_path):
         verts, faces = shape
         out_elements.append({'group': e['group'], 'name': e['name'], 'colour': e['colour'],
                              'vertices': [[round(c, 2) for c in v] for v in verts], 'faces': faces})
-        if e['name'] == FLOWER_PIPE:
-            flower_pipes.setdefault(e['group'], []).append(points)
+        if e['group'].startswith('Flower Assembly'):
+            flower_parts.setdefault(e['group'], []).append((e['name'], points))
         # Every part blocks on its own, so that what is driven through between -- the frame's legs,
         # a flower's pipes -- blocks nothing.
         seen[(e['group'], e['name'])] = seen.get((e['group'], e['name']), 0) + 1
@@ -842,7 +850,7 @@ def build(step_path):
             out_obstacles.append({'name': key, 'footprint': [list(p) for p in simplify(hull2d(low))],
                                   'clears': round(clears, 2), 'stands': round(stands, 2)})
     out_hives = [hive_of(name, parts) for name, parts in sorted(hives.items())]
-    out_flowers = [flower_of(name, pipes) for name, pipes in sorted(flower_pipes.items())]
+    out_flowers = [flower_of(name, parts) for name, parts in sorted(flower_parts.items())]
     for piece in pieces:
         cell = in_a_cell(piece, out_hives)
         if cell:

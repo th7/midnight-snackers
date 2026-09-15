@@ -69,11 +69,14 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * robot, eighteen inches tall, runs into the same obstacle.
  * <p>
  * Each flower stands a stack of pollen in its bore, one resting on another from the floor up. The
- * bore's wall begins at its lip, so the pollen at the bottom stands wholly below it and is held by
- * nothing: it is a ball in the world like any other, and whatever knocks it out of the bore leaves
- * the bore's floor clear. Then the stack comes down — each pollen falling under gravity onto what
- * is under it, landing and settling — and stands again. A ball that comes to rest in a bore holds
- * a stack up as well as a pollen of its own does.
+ * bore's wall begins at its lip, so the pollen at the bottom stands wholly below it: what holds
+ * that one is the nest, the ring in the flower's base plate it sits in the middle of. To leave it
+ * has to roll up over that ring carrying the stack, which a loose ball rolling in is far too light
+ * to do — it knocks the pollen a little way up the ring and the ring rolls it back — while the
+ * robot's own push has its drive behind it and takes one straight out. Once the bore's floor is
+ * clear the stack comes down, each pollen falling under gravity onto what is under it, landing and
+ * settling, and stands again. A ball that comes to rest in a bore holds a stack up as well as a
+ * pollen of its own does.
  * <p>
  * The clock is the world's ({@link #nanoTime()}), read by the robot code through its
  * hardware, so a run is the same every time and need not take real time. The world moves in
@@ -165,6 +168,8 @@ public class SimRobot {
     private static final double BOUNCE = 0.3;
 
     private static final double GRAVITY_IN_PER_S2 = 386.09;
+    /** How much of the weight on a ball in a flower's nest the floor drags back with: rubber on tile. */
+    private static final double NEST_FRICTION = 0.5;
     /** A ball that comes down on the floor slower than this, upward speed lost, rolls rather than bouncing again. */
     private static final double LANDING_SPEED_IN_PER_S = 25;
     /** A gate servo is open from this position on: nearer the position the robot code opens it to than the one it closes it to. */
@@ -240,6 +245,8 @@ public class SimRobot {
      * are set up with in {@link SimField#flowerPieces}' order, then the preload.
      */
     private final Ball[] balls;
+    /** Every ball's body, for following the robot's push from body to body through the engine's contacts. */
+    private final List<Body> ballBodies = new ArrayList<>();
     /** The balls in the robot's hopper, above the top gate, in the order they will drop. */
     private final Deque<Ball> hopper = new ArrayDeque<>();
     /** The ball between the gates, or null. */
@@ -248,6 +255,8 @@ public class SimRobot {
     private final Map<SimField.Cell, List<Ball>> inCell = new LinkedHashMap<>();
     /** What the bore of each flower holds up off the floor, lowest first: the stack above its bottom ball. */
     private final Map<SimField.Flower, List<Ball>> inFlower = new LinkedHashMap<>();
+    /** The ball a robot's push has rolled up off each nest's seat, until it comes to rest again. */
+    private final Map<SimField.Flower, Ball> offTheSeat = new LinkedHashMap<>();
     /** How far each hive leans now, in degrees: its own tilt until it tips, then the other way. */
     private final Map<SimField.Hive, Double> tilts = new LinkedHashMap<>();
     /** Each cell where the hive leans now, rebuilt when it tips. */
@@ -438,6 +447,7 @@ public class SimRobot {
                             ? FIELD.cellPieces.get(i - loose)
                             : i < held ? FIELD.flowerPieces.get(i - inCells) : FIELD.loosePieces.get(0);
             balls[i] = new Ball(piece.radius, piece.kind, ballBody(piece.radius));
+            ballBodies.add(balls[i].body);
             if (i < loose) {
                 placePiece(i, piece.x, piece.y);
             } else if (i < inCells) {
@@ -741,6 +751,111 @@ public class SimRobot {
     }
 
     /**
+     * The nests hold on to the balls in them. A ball at the bottom of a bore sits in the flower's
+     * nest — the ring in its base plate — and to leave has to roll up over that ring carrying
+     * whatever rests on it, so the nest pushes it back toward the axis: hardest at the bore's rim,
+     * not at all in the middle. The stack presses it into the floor as well, and the floor drags
+     * back, which is what settles a knocked ball into its nest rather than letting it roll about in
+     * there. A nest holds one ball, the one nearest its middle; another in the bore is on the plate
+     * around it and free.
+     * <p>
+     * A ball the robot is pushing is the exception: the robot's drive is behind that push and the
+     * ring is no barrier to it, so the nest lets go — and once a push has rolled a ball up off its
+     * seat it is out of the nest until it comes to rest again, wherever that is. That is the whole
+     * of the difference between a pollen the robot drives into a flower, which takes one out, and a
+     * loose one rolling in on its own, which is too light to and rolls back off.
+     */
+    private void holdTheNests(double dt) {
+        for (SimField.Flower flower : FIELD.flowers) {
+            Ball nested = nestedIn(flower);
+            if (nested == null) {
+                offTheSeat.remove(flower);
+                continue;
+            }
+            if (pushedByTheRobot(nested)) {
+                offTheSeat.put(flower, nested);
+            }
+            if (offTheSeat.get(flower) != nested) {
+                offTheSeat.remove(flower); // whatever was rolled off is not the nest's ball any more
+            } else if (nested.body.getLinearVelocity().getMagnitude() > REST_SPEED_IN_PER_S * IN) {
+                continue; // still rolling off its seat, and the nest has no hold on it
+            } else {
+                offTheSeat.remove(flower); // it has come to rest, so the nest has it again
+            }
+            Transform at = nested.body.getTransform();
+            double toTheAxis = flower.axis[0] - at.getTranslationX() / IN;
+            double acrossToIt = flower.axis[1] - at.getTranslationY() / IN;
+            double out = Math.hypot(toTheAxis, acrossToIt);
+            if (out > 0) {
+                double hold = overTheRing(flower, nested) * Math.min(1, out / flower.bore);
+                nested.body.applyForce(new Vector2(hold * toTheAxis / out, hold * acrossToIt / out));
+            }
+            Vector2 rolling = nested.body.getLinearVelocity();
+            double speed = rolling.getMagnitude();
+            if (speed > 0) {
+                double drag = Math.min(
+                        NEST_FRICTION * loadOn(flower), nested.body.getMass().getMass() * speed / dt);
+                nested.body.applyForce(rolling.getNormalized().multiply(-drag));
+            }
+        }
+    }
+
+    /** The ball in the flower's nest: the one standing nearest the middle of its bore, or null. */
+    private Ball nestedIn(SimField.Flower flower) {
+        Ball nested = null;
+        double nearest = Double.MAX_VALUE;
+        for (Ball ball : balls) {
+            if (ball.where != Where.ROLLING) {
+                continue;
+            }
+            Transform at = ball.body.getTransform();
+            double x = at.getTranslationX() / IN, y = at.getTranslationY() / IN;
+            if (!flower.standsIn(x, y)) {
+                continue;
+            }
+            double out = Math.hypot(x - flower.axis[0], y - flower.axis[1]);
+            if (out < nearest) {
+                nearest = out;
+                nested = ball;
+            }
+        }
+        return nested;
+    }
+
+    /** Whether the robot is pushing that ball: touching it, or touching it through the balls between. */
+    private boolean pushedByTheRobot(Ball ball) {
+        Deque<Body> touching = new ArrayDeque<>(world.getInContactBodies(robot, false));
+        List<Body> followed = new ArrayList<>();
+        while (!touching.isEmpty()) {
+            Body body = touching.poll();
+            if (body == ball.body) {
+                return true;
+            }
+            if (!ballBodies.contains(body) || followed.contains(body)) {
+                continue;
+            }
+            followed.add(body);
+            touching.addAll(world.getInContactBodies(body, false));
+        }
+        return false;
+    }
+
+    /** The weight the nest carries, in newtons: the ball in it and the stack standing on that one. */
+    private double loadOn(SimField.Flower flower) {
+        return (1 + inFlower.get(flower).size()) * BALL_MASS_KG * GRAVITY_IN_PER_S2 * IN;
+    }
+
+    /**
+     * What it takes to roll the nested ball up over the nest's ring, in newtons: the statics of a
+     * ball pushed at its middle over a step that high, under the load the nest carries.
+     */
+    private double overTheRing(SimField.Flower flower, Ball ball) {
+        return loadOn(flower)
+                * Math.sqrt(2 * ball.radius * flower.nest - flower.nest * flower.nest)
+                / (ball.radius - flower.nest);
+    }
+
+    /**
      * The top of the ball standing in the flower's bore, which the stack above it rests on, or zero
      * for a bore with nothing on its floor. A ball that has rolled in holds a stack up as well as a
      * pollen of its own does.
@@ -856,6 +971,7 @@ public class SimRobot {
 
         driveTheRobot(dt);
         feedTheLauncher();
+        holdTheNests(dt);
         world.step(1, dt);
         intakeTheBalls();
         fallInTheFlowers(dt);

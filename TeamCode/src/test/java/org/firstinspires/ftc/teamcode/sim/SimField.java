@@ -64,8 +64,10 @@ public final class SimField {
      * midway between the pipes and the {@link #bore} radius the nearest of them leaves clear — and
      * the {@link #gap} between two neighbouring pipes is narrower than a pollen, so what is in the
      * bore stays in it. The bore's wall begins at the {@link #lip}, the height the pipes start at:
-     * a pollen standing wholly below the lip is held by nothing, which is why the one at the
-     * bottom of the stack is the one that comes out.
+     * a pollen standing wholly below the lip is held by nothing above it, which is why the one at
+     * the bottom of the stack is the one that comes out. What holds it is the {@link #nest}: the
+     * ring around the bottom of the bore — the flower's base plate — that it sits in the middle
+     * of and has to climb to leave, carrying whatever rests on it.
      */
     public static final class Flower {
         public final String name;
@@ -77,6 +79,8 @@ public final class SimField {
         public final double gap;
         /** How high the pipes begin, in inches: below it the bore's wall reaches nothing. */
         public final double lip;
+        /** How high the ring around the bottom of the bore stands, in inches: the climb out of the nest. */
+        public final double nest;
 
         Flower(JsonObject json, Gson gson) {
             this.name = json.get("name").getAsString();
@@ -84,6 +88,7 @@ public final class SimField {
             this.bore = json.get("bore").getAsDouble();
             this.gap = json.get("gap").getAsDouble();
             this.lip = json.get("lip").getAsDouble();
+            this.nest = json.get("nest").getAsDouble();
         }
 
         /** Whether a ball standing at {@code x, y} is in the bore, and so under what the bore holds. */
