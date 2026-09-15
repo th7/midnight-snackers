@@ -90,8 +90,11 @@ public class SimRobot {
      * floor. Only its footprint collides, with the walls, the obstacles and the balls.
      */
     public static final double ROBOT_SIZE_IN = 18;
-    /** How many balls the robot starts with, in its hopper: what it can launch before it is empty. */
-    public static final int PRELOAD = 3;
+    /**
+     * How many pollen the robot starts with, in its hopper: what it can launch before it is empty,
+     * and with the three nectar a hive is set up with, enough to fill one and tip it.
+     */
+    public static final int PRELOAD = 4;
     /** A quarter inch at full speed: far less than the thinnest obstacle. */
     public static final double MAX_STEP_SECONDS = 0.005;
     /** Where a launched ball leaves the robot: this high off the floor, and this far ahead of the robot's centre. */
