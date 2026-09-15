@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.io.IOException;
@@ -16,6 +17,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Alliance;
@@ -153,22 +158,9 @@ public class SimBenchTest {
         return run;
     }
 
-    /**
-     * A status that says the bench is running while its newest run already carries an outcome
-     * describes a moment that never was: the run either has finished or has not.
-     */
-    private static boolean inconsistent(String status) {
-        int runs = status.indexOf("\"runs\":[");
-        if (!status.startsWith("{\"running\":true") || runs < 0) {
-            return false;
-        }
-        int end = status.indexOf('}', runs);
-        return end > 0 && status.substring(runs, end).contains("\"outcome\":\"");
-    }
-
     /** A run in a status, as {@link SimBench#statusOf} reads it: only the outcome decides. */
-    private static com.google.gson.JsonObject item(int id, String outcome) {
-        com.google.gson.JsonObject item = new com.google.gson.JsonObject();
+    private static JsonObject item(int id, String outcome) {
+        JsonObject item = new JsonObject();
         item.addProperty("id", id);
         item.addProperty("outcome", outcome);
         return item;
@@ -176,53 +168,54 @@ public class SimBenchTest {
 
     @Test
     public void theStatusIsRunningExactlyWhenTheNewestRunHasNoOutcomeYet() {
-        com.google.gson.JsonObject going = item(2, null);
-        com.google.gson.JsonObject done = item(1, "done");
+        JsonObject going = item(2, null);
+        JsonObject done = item(1, "done");
 
-        assertEquals("{\"running\":false,\"runs\":[]}", SimBench.statusOf(java.util.List.of()));
-        assertTrue(SimBench.statusOf(java.util.List.of(going, done)).startsWith("{\"running\":true"));
+        assertEquals("{\"running\":false,\"runs\":[]}", SimBench.statusOf(List.of()));
+        assertEquals(
+                "{\"running\":true,\"runs\":[{\"id\":2,\"outcome\":null},{\"id\":1,\"outcome\":\"done\"}]}",
+                SimBench.statusOf(List.of(going, done)));
         assertEquals(
                 "an older run that never reached an outcome is not what the bench is doing now",
                 "{\"running\":false,\"runs\":[{\"id\":1,\"outcome\":\"done\"},{\"id\":2,\"outcome\":null}]}",
-                SimBench.statusOf(java.util.List.of(done, going)));
-        assertFalse(inconsistent(SimBench.statusOf(java.util.List.of(done, going))));
+                SimBench.statusOf(List.of(done, going)));
     }
 
+    /**
+     * The other half of a status that is one moment: a run's line is taken only while nobody is
+     * changing the run, since the lock a writer holds is the lock the reader waits for. Held
+     * across a finish, a reader that answered early would be carrying half of it.
+     */
     @Test
-    public void aStatusIsOneMomentEvenWhileARunIsFinishing() throws Exception {
+    public void aRunsLineWaitsForWhoeverIsChangingTheRun() throws Exception {
         bench = new SimBench(
                 SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
-        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
-        java.util.List<String> impossible = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
-        java.util.concurrent.atomic.AtomicBoolean reading = new java.util.concurrent.atomic.AtomicBoolean(true);
-        java.util.concurrent.atomic.AtomicBoolean sawRunning = new java.util.concurrent.atomic.AtomicBoolean();
-        java.util.concurrent.atomic.AtomicBoolean sawFinished = new java.util.concurrent.atomic.AtomicBoolean();
-        // one reader, reading as hard as the Simulate tab's polling never does, across three finishes
+        SimBench.Run run =
+                bench.new Run(1, bench.catalog().find("Count to three").get(), "ada", null, null);
+        CountDownLatch asking = new CountDownLatch(1);
+        CountDownLatch answered = new CountDownLatch(1);
+        AtomicReference<JsonObject> line = new AtomicReference<>();
         Thread reader = new Thread(() -> {
-            while (reading.get()) {
-                String status = bench.status();
-                if (inconsistent(status)) {
-                    impossible.add(status);
-                }
-                if (status.startsWith("{\"running\":true")) {
-                    sawRunning.set(true);
-                } else if (status.contains("\"outcome\":\"done\"")) {
-                    sawFinished.set(true);
-                }
-                Thread.yield();
-            }
+            asking.countDown();
+            line.set(run.json());
+            answered.countDown();
         });
-        reader.start();
 
-        for (int i = 0; i < 3; i++) {
-            await(bench.start(entry, "ada"));
+        synchronized (run) {
+            reader.start();
+            assertTrue("the reader never got as far as asking", asking.await(10, TimeUnit.SECONDS));
+            assertFalse(
+                    "a line was taken while the run was being changed: " + line.get(),
+                    answered.await(200, TimeUnit.MILLISECONDS));
+            run.finish("done", "as it happens");
         }
 
-        reading.set(false);
-        reader.join();
-        assertEquals("[]", impossible.toString());
-        assertTrue("the reader never caught a run in progress, so it judged nothing", sawRunning.get());
-        assertTrue("the reader never caught a run finished, so it judged nothing", sawFinished.get());
+        assertTrue("the reader never got its line", answered.await(10, TimeUnit.SECONDS));
+        JsonObject one = line.get();
+        String half = "the line carries half of the finish: " + one;
+        assertEquals(half, "finished", one.get("phase").getAsString());
+        assertEquals(half, "done", one.get("outcome").getAsString());
+        assertEquals(half, "as it happens", one.get("message").getAsString());
     }
 
     @Test
