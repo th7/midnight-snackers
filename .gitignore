@@ -88,3 +88,7 @@ lint/tmp/
 
 # The editor bundle build (tools/codemirror); its output is committed
 node_modules/
+
+# Python bytecode, from running tools/field/step_to_field.py
+__pycache__/
+*.pyc

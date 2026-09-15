@@ -16,12 +16,14 @@ import java.util.List;
 /**
  * The season's field, reduced from FIRST's CAD by {@code tools/field/step_to_field.py} to
  * {@code field.json} next to this class: the size between the walls and their height, each field
- * element as a low-poly convex shape, the hives, the game pieces where a match starts, the gaffer
- * tape on the floor, and the <b>obstacles</b>: the convex footprint of every element that stands
- * lower than the robot is tall, which is what {@link SimRobot} runs into. The game pieces on the
- * floor in the open are <b>loose</b>: the simulator rolls them, and the ticks say where they are.
- * The replay page draws the same model, obstacles included, so what it draws is what the simulator
- * collides.
+ * element as a low-poly convex shape, the hives, the flowers, the game pieces where a match
+ * starts, the gaffer tape on the floor, and the <b>obstacles</b>: the convex footprint of every
+ * part of an element that stands lower than the robot is tall, which is what {@link SimRobot} runs
+ * into. Each obstacle says how high it stands and how far it clears the floor, so a ball rolls
+ * under one that overhangs. The game pieces on the floor in the open are <b>loose</b>: the
+ * simulator rolls them, and the ticks say where they are; so are the pollen a flower holds, which
+ * stand in its bore. The replay page draws the same model, obstacles included, so what it draws is
+ * what the simulator collides.
  * <p>
  * Everything is in the field frame Road Runner uses: inches, origin at the centre of the field,
  * +x away from the audience, +y to the audience's left, +z up. A hive is the exception: it turns
@@ -34,14 +36,59 @@ public final class SimField {
 
     public static final String POLLEN = "Pollen";
 
-    /** A convex polygon on the floor, wound counter-clockwise, that the robot's footprint may not enter. */
+    /**
+     * A convex polygon on the floor, wound counter-clockwise, that the robot's footprint may not
+     * enter: one part of a field element, so that what is driven through between — the frame's
+     * legs, a flower's pipes — blocks nothing. How high it {@link #stands} and how far it
+     * {@link #clears} the floor say what meets it: a ball rolls under one that overhangs it.
+     */
     public static final class Obstacle {
         public final String name;
         public final double[][] footprint;
+        /** How high above the floor its underside is, in inches: how much rolls under it. */
+        public final double clears;
+        /** How high above the floor its top is, in inches. */
+        public final double stands;
 
-        Obstacle(String name, double[][] footprint) {
+        Obstacle(String name, double[][] footprint, double clears, double stands) {
             this.name = name;
             this.footprint = footprint;
+            this.clears = clears;
+            this.stands = stands;
+        }
+    }
+
+    /**
+     * A flower: the tower at a wall whose four pipes make the <b>bore</b> a stack of pollen stands
+     * in, one on another from the floor up. The bore is a circle on the floor — the {@link #axis}
+     * midway between the pipes and the {@link #bore} radius the nearest of them leaves clear — and
+     * the {@link #gap} between two neighbouring pipes is narrower than a pollen, so what is in the
+     * bore stays in it. The bore's wall begins at the {@link #lip}, the height the pipes start at:
+     * a pollen standing wholly below the lip is held by nothing, which is why the one at the
+     * bottom of the stack is the one that comes out.
+     */
+    public static final class Flower {
+        public final String name;
+        /** Where the bore stands on the floor, {x, y} in the field frame. */
+        public final double[] axis;
+        /** How far from the axis the pipes leave clear, in inches. */
+        public final double bore;
+        /** The narrowest gap between two of the pipes, in inches: what keeps a pollen in the bore. */
+        public final double gap;
+        /** How high the pipes begin, in inches: below it the bore's wall reaches nothing. */
+        public final double lip;
+
+        Flower(JsonObject json, Gson gson) {
+            this.name = json.get("name").getAsString();
+            this.axis = gson.fromJson(json.get("axis"), double[].class);
+            this.bore = json.get("bore").getAsDouble();
+            this.gap = json.get("gap").getAsDouble();
+            this.lip = json.get("lip").getAsDouble();
+        }
+
+        /** Whether a ball standing at {@code x, y} is in the bore, and so under what the bore holds. */
+        public boolean standsIn(double x, double y) {
+            return Math.hypot(x - axis[0], y - axis[1]) <= bore;
         }
     }
 
@@ -260,7 +307,7 @@ public final class SimField {
         return new double[] {n[0] / length, n[1] / length, n[2] / length};
     }
 
-    /** A ball the field is set up with: on the floor in the open, held in a flower, or in a hive cell. */
+    /** A ball the field is set up with: on the floor in the open, stacked in a flower, or in a hive cell. */
     public static final class Piece {
         public final String name;
         /** {@link #NECTAR} or {@link #POLLEN}. */
@@ -269,17 +316,20 @@ public final class SimField {
         public final String alliance;
         /** The cell the field is set up with the piece inside, or null. */
         public final String cell;
+        /** The flower the field is set up with the piece stacked in the bore of, or null. */
+        public final String flower;
 
         public final double x;
         public final double y;
         public final double z;
         public final double radius;
 
-        Piece(String name, String kind, String cell, double x, double y, double z, double radius) {
+        Piece(String name, String kind, String cell, String flower, double x, double y, double z, double radius) {
             this.name = name;
             this.kind = kind;
             this.alliance = name.startsWith("Blue") ? "Blue" : name.startsWith("Red") ? "Red" : null;
             this.cell = cell;
+            this.flower = flower;
             this.x = x;
             this.y = y;
             this.z = z;
@@ -299,10 +349,14 @@ public final class SimField {
     public final List<Hive> hives;
     /** Every hive's cells, hive by hive: what a launched ball scores in. */
     public final List<Cell> cells;
+    /** The four flowers, one at each wall: the bores the field's stacks of pollen stand in. */
+    public final List<Flower> flowers;
     /** The game pieces the simulator rolls, in the order the page and the ticks name them. */
     public final List<Piece> loosePieces;
     /** The game pieces the field is set up with inside a hive cell: the nectar each hive starts with. */
     public final List<Piece> cellPieces;
+    /** The game pieces the field is set up with stacked in a flower: the pollen each flower holds. */
+    public final List<Piece> flowerPieces;
 
     private final JsonObject json;
 
@@ -331,13 +385,20 @@ public final class SimField {
         }
         this.hives = Collections.unmodifiableList(hives);
         this.cells = Collections.unmodifiableList(cells);
+        List<Flower> flowers = new ArrayList<>();
+        for (JsonElement flower : json.getAsJsonArray("flowers")) {
+            flowers.add(new Flower(flower.getAsJsonObject(), gson));
+        }
+        this.flowers = Collections.unmodifiableList(flowers);
         List<Piece> loose = new ArrayList<>();
         List<Piece> inCells = new ArrayList<>();
+        List<Piece> inFlowers = new ArrayList<>();
         JsonArray pieces = json.getAsJsonArray("pieces");
         for (int i = 0; i < pieces.size(); i++) {
             JsonObject p = pieces.get(i).getAsJsonObject();
             JsonElement cell = p.get("cell");
-            if (!p.get("loose").getAsBoolean() && cell == null) {
+            JsonElement flower = p.get("flower");
+            if (!p.get("loose").getAsBoolean() && cell == null && flower == null) {
                 continue;
             }
             JsonArray centre = p.getAsJsonArray("centre");
@@ -345,20 +406,25 @@ public final class SimField {
                     p.get("name").getAsString(),
                     p.get("kind").getAsString(),
                     cell == null ? null : cell.getAsString(),
+                    flower == null ? null : flower.getAsString(),
                     centre.get(0).getAsDouble(),
                     centre.get(1).getAsDouble(),
                     centre.get(2).getAsDouble(),
                     p.get("radius").getAsDouble());
-            (piece.cell == null ? loose : inCells).add(piece);
+            (piece.cell != null ? inCells : piece.flower != null ? inFlowers : loose).add(piece);
         }
         this.loosePieces = Collections.unmodifiableList(loose);
         this.cellPieces = Collections.unmodifiableList(inCells);
+        this.flowerPieces = Collections.unmodifiableList(inFlowers);
         List<Obstacle> obstacles = new ArrayList<>();
         JsonArray array = json.getAsJsonArray("obstacles");
         for (int i = 0; i < array.size(); i++) {
             JsonObject o = array.get(i).getAsJsonObject();
-            obstacles.add(
-                    new Obstacle(o.get("name").getAsString(), gson.fromJson(o.get("footprint"), double[][].class)));
+            obstacles.add(new Obstacle(
+                    o.get("name").getAsString(),
+                    gson.fromJson(o.get("footprint"), double[][].class),
+                    o.get("clears").getAsDouble(),
+                    o.get("stands").getAsDouble()));
         }
         this.obstacles = Collections.unmodifiableList(obstacles);
     }
@@ -396,6 +462,16 @@ public final class SimField {
         for (Hive hive : hives) {
             if (hive.name.equals(name)) {
                 return hive;
+            }
+        }
+        return null;
+    }
+
+    /** The flower of that name, or null. */
+    public Flower flower(String name) {
+        for (Flower flower : flowers) {
+            if (flower.name.equals(name)) {
+                return flower;
             }
         }
         return null;

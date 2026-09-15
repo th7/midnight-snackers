@@ -446,9 +446,9 @@
     return said && said[hive.alliance] !== undefined ? said[hive.alliance] : hive.tilt;
   }
   // The balls the simulator moves are where the latest tick that says puts them, [x, y, z] each:
-  // the field's loose pieces, then the nectar the hives are set up with, then the robot's preload,
-  // which looks like the first loose piece; a ball held in the robot is null and not drawn. Without
-  // a tick, they are where the field was set up.
+  // the field's loose pieces, then the nectar the hives are set up with, then the pollen stacked in
+  // the flowers, then the robot's preload, which looks like the first loose piece; a ball held in
+  // the robot is null and not drawn. Without a tick, they are where the field was set up.
   function ballsAt(at) {
     const spec = MOVED[0] || { colour: '#888', radius: 1.4 };
     const out = [];
@@ -465,7 +465,9 @@
     for (let i = upTo; i >= 0; i--) if (ticks[i].pieces) return ticks[i].pieces;
     return null;
   }
-  const MOVED = FIELD.pieces.filter(p => p.loose).concat(FIELD.pieces.filter(p => p.cell));
+  const MOVED = FIELD.pieces.filter(p => p.loose)
+    .concat(FIELD.pieces.filter(p => p.cell))
+    .concat(FIELD.pieces.filter(p => p.flower));
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
@@ -590,9 +592,11 @@
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
     for (const hive of FIELD.hives) items = items.concat(hiveFaces(hive, tick && !placing ? tiltAt(hive, index) : hive.tilt));
     const at = tick && !placing ? latestPieces(index) : null;
-    // The balls the simulator does not move — the flowers' stacks and the rows outside the walls —
-    // are where the field was set up; the loose ones and the hives' nectar come from the tick.
-    for (const piece of FIELD.pieces) if (!piece.loose && !piece.cell) items.push(ballOf(piece, piece.centre));
+    // The balls the simulator does not move — the rows the CAD lays out beyond the walls — are where
+    // the field was set up; the loose ones, the hives' nectar and the flowers' stacks come from the tick.
+    for (const piece of FIELD.pieces) {
+      if (!piece.loose && !piece.cell && !piece.flower) items.push(ballOf(piece, piece.centre));
+    }
     items = items.concat(ballsAt(at));
     if (tick) items = items.concat(robotFaces(tick));
     items.sort((a, b) => b.depth - a.depth);

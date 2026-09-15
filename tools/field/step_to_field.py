@@ -16,12 +16,17 @@ The model is in the simulator's field frame, Road Runner's: inches, origin at th
 field, +x away from the audience, +y to the audience's left, +z up. The CAD is in metres with +y
 up and the audience at +z, which is where the hives' audience-facing cells hang.
 
-What the robot collides with is the footprint of each field element below the robot's height:
-the frame's legs and feet, and the flowers. The hives hang above the robot on the axle the
-frame's top bar holds, so each is written out in its own frame with the tilt it leans at, and
-what a flying ball meets is written out with it: each cell is the opening the goal ribs frame,
-swept to the back skin that closes it. The pollen on the floor in the open is marked loose, for
-the simulator to roll, and the nectar the CAD rests inside a cell is marked as that cell's.
+What the robot collides with is the footprint of each field element below the robot's height, part
+by part -- the frame's legs and feet, a flower's pipes -- so that what is driven through between
+blocks nothing. Each obstacle says how high it stands and how far it clears the
+floor, which is what lets a ball roll under one that overhangs; a part that stands lower than the
+floor's lip is no obstacle at all, being driven and rolled over. The hives hang above the robot on
+the axle the frame's top bar holds, so each is written out in its own frame with the tilt it leans
+at, and what a flying ball meets is written out with it: each cell is the opening the goal ribs
+frame, swept to the back skin that closes it. Each flower is written out as the bore its four
+pipes make, which a stack of pollen stands in. The pollen on the floor in the open is marked loose,
+for the simulator to roll; the nectar the CAD rests inside a cell is marked as that cell's, and the
+pollen the CAD stacks in a flower as that flower's.
 """
 import json
 import math
@@ -31,6 +36,7 @@ import sys
 
 INCH = 0.0254
 ROBOT_HEIGHT_IN = 18  # SimRobot.ROBOT_SIZE_IN: what stands lower than this is in the robot's way
+FLOOR_LIP_IN = 0.5  # what stands lower than this is part of the floor: driven over, rolled over
 FACE_AREA = 40  # square inches: a flat face this big is one the hives are measured from
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'TeamCode', 'src', 'test', 'resources',
                    'org', 'firstinspires', 'ftc', 'teamcode', 'sim', 'field.json')
@@ -721,10 +727,52 @@ def holds(cell, p):
                for a, b in zip(ring, ring[1:] + ring[:1]))
 
 
+# --- the flowers ----------------------------------------------------------------------------------
+
+# The part of a flower that makes its bore: four upright pipes at the corners of a square, which a
+# stack of pollen stands in.
+FLOWER_PIPE = 'Flower HIPS Pipe'
+
+
+def flower_of(name, pipes):
+    """A flower: the tower at a wall whose four pipes make the <b>bore</b> a stack of pollen stands
+    in. The bore is a circle on the floor -- the axis midway between the pipes and the radius the
+    nearest of them leaves clear -- with the <b>gap</b> between two neighbouring pipes, which is
+    what keeps a pollen in the bore rather than out between them, and the <b>lip</b> the pipes
+    begin at, below which the bore's wall reaches nothing. Each pipe comes in as the points that
+    bound it, in the field frame."""
+    axes, radii = [], []
+    for pts in pipes:
+        low = [min(c) for c in zip(*pts)]
+        high = [max(c) for c in zip(*pts)]
+        axes.append(((low[0] + high[0]) / 2, (low[1] + high[1]) / 2))
+        radii.append((high[0] - low[0] + high[1] - low[1]) / 4)
+    x = sum(a[0] for a in axes) / len(axes)
+    y = sum(a[1] for a in axes) / len(axes)
+    bore = min(math.hypot(a[0] - x, a[1] - y) - r for a, r in zip(axes, radii))
+    gap = min(math.hypot(a[0] - b[0], a[1] - b[1]) - ra - rb
+              for i, (a, ra) in enumerate(zip(axes, radii)) for b, rb in list(zip(axes, radii))[i + 1:])
+    return {'name': name, 'axis': [round(x, 2), round(y, 2)], 'bore': round(bore, 2),
+            'gap': round(gap, 2), 'lip': round(min(p[2] for pts in pipes for p in pts), 2)}
+
+
+def in_a_flower(piece, flowers):
+    """The name of the flower whose bore the field is set up with this piece standing in -- the
+    stack of pollen a flower holds -- or None for a piece out on the field."""
+    x, y, _ = piece['centre']
+    for flower in flowers:
+        if math.hypot(x - flower['axis'][0], y - flower['axis'][1]) <= flower['bore']:
+            return flower['name']
+    return None
+
+
 def is_loose(piece, size, obstacles):
-    """A game piece that rests on the floor inside the walls and in the open is the robot's to push."""
+    """A game piece that rests on the floor inside the walls and in the open is the robot's to push.
+    One a flower or a hive holds is that flower's or that cell's, wherever it stands."""
     x, y, z = piece['centre']
     r = piece['radius']
+    if piece.get('flower') or piece.get('cell'):
+        return False
     if z > r + 0.25 or abs(x) > size / 2 - r / 2 or abs(y) > size / 2 - r / 2:
         return False
     for obstacle in obstacles:
@@ -771,29 +819,38 @@ def build(step_path):
             continue
         elements.append({'group': top, 'name': clean(name), 'colour': colour_for(name, cad_colour), 'cad': pts})
 
-    out_elements, obstacles, seen = [], {}, {}
+    out_elements, out_obstacles, seen, flower_pipes = [], [], {}, {}
     for e in elements:
-        shape = polygons([to_field(p) for p in e['cad']])
+        points = [to_field(p) for p in e['cad']]
+        shape = polygons(points)
         if shape is None:
             continue
         verts, faces = shape
         out_elements.append({'group': e['group'], 'name': e['name'], 'colour': e['colour'],
                              'vertices': [[round(c, 2) for c in v] for v in verts], 'faces': faces})
-        # The frame is driven through between its legs, so each of its parts blocks on its own.
-        key = e['group']
-        if key.startswith('Frame'):
-            seen[e['name']] = seen.get(e['name'], 0) + 1
-            key += ' / ' + e['name'] + ' <%d>' % seen[e['name']]
+        if e['name'] == FLOWER_PIPE:
+            flower_pipes.setdefault(e['group'], []).append(points)
+        # Every part blocks on its own, so that what is driven through between -- the frame's legs,
+        # a flower's pipes -- blocks nothing.
+        seen[(e['group'], e['name'])] = seen.get((e['group'], e['name']), 0) + 1
+        key = '%s / %s <%d>' % (e['group'], e['name'], seen[(e['group'], e['name'])])
+        clears, stands = min(v[2] for v in verts), max(v[2] for v in verts)
+        if stands <= FLOOR_LIP_IN:
+            continue  # part of the floor: the robot drives over it and a ball rolls over it
         low = footprint_below(verts, faces, ROBOT_HEIGHT_IN)
         if low and all(abs(x) < size / 2 and abs(y) < size / 2 for x, y in low):
-            obstacles.setdefault(key, []).extend(low)
-    out_obstacles = [{'name': k, 'footprint': [list(p) for p in simplify(hull2d(v))]} for k, v in obstacles.items()]
+            out_obstacles.append({'name': key, 'footprint': [list(p) for p in simplify(hull2d(low))],
+                                  'clears': round(clears, 2), 'stands': round(stands, 2)})
     out_hives = [hive_of(name, parts) for name, parts in sorted(hives.items())]
+    out_flowers = [flower_of(name, pipes) for name, pipes in sorted(flower_pipes.items())]
     for piece in pieces:
-        piece['loose'] = is_loose(piece, size, out_obstacles)
         cell = in_a_cell(piece, out_hives)
         if cell:
             piece['cell'] = cell
+        flower = in_a_flower(piece, out_flowers)
+        if flower:
+            piece['flower'] = flower
+        piece['loose'] = is_loose(piece, size, out_obstacles)
     return {
         'source': os.path.basename(step_path),
         'size': size,
@@ -801,6 +858,7 @@ def build(step_path):
         'elements': sorted(out_elements, key=lambda e: (e['group'], e['name'])),
         'obstacles': sorted(out_obstacles, key=lambda o: o['name']),
         'hives': out_hives,
+        'flowers': out_flowers,
         'pieces': sorted(pieces, key=lambda p: (p['name'], p['centre'])),
         'tape': sorted(tape, key=lambda t: (t['colour'], t['footprint'])),
     }
@@ -813,9 +871,11 @@ def main():
     with open(OUT, 'w') as f:
         json.dump(field, f, separators=(',', ':'))
         f.write('\n')
-    print('%s: %d elements, %d obstacles, %d hives, %d pieces, %d tape marks; field %.2f in, walls %.2f in' % (
-        os.path.relpath(OUT), len(field['elements']), len(field['obstacles']), len(field['hives']),
-        len(field['pieces']), len(field['tape']), field['size'], field['wallHeight']))
+    print('%s: %d elements, %d obstacles, %d hives, %d flowers, %d pieces, %d tape marks; '
+          'field %.2f in, walls %.2f in' % (
+              os.path.relpath(OUT), len(field['elements']), len(field['obstacles']), len(field['hives']),
+              len(field['flowers']), len(field['pieces']), len(field['tape']),
+              field['size'], field['wallHeight']))
 
 
 if __name__ == '__main__':

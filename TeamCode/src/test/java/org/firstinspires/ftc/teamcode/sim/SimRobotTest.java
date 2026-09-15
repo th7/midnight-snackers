@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -327,14 +328,14 @@ public class SimRobotTest {
 
     /**
      * The flowers stand against the walls. Driving straight at one stops the robot where its front
-     * edge meets the flower's inward face, as the field model places it.
+     * edge meets the flower's inward face — its nearest pipe — as the field model places it.
      */
     @Test
     public void aFlowerStopsTheRobotWhereItsFrontEdgeMeetsIt() {
         robotDrive();
-        SimField.Obstacle flower = SimRobot.FIELD.obstacle("Flower Assembly <4>");
-        double face = maxY(flower.footprint);
-        double x = (minX(flower.footprint) + maxX(flower.footprint)) / 2;
+        double[][] flower = cornersOf("Flower Assembly <4>");
+        double face = maxY(flower);
+        double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
         // Facing the right wall (-y), ten inches short of the flower.
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
@@ -355,18 +356,20 @@ public class SimRobotTest {
     @Test
     public void drivingDiagonallyIntoAFlowerSlidesAlongItWithoutEnteringIt() {
         robotDrive();
-        SimField.Obstacle flower = SimRobot.FIELD.obstacle("Flower Assembly <4>");
-        double face = maxY(flower.footprint);
-        double x = (minX(flower.footprint) + maxX(flower.footprint)) / 2;
+        double[][] flower = cornersOf("Flower Assembly <4>");
+        double face = maxY(flower);
+        double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot, -Math.PI / 2));
         setPowers(0, 1, 1, 0); // forward and left, which facing -y is toward +x
 
         for (int i = 0; i < 10; i++) {
             sim.step(0.1);
-            assertTrue(
-                    "never into the flower: " + sim.pose(),
-                    deepestInside(flower.footprint, corners(sim.pose())) <= CONTACT);
+            for (SimField.Obstacle pipe : partsOf("Flower Assembly <4>")) {
+                assertTrue(
+                        "never into " + pipe.name + ": " + sim.pose(),
+                        deepestInside(pipe.footprint, corners(sim.pose())) <= CONTACT);
+            }
         }
 
         Pose2d pose = sim.pose();
@@ -424,9 +427,9 @@ public class SimRobotTest {
     @Test
     public void againstAFlowerTheDeadWheelsReadTheRobotStandingStill() {
         MecanumDrive drive = robotDrive();
-        SimField.Obstacle flower = SimRobot.FIELD.obstacle("Flower Assembly <4>");
-        double face = maxY(flower.footprint);
-        double x = (minX(flower.footprint) + maxX(flower.footprint)) / 2;
+        double[][] flower = cornersOf("Flower Assembly <4>");
+        double face = maxY(flower);
+        double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
         drive.localizer.setPose(sim.pose());
@@ -495,6 +498,27 @@ public class SimRobotTest {
         return v;
     }
 
+    /** The obstacles that are parts of that field element: a flower's pipes, the frame's legs and feet. */
+    private static List<SimField.Obstacle> partsOf(String element) {
+        List<SimField.Obstacle> parts = new ArrayList<>();
+        for (SimField.Obstacle obstacle : SimRobot.FIELD.obstacles) {
+            if (obstacle.name.startsWith(element + " / ")) {
+                parts.add(obstacle);
+            }
+        }
+        assertTrue(element + " is in the robot's way", !parts.isEmpty());
+        return parts;
+    }
+
+    /** Every corner of every part of that element, for the extent of the whole of it. */
+    private static double[][] cornersOf(String element) {
+        List<double[]> corners = new ArrayList<>();
+        for (SimField.Obstacle part : partsOf(element)) {
+            corners.addAll(List.of(part.footprint));
+        }
+        return corners.toArray(new double[0][]);
+    }
+
     private static double maxY(double[][] ring) {
         double v = Double.NEGATIVE_INFINITY;
         for (double[] p : ring) v = Math.max(v, p[1]);
@@ -506,8 +530,10 @@ public class SimRobotTest {
     private static final double BALL = SimRobot.FIELD.loosePieces.get(0).radius;
     private static final double BALL_NECTAR = SimRobot.FIELD.cellPieces.get(0).radius;
     private static final int LOOSE = SimRobot.FIELD.loosePieces.size();
-    /** Where the robot's preload starts in {@link SimRobot#pieces}: after the loose balls and the hives' nectar. */
-    private static final int PRELOADED = LOOSE + SimRobot.FIELD.cellPieces.size();
+    /** Where the pollen the flowers hold start in {@link SimRobot#pieces}: after the hives' nectar. */
+    private static final int IN_FLOWERS = LOOSE + SimRobot.FIELD.cellPieces.size();
+    /** Where the robot's preload starts: after the loose balls, the hives' nectar and the flowers' stacks. */
+    private static final int PRELOADED = IN_FLOWERS + SimRobot.FIELD.flowerPieces.size();
 
     @Test
     public void theRobotPushesALooseBallAheadOfIt() {
@@ -638,11 +664,17 @@ public class SimRobotTest {
             assertEquals(SimRobot.FIELD.loosePieces.get(i).y, pieces[i][1], 0.1);
             assertEquals(BALL, pieces[i][2], 0.1);
         }
-        for (int i = LOOSE; i < PRELOADED; i++) {
+        for (int i = LOOSE; i < IN_FLOWERS; i++) {
             SimField.Piece nectar = SimRobot.FIELD.cellPieces.get(i - LOOSE);
             assertTrue(
                     "the nectar rests in the cell the field is set up with it in",
                     within(sim, SimRobot.FIELD.cell(nectar.cell), pieces[i]));
+        }
+        for (int i = IN_FLOWERS; i < PRELOADED; i++) {
+            SimField.Flower flower = SimRobot.FIELD.flower(SimRobot.FIELD.flowerPieces.get(i - IN_FLOWERS).flower);
+            assertTrue(
+                    "the pollen stands in the bore of the flower the field is set up with it in",
+                    flower.standsIn(pieces[i][0], pieces[i][1]));
         }
         for (int i = PRELOADED; i < pieces.length; i++) {
             assertNull("held in the robot, so nowhere on the field", pieces[i]);
@@ -651,6 +683,148 @@ public class SimRobotTest {
         assertEquals("the nectar each hive is set up with", 3, sim.scored("Blue"));
         assertEquals(3, sim.scored("Red"));
         assertEquals("three fifths full", 0.6, sim.load("Blue"), 0.001);
+    }
+
+    // --- the flowers: a stack of pollen in each bore, standing until the bottom one is taken ---
+
+    /**
+     * Every flower stands its four pollen one on another in its bore, the bottom one on the floor,
+     * and nothing moves them: a stack that came apart on its own would be a flower nobody could
+     * ever be driven to.
+     */
+    @Test
+    public void eachFlowerStandsItsPollenInAStackThatStaysPut() {
+        for (SimField.Flower flower : SimRobot.FIELD.flowers) {
+            assertStandingIn(flower, 4);
+        }
+        double[][] setUp = sim.pieces();
+
+        sim.step(2.0);
+
+        double[][] now = sim.pieces();
+        for (int piece = IN_FLOWERS; piece < PRELOADED; piece++) {
+            assertArrayEquals("the flowers' pollen have not moved", setUp[piece], now[piece], 0);
+        }
+    }
+
+    /**
+     * The pollen at the bottom of a bore stands wholly below the lip, so the bore's wall reaches
+     * nothing of it: it is a ball in the world like any other, which is what lets it be taken.
+     */
+    @Test
+    public void onlyTheBottomPollenOfAFlowerStandsBelowTheLip() {
+        SimField.Flower flower = SimRobot.FIELD.flowers.get(0);
+        double[][] pieces = sim.pieces();
+        List<Integer> stack = pollenOf(flower);
+        stack.sort((a, b) -> Double.compare(pieces[a][2], pieces[b][2]));
+
+        assertEquals("the bottom one rests on the floor", BALL, pieces[stack.get(0)][2], DELTA);
+        assertTrue(
+                "and stands wholly below the lip: " + pieces[stack.get(0)][2],
+                pieces[stack.get(0)][2] + BALL <= flower.lip);
+        for (int above = 1; above < stack.size(); above++) {
+            assertTrue(
+                    "the rest reach the lip, so the bore holds them: " + pieces[stack.get(above)][2],
+                    pieces[stack.get(above)][2] + BALL > flower.lip);
+        }
+    }
+
+    /**
+     * Knock the pollen at the bottom of a bore out of the flower and the stack comes down one
+     * place, landing and settling into a stack that stands as still as the one it came from.
+     */
+    @Test
+    public void takingTheBottomPollenOutOfAFlowerDropsTheStackOnePlaceAndItStandsAgain() {
+        SimField.Flower flower = SimRobot.FIELD.flowers.get(0);
+        int bottom = bottomOf(flower);
+
+        sim.placePiece(bottom, 0, 0);
+        sim.step(1.0);
+
+        assertStandingIn(flower, 3);
+        assertEquals("the one knocked out is where it was put", 0, sim.pieces()[bottom][0], CONTACT);
+        double[][] settled = sim.pieces();
+        sim.step(2.0);
+        double[][] now = sim.pieces();
+        for (int piece : pollenOf(flower)) {
+            assertArrayEquals("the stack that is left stands still", settled[piece], now[piece], 0);
+        }
+    }
+
+    /**
+     * A ball rolls under everything a flower is made of — its pipes begin four inches up — so one
+     * the robot pushes into the bore goes in under them and knocks the pollen at the bottom clean
+     * out of the flower. Nothing is left on the bore's floor, so the stack above comes down one
+     * place and stands again: the whole of it, from the robot's push to the stack settling.
+     */
+    @Test
+    public void aBallPushedIntoAFlowersBoreKnocksTheBottomPollenOutAndTheStackComesDown() {
+        SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
+        int bottom = bottomOf(flower);
+        // Pushed in off the bore's axis, so that what is squeezed out has a way out.
+        double lane = flower.axis[1] + 0.8;
+        robotDrive();
+        sim.placePiece(0, flower.axis[0] - 10, lane);
+        sim.setPose(new Pose2d(flower.axis[0] - 10 - BALL - SimRobot.ROBOT_SIZE_IN / 2 - 2, lane, 0));
+        setPowers(1, 1, 1, 1);
+
+        sim.step(2.0);
+
+        double[] knocked = sim.pieces()[bottom];
+        assertTrue(
+                "the flower's bottom pollen is out of the bore: " + knocked[0] + ", " + knocked[1],
+                !flower.standsIn(knocked[0], knocked[1]));
+        assertEquals("and loose on the floor", BALL, knocked[2], DELTA);
+        assertStandingIn(flower, 3);
+        double[][] settled = sim.pieces();
+        sim.step(1.0);
+        assertStandingIn(flower, 3);
+        for (int piece : pollenOf(flower)) {
+            if (flower.standsIn(settled[piece][0], settled[piece][1])) {
+                assertArrayEquals("the stack that is left stands still", settled[piece], sim.pieces()[piece], 0);
+            }
+        }
+    }
+
+    /** The pollen the field is set up with in that flower, as indices into {@link SimRobot#pieces}. */
+    private static List<Integer> pollenOf(SimField.Flower flower) {
+        List<Integer> pollen = new ArrayList<>();
+        for (int piece = 0; piece < SimRobot.FIELD.flowerPieces.size(); piece++) {
+            if (flower.name.equals(SimRobot.FIELD.flowerPieces.get(piece).flower)) {
+                pollen.add(IN_FLOWERS + piece);
+            }
+        }
+        return pollen;
+    }
+
+    /** The piece that is lowest in the flower's bore now. */
+    private int bottomOf(SimField.Flower flower) {
+        int bottom = -1;
+        for (int piece : pollenOf(flower)) {
+            double[] at = sim.pieces()[piece];
+            if (at != null && (bottom < 0 || at[2] < sim.pieces()[bottom][2])) {
+                bottom = piece;
+            }
+        }
+        assertTrue(flower.name + " holds nothing", bottom >= 0);
+        return bottom;
+    }
+
+    /** That many balls standing in the flower's bore, each at rest on what is under it. */
+    private void assertStandingIn(SimField.Flower flower, int standing) {
+        List<double[]> stack = new ArrayList<>();
+        for (double[] at : sim.pieces()) {
+            if (at != null && flower.standsIn(at[0], at[1])) {
+                stack.add(at);
+            }
+        }
+        stack.sort((a, b) -> Double.compare(a[2], b[2]));
+        assertEquals(flower.name + " holds " + standing + " balls", standing, stack.size());
+        double resting = BALL;
+        for (double[] at : stack) {
+            assertEquals(flower.name + ": a ball rests on what is under it", resting, at[2], DELTA);
+            resting = at[2] + 2 * BALL;
+        }
     }
 
     // --- the launcher: a held ball drops through the gates into the flywheel and flies ---
