@@ -31,7 +31,8 @@ public final class SimRecording implements SimReplayPage.Source {
         public final State gamepad2;
         /**
          * Where the balls are, {x, y, z} each: the field's loose game pieces in
-         * {@link SimField#loosePieces}' order, then the robot's preload; a ball held in the robot
+         * {@link SimField#loosePieces}' order, then the nectar the hives are set up with in
+         * {@link SimField#cellPieces}' order, then the robot's preload; a ball held in the robot
          * is null. Null as a whole when the tick does not say, and they are where the field was
          * set up.
          */
@@ -40,6 +41,11 @@ public final class SimRecording implements SimReplayPage.Source {
         public final int held;
         /** How many balls each alliance has in its hive, by "Blue" and "Red"; absent means none. */
         public final Map<String, Integer> scored;
+        /**
+         * How far each alliance's hive leans now, in degrees, by "Blue" and "Red"; empty means
+         * every hive leans the way the field was set up.
+         */
+        public final Map<String, Double> tilt;
 
         public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
             this(seconds, truePose, step, wheelPowers, packets, null, null);
@@ -79,6 +85,21 @@ public final class SimRecording implements SimReplayPage.Source {
                 double[][] pieces,
                 int held,
                 Map<String, Integer> scored) {
+            this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, pieces, held, scored, Map.of());
+        }
+
+        public Tick(
+                double seconds,
+                Pose2d truePose,
+                String step,
+                double[] wheelPowers,
+                List<TelemetryPacket> packets,
+                State gamepad1,
+                State gamepad2,
+                double[][] pieces,
+                int held,
+                Map<String, Integer> scored,
+                Map<String, Double> tilt) {
             this.seconds = seconds;
             this.truePose = truePose;
             this.step = step;
@@ -89,6 +110,7 @@ public final class SimRecording implements SimReplayPage.Source {
             this.pieces = pieces;
             this.held = held;
             this.scored = scored;
+            this.tilt = tilt;
         }
     }
 

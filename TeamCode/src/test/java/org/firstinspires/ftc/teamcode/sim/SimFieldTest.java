@@ -8,8 +8,10 @@ import static org.junit.Assert.assertTrue;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
 
@@ -36,8 +38,10 @@ public class SimFieldTest {
         for (SimField.Element element : field.elements) {
             groups.add(element.group);
         }
-        assertTrue(groups.toString(), groups.contains("Blue Hive <1>"));
-        assertTrue(groups.toString(), groups.contains("Red Hive <1>"));
+        assertTrue(
+                "the hives are not elements: they hang from the frame and turn",
+                groups.stream().noneMatch(group -> group.contains("Hive")));
+        assertEquals("one hive each", 2, field.hives.size());
         assertTrue(groups.toString(), groups.contains("Frame <1>"));
         int flowers = 0;
         for (String group : groups) {
@@ -54,7 +58,7 @@ public class SimFieldTest {
     @Test
     public void everyElementIsAClosedShapeOfItsOwnVertices() {
         for (SimField.Element element : field.elements) {
-            assertTrue(element.name + " has a body", element.surface || element.faces.length >= 4);
+            assertTrue(element.name + " has a body", element.faces.length >= 4);
             for (int[] face : element.faces) {
                 assertTrue(element.name + " has a face of " + face.length + " vertices", face.length >= 3);
                 for (int index : face) {
@@ -105,72 +109,138 @@ public class SimFieldTest {
         assertEquals("red and blue", 2, colours.size());
     }
 
+    // --- the hives: a see-saw each, on the axle over the middle of the field ---
+
     /**
-     * A hive cell is its six flat panels, seen through and outlined in its alliance's colour: two
-     * sides, a bottom, two tops and a back, each one flat polygon.
+     * Each alliance has a hive: a beam with a cell at each end, on the axle the frame's top bar
+     * holds over the middle of the field. Everything a hive is made of is given in the hive's own
+     * frame, which the tilt it leans at turns into the field's. The two hives are one shape,
+     * leaning opposite ways.
      */
     @Test
-    public void aHiveCellIsSixFlatPanelsInItsAlliancesColour() {
-        for (String hive : List.of("Blue Hive <1>", "Red Hive <1>")) {
-            for (String cell : List.of("(Audience)", "(Scoring)")) {
-                List<SimField.Element> panels = new ArrayList<>();
-                for (SimField.Element element : field.elements) {
-                    if (element.group.equals(hive) && element.surface && element.name.contains(cell)) {
-                        panels.add(element);
-                    }
-                }
-                assertEquals(hive + " " + cell + " panels: " + panels.size(), 6, panels.size());
-                for (SimField.Element panel : panels) {
-                    assertEquals(hive.startsWith("Blue") ? "#1651b0" : "#c62828", panel.colour);
-                    assertEquals(panel.name + " is one polygon", 1, panel.faces.length);
-                    assertTrue(panel.name + " has at least three corners", panel.vertices.length >= 3);
-                    assertFlat(panel);
-                }
+    public void eachAllianceHasAHiveOnTheFramesAxleLeaningItsOwnWay() {
+        assertEquals(2, field.hives.size());
+        SimField.Hive blue = field.hive("Blue Hive <1>");
+        SimField.Hive red = field.hive("Red Hive <1>");
+        assertNotNull(blue);
+        assertNotNull(red);
+        assertNull(field.hive("Green Hive"));
+        assertEquals("Blue", blue.alliance);
+        assertEquals("Red", red.alliance);
+        for (SimField.Hive hive : field.hives) {
+            assertEquals(hive.name + " turns over the middle of the field", 0, hive.pivot[0], 0.5);
+            assertEquals(hive.name + " hangs from the frame's top bar", 44, hive.pivot[2], 1.5);
+            assertEquals(hive.name + " leans 30 degrees", 30, Math.abs(hive.tilt), 1);
+            assertEquals(hive.name + " has a cell at each end", 2, hive.cells.size());
+            assertTrue(hive.name + " is drawn", hive.parts.size() > 0);
+            for (SimField.Element part : hive.parts) {
+                assertEquals(hive.name, part.group);
             }
         }
-        for (SimField.Element element : field.elements) {
-            assertTrue(
-                    "only the hives' panels are seen through: " + element.name,
-                    !element.surface || element.group.contains("Hive"));
+        assertEquals("the hives hang either side of the bar", blue.pivot[1], -red.pivot[1], 0.1);
+        assertEquals("and lean opposite ways", blue.tilt, -red.tilt, 0.1);
+        assertSameShape("one shape built twice", extentOf(blue), extentOf(red), 0.2);
+    }
+
+    /**
+     * A cell is the basket a ball goes in: its <b>mouth</b>, the opening at the hive's end, the
+     * same ring again at its back twelve inches in, and a wall between every pair of corners.
+     * Twenty inches across and fourteen high, the basket the CAD draws.
+     */
+    @Test
+    public void aCellIsAMouthAWallAllRoundAndABack() {
+        assertEquals(4, field.cells.size());
+        for (SimField.Cell cell : field.cells) {
+            assertTrue(cell.name, cell.name.startsWith(cell.alliance + " Cell"));
+            assertTrue(cell.name, cell.name.contains("(" + cell.side + ")"));
+            assertEquals(cell.name + " belongs to its hive", cell.alliance, cell.hive.alliance);
+            assertTrue(cell.name + " is one of its hive's cells", cell.hive.cells.contains(cell));
+            assertTrue(cell.name + "'s mouth has corners", cell.mouth.length >= 4);
+            assertFlatRing(cell.name + "'s mouth", cell.mouth);
+            assertFlatRing(cell.name + "'s back", cell.back);
+            assertEquals(cell.name + " is the same ring at both ends", cell.mouth.length, cell.back.length);
+            assertEquals(cell.name + " has a wall between every pair of corners", cell.mouth.length, cell.walls.size());
+            assertEquals(cell.name + "'s panels are its walls and its back", cell.walls.size() + 1, cell.panels.size());
+            double[] mouth = centreOf(cell.mouth), back = centreOf(cell.back);
+            assertEquals(cell.name + " is 12 inches deep", 12, distance(mouth, back), 1);
+            double[] size = extentOf(List.<double[][]>of(cell.mouth));
+            assertEquals(cell.name + " is 20 inches across", 20, size[1], 1.5);
+            assertEquals(cell.name + " is 14 inches high", 14, size[2], 1.5);
+        }
+        assertNotNull(field.cell("Blue Cell (Audience) <1>"));
+        assertNull(field.cell("Green Cell"));
+    }
+
+    /** Nothing leaves a cell but through its mouth: every edge it has joins two of its panels. */
+    @Test
+    public void everyCellIsClosedButForItsMouth() {
+        for (SimField.Cell cell : field.cells) {
+            List<double[][]> rings = new ArrayList<>(cell.panels);
+            rings.add(cell.mouth);
+            Map<String, Integer> edges = new HashMap<>();
+            for (double[][] ring : rings) {
+                for (int i = 0; i < ring.length; i++) {
+                    edges.merge(edge(ring[i], ring[(i + 1) % ring.length]), 1, Integer::sum);
+                }
+            }
+            for (Map.Entry<String, Integer> entry : edges.entrySet()) {
+                assertEquals(cell.name + " has a gap at " + entry.getKey(), 2, (int) entry.getValue());
+            }
         }
     }
 
     /**
-     * A cell is what the simulator scores in: its six panels, one of which is the <b>mouth</b> the
-     * ball comes in through, the rib at the lower, open end, facing out of the cell and down.
+     * A hive leans one way at a time: the cell at its high end is <b>upturned</b>, its mouth above
+     * its back and facing up, and holds what goes in; the one at the low end is <b>downturned</b>,
+     * and what is in it rolls out. Tipping the hive the other way swaps them.
      */
     @Test
-    public void eachHiveHasTwoCellsAndEachCellAMouthFacingOutAndDown() {
-        assertEquals(4, field.cells.size());
-        int blue = 0, red = 0;
-        for (SimField.Cell cell : field.cells) {
-            assertTrue(cell.name, cell.name.startsWith(cell.alliance + " Cell"));
-            assertEquals(cell.name + " panels", 6, cell.panels.size());
-            assertTrue(cell.name + "'s mouth is one of its panels", cell.panels.contains(cell.mouth));
-            assertTrue(cell.name + "'s mouth is a rib", cell.mouthName.endsWith("Goal Rib"));
-            assertTrue(cell.name + "'s mouth is below its centre", cell.mouthCentre[2] < cell.centre[2]);
-            assertTrue(cell.name + "'s mouth faces down: " + cell.mouthNormal[2], cell.mouthNormal[2] < -0.3);
-            assertEquals(cell.name + "'s mouth faces along x", 0, cell.mouthNormal[1], 0.05);
-            assertEquals(
-                    "a unit normal",
-                    1,
-                    Math.sqrt(cell.mouthNormal[0] * cell.mouthNormal[0]
-                            + cell.mouthNormal[1] * cell.mouthNormal[1]
-                            + cell.mouthNormal[2] * cell.mouthNormal[2]),
-                    1e-6);
-            if (cell.alliance.equals("Blue")) {
-                blue++;
-                assertTrue("a blue mouth faces the audience: " + cell.mouthNormal[0], cell.mouthNormal[0] < 0);
-            } else {
-                red++;
-                assertEquals("Red", cell.alliance);
-                assertTrue("a red mouth faces away from the audience: " + cell.mouthNormal[0], cell.mouthNormal[0] > 0);
+    public void oneCellOfEachHiveIsUpturnedAndTheOtherDownturned() {
+        for (SimField.Hive hive : field.hives) {
+            int upturned = 0;
+            for (SimField.Cell cell : hive.cells) {
+                double[] mouth = cell.mouthCentreAt(hive.tilt);
+                double[] normal = cell.mouthNormalAt(hive.tilt);
+                double[] back = hive.at(hive.tilt, centreOf(cell.back));
+                assertEquals(cell.name + "'s mouth faces along x", 0, normal[1], 0.05);
+                assertEquals("a unit normal", 1, length(normal), 1e-6);
+                if (cell.upturnedAt(hive.tilt)) {
+                    upturned++;
+                    assertTrue(cell.name + "'s mouth is above its back", mouth[2] > back[2]);
+                    assertTrue(cell.name + "'s mouth faces up: " + normal[2], normal[2] > 0.3);
+                } else {
+                    assertTrue(cell.name + "'s mouth is below its back", mouth[2] < back[2]);
+                    assertTrue(cell.name + "'s mouth faces down: " + normal[2], normal[2] < -0.3);
+                }
+                assertTrue(
+                        cell.name + " turns over when the hive tips",
+                        cell.upturnedAt(hive.tilt) != cell.upturnedAt(-hive.tilt));
             }
+            assertEquals(hive.name + " holds at one end at a time", 1, upturned);
         }
-        assertEquals(2, blue);
-        assertEquals(2, red);
-        assertNotNull(field.cell("Blue Cell (Audience) <1>"));
-        assertNull(field.cell("Green Cell"));
+    }
+
+    /**
+     * The field is set up with nectar in each hive's upturned cell, where the CAD rests it: that
+     * the balls the CAD draws inside the cell are inside the cell the model builds is the model
+     * measured against the drawing it came from.
+     */
+    @Test
+    public void theNectarTheFieldIsSetUpWithRestsInEachHivesUpturnedCell() {
+        assertEquals("three in each hive", 6, field.cellPieces.size());
+        Set<String> cells = new HashSet<>();
+        for (SimField.Piece piece : field.cellPieces) {
+            assertEquals(SimField.NECTAR, piece.kind);
+            SimField.Cell cell = field.cell(piece.cell);
+            assertNotNull(piece.cell, cell);
+            assertEquals("a hive is set up with its own alliance's nectar", cell.alliance, piece.alliance);
+            assertTrue(cell.name + " holds what is in it", cell.upturnedAt(cell.hive.tilt));
+            assertTrue(
+                    piece.name + " at " + piece.x + ", " + piece.y + ", " + piece.z + " is in " + cell.name,
+                    holds(cell, cell.hive.tilt, new double[] {piece.x, piece.y, piece.z}));
+            cells.add(cell.name);
+        }
+        assertEquals("the upturned cell of each hive", 2, cells.size());
     }
 
     /** The frame's top bar joins the two hives, and each hive hangs from it by its pivot brackets. */
@@ -181,8 +251,13 @@ public class SimFieldTest {
             names.add(element.group + " / " + element.name);
         }
         assertTrue(names.toString(), names.contains("Frame <1> / A-Frame Top Bar"));
-        assertTrue(names.toString(), names.contains("Blue Hive <1> / Goal Pivot Bracket"));
-        assertTrue(names.toString(), names.contains("Red Hive <1> / Goal Pivot Bracket"));
+        for (SimField.Hive hive : field.hives) {
+            Set<String> parts = new HashSet<>();
+            for (SimField.Element part : hive.parts) {
+                parts.add(part.name);
+            }
+            assertTrue(hive.name + " " + parts, parts.contains("Goal Pivot Bracket"));
+        }
     }
 
     /**
@@ -195,6 +270,9 @@ public class SimFieldTest {
         double half = field.size / 2;
         for (SimField.Piece piece : field.loosePieces) {
             assertEquals("Pollen", piece.name);
+            assertEquals(SimField.POLLEN, piece.kind);
+            assertNull("loose, so in no cell", piece.cell);
+            assertTrue("pollen is smaller than nectar", piece.radius < 1.6);
             assertEquals(piece.name + " rests on the floor", piece.radius, piece.z, 0.25);
             assertTrue(
                     piece.name + " is inside the walls",
@@ -212,6 +290,111 @@ public class SimFieldTest {
             }
         }
         assertTrue("the flowers' stacks, the rows outside and the nectar are held: " + held, held > 30);
+    }
+
+    /** The mean of a ring's corners. */
+    private static double[] centreOf(double[][] ring) {
+        double[] sum = new double[3];
+        for (double[] v : ring) {
+            for (int axis = 0; axis < 3; axis++) {
+                sum[axis] += v[axis] / ring.length;
+            }
+        }
+        return sum;
+    }
+
+    /** How big the rings are, corner to corner along each axis. */
+    private static double[] extentOf(List<double[][]> rings) {
+        double[] min = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+        double[] max = {-Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
+        for (double[][] ring : rings) {
+            for (double[] v : ring) {
+                for (int axis = 0; axis < 3; axis++) {
+                    min[axis] = Math.min(min[axis], v[axis]);
+                    max[axis] = Math.max(max[axis], v[axis]);
+                }
+            }
+        }
+        return new double[] {max[0] - min[0], max[1] - min[1], max[2] - min[2]};
+    }
+
+    /**
+     * A hive's shape in its own frame, cell by cell: where each cell's mouth and back are and how
+     * big the mouth is. The width is measured from the middle, so two hives built as mirror images
+     * of each other are one shape by this measure, as they are by eye.
+     */
+    private static double[] extentOf(SimField.Hive hive) {
+        List<Double> out = new ArrayList<>();
+        for (String side : List.of("Audience", "Scoring")) {
+            for (SimField.Cell cell : hive.cells) {
+                if (!cell.side.equals(side)) {
+                    continue;
+                }
+                for (double[] point : List.of(centreOf(cell.mouth), centreOf(cell.back))) {
+                    out.add(point[0]);
+                    out.add(Math.abs(point[1]));
+                    out.add(point[2]);
+                }
+                for (double size : extentOf(List.<double[][]>of(cell.mouth))) {
+                    out.add(size);
+                }
+            }
+        }
+        double[] array = new double[out.size()];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = out.get(i);
+        }
+        return array;
+    }
+
+    private static void assertSameShape(String message, double[] expected, double[] actual, double delta) {
+        assertEquals(message + ": measures", expected.length, actual.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals(message + " at " + i, expected[i], actual[i], delta);
+        }
+    }
+
+    /** Every corner of the ring lies on the ring's own plane. */
+    private static void assertFlatRing(String name, double[][] ring) {
+        double[] n = SimField.normal(ring);
+        for (double[] p : ring) {
+            double off = (p[0] - ring[0][0]) * n[0] + (p[1] - ring[0][1]) * n[1] + (p[2] - ring[0][2]) * n[2];
+            assertEquals(name + " is flat", 0, off, 0.05);
+        }
+    }
+
+    private static double distance(double[] a, double[] b) {
+        return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+    }
+
+    private static double length(double[] v) {
+        return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    }
+
+    /** An edge of a ring, named the same way whichever of its panels names it and whichever way round. */
+    private static String edge(double[] a, double[] b) {
+        String one = String.format("%.2f,%.2f,%.2f", a[0], a[1], a[2]);
+        String other = String.format("%.2f,%.2f,%.2f", b[0], b[1], b[2]);
+        return one.compareTo(other) < 0 ? one + " - " + other : other + " - " + one;
+    }
+
+    /** Whether the point, in the field frame, is inside the cell at that tilt. */
+    private static boolean holds(SimField.Cell cell, double tilt, double[] point) {
+        double[] inside = cell.centreAt(tilt);
+        List<double[][]> rings = new ArrayList<>(cell.panelsAt(tilt));
+        rings.add(cell.mouthAt(tilt));
+        for (double[][] ring : rings) {
+            double[] n = SimField.normal(ring);
+            double toInside = 0, toPoint = 0;
+            for (int axis = 0; axis < 3; axis++) {
+                toInside += (inside[axis] - ring[0][axis]) * n[axis];
+                toPoint += (point[axis] - ring[0][axis]) * n[axis];
+            }
+            if (Math.signum(toInside) != Math.signum(toPoint)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean inside(double[][] ring, double x, double y) {

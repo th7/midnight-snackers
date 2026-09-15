@@ -12,7 +12,8 @@ import org.junit.Test;
 
 /**
  * The real {@link Launcher} on the simulated robot: its gate sequence, timed on the simulation's
- * clock, drops a preloaded ball into the spinning flywheel, and the ball flies into the hive.
+ * clock, drops a preloaded ball into the spinning flywheel, and the ball flies into the mouth of
+ * the cell the blue hive is holding up.
  */
 public class LauncherSimTest {
     /** How far from the goal the robot code launches from ({@code Nav}), in inches. */
@@ -23,7 +24,8 @@ public class LauncherSimTest {
 
     @Test
     public void aCloseLaunchFromTheLaunchDistanceScoresOneBallInTheBlueHive() {
-        SimField.Cell cell = lowestCellOf("Blue");
+        SimField.Cell cell = sim.upturnedCell("Blue");
+        int already = sim.scored("Blue");
         sim.setPose(facing(cell, LAUNCH_DISTANCE));
         robot.launcher.setCloseLaunchPower();
 
@@ -36,13 +38,14 @@ public class LauncherSimTest {
         assertTrue("the launch sequence finished", robot.launcher.launchDone());
         sim.step(2.0);
 
-        assertEquals(1, sim.scored("Blue"));
+        assertEquals(already + 1, sim.scored("Blue"));
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
     }
 
     @Test
     public void threeLaunchesEmptyTheRobot() {
-        SimField.Cell cell = lowestCellOf("Blue");
+        SimField.Cell cell = sim.upturnedCell("Blue");
+        int already = sim.scored("Blue");
         sim.setPose(facing(cell, LAUNCH_DISTANCE));
         robot.launcher.setCloseLaunchPower();
 
@@ -57,26 +60,15 @@ public class LauncherSimTest {
         sim.step(3.0);
 
         assertEquals(0, sim.held());
-        assertEquals(3, sim.scored("Blue"));
+        assertEquals(already + 3, sim.scored("Blue"));
     }
 
-    private static SimField.Cell lowestCellOf(String alliance) {
-        SimField.Cell lowest = null;
-        for (SimField.Cell cell : SimRobot.FIELD.cells) {
-            if (cell.alliance.equals(alliance) && (lowest == null || cell.mouthCentre[2] < lowest.mouthCentre[2])) {
-                lowest = cell;
-            }
-        }
-        return lowest;
-    }
-
-    /** The pose {@code distance} inches from the cell's mouth, straight out from it, facing it. */
-    private static Pose2d facing(SimField.Cell cell, double distance) {
-        double nx = cell.mouthNormal[0], ny = cell.mouthNormal[1];
-        double length = Math.hypot(nx, ny);
-        nx /= length;
-        ny /= length;
-        return new Pose2d(
-                cell.mouthCentre[0] + nx * distance, cell.mouthCentre[1] + ny * distance, Math.atan2(-ny, -nx));
+    /** The pose {@code distance} inches out from the cell's mouth, facing it, as the hive leans now. */
+    private Pose2d facing(SimField.Cell cell, double distance) {
+        double[] centre = cell.mouthCentreAt(sim.tilt(cell.alliance));
+        double[] normal = cell.mouthNormalAt(sim.tilt(cell.alliance));
+        double length = Math.hypot(normal[0], normal[1]);
+        double nx = normal[0] / length, ny = normal[1] / length;
+        return new Pose2d(centre[0] + nx * distance, centre[1] + ny * distance, Math.atan2(-ny, -nx));
     }
 }

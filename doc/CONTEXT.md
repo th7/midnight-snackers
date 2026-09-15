@@ -458,8 +458,9 @@ with the field, the true pose, and play/pause/scrub controls, named after
 the op mode under `TeamCode/build/sim`. The field is drawn in three
 dimensions from a camera that orbits it (drag to turn, scroll to zoom,
 double-click for the audience's view): the walls at their height, the
-field elements, tape and game pieces of the field model, the loose
-pieces where each tick puts them, the robot as a cube turned to its
+field elements, tape and game pieces of the field model, the hives where
+each tick says they lean, the balls the simulator moves where each tick
+puts them, the robot as a cube turned to its
 heading, and the dashboard's field overlay projected onto the floor. The
 obstacles are outlined on the floor. The model and the sizes are the
 simulated robot's, so the page draws what the simulator collides. Class:
@@ -488,9 +489,10 @@ the launcher is on the turntable, and its gates feed it as the robot
 code drives them: with the top gate open a ball drops from the hopper
 into the **chamber**, and with the bottom gate open the chambered ball
 drops into the flywheel and leaves at a speed set by the flywheel's, on
-an arc under gravity. A ball that goes in through a cell's mouth has
-scored and rests in the cell; one that meets any other panel of a hive
-bounces off; one that comes down on the floor rolls on; one that clears a
+an arc under gravity. A ball that goes in through an upturned cell's
+mouth rests in it, on the floor at the back; one that meets a wall or a
+back bounces off, whichever side it comes from; one that comes down on the
+floor rolls on; one that clears a
 wall is out. The model is planar apart from that flight: only the robot's
 footprint collides, nothing goes over a wall or under a hive by being low,
 and a flying ball meets only the hives, the floor and the walls. No
@@ -501,8 +503,10 @@ as a count of the hub's 16-bit overflows, so anything finer is read as
 tens of inches a second). The
 launcher's throw and the turntable's speed are guesses until measured on
 the robot, calibrated so the code's close launch from its launch distance
-reaches the nearer cell's mouth. The world moves in steps of at most 5 ms
-whatever the loop rate, so nothing is jumped over. Class: `SimRobot`.
+drops into the middle of the upturned cell's mouth, which a hive holds
+five feet up: the throw is a steep one. The world moves in steps of at
+most 5 ms whatever the loop rate, so nothing is jumped over. Class:
+`SimRobot`.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
 real robot does, drawn once per run from a **seed**: the same robot for
@@ -543,23 +547,53 @@ robot with noise). Method: `SimRobot.nanoTime`.
 **Field** — The season's field as the simulator has it, reduced from
 FIRST's CAD by `tools/field/step_to_field.py` to `field.json`: the
 **size** between the walls (141 inches) and the walls' height, each
-**field element** as a low-poly convex shape with its colour, the **game
-pieces** where a match starts, the gaffer **tape** on the floor, and the
+**field element** as a low-poly convex shape with its colour, the two
+**hives**, the **game pieces** where a match starts, the gaffer **tape**
+on the floor, and the
 **obstacles**: the convex footprint of every element that stands lower
 than the robot is tall, which is what the robot runs into. For BIOBUZZ:
 the frame in the middle of the field is an obstacle leg by leg and foot
-by foot, so the robot drives through it; the flowers at the walls are
-obstacles; the hives hang from the frame's top bar above the robot and
-are only drawn, each cell as its six flat **panels** (two sides, a
-bottom, two tops and a back), seen through and outlined in the alliance's
-colour. The game pieces on the floor in the open are **loose**, the
-simulator's to roll; the rest (the flowers' stacks, the rows outside the
-walls, the nectar in the hives) stay put. Each hive's two **cells** are
-what a launched ball scores in: a cell is its six panels, one of which is
-its **mouth**, the rib at its lower, open end, facing out of the cell and
-down, which a ball has scored by crossing going in. Everything is in the field frame
-Road Runner uses, in inches: the origin at the centre, +x away from the
-audience, +y to the audience's left. Class: `SimField`.
+by foot, so the robot drives through it; and the flowers at the walls are
+obstacles. A game piece is a **pollen** or a **nectar**, the bigger ball;
+the pieces on the floor in the open are **loose**, the simulator's to
+roll, the nectar in the hives is the hives' to hold, and the rest (the
+flowers' stacks, the rows outside the walls) stay put. Everything is in
+the field frame Road Runner uses, in inches: the origin at the centre, +x
+away from the audience, +y to the audience's left. Class: `SimField`.
+
+**Hive** — An alliance's see-saw, hanging over the middle of the field
+from the axle the frame's top bar holds, with a **cell** at each end.
+Everything a hive is made of is given in the hive's own frame — the
+origin on the axle, +x along the beam toward the scoring cell with the
+beam level, +y the field's and +z up — and the **tilt** it leans at, in
+degrees above level, is all that says where that is on the field. The
+field is set up with the blue hive leaning 30 degrees toward its scoring
+cell and the red hive 30 degrees the other way; a hive that **tips**
+leans the same 30 degrees the other side of level. Class:
+`SimField.Hive`.
+
+**Cell** — The basket at one end of a hive, which a launched ball scores
+in: the opening the CAD's goal ribs frame — the **mouth**, twenty inches
+across and fourteen high — swept twelve inches to the **back** that
+closes it, with a **wall** between every pair of the mouth's corners. A
+ball that crosses the mouth going in is in the cell; one that meets a
+wall or the back bounces off it, whichever side it comes from; nothing
+else leaves. Each hive has an **audience** cell and a **scoring** cell,
+named for the end of the field they face. Class: `SimField.Cell`.
+
+**Upturned** — Of a cell: its mouth faces up, so it holds what goes in,
+resting on the floor at the back. The cell at the other end of the same
+hive is **downturned**, mouth facing down, and whatever is in it rolls
+out of the mouth and falls to the floor — which is what a hive tipping
+does to the cell that goes under. One cell of each hive is upturned at a
+time, and that is the one an alliance can score in. Class:
+`SimField.Cell.upturnedAt`; `SimRobot.upturnedCell`.
+
+**Load** — How full a hive is, where one is full: a nectar is a fifth of
+it and a pollen an eighth, so five nectar fill a hive, or eight pollen, or
+a combination worth as much — the three nectar a hive is set up with are
+three fifths of it, and four pollen finish the job. A hive that is full
+tips, and tipping empties it. Method: `SimRobot.load`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.

@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -94,6 +95,36 @@ public class SimReplayPageTest {
         assertTrue(html, html.contains("FIELD = " + new Gson().toJson(SimRobot.FIELD.json())));
         assertTrue(html, html.contains("Flower Assembly"));
         assertFalse("no placeholder is left behind", html.contains("__FIELD__"));
+    }
+
+    /**
+     * The hives are drawn where they lean: the page reads the tilt out of the tick, as the
+     * simulator wrote it, and turns the hive's own frame into the field's the way the simulator
+     * does, so a hive that tips during a run is drawn tipped from that tick on.
+     */
+    @Test
+    public void thePageDrawsEachHiveWhereItLeans() {
+        SimRecording recording = new SimRecording("TipAuto");
+        SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
+        recording.add(new SimRecording.Tick(
+                0.0,
+                new Pose2d(0, 0, 0),
+                "1. fill the hive",
+                new double[] {0, 0, 0, 0},
+                List.of(),
+                null,
+                null,
+                null,
+                0,
+                Map.of(),
+                Map.of(blue.alliance, -blue.tilt)));
+        recording.finish("done");
+
+        String html = SimReplayPage.page(recording, false);
+
+        assertTrue("the hive's tilt reaches the page", html.contains("\"tilt\":{\"Blue\":" + -blue.tilt));
+        assertTrue("and the page draws the hives with it", html.contains("hiveFaces(hive,"));
+        assertTrue("from the model's own pivot and cells", html.contains("hive.pivot") && html.contains("hive.cells"));
     }
 
     /** Where the loose game pieces are, tick by tick, so the page rolls them where the robot pushed them. */
