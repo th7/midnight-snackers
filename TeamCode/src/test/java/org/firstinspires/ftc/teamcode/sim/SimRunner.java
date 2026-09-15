@@ -246,7 +246,8 @@ public final class SimRunner {
                     auto == null ? driverStation.state(2) : null,
                     sim.pieces(),
                     sim.held(),
-                    sim.scored()));
+                    sim.scored(),
+                    sim.tilt()));
 
             sim.step(sim.noise().nextLoopSeconds());
             if (pace == Pace.REAL_TIME) {

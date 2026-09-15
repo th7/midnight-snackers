@@ -17,9 +17,11 @@ field, +x away from the audience, +y to the audience's left, +z up. The CAD is i
 up and the audience at +z, which is where the hives' audience-facing cells hang.
 
 What the robot collides with is the footprint of each field element below the robot's height:
-the frame's legs and feet, and the flowers. The hives hang above the robot and are only drawn:
-each cell as its flat panels, seen through and outlined in its alliance's colour. The pollen on
-the floor in the open is marked loose, for the simulator to roll.
+the frame's legs and feet, and the flowers. The hives hang above the robot on the axle the
+frame's top bar holds, so each is written out in its own frame with the tilt it leans at, and
+what a flying ball meets is written out with it: each cell is the opening the goal ribs frame,
+swept to the back skin that closes it. The pollen on the floor in the open is marked loose, for
+the simulator to roll, and the nectar the CAD rests inside a cell is marked as that cell's.
 """
 import json
 import math
@@ -29,7 +31,7 @@ import sys
 
 INCH = 0.0254
 ROBOT_HEIGHT_IN = 18  # SimRobot.ROBOT_SIZE_IN: what stands lower than this is in the robot's way
-PANEL_AREA = 40  # square inches: a flat face this big on a hive cell is one of its panels
+FACE_AREA = 40  # square inches: a flat face this big is one the hives are measured from
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'TeamCode', 'src', 'test', 'resources',
                    'org', 'firstinspires', 'ftc', 'teamcode', 'sim', 'field.json')
 
@@ -253,9 +255,20 @@ def solid_points(st, solid):
     return pts
 
 
+def ring_area(ring, n):
+    """The area of a flat ring, by Newell, whatever the origin."""
+    twice = (0.0, 0.0, 0.0)
+    for a, b in zip(ring, ring[1:] + ring[:1]):
+        c = cross(a, b)
+        twice = (twice[0] + c[0], twice[1] + c[1], twice[2] + c[2])
+    return abs(dot(twice, n)) / 2
+
+
 def solid_faces(st, solid, least_area):
     """The solid's flat faces of at least least_area (in the file's units squared): each as its
-    outward normal and its outer boundary's vertices in order."""
+    outward normal, its outer boundary's vertices in order, and the rings of any holes in it. The
+    CAD names every boundary a FACE_BOUND, outer ones included, so the biggest is the outer one
+    and the rest are holes: the hive ribs' openings, and the bolt holes through the skins."""
     out = []
     shell = st.args(solid)[1][1]
     for face_ref in st.args(shell)[1]:
@@ -265,7 +278,7 @@ def solid_faces(st, solid, least_area):
             continue
         m = st.placement(st.args(fa[2][1])[1][1])
         n = m[2] if fa[3] == '.T.' else scale(m[2], -1)
-        ring = None
+        rings = []
         for bound_ref in fa[1]:
             loop = st.args(bound_ref[1])[1][1]
             if st.type(loop) != 'EDGE_LOOP':
@@ -275,16 +288,13 @@ def solid_faces(st, solid, least_area):
                 oe = st.args(oe_ref[1])
                 ea = st.args(oe[3][1])
                 candidate.append(st.point(st.args(ea[1][1] if oe[4] == '.T.' else ea[2][1])[1][1]))
-            if ring is None or st.type(bound_ref[1]) == 'FACE_OUTER_BOUND':
-                ring = candidate
-        if not ring:
+            rings.append((ring_area(candidate, n), candidate))
+        if not rings:
             continue
-        twice = (0.0, 0.0, 0.0)
-        for a, b in zip(ring, ring[1:] + ring[:1]):
-            c = cross(a, b)
-            twice = (twice[0] + c[0], twice[1] + c[1], twice[2] + c[2])
-        if abs(dot(twice, n)) / 2 >= least_area:
-            out.append((n, ring))
+        rings.sort(key=lambda r: -r[0])
+        area, ring = rings[0]
+        if area >= least_area:
+            out.append((n, ring, [r for _, r in rings[1:]]))
     return out
 
 
@@ -309,8 +319,8 @@ def solid_colours(st):
 
 def placed_solids(st):
     """Every solid in the assembly, placed: (path of product names from the root, solid name,
-    colour or None, world points in inches, CAD frame, and its flat faces of {@link PANEL_AREA}
-    or more as (normal, ring of points) in the same frame)."""
+    colour or None, world points in inches, CAD frame, and its flat faces of FACE_AREA or more
+    as (normal, outer ring of points, rings of the holes in it) in the same frame)."""
     product_name = {}
     for pd in st.by_type('PRODUCT_DEFINITION'):
         product_name[pd] = st.args(st.args(st.args(pd)[2][1])[2][1])[1]
@@ -348,10 +358,12 @@ def placed_solids(st):
         for solid in rep_solids.get(pd_rep.get(pd), []):
             if solid not in local_points:
                 local_points[solid] = solid_points(st, solid)
-                local_faces[solid] = solid_faces(st, solid, PANEL_AREA * INCH * INCH)
+                local_faces[solid] = solid_faces(st, solid, FACE_AREA * INCH * INCH)
+            placed = lambda ring: [scale(apply(m, p), 1 / INCH) for p in ring]
             out.append((path, st.args(solid)[0], colours.get(solid),
                         [scale(apply(m, p), 1 / INCH) for p in local_points[solid]],
-                        [(apply_dir(m, n), [scale(apply(m, p), 1 / INCH) for p in ring]) for n, ring in local_faces[solid]]))
+                        [(apply_dir(m, n), placed(ring), [placed(hole) for hole in holes])
+                         for n, ring, holes in local_faces[solid]]))
         for nauo, child, occurrence in children.get(pd, []):
             name = product_name[child]
             if occurrence and occurrence != name:
@@ -602,29 +614,111 @@ def colour_for(name, cad):
     return BLUE if re.search(r'blue', name, re.I) else RED
 
 
-def dedupe_panels(panels):
-    """A sheet's two sides are one panel: of the faces on the same plane, keep the biggest,
-    as one flat polygon (the face's outline as a convex ring, simplified)."""
-    by_plane = {}
-    for panel in panels:
-        n = panel['normal']
-        offset = dot(n, panel['ring'][0])
-        # Either side's normal names the plane: take the one pointing up, or forward.
-        sign = 1 if (n[2], n[0], n[1]) > (0, 0, 0) else -1
-        key = (panel['group'], panel['cell'], tuple(round(sign * c, 2) for c in n), round(sign * offset / 0.5) * 0.5)
-        by_plane.setdefault(key, []).append(panel)
-    out = []
-    for key, group in sorted(by_plane.items()):
-        panel = max(group, key=lambda p: len(p['ring']))
-        n = panel['normal']
-        u = norm(cross(n, (0, 0, 1) if abs(n[2]) < 0.9 else (1, 0, 0)))
-        v = cross(n, u)
-        d = dot(n, panel['ring'][0])
-        flat = simplify(hull2d([(round(dot(p, u), 4), round(dot(p, v), 4)) for p in panel['ring']]), 0.25)
-        ring = [[round(u[i] * a + v[i] * b + n[i] * d, 2) for i in range(3)] for a, b in flat]
-        out.append({'group': panel['group'], 'name': panel['cell'] + ' / ' + panel['name'], 'colour': panel['colour'],
-                    'surface': True, 'vertices': ring, 'faces': [list(range(len(ring)))]})
-    return out
+# --- the hives ------------------------------------------------------------------------------------
+
+# A hive part whose shape the cells already say, so drawing it as a solid would only wall the cell
+# in: the ribs frame the mouth the cell is swept from, and the skins are the cell's own walls.
+CELL_SHAPE = re.compile(r'goal rib|skin', re.I)
+
+
+def hive_of(name, parts):
+    """A hive: the see-saw hanging from the frame's top bar, a cell at each end, that tips one way
+    or the other about its axle. Everything it is made of is given in the hive's own frame -- the
+    origin on the axle, +x along the beam toward the scoring cell with the beam level, +y the
+    field's and +z up -- so that the tilt it leans at is all that says where it is. Its parts are
+    (cell name or None, part name, colour, points, faces) each, in the field frame."""
+    bearings = [p for cell, part, colour, pts, faces in parts if re.search(r'bearing', part, re.I) for p in pts]
+    pivot = [round((min(c) + max(c)) / 2, 2) for c in zip(*bearings)]
+    points = {}
+    for cell, part, colour, pts, faces in parts:
+        if cell:
+            points.setdefault(cell, []).extend(pts)
+    ends = {cell: [(min(c) + max(c)) / 2 for c in zip(*pts)] for cell, pts in points.items()}
+    scoring = next(cell for cell in ends if 'Scoring' in cell)
+    audience = next(cell for cell in ends if 'Audience' in cell)
+    # The beam runs from one cell to the other; the goal ribs stand square across it, and their
+    # faces say how far above level it leans more exactly than the ends of it do.
+    beam = sub(ends[scoring], ends[audience])
+    square = [n if dot(n, beam) > 0 else scale(n, -1)
+              for cell, part, colour, pts, faces in parts if part.endswith('Goal Rib')
+              for n, ring, holes in faces if abs(dot(norm(n), norm(beam))) > 0.99]
+    along = norm([sum(c) for c in zip(*square)]) if square else norm(beam)
+    tilt = round(math.degrees(math.atan2(along[2], math.hypot(along[0], along[1]))), 2)
+    c, s = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
+
+    def to_hive(p):
+        d = sub(p, pivot)
+        return (d[0] * c + d[2] * s, d[1], -d[0] * s + d[2] * c)
+
+    def direction(d):
+        return (d[0] * c + d[2] * s, d[1], -d[0] * s + d[2] * c)
+
+    alliance = 'Blue' if 'Blue' in name else 'Red'
+    cells, drawn = [], []
+    for cell in sorted(ends):
+        cells.append(hive_cell(cell, alliance, [p for p in parts if p[0] == cell], to_hive, direction))
+    for cell, part, colour, pts, faces in parts:
+        if CELL_SHAPE.search(part) or SKIP.search(part):
+            continue
+        shape = polygons([to_hive(p) for p in pts])
+        if shape is None:
+            continue
+        verts, rings = shape
+        drawn.append({'group': name, 'name': part, 'colour': colour_for(part, colour),
+                      'vertices': [[round(v, 2) for v in vertex] for vertex in verts], 'faces': rings})
+    return {'name': name, 'alliance': alliance, 'colour': BLUE if alliance == 'Blue' else RED,
+            'pivot': pivot, 'tilt': tilt, 'cells': cells,
+            'parts': sorted(drawn, key=lambda p: (p['name'], p['vertices']))}
+
+
+def hive_cell(name, alliance, parts, to_hive, direction):
+    """A cell as the CAD builds the basket: the opening the goal ribs frame, swept from the mouth
+    at the hive's end to the back skin that closes it. The mouth is the end away from the back;
+    what a ball meets is the wall between every pair of the mouth's corners, and the back."""
+    across = lambda n: abs(direction(n)[0]) > 0.99
+    centre = sum(to_hive(p)[0] for cell, part, colour, pts, faces in parts for p in pts) / sum(
+        len(pts) for cell, part, colour, pts, faces in parts)
+    backs = [to_hive(ring[0])[0] for cell, part, colour, pts, faces in parts if part.endswith('Back Skin')
+             for n, ring, holes in faces if across(n)]
+    if not backs:
+        raise ValueError(name + ' has no back skin to close it')
+    back = min(backs, key=lambda x: abs(x - centre))
+    openings = [(to_hive(ring[0])[0], max(holes, key=lambda hole: ring_area(hole, n)))
+                for cell, part, colour, pts, faces in parts if part.endswith('Goal Rib')
+                for n, ring, holes in faces if across(n) and holes]
+    if not openings:
+        raise ValueError(name + ' has no rib framing its mouth')
+    mouth, opening = max(openings, key=lambda o: abs(o[0] - back))
+    section = simplify(hull2d([(round(to_hive(p)[1], 3), round(to_hive(p)[2], 3)) for p in opening]), 0.25)
+    ring = lambda x: [[round(x, 2), round(y, 2), round(z, 2)] for y, z in section]
+    front, behind = ring(mouth), ring(back)
+    walls = [[front[i], front[(i + 1) % len(front)], behind[(i + 1) % len(behind)], behind[i]]
+             for i in range(len(front))]
+    return {'name': name, 'alliance': alliance, 'side': 'Scoring' if 'Scoring' in name else 'Audience',
+            'mouth': front, 'back': behind, 'walls': walls}
+
+
+def in_a_cell(piece, hives):
+    """The name of the cell the field is set up with this piece inside -- the nectar the hives
+    hold at the start -- or None for a piece out on the field."""
+    for hive in hives:
+        c, s = math.cos(math.radians(hive['tilt'])), math.sin(math.radians(hive['tilt']))
+        d = sub(piece['centre'], hive['pivot'])
+        local = (d[0] * c + d[2] * s, d[1], -d[0] * s + d[2] * c)
+        for cell in hive['cells']:
+            if holds(cell, local):
+                return cell['name']
+    return None
+
+
+def holds(cell, p):
+    """Whether the point, in its hive's frame, is inside the cell."""
+    mouth, back = cell['mouth'][0][0], cell['back'][0][0]
+    if p[0] < min(mouth, back) or p[0] > max(mouth, back):
+        return False
+    ring = [(v[1], v[2]) for v in cell['mouth']]
+    return all((b[0] - a[0]) * (p[2] - a[1]) - (b[1] - a[1]) * (p[1] - a[0]) > 0
+               for a, b in zip(ring, ring[1:] + ring[:1]))
 
 
 def is_loose(piece, size, obstacles):
@@ -647,8 +741,9 @@ def build(step_path):
     size = round(2 * max(abs(p[0]) for p in tiles), 2)
     wall = round(max(p[1] for path, name, _, pts, _ in solids if 'Perimeter' in path[1] and 'Rail' in name for p in pts), 2)
 
-    elements, panels, pieces, tape = [], [], [], []
-    # A hive cell is its flat panels, seen through; every other kept part is its own solid shape.
+    elements, hives, pieces, tape = [], {}, [], []
+    # A hive is a body of its own, given in its own frame; every other kept part is a solid shape
+    # where the CAD puts it.
     for path, name, cad_colour, pts, faces in solids:
         top = clean(path[1]) if len(path) > 1 else clean(path[0])
         if re.search(r'gaffer tape', name, re.I):
@@ -659,16 +754,20 @@ def build(step_path):
             f = [to_field(p) for p in pts]
             lo = [min(c) for c in zip(*f)]
             hi = [max(c) for c in zip(*f)]
-            pieces.append({'name': clean(name), 'colour': colour_for(name, cad_colour),
+            pieces.append({'name': clean(name), 'kind': 'Nectar' if re.search(r'nectar', name, re.I) else 'Pollen',
+                           'colour': colour_for(name, cad_colour),
                            'centre': [round((a + b) / 2, 2) for a, b in zip(lo, hi)],
                            'radius': round(max(b - a for a, b in zip(lo, hi)) / 2, 2)})
             continue
-        if any(SKIP.search(n) for n in path[1:] + [name]) or 'Soft Tiles' in path[1]:
+        if 'Hive' in top:
+            # The bearings say where the axle is, so they are kept here and dropped as hardware later.
+            cell = clean(path[2]) if len(path) > 2 and 'Cell' in path[2] else None
+            hives.setdefault(top, []).append((cell, clean(name), cad_colour, [to_field(p) for p in pts],
+                                              [(to_field(n), [to_field(p) for p in ring],
+                                                [[to_field(p) for p in hole] for hole in holes])
+                                               for n, ring, holes in faces]))
             continue
-        if 'Hive' in top and len(path) > 2 and 'Cell' in path[2] and 'April Tag' not in name:
-            for n, ring in faces:
-                panels.append({'group': top, 'cell': clean(path[2]), 'name': clean(name), 'colour': colour_for(path[2], None),
-                               'normal': to_field(n), 'ring': [to_field(p) for p in ring]})
+        if any(SKIP.search(n) for n in path[1:] + [name]) or 'Soft Tiles' in path[1]:
             continue
         elements.append({'group': top, 'name': clean(name), 'colour': colour_for(name, cad_colour), 'cad': pts})
 
@@ -689,16 +788,19 @@ def build(step_path):
         if low and all(abs(x) < size / 2 and abs(y) < size / 2 for x, y in low):
             obstacles.setdefault(key, []).extend(low)
     out_obstacles = [{'name': k, 'footprint': [list(p) for p in simplify(hull2d(v))]} for k, v in obstacles.items()]
-    for panel in dedupe_panels(panels):
-        out_elements.append(panel)
+    out_hives = [hive_of(name, parts) for name, parts in sorted(hives.items())]
     for piece in pieces:
         piece['loose'] = is_loose(piece, size, out_obstacles)
+        cell = in_a_cell(piece, out_hives)
+        if cell:
+            piece['cell'] = cell
     return {
         'source': os.path.basename(step_path),
         'size': size,
         'wallHeight': wall,
         'elements': sorted(out_elements, key=lambda e: (e['group'], e['name'])),
         'obstacles': sorted(out_obstacles, key=lambda o: o['name']),
+        'hives': out_hives,
         'pieces': sorted(pieces, key=lambda p: (p['name'], p['centre'])),
         'tape': sorted(tape, key=lambda t: (t['colour'], t['footprint'])),
     }
@@ -711,9 +813,9 @@ def main():
     with open(OUT, 'w') as f:
         json.dump(field, f, separators=(',', ':'))
         f.write('\n')
-    print('%s: %d elements, %d obstacles, %d pieces, %d tape marks; field %.2f in, walls %.2f in' % (
-        os.path.relpath(OUT), len(field['elements']), len(field['obstacles']), len(field['pieces']),
-        len(field['tape']), field['size'], field['wallHeight']))
+    print('%s: %d elements, %d obstacles, %d hives, %d pieces, %d tape marks; field %.2f in, walls %.2f in' % (
+        os.path.relpath(OUT), len(field['elements']), len(field['obstacles']), len(field['hives']),
+        len(field['pieces']), len(field['tape']), field['size'], field['wallHeight']))
 
 
 if __name__ == '__main__':

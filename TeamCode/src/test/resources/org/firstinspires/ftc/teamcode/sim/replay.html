@@ -401,32 +401,57 @@
     ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // A surface (a hive's panel) is seen through from either side and outlined in its colour.
-  function facesOf(element) {
+  // A solid shape: every face that is turned toward the camera, shaded and outlined.
+  function facesOf(element, at = p => p) {
     const out = [];
     for (const ring of element.faces) {
-      const pts = ring.map(i => element.vertices[i]);
+      const pts = ring.map(i => at(element.vertices[i]));
       const n = unit(cross(sub(pts[1], pts[0]), sub(pts[2], pts[0])));
-      if (!element.surface && dot(n, sub(cam.eye, pts[0])) <= 0) continue;
+      if (dot(n, sub(cam.eye, pts[0])) <= 0) continue;
       let depth = 0;
       for (const p of pts) depth += depthOf(p) / pts.length;
-      if (element.surface) {
-        out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 0.18); ctx.strokeStyle = element.colour; ctx.lineWidth = 1.5; ctx.stroke(); } });
-      } else {
-        out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 1); ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'; ctx.lineWidth = 0.75; ctx.stroke(); } });
-      }
+      out.push({ depth, draw: () => { trace(pts, true); shade(element.colour, n, 1); ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'; ctx.lineWidth = 0.75; ctx.stroke(); } });
     }
     return out;
   }
-  // The balls are where the latest tick that says puts them, [x, y, z] each: the field's loose pieces
-  // first, then the robot's preload, which look like the first loose piece; a ball held in the robot
-  // is null and not drawn. Without a tick, the loose pieces are where the field was set up.
+  // A hive is drawn where it leans: its parts are solid, and each cell is its walls and its back,
+  // seen through from either side and outlined in the alliance's colour, with its mouth left open.
+  // What the hive is made of is given in its own frame, which the tilt turns into the field's.
+  function hiveFaces(hive, tilt) {
+    const radians = tilt * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians);
+    const at = p => [hive.pivot[0] + p[0] * c - p[2] * s, hive.pivot[1] + p[1], hive.pivot[2] + p[0] * s + p[2] * c];
+    let out = [];
+    for (const part of hive.parts) out = out.concat(facesOf(part, at));
+    for (const cell of hive.cells) {
+      for (const ring of cell.walls.concat([cell.back])) {
+        const pts = ring.map(at);
+        const n = unit(cross(sub(pts[1], pts[0]), sub(pts[2], pts[0])));
+        let depth = 0;
+        for (const p of pts) depth += depthOf(p) / pts.length;
+        out.push({ depth, draw: () => { trace(pts, true); shade(hive.colour, n, 0.18); ctx.strokeStyle = hive.colour; ctx.lineWidth = 1.5; ctx.stroke(); } });
+      }
+      const mouth = cell.mouth.map(at);
+      let depth = 0;
+      for (const p of mouth) depth += depthOf(p) / mouth.length;
+      out.push({ depth: depth - 0.01, draw: () => { trace(mouth, true); ctx.strokeStyle = hive.colour; ctx.lineWidth = 2.5; ctx.stroke(); } });
+    }
+    return out;
+  }
+  // How far each hive leans now: the latest tick that says, else the tilt the field is set up at.
+  function tiltsAt(upTo) {
+    for (let i = upTo; i >= 0; i--) if (ticks[i].tilt) return ticks[i].tilt;
+    return null;
+  }
+  // The balls the simulator moves are where the latest tick that says puts them, [x, y, z] each:
+  // the field's loose pieces, then the nectar the hives are set up with, then the robot's preload,
+  // which looks like the first loose piece; a ball held in the robot is null and not drawn. Without
+  // a tick, they are where the field was set up.
   function ballsAt(at) {
-    const loose = LOOSE, spec = loose[0] || { colour: '#888', radius: 1.4 };
+    const spec = MOVED[0] || { colour: '#888', radius: 1.4 };
     const out = [];
-    const n = at ? at.length : loose.length;
+    const n = at ? at.length : MOVED.length;
     for (let i = 0; i < n; i++) {
-      const piece = i < loose.length ? loose[i] : spec;
+      const piece = i < MOVED.length ? MOVED[i] : spec;
       const c = at ? at[i] : piece.centre;
       if (!c) continue;
       out.push(ballOf(piece, [c[0], c[1], c.length > 2 ? c[2] : piece.radius]));
@@ -437,7 +462,7 @@
     for (let i = upTo; i >= 0; i--) if (ticks[i].pieces) return ticks[i].pieces;
     return null;
   }
-  const LOOSE = FIELD.pieces.filter(p => p.loose);
+  const MOVED = FIELD.pieces.filter(p => p.loose).concat(FIELD.pieces.filter(p => p.cell));
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
@@ -560,8 +585,12 @@
   function drawScene(tick) {
     let items = [];
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
+    const tilts = tick && !placing ? tiltsAt(index) : null;
+    for (const hive of FIELD.hives) items = items.concat(hiveFaces(hive, tilts && tilts[hive.alliance] !== undefined ? tilts[hive.alliance] : hive.tilt));
     const at = tick && !placing ? latestPieces(index) : null;
-    for (const piece of FIELD.pieces) if (!piece.loose) items.push(ballOf(piece, piece.centre));
+    // The balls the simulator does not move — the flowers' stacks and the rows outside the walls —
+    // are where the field was set up; the loose ones and the hives' nectar come from the tick.
+    for (const piece of FIELD.pieces) if (!piece.loose && !piece.cell) items.push(ballOf(piece, piece.centre));
     items = items.concat(ballsAt(at));
     if (tick) items = items.concat(robotFaces(tick));
     items.sort((a, b) => b.depth - a.depth);

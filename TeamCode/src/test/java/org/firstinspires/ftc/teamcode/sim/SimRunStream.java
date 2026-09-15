@@ -296,6 +296,18 @@ public final class SimRunStream {
         if (scored.size() > 0) {
             t.add("scored", scored); // absent means nothing scored
         }
+        JsonObject tilt = new JsonObject();
+        for (SimField.Hive hive : SimRobot.FIELD.hives) {
+            Double leaning = tick.tilt.get(hive.alliance);
+            if (leaning != null && leaning != hive.tilt) {
+                tilt.add(hive.alliance, GSON.toJsonTree(leaning));
+            }
+        }
+        if (tilt.size() > 0) {
+            // Absent means the hives lean the way the field was set up, or the way the last tick
+            // that said they did: a hive that has tipped says so in every tick after it.
+            t.add("tilt", tilt);
+        }
         return t;
     }
 

@@ -55,8 +55,9 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * gates feed it as the robot code drives them: with the top gate open a ball drops from the hopper
  * into the chamber, and with the bottom gate open the chambered ball drops into the flywheel and
  * leaves at a speed set by the flywheel's, on an arc under gravity. A ball that goes in through a
- * hive cell's mouth has scored and rests in the cell; one that meets any other panel of the hive
- * bounces off; one that comes down on the floor rolls on; one that clears a wall is out. The
+ * hive cell's mouth is in the cell, at rest on the floor at the back; one that meets a wall or a
+ * back bounces off it, whichever side it comes from; one that comes down on the floor rolls on;
+ * one that clears a wall is out. The
  * model is planar apart from that flight: only the robot's footprint collides, nothing goes over a
  * wall or under a hive by being low, and a flying ball meets only the hives, the floor and the
  * walls. The clock is the world's ({@link #nanoTime()}), read by the robot code through its
@@ -64,9 +65,14 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * steps of at most {@link #MAX_STEP_SECONDS} however long the caller waited, so nothing is jumped
  * over.
  * <p>
+ * Each hive holds one of its cells up and the other under, and only the upturned one keeps what
+ * goes in: what is in a downturned cell rolls out of its mouth and falls to the floor. A hive that
+ * is {@link #load full} — five nectar, or eight pollen, or a combination worth as much — tips, so
+ * the cell that was taking balls goes under and empties and the other comes up in its place.
+ * <p>
  * The launcher's throw ({@link #LAUNCH_HEIGHT_IN} and the constants around it) and the turntable's
  * speed are guesses until measured on the robot, calibrated so the robot code's close launch from
- * its launch distance reaches the nearer cell's mouth.
+ * its launch distance drops into the middle of the upturned cell's mouth.
  */
 public class SimRobot {
     public static final double BATTERY_VOLTS = 12.5;
@@ -92,14 +98,28 @@ public class SimRobot {
     public static final double LAUNCH_HEIGHT_IN = 14;
 
     public static final double LAUNCH_AHEAD_IN = 6;
-    /** A launched ball leaves this far above horizontal. */
-    public static final double LAUNCH_ANGLE_RADIANS = Math.toRadians(45);
+    /**
+     * A launched ball leaves this far above horizontal: steeply, because a hive holds its upturned
+     * cell's mouth five feet up and a ball has to come down into it from over the rim.
+     */
+    public static final double LAUNCH_ANGLE_RADIANS = Math.toRadians(70);
     /**
      * How fast a launched ball leaves, in inches per second, for each encoder tick per second of
-     * the flywheel: a close launch (1050 ticks per second) from 40 inches reaches the mouth of the
-     * nearer cell.
+     * the flywheel: a close launch (1050 ticks per second) from 40 inches drops into the middle of
+     * the upturned cell's mouth.
      */
     public static final double LAUNCH_IN_PER_S_PER_TICK_PER_S = 0.189;
+
+    /**
+     * A hive tips when it is full: five nectar fill it, or eight pollen, or a combination worth as
+     * much. Counted in fortieths, so that a combination is exact.
+     */
+    private static final int FULL = 40;
+
+    private static final int NECTAR_FILLS = FULL / 5;
+    private static final int POLLEN_FILLS = FULL / 8;
+    /** How fast a ball rolls out of a downturned cell's mouth, the length of the cell behind it. */
+    private static final double ROLL_OUT_IN_PER_S = 20;
 
     private static final double ROBOT_MASS_KG = 15;
     /** Heavy for pollen, but a ball that light next to the robot is what the engine's solver handles worst. */
@@ -182,14 +202,21 @@ public class SimRobot {
 
     private double parTicks = 0;
     private double perpTicks = 0;
-    /** The balls: the field's loose pieces in {@link SimField#loosePieces}' order, then the preload. */
+    /**
+     * The balls: the field's loose pieces in {@link SimField#loosePieces}' order, then the nectar
+     * the hives are set up with in {@link SimField#cellPieces}' order, then the preload.
+     */
     private final Ball[] balls;
     /** The balls in the robot's hopper, above the top gate, in the order they will drop. */
     private final Deque<Ball> hopper = new ArrayDeque<>();
     /** The ball between the gates, or null. */
     private Ball chambered = null;
-
-    private final Map<SimField.Cell, Integer> scoredIn = new LinkedHashMap<>();
+    /** What is in each cell, in the order it went in: what rolls out when the cell turns over. */
+    private final Map<SimField.Cell, List<Ball>> inCell = new LinkedHashMap<>();
+    /** How far each hive leans now, in degrees: its own tilt until it tips, then the other way. */
+    private final Map<SimField.Hive, Double> tilts = new LinkedHashMap<>();
+    /** Each cell where the hive leans now, rebuilt when it tips. */
+    private final Map<SimField.Cell, Turned> turned = new LinkedHashMap<>();
 
     /** Where a ball is, and what it is doing. */
     private enum Where {
@@ -200,21 +227,83 @@ public class SimRobot {
         /** In the robot. */
         HELD,
         /** In a hive cell, at rest. */
-        SCORED,
+        IN_CELL,
         /** Over a wall and out of the field, at rest where it came down. */
         OUT
     }
 
     private static final class Ball {
         final double radius;
+        /** {@link SimField#NECTAR} or {@link SimField#POLLEN}: how much of a hive's load it is. */
+        final String kind;
+
         final Body body;
         Where where;
+        /** The cell the ball is in, while it is in one. */
+        SimField.Cell cell;
         /** The position, and while flying the velocity, of a ball that is not in the engine's world. */
         double x, y, z, vx, vy, vz;
 
-        Ball(double radius, Body body) {
+        Ball(double radius, String kind, Body body) {
             this.radius = radius;
+            this.kind = kind;
             this.body = body;
+        }
+    }
+
+    /** A cell in the field frame, where its hive leans now: what a flying ball meets. */
+    private static final class Turned {
+        final double[][] mouth;
+        final double[] mouthNormal;
+        final List<double[][]> panels;
+        final boolean upturned;
+        /** The middle of the cell's floor where it meets the back: where the first ball in rests. */
+        final double[] floorAtTheBack;
+        /** Along the floor from the back toward the mouth, across it, and up off it. */
+        final double[] towardTheMouth;
+
+        final double[] acrossTheFloor;
+        final double[] offTheFloor;
+        /** How wide the flat of the cell's floor is: how many balls rest side by side on it. */
+        final double floorWidth;
+
+        Turned(SimField.Cell cell, double tilt) {
+            this.mouth = cell.mouthAt(tilt);
+            this.mouthNormal = cell.mouthNormalAt(tilt);
+            this.panels = cell.panelsAt(tilt);
+            this.upturned = cell.upturnedAt(tilt);
+            double[][] floor = floorOf(cell.back);
+            this.floorAtTheBack = cell.hive.at(tilt, mean(floor));
+            this.floorWidth = floor[floor.length - 1][1] - floor[0][1];
+            this.towardTheMouth = cell.hive.direction(tilt, new double[] {Math.signum(cell.mouthNormal[0]), 0, 0});
+            this.acrossTheFloor = cell.hive.direction(tilt, new double[] {0, 1, 0});
+            this.offTheFloor = cell.hive.direction(tilt, new double[] {0, 0, 1});
+        }
+
+        /** The corners the ring stands lowest on, across the cell: the flat of its floor. */
+        private static double[][] floorOf(double[][] ring) {
+            double lowest = Double.MAX_VALUE;
+            for (double[] corner : ring) {
+                lowest = Math.min(lowest, corner[2]);
+            }
+            List<double[]> floor = new ArrayList<>();
+            for (double[] corner : ring) {
+                if (corner[2] <= lowest + 0.2) {
+                    floor.add(corner);
+                }
+            }
+            floor.sort((a, b) -> Double.compare(a[1], b[1]));
+            return floor.toArray(new double[0][]);
+        }
+
+        private static double[] mean(double[][] points) {
+            double[] sum = new double[3];
+            for (double[] p : points) {
+                for (int axis = 0; axis < 3; axis++) {
+                    sum[axis] += p[axis] / points.length;
+                }
+            }
+            return sum;
         }
     }
 
@@ -257,21 +346,29 @@ public class SimRobot {
         robot.setAngularDamping(0);
         world.addBody(robot);
 
+        for (SimField.Hive hive : FIELD.hives) {
+            tilts.put(hive, hive.tilt);
+        }
+        for (SimField.Cell cell : FIELD.cells) {
+            inCell.put(cell, new ArrayList<>());
+            turned.put(cell, new Turned(cell, tilts.get(cell.hive)));
+        }
         int loose = FIELD.loosePieces.size();
-        balls = new Ball[loose + PRELOAD];
+        int held = loose + FIELD.cellPieces.size();
+        balls = new Ball[held + PRELOAD];
         for (int i = 0; i < balls.length; i++) {
-            double radius = i < loose ? FIELD.loosePieces.get(i).radius : FIELD.loosePieces.get(0).radius;
-            balls[i] = new Ball(radius, ballBody(radius));
+            SimField.Piece piece = i < loose
+                    ? FIELD.loosePieces.get(i)
+                    : i < held ? FIELD.cellPieces.get(i - loose) : FIELD.loosePieces.get(0);
+            balls[i] = new Ball(piece.radius, piece.kind, ballBody(piece.radius));
             if (i < loose) {
-                SimField.Piece piece = FIELD.loosePieces.get(i);
                 placePiece(i, piece.x, piece.y);
+            } else if (i < held) {
+                putInCell(balls[i], FIELD.cell(piece.cell));
             } else {
                 balls[i].where = Where.HELD;
                 hopper.add(balls[i]);
             }
-        }
-        for (SimField.Cell cell : FIELD.cells) {
-            scoredIn.put(cell, 0);
         }
     }
 
@@ -392,7 +489,8 @@ public class SimRobot {
 
     /**
      * Where the balls are, {x, y, z} each: the field's loose pieces in {@link SimField#loosePieces}'
-     * order, then the robot's preload; null for a ball held in the robot.
+     * order, then the nectar the hives are set up with, then the robot's preload; null for a ball
+     * held in the robot.
      */
     public double[][] pieces() {
         double[][] out = new double[balls.length][];
@@ -406,6 +504,9 @@ public class SimRobot {
                 case HELD:
                     out[i] = null;
                     break;
+                case IN_CELL:
+                    out[i] = restingPlace(ball);
+                    break;
                 default:
                     out[i] = new double[] {ball.x, ball.y, ball.z};
             }
@@ -416,15 +517,7 @@ public class SimRobot {
     /** Set a ball down on the floor somewhere, at rest, whatever it was doing. */
     public void placePiece(int index, double x, double y) {
         Ball ball = balls[index];
-        if (ball.where == Where.HELD) {
-            hopper.remove(ball);
-            if (chambered == ball) {
-                chambered = null;
-            }
-        }
-        if (ball.where == Where.ROLLING) {
-            world.removeBody(ball.body); // and back in below, so the engine forgets what it was touching
-        }
+        take(ball);
         ball.where = Where.ROLLING;
         ball.body.getTransform().setTranslation(x * IN, y * IN);
         ball.body.setLinearVelocity(new Vector2());
@@ -433,17 +526,68 @@ public class SimRobot {
         world.addBody(ball.body);
     }
 
+    /** Put a ball in a hive cell, at rest behind whatever is in it already, wherever it was. */
+    public void placePiece(int index, SimField.Cell cell) {
+        putInCell(balls[index], cell);
+    }
+
+    /** Take a ball out of wherever it is, so that it can be put somewhere else. */
+    private void take(Ball ball) {
+        if (ball.where == Where.HELD) {
+            hopper.remove(ball);
+            if (chambered == ball) {
+                chambered = null;
+            }
+        }
+        if (ball.where == Where.ROLLING) {
+            world.removeBody(ball.body); // so the engine forgets what it was touching
+        }
+        if (ball.where == Where.IN_CELL) {
+            inCell.get(ball.cell).remove(ball);
+            ball.cell = null;
+        }
+    }
+
+    /** Put a ball in a cell, where it rests on the floor at the back behind the ones already in. */
+    private void putInCell(Ball ball, SimField.Cell cell) {
+        take(ball);
+        ball.where = Where.IN_CELL;
+        ball.cell = cell;
+        ball.vx = ball.vy = ball.vz = 0;
+        inCell.get(cell).add(ball);
+    }
+
+    /**
+     * Where a ball in a cell rests: on the floor at the back, in a row across the cell, the row
+     * behind it filled first.
+     */
+    private double[] restingPlace(Ball ball) {
+        Turned turn = turned.get(ball.cell);
+        int slot = inCell.get(ball.cell).indexOf(ball);
+        int perRow = Math.max(1, (int) (turn.floorWidth / (2 * ball.radius)));
+        double across = (slot % perRow - (perRow - 1) / 2.0) * 2 * ball.radius;
+        double along = ball.radius + slot / perRow * 2 * ball.radius;
+        double[] out = new double[3];
+        for (int axis = 0; axis < 3; axis++) {
+            out[axis] = turn.floorAtTheBack[axis]
+                    + turn.towardTheMouth[axis] * along
+                    + turn.acrossTheFloor[axis] * across
+                    + turn.offTheFloor[axis] * ball.radius;
+        }
+        return out;
+    }
+
     /** How many balls the robot holds: in its hopper and its chamber. */
     public int held() {
         return hopper.size() + (chambered == null ? 0 : 1);
     }
 
-    /** How many balls are in that alliance's hive, "Blue" or "Red". */
+    /** How many balls are in that alliance's hive, "Blue" or "Red": the nectar it was set up with, and what has gone in since. */
     public int scored(String alliance) {
         int total = 0;
-        for (Map.Entry<SimField.Cell, Integer> entry : scoredIn.entrySet()) {
+        for (Map.Entry<SimField.Cell, List<Ball>> entry : inCell.entrySet()) {
             if (entry.getKey().alliance.equals(alliance)) {
-                total += entry.getValue();
+                total += entry.getValue().size();
             }
         }
         return total;
@@ -452,10 +596,53 @@ public class SimRobot {
     /** How many balls each alliance has in its hive, by "Blue" and "Red". */
     public Map<String, Integer> scored() {
         Map<String, Integer> out = new LinkedHashMap<>();
-        for (SimField.Cell cell : scoredIn.keySet()) {
-            out.merge(cell.alliance, scoredIn.get(cell), Integer::sum);
+        for (SimField.Cell cell : inCell.keySet()) {
+            out.merge(cell.alliance, inCell.get(cell).size(), Integer::sum);
         }
         return out;
+    }
+
+    /**
+     * How full that alliance's hive is, where one is full and it tips: a nectar is a fifth of it
+     * and a pollen an eighth, so five nectar fill it, or eight pollen, or a combination worth as
+     * much.
+     */
+    public double load(String alliance) {
+        return fill(hiveOf(alliance)) / (double) FULL;
+    }
+
+    /** How far that alliance's hive leans now, in degrees above level toward its scoring cell. */
+    public double tilt(String alliance) {
+        return tilts.get(hiveOf(alliance));
+    }
+
+    /** How far each hive leans now, by "Blue" and "Red". */
+    public Map<String, Double> tilt() {
+        Map<String, Double> out = new LinkedHashMap<>();
+        for (SimField.Hive hive : FIELD.hives) {
+            out.put(hive.alliance, tilts.get(hive));
+        }
+        return out;
+    }
+
+    /** The cell of that alliance's hive that is upturned now: the one a ball can score in. */
+    public SimField.Cell upturnedCell(String alliance) {
+        for (SimField.Cell cell : hiveOf(alliance).cells) {
+            if (turned.get(cell).upturned) {
+                return cell;
+            }
+        }
+        throw new IllegalStateException(alliance + "'s hive has no upturned cell");
+    }
+
+    /** That alliance's hive, "Blue" or "Red". */
+    public SimField.Hive hiveOf(String alliance) {
+        for (SimField.Hive hive : FIELD.hives) {
+            if (hive.alliance.equals(alliance)) {
+                return hive;
+            }
+        }
+        throw new IllegalArgumentException("no hive for " + alliance);
     }
 
     /**
@@ -489,6 +676,7 @@ public class SimRobot {
         feedTheLauncher();
         world.step(1, dt);
         flyTheBalls(dt);
+        turnTheHives();
         readTheSensors(dt);
     }
 
@@ -644,29 +832,33 @@ public class SimRobot {
     }
 
     /**
-     * Whether the ball's move from {@code from} met a hive: through a cell's mouth, scoring, or
-     * against another panel, bouncing off. A panel is met where the move crosses its plane inside
-     * its ring.
+     * Whether the ball's move from {@code from} met a hive: in through a cell's mouth, or against
+     * a wall or a back, bouncing off it whichever side it came from. A panel is met where the move
+     * crosses its plane inside its ring; a ball on its way out of a mouth passes through it.
      */
     private boolean meetsAHive(Ball ball, double[] from) {
         double[] to = {ball.x, ball.y, ball.z};
         for (SimField.Cell cell : FIELD.cells) {
-            for (double[][] panel : cell.panels) {
-                double[] normal = panel == cell.mouth ? cell.mouthNormal : SimField.normal(panel);
-                double[] hit = crossing(panel, normal, from, to);
+            Turned turn = turned.get(cell);
+            double[] hit = crossing(turn.mouth, turn.mouthNormal, from, to);
+            if (hit != null) {
+                if (side(turn.mouthNormal, turn.mouth[0], from) > 0) {
+                    putInCell(ball, cell);
+                }
+                return true;
+            }
+            for (double[][] panel : turn.panels) {
+                double[] normal = SimField.normal(panel);
+                hit = crossing(panel, normal, from, to);
                 if (hit == null) {
                     continue;
                 }
-                boolean goingIn = side(normal, panel[0], from) > 0;
-                if (panel == cell.mouth && goingIn) {
-                    score(ball, cell);
-                    return true;
-                }
+                boolean fromTheFront = side(normal, panel[0], from) > 0;
                 double along = ball.vx * normal[0] + ball.vy * normal[1] + ball.vz * normal[2];
                 ball.vx -= (1 + BOUNCE) * along * normal[0];
                 ball.vy -= (1 + BOUNCE) * along * normal[1];
                 ball.vz -= (1 + BOUNCE) * along * normal[2];
-                double back = goingIn ? CONTACT_TOLERANCE_IN : -CONTACT_TOLERANCE_IN;
+                double back = fromTheFront ? CONTACT_TOLERANCE_IN : -CONTACT_TOLERANCE_IN;
                 ball.x = hit[0] + back * normal[0];
                 ball.y = hit[1] + back * normal[1];
                 ball.z = hit[2] + back * normal[2];
@@ -676,15 +868,53 @@ public class SimRobot {
         return false;
     }
 
-    /** The ball is in the cell: at rest inside it, beside any already there. */
-    private void score(Ball ball, SimField.Cell cell) {
-        int already = scoredIn.get(cell);
-        scoredIn.put(cell, already + 1);
-        ball.where = Where.SCORED;
-        ball.x = cell.centre[0];
-        ball.y = cell.centre[1] + 2 * ball.radius * (already % 2 == 0 ? already / 2 : -(already + 1) / 2);
-        ball.z = cell.centre[2];
-        ball.vx = ball.vy = ball.vz = 0;
+    /**
+     * The hives tip and empty: one that is full turns over about its axle, and whatever is in a
+     * cell that is downturned — the one that has just gone under, or one a ball has landed in the
+     * wrong way up — rolls out of the mouth and falls.
+     */
+    private void turnTheHives() {
+        for (SimField.Hive hive : FIELD.hives) {
+            if (fill(hive) >= FULL) {
+                tilts.put(hive, -tilts.get(hive));
+                for (SimField.Cell cell : hive.cells) {
+                    turned.put(cell, new Turned(cell, tilts.get(hive)));
+                }
+            }
+            for (SimField.Cell cell : hive.cells) {
+                if (turned.get(cell).upturned) {
+                    continue;
+                }
+                for (Ball ball : new ArrayList<>(inCell.get(cell))) {
+                    rollOut(ball, cell);
+                }
+            }
+        }
+    }
+
+    /** How full a hive is, in fortieths: {@link #FULL} and it tips. */
+    private int fill(SimField.Hive hive) {
+        int fill = 0;
+        for (SimField.Cell cell : hive.cells) {
+            for (Ball ball : inCell.get(cell)) {
+                fill += SimField.NECTAR.equals(ball.kind) ? NECTAR_FILLS : POLLEN_FILLS;
+            }
+        }
+        return fill;
+    }
+
+    /** A ball rolls out of a downturned cell: away down the mouth's normal, and on under gravity. */
+    private void rollOut(Ball ball, SimField.Cell cell) {
+        Turned turn = turned.get(cell);
+        double[] out = restingPlace(ball);
+        take(ball);
+        ball.where = Where.FLYING;
+        ball.x = out[0] + turn.mouthNormal[0] * CONTACT_TOLERANCE_IN;
+        ball.y = out[1] + turn.mouthNormal[1] * CONTACT_TOLERANCE_IN;
+        ball.z = out[2] + turn.mouthNormal[2] * CONTACT_TOLERANCE_IN;
+        ball.vx = turn.mouthNormal[0] * ROLL_OUT_IN_PER_S;
+        ball.vy = turn.mouthNormal[1] * ROLL_OUT_IN_PER_S;
+        ball.vz = turn.mouthNormal[2] * ROLL_OUT_IN_PER_S;
     }
 
     /** The ball comes down on the floor and rolls on with the speed it had along it. */

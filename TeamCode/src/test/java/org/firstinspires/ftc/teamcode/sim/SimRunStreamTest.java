@@ -110,6 +110,45 @@ public class SimRunStreamTest {
         assertFalse("nothing held, nothing scored: nothing said", quiet.has("held") || quiet.has("scored"));
     }
 
+    /**
+     * A tick says how far a hive leans only once it has tipped, so a replay stays small: a hive
+     * leaning the way the field was set up says nothing, and one that has tipped says so in every
+     * tick from then on.
+     */
+    @Test
+    public void aTickSaysAHivesTiltOnlyOnceItHasTipped() {
+        Heard heard = new Heard();
+        SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
+        SimField.Hive red = SimRobot.FIELD.hive("Red Hive <1>");
+        SimRecording.Tick asSetUp = tilted(1, java.util.Map.of(blue.alliance, blue.tilt, red.alliance, red.tilt));
+        SimRecording.Tick tipped = tilted(2, java.util.Map.of(blue.alliance, -blue.tilt, red.alliance, red.tilt));
+
+        SimRunStream.accept(SimRunStream.tick(asSetUp), heard);
+        SimRunStream.accept(SimRunStream.tick(tipped), heard);
+
+        assertFalse(
+                "every hive leans as the field was set up: nothing said",
+                heard.ticks.get(0).has("tilt"));
+        JsonObject tilt = heard.ticks.get(1).getAsJsonObject("tilt");
+        assertEquals(-blue.tilt, tilt.get("Blue").getAsDouble(), 0);
+        assertFalse("the hive that has not tipped says nothing", tilt.has("Red"));
+    }
+
+    private static SimRecording.Tick tilted(double seconds, java.util.Map<String, Double> tilt) {
+        return new SimRecording.Tick(
+                seconds,
+                new Pose2d(0, 0, 0),
+                "",
+                new double[] {0, 0, 0, 0},
+                List.of(),
+                null,
+                null,
+                null,
+                0,
+                java.util.Map.of(),
+                tilt);
+    }
+
     @Test
     public void everyLineIsOneLine() {
         assertTrue(SimRunStream.started().indexOf('\n') < 0);

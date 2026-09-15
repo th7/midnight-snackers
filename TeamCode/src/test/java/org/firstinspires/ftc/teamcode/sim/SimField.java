@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,25 +11,29 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * The season's field, reduced from FIRST's CAD by {@code tools/field/step_to_field.py} to
  * {@code field.json} next to this class: the size between the walls and their height, each field
- * element as a low-poly convex shape, the game pieces where a match starts, the gaffer tape on the
- * floor, and the <b>obstacles</b>: the convex footprint of every element that stands lower than
- * the robot is tall, which is what {@link SimRobot} runs into. The game pieces on the floor in the
- * open are <b>loose</b>: the simulator rolls them, and the ticks say where they are. The replay
- * page draws the same model, obstacles included, so what it draws is what the simulator collides.
+ * element as a low-poly convex shape, the hives, the game pieces where a match starts, the gaffer
+ * tape on the floor, and the <b>obstacles</b>: the convex footprint of every element that stands
+ * lower than the robot is tall, which is what {@link SimRobot} runs into. The game pieces on the
+ * floor in the open are <b>loose</b>: the simulator rolls them, and the ticks say where they are.
+ * The replay page draws the same model, obstacles included, so what it draws is what the simulator
+ * collides.
  * <p>
  * Everything is in the field frame Road Runner uses: inches, origin at the centre of the field,
- * +x away from the audience, +y to the audience's left, +z up.
+ * +x away from the audience, +y to the audience's left, +z up. A hive is the exception: it turns
+ * about its axle, so what it is made of is given in its own frame and {@link Hive#at} says where
+ * that is at the tilt the hive leans at.
  */
 public final class SimField {
+    /** A game piece's kind, which says how much of a hive's load it is. */
+    public static final String NECTAR = "Nectar";
+
+    public static final String POLLEN = "Pollen";
+
     /** A convex polygon on the floor, wound counter-clockwise, that the robot's footprint may not enter. */
     public static final class Obstacle {
         public final String name;
@@ -40,59 +45,142 @@ public final class SimField {
         }
     }
 
-    /**
-     * A field element's shape: its vertices and its faces, each a ring of vertex indices seen
-     * from outside. A <b>surface</b> is one flat polygon seen through and outlined in its colour,
-     * the way a hive's panels are.
-     */
+    /** A field element's shape: its vertices and its faces, each a ring of vertex indices seen from outside. */
     public static final class Element {
         public final String group;
         public final String name;
         public final String colour;
-        public final boolean surface;
         public final double[][] vertices;
         public final int[][] faces;
 
-        Element(String group, String name, String colour, boolean surface, double[][] vertices, int[][] faces) {
+        Element(String group, String name, String colour, double[][] vertices, int[][] faces) {
             this.group = group;
             this.name = name;
             this.colour = colour;
-            this.surface = surface;
             this.vertices = vertices;
             this.faces = faces;
         }
     }
 
     /**
-     * A hive cell: what a launched ball scores in. Its six {@link #panels}, one of which is the
-     * <b>mouth</b> the ball comes in through: the rib at the cell's lower, open end, facing out of
-     * the cell and down. A ball that crosses the mouth going in has scored; a ball that meets any
-     * other panel bounces off.
+     * A hive: the see-saw that hangs from the frame's top bar with a {@link Cell} at each end and
+     * tips one way or the other about its axle. Everything it is made of is given in the hive's
+     * own frame — the origin on the axle, +x along the beam toward the scoring cell with the beam
+     * level, +y the field's and +z up — so that the <b>tilt</b> it leans at, in degrees above
+     * level, is all that says where it is. {@link #tilt} is the tilt the field is set up at; the
+     * hive tips to the other side of level, {@code -tilt}.
+     */
+    public static final class Hive {
+        public final String name;
+        /** "Blue" or "Red": whose hive it is. */
+        public final String alliance;
+
+        public final String colour;
+        /** The middle of the axle it turns on, in the field frame. */
+        public final double[] pivot;
+        /** How far above level the beam leans toward the scoring cell, in degrees, as the field is set up. */
+        public final double tilt;
+
+        public final List<Cell> cells;
+        /** What the hive is made of besides its cells, in the hive's frame: drawn, and turns with it. */
+        public final List<Element> parts;
+
+        Hive(JsonObject json, Gson gson) {
+            this.name = json.get("name").getAsString();
+            this.alliance = json.get("alliance").getAsString();
+            this.colour = json.get("colour").getAsString();
+            this.pivot = gson.fromJson(json.get("pivot"), double[].class);
+            this.tilt = json.get("tilt").getAsDouble();
+            List<Element> parts = new ArrayList<>();
+            for (JsonElement part : json.getAsJsonArray("parts")) {
+                JsonObject p = part.getAsJsonObject();
+                parts.add(new Element(
+                        name,
+                        p.get("name").getAsString(),
+                        p.get("colour").getAsString(),
+                        gson.fromJson(p.get("vertices"), double[][].class),
+                        gson.fromJson(p.get("faces"), int[][].class)));
+            }
+            this.parts = Collections.unmodifiableList(parts);
+            List<Cell> cells = new ArrayList<>();
+            for (JsonElement cell : json.getAsJsonArray("cells")) {
+                cells.add(new Cell(this, cell.getAsJsonObject(), gson));
+            }
+            this.cells = Collections.unmodifiableList(cells);
+        }
+
+        /** Where the hive's point {@code local} is in the field frame, with the hive leaning at {@code tilt}. */
+        public double[] at(double tilt, double[] local) {
+            double[] turned = direction(tilt, local);
+            return new double[] {pivot[0] + turned[0], pivot[1] + turned[1], pivot[2] + turned[2]};
+        }
+
+        /** Where the hive's direction {@code local} points in the field frame at that tilt. */
+        public double[] direction(double tilt, double[] local) {
+            double c = Math.cos(Math.toRadians(tilt)), s = Math.sin(Math.toRadians(tilt));
+            return new double[] {local[0] * c - local[2] * s, local[1], local[0] * s + local[2] * c};
+        }
+
+        /** The hive's ring {@code local} in the field frame at that tilt. */
+        public double[][] at(double tilt, double[][] local) {
+            double[][] out = new double[local.length][];
+            for (int i = 0; i < local.length; i++) {
+                out[i] = at(tilt, local[i]);
+            }
+            return out;
+        }
+    }
+
+    /**
+     * A hive cell: the basket a launched ball scores in, in its hive's frame. It is the opening
+     * the CAD's goal ribs frame — the <b>mouth</b> — swept twelve inches to the <b>back</b> that
+     * closes it, with a wall between every pair of the mouth's corners. A ball that crosses the
+     * mouth going in is in the cell and one that meets a wall or the back bounces off, whichever
+     * side it comes from.
+     * <p>
+     * Which way the cell is turned is the tilt's to say: a cell is <b>upturned</b> when its mouth
+     * faces up, and then it holds what is in it, resting on the floor at the back; the cell at the
+     * hive's other end is <b>downturned</b>, and what is in it rolls out of the mouth.
      */
     public static final class Cell {
+        public final Hive hive;
         public final String name;
         /** "Blue" or "Red": whose hive the cell is in. */
         public final String alliance;
-        /** Each panel as its ring of {x, y, z} vertices. */
-        public final List<double[][]> panels;
-
+        /** "Audience" or "Scoring": which end of the hive the cell is at. */
+        public final String side;
+        /** The opening the ball comes in through, as its ring in the hive's frame. */
         public final double[][] mouth;
-        public final String mouthName;
-        /** The middle of the cell: the mean of its panels' vertices. */
+        /** The mouth's ring again at the closed end of the cell. */
+        public final double[][] back;
+        /** One wall per pair of the mouth's corners, each a ring in the hive's frame. */
+        public final List<double[][]> walls;
+        /** What stops a ball: the walls and the back. */
+        public final List<double[][]> panels;
+        /** The middle of the cell, in the hive's frame. */
         public final double[] centre;
 
         public final double[] mouthCentre;
-        /** The mouth's unit normal, pointing out of the cell. */
+        /** The mouth's unit normal in the hive's frame, pointing out of the cell. */
         public final double[] mouthNormal;
 
-        Cell(String name, String alliance, List<double[][]> panels, double[][] mouth, String mouthName) {
-            this.name = name;
-            this.alliance = alliance;
+        Cell(Hive hive, JsonObject json, Gson gson) {
+            this.hive = hive;
+            this.name = json.get("name").getAsString();
+            this.alliance = hive.alliance;
+            this.side = json.get("side").getAsString();
+            this.mouth = gson.fromJson(json.get("mouth"), double[][].class);
+            this.back = gson.fromJson(json.get("back"), double[][].class);
+            List<double[][]> walls = new ArrayList<>();
+            for (JsonElement wall : json.getAsJsonArray("walls")) {
+                walls.add(gson.fromJson(wall, double[][].class));
+            }
+            this.walls = Collections.unmodifiableList(walls);
+            List<double[][]> panels = new ArrayList<>(walls);
+            panels.add(back);
             this.panels = Collections.unmodifiableList(panels);
-            this.mouth = mouth;
-            this.mouthName = mouthName;
-            this.centre = mean(panels);
-            this.mouthCentre = mean(Collections.singletonList(mouth));
+            this.centre = mean(List.<double[][]>of(mouth, back));
+            this.mouthCentre = mean(List.<double[][]>of(mouth));
             double[] normal = normal(mouth);
             double outward = 0;
             for (int axis = 0; axis < 3; axis++) {
@@ -104,6 +192,41 @@ public final class SimField {
                 }
             }
             this.mouthNormal = normal;
+        }
+
+        /** The middle of the cell in the field frame, with its hive leaning at that tilt. */
+        public double[] centreAt(double tilt) {
+            return hive.at(tilt, centre);
+        }
+
+        public double[] mouthCentreAt(double tilt) {
+            return hive.at(tilt, mouthCentre);
+        }
+
+        /** The mouth's unit normal in the field frame at that tilt, pointing out of the cell. */
+        public double[] mouthNormalAt(double tilt) {
+            return hive.direction(tilt, mouthNormal);
+        }
+
+        public double[][] mouthAt(double tilt) {
+            return hive.at(tilt, mouth);
+        }
+
+        /** The walls and the back in the field frame at that tilt. */
+        public List<double[][]> panelsAt(double tilt) {
+            List<double[][]> out = new ArrayList<>(panels.size());
+            for (double[][] panel : panels) {
+                out.add(hive.at(tilt, panel));
+            }
+            return out;
+        }
+
+        /**
+         * Whether the cell holds what is in it at that tilt: its mouth faces up, so the balls rest
+         * on the floor at the back. A downturned cell's roll out of the mouth.
+         */
+        public boolean upturnedAt(double tilt) {
+            return mouthNormalAt(tilt)[2] > 0;
         }
 
         private static double[] mean(List<double[][]> rings) {
@@ -137,16 +260,26 @@ public final class SimField {
         return new double[] {n[0] / length, n[1] / length, n[2] / length};
     }
 
-    /** A ball on the floor in the open, where the field is set up: the robot's to push. */
+    /** A ball the field is set up with: on the floor in the open, held in a flower, or in a hive cell. */
     public static final class Piece {
         public final String name;
+        /** {@link #NECTAR} or {@link #POLLEN}. */
+        public final String kind;
+        /** "Blue" or "Red" for a piece of one alliance's, else null. */
+        public final String alliance;
+        /** The cell the field is set up with the piece inside, or null. */
+        public final String cell;
+
         public final double x;
         public final double y;
         public final double z;
         public final double radius;
 
-        Piece(String name, double x, double y, double z, double radius) {
+        Piece(String name, String kind, String cell, double x, double y, double z, double radius) {
             this.name = name;
+            this.kind = kind;
+            this.alliance = name.startsWith("Blue") ? "Blue" : name.startsWith("Red") ? "Red" : null;
+            this.cell = cell;
             this.x = x;
             this.y = y;
             this.z = z;
@@ -162,10 +295,14 @@ public final class SimField {
     public final double wallHeight;
     public final List<Element> elements;
     public final List<Obstacle> obstacles;
+    /** The two hives, one per alliance. */
+    public final List<Hive> hives;
+    /** Every hive's cells, hive by hive: what a launched ball scores in. */
+    public final List<Cell> cells;
     /** The game pieces the simulator rolls, in the order the page and the ticks name them. */
     public final List<Piece> loosePieces;
-    /** The hives' cells, which a launched ball scores in. */
-    public final List<Cell> cells;
+    /** The game pieces the field is set up with inside a hive cell: the nectar each hive starts with. */
+    public final List<Piece> cellPieces;
 
     private final JsonObject json;
 
@@ -175,32 +312,47 @@ public final class SimField {
         this.wallHeight = json.get("wallHeight").getAsDouble();
         Gson gson = new Gson();
         List<Element> elements = new ArrayList<>();
-        for (int i = 0; i < json.getAsJsonArray("elements").size(); i++) {
-            JsonObject e = json.getAsJsonArray("elements").get(i).getAsJsonObject();
+        for (JsonElement element : json.getAsJsonArray("elements")) {
+            JsonObject e = element.getAsJsonObject();
             elements.add(new Element(
                     e.get("group").getAsString(),
                     e.get("name").getAsString(),
                     e.get("colour").getAsString(),
-                    e.has("surface") && e.get("surface").getAsBoolean(),
                     gson.fromJson(e.get("vertices"), double[][].class),
                     gson.fromJson(e.get("faces"), int[][].class)));
         }
         this.elements = Collections.unmodifiableList(elements);
+        List<Hive> hives = new ArrayList<>();
+        List<Cell> cells = new ArrayList<>();
+        for (JsonElement hive : json.getAsJsonArray("hives")) {
+            Hive built = new Hive(hive.getAsJsonObject(), gson);
+            hives.add(built);
+            cells.addAll(built.cells);
+        }
+        this.hives = Collections.unmodifiableList(hives);
+        this.cells = Collections.unmodifiableList(cells);
         List<Piece> loose = new ArrayList<>();
+        List<Piece> inCells = new ArrayList<>();
         JsonArray pieces = json.getAsJsonArray("pieces");
         for (int i = 0; i < pieces.size(); i++) {
             JsonObject p = pieces.get(i).getAsJsonObject();
-            if (p.get("loose").getAsBoolean()) {
-                JsonArray centre = p.getAsJsonArray("centre");
-                loose.add(new Piece(
-                        p.get("name").getAsString(),
-                        centre.get(0).getAsDouble(),
-                        centre.get(1).getAsDouble(),
-                        centre.get(2).getAsDouble(),
-                        p.get("radius").getAsDouble()));
+            JsonElement cell = p.get("cell");
+            if (!p.get("loose").getAsBoolean() && cell == null) {
+                continue;
             }
+            JsonArray centre = p.getAsJsonArray("centre");
+            Piece piece = new Piece(
+                    p.get("name").getAsString(),
+                    p.get("kind").getAsString(),
+                    cell == null ? null : cell.getAsString(),
+                    centre.get(0).getAsDouble(),
+                    centre.get(1).getAsDouble(),
+                    centre.get(2).getAsDouble(),
+                    p.get("radius").getAsDouble());
+            (piece.cell == null ? loose : inCells).add(piece);
         }
         this.loosePieces = Collections.unmodifiableList(loose);
+        this.cellPieces = Collections.unmodifiableList(inCells);
         List<Obstacle> obstacles = new ArrayList<>();
         JsonArray array = json.getAsJsonArray("obstacles");
         for (int i = 0; i < array.size(); i++) {
@@ -209,61 +361,6 @@ public final class SimField {
                     new Obstacle(o.get("name").getAsString(), gson.fromJson(o.get("footprint"), double[][].class)));
         }
         this.obstacles = Collections.unmodifiableList(obstacles);
-        this.cells = Collections.unmodifiableList(cellsOf(this.elements));
-    }
-
-    private static final Pattern CELL_PANEL = Pattern.compile("^((Blue|Red) Cell \\([^)]*\\) <\\d+>) / (.+)$");
-
-    /** The cells: each hive's see-through panels, grouped by the cell they name. */
-    private static List<Cell> cellsOf(List<Element> elements) {
-        Map<String, List<Element>> byCell = new LinkedHashMap<>();
-        for (Element element : elements) {
-            Matcher m = CELL_PANEL.matcher(element.name);
-            if (element.surface && element.group.contains("Hive") && m.matches()) {
-                byCell.computeIfAbsent(m.group(1), k -> new ArrayList<>()).add(element);
-            }
-        }
-        List<Cell> cells = new ArrayList<>();
-        for (Map.Entry<String, List<Element>> entry : byCell.entrySet()) {
-            List<double[][]> panels = new ArrayList<>();
-            Element mouth = null;
-            for (Element panel : entry.getValue()) {
-                panels.add(panel.vertices);
-                String part = CELL_PANEL.matcher(panel.name).replaceAll("$3");
-                if (part.endsWith("Goal Rib") && (mouth == null || meanZ(panel.vertices) < meanZ(mouth.vertices))) {
-                    mouth = panel;
-                }
-            }
-            if (mouth == null) {
-                throw new IllegalStateException(entry.getKey() + " has no rib to be its mouth");
-            }
-            String alliance = CELL_PANEL.matcher(mouth.name).replaceAll("$2");
-            cells.add(new Cell(
-                    entry.getKey(),
-                    alliance,
-                    panels,
-                    mouth.vertices,
-                    CELL_PANEL.matcher(mouth.name).replaceAll("$3")));
-        }
-        return cells;
-    }
-
-    private static double meanZ(double[][] ring) {
-        double sum = 0;
-        for (double[] v : ring) {
-            sum += v[2];
-        }
-        return sum / ring.length;
-    }
-
-    /** The cell of that name, or null. */
-    public Cell cell(String name) {
-        for (Cell cell : cells) {
-            if (cell.name.equals(name)) {
-                return cell;
-            }
-        }
-        return null;
     }
 
     /** The season's field, from the model next to this class. */
@@ -289,6 +386,26 @@ public final class SimField {
         for (Obstacle obstacle : obstacles) {
             if (obstacle.name.equals(name)) {
                 return obstacle;
+            }
+        }
+        return null;
+    }
+
+    /** The hive of that name, or null. */
+    public Hive hive(String name) {
+        for (Hive hive : hives) {
+            if (hive.name.equals(name)) {
+                return hive;
+            }
+        }
+        return null;
+    }
+
+    /** The cell of that name, or null. */
+    public Cell cell(String name) {
+        for (Cell cell : cells) {
+            if (cell.name.equals(name)) {
+                return cell;
             }
         }
         return null;
