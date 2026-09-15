@@ -127,6 +127,53 @@ public class SimReplayPageTest {
         assertTrue("from the model's own pivot and cells", html.contains("hive.pivot") && html.contains("hive.cells"));
     }
 
+    /**
+     * A tick says where a hive leans in full, so the page reads each tick on its own: a hive that
+     * has tipped back to the tilt the field was set up at says nothing in that tick, and is drawn
+     * back where it started rather than left where the tick it tipped in put it.
+     * <p>
+     * This runs the page's own rule, the way the page runs it, over a hive that tips and tips back.
+     */
+    @Test
+    public void thePageDrawsAHiveThatTipsBackWhereTheFieldWasSetUpAgain() throws Exception {
+        SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
+        // As the run streams them: level, tipped, tipped back. A hive leaning the way the field was
+        // set up says nothing, so the third tick names no hive at all.
+        String ticks = "[{}, {\"tilt\":{\"Blue\":" + -blue.tilt + "}}, {}]";
+
+        double[] leaning = tiltOnThePage(ticks, blue);
+
+        assertEquals("as the field was set up", blue.tilt, leaning[0], 0);
+        assertEquals("tipped", -blue.tilt, leaning[1], 0);
+        assertEquals("and tipped back, not left tipped", blue.tilt, leaning[2], 0);
+    }
+
+    /**
+     * How far {@code hive} leans at each of {@code ticks}, as the replay page works it out: the
+     * page's own {@code tiltAt} lifted out of the written page and run over those ticks in node.
+     */
+    private double[] tiltOnThePage(String ticks, SimField.Hive hive) throws Exception {
+        String html = SimReplayPage.page(new SimRecording("TiltRule"), false);
+        Matcher rule = Pattern.compile("\n  function tiltAt\\(hive, upTo\\) \\{.*?\n  \\}", Pattern.DOTALL)
+                .matcher(html);
+        assertTrue("the page works each hive's tilt out in tiltAt(hive, upTo)", rule.find());
+        Path script = folder.newFile("tiltAt.js").toPath();
+        Files.write(
+                script,
+                ("const ticks = " + ticks + ";\n"
+                                + "const hive = "
+                                + new Gson().toJson(Map.of("alliance", hive.alliance, "tilt", hive.tilt)) + ";\n"
+                                + rule.group() + "\n"
+                                + "console.log(JSON.stringify(ticks.map((_, i) => tiltAt(hive, i))));\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        Process node = new ProcessBuilder("node", script.toString())
+                .redirectErrorStream(true)
+                .start();
+        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals("node ran the page's rule: " + out, 0, node.waitFor());
+        return new Gson().fromJson(out.trim(), double[].class);
+    }
+
     /** Where the loose game pieces are, tick by tick, so the page rolls them where the robot pushed them. */
     @Test
     public void aTickCarriesWhereTheLoosePiecesAre() {

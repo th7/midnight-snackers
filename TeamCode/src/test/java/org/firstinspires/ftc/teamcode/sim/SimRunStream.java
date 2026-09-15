@@ -304,8 +304,9 @@ public final class SimRunStream {
             }
         }
         if (tilt.size() > 0) {
-            // Absent means the hives lean the way the field was set up, or the way the last tick
-            // that said they did: a hive that has tipped says so in every tick after it.
+            // A tick says where every hive leans that is not leaning the way the field was set up,
+            // so absent means exactly that and says nothing about the ticks before it: a hive that
+            // has tipped says so in every tick until it tips back, and then says nothing again.
             t.add("tilt", tilt);
         }
         return t;
