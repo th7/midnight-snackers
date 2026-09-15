@@ -111,20 +111,23 @@ public class SimRunStreamTest {
     }
 
     /**
-     * A tick says how far a hive leans only once it has tipped, so a replay stays small: a hive
-     * leaning the way the field was set up says nothing, and one that has tipped says so in every
-     * tick from then on.
+     * A tick says how far a hive leans only while it is not leaning the way the field was set up,
+     * so a replay stays small. Each tick says it in full, and says nothing about the ticks before
+     * it: a hive that has tipped says so in every tick until it tips back, and a hive that has
+     * tipped back says nothing again, which is how the page knows to draw it back where it started.
      */
     @Test
-    public void aTickSaysAHivesTiltOnlyOnceItHasTipped() {
+    public void aTickSaysAHivesTiltOnlyWhileItIsNotLeaningTheWayTheFieldWasSetUp() {
         Heard heard = new Heard();
         SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
         SimField.Hive red = SimRobot.FIELD.hive("Red Hive <1>");
         SimRecording.Tick asSetUp = tilted(1, java.util.Map.of(blue.alliance, blue.tilt, red.alliance, red.tilt));
         SimRecording.Tick tipped = tilted(2, java.util.Map.of(blue.alliance, -blue.tilt, red.alliance, red.tilt));
+        SimRecording.Tick tippedBack = tilted(3, java.util.Map.of(blue.alliance, blue.tilt, red.alliance, red.tilt));
 
         SimRunStream.accept(SimRunStream.tick(asSetUp), heard);
         SimRunStream.accept(SimRunStream.tick(tipped), heard);
+        SimRunStream.accept(SimRunStream.tick(tippedBack), heard);
 
         assertFalse(
                 "every hive leans as the field was set up: nothing said",
@@ -132,6 +135,9 @@ public class SimRunStreamTest {
         JsonObject tilt = heard.ticks.get(1).getAsJsonObject("tilt");
         assertEquals(-blue.tilt, tilt.get("Blue").getAsDouble(), 0);
         assertFalse("the hive that has not tipped says nothing", tilt.has("Red"));
+        assertFalse(
+                "the hive that has tipped back says nothing again",
+                heard.ticks.get(2).has("tilt"));
     }
 
     private static SimRecording.Tick tilted(double seconds, java.util.Map<String, Double> tilt) {

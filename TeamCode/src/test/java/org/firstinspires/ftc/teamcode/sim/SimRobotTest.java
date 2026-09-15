@@ -958,6 +958,40 @@ public class SimRobotTest {
     }
 
     /**
+     * A hive tips back: filling the cell that came up tips it the other way again, back to the
+     * tilt it was set up at, and that cell drops what was in it.
+     */
+    @Test
+    public void aHiveTipsBackWhenTheCellThatCameUpIsFilled() {
+        emptyTheHive(sim, "Blue");
+        double leaning = sim.tilt("Blue");
+        int[] pollen = ballsOf(SimField.POLLEN);
+        assertTrue("there is pollen enough to fill a hive", pollen.length >= 8);
+
+        SimField.Cell first = sim.upturnedCell("Blue");
+        for (int i = 0; i < 8; i++) {
+            sim.placePiece(pollen[i], first);
+        }
+        sim.step(3.0);
+        assertEquals("the first eight tip it", -leaning, sim.tilt("Blue"), DELTA);
+
+        SimField.Cell second = sim.upturnedCell("Blue");
+        assertTrue("the other cell is up now", second != first);
+        for (int i = 0; i < 8; i++) {
+            sim.placePiece(pollen[i], second);
+        }
+        sim.step(3.0);
+
+        assertEquals("the next eight tip it back", leaning, sim.tilt("Blue"), DELTA);
+        assertTrue("the cell that was up first is up again", first == sim.upturnedCell("Blue"));
+        assertEquals("nothing is left in the hive", 0, sim.scored("Blue"));
+        double[][] pieces = sim.pieces();
+        for (int i = 0; i < 8; i++) {
+            assertEquals("the pollen it held fell to the floor", BALL, pieces[pollen[i]][2], DELTA);
+        }
+    }
+
+    /**
      * Tipping empties the hive: the cell that goes under drops what was in it on the floor, and
      * the one that comes up is what a ball scores in from then on.
      */

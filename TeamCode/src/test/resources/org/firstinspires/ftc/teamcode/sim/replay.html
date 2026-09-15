@@ -437,10 +437,13 @@
     }
     return out;
   }
-  // How far each hive leans now: the latest tick that says, else the tilt the field is set up at.
-  function tiltsAt(upTo) {
-    for (let i = upTo; i >= 0; i--) if (ticks[i].tilt) return ticks[i].tilt;
-    return null;
+  // How far a hive leans at that tick: what the tick says, else the tilt the field is set up at.
+  // Every tick says where every hive leans that is not leaning the way the field was set up, so
+  // this reads the one tick and no earlier one: a hive that has tipped back says nothing in the
+  // tick it tipped back in, and is drawn back where it started rather than left where it was.
+  function tiltAt(hive, upTo) {
+    const said = ticks[upTo].tilt;
+    return said && said[hive.alliance] !== undefined ? said[hive.alliance] : hive.tilt;
   }
   // The balls the simulator moves are where the latest tick that says puts them, [x, y, z] each:
   // the field's loose pieces, then the nectar the hives are set up with, then the robot's preload,
@@ -585,8 +588,7 @@
   function drawScene(tick) {
     let items = [];
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
-    const tilts = tick && !placing ? tiltsAt(index) : null;
-    for (const hive of FIELD.hives) items = items.concat(hiveFaces(hive, tilts && tilts[hive.alliance] !== undefined ? tilts[hive.alliance] : hive.tilt));
+    for (const hive of FIELD.hives) items = items.concat(hiveFaces(hive, tick && !placing ? tiltAt(hive, index) : hive.tilt));
     const at = tick && !placing ? latestPieces(index) : null;
     // The balls the simulator does not move — the flowers' stacks and the rows outside the walls —
     // are where the field was set up; the loose ones and the hives' nectar come from the tick.
