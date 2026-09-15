@@ -51,7 +51,10 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * down near a pose rather than on it. The noise is in the mechanisms only; the sensors still
  * read exactly what the robot did.
  * <p>
- * The robot starts with {@link #PRELOAD} balls in it. The launcher is on the turntable, and its
+ * The robot starts with {@link #PRELOAD} balls in it and holds {@link #HOLDS}. Its intake takes in
+ * the pollen the front of the robot meets while the intake's motor is running and there is room for
+ * them; a nectar is the bigger ball and no intake of ours takes one, so a nectar, and a pollen the
+ * intake is not running for, is a ball the robot pushes. The launcher is on the turntable, and its
  * gates feed it as the robot code drives them: with the top gate open a ball drops from the hopper
  * into the chamber, and with the bottom gate open the chambered ball drops into the flywheel and
  * leaves at a speed set by the flywheel's, on an arc under gravity. A ball that goes in through a
@@ -95,6 +98,11 @@ public class SimRobot {
      * and with the three nectar a hive is set up with, enough to fill one and tip it.
      */
     public static final int PRELOAD = 4;
+    /**
+     * How many balls the robot holds, in its hopper and its chamber together: what the intake may
+     * fill it to, and what the {@link #PRELOAD} fills it with.
+     */
+    public static final int HOLDS = 4;
     /** A quarter inch at full speed: far less than the thinnest obstacle. */
     public static final double MAX_STEP_SECONDS = 0.005;
     /** Where a launched ball leaves the robot: this high off the floor, and this far ahead of the robot's centre. */
@@ -127,6 +135,13 @@ public class SimRobot {
     private static final double ROBOT_MASS_KG = 15;
     /** Heavy for pollen, but a ball that light next to the robot is what the engine's solver handles worst. */
     private static final double BALL_MASS_KG = 0.5;
+
+    /**
+     * A pollen whose surface is this near the front of the robot is in contact with it: the engine
+     * keeps a ball the robot has met from overlapping it, and the robot covers no more than this in
+     * one step, so a pollen the robot drives into is seen here before it is pushed away.
+     */
+    private static final double INTAKE_REACH_IN = 0.25;
 
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
     /** A rolling ball loses its speed with this time constant, and is at rest below {@link #REST_SPEED_IN_PER_S}. */
@@ -183,6 +198,7 @@ public class SimRobot {
     public final FakeDcMotorEx rightBack = new FakeDcMotorEx();
     public final FakeDcMotorEx launcher = new FakeDcMotorEx();
     public final FakeDcMotorEx turnTable = new FakeDcMotorEx();
+    public final FakeDcMotorEx intake = new FakeDcMotorEx();
     public final FakeServo topGate = new FakeServo();
     public final FakeServo bottomGate = new FakeServo();
     public final FakeImu imu = new FakeImu();
@@ -369,8 +385,7 @@ public class SimRobot {
             } else if (i < held) {
                 putInCell(balls[i], FIELD.cell(piece.cell));
             } else {
-                balls[i].where = Where.HELD;
-                hopper.add(balls[i]);
+                intoTheHopper(balls[i]);
             }
         }
     }
@@ -431,6 +446,7 @@ public class SimRobot {
         hardware.leftBack = leftBack;
         hardware.rightBack = rightBack;
         hardware.turnTable = turnTable;
+        hardware.intake = intake;
         hardware.imu = () -> imu;
         hardware.voltageSensor = voltageSensor;
         hardware.aprilTags = ArrayList::new;
@@ -678,6 +694,7 @@ public class SimRobot {
         driveTheRobot(dt);
         feedTheLauncher();
         world.step(1, dt);
+        intakeTheBalls();
         flyTheBalls(dt);
         turnTheHives();
         readTheSensors(dt);
@@ -744,6 +761,52 @@ public class SimRobot {
 
     private static DualNum<Time> dual(double value) {
         return new DualNum<>(new double[] {value, 0});
+    }
+
+    /**
+     * The intake takes in the pollen the front of the robot meets, while it is running and the
+     * robot has room for more: a pollen touching the front face, anywhere across its width, goes
+     * into the hopper. Nectar is the bigger ball and no intake of ours takes one, so a nectar the
+     * robot meets is one it pushes; so is a pollen, while the intake is off or the robot already
+     * {@link #HOLDS holds all it can}.
+     */
+    private void intakeTheBalls() {
+        if (clamp(intake.power) <= 0) {
+            return;
+        }
+        for (Ball ball : balls) {
+            if (held() >= HOLDS) {
+                return;
+            }
+            if (ball.where == Where.ROLLING && SimField.POLLEN.equals(ball.kind) && againstTheFront(ball)) {
+                intoTheHopper(ball);
+            }
+        }
+    }
+
+    /**
+     * Whether a ball on the floor is touching the front of the robot: ahead of the front face, no
+     * further from it than {@link #INTAKE_REACH_IN}, and within the width of the face, so a ball
+     * against a side or the back is not.
+     */
+    private boolean againstTheFront(Ball ball) {
+        Transform robotAt = robot.getTransform();
+        Transform ballAt = ball.body.getTransform();
+        double heading = robotAt.getRotationAngle();
+        double dx = (ballAt.getTranslationX() - robotAt.getTranslationX()) / IN;
+        double dy = (ballAt.getTranslationY() - robotAt.getTranslationY()) / IN;
+        double ahead = Math.cos(heading) * dx + Math.sin(heading) * dy;
+        double across = -Math.sin(heading) * dx + Math.cos(heading) * dy;
+        double half = ROBOT_SIZE_IN / 2;
+        return ahead > 0 && ahead - ball.radius <= half + INTAKE_REACH_IN && Math.abs(across) <= half;
+    }
+
+    /** A ball goes into the robot, behind whatever is in the hopper already, wherever it was. */
+    private void intoTheHopper(Ball ball) {
+        take(ball);
+        ball.where = Where.HELD;
+        ball.vx = ball.vy = ball.vz = 0;
+        hopper.add(ball);
     }
 
     /**

@@ -28,6 +28,7 @@ public final class Hardware {
     public DcMotorEx leftBack;
     public DcMotorEx rightBack;
     public DcMotorEx turnTable;
+    public DcMotorEx intake;
     /**
      * Initialized with the hub orientation from {@link MecanumDrive.Params} on first use.
      */
@@ -56,6 +57,7 @@ public final class Hardware {
         hardware.leftBack = hardwareMap.get(DcMotorEx.class, "leftBack");
         hardware.rightBack = hardwareMap.get(DcMotorEx.class, "rightBack");
         hardware.turnTable = hardwareMap.get(DcMotorEx.class, "turnTable");
+        hardware.intake = hardwareMap.get(DcMotorEx.class, "intake");
         hardware.imu = new LazyHardwareMapImu(
                 hardwareMap,
                 "imu",

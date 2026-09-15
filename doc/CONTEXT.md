@@ -51,6 +51,14 @@ goal on the line from the robot to it, facing the goal. There is none when
 playing for no alliance, which has no goal; then the bumpers just drive,
 and the brain's auto-shoot has nowhere to go.
 
+**Intake** — The subsystem that takes pollen off the floor and into the
+hopper. It is **on** or **off** and nothing else: on, its motor runs at full
+power; off, the motor stops. It starts on, from the moment the robot is built
+rather than from its first loop, so a robot nobody has told anything is taking
+pollen in. That is all it is for now — nothing reverses it to clear a jam and
+nothing senses a full hopper — and the motor is the whole of what the
+simulator, or anyone else, can see of it. Class: `Intake`.
+
 **Sighting** — Where the goal's AprilTag says the robot is, as the camera
 faces, which is the turntable's heading. The brain turns it back by the
 turntable's offset and, when playing for an alliance, hands it to Nav: the
@@ -485,8 +493,15 @@ speed they were given, slow to a stop, and stop at the walls, the
 obstacles and each other with a little bounce; a ball pinned against a
 wall stops the robot short of it, since nothing goes through anything.
 The robot starts with four pollen (its **preload**) in its **hopper**,
-which with the three nectar a hive is set up with is enough to fill one;
-the launcher is on the turntable, and its gates feed it as the robot
+which with the three nectar a hive is set up with is enough to fill one.
+Four is also all it **holds**, hopper and chamber together: while the
+**intake** is on, a pollen that touches the front of the robot — the front
+face, anywhere across its width — goes into the hopper, until there is no
+room for another, so a robot that starts preloaded takes nothing in until it
+has launched. A nectar is the bigger ball and no intake of ours takes one, so
+a nectar the robot meets, and a pollen it meets with the intake off or with
+no room, is a ball it pushes.
+The launcher is on the turntable, and its gates feed it as the robot
 code drives them: with the top gate open a ball drops from the hopper
 into the **chamber**, and with the bottom gate open the chambered ball
 drops into the flywheel and leaves at a speed set by the flywheel's, on
