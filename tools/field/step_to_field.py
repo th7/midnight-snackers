@@ -656,7 +656,7 @@ def hive_of(name, parts):
     alliance = 'Blue' if 'Blue' in name else 'Red'
     cells, drawn = [], []
     for cell in sorted(ends):
-        cells.append(hive_cell(cell, alliance, [p for p in parts if p[0] == cell], to_hive, direction))
+        cells.append(hive_cell(cell, [p for p in parts if p[0] == cell], to_hive, direction))
     for cell, part, colour, pts, faces in parts:
         if CELL_SHAPE.search(part) or SKIP.search(part):
             continue
@@ -671,7 +671,7 @@ def hive_of(name, parts):
             'parts': sorted(drawn, key=lambda p: (p['name'], p['vertices']))}
 
 
-def hive_cell(name, alliance, parts, to_hive, direction):
+def hive_cell(name, parts, to_hive, direction):
     """A cell as the CAD builds the basket: the opening the goal ribs frame, swept from the mouth
     at the hive's end to the back skin that closes it. The mouth is the end away from the back;
     what a ball meets is the wall between every pair of the mouth's corners, and the back."""
@@ -694,7 +694,7 @@ def hive_cell(name, alliance, parts, to_hive, direction):
     front, behind = ring(mouth), ring(back)
     walls = [[front[i], front[(i + 1) % len(front)], behind[(i + 1) % len(behind)], behind[i]]
              for i in range(len(front))]
-    return {'name': name, 'alliance': alliance, 'side': 'Scoring' if 'Scoring' in name else 'Audience',
+    return {'name': name, 'side': 'Scoring' if 'Scoring' in name else 'Audience',
             'mouth': front, 'back': behind, 'walls': walls}
 
 
