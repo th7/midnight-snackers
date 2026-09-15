@@ -57,6 +57,16 @@
   .pill.bad { color: var(--bad); background: var(--bad-soft); }
   .pill.warn { color: var(--warn); background: var(--warn-soft); }
   .pill.muted { color: var(--muted); background: var(--hover); }
+  .user + .user { border-top: 1px solid var(--line); }
+  .fold { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 0; border: 0; border-radius: 3px; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+  .fold:hover { filter: none; text-decoration: underline; }
+  .fold .caret { display: inline-block; color: var(--muted); transition: transform 120ms ease; }
+  .fold[aria-expanded="true"] .caret { transform: rotate(90deg); }
+  .fold .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .fold .caret { transition: none; } }
+  .sessions { background: var(--bg); border-top: 1px solid var(--line); }
+  .sessions .row { padding-left: 30px; }
+  .sessions .row .name { font-weight: 500; color: var(--muted); }
   .crumbs { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); display: flex; gap: 4px; flex-wrap: wrap; }
   .crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
   .crumbs a:hover { text-decoration: underline; }
@@ -92,8 +102,8 @@
       <div class="panel"><div id="urls" class="urls mono empty">…</div></div>
     </div>
     <div>
-      <p class="section-label">Logins</p>
-      <div id="logins" class="panel"></div>
+      <p class="section-label">Users</p>
+      <div id="users" class="panel"></div>
     </div>
   </section>
   <section>
@@ -112,7 +122,7 @@
 </main>
 <script>
 (function () {
-  var loginsEl = document.getElementById('logins');
+  var usersEl = document.getElementById('users');
   var editableEl = document.getElementById('editable');
   var treeEl = document.getElementById('tree');
   var crumbsEl = document.getElementById('crumbs');
@@ -157,13 +167,13 @@
     return el;
   }
 
-  /** What the user's worktree holds against its branch and develop: the same status the user's Edit tab shows. */
-  function renderStatus(login) {
-    var status = login.status;
+  /** What the user's worktree holds against its branch and develop: the same status their Edit tab shows. */
+  function renderStatus(user) {
+    var status = user.status;
     var git = document.createElement('div');
     git.className = 'git';
     if (!status) {
-      git.appendChild(pill('bad', 'no status', login.statusError || ''));
+      git.appendChild(pill('bad', 'no status', user.statusError || ''));
       return git;
     }
     var changed = status.changed.length;
@@ -174,104 +184,201 @@
     return git;
   }
 
-  /** What the admin's last Pull for each login said, by login id, so a refresh does not wipe it. */
-  var resultByLogin = {};
-  var pulling = {};
+  var stateClass = { pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' };
 
-  function pull(login) {
-    pulling[login.id] = true;
-    refresh();
-    fetch('/admin/logins/' + login.id + '/pull', { method: 'POST' }).then(function (r) {
+  /** What the admin's last Pull for each user said, by username, so a refresh does not wipe it. */
+  var resultByUsername = {};
+  var pullingByUsername = {};
+
+  /**
+   * Which users the admin has opened or closed by hand. Anyone they have not touched is open
+   * exactly while a login of theirs is waiting to be decided, so nothing to decide hides in a fold.
+   */
+  var expandedByUsername = {};
+
+  /** The last listing, so folding one user open redraws without waiting for the next refresh. */
+  var lastUsers = [];
+
+  function pendingCount(user) {
+    var pending = 0;
+    user.sessions.forEach(function (session) {
+      if (session.state === 'pending') { pending++; }
+    });
+    return pending;
+  }
+
+  function isExpanded(user) {
+    var chosen = expandedByUsername[user.username];
+    return chosen === undefined ? pendingCount(user) > 0 : chosen;
+  }
+
+  /** A pull is the user's worktree's, and any login of theirs names them to the server: the newest does. */
+  function pull(user) {
+    var id = user.sessions[user.sessions.length - 1].id;
+    pullingByUsername[user.username] = true;
+    renderUsers(lastUsers);
+    fetch('/admin/logins/' + id + '/pull', { method: 'POST' }).then(function (r) {
       return r.text().then(function (text) { return { ok: r.ok, text: text }; });
     }).catch(function () {
       return { ok: false, text: 'could not reach the server' };
     }).then(function (reply) {
       var result;
       try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-      resultByLogin[login.id] = { text: result.message, kind: reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : 'bad' };
-      delete pulling[login.id];
+      resultByUsername[user.username] = { text: result.message, kind: reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : 'bad' };
+      delete pullingByUsername[user.username];
       refresh();
     });
   }
 
-  function renderLogins(logins) {
-    loginsEl.innerHTML = '';
-    if (!logins.length) {
-      loginsEl.innerHTML = '<p class="empty">Nobody has asked to join yet.</p>';
+  /** Branch, how many logins, and what any of them has open: what a folded-up user still says. */
+  function metaOf(user) {
+    var parts = [];
+    if (user.branch) { parts.push(user.branch); }
+    parts.push(plural(user.sessions.length, 'login', 'logins'));
+    var open = [];
+    user.sessions.forEach(function (session) {
+      if (session.file && open.indexOf(session.file) < 0) { open.push(session.file); }
+    });
+    if (open.length) { parts.push('editing ' + open.join(', ')); }
+    return parts.join(' · ');
+  }
+
+  /** One login of one user: where from, how long ago, what it has open, and the admin's decision. */
+  function renderSession(user, session) {
+    var meta = session.address + ' · ' + age(session.ageSeconds)
+        + (session.file ? ' · editing ' + session.file : '');
+    var el = row('session ' + session.state, 'login ' + session.id, meta);
+    var actions = el.querySelector('.actions');
+    actions.appendChild(pill(stateClass[session.state], session.state));
+    var path = '/admin/logins/' + session.id;
+    function decide(verb, label, cls) {
+      return button(label, cls, function () {
+        // deciding the last pending login would otherwise fold the user shut under the admin's hand
+        expandedByUsername[user.username] = true;
+        post(path + verb).then(refresh);
+      });
+    }
+    if (session.state === 'pending') {
+      actions.appendChild(decide('/approve', 'Approve', 'primary'));
+      actions.appendChild(decide('/deny', 'Deny', 'danger'));
+    } else if (session.state === 'approved') {
+      actions.appendChild(decide('/revoke', 'Revoke', 'danger'));
+    } else {
+      actions.appendChild(decide('/approve', 'Approve', ''));
+    }
+    return el;
+  }
+
+  /** One user: their worktree's standing and Pull, with their logins folded under them. */
+  function renderUser(user, index) {
+    var pending = pendingCount(user);
+    var expanded = isExpanded(user);
+    var listId = 'sessions-' + index;
+    var el = document.createElement('div');
+    el.className = 'user';
+
+    var head = document.createElement('div');
+    head.className = 'row user-head' + (pending ? ' pending' : '');
+    var left = document.createElement('div');
+    var fold = document.createElement('button');
+    fold.className = 'fold';
+    fold.type = 'button';
+    fold.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    fold.setAttribute('aria-controls', listId);
+    fold.innerHTML = '<span class="caret" aria-hidden="true">▸</span><span class="name"></span>';
+    fold.querySelector('.name').textContent = user.username;
+    fold.addEventListener('click', function () {
+      expandedByUsername[user.username] = !expanded;
+      renderUsers(lastUsers);
+    });
+    left.appendChild(fold);
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = metaOf(user);
+    if (user.worktree) { meta.title = user.worktree; }
+    left.appendChild(meta);
+    if (user.worktree) { left.appendChild(renderStatus(user)); }
+    head.appendChild(left);
+    var actions = document.createElement('div');
+    actions.className = 'actions';
+    head.appendChild(actions);
+    el.appendChild(head);
+
+    if (pending) {
+      actions.appendChild(pill('warn', plural(pending, 'login', 'logins') + ' to decide'));
+    }
+    if (user.worktree) {
+      var status = user.status;
+      var behind = status ? status.behind : 0;
+      var pullButton = button('Pull', 'pull' + (behind > 0 ? ' behind' : ''), function () { pull(user); });
+      if (behind > 0) {
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = behind;
+        pullButton.appendChild(badge);
+      }
+      if (pullingByUsername[user.username]) {
+        pullButton.disabled = true;
+        pullButton.title = 'pulling…';
+      } else if (!status) {
+        pullButton.disabled = true;
+        pullButton.title = 'git could not read the worktree';
+      } else {
+        // uncommitted edits ride along; the pull itself refuses, naming them, only where develop changed the same file
+        pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from develop into ' + user.username + '\'s branch'
+            : user.username + '\'s branch has everything on develop';
+      }
+      actions.appendChild(pullButton);
+    }
+
+    var result = resultByUsername[user.username];
+    if (result) {
+      var line = document.createElement('div');
+      line.className = 'result ' + result.kind;
+      line.textContent = result.text;
+      head.appendChild(line);
+    }
+    var last = user.lastMerge;
+    var remoteFailed = last && last.remote && last.remote.outcome === 'failed';
+    if (last && (last.outcome === 'conflicts' || last.outcome === 'refused' || remoteFailed)) {
+      var recipe = document.createElement('pre');
+      recipe.className = 'recipe mono';
+      var why = document.createElement('div');
+      why.className = 'why';
+      why.textContent = last.op + ': ' + last.message;
+      recipe.appendChild(why);
+      if (last.outcome === 'conflicts') {
+        recipe.appendChild(document.createTextNode(
+          'cd ' + user.worktree + '\n' +
+          'git merge develop         # resolve the conflicts in an editor\n' +
+          'git add -A && git commit  # then ' + user.username + ' presses Push'));
+      } else if (remoteFailed) {
+        recipe.appendChild(document.createTextNode(
+          'git push origin develop   # from the checkout, once the network is back; a rejected push wants git pull first'));
+      }
+      head.appendChild(recipe);
+    }
+
+    var sessions = document.createElement('div');
+    sessions.className = 'sessions';
+    sessions.id = listId;
+    sessions.hidden = !expanded;
+    user.sessions.forEach(function (session) {
+      sessions.appendChild(renderSession(user, session));
+    });
+    el.appendChild(sessions);
+    return el;
+  }
+
+  function renderUsers(users) {
+    lastUsers = users;
+    usersEl.innerHTML = '';
+    if (!users.length) {
+      usersEl.innerHTML = '<p class="empty">Nobody has asked to join yet.</p>';
       return;
     }
-    logins.forEach(function (login) {
-      var meta = login.address + ' · ' + age(login.ageSeconds) + (login.file ? ' · editing ' + login.file : '')
-          + (login.branch ? ' · ' + login.branch : '');
-      var el = row(login.state, login.username, meta);
-      if (login.worktree) {
-        el.querySelector('.meta').title = login.worktree;
-        el.firstChild.appendChild(renderStatus(login));
-      }
-      var result = resultByLogin[login.id];
-      if (result) {
-        var line = document.createElement('div');
-        line.className = 'result ' + result.kind;
-        line.textContent = result.text;
-        el.appendChild(line);
-      }
-      var last = login.lastMerge;
-      var remoteFailed = last && login.lastMerge.remote && login.lastMerge.remote.outcome === 'failed';
-      if (last && (last.outcome === 'conflicts' || last.outcome === 'refused' || remoteFailed)) {
-        var recipe = document.createElement('pre');
-        recipe.className = 'recipe mono';
-        var why = document.createElement('div');
-        why.className = 'why';
-        why.textContent = last.op + ': ' + last.message;
-        recipe.appendChild(why);
-        if (last.outcome === 'conflicts') {
-          recipe.appendChild(document.createTextNode(
-            'cd ' + login.worktree + '\n' +
-            'git merge develop         # resolve the conflicts in an editor\n' +
-            'git add -A && git commit  # then ' + login.username + ' presses Push'));
-        } else if (remoteFailed) {
-          recipe.appendChild(document.createTextNode(
-            'git push origin develop   # from the checkout, once the network is back; a rejected push wants git pull first'));
-        }
-        el.appendChild(recipe);
-      }
-      var actions = el.querySelector('.actions');
-      var pill = document.createElement('span');
-      pill.className = 'pill ' + ({ pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' })[login.state];
-      pill.textContent = login.state;
-      actions.appendChild(pill);
-      if (login.worktree) {
-        var status = login.status;
-        var behind = status ? status.behind : 0;
-        var pullButton = button('Pull', 'pull' + (behind > 0 ? ' behind' : ''), function () { pull(login); });
-        if (behind > 0) {
-          var badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.textContent = behind;
-          pullButton.appendChild(badge);
-        }
-        if (pulling[login.id]) {
-          pullButton.disabled = true;
-          pullButton.title = 'pulling…';
-        } else if (!status) {
-          pullButton.disabled = true;
-          pullButton.title = 'git could not read the worktree';
-        } else {
-          // uncommitted edits ride along; the pull itself refuses, naming them, only where develop changed the same file
-          pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from develop into ' + login.username + '\'s branch'
-              : login.username + '\'s branch has everything on develop';
-        }
-        actions.appendChild(pullButton);
-      }
-      if (login.state === 'pending') {
-        actions.appendChild(button('Approve', 'primary', function () { post('/admin/logins/' + login.id + '/approve').then(refresh); }));
-        actions.appendChild(button('Deny', 'danger', function () { post('/admin/logins/' + login.id + '/deny').then(refresh); }));
-      } else if (login.state === 'approved') {
-        actions.appendChild(button('Revoke', 'danger', function () { post('/admin/logins/' + login.id + '/revoke').then(refresh); }));
-      } else {
-        actions.appendChild(button('Approve', '', function () { post('/admin/logins/' + login.id + '/approve').then(refresh); }));
-      }
-      loginsEl.appendChild(el);
+    users.forEach(function (user, index) {
+      usersEl.appendChild(renderUser(user, index));
     });
   }
 
@@ -349,7 +456,7 @@
   }
 
   function refresh() {
-    fetch('/admin/logins').then(function (r) { return r.json(); }).then(function (json) { renderLogins(json.logins); }).catch(function () {});
+    fetch('/admin/users').then(function (r) { return r.json(); }).then(function (json) { renderUsers(json.users); }).catch(function () {});
   }
 
   fetch('/admin/info').then(function (r) { return r.json(); }).then(function (info) {

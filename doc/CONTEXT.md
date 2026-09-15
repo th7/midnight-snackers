@@ -77,15 +77,28 @@ listener, per user, so a run started there is recorded as theirs. Class:
 
 **Admin** — The person at the host machine. Only they can reach the admin
 listener, where they decide logins and pick the editable set. There is no
-admin login; being on the machine is the credential. The admin page
-lists every login with its worktree's **status** (the same changed,
-ahead and behind that `GET /git/status` gives the user; null until the
-worktree exists, and null with a **statusError** when git cannot read
-it, so one broken worktree does not blank the list), how its last pull
-or push ended, and a Pull button.
+admin login; being on the machine is the credential.
+
+**User listing** — `GET /admin/users` and the roster it draws on the admin
+page: every user who has ever logged in, in the order they first did, each
+with the **sessions** they have made under them, oldest first. What is the
+user's rather than any one session's is said once, on the user — the
+worktree, its branch, its **status** (the same changed, ahead and behind
+that `GET /git/status` gives the user; null until the worktree exists, and
+null with a **statusError** when git cannot read it, so one broken worktree
+does not blank the list), how their last pull or push ended, and a Pull
+button. Logging in again adds a session to the user, never a second row.
+
+**Fold** — A user's sessions on the admin page, folded away under their
+row and opened by the caret. A user the admin has not folded by hand is
+open exactly while a session of theirs is pending, so a login waiting to
+be decided is never hidden; folded shut, the row still carries the
+pending count, the branch, the status and what its sessions have open.
 
 **User** — A teammate on the LAN who has logged in with a username. Users
-reach only the user listener.
+reach only the user listener. A user is their username: the worktree, the
+branch and the work are owned by it, so one user is one row of the
+listing however many times they log in.
 
 **Session** — One login by one user, identified by a small integer **id**
 the admin sees, and proven by a **token** the browser holds in the
@@ -93,6 +106,9 @@ the admin sees, and proven by a **token** the browser holds in the
 **states**: *pending* (asked, not yet decided), *approved* (may edit and
 simulate), *denied* (the admin said no), and *revoked* (was approved, no
 longer is). Only approved sessions reach files, builds, and the simulator.
+A session carries what is its own alone: where it logged in from, how long
+ago, the file it has open, and its state, which the admin decides per
+session at `POST /admin/logins/<id>/approve|deny|revoke`.
 
 **Editable set** — The files the admin has picked for users to edit, each
 named by its **root-relative path** with `/` separators
@@ -179,7 +195,9 @@ conflict. The Pull button pulses, and wears the count, while the branch
 is behind. The admin can press Pull for a user too,
 `POST /admin/logins/<id>/pull`: the same merge in that user's worktree,
 with the same refusals, so a teammate who has walked away from a stale
-branch is brought up to date without their browser. Their editor
+branch is brought up to date without their browser. The pull is the
+user's, and any session of theirs names them, so the button on their row
+sends their newest. Their editor
 notices by the **head** in the status moving under it: a file with
 nothing typed since its last save is reloaded; one with unsaved typing
 is left alone, and its next save is the usual conflict with a reload to

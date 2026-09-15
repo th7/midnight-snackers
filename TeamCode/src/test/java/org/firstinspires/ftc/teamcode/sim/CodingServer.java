@@ -52,12 +52,12 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
  * branch off {@code develop}, under the state directory. The host checkout is never written by a
  * user's save. The Edit tab's Commit, Pull, and Push buttons commit the user's edits on their
  * branch, bring {@code develop} into it, and land it on {@code develop}; a merge conflict changes
- * nothing and sends the user to their coach. The admin page shows each login's changed files and
- * commits ahead of and behind {@code develop}, and has a Pull button that does the user's pull for
- * them. The Simulate tab runs the autonomous op modes on the
- * simulated robot through a {@link SimBench} per worktree, one run at a time per user. Every run
- * recompiles that worktree's main sources and runs in a child JVM, so a saved edit is what the
- * next run executes.
+ * nothing and sends the user to their coach. The admin page is a list of users, each with the
+ * logins they have made folded under them: it shows each user's changed files and commits ahead
+ * of and behind {@code develop}, and has a Pull button that does their pull for them. The
+ * Simulate tab runs the autonomous op modes on the simulated robot through a {@link SimBench} per
+ * worktree, one run at a time per user. Every run recompiles that worktree's main sources and
+ * runs in a child JVM, so a saved edit is what the next run executes.
  * <p>
  * Sessions, the editable set, and the worktrees outlive the process. They live in the XDG state
  * directory ({@code $XDG_STATE_HOME/midnight-snackers/coding-server}, else
@@ -1113,12 +1113,12 @@ public final class CodingServer {
 
     // --- the admin listener ---
 
-    /** The admin listener: the admin page, the logins and their decisions, and the editable set. */
+    /** The admin listener: the admin page, the users and their logins' decisions, and the editable set. */
     private Router adminRoutes() {
         return new Router()
                 .route("GET", "/", (request, params) -> Response.html(page("admin.html")))
                 .route("GET", "/admin", (request, params) -> Response.html(page("admin.html")))
-                .route("GET", "/admin/logins", (request, params) -> Response.json(logins()))
+                .route("GET", "/admin/users", (request, params) -> Response.json(users()))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
@@ -1241,43 +1241,53 @@ public final class CodingServer {
     }
 
     /**
-     * Every login, with its worktree's status (what {@code GET /git/status} tells the user: the
-     * changed files, ahead and behind) once it has a worktree, and how its last pull or push
-     * ended. A status git cannot give is null with the reason in {@code statusError}, so one
-     * broken worktree does not take the listing down.
+     * Every user, in the order they first logged in, each with their logins under them, oldest
+     * first: logging in again is one more session under the same name, not a second user. What is
+     * the user's rather than any one login's is said once, on them — the worktree and its branch,
+     * its status (what {@code GET /git/status} tells the user: the changed files, ahead and
+     * behind) once there is a worktree, and how their last pull or push ended. A status git
+     * cannot give is null with the reason in {@code statusError}, so one broken worktree does not
+     * take the listing down.
      */
-    private synchronized String logins() {
+    private synchronized String users() {
         JsonArray list = new JsonArray();
         long now = System.currentTimeMillis();
-        Map<String, JsonElement> statusByUsername = new LinkedHashMap<>();
-        Map<String, String> statusErrorByUsername = new LinkedHashMap<>();
+        Map<String, JsonObject> byUsername = new LinkedHashMap<>();
         for (Session session : sessions.values()) {
-            JsonObject item = new JsonObject();
-            item.addProperty("id", session.id);
-            item.addProperty("username", session.username);
-            item.addProperty("address", session.address == null ? "" : session.address.getHostAddress());
-            item.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
-            item.addProperty("ageSeconds", (now - session.createdAtMillis) / 1000);
-            item.addProperty("file", session.openFile);
-            Worktrees.Worktree worktree = worktrees.find(session.username);
-            item.addProperty("worktree", worktree == null ? null : worktree.path.toString());
-            item.addProperty("branch", worktree == null ? null : worktree.branch);
-            if (worktree != null && !statusByUsername.containsKey(session.username)) {
-                // once per username, however many logins it has
-                try {
-                    statusByUsername.put(session.username, statusJson(worktrees.status(session.username)));
-                } catch (Worktrees.GitFailed e) {
-                    statusByUsername.put(session.username, JsonNull.INSTANCE);
-                    statusErrorByUsername.put(session.username, e.getMessage());
+            JsonObject user = byUsername.get(session.username);
+            if (user == null) {
+                user = new JsonObject();
+                user.addProperty("username", session.username);
+                Worktrees.Worktree worktree = worktrees.find(session.username);
+                user.addProperty("worktree", worktree == null ? null : worktree.path.toString());
+                user.addProperty("branch", worktree == null ? null : worktree.branch);
+                JsonElement status = JsonNull.INSTANCE;
+                String statusError = null;
+                if (worktree != null) {
+                    // git is asked once per user, however many logins they have
+                    try {
+                        status = statusJson(worktrees.status(session.username));
+                    } catch (Worktrees.GitFailed e) {
+                        statusError = e.getMessage();
+                    }
                 }
+                user.add("status", status);
+                user.addProperty("statusError", statusError);
+                user.add("lastMerge", lastMergeByUsername.get(session.username));
+                user.add("sessions", new JsonArray());
+                byUsername.put(session.username, user);
+                list.add(user);
             }
-            item.add("status", worktree == null ? JsonNull.INSTANCE : statusByUsername.get(session.username));
-            item.addProperty("statusError", statusErrorByUsername.get(session.username));
-            item.add("lastMerge", lastMergeByUsername.get(session.username));
-            list.add(item);
+            JsonObject login = new JsonObject();
+            login.addProperty("id", session.id);
+            login.addProperty("address", session.address == null ? "" : session.address.getHostAddress());
+            login.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
+            login.addProperty("ageSeconds", (now - session.createdAtMillis) / 1000);
+            login.addProperty("file", session.openFile);
+            user.getAsJsonArray("sessions").add(login);
         }
         JsonObject root = new JsonObject();
-        root.add("logins", list);
+        root.add("users", list);
         return GSON.toJson(root);
     }
 
