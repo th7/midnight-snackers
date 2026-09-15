@@ -4,12 +4,15 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.Turntable;
+import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.junit.Test;
 
@@ -82,25 +85,67 @@ public class SimRobotTest {
         assertTrue("and still accelerating: " + later, later < MAX_SPEED_IN_PER_S * 0.5 && later > early);
     }
 
+    /** Braking is what the robot's own drive asks for, so braking is how the robot really stops. */
     @Test
-    public void withThePowerCutTheRobotCoastsToAStop() {
+    public void theRobotsOwnDriveSetsEveryWheelToBrake() {
+        robotDrive();
+
+        for (FakeDcMotorEx wheel : wheelsOf(sim)) {
+            assertEquals(DcMotor.ZeroPowerBehavior.BRAKE, wheel.getZeroPowerBehavior());
+        }
+    }
+
+    /**
+     * Braking is the zero power behavior {@link MecanumDrive} sets, and it is what the robot stops
+     * like: the motors' terminals are shorted, so a turning wheel is held back by its own back EMF
+     * as well as by friction, and the robot is down within a foot or two of the cut.
+     */
+    @Test
+    public void withTheWheelsBrakingCuttingThePowerStopsTheRobotShort() {
+        double braked = rollOutAfterTheCut(sim, DcMotor.ZeroPowerBehavior.BRAKE);
+
+        assertTrue("still moving just after the cut: " + braked, braked > 0.5);
+        assertTrue("but down within a foot or two: " + braked, braked < 24);
+        double stopped = sim.pose().position.x;
+        sim.step(1.0);
+        assertEquals("and stays stopped", stopped, sim.pose().position.x, DELTA);
+    }
+
+    /**
+     * Floating is the other zero power behavior, and the simulation stops the robot the way it
+     * really would: with the terminals open there is no back EMF to hold the wheels, only
+     * friction, so the robot rolls on several times as far as braking wheels let it.
+     */
+    @Test
+    public void withTheWheelsFloatingCuttingThePowerLetsTheRobotRollOnMuchFurther() {
+        double braked = rollOutAfterTheCut(new SimRobot(), DcMotor.ZeroPowerBehavior.BRAKE);
+
+        double floated = rollOutAfterTheCut(sim, DcMotor.ZeroPowerBehavior.FLOAT);
+
+        assertTrue(
+                "floating rolls on several times as far as braking: " + floated + " against " + braked,
+                floated > 3 * braked);
+        double stopped = sim.pose().position.x;
+        sim.step(2.0);
+        assertEquals("and friction still brings it to a stop", stopped, sim.pose().position.x, DELTA);
+    }
+
+    /**
+     * The two behaviors stop the robot differently, so which one a wheel is on is not the
+     * simulation's to guess: a wheel left rolling at zero power with neither set says so.
+     */
+    @Test
+    public void aWheelRollingAtZeroPowerWithNoBehaviorSetIsRefusedRatherThanGuessedAt() {
         robotDrive();
         sim.setPose(new Pose2d(-60, 0, 0));
         setPowers(1, 1, 1, 1);
-        sim.step(2.0);
+        sim.step(0.5);
+        sim.leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.UNKNOWN);
         setPowers(0, 0, 0, 0);
-        double cutAt = sim.pose().position.x;
 
-        sim.step(0.05);
-        double coasting = sim.pose().position.x;
-        sim.step(2.0);
-        double stopped = sim.pose().position.x;
-        sim.step(1.0);
+        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> sim.step(0.02));
 
-        assertTrue("still moving just after the cut", coasting > cutAt + 0.5);
-        assertTrue("came to a stop", stopped > coasting);
-        assertEquals("and stays stopped", stopped, sim.pose().position.x, DELTA);
-        assertTrue("within a few feet: " + (stopped - cutAt), stopped - cutAt < 36);
+        assertTrue(thrown.getMessage(), thrown.getMessage().contains("zero power behavior"));
     }
 
     @Test
@@ -1255,9 +1300,37 @@ public class SimRobotTest {
     }
 
     /**
+     * How far the robot rolls on after its power is cut, with its wheels on {@code behavior}: up to
+     * speed for half a second, then nothing commanded until it is at rest. It starts at the back of
+     * the field, since floating wheels take most of the field's length to stop.
+     */
+    private static double rollOutAfterTheCut(SimRobot sim, DcMotor.ZeroPowerBehavior behavior) {
+        robotDrive(sim);
+        for (FakeDcMotorEx wheel : wheelsOf(sim)) {
+            wheel.setZeroPowerBehavior(behavior);
+        }
+        sim.setPose(new Pose2d(-60, 0, 0));
+        setPowers(sim, 1, 1, 1, 1);
+        sim.step(0.5);
+        setPowers(sim, 0, 0, 0, 0);
+
+        double cutAt = sim.pose().position.x;
+        sim.step(4.0);
+        return sim.pose().position.x - cutAt;
+    }
+
+    /**
      * The robot's own drive on the simulated motors, which applies the motor directions the robot uses.
      */
     private MecanumDrive robotDrive() {
+        return robotDrive(sim);
+    }
+
+    private static FakeDcMotorEx[] wheelsOf(SimRobot sim) {
+        return new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack};
+    }
+
+    private static MecanumDrive robotDrive(SimRobot sim) {
         return new MecanumDrive(
                 sim.leftFront,
                 sim.leftBack,
@@ -1270,6 +1343,11 @@ public class SimRobotTest {
     }
 
     private void setPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
+        setPowers(sim, leftFront, rightFront, leftBack, rightBack);
+    }
+
+    private static void setPowers(
+            SimRobot sim, double leftFront, double rightFront, double leftBack, double rightBack) {
         sim.leftFront.setPower(leftFront);
         sim.rightFront.setPower(rightFront);
         sim.leftBack.setPower(leftBack);
