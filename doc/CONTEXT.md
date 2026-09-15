@@ -509,9 +509,13 @@ an arc under gravity. A ball that goes in through an upturned cell's
 mouth rests in it, on the floor at the back; one that meets a wall or a
 back bounces off, whichever side it comes from; one that comes down on the
 floor rolls on; one that clears a
-wall is out. The model is planar apart from that flight: only the robot's
-footprint collides, nothing goes over a wall or under a hive by being low,
-and a flying ball meets only the hives, the floor and the walls. No
+wall is out. The model is planar apart from that flight and the flowers'
+stacks: only the robot's footprint collides, nothing goes over a wall or
+under a hive by being low, and a flying ball meets only the hives, the floor
+and the walls. What a body on the floor meets is what it can **reach**: a
+ball rolls under an obstacle whose underside clears it — a flower's pipes
+begin four inches up — and the robot, being eighteen inches tall, runs into
+the same obstacle. No
 sensor noise, ever: the sensors read exactly what the robot did, as the
 hub would report it, which for an encoder's velocity is to the nearest
 20 ticks per second (Road Runner's encoder wrapper reads the remainder
@@ -566,16 +570,37 @@ FIRST's CAD by `tools/field/step_to_field.py` to `field.json`: the
 **field element** as a low-poly convex shape with its colour, the two
 **hives**, the **game pieces** where a match starts, the gaffer **tape**
 on the floor, and the
-**obstacles**: the convex footprint of every element that stands lower
-than the robot is tall, which is what the robot runs into. For BIOBUZZ:
-the frame in the middle of the field is an obstacle leg by leg and foot
-by foot, so the robot drives through it; and the flowers at the walls are
-obstacles. A game piece is a **pollen** or a **nectar**, the bigger ball;
-the pieces on the floor in the open are **loose**, the simulator's to
-roll, the nectar in the hives is the hives' to hold, and the rest (the
-flowers' stacks, the rows outside the walls) stay put. Everything is in
+**obstacles**: the convex footprint of every part of an element that
+stands lower than the robot is tall, which is what the robot runs into,
+each saying how high it **stands** and how far it **clears** the floor.
+Every part blocks on its own, so what is driven through between blocks
+nothing: the frame in the middle of the field is an obstacle leg by leg
+and foot by foot, and a flower is one pipe by pipe. What stands lower than
+the floor's lip (half an inch) is no obstacle at all, being part of the
+floor: a flower's base plate is driven and rolled over. A game piece is a
+**pollen** or a **nectar**, the bigger ball; the pieces on the floor in
+the open are **loose**, the simulator's to roll, the nectar in the hives is
+the hives' to hold, the pollen in the flowers is the flowers', and the rest
+(the rows outside the walls) stay put. Everything is in
 the field frame Road Runner uses, in inches: the origin at the centre, +x
 away from the audience, +y to the audience's left. Class: `SimField`.
+
+**Flower** — One of the four towers at the walls, whose four pipes make the
+**bore** a stack of pollen stands in: a circle on the floor, the **axis**
+midway between the pipes and the radius the nearest of them leaves clear,
+with the **gap** between two neighbouring pipes narrower than a pollen, so
+what is in the bore stays in it. The bore's wall begins at the **lip**, the
+height the pipes start at; below that it reaches nothing. Class:
+`SimField.Flower`.
+
+**Stack** — The four pollen a flower is set up with, standing one on another
+in its bore from the floor up. Each rests on what is under it and falls onto
+it under gravity when there is nothing there, landing and settling; the stack
+does not move until something moves the bottom pollen. That one stands wholly
+below the lip, so the bore holds no part of it: it is a ball in the world like
+any other, which is what lets it be knocked out — and what is left comes down
+one place and stands again. A ball that comes to rest in a bore holds a stack
+up as well as a pollen of its own does. Method: `SimRobot.fallInTheFlowers`.
 
 **Hive** — An alliance's see-saw, hanging over the middle of the field
 from the axle the frame's top bar holds, with a **cell** at each end.

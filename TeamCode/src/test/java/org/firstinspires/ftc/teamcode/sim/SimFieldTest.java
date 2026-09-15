@@ -71,8 +71,9 @@ public class SimFieldTest {
     }
 
     /**
-     * What the robot collides with: the flowers and the frame's legs and feet, each a convex
-     * polygon inside the walls, wound counter-clockwise; nothing that hangs above the robot.
+     * What the robot collides with: the flowers' pipes and the frame's legs and feet, each a
+     * convex polygon inside the walls, wound counter-clockwise; nothing that hangs above the
+     * robot. Every element blocks part by part, so what is driven through between blocks nothing.
      */
     @Test
     public void theObstaclesAreConvexPolygonsInsideTheWalls() {
@@ -87,12 +88,156 @@ public class SimFieldTest {
                 assertTrue(obstacle.name + " turns left at every corner", turn > 0);
                 assertTrue(obstacle.name + " stands inside the walls", Math.abs(a[0]) < half && Math.abs(a[1]) < half);
             }
+            assertTrue(obstacle.name + " is one part of one element", obstacle.name.matches(".+ / .+ <\\d+>"));
         }
-        assertNotNull(field.obstacle("Flower Assembly <1>"));
-        assertNotNull(field.obstacle("Flower Assembly <4>"));
+        assertNotNull(field.obstacle("Flower Assembly <1> / Flower HIPS Pipe <1>"));
+        assertNotNull(field.obstacle("Frame <1> / A-Frame Leg <1>"));
         for (SimField.Obstacle obstacle : field.obstacles) {
             assertTrue(obstacle.name + " hangs above the robot and is no obstacle", !obstacle.name.contains("Hive"));
         }
+    }
+
+    /**
+     * An obstacle says how high it stands and how far it clears the floor, which is what says
+     * whether something meets it or passes it: nothing is an obstacle that is part of the floor,
+     * and what overhangs by more than a ball is tall is one a ball rolls under.
+     */
+    @Test
+    public void everyObstacleSaysHowHighItStandsAndHowFarItClearsTheFloor() {
+        double pollen = 2 * pollenRadius();
+        for (SimField.Obstacle obstacle : field.obstacles) {
+            assertTrue(
+                    obstacle.name + " stands " + obstacle.stands + " above its underside at " + obstacle.clears,
+                    obstacle.stands > obstacle.clears);
+            assertTrue(
+                    obstacle.name + " stands " + obstacle.stands + ", which is the floor's own lip",
+                    obstacle.stands > 0.5);
+            assertTrue(
+                    obstacle.name + " clears the floor by " + obstacle.clears + ", which is above the robot",
+                    obstacle.clears < 18);
+        }
+        for (SimField.Flower flower : field.flowers) {
+            for (SimField.Obstacle obstacle : partsOf(flower.name)) {
+                assertTrue(
+                        obstacle.name + " overhangs, so a pollen rolls under it: " + obstacle.clears,
+                        obstacle.clears > pollen);
+            }
+        }
+        assertTrue(
+                "the frame's feet stand on the floor, so a ball meets them",
+                field.obstacle("Frame <1> / Sheet Metal Foot Bar <1>").clears < pollen);
+    }
+
+    // --- the flowers: a bore at each wall with a stack of pollen standing in it ---
+
+    /**
+     * Each wall has a flower: four pipes making a bore that a stack of pollen stands in, narrow
+     * enough between two of them that a pollen cannot leave sideways, and open below the lip the
+     * pipes begin at. The pipes are what the robot runs into; the bore between them is clear.
+     */
+    @Test
+    public void eachWallHasAFlowerWhoseBoreHoldsAStackOfPollen() {
+        assertEquals("one flower at each wall", 4, field.flowers.size());
+        double radius = pollenRadius();
+        double half = field.size / 2;
+        Set<String> walls = new HashSet<>();
+        for (SimField.Flower flower : field.flowers) {
+            assertTrue(flower.name, flower.name.startsWith("Flower Assembly"));
+            assertTrue(flower.name + "'s bore is wider than a pollen: " + flower.bore, flower.bore > radius);
+            assertTrue(
+                    flower.name + "'s bore holds a pollen in: gap " + flower.gap + " vs " + 2 * radius,
+                    flower.gap < 2 * radius);
+            assertTrue(
+                    flower.name + "'s lip is above the pollen standing on the floor: " + flower.lip,
+                    flower.lip > 2 * radius);
+            assertTrue(
+                    flower.name + " stands at a wall: " + flower.axis[0] + ", " + flower.axis[1],
+                    Math.max(Math.abs(flower.axis[0]), Math.abs(flower.axis[1])) > half - 6);
+            walls.add(
+                    Math.abs(flower.axis[0]) > Math.abs(flower.axis[1])
+                            ? (flower.axis[0] > 0 ? "+x" : "-x")
+                            : (flower.axis[1] > 0 ? "+y" : "-y"));
+            List<SimField.Obstacle> pipes = partsOf(flower.name);
+            assertEquals(flower.name + " is four pipes", 4, pipes.size());
+            for (SimField.Obstacle pipe : pipes) {
+                assertTrue(flower.name + " is made of pipes: " + pipe.name, pipe.name.contains("Pipe"));
+                assertEquals(flower.name + "'s pipes begin at its lip", flower.lip, pipe.clears, 0.01);
+                for (double[] corner : pipe.footprint) {
+                    assertTrue(
+                            pipe.name + " stands clear of the bore",
+                            Math.hypot(corner[0] - flower.axis[0], corner[1] - flower.axis[1]) >= flower.bore - 0.01);
+                }
+            }
+        }
+        assertEquals("one at each of the four walls", 4, walls.size());
+        assertNotNull(field.flower("Flower Assembly <1>"));
+        assertNull(field.flower("Flower Assembly <9>"));
+    }
+
+    /**
+     * The stack the CAD draws in each flower is four pollen standing one on another from the floor
+     * up, in the bore: that the drawing's stack is the stack the simulator's own model of resting
+     * pollen builds is the model measured against the drawing it came from. Only the bottom one
+     * stands wholly below the lip, which is why it is the one that comes out.
+     */
+    @Test
+    public void theCadStacksFourPollenInEachFlowerOneRestingOnAnother() {
+        assertEquals("four in each of the four flowers", 16, field.flowerPieces.size());
+        Map<String, List<SimField.Piece>> stacks = new HashMap<>();
+        for (SimField.Piece piece : field.flowerPieces) {
+            assertEquals(SimField.POLLEN, piece.kind);
+            assertNull("in a flower, so in no cell", piece.cell);
+            SimField.Flower flower = field.flower(piece.flower);
+            assertNotNull(piece.flower, flower);
+            assertTrue(
+                    piece.name + " at " + piece.x + ", " + piece.y + " stands in " + flower.name + "'s bore",
+                    flower.standsIn(piece.x, piece.y));
+            stacks.computeIfAbsent(piece.flower, name -> new ArrayList<>()).add(piece);
+        }
+        assertEquals("one stack per flower", 4, stacks.size());
+        for (Map.Entry<String, List<SimField.Piece>> stack : stacks.entrySet()) {
+            List<SimField.Piece> pollen = new ArrayList<>(stack.getValue());
+            pollen.sort((a, b) -> Double.compare(a.z, b.z));
+            assertEquals(stack.getKey() + " holds four", 4, pollen.size());
+            SimField.Flower flower = field.flower(stack.getKey());
+            double resting = pollen.get(0).radius;
+            for (SimField.Piece piece : pollen) {
+                assertEquals(
+                        stack.getKey() + ": a pollen rests on what is under it, at " + piece.z, resting, piece.z, 0.15);
+                assertEquals(
+                        stack.getKey() + " stacks them on the bore's axis",
+                        0,
+                        Math.hypot(piece.x - flower.axis[0], piece.y - flower.axis[1]),
+                        0.1);
+                resting = piece.z + 2 * piece.radius;
+            }
+            assertTrue(
+                    stack.getKey() + "'s bottom pollen stands wholly below the lip",
+                    pollen.get(0).z + pollen.get(0).radius < flower.lip);
+            assertTrue(
+                    stack.getKey() + "'s next pollen up reaches the lip, so the bore holds it",
+                    pollen.get(1).z + pollen.get(1).radius > flower.lip);
+        }
+    }
+
+    /** The obstacles that are parts of that element. */
+    private List<SimField.Obstacle> partsOf(String element) {
+        List<SimField.Obstacle> parts = new ArrayList<>();
+        for (SimField.Obstacle obstacle : field.obstacles) {
+            if (obstacle.name.startsWith(element + " / ")) {
+                parts.add(obstacle);
+            }
+        }
+        return parts;
+    }
+
+    private double pollenRadius() {
+        for (SimField.Piece piece : field.loosePieces) {
+            if (SimField.POLLEN.equals(piece.kind)) {
+                return piece.radius;
+            }
+        }
+        throw new AssertionError("the field has no pollen");
     }
 
     @Test
@@ -261,8 +406,9 @@ public class SimFieldTest {
     }
 
     /**
-     * The pollen on the floor in the open is loose, for the robot to push; pollen held in a flower
-     * or lying outside the walls, and the nectar in the hives, stay where they are.
+     * The pollen on the floor in the open is loose, for the robot to push; the pollen stacked in a
+     * flower is that flower's, the nectar in the hives is those cells', and the rows lying outside
+     * the walls stay where they are.
      */
     @Test
     public void thePollenOnTheOpenFloorIsLoose() {
@@ -272,6 +418,7 @@ public class SimFieldTest {
             assertEquals("Pollen", piece.name);
             assertEquals(SimField.POLLEN, piece.kind);
             assertNull("loose, so in no cell", piece.cell);
+            assertNull("loose, so in no flower", piece.flower);
             assertTrue("pollen is smaller than nectar", piece.radius < 1.6);
             assertEquals(piece.name + " rests on the floor", piece.radius, piece.z, 0.25);
             assertTrue(
@@ -290,6 +437,18 @@ public class SimFieldTest {
             }
         }
         assertTrue("the flowers' stacks, the rows outside and the nectar are held: " + held, held > 30);
+        // Nothing inside the walls is left out of the model: what is not loose is a cell's or a
+        // flower's, and what is neither is a row the CAD lays out beyond the wall for the players.
+        for (int i = 0; i < pieces.size(); i++) {
+            JsonObject piece = pieces.get(i).getAsJsonObject();
+            JsonArray centre = piece.getAsJsonArray("centre");
+            boolean modelled = piece.get("loose").getAsBoolean() || piece.has("cell") || piece.has("flower");
+            boolean insideTheWalls = Math.abs(centre.get(0).getAsDouble()) < half
+                    && Math.abs(centre.get(1).getAsDouble()) < half;
+            assertTrue(
+                    piece.get("name").getAsString() + " at " + centre + " is inside the walls and in no model",
+                    modelled || !insideTheWalls);
+        }
     }
 
     /** The mean of a ring's corners. */
@@ -429,7 +588,7 @@ public class SimFieldTest {
     @Test
     public void thePageReadsTheModelTheSimulatorCollides() {
         JsonObject json = field.json();
-        for (String key : List.of("size", "wallHeight", "elements", "obstacles", "pieces", "tape")) {
+        for (String key : List.of("size", "wallHeight", "elements", "obstacles", "flowers", "pieces", "tape")) {
             assertTrue(key, json.has(key));
         }
         assertEquals(field.size, json.get("size").getAsDouble(), 0);

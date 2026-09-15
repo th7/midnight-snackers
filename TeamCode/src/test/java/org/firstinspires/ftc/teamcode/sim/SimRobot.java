@@ -16,6 +16,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.dyn4j.collision.Filter;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
 import org.dyn4j.dynamics.Settings;
@@ -61,9 +62,20 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * hive cell's mouth is in the cell, at rest on the floor at the back; one that meets a wall or a
  * back bounces off it, whichever side it comes from; one that comes down on the floor rolls on;
  * one that clears a wall is out. The
- * model is planar apart from that flight: only the robot's footprint collides, nothing goes over a
- * wall or under a hive by being low, and a flying ball meets only the hives, the floor and the
- * walls. The clock is the world's ({@link #nanoTime()}), read by the robot code through its
+ * model is planar apart from that flight and the flowers' stacks: only the robot's footprint
+ * collides, nothing goes over a wall or under a hive by being low, and a flying ball meets only
+ * the hives, the floor and the walls. What a body on the floor meets is what it can reach, so a
+ * ball rolls under an obstacle that overhangs it — a flower's pipes begin four inches up — and the
+ * robot, eighteen inches tall, runs into the same obstacle.
+ * <p>
+ * Each flower stands a stack of pollen in its bore, one resting on another from the floor up. The
+ * bore's wall begins at its lip, so the pollen at the bottom stands wholly below it and is held by
+ * nothing: it is a ball in the world like any other, and whatever knocks it out of the bore leaves
+ * the bore's floor clear. Then the stack comes down — each pollen falling under gravity onto what
+ * is under it, landing and settling — and stands again. A ball that comes to rest in a bore holds
+ * a stack up as well as a pollen of its own does.
+ * <p>
+ * The clock is the world's ({@link #nanoTime()}), read by the robot code through its
  * hardware, so a run is the same every time and need not take real time. The world moves in
  * steps of at most {@link #MAX_STEP_SECONDS} however long the caller waited, so nothing is jumped
  * over.
@@ -139,7 +151,8 @@ public class SimRobot {
     /**
      * A pollen whose surface is this near the front of the robot is in contact with it: the engine
      * keeps a ball the robot has met from overlapping it, and the robot covers no more than this in
-     * one step, so a pollen the robot drives into is seen here before it is pushed away.
+     * one step, so a pollen the robot drives into is seen here before it is pushed away. The intake
+     * reaches no further than the front of the robot, so this is a tolerance and not a reach.
      */
     private static final double INTAKE_REACH_IN = 0.25;
 
@@ -223,7 +236,8 @@ public class SimRobot {
     private double perpTicks = 0;
     /**
      * The balls: the field's loose pieces in {@link SimField#loosePieces}' order, then the nectar
-     * the hives are set up with in {@link SimField#cellPieces}' order, then the preload.
+     * the hives are set up with in {@link SimField#cellPieces}' order, then the pollen the flowers
+     * are set up with in {@link SimField#flowerPieces}' order, then the preload.
      */
     private final Ball[] balls;
     /** The balls in the robot's hopper, above the top gate, in the order they will drop. */
@@ -232,6 +246,8 @@ public class SimRobot {
     private Ball chambered = null;
     /** What is in each cell, in the order it went in: what rolls out when the cell turns over. */
     private final Map<SimField.Cell, List<Ball>> inCell = new LinkedHashMap<>();
+    /** What the bore of each flower holds up off the floor, lowest first: the stack above its bottom ball. */
+    private final Map<SimField.Flower, List<Ball>> inFlower = new LinkedHashMap<>();
     /** How far each hive leans now, in degrees: its own tilt until it tips, then the other way. */
     private final Map<SimField.Hive, Double> tilts = new LinkedHashMap<>();
     /** Each cell where the hive leans now, rebuilt when it tips. */
@@ -247,6 +263,8 @@ public class SimRobot {
         HELD,
         /** In a hive cell, at rest. */
         IN_CELL,
+        /** Up in a flower's bore, resting on what is under it or falling onto it. */
+        IN_FLOWER,
         /** Over a wall and out of the field, at rest where it came down. */
         OUT
     }
@@ -260,6 +278,8 @@ public class SimRobot {
         Where where;
         /** The cell the ball is in, while it is in one. */
         SimField.Cell cell;
+        /** The flower whose bore holds the ball up, while one does. */
+        SimField.Flower flower;
         /** The position, and while flying the velocity, of a ball that is not in the engine's world. */
         double x, y, z, vx, vy, vz;
 
@@ -267,6 +287,37 @@ public class SimRobot {
             this.radius = radius;
             this.kind = kind;
             this.body = body;
+        }
+    }
+
+    /**
+     * How high above the floor a body stands, which is what says whether it meets another: nothing
+     * meets what it cannot reach. The robot and a ball stand on the floor, an obstacle wherever the
+     * field model puts it, and two bodies collide only where those heights overlap — so a ball rolls
+     * under a flower's pipes, which begin four inches up, and the robot, being eighteen inches tall,
+     * runs into them.
+     */
+    private static final class Reaches implements Filter {
+        private final double clears;
+        private final double stands;
+
+        Reaches(double clears, double stands) {
+            this.clears = clears;
+            this.stands = stands;
+        }
+
+        @Override
+        public boolean isAllowed(Filter other) {
+            if (!(other instanceof Reaches)) {
+                return true;
+            }
+            Reaches that = (Reaches) other;
+            return stands > that.clears && that.stands > clears;
+        }
+
+        @Override
+        public Filter copy() {
+            return this;
         }
     }
 
@@ -359,6 +410,7 @@ public class SimRobot {
         footprint.setDensity(ROBOT_MASS_KG / (ROBOT_SIZE_IN * IN * ROBOT_SIZE_IN * IN));
         footprint.setFriction(0);
         footprint.setRestitution(0);
+        footprint.setFilter(new Reaches(0, ROBOT_SIZE_IN));
         robot.setMass(MassType.NORMAL);
         robot.setAtRestDetectionEnabled(false);
         robot.setLinearDamping(0);
@@ -372,22 +424,31 @@ public class SimRobot {
             inCell.put(cell, new ArrayList<>());
             turned.put(cell, new Turned(cell, tilts.get(cell.hive)));
         }
+        for (SimField.Flower flower : FIELD.flowers) {
+            inFlower.put(flower, new ArrayList<>());
+        }
         int loose = FIELD.loosePieces.size();
-        int held = loose + FIELD.cellPieces.size();
+        int inCells = loose + FIELD.cellPieces.size();
+        int held = inCells + FIELD.flowerPieces.size();
         balls = new Ball[held + PRELOAD];
         for (int i = 0; i < balls.length; i++) {
             SimField.Piece piece = i < loose
                     ? FIELD.loosePieces.get(i)
-                    : i < held ? FIELD.cellPieces.get(i - loose) : FIELD.loosePieces.get(0);
+                    : i < inCells
+                            ? FIELD.cellPieces.get(i - loose)
+                            : i < held ? FIELD.flowerPieces.get(i - inCells) : FIELD.loosePieces.get(0);
             balls[i] = new Ball(piece.radius, piece.kind, ballBody(piece.radius));
             if (i < loose) {
                 placePiece(i, piece.x, piece.y);
-            } else if (i < held) {
+            } else if (i < inCells) {
                 putInCell(balls[i], FIELD.cell(piece.cell));
+            } else if (i < held) {
+                putInFlower(balls[i], FIELD.flower(piece.flower), piece.z);
             } else {
                 intoTheHopper(balls[i]);
             }
         }
+        restTheFlowers();
     }
 
     private static Body wall(double x, double y, double width, double height) {
@@ -395,6 +456,7 @@ public class SimRobot {
         BodyFixture fixture = wall.addFixture(Geometry.createRectangle(width, height));
         fixture.setFriction(0);
         fixture.setRestitution(0);
+        fixture.setFilter(new Reaches(0, WALL_HEIGHT_IN));
         wall.setMass(MassType.INFINITE);
         wall.translate(x, y);
         return wall;
@@ -412,6 +474,7 @@ public class SimRobot {
             BodyFixture fixture = body.addFixture(Geometry.createPolygon(hull));
             fixture.setFriction(0);
             fixture.setRestitution(0);
+            fixture.setFilter(new Reaches(obstacle.clears, obstacle.stands));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException(obstacle.name + " is not a convex footprint the engine can hold", e);
         }
@@ -426,6 +489,7 @@ public class SimRobot {
         fixture.setFriction(0);
         fixture.setRestitution(BOUNCE);
         fixture.setRestitutionVelocity(0);
+        fixture.setFilter(new Reaches(0, 2 * radius));
         body.setMass(MassType.NORMAL);
         body.setLinearDamping(1 / ROLL_SECONDS);
         body.setAngularDamping(1 / ROLL_SECONDS);
@@ -508,8 +572,8 @@ public class SimRobot {
 
     /**
      * Where the balls are, {x, y, z} each: the field's loose pieces in {@link SimField#loosePieces}'
-     * order, then the nectar the hives are set up with, then the robot's preload; null for a ball
-     * held in the robot.
+     * order, then the nectar the hives are set up with, then the pollen the flowers are set up with,
+     * then the robot's preload; null for a ball held in the robot.
      */
     public double[][] pieces() {
         double[][] out = new double[balls.length][];
@@ -535,7 +599,11 @@ public class SimRobot {
 
     /** Set a ball down on the floor somewhere, at rest, whatever it was doing. */
     public void placePiece(int index, double x, double y) {
-        Ball ball = balls[index];
+        setDown(balls[index], x, y);
+    }
+
+    /** A ball on the floor there, at rest, in the engine's world, wherever it was before. */
+    private void setDown(Ball ball, double x, double y) {
         take(ball);
         ball.where = Where.ROLLING;
         ball.body.getTransform().setTranslation(x * IN, y * IN);
@@ -564,6 +632,10 @@ public class SimRobot {
         if (ball.where == Where.IN_CELL) {
             inCell.get(ball.cell).remove(ball);
             ball.cell = null;
+        }
+        if (ball.where == Where.IN_FLOWER) {
+            inFlower.get(ball.flower).remove(ball);
+            ball.flower = null;
         }
     }
 
@@ -594,6 +666,97 @@ public class SimRobot {
                     + turn.offTheFloor[axis] * ball.radius;
         }
         return out;
+    }
+
+    /**
+     * Put a pollen in a flower's bore, at that height, in its place in the stack: the bore holds it
+     * on its axis, and what is under it holds it up.
+     */
+    private void putInFlower(Ball ball, SimField.Flower flower, double z) {
+        take(ball);
+        ball.where = Where.IN_FLOWER;
+        ball.flower = flower;
+        ball.x = flower.axis[0];
+        ball.y = flower.axis[1];
+        ball.z = z;
+        ball.vx = ball.vy = ball.vz = 0;
+        List<Ball> stack = inFlower.get(flower);
+        int place = 0;
+        while (place < stack.size() && stack.get(place).z < z) {
+            place++;
+        }
+        stack.add(place, ball);
+    }
+
+    /**
+     * The stacks as the field is set up: every pollen already at rest on what is under it, so that
+     * a flower nobody has touched stands exactly still from the first step.
+     */
+    private void restTheFlowers() {
+        for (SimField.Flower flower : FIELD.flowers) {
+            double under = topOfTheBore(flower);
+            for (Ball ball : new ArrayList<>(inFlower.get(flower))) {
+                ball.z = under + ball.radius;
+                ball.vz = 0;
+                under = settled(ball, flower);
+            }
+        }
+    }
+
+    /**
+     * The pollen in the flowers come down. Each rests on what is under it in the bore — the ball
+     * standing in the bore at the bottom, or the floor when there is none — and falls under gravity
+     * when there is nothing there, landing with a bounce until it is at rest. Taking the bottom one
+     * out of a flower is all it takes to bring the rest down one place.
+     */
+    private void fallInTheFlowers(double dt) {
+        for (SimField.Flower flower : FIELD.flowers) {
+            double under = topOfTheBore(flower);
+            for (Ball ball : new ArrayList<>(inFlower.get(flower))) {
+                double resting = under + ball.radius;
+                if (ball.z > resting) {
+                    ball.vz -= GRAVITY_IN_PER_S2 * dt;
+                    ball.z += ball.vz * dt;
+                }
+                if (ball.z <= resting) {
+                    ball.z = resting;
+                    ball.vz = -ball.vz < LANDING_SPEED_IN_PER_S ? 0 : -ball.vz * BOUNCE;
+                }
+                under = settled(ball, flower);
+            }
+        }
+    }
+
+    /**
+     * How high in the bore a pollen that has just been moved leaves the stack standing. One that has
+     * come to rest wholly below the bore's lip is held by nothing any more: it stands in the bore on
+     * the floor, in the engine's world like any other ball, and holds up whatever is above it — which
+     * is why it is the one that comes out of a flower.
+     */
+    private double settled(Ball ball, SimField.Flower flower) {
+        if (ball.vz == 0 && ball.z + ball.radius <= flower.lip) {
+            setDown(ball, flower.axis[0], flower.axis[1]);
+        }
+        return ball.z + ball.radius;
+    }
+
+    /**
+     * The top of the ball standing in the flower's bore, which the stack above it rests on, or zero
+     * for a bore with nothing on its floor. A ball that has rolled in holds a stack up as well as a
+     * pollen of its own does.
+     */
+    private double topOfTheBore(SimField.Flower flower) {
+        double top = 0;
+        for (Ball ball : balls) {
+            if (ball.where != Where.ROLLING) {
+                continue;
+            }
+            Transform at = ball.body.getTransform();
+            if (flower.standsIn(at.getTranslationX() / IN, at.getTranslationY() / IN)) {
+                top = Math.max(top, 2 * ball.radius);
+            }
+        }
+        return top;
     }
 
     /** How many balls the robot holds: in its hopper and its chamber. */
@@ -695,6 +858,7 @@ public class SimRobot {
         feedTheLauncher();
         world.step(1, dt);
         intakeTheBalls();
+        fallInTheFlowers(dt);
         flyTheBalls(dt);
         turnTheHives();
         readTheSensors(dt);

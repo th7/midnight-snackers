@@ -32,7 +32,8 @@ public final class SimRecording implements SimReplayPage.Source {
         /**
          * Where the balls are, {x, y, z} each: the field's loose game pieces in
          * {@link SimField#loosePieces}' order, then the nectar the hives are set up with in
-         * {@link SimField#cellPieces}' order, then the robot's preload; a ball held in the robot
+         * {@link SimField#cellPieces}' order, then the pollen the flowers are set up with in
+         * {@link SimField#flowerPieces}' order, then the robot's preload; a ball held in the robot
          * is null. Null as a whole when the tick does not say, and they are where the field was
          * set up.
          */
