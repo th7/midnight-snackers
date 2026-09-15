@@ -9,6 +9,7 @@ import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Time;
 import com.acmerobotics.roadrunner.Twist2d;
 import com.acmerobotics.roadrunner.Vector2d;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -42,7 +43,10 @@ import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
  * was tuned with ({@link MecanumDrive.Params}): each wheel's motor, at its commanded power, pushes
  * its wheel toward the speed the tuned kS and kV give, at the rate the tuned kA allows, so the
  * robot takes time to get up to speed and to stop, and its true pose comes out of the engine
- * integrating that push against whatever it runs into. The walls and the obstacles stop it and
+ * integrating that push against whatever it runs into. How it stops with nothing commanded is the
+ * zero power behavior each wheel is set to: a braking wheel is held by its motor's back EMF and by
+ * friction, a floating one by friction alone, so it rolls on several times as far. The simulation
+ * will not guess at a wheel set to neither. The walls and the obstacles stop it and
  * let it slide along them; a ball it pushes rolls on and slows; a ball pinned against a wall
  * stops the robot short of it, since nothing goes through anything. The sensors the localizer
  * reads (dead wheel encoders and IMU yaw) are written back from the true pose, so the dead
@@ -1019,7 +1023,8 @@ public class SimRobot {
      * second and the motor at its commanded power on the battery as it reads now. This motor's
      * kS, kV and kA are the tuned ones by its {@code factors}. Below kS the motor cannot start the
      * wheel, and a wheel that friction would stop within the step stops. Whatever the motor asks,
-     * the floor gives no more acceleration than its traction, driving or braking.
+     * the floor gives no more acceleration than its traction, driving or braking. A wheel rolling
+     * at zero power is held back by {@link #brakesAtZeroPower its zero power behavior} as well.
      */
     private double wheelAcceleration(
             FakeDcMotorEx motor, int mount, SimNoise.Motor factors, double velocity, double dt) {
@@ -1033,10 +1038,33 @@ public class SimRobot {
             acceleration = -velocity / dt;
         } else {
             double sign = ticksPerSecond != 0 ? Math.signum(ticksPerSecond) : Math.signum(volts);
-            acceleration = (volts - kS * sign - kV * ticksPerSecond) / kA * drive.inPerTick;
+            // Rolling on nothing commanded, the back EMF is there to hold the wheel only if the
+            // motor's terminals are shorted; friction, the kS term, is there either way.
+            double backEmf = clamp(motor.power) == 0 && !brakesAtZeroPower(motor) ? 0 : kV * ticksPerSecond;
+            acceleration = (volts - kS * sign - backEmf) / kA * drive.inPerTick;
         }
         double traction = noise.tractionInPerS2;
         return Math.max(-traction, Math.min(traction, acceleration));
+    }
+
+    /**
+     * Whether this motor, turning with nothing commanded, is held back by its own back EMF: it is
+     * with the terminals shorted, which is what {@link DcMotor.ZeroPowerBehavior#BRAKE} does, and
+     * it is not with them open, which is {@link DcMotor.ZeroPowerBehavior#FLOAT}. The two stop the
+     * robot in very different distances, so which one a wheel is on is not this simulation's to
+     * guess: a wheel rolling on neither says so rather than being stopped as though it were on one.
+     */
+    private static boolean brakesAtZeroPower(FakeDcMotorEx motor) {
+        DcMotor.ZeroPowerBehavior behavior = motor.getZeroPowerBehavior();
+        if (behavior == DcMotor.ZeroPowerBehavior.BRAKE) {
+            return true;
+        }
+        if (behavior == DcMotor.ZeroPowerBehavior.FLOAT) {
+            return false;
+        }
+        throw new IllegalStateException("a wheel is rolling at zero power with its zero power behavior "
+                + behavior + ": set BRAKE or FLOAT on it, as MecanumDrive does, so this simulation knows"
+                + " whether its motor holds it back or lets it roll");
     }
 
     private static DualNum<Time> dual(double value) {
