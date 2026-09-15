@@ -133,7 +133,8 @@ public class SimFieldTest {
     /**
      * Each wall has a flower: four pipes making a bore that a stack of pollen stands in, narrow
      * enough between two of them that a pollen cannot leave sideways, and open below the lip the
-     * pipes begin at. The pipes are what the robot runs into; the bore between them is clear.
+     * pipes begin at, where a ring in the base plate nests the pollen at the bottom. The pipes are
+     * what the robot runs into; the bore between them is clear.
      */
     @Test
     public void eachWallHasAFlowerWhoseBoreHoldsAStackOfPollen() {
@@ -150,6 +151,9 @@ public class SimFieldTest {
             assertTrue(
                     flower.name + "'s lip is above the pollen standing on the floor: " + flower.lip,
                     flower.lip > 2 * radius);
+            assertTrue(
+                    flower.name + "'s nest is a ring a pollen can be rolled up over: " + flower.nest,
+                    flower.nest > 0 && flower.nest < radius);
             assertTrue(
                     flower.name + " stands at a wall: " + flower.axis[0] + ", " + flower.axis[1],
                     Math.max(Math.abs(flower.axis[0]), Math.abs(flower.axis[1])) > half - 6);

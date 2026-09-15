@@ -590,17 +590,29 @@ away from the audience, +y to the audience's left. Class: `SimField`.
 midway between the pipes and the radius the nearest of them leaves clear,
 with the **gap** between two neighbouring pipes narrower than a pollen, so
 what is in the bore stays in it. The bore's wall begins at the **lip**, the
-height the pipes start at; below that it reaches nothing. Class:
-`SimField.Flower`.
+height the pipes start at; below that it reaches nothing but the **nest**.
+Class: `SimField.Flower`.
+
+**Nest** — The ring in a flower's base plate that the ball at the bottom of
+its bore sits in the middle of. To leave, that ball has to roll up over the
+ring carrying whatever rests on it, so the nest pushes it back toward the
+axis — hardest at the bore's rim, not at all in the middle — and the weight
+on it drags it to a stop there rather than letting it roll about. A nest
+holds one ball, the one nearest its middle; another in the bore is on the
+plate around it and free. Method: `SimRobot.holdTheNests`.
 
 **Stack** — The four pollen a flower is set up with, standing one on another
 in its bore from the floor up. Each rests on what is under it and falls onto
 it under gravity when there is nothing there, landing and settling; the stack
-does not move until something moves the bottom pollen. That one stands wholly
-below the lip, so the bore holds no part of it: it is a ball in the world like
-any other, which is what lets it be knocked out — and what is left comes down
-one place and stands again. A ball that comes to rest in a bore holds a stack
-up as well as a pollen of its own does. Method: `SimRobot.fallInTheFlowers`.
+does not move until something takes the bottom pollen out of the nest. What
+can is the robot's own push, directly or through the balls between: its drive
+is behind that push and the nest's ring is no barrier to it, and once a push
+has rolled a ball up off its seat the ball is out of the nest until it comes
+to rest again. A loose ball rolling in is far too light — it knocks the
+pollen a little way up the ring and the ring rolls it back. When the bore's
+floor does come clear, what is left comes down one place and stands again; a
+ball that comes to rest in a bore holds a stack up as well as a pollen of its
+own does. Method: `SimRobot.fallInTheFlowers`.
 
 **Hive** — An alliance's see-saw, hanging over the middle of the field
 from the axle the frame's top bar holds, with a **cell** at each end.

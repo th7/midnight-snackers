@@ -752,13 +752,53 @@ public class SimRobotTest {
     }
 
     /**
-     * A ball rolls under everything a flower is made of — its pipes begin four inches up — so one
-     * the robot pushes into the bore goes in under them and knocks the pollen at the bottom clean
-     * out of the flower. Nothing is left on the bore's floor, so the stack above comes down one
-     * place and stands again: the whole of it, from the robot's push to the stack settling.
+     * A pollen the robot has let go of is too light to empty a flower. It rolls into the bore under
+     * the pipes, knocks the pollen sitting in the nest sideways and rolls off; the nest's ring takes
+     * the knock, and the pollen rolls back into it with the stack above it never having moved.
      */
     @Test
-    public void aBallPushedIntoAFlowersBoreKnocksTheBottomPollenOutAndTheStackComesDown() {
+    public void aPollenTheRobotHasLetGoOfCannotKnockTheBottomPollenOut() {
+        SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
+        int bottom = bottomOf(flower);
+        double lane = flower.axis[1] + 0.8;
+        robotDrive();
+        sim.placePiece(0, flower.axis[0] - 50, lane);
+        sim.setPose(new Pose2d(flower.axis[0] - 50 - BALL - SimRobot.ROBOT_SIZE_IN / 2 - 1, lane, 0));
+        setPowers(1, 1, 1, 1);
+        sim.step(1.0);
+        double[][] before = sim.pieces();
+        setPowers(0, 0, 0, 0);
+
+        double closest = Double.MAX_VALUE;
+        double knockedTo = 0;
+        for (int loop = 0; loop < 250; loop++) {
+            sim.step(0.02);
+            double[] nested = sim.pieces()[bottom], loose = sim.pieces()[0];
+            closest = Math.min(closest, Math.hypot(loose[0] - nested[0], loose[1] - nested[1]));
+            knockedTo = Math.max(knockedTo, fromTheAxis(flower, nested));
+        }
+
+        assertTrue(
+                "the loose pollen rolled into the bore and reached the nested one: " + closest,
+                closest <= 2 * BALL + CONTACT);
+        assertTrue("but never rolled it out of the bore: " + knockedTo, knockedTo <= flower.bore);
+        assertEquals("it is still in its nest", 0, fromTheAxis(flower, sim.pieces()[bottom]), CONTACT);
+        for (int piece : pollenOf(flower)) {
+            if (piece != bottom) {
+                assertArrayEquals("the stack above it never moved", before[piece], sim.pieces()[piece], 0);
+            }
+        }
+    }
+
+    /**
+     * A pollen the robot is still pushing does take one out. A ball rolls under everything a flower
+     * is made of — its pipes begin four inches up — so the one the robot drives in goes in under
+     * them, and with the robot's drive behind it the nest's ring is no barrier: the pollen at the
+     * bottom is pushed clean out of the flower. Nothing is left on the bore's floor, so the stack
+     * comes down one place and stands again — the whole of it, from the push to the settling.
+     */
+    @Test
+    public void aPollenTheRobotIsStillPushingKnocksTheBottomPollenOutAndTheStackComesDown() {
         SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
         int bottom = bottomOf(flower);
         // Pushed in off the bore's axis, so that what is squeezed out has a way out.
@@ -795,6 +835,11 @@ public class SimRobotTest {
             }
         }
         return pollen;
+    }
+
+    /** How far a ball is from the bore's axis. */
+    private static double fromTheAxis(SimField.Flower flower, double[] at) {
+        return Math.hypot(at[0] - flower.axis[0], at[1] - flower.axis[1]);
     }
 
     /** The piece that is lowest in the flower's bore now. */
