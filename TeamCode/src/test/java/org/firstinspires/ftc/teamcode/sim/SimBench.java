@@ -148,6 +148,27 @@ public final class SimBench {
             phase = "finished";
         }
 
+        /**
+         * This run as the status lists it, taken in one hold of the run's own lock: whoever reads
+         * it sees the phase, the loops and the outcome of one moment, never of two.
+         */
+        synchronized JsonObject json() {
+            JsonObject item = new JsonObject();
+            item.addProperty("id", id);
+            item.addProperty("name", entry.name);
+            item.addProperty("where", entry.where);
+            item.addProperty("kind", entry.kind);
+            item.addProperty("startedAt", startedAtMillis);
+            item.addProperty("startedBy", startedBy);
+            item.add("seed", StartPoses.seedToJson(seed));
+            item.addProperty("phase", phase);
+            item.addProperty("loops", ticks().size());
+            item.addProperty("seconds", seconds());
+            item.addProperty("outcome", outcome);
+            item.addProperty("message", message);
+            return item;
+        }
+
         synchronized Process child() {
             return child;
         }
@@ -823,24 +844,26 @@ public final class SimBench {
     }
 
     public synchronized String status() {
-        JsonObject root = new JsonObject();
-        root.addProperty("running", current() != null);
-        JsonArray list = new JsonArray();
+        List<JsonObject> newestFirst = new ArrayList<>();
         for (int i = runs.size() - 1; i >= 0; i--) {
-            Run run = runs.get(i);
-            JsonObject item = new JsonObject();
-            item.addProperty("id", run.id);
-            item.addProperty("name", run.entry.name);
-            item.addProperty("where", run.entry.where);
-            item.addProperty("kind", run.entry.kind);
-            item.addProperty("startedAt", run.startedAtMillis);
-            item.addProperty("startedBy", run.startedBy);
-            item.add("seed", StartPoses.seedToJson(run.seed));
-            item.addProperty("phase", run.phase());
-            item.addProperty("loops", run.ticks().size());
-            item.addProperty("seconds", run.seconds());
-            item.addProperty("outcome", run.outcome());
-            item.addProperty("message", run.message());
+            newestFirst.add(runs.get(i).json());
+        }
+        return statusOf(newestFirst);
+    }
+
+    /**
+     * The status from the runs, newest first: the bench is running exactly when the newest run
+     * has no outcome in the very snapshot the status shows. Asking the run a second time would
+     * let one that finished in between be reported as running and done at once — a moment that
+     * never was, and what the Simulate tab would then draw.
+     */
+    static String statusOf(List<JsonObject> newestFirst) {
+        JsonObject root = new JsonObject();
+        root.addProperty(
+                "running",
+                !newestFirst.isEmpty() && newestFirst.get(0).get("outcome").isJsonNull());
+        JsonArray list = new JsonArray();
+        for (JsonObject item : newestFirst) {
             list.add(item);
         }
         root.add("runs", list);

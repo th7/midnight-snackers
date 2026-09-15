@@ -327,6 +327,14 @@ every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
 runs on the current classpath. Class: `SimBench`.
 
+**Status** — What the bench is doing, as one moment: the runs newest
+first, each taken in one hold of that run's own lock, and **running**
+read from the newest of those same snapshots — it is running exactly
+when that run has no outcome yet. Asking the run again would let one
+that finished in between be reported as running and done at once, which
+is a moment that never was and what the Simulate tab would then draw.
+Method: `SimBench.statusOf`.
+
 **Libraries** — What a project is built against, navigated against, and
 run with: the jars on the server's classpath, and none of the server's
 own code. The server's code is the directories on its classpath (its

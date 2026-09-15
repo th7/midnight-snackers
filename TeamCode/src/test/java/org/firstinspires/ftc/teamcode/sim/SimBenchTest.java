@@ -153,6 +153,78 @@ public class SimBenchTest {
         return run;
     }
 
+    /**
+     * A status that says the bench is running while its newest run already carries an outcome
+     * describes a moment that never was: the run either has finished or has not.
+     */
+    private static boolean inconsistent(String status) {
+        int runs = status.indexOf("\"runs\":[");
+        if (!status.startsWith("{\"running\":true") || runs < 0) {
+            return false;
+        }
+        int end = status.indexOf('}', runs);
+        return end > 0 && status.substring(runs, end).contains("\"outcome\":\"");
+    }
+
+    /** A run in a status, as {@link SimBench#statusOf} reads it: only the outcome decides. */
+    private static com.google.gson.JsonObject item(int id, String outcome) {
+        com.google.gson.JsonObject item = new com.google.gson.JsonObject();
+        item.addProperty("id", id);
+        item.addProperty("outcome", outcome);
+        return item;
+    }
+
+    @Test
+    public void theStatusIsRunningExactlyWhenTheNewestRunHasNoOutcomeYet() {
+        com.google.gson.JsonObject going = item(2, null);
+        com.google.gson.JsonObject done = item(1, "done");
+
+        assertEquals("{\"running\":false,\"runs\":[]}", SimBench.statusOf(java.util.List.of()));
+        assertTrue(SimBench.statusOf(java.util.List.of(going, done)).startsWith("{\"running\":true"));
+        assertEquals(
+                "an older run that never reached an outcome is not what the bench is doing now",
+                "{\"running\":false,\"runs\":[{\"id\":1,\"outcome\":\"done\"},{\"id\":2,\"outcome\":null}]}",
+                SimBench.statusOf(java.util.List.of(done, going)));
+        assertFalse(inconsistent(SimBench.statusOf(java.util.List.of(done, going))));
+    }
+
+    @Test
+    public void aStatusIsOneMomentEvenWhileARunIsFinishing() throws Exception {
+        bench = new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+        java.util.List<String> impossible = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        java.util.concurrent.atomic.AtomicBoolean reading = new java.util.concurrent.atomic.AtomicBoolean(true);
+        java.util.concurrent.atomic.AtomicBoolean sawRunning = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicBoolean sawFinished = new java.util.concurrent.atomic.AtomicBoolean();
+        // one reader, reading as hard as the Simulate tab's polling never does, across three finishes
+        Thread reader = new Thread(() -> {
+            while (reading.get()) {
+                String status = bench.status();
+                if (inconsistent(status)) {
+                    impossible.add(status);
+                }
+                if (status.startsWith("{\"running\":true")) {
+                    sawRunning.set(true);
+                } else if (status.contains("\"outcome\":\"done\"")) {
+                    sawFinished.set(true);
+                }
+                Thread.yield();
+            }
+        });
+        reader.start();
+
+        for (int i = 0; i < 3; i++) {
+            await(bench.start(entry, "ada"));
+        }
+
+        reading.set(false);
+        reader.join();
+        assertEquals("[]", impossible.toString());
+        assertTrue("the reader never caught a run in progress, so it judged nothing", sawRunning.get());
+        assertTrue("the reader never caught a run finished, so it judged nothing", sawFinished.get());
+    }
+
     @Test
     public void aRunThroughTheChildEndsDoneWithItsTicksAndReplay() throws Exception {
         bench = new SimBench(
