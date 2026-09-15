@@ -6,29 +6,19 @@ import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.stream.Stream;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
+import org.firstinspires.ftc.teamcode.Classpath;
 import org.firstinspires.ftc.teamcode.base.OpMode;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 
@@ -158,7 +148,7 @@ public final class SimCatalog {
      */
     public static SimCatalog discover() {
         List<Entry> entries = new ArrayList<>();
-        for (Class<?> type : classesUnder(TEAMCODE_PACKAGE)) {
+        for (Class<?> type : Classpath.classesUnder(TEAMCODE_PACKAGE)) {
             if (type.getName().startsWith(ROADRUNNER_PACKAGE + ".")) {
                 continue;
             }
@@ -278,63 +268,5 @@ public final class SimCatalog {
 
     public Optional<Entry> find(String name) {
         return entries.stream().filter(e -> e.name.equals(name)).findFirst();
-    }
-
-    /**
-     * The top-level classes in a package and its subpackages, found by listing every entry of this
-     * JVM's classpath (directories and jars), so a freshly compiled directory placed first is seen
-     * the same way the class loader sees it. Classes are loaded without being initialized, and one
-     * that cannot be loaded on this JVM is noted on standard error and left out: it could not be
-     * an op mode the simulator runs.
-     */
-    private static List<Class<?>> classesUnder(String packageName) {
-        String prefix = packageName.replace('.', '/') + "/";
-        Set<String> classFiles = new LinkedHashSet<>();
-        try {
-            for (String entry : System.getProperty("java.class.path").split(File.pathSeparator)) {
-                File location = new File(entry);
-                if (location.isDirectory()) {
-                    Path root = location.toPath();
-                    Path packageDir = root.resolve(prefix);
-                    if (Files.isDirectory(packageDir)) {
-                        try (Stream<Path> files = Files.walk(packageDir)) {
-                            files.filter(Files::isRegularFile)
-                                    .forEach(file -> classFiles.add(
-                                            root.relativize(file).toString().replace(File.separatorChar, '/')));
-                        }
-                    }
-                } else if (location.isFile()) {
-                    try (JarFile jar = new JarFile(location)) {
-                        Enumeration<JarEntry> entries = jar.entries();
-                        while (entries.hasMoreElements()) {
-                            String name = entries.nextElement().getName();
-                            if (name.startsWith(prefix)) {
-                                classFiles.add(name);
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        List<Class<?>> classes = new ArrayList<>();
-        for (String classFile : classFiles) {
-            if (!classFile.endsWith(".class")) {
-                continue;
-            }
-            String rest = classFile
-                    .substring(0, classFile.length() - ".class".length())
-                    .replace('/', '.');
-            if (rest.contains("$") || rest.endsWith(".package-info") || rest.endsWith(".module-info")) {
-                continue; // nested classes are not op modes
-            }
-            try {
-                classes.add(Class.forName(rest, false, SimCatalog.class.getClassLoader()));
-            } catch (ClassNotFoundException | LinkageError e) {
-                System.err.println("catalog: skipping " + rest + ", not loadable on this JVM: " + e);
-            }
-        }
-        return classes;
     }
 }
