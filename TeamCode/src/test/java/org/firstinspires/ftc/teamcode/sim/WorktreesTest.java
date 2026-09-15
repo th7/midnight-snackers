@@ -214,6 +214,155 @@ public class WorktreesTest {
         return names;
     }
 
+    // --- removing a user's worktree, keeping their branch ---
+
+    @Test
+    public void removeTakesTheWorktreeDirectoryAndLeavesTheBranchAndTheMapping() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("Plans.java"), "ada's work\n".getBytes(StandardCharsets.UTF_8));
+        worktrees.commit("ada", "ada's work");
+        worktrees.push("ada");
+        String landed = GitFixture.commitOf(root, "coding/ada");
+
+        Worktrees.Removal removal = worktrees.remove("ada", false);
+
+        assertTrue(removal.removed);
+        assertNull(removal.refused);
+        assertFalse(Files.exists(ada.path));
+        String listed = GitFixture.git(root, "worktree", "list", "--porcelain");
+        assertFalse(listed, listed.contains("coding/ada"));
+        assertEquals("the branch was not moved", landed, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("the mapping is still ada's", ada.path, worktrees.find("ada").path);
+        assertEquals("ada", worktrees.find("ada").slug);
+        assertEquals(
+                "and in the store, for the next process", ada.path, worktrees().find("ada").path);
+    }
+
+    @Test
+    public void ensureAfterARemoveRebuildsTheWorktreeOnTheSameBranchWithItsCommits() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("README"), "ada's work\n".getBytes(StandardCharsets.UTF_8));
+        String committed = GitFixture.commitAll(ada.path, "ada's commit");
+        worktrees.remove("ada", true);
+        assertFalse(Files.exists(ada.path));
+
+        Worktrees.Worktree back = worktrees.ensure("ada");
+
+        assertEquals(ada.path, back.path);
+        assertEquals(ada.branch, back.branch);
+        assertEquals("ada", back.slug);
+        assertEquals(committed, GitFixture.head(back.path));
+        assertEquals("ada's work\n", read(back.path.resolve("README")));
+    }
+
+    @Test
+    public void removeRefusesWhenTheUserHasUncommittedFiles() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("Plans.java"), "half-typed\n".getBytes(StandardCharsets.UTF_8));
+
+        Worktrees.Removal removal = worktrees.remove("ada", false);
+
+        assertFalse(removal.removed);
+        assertEquals("[Plans.java]", removal.refused.changed.toString());
+        assertEquals(0, removal.refused.ahead);
+        assertFalse(removal.refused.none());
+        assertEquals("nothing was touched", "half-typed\n", read(ada.path.resolve("Plans.java")));
+    }
+
+    @Test
+    public void removeRefusesWhenTheUsersBranchIsAheadOfDevelop() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("Plans.java"), "ada's work\n".getBytes(StandardCharsets.UTF_8));
+        String committed = GitFixture.commitAll(ada.path, "ada's commit");
+
+        Worktrees.Removal removal = worktrees.remove("ada", false);
+
+        assertFalse(removal.removed);
+        assertEquals("[]", removal.refused.changed.toString());
+        assertEquals(1, removal.refused.ahead);
+        assertEquals("nothing was touched", committed, GitFixture.head(ada.path));
+    }
+
+    @Test
+    public void aForcedRemoveTakesTheWorktreeAndKeepsWhatWasCommitted() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        Files.write(ada.path.resolve("Plans.java"), "ada's work\n".getBytes(StandardCharsets.UTF_8));
+        String committed = GitFixture.commitAll(ada.path, "ada's commit");
+
+        Worktrees.Removal removal = worktrees.remove("ada", true);
+
+        assertTrue(removal.removed);
+        assertNull(removal.refused);
+        assertFalse(Files.exists(ada.path));
+        assertEquals("her commit is still on her branch", committed, GitFixture.commitOf(root, "coding/ada"));
+        assertEquals("ada's work\n", GitFixture.git(root, "show", "coding/ada:Plans.java"));
+        assertNotEquals(GitFixture.commitOf(root, "develop"), committed);
+    }
+
+    @Test
+    public void removeMakesNoWorktreeForAUserWhoHasNone() throws IOException {
+        Worktrees worktrees = worktrees();
+
+        Worktrees.Removal removal = worktrees.remove("nobody", false);
+
+        assertFalse(removal.removed);
+        assertNull(removal.refused);
+        assertNull(worktrees.find("nobody"));
+        assertFalse(Files.exists(worktrees.directory().resolve("nobody")));
+    }
+
+    @Test
+    public void removeSurvivesADirectoryThatHasAlreadyGoneAndLetsItBeMadeAgain() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        deleteTree(ada.path);
+
+        Worktrees.Removal removal = worktrees.remove("ada", false);
+
+        assertTrue(removal.removed);
+        assertFalse(Files.exists(ada.path));
+        assertEquals("git's administrative files went too", ada.path, worktrees.ensure("ada").path);
+        assertEquals("hello\n", read(ada.path.resolve("README")));
+    }
+
+    @Test
+    public void aRemovedUsersSlugIsStillTheirsAndStillTakenForEveryoneElse() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        worktrees.remove("ada", true);
+
+        Worktrees.Worktree other = worktrees.ensure("Ada");
+        Worktrees.Worktree back = worktrees.ensure("ada");
+
+        assertEquals("ada-2", other.slug);
+        assertEquals("ada", back.slug);
+        assertEquals(ada.path, back.path);
+        assertEquals(ada.branch, back.branch);
+    }
+
+    @Test
+    public void unsavedIsWhatADeleteWouldThrowAwayAndNothingForAUserWithNoWorktree() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+        assertTrue(worktrees.unsaved("ada").none());
+        Files.write(ada.path.resolve("Plans.java"), "ada's work\n".getBytes(StandardCharsets.UTF_8));
+        worktrees.commit("ada", "ada's work");
+        Files.write(ada.path.resolve("Notes.md"), "and more\n".getBytes(StandardCharsets.UTF_8));
+
+        Worktrees.Unsaved unsaved = worktrees.unsaved("ada");
+
+        assertEquals("[Notes.md]", unsaved.changed.toString());
+        assertEquals(1, unsaved.ahead);
+        assertFalse(unsaved.none());
+        assertTrue(worktrees.unsaved("nobody").none());
+        assertNull("asking must not make a worktree", worktrees.find("nobody"));
+    }
+
     // --- status and commit ---
 
     @Test

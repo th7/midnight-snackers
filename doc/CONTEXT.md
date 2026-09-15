@@ -86,8 +86,10 @@ user's rather than any one session's is said once, on the user — the
 worktree, its branch, its **status** (the same changed, ahead and behind
 that `GET /git/status` gives the user; null until the worktree exists, and
 null with a **statusError** when git cannot read it, so one broken worktree
-does not blank the list), how their last pull or push ended, and a Pull
-button. Logging in again adds a session to the user, never a second row.
+does not blank the list), how their last pull or push ended, and Pull and
+Delete buttons. Logging in again adds a session to the user, never a
+second row; a **delete** takes the row away, and a login after that is a
+new row for the same branch.
 
 **Fold** — A user's sessions on the admin page, folded away under their
 row and opened by the caret. A user the admin has not folded by hand is
@@ -108,7 +110,9 @@ simulate), *denied* (the admin said no), and *revoked* (was approved, no
 longer is). Only approved sessions reach files, builds, and the simulator.
 A session carries what is its own alone: where it logged in from, how long
 ago, the file it has open, and its state, which the admin decides per
-session at `POST /admin/logins/<id>/approve|deny|revoke`.
+session at `POST /admin/logins/<id>/approve|deny|revoke`. A revoked
+session is still a session; only a **delete** takes sessions away, and it
+takes all of that user's at once.
 
 **Editable set** — The files the admin has picked for users to edit, each
 named by its **root-relative path** with `/` separators
@@ -139,6 +143,19 @@ the login, so git's refusal, if any, is the admin's to see. Class:
 **User branch** — `coding/<slug>`, created at the tip of `develop` when
 the worktree is made. Saves are uncommitted changes in the worktree
 until the user presses Commit.
+
+**Delete** — `POST /admin/users/delete?username=<name>`, the Delete button
+on the user's row: the user leaves the listing. Every session they have is
+forgotten, so their browsers are logged out, their bench and its child
+stop, and their worktree directory goes. Their **user branch** stays, and
+so does the mapping to it, so logging in again and being approved rebuilds
+the same worktree on the same branch with everything they committed, under
+the same slug. Refused, changing nothing, while they have work `develop`
+does not have — uncommitted files, or commits ahead — naming it, until the
+admin asks again with `force`; the page's Delete anyway is that second ask,
+so what the admin reads is what the server enforced and not a warning the
+page worked out for itself. The refusal is decided before the bench is
+stopped, so a user who keeps their work keeps their run.
 
 **Commit** — `POST /git/commit` with a message: the **formatter** runs over
 every uncommitted `.java` file in the worktree first, and then every
@@ -224,7 +241,9 @@ The coach's merge *is* the pull, so Push is all that is left, and
 `[a-z0-9]` replaced by one `-`, trimmed of leading and trailing `-`, at
 most 32 characters, never empty. It names the branch and the worktree
 directory. Two usernames that collapse to one slug get `-2`, `-3`, … so
-the mapping is decided once and stored, never recomputed.
+the mapping is decided once and stored, never recomputed. It outlives the
+worktree: a deleted user's mapping stays, which is what gives them their
+own slug and their own branch back when they return.
 
 **Worktrees directory** — Where the worktrees live: under the state
 directory, at `worktrees/<root name>-<8 hex of SHA-256(root path)>/<slug>`,
@@ -307,6 +326,14 @@ Given a project it builds that project's robot and simulator before
 every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
 runs on the current classpath. Class: `SimBench`.
+
+**Status** — What the bench is doing, as one moment: the runs newest
+first, each taken in one hold of that run's own lock, and **running**
+read from the newest of those same snapshots — it is running exactly
+when that run has no outcome yet. Asking the run again would let one
+that finished in between be reported as running and done at once, which
+is a moment that never was and what the Simulate tab would then draw.
+Method: `SimBench.statusOf`.
 
 **Libraries** — What a project is built against, navigated against, and
 run with: the jars on the server's classpath, and none of the server's

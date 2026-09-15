@@ -54,7 +54,9 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
  * branch, bring {@code develop} into it, and land it on {@code develop}; a merge conflict changes
  * nothing and sends the user to their coach. The admin page is a list of users, each with the
  * logins they have made folded under them: it shows each user's changed files and commits ahead
- * of and behind {@code develop}, and has a Pull button that does their pull for them. The
+ * of and behind {@code develop}, has a Pull button that does their pull for them, and a Delete
+ * button that takes a teammate away: their logins, their bench and their worktree, never their
+ * branch, and never while they have work {@code develop} does not have unless asked twice. The
  * Simulate tab runs the autonomous op modes on the simulated robot through a {@link SimBench} per
  * worktree, one run at a time per user. Every run recompiles that worktree's main sources and
  * runs in a child JVM, so a saved edit is what the next run executes.
@@ -1119,6 +1121,11 @@ public final class CodingServer {
                 .route("GET", "/", (request, params) -> Response.html(page("admin.html")))
                 .route("GET", "/admin", (request, params) -> Response.html(page("admin.html")))
                 .route("GET", "/admin/users", (request, params) -> Response.json(users()))
+                .route(
+                        "POST",
+                        "/admin/users/delete",
+                        (request, params) ->
+                                deleteUser(request.query("username"), "true".equals(request.query("force"))))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
@@ -1327,6 +1334,103 @@ public final class CodingServer {
         }
         saveSessions();
         return Response.json(GSON.toJson(me(found)));
+    }
+
+    // --- deleting a user ---
+
+    /**
+     * {@code POST /admin/users/delete?username=<name>}: the user leaves. Every login they have is
+     * forgotten, their bench and its child stop, and their worktree directory goes; their branch
+     * and the mapping to it stay, so logging in again and being approved gives them their work
+     * back on the same branch. Refused with 409, changing nothing, while they have work
+     * {@code develop} does not have, unless {@code force}.
+     */
+    private Response deleteUser(String username, boolean force) {
+        if (username == null || username.isEmpty()) {
+            return Response.error(400, "POST /admin/users/delete?username=<name>");
+        }
+        int logins = sessionCountOf(username);
+        if (logins == 0) {
+            return Response.error(404, "no user named " + username);
+        }
+        Worktrees.Worktree worktree = worktrees.find(username);
+        try {
+            // asked before the bench is stopped, so a refusal does not cost the user a run
+            if (!force) {
+                Worktrees.Unsaved unsaved = worktrees.unsaved(username);
+                if (!unsaved.none()) {
+                    return refusal(username, unsaved);
+                }
+            }
+            stopBench(username);
+            synchronized (navigatorByUsername) {
+                navigatorByUsername.remove(username);
+            }
+            // the same question again, and this time it is the answer that decides: work that
+            // arrived since is refused here, having cost a stopped run
+            Worktrees.Removal removal = worktrees.remove(username, force);
+            if (removal.refused != null) {
+                return refusal(username, removal.refused);
+            }
+        } catch (Worktrees.GitFailed e) {
+            return Response.error(500, "git failed for " + username + ": " + e.getMessage());
+        }
+        synchronized (this) {
+            lastMergeByUsername.remove(username);
+            sessions.values().removeIf(session -> session.username.equals(username));
+            saveSessions();
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("deleted", true);
+        body.addProperty("username", username);
+        body.addProperty("branch", worktree == null ? null : worktree.branch);
+        body.addProperty("logins", logins);
+        return Response.json(GSON.toJson(body));
+    }
+
+    private synchronized int sessionCountOf(String username) {
+        int count = 0;
+        for (Session session : sessions.values()) {
+            if (session.username.equals(username)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Stops the user's bench and its child, and forgets it, so a later login gets a fresh one. */
+    private void stopBench(String username) {
+        synchronized (benchByUsername) {
+            SimBench bench = benchByUsername.remove(username);
+            benchRoutesByUsername.remove(username);
+            if (bench != null) {
+                bench.stop();
+            }
+        }
+    }
+
+    /** 409: what the delete would have thrown away, named, so the admin can ask for it anyway. */
+    private static Response refusal(String username, Worktrees.Unsaved unsaved) {
+        List<String> parts = new ArrayList<>();
+        if (!unsaved.changed.isEmpty()) {
+            parts.add(plural(unsaved.changed.size(), "changed file"));
+        }
+        if (unsaved.ahead > 0) {
+            parts.add(plural(unsaved.ahead, "commit"));
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty(
+                "message",
+                username + " has " + String.join(" and ", parts) + " that " + Worktrees.DEVELOP
+                        + " does not have; push " + (unsaved.changed.size() + unsaved.ahead == 1 ? "it" : "them")
+                        + " first, or delete anyway");
+        body.add("changed", GSON.toJsonTree(unsaved.changed));
+        body.addProperty("ahead", unsaved.ahead);
+        return Response.json(409, GSON.toJson(body));
+    }
+
+    private static String plural(int count, String one) {
+        return count + " " + (count == 1 ? one : one + "s");
     }
 
     // --- what outlives the process ---

@@ -186,9 +186,12 @@
 
   var stateClass = { pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' };
 
-  /** What the admin's last Pull for each user said, by username, so a refresh does not wipe it. */
+  /** What the admin's last Pull or Delete for each user said, by username, so a refresh does not wipe it. */
   var resultByUsername = {};
   var pullingByUsername = {};
+
+  /** Whose Delete the server has refused: theirs offers to delete anyway until it is taken back. */
+  var deleteArmedByUsername = {};
 
   /**
    * Which users the admin has opened or closed by hand. Anyone they have not touched is open
@@ -226,6 +229,40 @@
       try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
       resultByUsername[user.username] = { text: result.message, kind: reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : 'bad' };
       delete pullingByUsername[user.username];
+      refresh();
+    });
+  }
+
+  /** What the page remembers about a user, dropped when they are. */
+  function forget(username) {
+    delete resultByUsername[username];
+    delete pullingByUsername[username];
+    delete expandedByUsername[username];
+    delete deleteArmedByUsername[username];
+  }
+
+  /**
+   * Delete is the user's: their logins are forgotten, their bench stops and their worktree goes,
+   * while their branch keeps everything they committed. The server refuses while they have work
+   * develop does not have and says what it is, so the button offers to ask for it anyway rather
+   * than the page guessing at a warning of its own.
+   */
+  function remove(user) {
+    var armed = deleteArmedByUsername[user.username];
+    var path = '/admin/users/delete?username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
+    fetch(path, { method: 'POST' }).then(function (r) {
+      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
+    }).catch(function () {
+      return { ok: false, text: 'could not reach the server' };
+    }).then(function (reply) {
+      if (reply.ok) {
+        forget(user.username);
+      } else {
+        var result;
+        try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
+        resultByUsername[user.username] = { text: result.message, kind: 'bad', from: 'delete' };
+        deleteArmedByUsername[user.username] = true;
+      }
       refresh();
     });
   }
@@ -273,6 +310,15 @@
   function renderUser(user, index) {
     var pending = pendingCount(user);
     var expanded = isExpanded(user);
+    var armed = deleteArmedByUsername[user.username];
+    if (armed && user.status && !user.status.changed.length && !user.status.ahead) {
+      // what the server refused over has since been pushed: the loaded button is taken back
+      delete deleteArmedByUsername[user.username];
+      armed = false;
+      if (resultByUsername[user.username] && resultByUsername[user.username].from === 'delete') {
+        delete resultByUsername[user.username];
+      }
+    }
     var listId = 'sessions-' + index;
     var el = document.createElement('div');
     el.className = 'user';
@@ -289,6 +335,7 @@
     fold.querySelector('.name').textContent = user.username;
     fold.addEventListener('click', function () {
       expandedByUsername[user.username] = !expanded;
+      delete deleteArmedByUsername[user.username];  // the admin's nearest way to say never mind
       renderUsers(lastUsers);
     });
     left.appendChild(fold);
@@ -330,6 +377,11 @@
       }
       actions.appendChild(pullButton);
     }
+    var deleteButton = button(armed ? 'Delete anyway' : 'Delete', 'danger', function () { remove(user); });
+    deleteButton.title = armed
+        ? 'Delete ' + user.username + ' anyway: ' + (user.branch || 'their branch') + ' keeps what they committed'
+        : 'Forget ' + user.username + '\'s logins and take their worktree; their branch stays';
+    actions.appendChild(deleteButton);
 
     var result = resultByUsername[user.username];
     if (result) {

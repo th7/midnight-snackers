@@ -2428,6 +2428,185 @@ public class CodingServerTest {
         assertTrue(page, page.contains("view only"));
     }
 
+    // --- deleting a user ---
+
+    /** Whether the admin listing has a row for that username at all. */
+    private boolean listed(String username) throws IOException {
+        return admin("GET", "/admin/users").body.contains("\"username\":\"" + username + "\"");
+    }
+
+    @Test
+    public void deletingAUserEndsEveryOneOfTheirLoginsAndTakesTheirWorktree() throws IOException {
+        String cookie = approvedUser("ada");
+        String second = login("ada");
+        approvedUser("bob");
+        Path worktree = worktreeOf("ada");
+        Path bobs = worktreeOf("bob");
+        assertEquals(200, user("GET", "/files", cookie).status);
+
+        Reply deleted = admin("POST", "/admin/users/delete?username=ada");
+
+        assertEquals(deleted.body, 200, deleted.status);
+        assertEquals("{\"deleted\":true,\"username\":\"ada\",\"branch\":\"coding/ada\",\"logins\":2}", deleted.body);
+        assertFalse("ada has left the listing", listed("ada"));
+        assertTrue("and nobody else has", listed("bob"));
+        assertEquals(403, user("GET", "/files", cookie).status);
+        assertEquals("{\"state\":\"none\"}", user("GET", "/me", cookie).body);
+        assertEquals("both her logins went", "{\"state\":\"none\"}", user("GET", "/me", second).body);
+        assertFalse(Files.exists(worktree));
+        assertEquals("her branch stayed", GitFixture.head(root), GitFixture.commitOf(root, "coding/ada"));
+        assertTrue("bob's worktree is where it was", Files.isDirectory(bobs));
+    }
+
+    @Test
+    public void deletingAUserWithWorkDevelopDoesNotHaveIsRefusedAndChangesNothing() throws IOException {
+        String cookie = savedEditor("edited");
+        Path worktree = worktreeOf("ada");
+
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
+
+        assertEquals(refused.body, 409, refused.status);
+        JsonObject body = json(refused.body);
+        assertEquals(
+                "ada has 1 changed file that develop does not have; push it first, or delete anyway",
+                body.get("message").getAsString());
+        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("changed").toString());
+        assertEquals(0, body.get("ahead").getAsInt());
+        assertTrue("her worktree is untouched", Files.isDirectory(worktree));
+        assertEquals("and her login still works", 200, user("GET", "/files", cookie).status);
+        assertTrue(listed("ada"));
+    }
+
+    @Test
+    public void aRefusalCountsTheCommitsDevelopLacksAsWellAsTheChangedFiles() throws IOException {
+        String cookie = savedEditor("edited");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
+
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
+
+        assertEquals(refused.body, 409, refused.status);
+        JsonObject body = json(refused.body);
+        assertEquals(
+                "ada has 1 commit that develop does not have; push it first, or delete anyway",
+                body.get("message").getAsString());
+        assertEquals("[]", body.getAsJsonArray("changed").toString());
+        assertEquals(1, body.get("ahead").getAsInt());
+    }
+
+    @Test
+    public void aForcedDeleteTakesTheWorktreeAndTheirLoginsAnyway() throws IOException {
+        String cookie = savedEditor("edited");
+        Path worktree = worktreeOf("ada");
+
+        Reply deleted = admin("POST", "/admin/users/delete?username=ada&force=true");
+
+        assertEquals(deleted.body, 200, deleted.status);
+        assertFalse(Files.exists(worktree));
+        assertFalse(listed("ada"));
+        assertEquals(403, user("GET", "/files", cookie).status);
+    }
+
+    @Test
+    public void aDeletedUserWhoLogsInAgainGetsTheirBranchBackWithTheirCommits() throws IOException {
+        String cookie = savedEditor("ada's work");
+        assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
+        Path worktree = worktreeOf("ada");
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada&force=true").status);
+        assertFalse(Files.exists(worktree));
+
+        String again = approvedUser("ada");
+
+        assertEquals(
+                "{\"state\":\"approved\",\"username\":\"ada\",\"branch\":\"coding/ada\"}",
+                user("GET", "/me", again).body);
+        assertEquals("the same worktree, on the same branch", worktree, worktreeOf("ada"));
+        assertEquals(
+                "ada's work",
+                json(user("GET", "/files/TeamCode/Plans.java", again).body)
+                        .get("content")
+                        .getAsString());
+    }
+
+    @Test
+    public void deletingAUserStopsTheirBenchAndLeavesEveryoneElsesRunning() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), bob).status);
+        assertEquals(2, benches.size());
+
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
+
+        assertNull(benches.get(0).current());
+        assertTrue(benches.get(0).status(), benches.get(0).status().contains("\"outcome\":\"stopped\""));
+        assertNotNull("bob's run is not ada's to stop", benches.get(1).current());
+        assertTrue(user("GET", "/sim/status", bob).body.contains("\"running\":true"));
+        String again = approvedUser("ada");
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Count to three"), again).status);
+        assertEquals("she comes back to a bench of her own", 3, benches.size());
+    }
+
+    @Test
+    public void aRefusedDeleteLeavesTheirRunningSimulationAlone() throws Exception {
+        String ada = approvedUser("ada");
+        Files.write(worktreeOf("ada").resolve("README"), "typing\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
+
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
+
+        assertEquals(refused.body, 409, refused.status);
+        assertNotNull(benches.get(0).current());
+        assertTrue(user("GET", "/sim/status", ada).body.contains("\"running\":true"));
+    }
+
+    @Test
+    public void deletingAUserNobodyHasIs404AndDeletingNobodyIs400() throws IOException {
+        approvedUser("ada");
+
+        Reply missing = admin("POST", "/admin/users/delete?username=bob");
+
+        assertEquals(404, missing.status);
+        assertTrue(missing.body, missing.body.contains("bob"));
+        assertEquals(400, admin("POST", "/admin/users/delete").status);
+        assertTrue(listed("ada"));
+    }
+
+    @Test
+    public void theDeleteRouteDoesNotExistOnTheUserPort() throws IOException {
+        String cookie = approvedUser("ada");
+
+        assertEquals(404, user("POST", "/admin/users/delete?username=ada", cookie).status);
+
+        assertEquals(200, user("GET", "/files", cookie).status);
+        assertTrue(listed("ada"));
+    }
+
+    @Test
+    public void aDeletedUserIsStillGoneAfterARestart() throws IOException {
+        String cookie = approvedUser("ada");
+        approvedUser("bob");
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
+
+        restart();
+
+        assertFalse(listed("ada"));
+        assertTrue(listed("bob"));
+        assertEquals(403, user("GET", "/files", cookie).status);
+        assertFalse(
+                "the sessions were saved without her, not just dropped from the map",
+                new String(Files.readAllBytes(sessionsFile()), StandardCharsets.UTF_8).contains("\"ada\""));
+    }
+
+    @Test
+    public void theAdminPageDeletesAUserAndOffersToDeleteAnywayWhenTheServerRefuses() throws IOException {
+        String page = admin("GET", "/admin").body;
+
+        assertTrue(page, page.contains("'/admin/users/delete?username='"));
+        assertTrue(page, page.contains("'&force=true'"));
+        assertTrue(page, page.contains("Delete anyway"));
+        assertTrue("the server's refusal is what the admin reads", page.contains("deleteArmedByUsername"));
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {
