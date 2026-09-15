@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -146,11 +147,50 @@ public class CodingServerTest {
         assertTrue(login.header("Set-Cookie"), login.header("Set-Cookie").contains("HttpOnly"));
         assertTrue(login.header("Set-Cookie"), login.header("Set-Cookie").contains("SameSite=Strict"));
         assertEquals("{\"state\":\"pending\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(logins, logins.contains("\"username\":\"ada\""));
         assertTrue(logins, logins.contains("\"state\":\"pending\""));
         assertTrue(logins, logins.contains("\"address\":\"127.0.0.1\""));
         assertTrue("the admin list must never carry the session token", !logins.contains(cookie));
+    }
+
+    /**
+     * The admin listing is a list of users, each with the logins they have made: a teammate who
+     * logs in again is one more session under the same name, not a second row, and what is the
+     * user's rather than any one login's — worktree, branch, status — is said once, on them.
+     */
+    @Test
+    public void theAdminListingGathersEachUsersLoginsUnderThem() throws IOException {
+        login("ada"); // ada's first browser
+        login("ada"); // and her second, on the machine next to it
+        admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+        login("bob");
+        admin("POST", "/admin/logins/" + idOf("bob") + "/deny");
+
+        JsonArray users = json(admin("GET", "/admin/users").body).getAsJsonArray("users");
+
+        assertEquals(2, users.size());
+        JsonObject ada = users.get(0).getAsJsonObject();
+        JsonObject bob = users.get(1).getAsJsonObject();
+        assertEquals("ada", ada.get("username").getAsString());
+        assertEquals("bob", bob.get("username").getAsString());
+        JsonArray logins = ada.getAsJsonArray("sessions");
+        assertEquals(2, logins.size());
+        JsonObject older = logins.get(0).getAsJsonObject();
+        JsonObject newer = logins.get(1).getAsJsonObject();
+        assertTrue(
+                logins.toString(), older.get("id").getAsInt() < newer.get("id").getAsInt());
+        assertEquals("pending", older.get("state").getAsString());
+        assertEquals("approved", newer.get("state").getAsString());
+        assertEquals("coding/ada", ada.get("branch").getAsString());
+        assertEquals(0, ada.getAsJsonObject("status").get("behind").getAsInt());
+        assertTrue(ada.get("worktree").getAsString().contains("ada"));
+        for (String usersOwn : new String[] {"worktree", "branch", "status", "statusError", "lastMerge"}) {
+            assertFalse("a login must not carry the user's " + usersOwn, newer.has(usersOwn));
+        }
+        assertEquals(1, bob.getAsJsonArray("sessions").size());
+        assertTrue(bob.toString(), bob.get("worktree").isJsonNull());
+        assertTrue(bob.toString(), bob.get("status").isJsonNull());
     }
 
     @Test
@@ -217,7 +257,7 @@ public class CodingServerTest {
         assertEquals(400, user("POST", "/login?username=tab%09here", null).status);
         assertEquals(405, user("GET", "/login?username=ada", null).status);
         assertEquals(200, user("POST", "/login?username=" + "a".repeat(32), null).status);
-        assertTrue(admin("GET", "/admin/logins").body.contains("\"username\":\"" + "a".repeat(32) + "\""));
+        assertTrue(admin("GET", "/admin/users").body.contains("\"username\":\"" + "a".repeat(32) + "\""));
     }
 
     @Test
@@ -226,7 +266,7 @@ public class CodingServerTest {
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
 
         assertEquals(404, user("GET", "/admin", cookie).status);
-        assertEquals(404, user("GET", "/admin/logins", cookie).status);
+        assertEquals(404, user("GET", "/admin/users", cookie).status);
         assertEquals(404, user("POST", "/admin/logins/1/approve", cookie).status);
         assertEquals(404, user("GET", "/admin/tree", cookie).status);
     }
@@ -323,14 +363,11 @@ public class CodingServerTest {
 
     /** The user's worktree, as the admin listing reports it. */
     private Path worktreeOf(String username) throws IOException {
-        for (var element : json(admin("GET", "/admin/logins").body).getAsJsonArray("logins")) {
-            JsonObject login = element.getAsJsonObject();
-            if (login.get("username").getAsString().equals(username)
-                    && !login.get("worktree").isJsonNull()) {
-                return Path.of(login.get("worktree").getAsString());
-            }
+        JsonObject user = userOf(username);
+        if (user.get("worktree").isJsonNull()) {
+            throw new AssertionError("no worktree for " + username);
         }
-        throw new AssertionError("no worktree for " + username);
+        return Path.of(user.get("worktree").getAsString());
     }
 
     private static String sha256(byte[] bytes) throws IOException {
@@ -493,11 +530,10 @@ public class CodingServerTest {
 
         assertTrue(files, files.contains("{\"path\":\"TeamCode/Drive.java\",\"editors\":[\"bob\"]}"));
         assertTrue(files, files.contains("{\"path\":\"TeamCode/Plans.java\",\"editors\":[\"ada\"]}"));
-        String logins = admin("GET", "/admin/logins").body;
-        assertTrue(
-                logins,
-                logins.contains(
-                        "\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"approved\",\"ageSeconds\":0,\"file\":\"TeamCode/Drive.java\""));
+        JsonObject bobsLogin = newestSessionOf("bob");
+        assertEquals("TeamCode/Drive.java", bobsLogin.get("file").getAsString());
+        assertEquals("approved", bobsLogin.get("state").getAsString());
+        assertEquals("127.0.0.1", bobsLogin.get("address").getAsString());
     }
 
     // --- pages ---
@@ -518,11 +554,11 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theAdminPageListsLoginsWithDecisionsAndTheFilePicker() throws IOException {
+    public void theAdminPageListsUsersWithDecisionsAndTheFilePicker() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("id=\"logins\""));
-        assertTrue(page, page.contains("/admin/logins"));
+        assertTrue(page, page.contains("id=\"users\""));
+        assertTrue(page, page.contains("/admin/users"));
         assertTrue(page, page.contains("/approve"));
         assertTrue(page, page.contains("/deny"));
         assertTrue(page, page.contains("/revoke"));
@@ -536,6 +572,23 @@ public class CodingServerTest {
         String info = admin("GET", "/admin/info").body;
         assertTrue(info, info.contains("\"userPort\":" + server().userPort()));
         assertTrue(info, info.contains("\"addresses\":["));
+    }
+
+    /**
+     * Each user's logins are a list under them, folded away behind their row, so the admin reads
+     * a roster of teammates and opens the one they are deciding about. A login waiting to be
+     * decided is never hidden by the fold: its user opens with it showing.
+     */
+    @Test
+    public void theAdminPageKeepsEachUsersLoginsUnderThemBehindAToggle() throws IOException {
+        String page = admin("GET", "/admin").body;
+
+        assertTrue(page, page.contains("user.sessions"));
+        assertTrue(page, page.contains("aria-expanded"));
+        assertTrue("the fold survives the listing's refresh", page.contains("expandedByUsername"));
+        assertTrue("a pending login opens its user", page.contains("pending"));
+        assertTrue(page, page.contains("session.state"));
+        assertTrue("each login keeps its own decisions", page.contains("'/admin/logins/' + session.id"));
     }
 
     // --- simulate ---
@@ -1008,8 +1061,9 @@ public class CodingServerTest {
         restart();
 
         assertEquals("{\"state\":\"pending\",\"username\":\"bob\"}", user("GET", "/me", cookie).body);
-        String logins = admin("GET", "/admin/logins").body;
-        assertTrue(logins, logins.contains("\"username\":\"bob\",\"address\":\"127.0.0.1\",\"state\":\"pending\""));
+        JsonObject session = newestSessionOf("bob");
+        assertEquals("pending", session.get("state").getAsString());
+        assertEquals("127.0.0.1", session.get("address").getAsString());
         admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
         assertEquals(
                 "{\"state\":\"approved\",\"username\":\"bob\",\"branch\":\"coding/bob\"}",
@@ -1040,9 +1094,7 @@ public class CodingServerTest {
         assertFalse(adaId.equals(idOf("bob")));
         assertEquals(
                 2,
-                json(admin("GET", "/admin/logins").body)
-                        .getAsJsonArray("logins")
-                        .size());
+                json(admin("GET", "/admin/users").body).getAsJsonArray("users").size());
     }
 
     /**
@@ -1194,7 +1246,7 @@ public class CodingServerTest {
         assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Plans.java").status);
         String cookie = approvedUser("ada");
 
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(logins, logins.contains("\"branch\":\"coding/ada\""));
         Path worktree = worktreeOf("ada");
         assertTrue(worktree.toString(), worktree.startsWith(stateDir()));
@@ -1288,11 +1340,11 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theAdminPageShowsEachLoginsWorktreeAndBranch() throws IOException {
+    public void theAdminPageShowsEachUsersWorktreeAndBranch() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("login.branch"));
-        assertTrue(page, page.contains("login.worktree"));
+        assertTrue(page, page.contains("user.branch"));
+        assertTrue(page, page.contains("user.worktree"));
     }
 
     @Test
@@ -1782,13 +1834,13 @@ public class CodingServerTest {
                         .getAsString());
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(
                 logins,
                 logins.contains(
                         "\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
         String page = admin("GET", "/admin").body;
-        assertTrue(page, page.contains("login.lastMerge"));
+        assertTrue(page, page.contains("user.lastMerge"));
         assertTrue(page, page.contains("git merge develop"));
     }
 
@@ -1806,28 +1858,35 @@ public class CodingServerTest {
 
     // --- the admin's view of each user's branch, and pulling for them ---
 
-    /** The admin listing's entry for the username's newest login. */
-    private JsonObject loginOf(String username) throws IOException {
+    /** The admin listing's entry for the user, worktree and all. */
+    private JsonObject userOf(String username) throws IOException {
         JsonObject found = null;
-        for (var element : json(admin("GET", "/admin/logins").body).getAsJsonArray("logins")) {
-            JsonObject login = element.getAsJsonObject();
-            if (login.get("username").getAsString().equals(username)) {
-                found = login;
+        for (var element : json(admin("GET", "/admin/users").body).getAsJsonArray("users")) {
+            JsonObject user = element.getAsJsonObject();
+            if (user.get("username").getAsString().equals(username)) {
+                found = user;
             }
         }
-        assertNotNull("no login for " + username, found);
+        assertNotNull("no user for " + username, found);
         return found;
     }
 
+    /** The user's newest login, the one the admin's decisions in these tests act on. */
+    private JsonObject newestSessionOf(String username) throws IOException {
+        JsonArray sessions = userOf(username).getAsJsonArray("sessions");
+        assertTrue(username + " has no sessions", sessions.size() > 0);
+        return sessions.get(sessions.size() - 1).getAsJsonObject();
+    }
+
     @Test
-    public void theAdminListingShowsEachLoginsChangedFilesAndCommitsAheadAndBehind() throws IOException {
+    public void theAdminListingShowsEachUsersChangedFilesAndCommitsAheadAndBehind() throws IOException {
         String cookie = savedEditor("edited");
 
-        JsonObject before = loginOf("ada").getAsJsonObject("status");
+        JsonObject before = userOf("ada").getAsJsonObject("status");
         assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
-        JsonObject after = loginOf("ada").getAsJsonObject("status");
+        JsonObject after = userOf("ada").getAsJsonObject("status");
         commitOnDevelop("README", "on develop\n");
-        JsonObject later = loginOf("ada").getAsJsonObject("status");
+        JsonObject later = userOf("ada").getAsJsonObject("status");
 
         assertEquals(
                 "[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
@@ -1840,18 +1899,18 @@ public class CodingServerTest {
     }
 
     @Test
-    public void aLoginWithoutAWorktreeHasNoStatusInTheAdminListing() throws IOException {
+    public void aUserWithoutAWorktreeHasNoStatusInTheAdminListing() throws IOException {
         login("bob");
 
-        assertTrue(loginOf("bob").get("status").isJsonNull());
-        assertTrue(loginOf("bob").get("worktree").isJsonNull());
+        assertTrue(userOf("bob").get("status").isJsonNull());
+        assertTrue(userOf("bob").get("worktree").isJsonNull());
     }
 
     @Test
-    public void theAdminPageShowsEachLoginsStatusAndHasAPullButton() throws IOException {
+    public void theAdminPageShowsEachUsersStatusAndHasAPullButton() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("login.status"));
+        assertTrue(page, page.contains("user.status"));
         assertTrue(page, page.contains("status.changed"));
         assertTrue(page, page.contains("status.ahead"));
         assertTrue(page, page.contains("status.behind"));
@@ -1860,11 +1919,11 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theAdminCanPullDevelopIntoALoginsWorktree() throws IOException {
+    public void theAdminCanPullDevelopIntoAUsersWorktree() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         String develop = GitFixture.commitOf(root, "develop");
-        assertEquals(1, loginOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertEquals(1, userOf("ada").getAsJsonObject("status").get("behind").getAsInt());
 
         Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
 
@@ -1876,14 +1935,14 @@ public class CodingServerTest {
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
-        assertEquals(0, loginOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertEquals(0, userOf("ada").getAsJsonObject("status").get("behind").getAsInt());
         assertEquals(develop, GitFixture.commitOf(root, "coding/ada"));
         assertEquals("develop did not move", develop, GitFixture.commitOf(root, "develop"));
         assertEquals(
-                "pull", loginOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
+                "pull", userOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
         assertEquals(
                 "pulled",
-                loginOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
+                userOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
     }
 
     @Test
@@ -1916,17 +1975,17 @@ public class CodingServerTest {
         // ada's branch vanishes from under her worktree: git can no longer count what she is ahead or behind by
         GitFixture.git(root, "update-ref", "-d", "refs/heads/coding/ada");
 
-        Reply listing = admin("GET", "/admin/logins");
+        Reply listing = admin("GET", "/admin/users");
 
         assertEquals(listing.body, 200, listing.status);
-        assertTrue(loginOf("ada").get("status").isJsonNull());
+        assertTrue(userOf("ada").get("status").isJsonNull());
         assertTrue(
-                loginOf("ada").toString(),
-                loginOf("ada").get("statusError").getAsString().contains("coding/ada"));
-        assertEquals(0, loginOf("bob").getAsJsonObject("status").get("behind").getAsInt());
-        assertTrue(loginOf("bob").get("statusError").isJsonNull());
+                userOf("ada").toString(),
+                userOf("ada").get("statusError").getAsString().contains("coding/ada"));
+        assertEquals(0, userOf("bob").getAsJsonObject("status").get("behind").getAsInt());
+        assertTrue(userOf("bob").get("statusError").isJsonNull());
         String page = admin("GET", "/admin").body;
-        assertTrue(page, page.contains("login.statusError"));
+        assertTrue(page, page.contains("user.statusError"));
     }
 
     @Test
@@ -1990,7 +2049,7 @@ public class CodingServerTest {
                         .getAsString());
         assertEquals(
                 "[\"TeamCode/Plans.java\"]",
-                loginOf("ada")
+                userOf("ada")
                         .getAsJsonObject("status")
                         .getAsJsonArray("changed")
                         .toString());
@@ -2016,7 +2075,7 @@ public class CodingServerTest {
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(
                 logins,
                 logins.contains(
@@ -2105,7 +2164,7 @@ public class CodingServerTest {
                 new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertEquals("", GitFixture.git(worktreeOf("ada"), "status", "--porcelain"));
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(
                 logins,
                 logins.contains(
@@ -2130,7 +2189,7 @@ public class CodingServerTest {
                 "the coach's unsaved work\n",
                 new String(Files.readAllBytes(root.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
         assertFalse(Files.exists(root.resolve(".git/MERGE_HEAD")));
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(logins, logins.contains("\"op\":\"push\",\"outcome\":\"refused\""));
         assertTrue(logins, logins.contains("Plans.java"));
     }
@@ -2183,11 +2242,11 @@ public class CodingServerTest {
         assertEquals("failed", body.getAsJsonObject("remote").get("outcome").getAsString());
         assertTrue(body.toString(), body.get("message").getAsString().contains("could not push to origin"));
         assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
-        String logins = admin("GET", "/admin/logins").body;
+        String logins = admin("GET", "/admin/users").body;
         assertTrue(logins, logins.contains("\"remote\":{\"name\":\"origin\",\"outcome\":\"failed\""));
         String page = admin("GET", "/admin").body;
         assertTrue(page, page.contains("git push origin develop"));
-        assertTrue(page, page.contains("lastMerge.remote"));
+        assertTrue("the recipe is for the remote's outcome, not the merge's", page.contains("remote.outcome"));
         String dashboard = user("GET", "/", cookie).body;
         assertTrue(dashboard, dashboard.contains("remote.outcome"));
     }
@@ -2379,15 +2438,7 @@ public class CodingServerTest {
 
     /** The admin's id for the newest session of that username, read off the admin listing. */
     private String idOf(String username) throws IOException {
-        String logins = admin("GET", "/admin/logins").body;
-        int at = logins.lastIndexOf("\"username\":\"" + username + "\"");
-        assertTrue(logins, at >= 0);
-        int idAt = logins.lastIndexOf("\"id\":", at) + "\"id\":".length();
-        int end = idAt;
-        while (Character.isDigit(logins.charAt(end))) {
-            end++;
-        }
-        return logins.substring(idAt, end);
+        return newestSessionOf(username).get("id").getAsString();
     }
 
     private Reply user(String method, String path, String cookie) throws IOException {
