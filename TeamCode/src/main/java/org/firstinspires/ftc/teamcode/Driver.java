@@ -16,10 +16,13 @@ public class Driver extends SuperSystem {
     private Gamepad gamepad2;
 
     @Override
-    public void init() {
+    protected void onInit() {
         gamepad1 = robot.gamepad1;
         gamepad2 = robot.gamepad2;
     }
+
+    @Override
+    protected void onTelemetry() {}
 
     /** Steers toward the launch pose on the axes the driver is not holding; with no goal, just drives. */
     private void aim(Held held) {

@@ -6,12 +6,14 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 public class Turntable extends SubSystem {
     public static final int TICKS_PER_REVOLUTION = 1700;
     private final DcMotorEx turnTable;
-    private boolean telemetryOn = false;
     private int turnTableTargetPosition;
 
     public Turntable(DcMotorEx turnTable) {
         this.turnTable = turnTable;
     }
+
+    @Override
+    protected void onInit() {}
 
     @Override
     protected void onLoop() {
@@ -23,10 +25,6 @@ public class Turntable extends SubSystem {
         } else {
             double finalTurnTablePower = clampMinPower(turnTablePower, 0.1);
             turnTable.setPower(finalTurnTablePower);
-        }
-
-        if (telemetryOn) {
-            setTelemetry();
         }
     }
 
@@ -40,13 +38,8 @@ public class Turntable extends SubSystem {
         }
     }
 
-    public void toggleTelemetry() {
-        telemetryOn = !telemetryOn;
-    }
-
-    private void setTelemetry() {
-        telemetry.addData("Turntable", "telemetry on");
-
+    @Override
+    protected void onTelemetry() {
         telemetry.addData("turnTableRotationTicks", turnTable.getCurrentPosition());
         telemetry.addData("turnTableOffsetRadians", getTurnTableOffsetRadians());
         telemetry.addData("turnTableTargetPosition", turnTableTargetPosition);

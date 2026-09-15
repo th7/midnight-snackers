@@ -8,8 +8,8 @@ import org.firstinspires.ftc.teamcode.Nav;
 import org.firstinspires.ftc.teamcode.Turntable;
 
 /**
- * A subsystem that coordinates the others, so it sees each of them by name. It does nothing per
- * tick unless it overrides {@link #onLoop()}.
+ * A subsystem that coordinates the others, so it sees each of them by name. It is a subsystem like
+ * any other: the compiler asks it what it sets up, does and prints.
  */
 public abstract class SuperSystem extends SubSystem {
     protected Launcher launcher;
@@ -29,7 +29,4 @@ public abstract class SuperSystem extends SubSystem {
         turntable = robot.turntable;
         brain = robot.brain;
     }
-
-    @Override
-    protected void onLoop() {}
 }

@@ -86,9 +86,15 @@ public class Nav extends SubSystem {
     }
 
     @Override
+    protected void onInit() {}
+
+    @Override
     protected void onLoop() {
         mecanumDrive.localizer.update();
     }
+
+    @Override
+    protected void onTelemetry() {}
 
     /** A pose from coordinates given the blue way, mirrored for the alliance. */
     public Pose pose(double x, double y, double heading) {

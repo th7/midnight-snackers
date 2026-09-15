@@ -66,7 +66,6 @@ public class Drive extends SubSystem {
     private final DcMotor rightFront;
     private final DcMotor leftBack;
     private final DcMotor rightBack;
-    private boolean telemetryOn = false;
 
     public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack) {
         this.leftFront = leftFront;
@@ -80,16 +79,12 @@ public class Drive extends SubSystem {
      * the robot whenever the op mode is running, not only during RoadRunner actions.
      */
     @Override
-    public void init() {
+    protected void onInit() {
         driveRunner = add(new DriveRunner(robot.dashboard, () -> robot.nav.currentPose().pose2d));
     }
 
     @Override
-    protected void onLoop() {
-        if (telemetryOn) {
-            setTelemetry();
-        }
-    }
+    protected void onLoop() {}
 
     /**
      * Drives at these powers, -1 to 1 each, this loop. Nothing happens while an action is being
@@ -143,10 +138,6 @@ public class Drive extends SubSystem {
         driveRunner.cancel();
     }
 
-    public void toggleTelemetry() {
-        telemetryOn = !telemetryOn;
-    }
-
     private void power(float straight, float strafe, float turn) {
         if (!done()) {
             return;
@@ -159,9 +150,8 @@ public class Drive extends SubSystem {
         rightBack.setPower(moveData.rearRightPower());
     }
 
-    private void setTelemetry() {
-        telemetry.addData("Drive", "telemetry on");
-
+    @Override
+    protected void onTelemetry() {
         Pose2d error = fastDrive.error();
         if (error != null) {
             telemetry.addData("fastDriveError.x", error.position.x);

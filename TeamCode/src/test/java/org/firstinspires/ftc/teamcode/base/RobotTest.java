@@ -27,13 +27,16 @@ public class RobotTest {
         int inits = 0;
 
         @Override
-        public void init() {
+        protected void onInit() {
             initialisedWith = telemetry;
             inits++;
         }
 
         @Override
         protected void onLoop() {}
+
+        @Override
+        protected void onTelemetry() {}
     }
 
     private static class Coordinator extends SuperSystem {
@@ -41,10 +44,16 @@ public class RobotTest {
         Brain brainSeen;
 
         @Override
-        public void init() {
+        protected void onInit() {
             navSeen = nav;
             brainSeen = brain;
         }
+
+        @Override
+        protected void onLoop() {}
+
+        @Override
+        protected void onTelemetry() {}
     }
 
     private final SimRobot sim = new SimRobot();
