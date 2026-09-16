@@ -128,6 +128,10 @@ public class SimBenchTest {
                 + "\n"
                 + "public class Plans extends SubSystem {\n"
                 + "    private int loops = 0;\n"
+                // Plans is wired with what it drives; this stand-in drives nothing and only needs to compile.
+                + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
+                + " org.firstinspires.ftc.teamcode.Nav nav,"
+                + " org.firstinspires.ftc.teamcode.Launcher launcher) { }\n"
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"

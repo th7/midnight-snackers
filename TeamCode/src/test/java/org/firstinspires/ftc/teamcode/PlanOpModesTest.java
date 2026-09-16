@@ -88,6 +88,10 @@ public class PlanOpModesTest {
     }
 
     public static class WrongShape extends Plans {
+        public WrongShape(Drive drive, Nav nav, Launcher launcher) {
+            super(drive, nav, launcher);
+        }
+
         @Auto(alliance = Alliance.RELATIVE)
         public PlanPart needsAnArgument(int inches) {
             return new Step("wait", () -> {}, () -> false);
@@ -105,6 +109,10 @@ public class PlanOpModesTest {
     }
 
     public static class Twice extends Plans {
+        public Twice(Drive drive, Nav nav, Launcher launcher) {
+            super(drive, nav, launcher);
+        }
+
         @Auto(name = "Same", alliance = Alliance.RED)
         public PlanPart one() {
             return new Step("one", () -> {}, () -> false);

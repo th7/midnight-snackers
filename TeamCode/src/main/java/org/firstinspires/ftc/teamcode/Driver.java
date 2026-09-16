@@ -7,6 +7,22 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 /** Drives the robot from the gamepads. A TeleOp adds one; an auto has no driver. */
 public class Driver extends SubSystem {
+    /** What a driver drives: named here, so forgetting to wire one up does not compile. */
+    private final Drive drive;
+
+    private final Launcher launcher;
+    private final Brain brain;
+    private final Nav nav;
+    private final Turntable turntable;
+
+    public Driver(Drive drive, Launcher launcher, Brain brain, Nav nav, Turntable turntable) {
+        this.drive = drive;
+        this.launcher = launcher;
+        this.brain = brain;
+        this.nav = nav;
+        this.turntable = turntable;
+    }
+
     /** How far a stick must move before it counts as held. */
     private static final float HELD = 0.05f;
     /** How far a stick must move to take the wheels back from an action. */
@@ -26,11 +42,11 @@ public class Driver extends SubSystem {
 
     /** Steers toward the launch pose on the axes the driver is not holding; with no goal, just drives. */
     private void aim(Held held) {
-        Optional<Nav.Pose> launchPose = robot.nav.launchPose();
+        Optional<Nav.Pose> launchPose = nav.launchPose();
         if (launchPose.isPresent()) {
-            robot.drive.toward(launchPose.get(), held);
+            drive.toward(launchPose.get(), held);
         } else {
-            robot.drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+            drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
     }
 
@@ -40,29 +56,29 @@ public class Driver extends SubSystem {
                 || Math.abs(gamepad1.left_stick_y) > TAKEOVER
                 || Math.abs(gamepad1.right_stick_x) > TAKEOVER
                 || Math.abs(gamepad1.right_stick_y) > TAKEOVER) {
-            robot.drive.cancel();
+            drive.cancel();
         }
 
         if (gamepad1.square) {
-            robot.launcher.launchyLaunch();
+            launcher.launchyLaunch();
         }
 
         if (gamepad1.triangle) {
-            robot.launcher.slowLaunchyLaunch();
+            launcher.slowLaunchyLaunch();
         }
         if (gamepad1.crossWasPressed()) {
-            robot.brain.turnTableToZeroModeOn();
+            brain.turnTableToZeroModeOn();
         }
         if (gamepad1.circleWasPressed()) {
-            robot.brain.turnTableToTargetModeOn();
+            brain.turnTableToTargetModeOn();
         }
         if (gamepad1.right_trigger > 0.2) {
-            robot.brain.autoShootSlow();
+            brain.autoShootSlow();
         } else if (gamepad1.left_trigger > 0.2) {
-            robot.brain.autoShootFast();
+            brain.autoShootFast();
         } else if (gamepad1.left_bumper) {
             // aim at the goal; the driver may nudge sideways and around
-            robot.brain.cancelPlan();
+            brain.cancelPlan();
             Held held = Held.NONE;
             if (Math.abs(gamepad1.left_stick_x) > HELD) {
                 held = held.strafe(-gamepad1.left_stick_x);
@@ -73,40 +89,40 @@ public class Driver extends SubSystem {
             aim(held);
         } else if (gamepad1.right_bumper) {
             // the driver moves the robot; the drive keeps it facing the goal unless the driver turns
-            robot.brain.cancelPlan();
+            brain.cancelPlan();
             Held held = Held.NONE.straight(-gamepad1.left_stick_y).strafe(-gamepad1.left_stick_x);
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
                 held = held.turn(-gamepad1.right_stick_x);
             }
             aim(held);
         } else {
-            robot.brain.cancelPlan();
-            robot.drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+            brain.cancelPlan();
+            drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
 
         // adjust settings using second controller
         if (gamepad2.rightBumperWasPressed()) {
-            robot.launcher.increaseBottomGateWaitTime();
+            launcher.increaseBottomGateWaitTime();
         }
         if (gamepad2.leftBumperWasPressed()) {
-            robot.launcher.decreaseBottomGateWaitTime();
+            launcher.decreaseBottomGateWaitTime();
         }
         if (gamepad2.dpadUpWasPressed()) {
-            robot.launcher.increasePower();
+            launcher.increasePower();
         }
         if (gamepad2.dpadDownWasPressed()) {
-            robot.launcher.decreasePower();
+            launcher.decreasePower();
         }
         if (gamepad2.dpadLeftWasPressed()) {
-            robot.brain.setTurnTableDebugOverrideModeOn();
-            robot.turntable.turnTableToLeft();
+            brain.setTurnTableDebugOverrideModeOn();
+            turntable.turnTableToLeft();
         }
         if (gamepad2.dpadRightWasPressed()) {
-            robot.brain.setTurnTableDebugOverrideModeOn();
-            robot.turntable.turnTableToRight();
+            brain.setTurnTableDebugOverrideModeOn();
+            turntable.turnTableToRight();
         }
         if (gamepad2.right_trigger > 0.2) {
-            robot.brain.toggleCameraLocalization();
+            brain.toggleCameraLocalization();
         }
     }
 }

@@ -77,8 +77,8 @@ public final class Robot implements Loopable {
         mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer.deadWheels(), clock);
         nav = new Nav(localizer, alliance);
         turntable = new Turntable(hardware.turnTable);
-        brain = new Brain();
-        plans = new Plans();
+        brain = new Brain(drive, launcher, camera, nav, turntable);
+        plans = new Plans(drive, nav, launcher);
         // Registration order is loop order. The localizer goes first: where the robot is is the
         // first fact of a tick, and everything that reads the pose during the tick reads the one
         // it settled on. Brain goes after the subsystems it coordinates because it reads Camera

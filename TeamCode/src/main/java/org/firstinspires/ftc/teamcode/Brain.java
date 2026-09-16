@@ -7,6 +7,22 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Brain extends SubSystem {
+    /** The subsystems the brain coordinates. */
+    private final Drive drive;
+
+    private final Launcher launcher;
+    private final Camera camera;
+    private final Nav nav;
+    private final Turntable turntable;
+
+    public Brain(Drive drive, Launcher launcher, Camera camera, Nav nav, Turntable turntable) {
+        this.drive = drive;
+        this.launcher = launcher;
+        this.camera = camera;
+        this.nav = nav;
+        this.turntable = turntable;
+    }
+
     private boolean usingCameraLocalization;
     private boolean turnTableToZeroMode = false;
     private boolean turnTableDebugOverride = false;
@@ -25,21 +41,21 @@ public class Brain extends SubSystem {
     protected void onLoop() {
         if (!turnTableDebugOverride) {
             if (turnTableToZeroMode) {
-                robot.turntable.setTurnTablePosition(0);
+                turntable.setTurnTablePosition(0);
             } else {
                 turnTurnTableToTarget();
             }
         }
 
-        Optional<Nav.Pose> sighting = robot.camera.sighting();
+        Optional<Nav.Pose> sighting = camera.sighting();
 
         if (sighting.isPresent()) {
             telemetry.addData("camera pose found", true);
             // the camera faces where the turntable does, so the robot's heading is that less the turn
-            Nav.Pose robotPose = sighting.get().rotated(-robot.turntable.getTurnTableOffsetRadians());
+            Nav.Pose robotPose = sighting.get().rotated(-turntable.getTurnTableOffsetRadians());
 
             if (usingCameraLocalization) {
-                robot.nav.setFieldPosition(robotPose);
+                nav.setFieldPosition(robotPose);
             }
         }
 
@@ -52,9 +68,9 @@ public class Brain extends SubSystem {
     }
 
     public void turnTurnTableToTarget() {
-        double relativeHeadingToTarget = robot.nav.relativeHeadingToTarget();
+        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
         telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
-        robot.turntable.setTurnTablePosition(relativeHeadingToTarget);
+        turntable.setTurnTablePosition(relativeHeadingToTarget);
     }
 
     public void turnTableToZeroModeOn() {
@@ -90,16 +106,16 @@ public class Brain extends SubSystem {
         return new Step(
                 "moveToLaunchPose",
                 () -> {},
-                () -> robot.nav.launchPose().map(robot.drive::toward).orElse(true) // nowhere to go without a goal
+                () -> nav.launchPose().map(drive::toward).orElse(true) // nowhere to go without a goal
                 );
     }
 
     private Step launch() {
-        return new Step("launchSlow", robot.launcher::launchyLaunch, robot.launcher::launchDone);
+        return new Step("launchSlow", launcher::launchyLaunch, launcher::launchDone);
     }
 
     private Step launchSlow() {
-        return new Step("launchSlow", robot.launcher::slowLaunchyLaunch, robot.launcher::launchDone);
+        return new Step("launchSlow", launcher::slowLaunchyLaunch, launcher::launchDone);
     }
 
     private void setTelemetry() {
