@@ -1,5 +1,10 @@
 package org.firstinspires.ftc.teamcode.base;
 
+import com.acmerobotics.roadrunner.DualNum;
+import com.acmerobotics.roadrunner.MecanumKinematics;
+import com.acmerobotics.roadrunner.PoseVelocity2d;
+import com.acmerobotics.roadrunner.PoseVelocity2dDual;
+import com.acmerobotics.roadrunner.Time;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -40,7 +45,34 @@ public final class Wheels {
     }
 
     /**
-     * Drives the four wheels, each at its own power, -1 to 1.
+     * Drives at these powers in the robot's own frame: forward, left, and counterclockwise, -1 to
+     * 1 each. This is the one place three of those become four, so there is one answer to what a
+     * mixed command means and one answer to what happens when it asks for more than there is.
+     *
+     * <p>What happens is that the whole command is scaled to fit. A wheel asked for more than full
+     * power cannot give it, and clipping that one wheel would leave the others as they were, which
+     * is a different command than the one given: the robot would go somewhere other than where it
+     * was pointed. Scaled down whole, it goes where it was pointed, slower.
+     */
+    public void drive(PoseVelocity2d powers) {
+        MecanumKinematics.WheelVelocities<Time> wheels =
+                new MecanumKinematics(1).inverse(PoseVelocity2dDual.constant(powers, 1));
+
+        double most = 1;
+        for (DualNum<Time> power : wheels.all()) {
+            most = Math.max(most, Math.abs(power.value()));
+        }
+
+        set(
+                wheels.leftFront.get(0) / most,
+                wheels.leftBack.get(0) / most,
+                wheels.rightBack.get(0) / most,
+                wheels.rightFront.get(0) / most);
+    }
+
+    /**
+     * Drives the four wheels, each at its own power, -1 to 1. For a caller that has already worked
+     * out what each wheel should do, such as a trajectory being followed.
      *
      * <p>The order is Road Runner's, which is the order its kinematics answer in and the order
      * everything here says out loud, so that a wheel is never quietly swapped for its neighbour.
