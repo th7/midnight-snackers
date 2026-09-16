@@ -11,9 +11,12 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 configured devices, the camera's detections, the dashboard, and the
 **clock**, the time in nanoseconds that every timer in the robot code
 reads and nothing else does: a step that waits, the trajectory followers,
-the camera's check of a detection's age. On the robot the clock is the
+the camera's check of a detection's age, and the dead wheel encoders'
+measure of their own speed. On the robot the clock is the
 system's; in the simulator it is the simulated clock. A timed step must
-name its clock, so a forgotten one is a compile error. Class: `Hardware`;
+name its clock, so a forgotten one is a compile error, and no part of the
+robot may reach for Road Runner's wall-clock encoder, which a test
+enforces rather than leaving to care. Class: `Hardware`;
 `Robot.clock`.
 
 
@@ -37,6 +40,36 @@ may hold turn. Class: `Drive.Held`.
 plays it. Everything Nav takes and gives is a pose; Road Runner's own
 `Pose2d` inside it is read only by Road Runner and the drive's controllers.
 Class: `Nav.Pose`.
+
+**Localizer** — Where the robot believes it is, and the sensors it
+believes it from: the two dead wheels and the IMU. It moves that belief on
+**once** per loop and is the first subsystem ticked, so one tick of the
+robot is one moment — everything that reads the pose during it reads the
+same pose, and the encoders and the IMU are asked once between one loop
+and the next. A second update inside the same loop asks the encoders again
+for a delta that has barely happened and leaves two subsystems that ran
+either side of it disagreeing about where the robot was at a single
+instant; that it is once is held to by a test. What the belief *means* —
+the field, the alliance's half of it, where the goal is — is Nav's. Class:
+`Localizer`.
+
+**Clocked encoder** — The hub reports a motor's velocity in sixteen bits,
+so a wheel turning quickly wraps the count, and the true one is recovered
+by measuring the wheel a second way: how far it turned, over how long. The
+*how long* is a clock, and it is the robot's, like every other timer.
+Road Runner's own overflow encoder reads the wall clock for it, which is
+right on the robot and wrong in the simulator, where a loop is twenty
+milliseconds of the robot's time and a fraction of a millisecond of the
+machine's: the estimate comes out tens of times too large and the wrong
+wrap is chosen, so a robot rolling to a stop measures itself doing a
+hundred and seventy inches a second. The pose survives that, being built
+from position rather than velocity; what does not is anything that asks
+how fast the robot is going, such as whether a trajectory has finished.
+The arithmetic is Road Runner's, unchanged, so on the robot this measures
+what its own encoder measures. The tuning op modes are the one exception
+and keep Road Runner's: they run on the robot and nowhere else, and its
+ramp loggers find the raw encoders underneath by looking for that exact
+class. Class: `ClockedOverflowEncoder`.
 
 **Nav** — Where the robot is on the field and how to get somewhere else.
 `pose(x, y, heading)` makes a pose from coordinates given the blue way, and

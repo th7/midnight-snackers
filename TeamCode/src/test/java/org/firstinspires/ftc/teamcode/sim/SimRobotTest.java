@@ -14,6 +14,7 @@ import java.util.List;
 import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.junit.Test;
 
 public class SimRobotTest {
@@ -221,7 +222,13 @@ public class SimRobotTest {
                 creeper.rightFront,
                 () -> creeper.imu,
                 creeper.voltageSensor,
-                new Pose2d(0, 0, 0),
+                new TwoDeadWheelLocalizer(
+                        creeper.rightBack,
+                        creeper.leftFront,
+                        creeper.imu,
+                        MecanumDrive.PARAMS.inPerTick,
+                        new Pose2d(0, 0, 0),
+                        creeper::nanoTime),
                 creeper::nanoTime);
         drive.localizer.update();
         // The tuned kS, as the feedforward applies it at a standstill: a tenth of it too much for these motors.
@@ -1338,7 +1345,13 @@ public class SimRobotTest {
                 sim.rightFront,
                 () -> sim.imu,
                 sim.voltageSensor,
-                new Pose2d(0, 0, 0),
+                new TwoDeadWheelLocalizer(
+                        sim.rightBack,
+                        sim.leftFront,
+                        sim.imu,
+                        MecanumDrive.PARAMS.inPerTick,
+                        new Pose2d(0, 0, 0),
+                        sim::nanoTime),
                 sim::nanoTime);
     }
 

@@ -18,6 +18,7 @@ import com.acmerobotics.roadrunner.ftc.LateralRampLogger;
 import com.acmerobotics.roadrunner.ftc.LynxQuadratureEncoderGroup;
 import com.acmerobotics.roadrunner.ftc.ManualFeedforwardTuner;
 import com.acmerobotics.roadrunner.ftc.MecanumMotorDirectionDebugger;
+import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
@@ -54,9 +55,15 @@ public final class TuningOpModes {
             MecanumDrive md = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
             TwoDeadWheelLocalizer dl = (TwoDeadWheelLocalizer) md.localizer;
 
+            // Road Runner's own overflow encoder, not the robot's clocked one: the tuning op modes
+            // run on the robot and nowhere else, where the wall clock is the robot's clock, and the
+            // ramp loggers read through the group's *unwrapped* encoders, which it finds by looking
+            // for this exact class. Wrapping the localizer's own raw encoders keeps the ports and
+            // the directions in one place -- the localizer -- rather than repeating them here.
             List<EncoderGroup> encoderGroups = new ArrayList<>();
             encoderGroups.add(new LynxQuadratureEncoderGroup(
-                    hardwareMap.getAll(LynxModule.class), Arrays.asList(dl.par, dl.perp)));
+                    hardwareMap.getAll(LynxModule.class),
+                    Arrays.asList(new OverflowEncoder(dl.par.encoder), new OverflowEncoder(dl.perp.encoder))));
             List<EncoderRef> parEncs = new ArrayList<>(), perpEncs = new ArrayList<>();
             parEncs.add(new EncoderRef(0, 0));
             perpEncs.add(new EncoderRef(0, 1));

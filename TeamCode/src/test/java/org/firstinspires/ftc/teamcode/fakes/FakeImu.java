@@ -16,6 +16,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 public class FakeImu implements IMU {
     public double yawRadians = 0;
     public double yawRateRadiansPerSecond = 0;
+    /**
+     * How many times the robot code has read the yaw. The localizer reads it once, first thing,
+     * every time it updates, and nothing else on the robot reads it at all, so this counts
+     * localizer updates: what a test uses to ask how often the robot's idea of where it is moved.
+     */
+    public int yawReads = 0;
 
     @Override
     public boolean initialize(Parameters parameters) {
@@ -29,6 +35,7 @@ public class FakeImu implements IMU {
 
     @Override
     public YawPitchRollAngles getRobotYawPitchRollAngles() {
+        yawReads++;
         return new YawPitchRollAngles(AngleUnit.RADIANS, yawRadians, 0, 0, System.nanoTime());
     }
 

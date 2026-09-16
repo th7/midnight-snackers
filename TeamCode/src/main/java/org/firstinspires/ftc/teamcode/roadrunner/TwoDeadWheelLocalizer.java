@@ -9,15 +9,14 @@ import com.acmerobotics.roadrunner.Time;
 import com.acmerobotics.roadrunner.Twist2dDual;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.acmerobotics.roadrunner.Vector2dDual;
-import com.acmerobotics.roadrunner.ftc.Encoder;
 import com.acmerobotics.roadrunner.ftc.FlightRecorder;
-import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
 import com.acmerobotics.roadrunner.ftc.PositionVelocityPair;
 import com.acmerobotics.roadrunner.ftc.RawEncoder;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
+import java.util.function.LongSupplier;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
@@ -27,7 +26,7 @@ import org.firstinspires.ftc.teamcode.roadrunner.messages.TwoDeadWheelInputsMess
 @Config
 public final class TwoDeadWheelLocalizer implements Localizer {
     public static Params PARAMS = new Params();
-    public final Encoder par, perp;
+    public final ClockedOverflowEncoder par, perp;
     public final IMU imu;
     private final double inPerTick;
     private int lastParPos, lastPerpPos;
@@ -36,7 +35,8 @@ public final class TwoDeadWheelLocalizer implements Localizer {
     private boolean initialized;
     private Pose2d pose;
 
-    public TwoDeadWheelLocalizer(HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose) {
+    public TwoDeadWheelLocalizer(
+            HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose, LongSupplier clock) {
         // TODO: make sure your config has **motors** with these names (or change them)
         //   the encoders should be plugged into the slot matching the named motor
         //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
@@ -45,17 +45,24 @@ public final class TwoDeadWheelLocalizer implements Localizer {
                 hardwareMap.get(DcMotorEx.class, "leftFront"),
                 imu,
                 inPerTick,
-                initialPose);
+                initialPose,
+                clock);
     }
 
     /**
      * @param parMotor  the motor whose encoder port carries the parallel dead wheel
      * @param perpMotor the motor whose encoder port carries the perpendicular dead wheel
+     * @param clock     the robot's clock, which the encoders measure their own speed against
      */
     public TwoDeadWheelLocalizer(
-            DcMotorEx parMotor, DcMotorEx perpMotor, IMU imu, double inPerTick, Pose2d initialPose) {
-        par = new OverflowEncoder(new RawEncoder(parMotor));
-        perp = new OverflowEncoder(new RawEncoder(perpMotor));
+            DcMotorEx parMotor,
+            DcMotorEx perpMotor,
+            IMU imu,
+            double inPerTick,
+            Pose2d initialPose,
+            LongSupplier clock) {
+        par = new ClockedOverflowEncoder(new RawEncoder(parMotor), clock);
+        perp = new ClockedOverflowEncoder(new RawEncoder(perpMotor), clock);
 
         // TODO: reverse encoder directions if needed
         par.setDirection(DcMotorSimple.Direction.REVERSE);

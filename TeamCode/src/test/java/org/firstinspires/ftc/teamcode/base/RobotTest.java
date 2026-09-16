@@ -64,6 +64,7 @@ public class RobotTest {
     public void buildsEverySubsystemWithBrainLastThenThePlans() {
         assertEquals(
                 List.of(
+                        robot.localizer,
                         robot.launcher,
                         robot.intake,
                         robot.drive,

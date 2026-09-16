@@ -15,8 +15,9 @@ import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
 /**
- * Brain reads Camera and Nav from the current tick and sets the Turntable target, so the order
- * subsystems are ticked in is part of the op mode's contract, not an accident of construction.
+ * The Localizer settles where the robot is before anything reads it, and Brain reads Camera and
+ * Nav from the current tick and sets the Turntable target, so the order subsystems are ticked in
+ * is part of the op mode's contract, not an accident of construction.
  */
 public class OpModeLoopOrderTest {
     private static class TestOp extends OpMode {
@@ -59,6 +60,7 @@ public class OpModeLoopOrderTest {
 
         assertEquals(
                 List.of(
+                        robot.localizer,
                         robot.launcher,
                         robot.intake,
                         robot.drive,
@@ -66,7 +68,7 @@ public class OpModeLoopOrderTest {
                         robot.nav,
                         robot.turntable,
                         robot.brain),
-                opMode.loopOrder().subList(0, 7));
+                opMode.loopOrder().subList(0, 8));
     }
 
     @Test
@@ -104,6 +106,7 @@ public class OpModeLoopOrderTest {
         assertEquals(first.size(), opMode.loopOrder().size());
         assertEquals(
                 List.of(
+                        robot.localizer,
                         robot.launcher,
                         robot.intake,
                         robot.drive,
@@ -111,7 +114,7 @@ public class OpModeLoopOrderTest {
                         robot.nav,
                         robot.turntable,
                         robot.brain),
-                opMode.loopOrder().subList(0, 7));
+                opMode.loopOrder().subList(0, 8));
     }
 
     @Test
