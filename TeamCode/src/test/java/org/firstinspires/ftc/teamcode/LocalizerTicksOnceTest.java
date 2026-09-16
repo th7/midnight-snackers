@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.assertEquals;
 
-import org.firstinspires.ftc.teamcode.base.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;

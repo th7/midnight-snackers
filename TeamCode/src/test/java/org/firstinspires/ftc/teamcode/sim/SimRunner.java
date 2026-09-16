@@ -6,9 +6,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import org.firstinspires.ftc.teamcode.base.AutoOp;
-import org.firstinspires.ftc.teamcode.base.OpMode;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.opmode.AutoOp;
+import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
 /**
  * Runs an op mode against a {@link SimRobot} the way the robot controller would: init, start, then

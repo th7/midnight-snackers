@@ -6,10 +6,11 @@ import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
-import org.firstinspires.ftc.teamcode.base.DriveRunner;
-import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
-import org.firstinspires.ftc.teamcode.base.Wheels;
+import org.firstinspires.ftc.teamcode.control.DriveRunner;
+import org.firstinspires.ftc.teamcode.control.FastDrive;
+import org.firstinspires.ftc.teamcode.hardware.Dashboard;
+import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
@@ -64,12 +65,17 @@ public class Drive extends SubSystem {
     }
 
     private DriveRunner driveRunner;
-    private MecanumDrive mecanumDrive;
     private final FastDrive fastDrive = new FastDrive();
     private final Wheels wheels;
+    private final MecanumDrive mecanumDrive;
+    private final Localizer localizer;
+    private final Dashboard dashboard;
 
-    public Drive(Wheels wheels) {
+    public Drive(Wheels wheels, MecanumDrive mecanumDrive, Localizer localizer, Dashboard dashboard) {
         this.wheels = wheels;
+        this.mecanumDrive = mecanumDrive;
+        this.localizer = localizer;
+        this.dashboard = dashboard;
     }
 
     /**
@@ -78,8 +84,7 @@ public class Drive extends SubSystem {
      */
     @Override
     protected void onInit() {
-        mecanumDrive = robot.mecanumDrive;
-        driveRunner = add(new DriveRunner(robot.dashboard, () -> robot.localizer.pose()));
+        driveRunner = add(new DriveRunner(dashboard, localizer::pose));
     }
 
     @Override
@@ -110,7 +115,7 @@ public class Drive extends SubSystem {
      */
     public boolean toward(Nav.Pose target, Held held) {
         fastDrive.setDestination(target.pose2d);
-        fastDrive.update(robot.localizer.pose());
+        fastDrive.update(localizer.pose());
         power(
                 held.straightOr(fastDrive.straightPower()),
                 held.strafeOr(fastDrive.strafePower()),
@@ -135,7 +140,7 @@ public class Drive extends SubSystem {
      * @throws IllegalStateException while another action is still being followed
      */
     public void strafeTo(Nav.Pose... path) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(robot.localizer.pose());
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(localizer.pose());
         for (Nav.Pose pose : path) {
             builder = builder.strafeToSplineHeading(pose.pose2d.position, pose.pose2d.heading);
         }
@@ -148,7 +153,7 @@ public class Drive extends SubSystem {
      * @throws IllegalStateException while another action is still being followed
      */
     public void backwardTo(Nav.Pose... path) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(robot.localizer.pose());
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(localizer.pose());
         for (Nav.Pose pose : path) {
             builder = builder.setReversed(true).splineToSplineHeading(pose.pose2d, Math.PI);
         }

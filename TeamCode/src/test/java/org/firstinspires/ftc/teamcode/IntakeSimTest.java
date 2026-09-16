@@ -8,7 +8,7 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.roadrunner.Pose2d;
 import java.util.ArrayList;
 import java.util.List;
-import org.firstinspires.ftc.teamcode.base.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimField;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;

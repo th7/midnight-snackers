@@ -4,7 +4,7 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.base.Dashboard;
+import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 
 /**
  * Records every packet sent to the dashboard so tests can inspect what would have been drawn.

@@ -1,9 +1,12 @@
-package org.firstinspires.ftc.teamcode.base;
+package org.firstinspires.ftc.teamcode.opmode;
 
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.Alliance;
+import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.hardware.Hardware;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     private final Alliance alliance;

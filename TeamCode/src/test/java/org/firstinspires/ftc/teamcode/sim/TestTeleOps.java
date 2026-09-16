@@ -1,8 +1,8 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.base.OpMode;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
 /**
  * Tiny TeleOps for exercising the simulator itself. Nested classes, so the catalog never lists

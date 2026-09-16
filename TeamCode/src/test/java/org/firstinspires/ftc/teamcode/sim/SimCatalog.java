@@ -19,8 +19,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
-import org.firstinspires.ftc.teamcode.base.OpMode;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
+import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
 /**
  * The op modes that can be run in the simulator, exactly as the robot controller would list them:

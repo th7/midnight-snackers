@@ -15,7 +15,8 @@ public class LocalizationTest extends LinearOpMode {
     public void runOpMode() throws InterruptedException {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
+        TuningDrive tuning = TuningDrive.from(hardwareMap, new Pose2d(0, 0, 0));
+        MecanumDrive drive = tuning.drive;
 
         waitForStart();
 
@@ -23,9 +24,9 @@ public class LocalizationTest extends LinearOpMode {
             drive.setDrivePowers(new PoseVelocity2d(
                     new Vector2d(-gamepad1.left_stick_y, -gamepad1.left_stick_x), -gamepad1.right_stick_x));
 
-            drive.updatePoseEstimate();
+            tuning.localizer.update();
 
-            Pose2d pose = drive.localizer.getPose();
+            Pose2d pose = tuning.localizer.pose();
             telemetry.addData("x", pose.position.x);
             telemetry.addData("y", pose.position.y);
             telemetry.addData("heading (deg)", Math.toDegrees(pose.heading.toDouble()));

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.opmode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
@@ -10,8 +10,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.Auto;
-import org.firstinspires.ftc.teamcode.base.PlanOp;
+import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
 /**

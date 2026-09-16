@@ -9,7 +9,7 @@ public final class SplineTest extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
         Pose2d beginPose = new Pose2d(0, 0, 0);
-        MecanumDrive drive = new MecanumDrive(hardwareMap, beginPose);
+        MecanumDrive drive = TuningDrive.from(hardwareMap, beginPose).drive;
 
         waitForStart();
 

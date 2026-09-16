@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Action;
 import com.qualcomm.robotcore.hardware.Gamepad;
-import org.firstinspires.ftc.teamcode.base.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
@@ -21,7 +21,7 @@ public class DriverTest {
     private final Robot robot = new Robot(sim.hardware(), Alliance.BLUE, new FakeTelemetry(), gamepad1, gamepad2);
 
     public DriverTest() {
-        robot.add(new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable));
+        robot.add(new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable, gamepad1, gamepad2));
     }
 
     private void assertPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
@@ -98,7 +98,14 @@ public class DriverTest {
     @Test
     public void playingForNoAllianceThereIsNoGoalToAimAtSoTheBumpersJustDrive() {
         Robot relative = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
-        relative.add(new Driver(relative.drive, relative.launcher, relative.brain, relative.nav, relative.turntable));
+        relative.add(new Driver(
+                relative.drive,
+                relative.launcher,
+                relative.brain,
+                relative.nav,
+                relative.turntable,
+                gamepad1,
+                gamepad2));
         gamepad1.left_bumper = true;
         gamepad1.left_stick_y = -1;
 

@@ -28,12 +28,12 @@ import org.dyn4j.geometry.Vector2;
 import org.dyn4j.geometry.hull.GiftWrap;
 import org.dyn4j.world.World;
 import org.firstinspires.ftc.teamcode.Turntable;
-import org.firstinspires.ftc.teamcode.base.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
+import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 

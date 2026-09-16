@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.base;
+package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -10,9 +10,9 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.Brain;
-import org.firstinspires.ftc.teamcode.Nav;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
@@ -40,15 +40,18 @@ public class RobotTest {
     }
 
     /** A subsystem that coordinates others: it reaches them through the robot it was added to. */
+    /** A subsystem handed what it coordinates, the way the real ones are. */
     private static class Coordinator extends SubSystem {
-        Nav navSeen;
-        Brain brainSeen;
+        final Nav navSeen;
+        final Brain brainSeen;
+
+        Coordinator(Nav nav, Brain brain) {
+            this.navSeen = nav;
+            this.brainSeen = brain;
+        }
 
         @Override
-        protected void onInit() {
-            navSeen = robot.nav;
-            brainSeen = robot.brain;
-        }
+        protected void onInit() {}
 
         @Override
         protected void onLoop() {}
@@ -105,27 +108,20 @@ public class RobotTest {
     }
 
     @Test
-    public void addingASubsystemAttachesItThenInitialisesItThenTicksItLast() {
+    public void addingASubsystemGivesItTelemetryThenInitialisesItThenTicksItLast() {
         Recorder recorder = robot.add(new Recorder());
 
-        assertSame(robot, recorder.robot);
         assertSame(telemetry, recorder.initialisedWith);
         assertEquals(1, recorder.inits);
         assertSame(recorder, robot.loopOrder().get(robot.loopOrder().size() - 1));
     }
 
     @Test
-    public void aSubsystemThatCoordinatesOthersReachesThemThroughTheRobot() {
-        Coordinator coordinator = robot.add(new Coordinator());
+    public void aSubsystemThatCoordinatesOthersIsHandedThem() {
+        Coordinator coordinator = robot.add(new Coordinator(robot.nav, robot.brain));
 
         assertSame(robot.nav, coordinator.navSeen);
         assertSame(robot.brain, coordinator.brainSeen);
-    }
-
-    @Test
-    public void theBrainSeesTheOtherSubsystemsWhenItIsInitialised() {
-        assertSame(robot, robot.brain.robot);
-        assertSame(robot.nav, robot.brain.robot.nav);
     }
 
     @Test

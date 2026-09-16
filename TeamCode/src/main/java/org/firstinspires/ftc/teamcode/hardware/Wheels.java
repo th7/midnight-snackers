@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.base;
+package org.firstinspires.ftc.teamcode.hardware;
 
 import com.acmerobotics.roadrunner.DualNum;
 import com.acmerobotics.roadrunner.MecanumKinematics;

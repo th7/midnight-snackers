@@ -6,13 +6,16 @@ import static org.junit.Assert.fail;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.List;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.Auto;
-import org.firstinspires.ftc.teamcode.base.AutoOp;
-import org.firstinspires.ftc.teamcode.base.PlanOp;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.opmode.Auto;
+import org.firstinspires.ftc.teamcode.opmode.AutoOp;
+import org.firstinspires.ftc.teamcode.opmode.PlanOp;
+import org.firstinspires.ftc.teamcode.opmode.PlanOpModes;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
@@ -88,8 +91,8 @@ public class PlanOpModesTest {
     }
 
     public static class WrongShape extends Plans {
-        public WrongShape(Drive drive, Nav nav, Launcher launcher) {
-            super(drive, nav, launcher);
+        public WrongShape(Drive drive, Nav nav, Launcher launcher, LongSupplier clock) {
+            super(drive, nav, launcher, clock);
         }
 
         @Auto(alliance = Alliance.RELATIVE)
@@ -109,8 +112,8 @@ public class PlanOpModesTest {
     }
 
     public static class Twice extends Plans {
-        public Twice(Drive drive, Nav nav, Launcher launcher) {
-            super(drive, nav, launcher);
+        public Twice(Drive drive, Nav nav, Launcher launcher, LongSupplier clock) {
+            super(drive, nav, launcher, clock);
         }
 
         @Auto(name = "Same", alliance = Alliance.RED)

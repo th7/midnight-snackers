@@ -8,7 +8,7 @@ import com.acmerobotics.roadrunner.Vector2d;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
-import org.firstinspires.ftc.teamcode.base.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;

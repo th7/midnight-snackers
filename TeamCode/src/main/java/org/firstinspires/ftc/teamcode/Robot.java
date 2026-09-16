@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.base;
+package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.Gamepad;
@@ -6,16 +6,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.Brain;
-import org.firstinspires.ftc.teamcode.Camera;
-import org.firstinspires.ftc.teamcode.Drive;
-import org.firstinspires.ftc.teamcode.Intake;
-import org.firstinspires.ftc.teamcode.Launcher;
-import org.firstinspires.ftc.teamcode.Localizer;
-import org.firstinspires.ftc.teamcode.Nav;
-import org.firstinspires.ftc.teamcode.Plans;
-import org.firstinspires.ftc.teamcode.Turntable;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.base.LoopGroup;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.hardware.Dashboard;
+import org.firstinspires.ftc.teamcode.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
@@ -64,21 +61,23 @@ public final class Robot implements Loopable {
         this.telemetry = telemetry;
         this.dashboard = hardware.dashboard;
         this.clock = Objects.requireNonNull(hardware.clock, "the hardware has no clock");
-        launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate);
+        // Each is handed what it needs, so the order here is the order they depend on each other
+        // in, and javac says so: a subsystem built before one it is given does not compile.
+        launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate, clock);
         intake = new Intake(hardware.intake);
+        camera = new Camera(hardware.aprilTags, clock);
+        turntable = new Turntable(hardware.turnTable);
         // One Wheels, shared: the drive asks it to turn the robot by hand or toward a pose, and
         // Road Runner's drive asks it while following a trajectory. Nothing else may.
         wheels = new Wheels(hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront);
-        drive = new Drive(wheels);
-        camera = new Camera(hardware.aprilTags, clock);
         // The dead wheels are read through the rightBack (parallel) and leftFront (perpendicular)
         // encoder ports, which is how they are wired: the same motors the drive turns.
         localizer = new Localizer(hardware.rightBack, hardware.leftFront, hardware.imu, new Pose2d(0, 0, 0), clock);
-        mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer.deadWheels(), clock);
+        mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer, clock);
+        drive = new Drive(wheels, mecanumDrive, localizer, dashboard);
         nav = new Nav(localizer, alliance);
-        turntable = new Turntable(hardware.turnTable);
-        brain = new Brain(drive, launcher, camera, nav, turntable);
-        plans = new Plans(drive, nav, launcher);
+        brain = new Brain(drive, launcher, camera, nav, turntable, alliance);
+        plans = new Plans(drive, nav, launcher, clock);
         // Registration order is loop order. The localizer goes first: where the robot is is the
         // first fact of a tick, and everything that reads the pose during the tick reads the one
         // it settled on. Brain goes after the subsystems it coordinates because it reads Camera
@@ -89,16 +88,13 @@ public final class Robot implements Loopable {
     }
 
     /**
-     * Registers something to tick after everything registered so far. A subsystem also learns
-     * this robot and is initialised.
+     * Registers something to tick after everything registered so far. A subsystem is also given
+     * somewhere to print and initialised.
      */
     public <T extends Loopable> T add(T loopable) {
-        if (loopable instanceof SubSystem) {
-            ((SubSystem) loopable).attach(this);
-        }
         loop.add(loopable);
         if (loopable instanceof SubSystem) {
-            ((SubSystem) loopable).init();
+            ((SubSystem) loopable).init(telemetry);
         }
         return loopable;
     }

@@ -1,8 +1,8 @@
-package org.firstinspires.ftc.teamcode.base;
+package org.firstinspires.ftc.teamcode.opmode;
 
 import java.util.function.Function;
-import org.firstinspires.ftc.teamcode.Alliance;
 import org.firstinspires.ftc.teamcode.Plans;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
 /**

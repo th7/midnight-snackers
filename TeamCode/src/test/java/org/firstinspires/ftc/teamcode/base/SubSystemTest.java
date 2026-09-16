@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.junit.Test;
 
@@ -56,7 +57,7 @@ public class SubSystemTest {
 
     @Test
     public void setsUpItsHardwareWhenItIsInitialised() {
-        new WithHelper().init();
+        new WithHelper().init(new FakeTelemetry());
 
         assertEquals(List.of("onInit"), ticks);
     }
@@ -115,7 +116,12 @@ public class SubSystemTest {
                     hook + " must be abstract, so the compiler asks for it",
                     Modifier.isAbstract(SubSystem.class.getDeclaredMethod(hook).getModifiers()));
         }
-        for (String caller : List.of("init", "loop", "toggleTelemetry")) {
+        assertTrue(
+                "init must be final, so a subsystem cannot take over when its hooks run",
+                Modifier.isFinal(SubSystem.class
+                        .getDeclaredMethod("init", Telemetry.class)
+                        .getModifiers()));
+        for (String caller : List.of("loop", "toggleTelemetry")) {
             assertTrue(
                     caller + " must be final, so a subsystem cannot take over when its hooks run",
                     Modifier.isFinal(SubSystem.class.getDeclaredMethod(caller).getModifiers()));

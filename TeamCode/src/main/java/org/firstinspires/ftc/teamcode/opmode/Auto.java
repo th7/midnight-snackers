@@ -1,13 +1,12 @@
-package org.firstinspires.ftc.teamcode.base;
+package org.firstinspires.ftc.teamcode.opmode;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.PlanOpModes;
 import org.firstinspires.ftc.teamcode.Plans;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 
 /**
  * Makes a plan method of {@link Plans} an autonomous op mode on the driver station. The method

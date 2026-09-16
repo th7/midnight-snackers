@@ -52,8 +52,9 @@ public final class TuningOpModes {
         if (DISABLED) return;
 
         DriveViewFactory dvf = hardwareMap -> {
-            MecanumDrive md = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
-            TwoDeadWheelLocalizer dl = (TwoDeadWheelLocalizer) md.localizer;
+            TuningDrive tuning = TuningDrive.from(hardwareMap, new Pose2d(0, 0, 0));
+            MecanumDrive md = tuning.drive;
+            TwoDeadWheelLocalizer dl = tuning.localizer.deadWheels();
 
             // Road Runner's own overflow encoder, not the robot's clocked one: the tuning op modes
             // run on the robot and nowhere else, where the wall clock is the robot's clock, and the

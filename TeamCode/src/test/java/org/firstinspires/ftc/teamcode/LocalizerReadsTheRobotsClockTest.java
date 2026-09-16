@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.firstinspires.ftc.teamcode.base.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.roadrunner.ClockedOverflowEncoder;
@@ -116,7 +116,7 @@ public class LocalizerReadsTheRobotsClockTest {
         double travelled = sim.pose().position.x - before;
         double actualInchesPerSecond = travelled / (LOOPS * SimRunner.LOOP_SECONDS);
 
-        double measured = robot.mecanumDrive.velocity().linearVel.x;
+        double measured = robot.localizer.velocity().linearVel.x;
 
         assertTrue("the robot should have moved", actualInchesPerSecond > 1);
         // Generous: the last loop's speed against the whole run's average, while still accelerating.

@@ -3,12 +3,15 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
+import java.util.function.LongSupplier;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher extends SubSystem {
+    private final LongSupplier clock;
+
     private final double topGateOpenPosition = 1;
     private final double topGateClosedPosition = 0.6;
     private final double bottomGateOpenPosition = 0.5;
@@ -23,7 +26,8 @@ public class Launcher extends SubSystem {
     private double bottomGateWaitTime = 0.45;
     private final PlanRunner planRunner = add(new PlanRunner());
 
-    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate) {
+    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier clock) {
+        this.clock = clock;
         this.launcher = launcher;
         this.topGate = topGate;
         this.bottomGate = bottomGate;
@@ -59,10 +63,10 @@ public class Launcher extends SubSystem {
                 ensureFlywheelReady(),
                 launchCloseTopGate(),
                 launchOpenBottomGate(),
-                Step.waitFor("ball to fall into launcher", 0.15, robot.clock),
+                Step.waitFor("ball to fall into launcher", 0.15, clock),
                 launchCloseBottomGate(),
                 launchOpenTopGate(),
-                Step.waitFor("ball to fall into bottom position", 0.15, robot.clock));
+                Step.waitFor("ball to fall into bottom position", 0.15, clock));
     }
 
     private Step ensureFlywheelReady() {
@@ -83,7 +87,7 @@ public class Launcher extends SubSystem {
                     topGatePosition = topGateClosedPosition;
                 },
                 Step.secondsElapsed(0.05),
-                robot.clock);
+                clock);
     }
 
     private Step launchOpenBottomGate() {
@@ -93,7 +97,7 @@ public class Launcher extends SubSystem {
                     bottomGatePosition = bottomGateOpenPosition;
                 },
                 Step.secondsElapsed(0.05),
-                robot.clock);
+                clock);
     }
 
     private Step launchCloseBottomGate() {
@@ -103,7 +107,7 @@ public class Launcher extends SubSystem {
                     bottomGatePosition = bottomGateClosedPosition;
                 },
                 Step.secondsElapsed(0.08),
-                robot.clock);
+                clock);
     }
 
     private Step launchOpenTopGate() {
@@ -113,7 +117,7 @@ public class Launcher extends SubSystem {
                     topGatePosition = topGateOpenPosition;
                 },
                 Step.secondsElapsed(0.05),
-                robot.clock);
+                clock);
     }
 
     public void slowLaunchyLaunch() {
@@ -123,7 +127,7 @@ public class Launcher extends SubSystem {
     }
 
     private Plan slowLaunchPlan() {
-        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8, robot.clock));
+        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8, clock));
     }
 
     public void increasePower() {

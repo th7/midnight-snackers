@@ -5,9 +5,9 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import org.firstinspires.ftc.teamcode.base.Wheels;
+import org.firstinspires.ftc.teamcode.Localizer;
+import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.junit.Test;
 
 /**
@@ -35,7 +35,7 @@ public class SimRobotNoiseTest {
         SimNoise.Motor weaker = new SimNoise.Motor(1, 1.15, 1);
         SimRobot sim = new SimRobot(
                 SimNoise.NONE.withMotor(SimNoise.RIGHT_FRONT, weaker).withMotor(SimNoise.RIGHT_BACK, weaker));
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
 
         setPowers(sim, 1, 1, 1, 1);
@@ -50,7 +50,7 @@ public class SimRobotNoiseTest {
     @Test
     public void theBatteryReadsFreshThenSagsUnderLoadAndDrainsWithTime() {
         SimRobot sim = new SimRobot(SimNoise.NONE.withBattery(13.8, 0.2, 0.004));
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
 
         assertEquals(13.8, sim.voltageSensor.getVoltage(), 1e-9);
 
@@ -78,7 +78,7 @@ public class SimRobotNoiseTest {
     public void aWheelCannotAccelerateTheRobotHarderThanTraction() {
         double traction = 40;
         SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction));
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
 
         setPowers(sim, 1, 1, 1, 1);
@@ -93,7 +93,7 @@ public class SimRobotNoiseTest {
     public void aWheelCannotBrakeTheRobotHarderThanTractionEither() {
         double traction = 40;
         SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction));
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
         sim.step(0.5);
@@ -109,17 +109,18 @@ public class SimRobotNoiseTest {
     @Test
     public void theDeadWheelsReadTheTrueMotionEvenWhileTheWheelsSlip() {
         SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(40));
-        MecanumDrive drive = robotDrive(sim);
-        drive.localizer.update();
+        Localizer localizer = robotLocalizer(sim);
+        MecanumDrive drive = robotDrive(sim, localizer);
+        localizer.update();
 
         setPowers(sim, 0.6, 1, 0.6, 1);
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
-            drive.localizer.update();
+            localizer.update();
         }
 
         Pose2d truePose = sim.pose();
-        Pose2d estimated = drive.localizer.getPose();
+        Pose2d estimated = localizer.pose();
         assertEquals(truePose.position.x, estimated.position.x, 0.5);
         assertEquals(truePose.position.y, estimated.position.y, 0.5);
         assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
@@ -166,7 +167,7 @@ public class SimRobotNoiseTest {
 
     /** The robot's speed after 2.5 s at full power in the open, measured over the last half second. */
     private static double freeSpeed(SimRobot sim) {
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
         sim.step(2.0);
@@ -176,7 +177,7 @@ public class SimRobotNoiseTest {
     }
 
     private static double speedAfterHalfASecond(SimRobot sim) {
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
         sim.step(0.5);
@@ -189,19 +190,18 @@ public class SimRobotNoiseTest {
         return (sim.pose().position.x - x0) / 0.005;
     }
 
+    /** The localizer as the robot code builds it, reading the same ports the real one does. */
+    private static Localizer robotLocalizer(SimRobot sim) {
+        return new Localizer(sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime);
+    }
+
     /** The drive as the robot code builds it, so the motor directions are the robot's. */
-    private static MecanumDrive robotDrive(SimRobot sim) {
+    private static MecanumDrive robotDrive(SimRobot sim, Localizer localizer) {
         return new MecanumDrive(
                 new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),
                 () -> sim.imu,
                 sim.voltageSensor,
-                new TwoDeadWheelLocalizer(
-                        sim.rightBack,
-                        sim.leftFront,
-                        sim.imu,
-                        MecanumDrive.PARAMS.inPerTick,
-                        new Pose2d(0, 0, 0),
-                        sim::nanoTime),
+                localizer,
                 sim::nanoTime);
     }
 
