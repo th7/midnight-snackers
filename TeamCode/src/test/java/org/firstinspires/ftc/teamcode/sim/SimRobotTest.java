@@ -12,6 +12,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.Turntable;
+import org.firstinspires.ftc.teamcode.base.Wheels;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
@@ -216,10 +217,7 @@ public class SimRobotTest {
     public void theRobotsOwnLocalizerReadsACreepingRobotAsCreeping() {
         SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(new SimNoise.Motor(0.9, 1, 1)));
         MecanumDrive drive = new MecanumDrive(
-                creeper.leftFront,
-                creeper.leftBack,
-                creeper.rightBack,
-                creeper.rightFront,
+                new Wheels(creeper.leftFront, creeper.leftBack, creeper.rightBack, creeper.rightFront),
                 () -> creeper.imu,
                 creeper.voltageSensor,
                 new TwoDeadWheelLocalizer(
@@ -1339,10 +1337,7 @@ public class SimRobotTest {
 
     private static MecanumDrive robotDrive(SimRobot sim) {
         return new MecanumDrive(
-                sim.leftFront,
-                sim.leftBack,
-                sim.rightBack,
-                sim.rightFront,
+                new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),
                 () -> sim.imu,
                 sim.voltageSensor,
                 new TwoDeadWheelLocalizer(

@@ -44,6 +44,8 @@ public final class Robot implements Loopable {
      * builds paths with it.
      */
     public final MecanumDrive mecanumDrive;
+    /** The four wheels: the one place a power reaches a drive motor. */
+    public final Wheels wheels;
 
     public final Turntable turntable;
     public final Brain brain;
@@ -64,20 +66,15 @@ public final class Robot implements Loopable {
         this.clock = Objects.requireNonNull(hardware.clock, "the hardware has no clock");
         launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate);
         intake = new Intake(hardware.intake);
-        drive = new Drive(hardware.leftFront, hardware.rightFront, hardware.leftBack, hardware.rightBack);
+        // One Wheels, shared: the drive asks it to turn the robot by hand or toward a pose, and
+        // Road Runner's drive asks it while following a trajectory. Nothing else may.
+        wheels = new Wheels(hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront);
+        drive = new Drive(wheels);
         camera = new Camera(hardware.aprilTags, clock);
         // The dead wheels are read through the rightBack (parallel) and leftFront (perpendicular)
         // encoder ports, which is how they are wired: the same motors the drive turns.
         localizer = new Localizer(hardware.rightBack, hardware.leftFront, hardware.imu, new Pose2d(0, 0, 0), clock);
-        mecanumDrive = new MecanumDrive(
-                hardware.leftFront,
-                hardware.leftBack,
-                hardware.rightBack,
-                hardware.rightFront,
-                hardware.imu,
-                hardware.voltageSensor,
-                localizer.deadWheels(),
-                clock);
+        mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer.deadWheels(), clock);
         nav = new Nav(mecanumDrive, localizer, alliance);
         turntable = new Turntable(hardware.turnTable);
         brain = new Brain();
