@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
+import org.firstinspires.ftc.teamcode.base.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.junit.Test;
@@ -191,10 +192,7 @@ public class SimRobotNoiseTest {
     /** The drive as the robot code builds it, so the motor directions are the robot's. */
     private static MecanumDrive robotDrive(SimRobot sim) {
         return new MecanumDrive(
-                sim.leftFront,
-                sim.leftBack,
-                sim.rightBack,
-                sim.rightFront,
+                new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),
                 () -> sim.imu,
                 sim.voltageSensor,
                 new TwoDeadWheelLocalizer(

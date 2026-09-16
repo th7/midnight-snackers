@@ -3,11 +3,11 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Wheels;
 
 /**
  * Moves the robot. Whoever is driving says what they want each loop and the drive writes the
@@ -62,16 +62,10 @@ public class Drive extends SubSystem {
 
     private DriveRunner driveRunner;
     private final FastDrive fastDrive = new FastDrive();
-    private final DcMotor leftFront;
-    private final DcMotor rightFront;
-    private final DcMotor leftBack;
-    private final DcMotor rightBack;
+    private final Wheels wheels;
 
-    public Drive(DcMotor leftFront, DcMotor rightFront, DcMotor leftBack, DcMotor rightBack) {
-        this.leftFront = leftFront;
-        this.rightFront = rightFront;
-        this.leftBack = leftBack;
-        this.rightBack = rightBack;
+    public Drive(Wheels wheels) {
+        this.wheels = wheels;
     }
 
     /**
@@ -144,10 +138,11 @@ public class Drive extends SubSystem {
         }
         MoveData moveData =
                 MoveData.straight(straight, 0f, 1f).add(MoveData.strafe(strafe, 0f, 1f), MoveData.turn(turn, 0f, 1f));
-        leftFront.setPower(moveData.frontLeftPower());
-        rightFront.setPower(moveData.frontRightPower());
-        leftBack.setPower(moveData.rearLeftPower());
-        rightBack.setPower(moveData.rearRightPower());
+        wheels.set(
+                moveData.frontLeftPower(),
+                moveData.rearLeftPower(),
+                moveData.rearRightPower(),
+                moveData.frontRightPower());
     }
 
     @Override

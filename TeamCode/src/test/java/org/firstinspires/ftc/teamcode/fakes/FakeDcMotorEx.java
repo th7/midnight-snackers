@@ -5,10 +5,19 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDCoefficients;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
+import java.util.ArrayList;
+import java.util.List;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
 public class FakeDcMotorEx implements DcMotorEx {
+    /**
+     * Every class that has set this motor's power, in order, one entry per call. A test uses it to
+     * ask who writes a motor and how often, which is a question about the code's shape that no
+     * amount of reading the powers themselves can answer.
+     */
+    public final List<String> powerSetBy = new ArrayList<>();
+
     public double power = 0;
     public double commandedVelocity = 0;
     public double measuredVelocity = 0;
@@ -181,6 +190,14 @@ public class FakeDcMotorEx implements DcMotorEx {
     @Override
     public void setPower(double power) {
         this.power = power;
+        powerSetBy.add(caller());
+    }
+
+    /** The class that called {@link #setPower}, for a test asking who is allowed to. */
+    private static String caller() {
+        StackTraceElement[] frames = new Throwable().getStackTrace();
+        // 0 is caller() itself, 1 is setPower, 2 is whoever called it.
+        return frames.length > 2 ? frames[2].getClassName() : "unknown";
     }
 
     @Override
