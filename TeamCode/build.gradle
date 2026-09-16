@@ -76,6 +76,12 @@ tasks.withType(Test).configureEach {
     jvmArgs javacExports
     // What Spotless is configured with, so the gate test can hold the classpath to it.
     systemProperty 'palantirJavaFormat.version', palantirJavaFormatVersion
+    // Gradle's own -D reaches this JVM, not the forked test one, so pass the golden-trace
+    // regeneration flag through by hand; without this the command SimTrace prints would run as an
+    // ordinary check and look like the traces simply agreed.
+    if (System.getProperty('simTrace.regenerate') != null) {
+        systemProperty 'simTrace.regenerate', System.getProperty('simTrace.regenerate')
+    }
 }
 
 dependencies {
