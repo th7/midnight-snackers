@@ -122,11 +122,11 @@ public class SimBenchTest {
     static String tempPlans(int loops, String group) {
         return "package org.firstinspires.ftc.teamcode;\n"
                 + "import org.firstinspires.ftc.teamcode.base.Auto;\n"
-                + "import org.firstinspires.ftc.teamcode.base.SuperSystem;\n"
+                + "import org.firstinspires.ftc.teamcode.base.SubSystem;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
                 + "\n"
-                + "public class Plans extends SuperSystem {\n"
+                + "public class Plans extends SubSystem {\n"
                 + "    private int loops = 0;\n"
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
