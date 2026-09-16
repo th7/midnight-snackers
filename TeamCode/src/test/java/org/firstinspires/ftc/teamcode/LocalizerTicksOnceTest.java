@@ -46,14 +46,14 @@ public class LocalizerTicksOnceTest {
 
     @Test
     public void thePoseStillUpdatesOncePerLoopWhileAnActionIsFollowed() {
-        robot.drive.follow(robot.nav.strafeTo(24, 0, 0));
+        robot.drive.strafeTo(robot.nav.pose(24, 0, 0));
 
         assertEquals(1, poseUpdatesDuring(robot::loop));
     }
 
     @Test
     public void thePoseStillUpdatesOncePerLoopOverAWholeFollowedAction() {
-        robot.drive.follow(robot.nav.strafeTo(24, 0, 0));
+        robot.drive.strafeTo(robot.nav.pose(24, 0, 0));
 
         assertEquals(5, poseUpdatesDuring(() -> {
             for (int i = 0; i < 5; i++) {

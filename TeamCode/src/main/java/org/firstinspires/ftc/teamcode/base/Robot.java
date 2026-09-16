@@ -75,7 +75,7 @@ public final class Robot implements Loopable {
         // encoder ports, which is how they are wired: the same motors the drive turns.
         localizer = new Localizer(hardware.rightBack, hardware.leftFront, hardware.imu, new Pose2d(0, 0, 0), clock);
         mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer.deadWheels(), clock);
-        nav = new Nav(mecanumDrive, localizer, alliance);
+        nav = new Nav(localizer, alliance);
         turntable = new Turntable(hardware.turnTable);
         brain = new Brain();
         plans = new Plans();

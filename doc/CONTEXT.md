@@ -94,7 +94,8 @@ and keep Road Runner's: they run on the robot and nowhere else, and its
 ramp loggers find the raw encoders underneath by looking for that exact
 class. Class: `ClockedOverflowEncoder`.
 
-**Nav** — Where the robot is on the field and how to get somewhere else.
+**Nav** — Where the robot is on the field, and where the places worth going
+are.
 `pose(x, y, heading)` makes a pose from coordinates given the blue way, and
 the alliance's mirroring (y and heading negated for red) happens there and
 nowhere else. It answers the **current pose** (where the localizer believes

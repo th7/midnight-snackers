@@ -150,7 +150,7 @@ public class DriveTest {
 
     @Test
     public void cancellingATrajectoryPartWayThroughStopsTheWheels() {
-        drive.follow(robot.nav.strafeTo(48, 0, 0));
+        drive.strafeTo(robot.nav.pose(48, 0, 0));
         drive.loop();
         drive.loop();
         assertTrue("the trajectory should be driving by now", sim.leftFront.power != 0);
