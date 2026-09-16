@@ -7,6 +7,17 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans extends SubSystem {
+    /** What a plan can ask the robot to do. */
+    private final Drive drive;
+
+    private final Nav nav;
+    private final Launcher launcher;
+
+    public Plans(Drive drive, Nav nav, Launcher launcher) {
+        this.drive = drive;
+        this.nav = nav;
+        this.launcher = launcher;
+    }
 
     @Override
     protected void onInit() {}
@@ -69,9 +80,9 @@ public class Plans extends SubSystem {
      * Road Runner to settle; the rest of the path is cancelled.
      */
     private Step driveNear(String name, double x, double y, double heading) {
-        return new Step(name, () -> robot.drive.strafeTo(robot.nav.pose(x, y, heading)), () -> {
-            if (robot.nav.near(robot.nav.pose(x, y, heading))) {
-                robot.drive.cancel();
+        return new Step(name, () -> drive.strafeTo(nav.pose(x, y, heading)), () -> {
+            if (nav.near(nav.pose(x, y, heading))) {
+                drive.cancel();
                 return true;
             }
             return false;
@@ -97,12 +108,12 @@ public class Plans extends SubSystem {
     private PlanPart driveTo(double x, double y, double heading) {
         return new Step(
                 String.format("driveTo %s, %s, %s, ", x, y, heading),
-                () -> robot.drive.strafeTo(robot.nav.pose(x, y, heading)),
-                robot.drive::done);
+                () -> drive.strafeTo(nav.pose(x, y, heading)),
+                drive::done);
     }
 
     private Step launch() {
-        return new Step("launch", robot.launcher::launchyLaunch, robot.launcher::launchDone);
+        return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
     }
 
     private Plan launchAll() {
@@ -111,16 +122,15 @@ public class Plans extends SubSystem {
 
     // should be placed against the left side of the tile with the small launch line and against the wall
     private Step setFarLaunchPosition() {
-        return new Step("setBackPosition", () -> robot.nav.setPose(robot.nav.pose(-63.5, 15.375, 0)), () -> true);
+        return new Step("setBackPosition", () -> nav.setPose(nav.pose(-63.5, 15.375, 0)), () -> true);
     }
 
     private Step backFromZeroALittle() {
-        return new Step(
-                "backFromZeroALittle", () -> robot.drive.backwardTo(robot.nav.pose(-20, 0, 0)), robot.drive::done);
+        return new Step("backFromZeroALittle", () -> drive.backwardTo(nav.pose(-20, 0, 0)), drive::done);
     }
 
     private Step toLoadingZone() {
-        return new Step("toLoadingZone", () -> robot.drive.backwardTo(robot.nav.pose(-36, 12, 0)), robot.drive::done);
+        return new Step("toLoadingZone", () -> drive.backwardTo(nav.pose(-36, 12, 0)), drive::done);
     }
 
     @Auto(alliance = Alliance.RELATIVE)
@@ -129,17 +139,13 @@ public class Plans extends SubSystem {
                 Step.waitFor("forwardLeftBackwardRight", 5, robot.clock),
                 new Step(
                         "forwardLeftBackwardRight",
-                        () -> robot.drive.strafeTo(
-                                robot.nav.pose(24, 0, 0),
-                                robot.nav.pose(24, 24, 0),
-                                robot.nav.pose(0, 24, 0),
-                                robot.nav.pose(0, 0, 0)),
-                        robot.drive::done));
+                        () -> drive.strafeTo(
+                                nav.pose(24, 0, 0), nav.pose(24, 24, 0), nav.pose(0, 24, 0), nav.pose(0, 0, 0)),
+                        drive::done));
     }
 
     @Auto(alliance = Alliance.RELATIVE)
     public PlanPart driveForward() {
-        return new Plan(
-                new Step("driveForward", () -> robot.drive.strafeTo(robot.nav.pose(24, 0, 0)), robot.drive::done));
+        return new Plan(new Step("driveForward", () -> drive.strafeTo(nav.pose(24, 0, 0)), drive::done));
     }
 }

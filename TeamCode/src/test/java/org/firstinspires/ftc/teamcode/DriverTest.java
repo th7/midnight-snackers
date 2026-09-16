@@ -21,7 +21,7 @@ public class DriverTest {
     private final Robot robot = new Robot(sim.hardware(), Alliance.BLUE, new FakeTelemetry(), gamepad1, gamepad2);
 
     public DriverTest() {
-        robot.add(new Driver());
+        robot.add(new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable));
     }
 
     private void assertPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
@@ -98,7 +98,7 @@ public class DriverTest {
     @Test
     public void playingForNoAllianceThereIsNoGoalToAimAtSoTheBumpersJustDrive() {
         Robot relative = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
-        relative.add(new Driver());
+        relative.add(new Driver(relative.drive, relative.launcher, relative.brain, relative.nav, relative.turntable));
         gamepad1.left_bumper = true;
         gamepad1.left_stick_y = -1;
 
