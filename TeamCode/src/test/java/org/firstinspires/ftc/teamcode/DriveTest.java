@@ -24,6 +24,11 @@ public class DriveTest {
     private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
     private final Drive drive = robot.drive;
 
+    /** The four wheel powers, in {@link #assertPowers}' order. */
+    private double[] powers() {
+        return new double[] {sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power};
+    }
+
     private void assertPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
         assertEquals("leftFront", leftFront, sim.leftFront.power, DELTA);
         assertEquals("rightFront", rightFront, sim.rightFront.power, DELTA);
@@ -53,10 +58,30 @@ public class DriveTest {
     }
 
     @Test
-    public void manualPowersAddPerWheelAndSaturateAtFullPower() {
-        drive.manual(0.8f, 0, 0.8f);
+    public void manualPowersAddPerWheel() {
+        drive.manual(0.4f, 0.2f, 0.1f);
 
-        assertPowers(0, 1, 0, 1);
+        assertPowers(0.1, 0.7, 0.5, 0.3);
+    }
+
+    /**
+     * A command that would ask more of a wheel than it has is scaled down whole, so the robot goes
+     * slower in the direction asked for rather than somewhere else. Twice a command, once a wheel
+     * has run out, is still the same command: every wheel in the same ratio.
+     */
+    @Test
+    public void aCommandTooBigForAWheelIsScaledDownWhole() {
+        drive.manual(0.25f, 0.25f, 0.25f); // the most a wheel is asked for is 0.75: nothing is clipped
+        double[] gentle = powers();
+
+        drive.manual(0.5f, 0.5f, 0.5f); // the same again, but a wheel is now asked for 1.5
+
+        double[] hard = powers();
+        double scale = 1 / 1.5 * 2;
+        for (int wheel = 0; wheel < gentle.length; wheel++) {
+            assertEquals("wheel " + wheel, gentle[wheel] * scale, hard[wheel], DELTA);
+        }
+        assertPowers(-1.0 / 3, 1, 1.0 / 3, 1.0 / 3);
     }
 
     @Test
@@ -79,8 +104,9 @@ public class DriveTest {
     public void anAxisTheDriverHoldsIsTheirsAndTheRestAreTheDrives() {
         drive.toward(robot.nav.pose(48, 0, 0), Held.NONE.strafe(0.5f));
 
-        // full power forward from the drive, plus the driver's strafe, clamped per wheel
-        assertPowers(0.5, 1, 1, 0.5);
+        // full power forward from the drive, plus the driver's strafe; a wheel is asked for 1.5,
+        // so the whole command is scaled to fit rather than the far wheels being clipped
+        assertPowers(1.0 / 3, 1, 1, 1.0 / 3);
     }
 
     @Test

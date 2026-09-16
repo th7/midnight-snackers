@@ -23,7 +23,14 @@ enforces rather than leaving to care. Class: `Hardware`;
 **Wheels** — The four wheels, and the only thing that turns numbers into
 them turning. Everything that wants the robot to move — a driver's sticks,
 the drive steering itself toward a pose, a Road Runner trajectory being
-followed — ends here. That there is one such place is the point: while two
+followed — ends here. It is also the one place three numbers become four:
+forward, left and counterclockwise, mixed by Road Runner's own mecanum
+kinematics, so there is one answer to what a mixed command means. A
+command asking more of a wheel than it has is **scaled down whole**, not
+clipped: clipping the one wheel that ran out would leave the others as
+they were, which is a different command than the one given, and the robot
+would go somewhere other than where it was pointed. Scaled, it goes where
+it was pointed, slower. That there is one such place is the point: while two
 of them wrote the same four motors, what the robot did came down to which
 ran last in the loop, and nothing in the code said which that was. It also
 does the wiring the motors need once, when the robot is built: they brake

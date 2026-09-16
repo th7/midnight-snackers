@@ -2,10 +2,11 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Rotation2d;
+import com.acmerobotics.roadrunner.Vector2d;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
-import org.firstinspires.ftc.teamcode.base.MoveData;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.base.Wheels;
 
@@ -136,13 +137,7 @@ public class Drive extends SubSystem {
         if (!done()) {
             return;
         }
-        MoveData moveData =
-                MoveData.straight(straight, 0f, 1f).add(MoveData.strafe(strafe, 0f, 1f), MoveData.turn(turn, 0f, 1f));
-        wheels.set(
-                moveData.frontLeftPower(),
-                moveData.rearLeftPower(),
-                moveData.rearRightPower(),
-                moveData.frontRightPower());
+        wheels.drive(new PoseVelocity2d(new Vector2d(straight, strafe), turn));
     }
 
     @Override
