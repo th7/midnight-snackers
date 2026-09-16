@@ -39,14 +39,15 @@ public class RobotTest {
         protected void onTelemetry() {}
     }
 
-    private static class Coordinator extends SuperSystem {
+    /** A subsystem that coordinates others: it reaches them through the robot it was added to. */
+    private static class Coordinator extends SubSystem {
         Nav navSeen;
         Brain brainSeen;
 
         @Override
         protected void onInit() {
-            navSeen = nav;
-            brainSeen = brain;
+            navSeen = robot.nav;
+            brainSeen = robot.brain;
         }
 
         @Override
@@ -114,7 +115,7 @@ public class RobotTest {
     }
 
     @Test
-    public void aSuperSystemSeesEverySubsystemByName() {
+    public void aSubsystemThatCoordinatesOthersReachesThemThroughTheRobot() {
         Coordinator coordinator = robot.add(new Coordinator());
 
         assertSame(robot.nav, coordinator.navSeen);
@@ -124,7 +125,7 @@ public class RobotTest {
     @Test
     public void theBrainSeesTheOtherSubsystemsWhenItIsInitialised() {
         assertSame(robot, robot.brain.robot);
-        assertSame(robot.nav, robot.brain.nav);
+        assertSame(robot.nav, robot.brain.robot.nav);
     }
 
     @Test
