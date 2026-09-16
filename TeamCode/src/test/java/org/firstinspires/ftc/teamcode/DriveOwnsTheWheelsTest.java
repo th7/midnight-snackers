@@ -74,7 +74,7 @@ public class DriveOwnsTheWheelsTest {
 
     @Test
     public void followingATrajectoryGoesThroughTheWheels() {
-        robot.drive.follow(robot.nav.strafeTo(24, 0, 0));
+        robot.drive.strafeTo(robot.nav.pose(24, 0, 0));
         clearHistory();
 
         for (int i = 0; i < 5; i++) {
@@ -93,7 +93,7 @@ public class DriveOwnsTheWheelsTest {
     public void nothingElseWritesAWheelOverAWholeRun() {
         clearHistory();
 
-        robot.drive.follow(robot.nav.strafeTo(24, 0, 0));
+        robot.drive.strafeTo(robot.nav.pose(24, 0, 0));
         for (int i = 0; i < 40; i++) {
             robot.loop();
         }

@@ -5,14 +5,22 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Vector2d;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import org.firstinspires.ftc.teamcode.base.Robot;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
 /**
  * Nav speaks in poses on the field: it mirrors them for the alliance, says where the robot is
  * and whether it is near somewhere, and knows where to launch from.
+ *
+ * <p>Where things are is all it knows. How the robot gets to one of them -- what path to take and
+ * what to ask the wheels for along the way -- is the drive's, and Nav does not hold the drive that
+ * would tell it.
  */
 public class NavTest {
     private static final double DELTA = 0.001;
@@ -23,6 +31,23 @@ public class NavTest {
 
     private static double distance(Nav.Pose from, Vector2d to) {
         return Math.hypot(to.x - from.x(), to.y - from.y());
+    }
+
+    /**
+     * Nav says where; the drive says how. A path is built from the robot's own model of itself --
+     * its track width, its wheels, what it can accelerate at -- which is the drive's to know, so
+     * Road Runner's drive belongs there and not here.
+     */
+    @Test
+    public void navDoesNotHoldTheDriveThatBuildsPaths() {
+        List<String> held = new ArrayList<>();
+        for (Field field : Nav.class.getDeclaredFields()) {
+            if (MecanumDrive.class.isAssignableFrom(field.getType())) {
+                held.add(field.getName());
+            }
+        }
+
+        assertEquals("Nav should ask the drive to go somewhere, not build the path itself", List.of(), held);
     }
 
     @Test

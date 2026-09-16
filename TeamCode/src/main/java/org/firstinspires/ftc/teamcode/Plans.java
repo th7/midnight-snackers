@@ -69,7 +69,7 @@ public class Plans extends SuperSystem {
      * Road Runner to settle; the rest of the path is cancelled.
      */
     private Step driveNear(String name, double x, double y, double heading) {
-        return new Step(name, () -> drive.follow(nav.strafeTo(x, y, heading)), () -> {
+        return new Step(name, () -> drive.strafeTo(nav.pose(x, y, heading)), () -> {
             if (nav.near(nav.pose(x, y, heading))) {
                 drive.cancel();
                 return true;
@@ -97,7 +97,7 @@ public class Plans extends SuperSystem {
     private PlanPart driveTo(double x, double y, double heading) {
         return new Step(
                 String.format("driveTo %s, %s, %s, ", x, y, heading),
-                () -> drive.follow(nav.strafeTo(x, y, heading)),
+                () -> drive.strafeTo(nav.pose(x, y, heading)),
                 drive::done);
     }
 
@@ -115,11 +115,11 @@ public class Plans extends SuperSystem {
     }
 
     private Step backFromZeroALittle() {
-        return new Step("backFromZeroALittle", () -> drive.follow(nav.backwardTo(-20, 0, 0)), drive::done);
+        return new Step("backFromZeroALittle", () -> drive.backwardTo(nav.pose(-20, 0, 0)), drive::done);
     }
 
     private Step toLoadingZone() {
-        return new Step("toLoadingZone", () -> drive.follow(nav.backwardTo(-36, 12, 0)), drive::done);
+        return new Step("toLoadingZone", () -> drive.backwardTo(nav.pose(-36, 12, 0)), drive::done);
     }
 
     @Auto(alliance = Alliance.RELATIVE)
@@ -128,13 +128,13 @@ public class Plans extends SuperSystem {
                 Step.waitFor("forwardLeftBackwardRight", 5, robot.clock),
                 new Step(
                         "forwardLeftBackwardRight",
-                        () -> drive.follow(nav.strafePath(
-                                nav.pose(24, 0, 0), nav.pose(24, 24, 0), nav.pose(0, 24, 0), nav.pose(0, 0, 0))),
+                        () -> drive.strafeTo(
+                                nav.pose(24, 0, 0), nav.pose(24, 24, 0), nav.pose(0, 24, 0), nav.pose(0, 0, 0)),
                         drive::done));
     }
 
     @Auto(alliance = Alliance.RELATIVE)
     public PlanPart driveForward() {
-        return new Plan(new Step("driveForward", () -> drive.follow(nav.strafeTo(24, 0, 0)), drive::done));
+        return new Plan(new Step("driveForward", () -> drive.strafeTo(nav.pose(24, 0, 0)), drive::done));
     }
 }

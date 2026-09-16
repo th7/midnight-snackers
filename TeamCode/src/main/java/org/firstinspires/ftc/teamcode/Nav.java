@@ -1,16 +1,13 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Rotation2d;
-import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
- * Where the robot is on the field and how to get somewhere else. Everything in and out is a
+ * Where the robot is on the field, and where the places worth going are. Everything in and out is a
  * {@link Pose} on the field: {@link #pose} makes one from coordinates given the blue way, and
  * the alliance's mirroring happens there and nowhere else.
  * <p>
@@ -75,12 +72,10 @@ public class Nav extends SubSystem {
     /** Where this alliance's goal is; null when playing for no alliance. */
     private final Vector2d launchTarget;
 
-    private final MecanumDrive mecanumDrive;
     private final Localizer localizer;
     private boolean fieldPositionKnown = false;
 
-    public Nav(MecanumDrive mecanumDrive, Localizer localizer, Alliance alliance) {
-        this.mecanumDrive = mecanumDrive;
+    public Nav(Localizer localizer, Alliance alliance) {
         this.localizer = localizer;
         this.headingSign = alliance.headingSign;
         this.ySign = alliance.ySign;
@@ -171,32 +166,6 @@ public class Nav extends SubSystem {
         return Math.abs(headingError) <= NEAR_RADIANS
                 && Math.abs(currentPose.position.x - target.x()) <= NEAR_INCHES
                 && Math.abs(currentPose.position.y - target.y()) <= NEAR_INCHES;
-    }
-
-    /** A path backwards through the poses, from where the robot is now. */
-    public Action backwardPath(Pose... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
-        for (Pose pose : poseList) {
-            builder = builder.setReversed(true).splineToSplineHeading(pose.pose2d, Math.PI);
-        }
-        return builder.build();
-    }
-
-    public Action backwardTo(double x, double y, double heading) {
-        return backwardPath(pose(x, y, heading));
-    }
-
-    /** A path strafing through the poses, from where the robot is now. */
-    public Action strafePath(Pose... poseList) {
-        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(getPose());
-        for (Pose pose : poseList) {
-            builder = builder.strafeToSplineHeading(pose.pose2d.position, pose.pose2d.heading);
-        }
-        return builder.build();
-    }
-
-    public Action strafeTo(double x, double y, double heading) {
-        return strafePath(pose(x, y, heading));
     }
 
     private Pose2d getPose() {

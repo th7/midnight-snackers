@@ -4,11 +4,13 @@ import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Rotation2d;
+import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
 import org.firstinspires.ftc.teamcode.base.DriveRunner;
 import org.firstinspires.ftc.teamcode.base.FastDrive;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.base.Wheels;
+import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
  * Moves the robot. Whoever is driving says what they want each loop and the drive writes the
@@ -62,6 +64,7 @@ public class Drive extends SubSystem {
     }
 
     private DriveRunner driveRunner;
+    private MecanumDrive mecanumDrive;
     private final FastDrive fastDrive = new FastDrive();
     private final Wheels wheels;
 
@@ -75,7 +78,8 @@ public class Drive extends SubSystem {
      */
     @Override
     protected void onInit() {
-        driveRunner = add(new DriveRunner(robot.dashboard, () -> robot.nav.currentPose().pose2d));
+        mecanumDrive = robot.mecanumDrive;
+        driveRunner = add(new DriveRunner(robot.dashboard, () -> robot.localizer.pose()));
     }
 
     @Override
@@ -106,7 +110,7 @@ public class Drive extends SubSystem {
      */
     public boolean toward(Nav.Pose target, Held held) {
         fastDrive.setDestination(target.pose2d);
-        fastDrive.update(robot.nav.currentPose().pose2d);
+        fastDrive.update(robot.localizer.pose());
         power(
                 held.straightOr(fastDrive.straightPower()),
                 held.strafeOr(fastDrive.strafePower()),
@@ -121,6 +125,34 @@ public class Drive extends SubSystem {
      */
     public void follow(Action action) {
         driveRunner.drive(action);
+    }
+
+    /**
+     * Strafes through the poses, from where the robot is now, until it arrives or is cancelled:
+     * the robot faces where each pose says while it goes, rather than turning to face the way it
+     * is travelling.
+     *
+     * @throws IllegalStateException while another action is still being followed
+     */
+    public void strafeTo(Nav.Pose... path) {
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(robot.localizer.pose());
+        for (Nav.Pose pose : path) {
+            builder = builder.strafeToSplineHeading(pose.pose2d.position, pose.pose2d.heading);
+        }
+        follow(builder.build());
+    }
+
+    /**
+     * Backs through the poses, from where the robot is now, until it arrives or is cancelled.
+     *
+     * @throws IllegalStateException while another action is still being followed
+     */
+    public void backwardTo(Nav.Pose... path) {
+        TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(robot.localizer.pose());
+        for (Nav.Pose pose : path) {
+            builder = builder.setReversed(true).splineToSplineHeading(pose.pose2d, Math.PI);
+        }
+        follow(builder.build());
     }
 
     /** Whether no action is being followed. */
