@@ -17,7 +17,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import org.firstinspires.ftc.teamcode.base.OpMode;
+import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
 /**
  * The JVM a simulated run happens in. The server launches one per run with the freshly compiled

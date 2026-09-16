@@ -245,7 +245,7 @@ public class SimBuildTest {
     public void theLibrariesAreThisJvmsJarsWithoutThisServersOwnCode() {
         List<String> libraries = SimBuild.libraries();
         String gson = locationOf(com.google.gson.Gson.class);
-        String serverRobot = locationOf(org.firstinspires.ftc.teamcode.base.OpMode.class);
+        String serverRobot = locationOf(org.firstinspires.ftc.teamcode.opmode.OpMode.class);
         String serverSimulator = locationOf(SimBuild.class);
 
         assertTrue(libraries.toString(), libraries.contains(gson));
@@ -303,8 +303,9 @@ public class SimBuildTest {
         SimBuild.Result result = build.build();
 
         assertNotNull(result.diagnostics, result.classes);
-        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/base/AutoOp.class")));
-        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/PlanOpModes.class")));
+        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/opmode/AutoOp.class")));
+        assertTrue(
+                Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/opmode/PlanOpModes.class")));
     }
 
     @Test

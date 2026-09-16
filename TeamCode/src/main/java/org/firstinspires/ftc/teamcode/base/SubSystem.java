@@ -8,30 +8,29 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  * and what it prints when a driver asks to see it ({@link #onTelemetry()}). An empty body is a
  * fine answer; leaving one out is not an option, so nothing is forgotten by silence.
  *
+ * <p>A subsystem is handed what it needs when it is built and reaches for nothing else; the only
+ * thing it is given afterwards is somewhere to print.
+ *
  * <p>When each of those runs is this class's to decide, so {@link #init()}, {@link #loop()} and
  * {@link #toggleTelemetry()} are final: a subsystem cannot skip its helpers or its telemetry by
  * overriding them.
  */
 public abstract class SubSystem implements Loopable {
-    /** The robot this subsystem was added to, and so the other subsystems; set before {@link #init()}. */
-    protected Robot robot;
-
     protected Telemetry telemetry;
     private final LoopGroup helpers = new LoopGroup();
     private boolean telemetryOn = false;
-
-    void attach(Robot robot) {
-        this.robot = robot;
-        this.telemetry = robot.telemetry;
-    }
 
     /** Registers a helper (a PlanRunner, a DriveRunner) to be ticked before {@link #onLoop()}. */
     protected <T extends Loopable> T add(T helper) {
         return helpers.add(helper);
     }
 
-    /** Sets up hardware once the robot is known. Subclasses override {@link #onInit()}. */
-    public final void init() {
+    /**
+     * Gives the subsystem somewhere to print and sets it up. Subclasses override
+     * {@link #onInit()}.
+     */
+    public final void init(Telemetry telemetry) {
+        this.telemetry = telemetry;
         onInit();
     }
 

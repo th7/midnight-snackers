@@ -166,14 +166,14 @@ public class SourceNavigatorTest {
         String source = "package org.example;\n"
                 + "\n"
                 + "public class Uses {\n"
-                + "    org.firstinspires.ftc.teamcode.base.OpMode opMode;\n"
+                + "    org.firstinspires.ftc.teamcode.opmode.OpMode opMode;\n"
                 + "    java.util.List<String> names;\n"
                 + "}\n";
         write("org/example/Uses.java", source);
 
         Symbol library = definitionAt("org/example/Uses.java", source, "java.util.List<String> names", "List");
         Symbol server = definitionAt(
-                "org/example/Uses.java", source, "org.firstinspires.ftc.teamcode.base.OpMode opMode", "OpMode");
+                "org/example/Uses.java", source, "org.firstinspires.ftc.teamcode.opmode.OpMode opMode", "OpMode");
 
         assertEquals("java.util.List", library.name);
         assertNull("resolved to this server's own robot class", server);

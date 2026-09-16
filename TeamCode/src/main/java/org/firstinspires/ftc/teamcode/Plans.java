@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
-import org.firstinspires.ftc.teamcode.base.Auto;
+import java.util.function.LongSupplier;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.opmode.Auto;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
@@ -12,11 +14,13 @@ public class Plans extends SubSystem {
 
     private final Nav nav;
     private final Launcher launcher;
+    private final LongSupplier clock;
 
-    public Plans(Drive drive, Nav nav, Launcher launcher) {
+    public Plans(Drive drive, Nav nav, Launcher launcher, LongSupplier clock) {
         this.drive = drive;
         this.nav = nav;
         this.launcher = launcher;
+        this.clock = clock;
     }
 
     @Override
@@ -136,7 +140,7 @@ public class Plans extends SubSystem {
     @Auto(alliance = Alliance.RELATIVE)
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
-                Step.waitFor("forwardLeftBackwardRight", 5, robot.clock),
+                Step.waitFor("forwardLeftBackwardRight", 5, clock),
                 new Step(
                         "forwardLeftBackwardRight",
                         () -> drive.strafeTo(

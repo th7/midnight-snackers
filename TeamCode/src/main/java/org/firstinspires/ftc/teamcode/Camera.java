@@ -8,8 +8,9 @@ import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.base.DetectionFilter;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.control.DetectionFilter;
+import org.firstinspires.ftc.teamcode.hardware.AprilTagWebcam;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class Camera extends SubSystem {

@@ -23,8 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.base.PlanOp;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.opmode.PlanOp;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
@@ -104,7 +104,7 @@ public class SimBenchTest {
         Files.write(file, source.replace(from, to).getBytes(StandardCharsets.UTF_8));
     }
 
-    static final String HARDWARE = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/base/Hardware.java";
+    static final String HARDWARE = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/hardware/Hardware.java";
     static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
     static final String SIM_CHILD = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimChild.java";
     static final String SIM_RUN_STREAM = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRunStream.java";
@@ -121,7 +121,7 @@ public class SimBenchTest {
      */
     static String tempPlans(int loops, String group) {
         return "package org.firstinspires.ftc.teamcode;\n"
-                + "import org.firstinspires.ftc.teamcode.base.Auto;\n"
+                + "import org.firstinspires.ftc.teamcode.opmode.Auto;\n"
                 + "import org.firstinspires.ftc.teamcode.base.SubSystem;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
@@ -131,8 +131,10 @@ public class SimBenchTest {
                 // Plans is wired with what it drives; this stand-in drives nothing and only needs to compile.
                 + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
                 + " org.firstinspires.ftc.teamcode.Nav nav,"
-                + " org.firstinspires.ftc.teamcode.Launcher launcher) { }\n"
-                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
+                + " org.firstinspires.ftc.teamcode.Launcher launcher,"
+                + " java.util.function.LongSupplier clock) { }\n"
+                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group
+                + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"
                 + "    protected void onInit() { }\n"
@@ -393,7 +395,7 @@ public class SimBenchTest {
     @Test
     public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/base/BlueTeleOp.java"));
+        Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/BlueTeleOp.java"));
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         SimCatalog catalog = bench.catalog();

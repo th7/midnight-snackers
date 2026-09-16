@@ -24,7 +24,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.TwoDeadWheelInputsMessage;
 
 @Config
-public final class TwoDeadWheelLocalizer implements Localizer {
+public final class TwoDeadWheelLocalizer {
     public static Params PARAMS = new Params();
     public final ClockedOverflowEncoder par, perp;
     public final IMU imu;
@@ -77,17 +77,14 @@ public final class TwoDeadWheelLocalizer implements Localizer {
         pose = initialPose;
     }
 
-    @Override
     public Pose2d getPose() {
         return pose;
     }
 
-    @Override
     public void setPose(Pose2d pose) {
         this.pose = pose;
     }
 
-    @Override
     public PoseVelocity2d update() {
         PositionVelocityPair parPosVel = par.getPositionAndVelocity();
         PositionVelocityPair perpPosVel = perp.getPositionAndVelocity();

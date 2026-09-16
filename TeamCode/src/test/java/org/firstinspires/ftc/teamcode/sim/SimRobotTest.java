@@ -11,11 +11,11 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.Localizer;
 import org.firstinspires.ftc.teamcode.Turntable;
-import org.firstinspires.ftc.teamcode.base.Wheels;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.junit.Test;
 
 public class SimRobotTest {
@@ -187,18 +187,19 @@ public class SimRobotTest {
 
     @Test
     public void theRobotsOwnLocalizerTracksTheTruePose() {
-        MecanumDrive drive = robotDrive();
-        drive.localizer.update();
+        Localizer localizer = robotLocalizer(sim);
+        MecanumDrive drive = robotDrive(sim, localizer);
+        localizer.update();
 
         // A gentle arc: forward with a little more on the right side.
         setPowers(0.6, 0.9, 0.6, 0.9);
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
-            drive.localizer.update();
+            localizer.update();
         }
 
         Pose2d truePose = sim.pose();
-        Pose2d estimated = drive.localizer.getPose();
+        Pose2d estimated = localizer.pose();
         assertTrue(
                 "the arc should have turned the robot; heading=" + truePose.heading.toDouble(),
                 Math.abs(truePose.heading.toDouble()) > 0.2);
@@ -216,19 +217,14 @@ public class SimRobotTest {
     @Test
     public void theRobotsOwnLocalizerReadsACreepingRobotAsCreeping() {
         SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(new SimNoise.Motor(0.9, 1, 1)));
+        Localizer localizer = robotLocalizer(creeper);
         MecanumDrive drive = new MecanumDrive(
                 new Wheels(creeper.leftFront, creeper.leftBack, creeper.rightBack, creeper.rightFront),
                 () -> creeper.imu,
                 creeper.voltageSensor,
-                new TwoDeadWheelLocalizer(
-                        creeper.rightBack,
-                        creeper.leftFront,
-                        creeper.imu,
-                        MecanumDrive.PARAMS.inPerTick,
-                        new Pose2d(0, 0, 0),
-                        creeper::nanoTime),
+                localizer,
                 creeper::nanoTime);
-        drive.localizer.update();
+        localizer.update();
         // The tuned kS, as the feedforward applies it at a standstill: a tenth of it too much for these motors.
         double power = MecanumDrive.PARAMS.kS / SimRobot.BATTERY_VOLTS;
         creeper.leftFront.setPower(power);
@@ -238,8 +234,8 @@ public class SimRobotTest {
         creeper.step(3.0); // several of the drive's time constants (kA / kV, 0.4 s), so the creep has settled
 
         double creep = 0.1 * MecanumDrive.PARAMS.kS / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
-        assertEquals(
-                "inches per second", creep, drive.localizer.update().linearVel.norm(), 0.02);
+        localizer.update();
+        assertEquals("inches per second", creep, localizer.velocity().linearVel.norm(), 0.02);
         assertEquals("a multiple of the hub's step", 0, Math.round(creeper.rightBack.getVelocity()) % 20);
     }
 
@@ -358,19 +354,20 @@ public class SimRobotTest {
 
     @Test
     public void againstTheWallTheDeadWheelsReadTheRobotStandingStillNotTheWheelsSpinning() {
-        MecanumDrive drive = robotDrive();
+        Localizer localizer = robotLocalizer(sim);
+        MecanumDrive drive = robotDrive(sim, localizer);
         double edge = SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(edge - 10, 0, 0));
-        drive.localizer.setPose(sim.pose());
-        drive.localizer.update();
+        localizer.setPose(sim.pose());
+        localizer.update();
         setPowers(1, 1, 1, 1);
 
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
-            drive.localizer.update();
+            localizer.update();
         }
 
-        Pose2d estimated = drive.localizer.getPose();
+        Pose2d estimated = localizer.pose();
         assertEquals(edge, sim.pose().position.x, CONTACT);
         assertEquals(edge, estimated.position.x, 0.5);
         assertEquals(0, estimated.position.y, 0.5);
@@ -476,22 +473,23 @@ public class SimRobotTest {
 
     @Test
     public void againstAFlowerTheDeadWheelsReadTheRobotStandingStill() {
-        MecanumDrive drive = robotDrive();
+        Localizer localizer = robotLocalizer(sim);
+        MecanumDrive drive = robotDrive(sim, localizer);
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
-        drive.localizer.setPose(sim.pose());
-        drive.localizer.update();
+        localizer.setPose(sim.pose());
+        localizer.update();
         setPowers(1, 1, 1, 1);
 
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
-            drive.localizer.update();
+            localizer.update();
         }
 
-        Pose2d estimated = drive.localizer.getPose();
+        Pose2d estimated = localizer.pose();
         assertEquals(face + halfRobot, sim.pose().position.y, CONTACT);
         assertEquals(face + halfRobot, estimated.position.y, 0.5);
         assertEquals(x, estimated.position.x, 0.5);
@@ -1310,7 +1308,7 @@ public class SimRobotTest {
      * the field, since floating wheels take most of the field's length to stop.
      */
     private static double rollOutAfterTheCut(SimRobot sim, DcMotor.ZeroPowerBehavior behavior) {
-        robotDrive(sim);
+        robotDrive(sim, robotLocalizer(sim));
         for (FakeDcMotorEx wheel : wheelsOf(sim)) {
             wheel.setZeroPowerBehavior(behavior);
         }
@@ -1328,25 +1326,25 @@ public class SimRobotTest {
      * The robot's own drive on the simulated motors, which applies the motor directions the robot uses.
      */
     private MecanumDrive robotDrive() {
-        return robotDrive(sim);
+        return robotDrive(sim, robotLocalizer(sim));
     }
 
     private static FakeDcMotorEx[] wheelsOf(SimRobot sim) {
         return new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack};
     }
 
-    private static MecanumDrive robotDrive(SimRobot sim) {
+    /** The localizer as the robot code builds it, reading the same ports the real one does. */
+    private static Localizer robotLocalizer(SimRobot sim) {
+        return new Localizer(sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime);
+    }
+
+    /** The drive as the robot code builds it, so the motor directions are the robot's. */
+    private static MecanumDrive robotDrive(SimRobot sim, Localizer localizer) {
         return new MecanumDrive(
                 new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),
                 () -> sim.imu,
                 sim.voltageSensor,
-                new TwoDeadWheelLocalizer(
-                        sim.rightBack,
-                        sim.leftFront,
-                        sim.imu,
-                        MecanumDrive.PARAMS.inPerTick,
-                        new Pose2d(0, 0, 0),
-                        sim::nanoTime),
+                localizer,
                 sim::nanoTime);
     }
 

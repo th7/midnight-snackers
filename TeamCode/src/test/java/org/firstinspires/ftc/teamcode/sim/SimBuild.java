@@ -23,7 +23,7 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
-import org.firstinspires.ftc.teamcode.base.OpMode;
+import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
 /**
  * Compiles the robot's main sources, as they are on disk right now, with the JDK's own compiler

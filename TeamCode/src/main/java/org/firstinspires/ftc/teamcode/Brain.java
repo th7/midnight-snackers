@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import java.util.Optional;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
@@ -14,13 +15,15 @@ public class Brain extends SubSystem {
     private final Camera camera;
     private final Nav nav;
     private final Turntable turntable;
+    private final Alliance alliance;
 
-    public Brain(Drive drive, Launcher launcher, Camera camera, Nav nav, Turntable turntable) {
+    public Brain(Drive drive, Launcher launcher, Camera camera, Nav nav, Turntable turntable, Alliance alliance) {
         this.drive = drive;
         this.launcher = launcher;
         this.camera = camera;
         this.nav = nav;
         this.turntable = turntable;
+        this.alliance = alliance;
     }
 
     private boolean usingCameraLocalization;
@@ -31,7 +34,7 @@ public class Brain extends SubSystem {
     /** The camera may place the robot on the field only when playing for an alliance. */
     @Override
     protected void onInit() {
-        usingCameraLocalization = robot.alliance.usesCameraLocalization();
+        usingCameraLocalization = alliance.usesCameraLocalization();
     }
 
     @Override

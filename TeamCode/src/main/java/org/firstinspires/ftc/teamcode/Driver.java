@@ -14,13 +14,24 @@ public class Driver extends SubSystem {
     private final Brain brain;
     private final Nav nav;
     private final Turntable turntable;
+    private final Gamepad gamepad1;
+    private final Gamepad gamepad2;
 
-    public Driver(Drive drive, Launcher launcher, Brain brain, Nav nav, Turntable turntable) {
+    public Driver(
+            Drive drive,
+            Launcher launcher,
+            Brain brain,
+            Nav nav,
+            Turntable turntable,
+            Gamepad gamepad1,
+            Gamepad gamepad2) {
         this.drive = drive;
         this.launcher = launcher;
         this.brain = brain;
         this.nav = nav;
         this.turntable = turntable;
+        this.gamepad1 = gamepad1;
+        this.gamepad2 = gamepad2;
     }
 
     /** How far a stick must move before it counts as held. */
@@ -28,14 +39,8 @@ public class Driver extends SubSystem {
     /** How far a stick must move to take the wheels back from an action. */
     private static final float TAKEOVER = 0.2f;
 
-    private Gamepad gamepad1;
-    private Gamepad gamepad2;
-
     @Override
-    protected void onInit() {
-        gamepad1 = robot.gamepad1;
-        gamepad2 = robot.gamepad2;
-    }
+    protected void onInit() {}
 
     @Override
     protected void onTelemetry() {}

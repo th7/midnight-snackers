@@ -23,23 +23,16 @@ import com.acmerobotics.roadrunner.TimeTurn;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.TrajectoryBuilderParams;
 import com.acmerobotics.roadrunner.TurnConstraints;
-import com.acmerobotics.roadrunner.Vector2d;
 import com.acmerobotics.roadrunner.VelConstraint;
 import com.acmerobotics.roadrunner.ftc.DownsampledWriter;
 import com.acmerobotics.roadrunner.ftc.FlightRecorder;
-import com.acmerobotics.roadrunner.ftc.LazyHardwareMapImu;
 import com.acmerobotics.roadrunner.ftc.LazyImu;
-import com.acmerobotics.roadrunner.ftc.LynxFirmware;
-import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.teamcode.base.Wheels;
+import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.DriveCommandMessage;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.MecanumCommandMessage;
 import org.firstinspires.ftc.teamcode.roadrunner.messages.PoseMessage;
@@ -60,83 +53,32 @@ public final class MecanumDrive {
 
     public final VoltageSensor voltageSensor;
     public final LazyImu lazyImu;
-    public final Localizer localizer;
-    private final LinkedList<Pose2d> poseHistory = new LinkedList<>();
-    private final DownsampledWriter estimatedPoseWriter = new DownsampledWriter("ESTIMATED_POSE", 50_000_000);
+    /** Where the robot is, how fast, and where it has been; this drive reads it and never updates it. */
+    public final PoseEstimate where;
+
     private final DownsampledWriter targetPoseWriter = new DownsampledWriter("TARGET_POSE", 50_000_000);
     private final DownsampledWriter driveCommandWriter = new DownsampledWriter("DRIVE_COMMAND", 50_000_000);
     private final DownsampledWriter mecanumCommandWriter = new DownsampledWriter("MECANUM_COMMAND", 50_000_000);
     /** The clock the trajectory followers run on: the robot's, so a simulation can own time. */
     private final LongSupplier clock;
-    /** What the last pose update measured, which is what a trajectory being followed steers on. */
-    private PoseVelocity2d lastVelocity = new PoseVelocity2d(new Vector2d(0, 0), 0);
 
     /** Seconds on the drive's clock, in place of {@code Actions.now()}. */
     private double now() {
         return clock.getAsLong() * 1e-9;
     }
 
-    public MecanumDrive(HardwareMap hardwareMap) {
-        this(hardwareMap, new Pose2d(0, 0, 0));
-    }
-
-    public MecanumDrive(HardwareMap hardwareMap, Pose2d pose) {
-        // TODO: make sure your config has motors with these names (or change them)
-        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
-        // TODO: make sure your config has an IMU with this name (can be BNO or BHI)
-        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
-        this(
-                hardwareMap,
-                pose,
-                new LazyHardwareMapImu(
-                        hardwareMap,
-                        "imu",
-                        new RevHubOrientationOnRobot(PARAMS.logoFacingDirection, PARAMS.usbFacingDirection)));
-
-        LynxFirmware.throwIfModulesAreOutdated(hardwareMap);
-
-        for (LynxModule module : hardwareMap.getAll(LynxModule.class)) {
-            module.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
-        }
-    }
-
     /**
-     * A drive that makes its own localizer, for the tuning op modes, which build a drive from the
-     * configuration and nothing else. The robot's own drive is handed one instead, by the
-     * subsystem that owns it. Takes the IMU as an argument because the drive and the localizer
-     * must share one.
-     */
-    private MecanumDrive(HardwareMap hardwareMap, Pose2d pose, LazyImu lazyImu) {
-        this(
-                new Wheels(
-                        hardwareMap.get(DcMotorEx.class, "leftFront"),
-                        hardwareMap.get(DcMotorEx.class, "leftBack"),
-                        hardwareMap.get(DcMotorEx.class, "rightBack"),
-                        hardwareMap.get(DcMotorEx.class, "rightFront")),
-                lazyImu,
-                hardwareMap.voltageSensor.iterator().next(),
-                new TwoDeadWheelLocalizer(
-                        hardwareMap.get(DcMotorEx.class, "rightBack"),
-                        hardwareMap.get(DcMotorEx.class, "leftFront"),
-                        lazyImu.get(),
-                        PARAMS.inPerTick,
-                        pose,
-                        System::nanoTime),
-                System::nanoTime);
-    }
-
-    /**
-     * Build the drive from already-resolved devices and the localizer that keeps the pose, so it
-     * can run on fakes as well as on the robot. The drive reads the pose and never updates it:
-     * whoever owns the localizer decides when it moves on, once per loop.
+     * Build the drive from already-resolved devices and whatever knows where the robot is, so it
+     * can run on fakes as well as on the robot. The drive reads that and never updates it: whoever
+     * owns the localizer decides when it moves on, once per loop.
      */
     public MecanumDrive(
-            Wheels wheels, LazyImu lazyImu, VoltageSensor voltageSensor, Localizer localizer, LongSupplier clock) {
+            Wheels wheels, LazyImu lazyImu, VoltageSensor voltageSensor, PoseEstimate where, LongSupplier clock) {
         this.clock = clock;
         this.wheels = wheels;
         this.lazyImu = lazyImu;
         this.voltageSensor = voltageSensor;
-        this.localizer = localizer;
+        this.where = where;
 
         FlightRecorder.write("MECANUM_PARAMS", PARAMS);
     }
@@ -145,35 +87,13 @@ public final class MecanumDrive {
         wheels.drive(powers);
     }
 
-    /**
-     * Moves the pose on by what the dead wheels and the IMU have seen since the last call, and
-     * keeps the trail the dashboard draws. Called once a loop, by whoever owns the localizer; a
-     * trajectory being followed reads {@link #velocity()} rather than calling this again.
-     */
-    public PoseVelocity2d updatePoseEstimate() {
-        lastVelocity = localizer.update();
-        poseHistory.add(localizer.getPose());
-
-        while (poseHistory.size() > 100) {
-            poseHistory.removeFirst();
-        }
-
-        estimatedPoseWriter.write(new PoseMessage(localizer.getPose()));
-
-        return lastVelocity;
-    }
-
-    /** How fast the robot was going at the last pose update, in its own frame. */
-    public PoseVelocity2d velocity() {
-        return lastVelocity;
-    }
-
     private void drawPoseHistory(Canvas c) {
-        double[] xPoints = new double[poseHistory.size()];
-        double[] yPoints = new double[poseHistory.size()];
+        List<Pose2d> trail = where.trail();
+        double[] xPoints = new double[trail.size()];
+        double[] yPoints = new double[trail.size()];
 
         int i = 0;
-        for (Pose2d t : poseHistory) {
+        for (Pose2d t : trail) {
             xPoints[i] = t.position.x;
             yPoints[i] = t.position.y;
 
@@ -268,8 +188,8 @@ public final class MecanumDrive {
 
             Pose2dDual<Time> txWorldTarget = timeTrajectory.get(t);
             targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
-            PoseVelocity2d robotVelRobot = velocity();
-            Pose2d error = txWorldTarget.value().minusExp(localizer.getPose());
+            PoseVelocity2d robotVelRobot = where.velocity();
+            Pose2d error = txWorldTarget.value().minusExp(where.pose());
 
             if ((t >= timeTrajectory.duration && error.position.norm() < 0.1 && robotVelRobot.linearVel.norm() < 0.1)
                     || t >= timeTrajectory.duration + PARAMS.trajectoryTimeout) {
@@ -286,7 +206,7 @@ public final class MecanumDrive {
                             PARAMS.axialVelGain,
                             PARAMS.lateralVelGain,
                             PARAMS.headingVelGain)
-                    .compute(txWorldTarget, localizer.getPose(), robotVelRobot);
+                    .compute(txWorldTarget, where.pose(), robotVelRobot);
             driveCommandWriter.write(new DriveCommandMessage(command));
 
             MecanumKinematics.WheelVelocities<Time> wheelVels = kinematics.inverse(command);
@@ -303,9 +223,9 @@ public final class MecanumDrive {
 
             wheels.set(leftFrontPower, leftBackPower, rightBackPower, rightFrontPower);
 
-            p.put("x", localizer.getPose().position.x);
-            p.put("y", localizer.getPose().position.y);
-            p.put("heading (deg)", Math.toDegrees(localizer.getPose().heading.toDouble()));
+            p.put("x", where.pose().position.x);
+            p.put("y", where.pose().position.y);
+            p.put("heading (deg)", Math.toDegrees(where.pose().heading.toDouble()));
 
             p.put("xError", error.position.x);
             p.put("yError", error.position.y);
@@ -319,7 +239,7 @@ public final class MecanumDrive {
             Drawing.drawRobot(c, txWorldTarget.value());
 
             c.setStroke("#3F51B5");
-            Drawing.drawRobot(c, localizer.getPose());
+            Drawing.drawRobot(c, where.pose());
 
             c.setStroke("#4CAF50FF");
             c.setStrokeWidth(1);
@@ -356,9 +276,9 @@ public final class MecanumDrive {
             }
 
             Pose2dDual<Time> txWorldTarget = turn.get(t);
-            Pose2d error = txWorldTarget.value().minusExp(localizer.getPose());
+            Pose2d error = txWorldTarget.value().minusExp(where.pose());
             targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
-            PoseVelocity2d robotVelRobot = velocity();
+            PoseVelocity2d robotVelRobot = where.velocity();
 
             if ((t >= turn.duration && error.heading.toDouble() < 0.1 && robotVelRobot.angVel < 0.1)
                     || t >= turn.duration + PARAMS.trajectoryTimeout) {
@@ -374,7 +294,7 @@ public final class MecanumDrive {
                             PARAMS.axialVelGain,
                             PARAMS.lateralVelGain,
                             PARAMS.headingVelGain)
-                    .compute(txWorldTarget, localizer.getPose(), robotVelRobot);
+                    .compute(txWorldTarget, where.pose(), robotVelRobot);
             driveCommandWriter.write(new DriveCommandMessage(command));
 
             MecanumKinematics.WheelVelocities<Time> wheelVels = kinematics.inverse(command);
@@ -397,7 +317,7 @@ public final class MecanumDrive {
             Drawing.drawRobot(c, txWorldTarget.value());
 
             c.setStroke("#3F51B5");
-            Drawing.drawRobot(c, localizer.getPose());
+            Drawing.drawRobot(c, where.pose());
 
             c.setStroke("#7C4DFFFF");
             c.fillCircle(turn.beginPose.position.x, turn.beginPose.position.y, 2);

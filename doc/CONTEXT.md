@@ -7,6 +7,23 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 ## The robot
 
+**Where things live** — `teamcode` holds the **Robot** and nothing but the
+subsystems it is made of, so the list of files is the list of parts.
+Underneath it: `base` (what a subsystem *is* — `SubSystem`, `Loopable`,
+`LoopGroup` — and the `Alliance` a run plays for), `opmode` (what the
+driver station lists and how a plan becomes one), `hardware` (the devices
+and what is wired to what), `control` (the controllers and filters a
+subsystem steers by), `planrunner` (plans and steps) and `roadrunner`
+(trajectories, which we own rather than vendor).
+
+**Handed, not fetched** — A subsystem is given what it needs when it is
+built and reaches for nothing else; the only thing it is handed afterwards
+is somewhere to print. So the order in Robot's constructor is the order
+they depend on each other in, and javac says so: a subsystem built before
+one it is given does not compile, and one that asks for something the
+robot does not have does not compile either. Nothing reaches back into the
+robot, so there is no list to keep in step and no null to find on a field.
+
 **Hardware** — Everything the op modes touch outside their own code: the
 configured devices, the camera's detections, the dashboard, and the
 **clock**, the time in nanoseconds that every timer in the robot code
@@ -65,7 +82,10 @@ plays it. Everything Nav takes and gives is a pose; Road Runner's own
 Class: `Nav.Pose`.
 
 **Localizer** — Where the robot believes it is, and the sensors it
-believes it from: the two dead wheels and the IMU. It moves that belief on
+believes it from: the two dead wheels and the IMU. It keeps what that
+update measures -- the pose, the speed, and the recent **trail** -- because
+all three are answers about where the robot is; a trajectory being followed
+asks it rather than working them out again. It moves that belief on
 **once** per loop and is the first subsystem ticked, so one tick of the
 robot is one moment — everything that reads the pose during it reads the
 same pose, and the encoders and the IMU are asked once between one loop

@@ -2,8 +2,8 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.firstinspires.ftc.teamcode.Alliance;
-import org.firstinspires.ftc.teamcode.base.AutoOp;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.opmode.AutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
