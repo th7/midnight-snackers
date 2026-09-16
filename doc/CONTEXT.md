@@ -46,7 +46,11 @@ drive steers to on its own, answering whether the robot has arrived and come
 to rest), or **follow** (a Road Runner action, run loop by loop until it is
 done or cancelled). An action being followed owns the wheels: manual and
 toward do nothing until it is done or cancelled, and a stick pushed past the
-takeover deflection cancels it. Class: `Drive`.
+takeover deflection cancels it. **Cancelling stops the robot**: it is
+whoever was driving saying they are done, and a robot nobody is driving
+should not still be driving, so the wheels are asked for nothing, which
+brakes them. Whoever cancels may give an intent in the same loop, and that
+is what the robot does. Class: `Drive`.
 
 **Held axis** — While the drive steers toward a pose, an axis the driver
 holds (straight, strafe or turn) is driven at the driver's power and the

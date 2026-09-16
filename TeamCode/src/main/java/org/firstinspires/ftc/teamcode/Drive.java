@@ -14,7 +14,7 @@ import org.firstinspires.ftc.teamcode.base.Wheels;
  * Moves the robot. Whoever is driving says what they want each loop and the drive writes the
  * motors itself: {@link #manual} powers from the sticks, {@link #toward} a pose the drive steers
  * to on its own, or {@link #follow} a Road Runner action that runs until it is done or
- * {@link #cancel}led. An action being followed owns the wheels: manual and toward do nothing
+ * {@link #cancel}led, which also stops the robot. An action being followed owns the wheels: manual and toward do nothing
  * until it is done or cancelled.
  */
 public class Drive extends SubSystem {
@@ -128,9 +128,17 @@ public class Drive extends SubSystem {
         return driveRunner.done();
     }
 
-    /** Stops following the action, if any; the wheels keep their last power until the next intent. */
+    /**
+     * Stops following the action, if any, and stops the robot.
+     *
+     * <p>Cancelling is whoever was driving saying they are done with it, and a robot nobody is
+     * driving should not still be driving. The wheels are asked for nothing, which brakes them
+     * rather than letting them coast. Whoever cancels is free to give an intent in the same loop,
+     * and that is what the robot will do.
+     */
     public void cancel() {
         driveRunner.cancel();
+        wheels.stop();
     }
 
     private void power(float straight, float strafe, float turn) {
