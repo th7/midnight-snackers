@@ -131,6 +131,35 @@ public class DriveTest {
         assertPowers(1, 1, 1, 1);
     }
 
+    /**
+     * Cancelling is a driver or a plan saying they are done with what the drive was doing, and a
+     * robot nobody is driving should not still be driving. It used to keep its last power until
+     * something else asked for something, so a plan step that cancelled its own path as it arrived
+     * left the robot rolling into whatever came next.
+     */
+    @Test
+    public void cancellingStopsTheWheels() {
+        drive.manual(0.8f, 0, 0);
+        assertPowers(0.8, 0.8, 0.8, 0.8);
+
+        drive.follow(FOREVER);
+        drive.cancel();
+
+        assertPowers(0, 0, 0, 0);
+    }
+
+    @Test
+    public void cancellingATrajectoryPartWayThroughStopsTheWheels() {
+        drive.follow(robot.nav.strafeTo(48, 0, 0));
+        drive.loop();
+        drive.loop();
+        assertTrue("the trajectory should be driving by now", sim.leftFront.power != 0);
+
+        drive.cancel();
+
+        assertPowers(0, 0, 0, 0);
+    }
+
     @Test
     public void anActionCannotBeFollowedOverAnotherStillInProgress() {
         drive.follow(FOREVER);
