@@ -76,10 +76,12 @@ public class Nav extends SubSystem {
     private final Vector2d launchTarget;
 
     private final MecanumDrive mecanumDrive;
+    private final Localizer localizer;
     private boolean fieldPositionKnown = false;
 
-    public Nav(MecanumDrive mecanumDrive, Alliance alliance) {
+    public Nav(MecanumDrive mecanumDrive, Localizer localizer, Alliance alliance) {
         this.mecanumDrive = mecanumDrive;
+        this.localizer = localizer;
         this.headingSign = alliance.headingSign;
         this.ySign = alliance.ySign;
         this.launchTarget = alliance.launchTarget;
@@ -88,10 +90,9 @@ public class Nav extends SubSystem {
     @Override
     protected void onInit() {}
 
+    /** Nothing: the pose is the {@link Localizer}'s to move on, once a loop, before this ticks. */
     @Override
-    protected void onLoop() {
-        mecanumDrive.localizer.update();
-    }
+    protected void onLoop() {}
 
     @Override
     protected void onTelemetry() {}
@@ -108,7 +109,7 @@ public class Nav extends SubSystem {
 
     /** Tells the localizer where the robot is, e.g. where it was placed before an auto. */
     public void setPose(Pose pose) {
-        mecanumDrive.localizer.setPose(pose.pose2d);
+        localizer.setPose(pose.pose2d);
     }
 
     /**
@@ -160,7 +161,7 @@ public class Nav extends SubSystem {
         double xError = clamp(sighting.x() - currentPose.position.x, SIGHTING_NUDGE_INCHES);
         double yError = clamp(sighting.y() - currentPose.position.y, SIGHTING_NUDGE_INCHES);
         Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
-        mecanumDrive.localizer.setPose(new Pose2d(adjustedPosition, currentPose.heading));
+        localizer.setPose(new Pose2d(adjustedPosition, currentPose.heading));
     }
 
     /** Whether the robot is within {@value #NEAR_INCHES} inches and six degrees of {@code target}. */
@@ -199,7 +200,7 @@ public class Nav extends SubSystem {
     }
 
     private Pose2d getPose() {
-        return mecanumDrive.localizer.getPose();
+        return localizer.pose();
     }
 
     private static double clamp(double value, double limit) {

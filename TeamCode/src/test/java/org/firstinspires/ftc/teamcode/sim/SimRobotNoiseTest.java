@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.junit.Test;
 
 /**
@@ -196,7 +197,13 @@ public class SimRobotNoiseTest {
                 sim.rightFront,
                 () -> sim.imu,
                 sim.voltageSensor,
-                new Pose2d(0, 0, 0),
+                new TwoDeadWheelLocalizer(
+                        sim.rightBack,
+                        sim.leftFront,
+                        sim.imu,
+                        MecanumDrive.PARAMS.inPerTick,
+                        new Pose2d(0, 0, 0),
+                        sim::nanoTime),
                 sim::nanoTime);
     }
 

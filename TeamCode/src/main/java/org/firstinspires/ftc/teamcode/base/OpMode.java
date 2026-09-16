@@ -81,6 +81,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {
             robot.drive.toggleTelemetry();
+            robot.localizer.toggleTelemetry();
         }
         if (gamepad2.squareWasPressed()) {
             robot.turntable.toggleTelemetry();
