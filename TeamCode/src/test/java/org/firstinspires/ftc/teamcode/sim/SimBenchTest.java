@@ -106,6 +106,7 @@ public class SimBenchTest {
 
     static final String HARDWARE = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/hardware/Hardware.java";
     static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
+    static final String SIM_DEVICES = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimDevices.java";
     static final String SIM_CHILD = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimChild.java";
     static final String SIM_RUN_STREAM = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRunStream.java";
     static final SimCatalog.Entry BLUE_TELEOP =
@@ -331,7 +332,7 @@ public class SimBenchTest {
         // fit each other, and this server's simulator would not compile against them.
         edit(project, HARDWARE, "public static Builder builder()", "public static Builder wiring()");
         edit(project, HARDWARE, "return builder()", "return wiring()");
-        edit(project, SIM_ROBOT, "Hardware.builder()", "Hardware.wiring()");
+        edit(project, SIM_DEVICES, "Hardware.builder()", "Hardware.wiring()");
         edit(
                 project,
                 SIM_CHILD,
@@ -362,11 +363,11 @@ public class SimBenchTest {
             fail("a catalog cannot be listed for a simulator that does not fit the sources");
         } catch (SimBench.BuildFailed e) {
             assertTrue(e.getMessage(), e.getMessage().contains("does not fit"));
-            assertTrue(e.getMessage(), e.getMessage().contains("sim/SimRobot.java"));
+            assertTrue(e.getMessage(), e.getMessage().contains("sim/SimDevices.java"));
         }
         SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
         assertEquals(run.message(), "build failed", run.outcome());
-        assertTrue(run.message(), run.message().contains("sim/SimRobot.java"));
+        assertTrue(run.message(), run.message().contains("sim/SimDevices.java"));
         assertEquals(0, run.ticks().size());
     }
 

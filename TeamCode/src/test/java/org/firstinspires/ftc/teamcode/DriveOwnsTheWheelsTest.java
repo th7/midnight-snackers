@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.hardware.Wheels;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 /**
@@ -24,11 +24,11 @@ import org.junit.Test;
  * {@link Wheels} is a second hand on the controls.
  */
 public class DriveOwnsTheWheelsTest {
-    private final SimRobot sim = new SimRobot();
-    private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final SimDevices devices = new SimDevices();
+    private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
 
     private List<FakeDcMotorEx> wheels() {
-        return List.of(sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack);
+        return List.of(devices.leftFront, devices.rightFront, devices.leftBack, devices.rightBack);
     }
 
     /** Every class that has written any of the four wheels since the robot was built. */

@@ -99,7 +99,8 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
  * its launch distance drops into the middle of the upturned cell's mouth.
  */
 public class SimRobot {
-    public static final double BATTERY_VOLTS = 12.5;
+    /** The battery a robot with no noise runs on; the devices hold it, since the sensor is theirs. */
+    public static final double BATTERY_VOLTS = SimDevices.BATTERY_VOLTS;
     /** The season's field: its walls, the elements the robot runs into, and the hives' cells. */
     public static final SimField FIELD = SimField.load();
     /** The field is a square of this many inches between the walls, centred on the origin. */
@@ -216,18 +217,21 @@ public class SimRobot {
     private static final int LEFT_BACK_MOUNT = -1;
     private static final int RIGHT_BACK_MOUNT = -1;
 
-    public final FakeDcMotorEx leftFront = new FakeDcMotorEx();
-    public final FakeDcMotorEx rightFront = new FakeDcMotorEx();
-    public final FakeDcMotorEx leftBack = new FakeDcMotorEx();
-    public final FakeDcMotorEx rightBack = new FakeDcMotorEx();
-    public final FakeDcMotorEx launcher = new FakeDcMotorEx();
-    public final FakeDcMotorEx turnTable = new FakeDcMotorEx();
-    public final FakeDcMotorEx intake = new FakeDcMotorEx();
-    public final FakeServo topGate = new FakeServo();
-    public final FakeServo bottomGate = new FakeServo();
-    public final FakeImu imu = new FakeImu();
-    public final FakeVoltageSensor voltageSensor = new FakeVoltageSensor(BATTERY_VOLTS);
-    public final FakeDashboard dashboard = new FakeDashboard();
+    /** The devices this robot drives, and its clock: the other adapter at the hardware seam. */
+    private final SimDevices devices = new SimDevices();
+
+    public final FakeDcMotorEx leftFront = devices.leftFront;
+    public final FakeDcMotorEx rightFront = devices.rightFront;
+    public final FakeDcMotorEx leftBack = devices.leftBack;
+    public final FakeDcMotorEx rightBack = devices.rightBack;
+    public final FakeDcMotorEx launcher = devices.launcher;
+    public final FakeDcMotorEx turnTable = devices.turnTable;
+    public final FakeDcMotorEx intake = devices.intake;
+    public final FakeServo topGate = devices.topGate;
+    public final FakeServo bottomGate = devices.bottomGate;
+    public final FakeImu imu = devices.imu;
+    public final FakeVoltageSensor voltageSensor = devices.voltageSensor;
+    public final FakeDashboard dashboard = devices.dashboard;
 
     /** How this robot differs from the tuned model; {@link SimNoise#NONE} for the model exactly. */
     private final SimNoise noise;
@@ -238,8 +242,6 @@ public class SimRobot {
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private final World<Body> world = new World<>();
     private final Body robot;
-    /** The simulation's clock: nanoseconds since the world was made, advanced by {@link #step}. */
-    private long nanos = 0;
     /** Where the robot was after the last step, for the sensors. */
     private Pose2d previous = new Pose2d(0, 0, 0);
 
@@ -517,7 +519,7 @@ public class SimRobot {
      * on the simulation's clock.
      */
     public Hardware hardware() {
-        return hardware(ArrayList::new);
+        return devices.hardware();
     }
 
     /**
@@ -525,22 +527,7 @@ public class SimRobot {
      * its own, so a test that wants the robot to see something says what.
      */
     public Hardware hardware(Supplier<List<AprilTagDetection>> aprilTags) {
-        return Hardware.builder()
-                .launcher(launcher)
-                .topGate(topGate)
-                .bottomGate(bottomGate)
-                .leftFront(leftFront)
-                .rightFront(rightFront)
-                .leftBack(leftBack)
-                .rightBack(rightBack)
-                .turnTable(turnTable)
-                .intake(intake)
-                .imu(() -> imu)
-                .voltageSensor(voltageSensor)
-                .aprilTags(aprilTags)
-                .dashboard(dashboard)
-                .clock(this::nanoTime)
-                .build();
+        return devices.hardware(aprilTags);
     }
 
     /**
@@ -548,7 +535,7 @@ public class SimRobot {
      * read, through its hardware. It advances only when the world does.
      */
     public long nanoTime() {
-        return nanos;
+        return devices.nanoTime();
     }
 
     /** How this robot differs from the tuned model. */
@@ -962,7 +949,7 @@ public class SimRobot {
      * jumps over an obstacle between two of them, however long the caller waited.
      */
     public void step(double dtSeconds) {
-        nanos += Math.round(dtSeconds * 1e9);
+        devices.advance(dtSeconds);
         int steps = Math.max(1, (int) Math.ceil(dtSeconds / MAX_STEP_SECONDS));
         for (int i = 0; i < steps; i++) {
             substep(dtSeconds / steps);
@@ -981,7 +968,7 @@ public class SimRobot {
                 + Math.abs(clamp(rightFront.power))
                 + Math.abs(clamp(leftBack.power))
                 + Math.abs(clamp(rightBack.power));
-        voltageSensor.voltage = noise.batteryVolts(nanos / 1e9, drivePower);
+        voltageSensor.voltage = noise.batteryVolts(nanoTime() / 1e9, drivePower);
 
         driveTheRobot(dt);
         feedTheLauncher();

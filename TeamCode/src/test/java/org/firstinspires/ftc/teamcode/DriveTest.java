@@ -8,7 +8,7 @@ import com.acmerobotics.roadrunner.Action;
 import org.firstinspires.ftc.teamcode.Drive.Held;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 /**
@@ -20,20 +20,22 @@ public class DriveTest {
     /** An action that never finishes and drives nothing, like a path still being planned. */
     private static final Action FOREVER = packet -> true;
 
-    private final SimRobot sim = new SimRobot();
-    private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final SimDevices devices = new SimDevices();
+    private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
     private final Drive drive = robot.drive;
 
     /** The four wheel powers, in {@link #assertPowers}' order. */
     private double[] powers() {
-        return new double[] {sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power};
+        return new double[] {
+            devices.leftFront.power, devices.rightFront.power, devices.leftBack.power, devices.rightBack.power
+        };
     }
 
     private void assertPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
-        assertEquals("leftFront", leftFront, sim.leftFront.power, DELTA);
-        assertEquals("rightFront", rightFront, sim.rightFront.power, DELTA);
-        assertEquals("leftBack", leftBack, sim.leftBack.power, DELTA);
-        assertEquals("rightBack", rightBack, sim.rightBack.power, DELTA);
+        assertEquals("leftFront", leftFront, devices.leftFront.power, DELTA);
+        assertEquals("rightFront", rightFront, devices.rightFront.power, DELTA);
+        assertEquals("leftBack", leftBack, devices.leftBack.power, DELTA);
+        assertEquals("rightBack", rightBack, devices.rightBack.power, DELTA);
     }
 
     @Test
@@ -153,7 +155,7 @@ public class DriveTest {
         drive.strafeTo(robot.nav.pose(48, 0, 0));
         drive.loop();
         drive.loop();
-        assertTrue("the trajectory should be driving by now", sim.leftFront.power != 0);
+        assertTrue("the trajectory should be driving by now", devices.leftFront.power != 0);
 
         drive.cancel();
 
@@ -178,6 +180,6 @@ public class DriveTest {
         drive.loop();
         drive.loop();
 
-        assertEquals(2, sim.dashboard.packets.size());
+        assertEquals(2, devices.dashboard.packets.size());
     }
 }

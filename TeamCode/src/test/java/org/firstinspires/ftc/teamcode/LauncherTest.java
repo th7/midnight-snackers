@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 public class LauncherTest {
@@ -17,14 +17,14 @@ public class LauncherTest {
     private static final double BOTTOM_GATE_CLOSED = 0.4;
     private static final double CLOSE_LAUNCH_VELOCITY = 1050;
 
-    private final SimRobot sim = new SimRobot();
-    private final Launcher launcher = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry()).launcher;
+    private final SimDevices devices = new SimDevices();
+    private final Launcher launcher = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry()).launcher;
 
     @Test
     public void aFreshRobotParksTheGatesAndConfiguresTheFlywheel() {
-        assertEquals(TOP_GATE_OPEN, sim.topGate.position, DELTA);
-        assertEquals(BOTTOM_GATE_CLOSED, sim.bottomGate.position, DELTA);
-        assertEquals(DcMotor.RunMode.RUN_USING_ENCODER, sim.launcher.getMode());
+        assertEquals(TOP_GATE_OPEN, devices.topGate.position, DELTA);
+        assertEquals(BOTTOM_GATE_CLOSED, devices.bottomGate.position, DELTA);
+        assertEquals(DcMotor.RunMode.RUN_USING_ENCODER, devices.launcher.getMode());
     }
 
     @Test
@@ -33,7 +33,7 @@ public class LauncherTest {
 
         launcher.loop();
 
-        assertEquals(CLOSE_LAUNCH_VELOCITY, sim.launcher.commandedVelocity, DELTA);
+        assertEquals(CLOSE_LAUNCH_VELOCITY, devices.launcher.commandedVelocity, DELTA);
     }
 
     @Test
@@ -44,14 +44,14 @@ public class LauncherTest {
         launcher.loop();
         launcher.loop();
 
-        assertEquals(CLOSE_LAUNCH_VELOCITY, sim.launcher.commandedVelocity, DELTA);
-        assertEquals(TOP_GATE_OPEN, sim.topGate.position, DELTA);
+        assertEquals(CLOSE_LAUNCH_VELOCITY, devices.launcher.commandedVelocity, DELTA);
+        assertEquals(TOP_GATE_OPEN, devices.topGate.position, DELTA);
 
-        sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
+        devices.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
         launcher.loop();
         launcher.loop();
 
-        assertEquals(TOP_GATE_CLOSED, sim.topGate.position, DELTA);
+        assertEquals(TOP_GATE_CLOSED, devices.topGate.position, DELTA);
     }
 
     /**
@@ -59,19 +59,19 @@ public class LauncherTest {
      * tunes from gamepad 2.
      */
     private double secondsWithTheBottomGateOpen() {
-        sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
+        devices.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
         launcher.launchyLaunch();
         Double openedAt = null;
         Double closedAt = null;
         for (int loops = 0; !launcher.launchDone() && loops < 4000; loops++) {
             launcher.loop();
-            boolean open = sim.bottomGate.position > BOTTOM_GATE_CLOSED + DELTA;
+            boolean open = devices.bottomGate.position > BOTTOM_GATE_CLOSED + DELTA;
             if (open && openedAt == null) {
-                openedAt = sim.nanoTime() / 1e9;
+                openedAt = devices.nanoTime() / 1e9;
             } else if (!open && openedAt != null && closedAt == null) {
-                closedAt = sim.nanoTime() / 1e9;
+                closedAt = devices.nanoTime() / 1e9;
             }
-            sim.step(0.005);
+            devices.advance(0.005);
         }
         if (openedAt == null || closedAt == null) {
             throw new AssertionError("the launch never opened and closed the bottom gate");
@@ -113,16 +113,16 @@ public class LauncherTest {
     /** The launch's timed steps run on the robot's clock, which is the simulation's. */
     @Test
     public void launchRunsToCompletionOnTheSimulatedClockAndParksTheGates() {
-        sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
+        devices.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
         launcher.launchyLaunch();
 
         for (int loops = 0; !launcher.launchDone() && loops < 100; loops++) {
             launcher.loop();
-            sim.step(0.02);
+            devices.advance(0.02);
         }
 
         assertTrue(launcher.launchDone());
-        assertEquals(TOP_GATE_OPEN, sim.topGate.position, DELTA);
-        assertEquals(BOTTOM_GATE_CLOSED, sim.bottomGate.position, DELTA);
+        assertEquals(TOP_GATE_OPEN, devices.topGate.position, DELTA);
+        assertEquals(BOTTOM_GATE_CLOSED, devices.bottomGate.position, DELTA);
     }
 }

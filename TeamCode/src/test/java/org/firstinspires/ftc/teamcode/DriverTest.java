@@ -8,27 +8,27 @@ import com.acmerobotics.roadrunner.Action;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 /** The driver's gamepads drive the robot through the Driver super system, not through an op mode. */
 public class DriverTest {
     private static final double DELTA = 0.0001;
 
-    private final SimRobot sim = new SimRobot();
+    private final SimDevices devices = new SimDevices();
     private final Gamepad gamepad1 = new Gamepad();
     private final Gamepad gamepad2 = new Gamepad();
-    private final Robot robot = new Robot(sim.hardware(), Alliance.BLUE, new FakeTelemetry(), gamepad1, gamepad2);
+    private final Robot robot = new Robot(devices.hardware(), Alliance.BLUE, new FakeTelemetry(), gamepad1, gamepad2);
 
     public DriverTest() {
         robot.add(new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable, gamepad1, gamepad2));
     }
 
     private void assertPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
-        assertEquals("leftFront", leftFront, sim.leftFront.power, DELTA);
-        assertEquals("rightFront", rightFront, sim.rightFront.power, DELTA);
-        assertEquals("leftBack", leftBack, sim.leftBack.power, DELTA);
-        assertEquals("rightBack", rightBack, sim.rightBack.power, DELTA);
+        assertEquals("leftFront", leftFront, devices.leftFront.power, DELTA);
+        assertEquals("rightFront", rightFront, devices.rightFront.power, DELTA);
+        assertEquals("leftBack", leftBack, devices.leftBack.power, DELTA);
+        assertEquals("rightBack", rightBack, devices.rightBack.power, DELTA);
     }
 
     /** Puts the robot where its launch pose is, so aiming has nothing left to do. */
@@ -97,7 +97,7 @@ public class DriverTest {
 
     @Test
     public void playingForNoAllianceThereIsNoGoalToAimAtSoTheBumpersJustDrive() {
-        Robot relative = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
+        Robot relative = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
         relative.add(new Driver(
                 relative.drive,
                 relative.launcher,

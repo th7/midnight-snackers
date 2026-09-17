@@ -596,6 +596,18 @@ simulated robot's, so the page draws what the simulator collides. Class:
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
 
+**Devices** — A robot's devices as fakes, and a clock: everything the robot
+code can reach through its **Hardware**, and nothing that moves on its own.
+A motor reads back what was last written to it, and time passes only when
+someone says `advance`. This is the second adapter at the hardware seam —
+the **simulated robot** is the first, and holds one of these, writing its
+sensors from where the physics put the robot. A test of one subsystem wants
+neither the physics nor the field (a turntable turns because its own motor
+says so) and wants time it can move by hand; before there were two, both
+came only as a side effect of building a rigid-body world, so a test of the
+intake loaded the ball model and a launcher waiting a tenth of a second
+moved the balls to get there. Class: `SimDevices`.
+
 **Simulated robot** — The robot, the walls, the field's obstacles and the
 balls as rigid bodies in a **dyn4j** world, driven by the model Road Runner
 was tuned with: each wheel's motor, at its commanded power, pushes its wheel

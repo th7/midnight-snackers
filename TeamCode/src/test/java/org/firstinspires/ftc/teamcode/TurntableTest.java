@@ -6,15 +6,15 @@ import static org.junit.Assert.assertTrue;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 public class TurntableTest {
     private static final double DELTA = 0.0001;
 
-    private final SimRobot sim = new SimRobot();
-    private final FakeDcMotorEx motor = sim.turnTable;
-    private final Turntable turntable = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry()).turntable;
+    private final SimDevices devices = new SimDevices();
+    private final FakeDcMotorEx motor = devices.turnTable;
+    private final Turntable turntable = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry()).turntable;
 
     @Test
     public void drivesTowardTheTargetPosition() {
