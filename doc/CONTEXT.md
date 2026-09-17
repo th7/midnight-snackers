@@ -134,6 +134,39 @@ the robot is), whether the robot is **near** a pose (within 3 inches and
 6 degrees), the **launch pose**, and builds the strafing and backward paths
 the plans follow. Class: `Nav`.
 
+**On the field** — Whether the robot's pose means anything beyond distance
+travelled since it was switched on: whether somebody has said where it is.
+Two things say so and they say the same thing — `placeAt`, a person setting
+the robot down or a plan's first step naming its start pose, and a
+**sighting**, the camera's answer. Until one of them has, there is nothing
+to aim at and the turntable points straight ahead.
+
+It used to be raised by the sighting alone, so an auto that placed itself by
+hand aimed straight ahead for the whole run unless the camera happened to
+see a tag. That it is one fact with one meaning, however the robot got
+there, is the point: a caller that knows where the robot is should not also
+have to know which of two doors marks it. It follows that a sighting
+arriving after a placement is a *later* sighting and nudges rather than
+placing, which is what we want — a start pose somebody measured is worth
+more than the first frame the camera agreed on. Methods: `Nav.placeAt`;
+`Nav.sighted`.
+
+**Turntable** — What the launcher and the camera ride on, and the only thing
+that decides where it points. Each tick the brain gives it an **aim**, how
+far from straight ahead the goal is; what it does with one depends on what
+it is **following**: the goal, straight ahead (the driver parked it), or the
+driver's own hand (the driver nudged it, ten ticks a press). An aim is a
+standing request, not an order, and only `followTheGoal` gives the turntable
+back after parking or a nudge. It starts following the goal.
+
+That the mode lives with the target it guards is what makes a nudge stick.
+It used to be two booleans on the brain over a target field on the turntable,
+set from a third module: a nudge survived only because the line above it in
+`Driver` flipped one of them, so deleting that line still compiled, still
+ran, and lost the nudge on the brain's next tick twenty milliseconds later.
+There is now no ordering to forget, because a nudge *is* the driver taking
+it over. Class: `Turntable`.
+
 **Launch pose** — Where to launch from: 40 inches short of the alliance's
 goal on the line from the robot to it, facing the goal. There is none when
 playing for no alliance, which has no goal; then the bumpers just drive,

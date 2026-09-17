@@ -74,7 +74,13 @@ public class Nav extends SubSystem {
     private final Vector2d launchTarget;
 
     private final Localizer localizer;
-    private boolean fieldPositionKnown = false;
+
+    /**
+     * Whether the robot's pose means something on the field: somebody has said where it is, by
+     * hand or through the camera. Until then the localizer's pose is only distance travelled from
+     * wherever it was switched on, which says nothing about where the goal is.
+     */
+    private boolean onTheField = false;
 
     public Nav(Localizer localizer, Alliance alliance) {
         this.localizer = localizer;
@@ -103,8 +109,13 @@ public class Nav extends SubSystem {
         return new Pose(getPose());
     }
 
-    /** Tells the localizer where the robot is, e.g. where it was placed before an auto. */
-    public void setPose(Pose pose) {
+    /**
+     * The robot is here: where a person set it down, or where a plan's first step says it started.
+     * Placing it is what puts it on the field, so everything that needs to know where the goal is
+     * works from this moment on.
+     */
+    public void placeAt(Pose pose) {
+        onTheField = true;
         localizer.setPose(pose.pose2d);
     }
 
@@ -129,7 +140,7 @@ public class Nav extends SubSystem {
      * has placed the robot on the field, or when there is no goal.
      */
     public double relativeHeadingToTarget() {
-        if (!fieldPositionKnown) {
+        if (!onTheField) {
             return 0;
         }
         Optional<Pose> launchPose = launchPose();
@@ -142,14 +153,15 @@ public class Nav extends SubSystem {
     }
 
     /**
-     * The camera saw where the robot is. The first sighting places the robot there; a later one
-     * nudges its position by at most {@value #SIGHTING_NUDGE_INCHES} inch per axis and leaves the
-     * heading to the localizer.
+     * The camera saw where the robot is. A sighting that arrives while the robot is not yet on the
+     * field places it there, since there is nothing to nudge from; once it is on the field --
+     * however it got there, by hand or by an earlier sighting -- a sighting nudges its position by
+     * at most {@value #SIGHTING_NUDGE_INCHES} inch per axis and leaves the heading to the
+     * localizer, so one bad frame cannot teleport a robot somebody measured and put down.
      */
-    public void setFieldPosition(Pose sighting) {
-        if (!fieldPositionKnown) {
-            fieldPositionKnown = true;
-            setPose(sighting);
+    public void sighted(Pose sighting) {
+        if (!onTheField) {
+            placeAt(sighting);
             return;
         }
 

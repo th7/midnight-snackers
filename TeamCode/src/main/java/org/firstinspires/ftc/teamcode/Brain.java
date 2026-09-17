@@ -27,8 +27,6 @@ public class Brain extends SubSystem {
     }
 
     private boolean usingCameraLocalization;
-    private boolean turnTableToZeroMode = false;
-    private boolean turnTableDebugOverride = false;
     private final PlanRunner planRunner = add(new PlanRunner());
 
     /** The camera may place the robot on the field only when playing for an alliance. */
@@ -42,43 +40,25 @@ public class Brain extends SubSystem {
 
     @Override
     protected void onLoop() {
-        if (!turnTableDebugOverride) {
-            if (turnTableToZeroMode) {
-                turntable.setTurnTablePosition(0);
-            } else {
-                turnTurnTableToTarget();
-            }
-        }
+        // The standing request, every tick. Whether the turntable acts on it is the turntable's:
+        // it may be parked or in the driver's hand, and the brain has no business knowing which.
+        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
+        telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
+        turntable.aimAt(relativeHeadingToTarget);
 
         Optional<Nav.Pose> sighting = camera.sighting();
 
         if (sighting.isPresent()) {
             telemetry.addData("camera pose found", true);
             // the camera faces where the turntable does, so the robot's heading is that less the turn
-            Nav.Pose robotPose = sighting.get().rotated(-turntable.getTurnTableOffsetRadians());
+            Nav.Pose robotPose = sighting.get().rotated(-turntable.offsetRadians());
 
             if (usingCameraLocalization) {
-                nav.setFieldPosition(robotPose);
+                nav.sighted(robotPose);
             }
         }
 
         setTelemetry();
-    }
-
-    public void turnTableToTargetModeOn() {
-        turnTableDebugOverride = false;
-        turnTableToZeroMode = false;
-    }
-
-    public void turnTurnTableToTarget() {
-        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
-        telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
-        turntable.setTurnTablePosition(relativeHeadingToTarget);
-    }
-
-    public void turnTableToZeroModeOn() {
-        turnTableDebugOverride = false;
-        turnTableToZeroMode = true;
     }
 
     public void cancelPlan() {
@@ -132,9 +112,5 @@ public class Brain extends SubSystem {
     /** Whether the camera's tag sightings are used to place the robot on the field. */
     public boolean usingCameraLocalization() {
         return usingCameraLocalization;
-    }
-
-    public void setTurnTableDebugOverrideModeOn() {
-        turnTableDebugOverride = true;
     }
 }

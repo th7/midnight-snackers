@@ -72,10 +72,10 @@ public class Driver extends SubSystem {
             launcher.slowLaunchyLaunch();
         }
         if (gamepad1.crossWasPressed()) {
-            brain.turnTableToZeroModeOn();
+            turntable.parkStraightAhead();
         }
         if (gamepad1.circleWasPressed()) {
-            brain.turnTableToTargetModeOn();
+            turntable.followTheGoal();
         }
         if (gamepad1.right_trigger > 0.2) {
             brain.autoShootSlow();
@@ -119,12 +119,10 @@ public class Driver extends SubSystem {
             launcher.decreasePower();
         }
         if (gamepad2.dpadLeftWasPressed()) {
-            brain.setTurnTableDebugOverrideModeOn();
-            turntable.turnTableToLeft();
+            turntable.nudgeLeft();
         }
         if (gamepad2.dpadRightWasPressed()) {
-            brain.setTurnTableDebugOverrideModeOn();
-            turntable.turnTableToRight();
+            turntable.nudgeRight();
         }
         if (gamepad2.right_trigger > 0.2) {
             brain.toggleCameraLocalization();
