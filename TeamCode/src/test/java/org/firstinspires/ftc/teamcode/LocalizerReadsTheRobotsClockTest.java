@@ -11,10 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
@@ -123,6 +121,13 @@ public class LocalizerReadsTheRobotsClockTest {
         assertEquals("measured forward speed", actualInchesPerSecond, measured, actualInchesPerSecond);
     }
 
+    /** Road Runner's own, which reads the wall clock. */
+    private static final String WALL_CLOCK_ENCODER = "com.acmerobotics.roadrunner.ftc.OverflowEncoder";
+    /** Ours, which reads the robot's. */
+    private static final String OUR_ENCODER = "org.firstinspires.ftc.teamcode.roadrunner.ClockedOverflowEncoder";
+    /** The one place allowed to name Road Runner's: it runs on the robot and nowhere else. */
+    private static final String TUNING = "org/firstinspires/ftc/teamcode/roadrunner/tuning";
+
     /**
      * Road Runner's own {@code OverflowEncoder} is the wall-clock one this is all about, and
      * nothing the robot runs on may reach for it again: the contract is not that it is unused
@@ -135,17 +140,9 @@ public class LocalizerReadsTheRobotsClockTest {
      */
     @Test
     public void nothingInTheRobotCodeUsesTheWallClockEncoder() {
-        Path main = Paths.get("src", "main", "java");
-        Path tuning = main.resolve(Paths.get("org", "firstinspires", "ftc", "teamcode", "roadrunner", "tuning"));
-        assertTrue("no main sources under " + main.toAbsolutePath(), Files.isDirectory(main));
-
-        List<Path> offenders = new ArrayList<>();
-        for (Path source : javaFilesUnder(main)) {
-            if (!source.startsWith(tuning)
-                    && read(source).contains("com.acmerobotics.roadrunner.ftc.OverflowEncoder")) {
-                offenders.add(source);
-            }
-        }
+        List<MainSources.Reference> offenders = MainSources.compiled().referencesTo(WALL_CLOCK_ENCODER).stream()
+                .filter(reference -> !reference.file().startsWith(TUNING))
+                .collect(Collectors.toList());
 
         assertEquals(
                 "these read the machine's clock instead of the robot's; use ClockedOverflowEncoder",
@@ -153,12 +150,46 @@ public class LocalizerReadsTheRobotsClockTest {
                 offenders);
     }
 
-    private static List<Path> javaFilesUnder(Path directory) {
-        try (Stream<Path> files = Files.walk(directory)) {
-            return files.filter(path -> path.toString().endsWith(".java")).collect(Collectors.toList());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    /**
+     * The rule above passes when nothing reaches for the wall-clock encoder and when it looked at
+     * nothing at all. This says which: it reads the whole of the robot code, it finds the one
+     * place that is allowed to name that class, and it finds our own encoder where it is used.
+     */
+    @Test
+    public void theRuleIsReadingTheRobotCodeAndCanTellTheTwoEncodersApart() {
+        MainSources sources = MainSources.compiled();
+
+        assertTrue("read " + sources.fileCount() + " main sources", sources.fileCount() > 30);
+        assertEquals(
+                "the tuning op modes are the one place allowed to name Road Runner's own",
+                List.of(TUNING + "/TuningOpModes.java"),
+                sources.referencesTo(WALL_CLOCK_ENCODER).stream()
+                        .map(MainSources.Reference::file)
+                        .distinct()
+                        .collect(Collectors.toList()));
+        assertTrue(
+                "ours is the one the robot actually uses",
+                sources.referencesTo(OUR_ENCODER).stream()
+                        .anyMatch(reference -> reference.file().endsWith("TwoDeadWheelLocalizer.java")));
+    }
+
+    /**
+     * And the thing the old text search could not do: {@code ClockedOverflowEncoder} names Road
+     * Runner's class in its own javadoc, to say what it replaces and why. A comment is not a use,
+     * and only javac can tell the difference.
+     */
+    @Test
+    public void aMentionInACommentIsNotAUse() {
+        assertTrue(
+                "the javadoc says OverflowEncoder",
+                read(Paths.get("src", "main", "java", "org", "firstinspires", "ftc", "teamcode", "roadrunner")
+                                .resolve("ClockedOverflowEncoder.java"))
+                        .contains("OverflowEncoder} does exactly this"));
+
+        assertTrue(
+                "but it does not use it",
+                MainSources.compiled().referencesTo(WALL_CLOCK_ENCODER).stream()
+                        .noneMatch(reference -> reference.file().endsWith("ClockedOverflowEncoder.java")));
     }
 
     private static String read(Path path) {

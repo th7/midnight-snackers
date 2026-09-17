@@ -195,9 +195,26 @@ public class FakeDcMotorEx implements DcMotorEx {
 
     /** The class that called {@link #setPower}, for a test asking who is allowed to. */
     private static String caller() {
-        StackTraceElement[] frames = new Throwable().getStackTrace();
-        // 0 is caller() itself, 1 is setPower, 2 is whoever called it.
-        return frames.length > 2 ? frames[2].getClassName() : "unknown";
+        return callerOutside(new Throwable().getStackTrace(), FakeDcMotorEx.class.getName());
+    }
+
+    /**
+     * The first class in {@code frames} that is not {@code ownClassName}: whoever called in from
+     * outside this fake.
+     *
+     * <p>Walking out rather than counting in. This used to take {@code frames[2]} -- caller, then
+     * setPower, then the culprit -- which is right only while exactly one frame of this class sits
+     * between. A fake that grew one delegating method would quietly start naming itself as the
+     * writer of every motor, and the rule it exists to hold would go on passing. Taken as a
+     * function of the frames so that case can be tested rather than argued about.
+     */
+    static String callerOutside(StackTraceElement[] frames, String ownClassName) {
+        for (StackTraceElement frame : frames) {
+            if (!frame.getClassName().equals(ownClassName)) {
+                return frame.getClassName();
+            }
+        }
+        return "unknown";
     }
 
     @Override
