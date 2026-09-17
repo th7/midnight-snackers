@@ -9,8 +9,8 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 **Where things live** — `teamcode` holds the **Robot** and nothing but the
 subsystems it is made of, so the list of files is the list of parts.
-Underneath it: `base` (what a subsystem *is* — `SubSystem`, `Loopable`,
-`LoopGroup` — and the `Alliance` a run plays for), `opmode` (what the
+Underneath it: `base` (what a subsystem *is* — `Loopable` — where it prints
+— `Prints`, `Channels` — and the `Alliance` a run plays for), `opmode` (what the
 driver station lists and how a plan becomes one), `hardware` (the devices
 and what is wired to what), `control` (the controllers and filters a
 subsystem steers by), `planrunner` (plans and steps) and `roadrunner`
