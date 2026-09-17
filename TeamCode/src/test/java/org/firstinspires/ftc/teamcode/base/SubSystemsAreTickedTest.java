@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
+import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,22 +27,22 @@ import org.junit.Test;
 
 /**
  * A subsystem is wired in by hand: a field on {@link Robot} and a place in the list that sets loop
- * order, or an {@link OpMode} that adds it. Forgetting that list still compiles and still runs --
- * the subsystem simply never ticks, silently. Loop order is a decision a person makes and Robot
- * spells out; that every subsystem is in it at all is mechanical, so this proves it here.
+ * order, or a field on an {@link OpMode} that the op mode ticks itself. Forgetting either still
+ * compiles and still runs -- the subsystem simply never ticks, silently. Loop order is a decision
+ * a person makes and Robot spells out; that every subsystem is in it at all is mechanical, so this
+ * proves it here.
+ *
+ * <p>What counts as a subsystem is the package: {@code teamcode} holds the Robot and nothing but
+ * the subsystems it is made of, so a {@link Loopable} that lives directly in it is one. That used
+ * to be a base class to extend; the package says the same thing and is the rule the glossary
+ * already states.
  */
 public class SubSystemsAreTickedTest {
 
     /** A subsystem written but never wired in, for the check below to catch. */
-    private static class Stray extends SubSystem {
+    private static class Stray implements Loopable {
         @Override
-        protected void onInit() {}
-
-        @Override
-        protected void onLoop() {}
-
-        @Override
-        protected void onTelemetry() {}
+        public void loop() {}
     }
 
     /** Of these subsystems, the ones no op mode ticks. */
@@ -56,7 +57,9 @@ public class SubSystemsAreTickedTest {
             if (type.getName().startsWith(SimCatalog.ROADRUNNER_PACKAGE + ".")) {
                 continue; // vendored Road Runner code is not ours to wire in
             }
-            if (SubSystem.class.isAssignableFrom(type)
+            if (Loopable.class.isAssignableFrom(type)
+                    && type.getPackageName().equals(SimCatalog.TEAMCODE_PACKAGE)
+                    && type != Robot.class
                     && !Modifier.isAbstract(type.getModifiers())
                     && !Classpath.isTestClass(type)) {
                 subSystems.add(type);
@@ -78,8 +81,35 @@ public class SubSystemsAreTickedTest {
             for (Loopable loopable : opMode.loopOrder()) {
                 ticked.add(loopable.getClass());
             }
+            // and whatever the op mode owns and ticks itself, in its own onLoop
+            ticked.addAll(ownLoopables(opMode));
         }
         return ticked;
+    }
+
+    /**
+     * The {@link Loopable}s an op mode holds as its own: a TeleOp's Driver, an auto's PlanRunner.
+     * The op mode ticks them in its own {@code onLoop}, which is where anything it owns is ticked.
+     */
+    private static Set<Class<?>> ownLoopables(OpMode opMode) {
+        Set<Class<?>> own = new LinkedHashSet<>();
+        for (Class<?> type = opMode.getClass(); type != null; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (!Loopable.class.isAssignableFrom(field.getType())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                try {
+                    Object held = field.get(opMode);
+                    if (held != null) {
+                        own.add(held.getClass());
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+        return own;
     }
 
     @Test

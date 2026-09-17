@@ -123,11 +123,11 @@ public class SimBenchTest {
     static String tempPlans(int loops, String group) {
         return "package org.firstinspires.ftc.teamcode;\n"
                 + "import org.firstinspires.ftc.teamcode.opmode.Auto;\n"
-                + "import org.firstinspires.ftc.teamcode.base.SubSystem;\n"
+                + "import org.firstinspires.ftc.teamcode.base.Loopable;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
                 + "\n"
-                + "public class Plans extends SubSystem {\n"
+                + "public class Plans implements Loopable {\n"
                 + "    private int loops = 0;\n"
                 // Plans is wired with what it drives; this stand-in drives nothing and only needs to compile.
                 + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
@@ -138,9 +138,7 @@ public class SimBenchTest {
                 + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"
-                + "    protected void onInit() { }\n"
-                + "    protected void onLoop() { }\n"
-                + "    protected void onTelemetry() { }\n"
+                + "    public void loop() { }\n"
                 + "}\n";
     }
 

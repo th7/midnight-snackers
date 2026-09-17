@@ -1,7 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 
 /**
  * The turntable the launcher and the camera ride on, and the only thing that decides where it
@@ -18,7 +19,8 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
  * <p>A turntable follows the goal until it is told otherwise, and {@link #followTheGoal()} is what
  * gives it back after parking or a nudge.
  */
-public class Turntable extends SubSystem {
+public class Turntable implements Loopable {
+    private final Prints telemetry;
     public static final int TICKS_PER_REVOLUTION = 1700;
 
     /** How far one nudge steps the target, in ticks. */
@@ -42,23 +44,9 @@ public class Turntable extends SubSystem {
     private Following following = Following.THE_GOAL;
     private int turnTableTargetPosition;
 
-    public Turntable(DcMotorEx turnTable) {
+    public Turntable(DcMotorEx turnTable, Prints telemetry) {
         this.turnTable = turnTable;
-    }
-
-    @Override
-    protected void onInit() {}
-
-    @Override
-    protected void onLoop() {
-        double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
-        double turnTablePower = turnTableError / TICKS_PER_FULL_POWER;
-
-        if (turnTableError < DEADBAND_TICKS && turnTableError > -DEADBAND_TICKS) {
-            turnTable.setPower(0);
-        } else {
-            turnTable.setPower(clampMinPower(turnTablePower, MINIMUM_POWER));
-        }
+        this.telemetry = telemetry;
     }
 
     private float clampMinPower(double power, double min) {
@@ -69,15 +57,6 @@ public class Turntable extends SubSystem {
         } else {
             return (float) power;
         }
-    }
-
-    @Override
-    protected void onTelemetry() {
-        telemetry.addData("turnTableFollowing", following);
-        telemetry.addData("turnTableRotationTicks", turnTable.getCurrentPosition());
-        telemetry.addData("turnTableOffsetRadians", offsetRadians());
-        telemetry.addData("turnTableTargetPosition", turnTableTargetPosition);
-        telemetry.addData("turnTablePower", turnTable.getPower());
     }
 
     /**
@@ -137,5 +116,23 @@ public class Turntable extends SubSystem {
             return middle + TICKS_PER_REVOLUTION;
         }
         return middle;
+    }
+
+    @Override
+    public void loop() {
+        double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
+        double turnTablePower = turnTableError / TICKS_PER_FULL_POWER;
+
+        if (turnTableError < DEADBAND_TICKS && turnTableError > -DEADBAND_TICKS) {
+            turnTable.setPower(0);
+        } else {
+            turnTable.setPower(clampMinPower(turnTablePower, MINIMUM_POWER));
+        }
+
+        telemetry.addData("turnTableFollowing", following);
+        telemetry.addData("turnTableRotationTicks", turnTable.getCurrentPosition());
+        telemetry.addData("turnTableOffsetRadians", offsetRadians());
+        telemetry.addData("turnTableTargetPosition", turnTableTargetPosition);
+        telemetry.addData("turnTablePower", turnTable.getPower());
     }
 }

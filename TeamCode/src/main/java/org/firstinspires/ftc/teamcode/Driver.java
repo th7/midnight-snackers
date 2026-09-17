@@ -3,10 +3,10 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.Drive.Held;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
 
 /** Drives the robot from the gamepads. A TeleOp adds one; an auto has no driver. */
-public class Driver extends SubSystem {
+public class Driver implements Loopable {
     /** What a driver drives: named here, so forgetting to wire one up does not compile. */
     private final Drive drive;
 
@@ -39,12 +39,6 @@ public class Driver extends SubSystem {
     /** How far a stick must move to take the wheels back from an action. */
     private static final float TAKEOVER = 0.2f;
 
-    @Override
-    protected void onInit() {}
-
-    @Override
-    protected void onTelemetry() {}
-
     /** Steers toward the launch pose on the axes the driver is not holding; with no goal, just drives. */
     private void aim(Held held) {
         Optional<Nav.Pose> launchPose = nav.launchPose();
@@ -56,7 +50,7 @@ public class Driver extends SubSystem {
     }
 
     @Override
-    protected void onLoop() {
+    public void loop() {
         if (Math.abs(gamepad1.left_stick_x) > TAKEOVER
                 || Math.abs(gamepad1.left_stick_y) > TAKEOVER
                 || Math.abs(gamepad1.right_stick_x) > TAKEOVER

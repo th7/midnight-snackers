@@ -20,8 +20,13 @@ public class DriverTest {
     private final Gamepad gamepad2 = new Gamepad();
     private final Robot robot = new Robot(devices.hardware(), Alliance.BLUE, new FakeTelemetry(), gamepad1, gamepad2);
 
-    public DriverTest() {
-        robot.add(new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable, gamepad1, gamepad2));
+    private final Driver driver =
+            new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable, gamepad1, gamepad2);
+
+    /** One op mode loop: the robot ticks, then the driver, the way {@code TeleOp} does it. */
+    private void tick() {
+        robot.loop();
+        driver.loop();
     }
 
     private void assertPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
@@ -34,14 +39,14 @@ public class DriverTest {
     /** Puts the robot where its launch pose is, so aiming has nothing left to do. */
     private void parkAtTheLaunchPose() {
         robot.nav.placeAt(robot.nav.launchPose().get());
-        robot.loop();
+        tick();
     }
 
     @Test
     public void theLeftStickDrivesStraight() {
         gamepad1.left_stick_y = -1;
 
-        robot.loop();
+        tick();
 
         assertPowers(1, 1, 1, 1);
     }
@@ -50,7 +55,7 @@ public class DriverTest {
     public void theRightStickTurns() {
         gamepad1.right_stick_x = 1;
 
-        robot.loop();
+        tick();
 
         assertPowers(1, -1, 1, -1);
     }
@@ -59,7 +64,7 @@ public class DriverTest {
     public void squareStartsALaunch() {
         gamepad1.square = true;
 
-        robot.loop();
+        tick();
 
         assertFalse(robot.launcher.launchDone());
     }
@@ -68,16 +73,16 @@ public class DriverTest {
     public void theLeftBumperAimsAtTheLaunchPoseAndTheSticksNudgeStrafeAndTurn() {
         parkAtTheLaunchPose();
         gamepad1.left_bumper = true;
-        robot.loop();
+        tick();
         assertPowers(0, 0, 0, 0);
 
         gamepad1.left_stick_x = 1;
-        robot.loop();
+        tick();
         assertPowers(1, -1, -1, 1);
 
         gamepad1.left_stick_x = 0;
         gamepad1.left_stick_y = -1; // straight is the drive's under the left bumper, not the driver's
-        robot.loop();
+        tick();
         assertPowers(0, 0, 0, 0);
     }
 
@@ -86,30 +91,31 @@ public class DriverTest {
         parkAtTheLaunchPose();
         gamepad1.right_bumper = true;
         gamepad1.left_stick_y = -1;
-        robot.loop();
+        tick();
         assertPowers(1, 1, 1, 1);
 
         gamepad1.left_stick_y = 0;
         gamepad1.right_stick_x = 1;
-        robot.loop();
+        tick();
         assertPowers(1, -1, 1, -1);
     }
 
     @Test
     public void playingForNoAllianceThereIsNoGoalToAimAtSoTheBumpersJustDrive() {
         Robot relative = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
-        relative.add(new Driver(
+        Driver relativeDriver = new Driver(
                 relative.drive,
                 relative.launcher,
                 relative.brain,
                 relative.nav,
                 relative.turntable,
                 gamepad1,
-                gamepad2));
+                gamepad2);
         gamepad1.left_bumper = true;
         gamepad1.left_stick_y = -1;
 
         relative.loop();
+        relativeDriver.loop();
 
         assertPowers(1, 1, 1, 1);
     }
@@ -119,7 +125,7 @@ public class DriverTest {
         robot.drive.follow(packet -> true);
         gamepad1.left_stick_y = -1;
 
-        robot.loop();
+        tick();
 
         assertTrue(robot.drive.done());
         assertPowers(1, 1, 1, 1);
@@ -130,7 +136,7 @@ public class DriverTest {
         Action forever = packet -> true;
         robot.drive.follow(forever);
 
-        robot.loop();
+        tick();
 
         assertFalse(robot.drive.done());
     }

@@ -8,12 +8,14 @@ import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.control.DetectionFilter;
 import org.firstinspires.ftc.teamcode.hardware.AprilTagWebcam;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
-public class Camera extends SubSystem {
+public class Camera implements Loopable {
+    private final Prints telemetry;
     private final DetectionFilter detectionFilter;
     private final Supplier<List<AprilTagDetection>> detectionSource;
     private AprilTagDetection goalDetection;
@@ -22,16 +24,31 @@ public class Camera extends SubSystem {
      * @param detectionSource the latest AprilTag detections; {@link AprilTagWebcam#detections} on the robot.
      * @param clock the robot's clock, which the detections' frames are stamped on, to judge their age
      */
-    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier clock) {
+    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier clock, Prints telemetry) {
         this.detectionSource = detectionSource;
         this.detectionFilter = new DetectionFilter(clock);
+        this.telemetry = telemetry;
+    }
+
+    /**
+     * Where the goal's tag says the robot is on the field, as the camera faces: the turntable's
+     * heading, not the robot's. Empty until three consistent recent detections agree.
+     */
+    public Optional<Nav.Pose> sighting() {
+        if (goalDetection == null || goalDetection.robotPose == null) {
+            return Optional.empty();
+        }
+        Position position = goalDetection.robotPose.getPosition();
+        YawPitchRollAngles orientation = goalDetection.robotPose.getOrientation();
+        if (position == null || orientation == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new Nav.Pose(
+                new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2)));
     }
 
     @Override
-    protected void onInit() {}
-
-    @Override
-    protected void onLoop() {
+    public void loop() {
         List<AprilTagDetection> detections = detectionSource.get();
 
         if (detections == null) {
@@ -46,10 +63,7 @@ public class Camera extends SubSystem {
 
         goalDetection =
                 detectionFilter.agreed().map(DetectionFilter.Agreed::detection).orElse(null);
-    }
 
-    @Override
-    protected void onTelemetry() {
         telemetry.addData("detectionFilter.maxAgeNano", DetectionFilter.MAX_AGE_NANO);
         telemetry.addData(
                 "detectionFilter.lastAgeNano",
@@ -91,22 +105,5 @@ public class Camera extends SubSystem {
                 }
             }
         }
-    }
-
-    /**
-     * Where the goal's tag says the robot is on the field, as the camera faces: the turntable's
-     * heading, not the robot's. Empty until three consistent recent detections agree.
-     */
-    public Optional<Nav.Pose> sighting() {
-        if (goalDetection == null || goalDetection.robotPose == null) {
-            return Optional.empty();
-        }
-        Position position = goalDetection.robotPose.getPosition();
-        YawPitchRollAngles orientation = goalDetection.robotPose.getOrientation();
-        if (position == null || orientation == null) {
-            return Optional.empty();
-        }
-        return Optional.of(new Nav.Pose(
-                new Pose2d(-position.x, -position.y, orientation.getYaw(AngleUnit.RADIANS) - Math.PI / 2)));
     }
 }

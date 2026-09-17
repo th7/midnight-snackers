@@ -10,7 +10,8 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.PoseEstimate;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
@@ -34,7 +35,8 @@ import org.firstinspires.ftc.teamcode.roadrunner.messages.PoseMessage;
  * <p>What the belief <em>means</em> — the field, the alliance's half of it, where the goal is — is
  * {@link Nav}'s. This subsystem only keeps it current.
  */
-public class Localizer extends SubSystem implements PoseEstimate {
+public class Localizer implements Loopable, PoseEstimate {
+    private final Prints telemetry;
     /** How much of the trail is kept: enough to see where the robot has just been. */
     private static final int TRAIL = 100;
 
@@ -52,7 +54,13 @@ public class Localizer extends SubSystem implements PoseEstimate {
      * @param clock the robot's clock, which the dead wheels measure their own speed against
      */
     public Localizer(
-            DcMotorEx parallel, DcMotorEx perpendicular, LazyImu imu, Pose2d startingPose, LongSupplier clock) {
+            DcMotorEx parallel,
+            DcMotorEx perpendicular,
+            LazyImu imu,
+            Pose2d startingPose,
+            LongSupplier clock,
+            Prints telemetry) {
+        this.telemetry = telemetry;
         deadWheels = new TwoDeadWheelLocalizer(
                 parallel, perpendicular, imu.get(), MecanumDrive.PARAMS.inPerTick, startingPose, clock);
     }
@@ -63,14 +71,6 @@ public class Localizer extends SubSystem implements PoseEstimate {
      */
     public TwoDeadWheelLocalizer deadWheels() {
         return deadWheels;
-    }
-
-    @Override
-    protected void onInit() {}
-
-    @Override
-    protected void onLoop() {
-        update();
     }
 
     /**
@@ -84,14 +84,6 @@ public class Localizer extends SubSystem implements PoseEstimate {
             trail.removeFirst();
         }
         estimatedPoseWriter.write(new PoseMessage(deadWheels.getPose()));
-    }
-
-    @Override
-    protected void onTelemetry() {
-        Pose2d pose = pose();
-        telemetry.addData("localizer.x", pose.position.x);
-        telemetry.addData("localizer.y", pose.position.y);
-        telemetry.addData("localizer.heading (deg)", Math.toDegrees(pose.heading.toDouble()));
     }
 
     @Override
@@ -112,5 +104,15 @@ public class Localizer extends SubSystem implements PoseEstimate {
     /** Tells the robot where it is, e.g. where it was placed before an auto, or what the camera saw. */
     public void setPose(Pose2d pose) {
         deadWheels.setPose(pose);
+    }
+
+    @Override
+    public void loop() {
+        update();
+
+        Pose2d pose = pose();
+        telemetry.addData("localizer.x", pose.position.x);
+        telemetry.addData("localizer.y", pose.position.y);
+        telemetry.addData("localizer.heading (deg)", Math.toDegrees(pose.heading.toDouble()));
     }
 }

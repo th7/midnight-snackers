@@ -6,7 +6,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Loopable;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
@@ -56,11 +55,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         robot = new Robot(hardware, alliance, telemetry, gamepad1, gamepad2);
     }
 
-    /** Registers a subsystem to tick after everything registered so far; see {@link Robot#add}. */
-    protected <T extends SubSystem> T add(T subSystem) {
-        return robot.add(subSystem);
-    }
-
     /** Where a person finds this op mode's code: its class, unless a subclass knows better. */
     public String where() {
         return getClass().getName();
@@ -82,17 +76,19 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     /** Per-op-mode work that runs after every subsystem has ticked. */
     protected void onLoop() {}
 
+    /**
+     * A driver turns a channel on to read it and off to get the screen back. Whose numbers each
+     * button reaches is said here, once; no subsystem knows it can be turned off.
+     */
     private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {
-            robot.drive.toggleTelemetry();
-            robot.localizer.toggleTelemetry();
+            robot.channels.toggle("Drive", "Localizer");
         }
         if (gamepad2.squareWasPressed()) {
-            robot.turntable.toggleTelemetry();
-            robot.launcher.toggleTelemetry();
+            robot.channels.toggle("Turntable", "Launcher");
         }
         if (gamepad2.circleWasPressed()) {
-            robot.camera.toggleTelemetry();
+            robot.channels.toggle("Camera", "Brain");
         }
     }
 }
