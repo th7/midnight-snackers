@@ -2607,6 +2607,50 @@ public class CodingServerTest {
         assertTrue("the server's refusal is what the admin reads", page.contains("deleteArmedByUsername"));
     }
 
+    /**
+     * Whether a delete would be refused is the server's to say. The page loads its Delete anyway
+     * button on the server's refusal and takes it back when the user has nothing left to lose, so
+     * it must be told which -- working it out from the status would be the page deciding what the
+     * server enforces, and from a different reading: the status makes the worktree, unsaved does
+     * not, so the two disagree once the directory has gone.
+     */
+    @Test
+    public void theUserListingSaysWhetherADeleteWouldBeRefused() throws IOException {
+        approvedUser("bob");
+        assertTrue("nothing to lose", deletable("bob"));
+
+        String cookie = savedEditor("edited");
+        assertFalse("an uncommitted file would be thrown away", deletable("ada"));
+
+        assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
+        assertFalse("a commit develop lacks would be thrown away", deletable("ada"));
+
+        assertEquals(200, user("POST", "/git/push", cookie).status);
+        assertTrue("develop has it now", deletable("ada"));
+    }
+
+    /** And it is the same answer the delete itself gives. */
+    @Test
+    public void theListingAgreesWithWhatTheDeleteDoes() throws IOException {
+        savedEditor("edited");
+
+        assertFalse(deletable("ada"));
+        assertEquals(409, admin("POST", "/admin/users/delete?username=ada").status);
+
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada&force=true").status);
+        assertTrue("a user who is gone stands in nobody's way", deletable("bob"));
+    }
+
+    private boolean deletable(String username) throws IOException {
+        for (var element : json(admin("GET", "/admin/users").body).getAsJsonArray("users")) {
+            JsonObject user = element.getAsJsonObject();
+            if (user.get("username").getAsString().equals(username)) {
+                return user.get("deletable").getAsBoolean();
+            }
+        }
+        return true;
+    }
+
     // --- helpers ---
 
     private String login(String username) throws IOException {

@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 /**
@@ -20,14 +20,14 @@ import org.junit.Test;
  * updates, and nothing else on the robot reads it, so reads are updates.
  */
 public class LocalizerTicksOnceTest {
-    private final SimRobot sim = new SimRobot();
-    private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final SimDevices devices = new SimDevices();
+    private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
 
     /** How many times the robot's pose was updated while {@code work} ran. */
     private int poseUpdatesDuring(Runnable work) {
-        int before = sim.imu.yawReads;
+        int before = devices.imu.yawReads;
         work.run();
-        return sim.imu.yawReads - before;
+        return devices.imu.yawReads - before;
     }
 
     @Test

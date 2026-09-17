@@ -11,8 +11,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
 
@@ -21,19 +20,17 @@ public class BrainTest {
     private static final double DELTA = 0.001;
     private static final int BLUE_GOAL_TAG = 20;
 
-    private final SimRobot sim = new SimRobot();
+    private final SimDevices devices = new SimDevices();
     private final List<AprilTagDetection> detections = new ArrayList<>();
 
     private Robot robotFor(Alliance alliance) {
-        Hardware hardware = sim.hardware();
-        hardware.aprilTags = () -> detections;
-        return new Robot(hardware, alliance, new FakeTelemetry());
+        return new Robot(devices.hardware(() -> detections), alliance, new FakeTelemetry());
     }
 
     private void see(Robot robot, double x, double y, double yawRadians) {
         for (int i = 0; i < 3; i++) {
             detections.clear();
-            long now = sim.nanoTime();
+            long now = devices.nanoTime();
             Pose3D robotPose = new Pose3D(
                     new Position(DistanceUnit.INCH, x, y, 0, now),
                     new YawPitchRollAngles(AngleUnit.RADIANS, yawRadians, 0, 0, now));
@@ -45,7 +42,7 @@ public class BrainTest {
     @Test
     public void aSightingPlacesTheRobotWhereTheCameraSaysLessTheTurntablesTurn() {
         Robot robot = robotFor(Alliance.BLUE);
-        sim.turnTable.currentPosition = Turntable.TICKS_PER_REVOLUTION / 4;
+        devices.turnTable.currentPosition = Turntable.TICKS_PER_REVOLUTION / 4;
 
         see(robot, 10, 20, Math.PI / 2);
 

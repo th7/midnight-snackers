@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Action;
-import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
@@ -66,6 +65,9 @@ public class Drive extends SubSystem {
 
     private DriveRunner driveRunner;
     private final FastDrive fastDrive = new FastDrive();
+    /** What the last {@link #toward} decided, for telemetry; null until the drive has steered. */
+    private FastDrive.Steering steering;
+
     private final Wheels wheels;
     private final MecanumDrive mecanumDrive;
     private final Localizer localizer;
@@ -114,13 +116,9 @@ public class Drive extends SubSystem {
      * @return whether the robot has arrived and come to rest there
      */
     public boolean toward(Nav.Pose target, Held held) {
-        fastDrive.setDestination(target.pose2d);
-        fastDrive.update(localizer.pose());
-        power(
-                held.straightOr(fastDrive.straightPower()),
-                held.strafeOr(fastDrive.strafePower()),
-                held.turnOr(fastDrive.turnPower()));
-        return fastDrive.doneMoving();
+        steering = fastDrive.steer(localizer.pose(), target.pose2d);
+        power(held.straightOr(steering.straight), held.strafeOr(steering.strafe), held.turnOr(steering.turn));
+        return steering.arrived;
     }
 
     /**
@@ -185,22 +183,23 @@ public class Drive extends SubSystem {
         wheels.drive(new PoseVelocity2d(new Vector2d(straight, strafe), turn));
     }
 
+    /** What the last steer decided: one loop's numbers, all read off the one error. */
     @Override
     protected void onTelemetry() {
-        Pose2d error = fastDrive.error();
-        if (error != null) {
-            telemetry.addData("fastDriveError.x", error.position.x);
-            telemetry.addData("fastDriveError.y", error.position.y);
-            telemetry.addData("fastDriveError.h", Rotation2d.exp(0).minus(error.heading));
+        if (steering == null) {
+            telemetry.addData("steering", "the drive has not steered toward a pose yet");
+            return;
         }
 
-        telemetry.addData("fastDriveStraightPower", fastDrive.straightPower());
-        telemetry.addData("fastDriveStrafePower", fastDrive.strafePower());
-        telemetry.addData("fastDriveTurnPower", fastDrive.turnPower());
-        telemetry.addData("fastDrive.atDestination();", fastDrive.doneMoving());
-        telemetry.addData("fastDrive.nearXDestination();", fastDrive.nearXDestination());
-        telemetry.addData("fastDrive.nearYDestination();", fastDrive.nearYDestination());
-        telemetry.addData("fastDrive.nearHDestination();", fastDrive.nearHDestination());
-        telemetry.addData("fastDrive.notMoving();", fastDrive.notMoving());
+        telemetry.addData("steeringError.x", steering.error.position.x);
+        telemetry.addData("steeringError.y", steering.error.position.y);
+        telemetry.addData("steeringError.h", Rotation2d.exp(0).minus(steering.error.heading));
+        telemetry.addData("steeringStraightPower", steering.straight);
+        telemetry.addData("steeringStrafePower", steering.strafe);
+        telemetry.addData("steeringTurnPower", steering.turn);
+        telemetry.addData("steeringArrived", steering.arrived);
+        telemetry.addData("steeringNearStraight", steering.nearStraight);
+        telemetry.addData("steeringNearStrafe", steering.nearStrafe);
+        telemetry.addData("steeringNearTurn", steering.nearTurn);
     }
 }

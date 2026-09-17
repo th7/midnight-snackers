@@ -262,9 +262,28 @@ public final class SimDriverStation {
     }
 
     /** Copy both states into the op mode's gamepads, as the robot controller does each packet. */
-    public synchronized void applyTo(Gamepad gamepad1, Gamepad gamepad2) {
-        states[0].applyTo(gamepad1);
-        states[1].applyTo(gamepad2);
+    public synchronized Applied applyTo(Gamepad gamepad1, Gamepad gamepad2) {
+        State one = states[0];
+        State two = states[1];
+        one.applyTo(gamepad1);
+        two.applyTo(gamepad2);
+        return new Applied(one, two);
+    }
+
+    /**
+     * The two states a loop's gamepads were given: what the op mode read that loop, which is what
+     * its {@link SimRecording.Tick} carries. Asking the station again afterwards would answer with
+     * whatever the driver has pressed since -- the controller page writes while a loop is running
+     * -- and a tick built from that would show a press on a loop the op mode never saw one.
+     */
+    public static final class Applied {
+        public final State gamepad1;
+        public final State gamepad2;
+
+        Applied(State gamepad1, State gamepad2) {
+            this.gamepad1 = gamepad1;
+            this.gamepad2 = gamepad2;
+        }
     }
 
     /** The driver pressed Stop: the run ends after the loop in progress, or never starts if not yet placed. */

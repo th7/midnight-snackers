@@ -7,14 +7,14 @@ import static org.junit.Assert.assertTrue;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 /** The intake is on or off, and its motor says which from the moment the robot is built. */
 public class IntakeTest {
-    private final SimRobot sim = new SimRobot();
-    private final FakeDcMotorEx motor = sim.intake;
-    private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final SimDevices devices = new SimDevices();
+    private final FakeDcMotorEx motor = devices.intake;
+    private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
 
     @Test
     public void startsOnWithoutWaitingForTheFirstLoop() {

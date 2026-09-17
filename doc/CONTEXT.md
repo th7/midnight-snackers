@@ -33,8 +33,19 @@ measure of their own speed. On the robot the clock is the
 system's; in the simulator it is the simulated clock. A timed step must
 name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
-enforces rather than leaving to care. Class: `Hardware`;
-`Robot.clock`.
+enforces rather than leaving to care.
+
+It is **whole or not at all**. Both sides of the seam wire it by hand — the
+robot from its configuration, the simulator from its fakes — and nothing
+but this class can say the two agree, so it is built through a builder that
+names each device and refuses one that is missing any, naming what is
+missing. A device added here that an adapter has not kept up with then
+fails where that adapter is written, rather than as a null inside whichever
+subsystem reaches for it first, which on the robot is in the middle of a
+match. The devices are named as they are set rather than counted out in
+order, since nine of them are motors and a positional list would let a
+wheel be quietly swapped for its neighbour. Class: `Hardware`;
+`Hardware.Builder`; `Robot.clock`.
 
 
 **Wheels** — The four wheels, and the only thing that turns numbers into
@@ -171,7 +182,11 @@ user's rather than any one session's is said once, on the user — the
 worktree, its branch, its **status** (the same changed, ahead and behind
 that `GET /git/status` gives the user; null until the worktree exists, and
 null with a **statusError** when git cannot read it, so one broken worktree
-does not blank the list), how their last pull or push ended, and Pull and
+does not blank the list), whether they are **deletable** (whether a
+**delete** would go through rather than be refused — said by the server,
+since the server is what enforces it, and false for a user git cannot be
+read for, because what a delete would throw away is exactly what could not
+be counted), how their last pull or push ended, and Pull and
 Delete buttons. Logging in again adds a session to the user, never a
 second row; a **delete** takes the row away, and a login after that is a
 new row for the same branch.
@@ -478,8 +493,12 @@ so the bench lets it run when that is the op mode's robot and refuses it
 by name, with the fix, when a seed is set. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
-recording: the page reads either **source**. Class: `SimRunStream`;
-`SimReplayPage.Source`.
+recording: the page reads either **source**. Every one of those decisions —
+which protocol the child speaks, whether this run can be made on a child of
+that version, what to send it, and the refusal with whose the fix is — is
+one answer read off the child's first line, the **handshake**, and is made
+where the versions are defined rather than by the bench that asks. Class:
+`SimRunStream`; `SimRunStream.Handshake`; `SimReplayPage.Source`.
 
 **Run** — One execution of one op mode on a fresh simulated robot, on the
 simulation's own clock: the world moves one **loop period** between one op
@@ -580,6 +599,18 @@ simulated robot's, so the page draws what the simulator collides. Class:
 
 **Live view** — The same page in live mode, following a run while it is
 still adding ticks. Class: `SimLiveServer`.
+
+**Devices** — A robot's devices as fakes, and a clock: everything the robot
+code can reach through its **Hardware**, and nothing that moves on its own.
+A motor reads back what was last written to it, and time passes only when
+someone says `advance`. This is the second adapter at the hardware seam —
+the **simulated robot** is the first, and holds one of these, writing its
+sensors from where the physics put the robot. A test of one subsystem wants
+neither the physics nor the field (a turntable turns because its own motor
+says so) and wants time it can move by hand; before there were two, both
+came only as a side effect of building a rigid-body world, so a test of the
+intake loaded the ball model and a launcher waiting a tenth of a second
+moved the balls to get there. Class: `SimDevices`.
 
 **Simulated robot** — The robot, the walls, the field's obstacles and the
 balls as rigid bodies in a **dyn4j** world, driven by the model Road Runner

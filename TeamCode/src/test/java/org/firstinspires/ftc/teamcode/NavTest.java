@@ -11,7 +11,7 @@ import java.util.List;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
 /**
@@ -26,7 +26,7 @@ public class NavTest {
     private static final double DELTA = 0.001;
 
     private static Nav navFor(Alliance alliance) {
-        return new Robot(new SimRobot().hardware(), alliance, new FakeTelemetry()).nav;
+        return new Robot(new SimDevices().hardware(), alliance, new FakeTelemetry()).nav;
     }
 
     private static double distance(Nav.Pose from, Vector2d to) {

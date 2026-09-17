@@ -226,7 +226,9 @@ public final class SimRunner {
                         "op mode still running after %.1fs; current step: %s; true pose: %s",
                         seconds, auto.currentStep(), sim.pose()));
             }
-            driverStation.applyTo(opMode.gamepad1, opMode.gamepad2);
+            // What the gamepads read this loop, kept for the tick: the driver station may be
+            // written again while the loop runs, and a tick is what the op mode saw.
+            SimDriverStation.Applied applied = driverStation.applyTo(opMode.gamepad1, opMode.gamepad2);
             opMode.loop();
 
             List<TelemetryPacket> allPackets = sim.dashboard.packets;
@@ -242,8 +244,8 @@ public final class SimRunner {
                     auto != null ? auto.currentStep() : "",
                     new double[] {sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power},
                     thisLoop,
-                    auto == null ? driverStation.state(1) : null,
-                    auto == null ? driverStation.state(2) : null,
+                    auto == null ? applied.gamepad1 : null,
+                    auto == null ? applied.gamepad2 : null,
                     sim.pieces(),
                     sim.held(),
                     sim.scored(),

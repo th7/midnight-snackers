@@ -12,8 +12,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
 
@@ -23,14 +22,12 @@ public class CameraTest {
     private static final int OTHER_TAG = 21;
 
     private final List<AprilTagDetection> detections = new ArrayList<>();
-    private final SimRobot sim = new SimRobot();
-    private final Camera camera = cameraFed(sim, detections);
+    private final SimDevices devices = new SimDevices();
+    private final Camera camera = cameraFed(devices, detections);
 
     /** A robot whose camera sees {@code detections} instead of the simulator's empty view. */
-    private static Camera cameraFed(SimRobot sim, List<AprilTagDetection> detections) {
-        Hardware hardware = sim.hardware();
-        hardware.aprilTags = () -> detections;
-        return new Robot(hardware, Alliance.RELATIVE, new FakeTelemetry()).camera;
+    private static Camera cameraFed(SimDevices devices, List<AprilTagDetection> detections) {
+        return new Robot(devices.hardware(() -> detections), Alliance.RELATIVE, new FakeTelemetry()).camera;
     }
 
     /** A detection's age is judged on the robot's clock, the one its frames are stamped with. */
@@ -44,11 +41,11 @@ public class CameraTest {
         assertTrue(camera.sighting().isPresent());
         detections.clear();
 
-        sim.step(0.09);
+        devices.advance(0.09);
         camera.loop();
         assertTrue("still fresh", camera.sighting().isPresent());
 
-        sim.step(0.02);
+        devices.advance(0.02);
         camera.loop();
         assertTrue("stale", camera.sighting().isEmpty());
     }
@@ -88,7 +85,7 @@ public class CameraTest {
     }
 
     private AprilTagDetection goalDetection(int id, double x, double y, double yawRadians) {
-        long now = sim.nanoTime();
+        long now = devices.nanoTime();
         Pose3D robotPose = new Pose3D(
                 new Position(DistanceUnit.INCH, x, y, 0, now),
                 new YawPitchRollAngles(AngleUnit.RADIANS, yawRadians, 0, 0, now));

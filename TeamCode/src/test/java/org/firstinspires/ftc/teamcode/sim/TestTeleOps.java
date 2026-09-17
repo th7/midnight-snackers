@@ -12,6 +12,33 @@ public final class TestTeleOps {
     private TestTeleOps() {}
 
     /**
+     * Writes the driver station from inside its own loop, the way the controller page writes while
+     * a loop is running. What the gamepad read this loop and what the driver has pressed since are
+     * then different, and a tick can only carry one of them.
+     */
+    @TeleOp(name = "Mid loop", group = "Test")
+    public static class MidLoopTeleOp extends OpMode {
+        /** The station to write once this loop has read it; none, to leave it alone. */
+        public SimDriverStation station;
+        /** What to write to gamepad 1 in the middle of the loop. */
+        public SimDriverStation.State next = SimDriverStation.State.NEUTRAL;
+        /** Whether gamepad 1's cross was ever down on a loop this op mode read. */
+        public boolean readCross = false;
+
+        public MidLoopTeleOp() {
+            super(Alliance.RED);
+        }
+
+        @Override
+        protected void onLoop() {
+            readCross = readCross || gamepad1.cross;
+            if (station != null) {
+                station.set(1, next);
+            }
+        }
+    }
+
+    /**
      * Drives straight from gamepad 1's left stick and counts the presses of its cross button.
      */
     @TeleOp(name = "Stick", group = "Test")

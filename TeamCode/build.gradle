@@ -82,6 +82,11 @@ tasks.withType(Test).configureEach {
     if (System.getProperty('simTrace.regenerate') != null) {
         systemProperty 'simTrace.regenerate', System.getProperty('simTrace.regenerate')
     }
+    // SIM_LIVE changes what every simulated run in the suite does: it holds each one to real time
+    // and serves it live instead of running as fast as the machine can. So it is an input. Left
+    // undeclared, a run with it set and a run without are up to date with respect to each other,
+    // and the suite reports a verdict it reached under other conditions than the ones asked for.
+    inputs.property('SIM_LIVE', System.getenv('SIM_LIVE')).optional(true)
 }
 
 dependencies {
