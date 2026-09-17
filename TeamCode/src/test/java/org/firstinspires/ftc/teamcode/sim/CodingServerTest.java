@@ -1839,9 +1839,12 @@ public class CodingServerTest {
                 logins,
                 logins.contains(
                         "\"lastMerge\":{\"op\":\"pull\",\"outcome\":\"conflicts\",\"files\":[\"TeamCode/Plans.java\"]"));
+        assertEquals("a conflict needs a coach", "bad", body.get("severity").getAsString());
+        assertTrue("the recipe names the real worktree", logins.contains("git merge develop"));
+        assertTrue(logins, logins.contains(worktreeOf("ada").toString().replace("\\", "\\\\")));
         String page = admin("GET", "/admin").body;
         assertTrue(page, page.contains("user.lastMerge"));
-        assertTrue(page, page.contains("git merge develop"));
+        assertTrue(page, page.contains("last.recipe"));
     }
 
     @Test
@@ -2244,11 +2247,17 @@ public class CodingServerTest {
         assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
         String logins = admin("GET", "/admin/users").body;
         assertTrue(logins, logins.contains("\"remote\":{\"name\":\"origin\",\"outcome\":\"failed\""));
+        assertEquals(
+                "a push that landed but did not reach origin is a warning",
+                "warn",
+                body.get("severity").getAsString());
+        assertTrue(
+                "the commands are git's, so the server writes them rather than the page",
+                logins.contains("git push origin develop"));
         String page = admin("GET", "/admin").body;
-        assertTrue(page, page.contains("git push origin develop"));
-        assertTrue("the recipe is for the remote's outcome, not the merge's", page.contains("remote.outcome"));
+        assertTrue(page, page.contains("last.recipe"));
         String dashboard = user("GET", "/", cookie).body;
-        assertTrue(dashboard, dashboard.contains("remote.outcome"));
+        assertTrue("the page wears the severity it is given", dashboard.contains("result.severity"));
     }
 
     // --- go to definition, find usages, and viewing what is not editable ---

@@ -164,13 +164,25 @@ public final class Worktrees {
 
     /** How pushing {@code develop} to the remote went. */
     public static final class Remote {
+        /** How develop reached the remote. A name the wire uses, so it is spelled once, here. */
+        public enum Outcome {
+            PUSHED("pushed"),
+            UP_TO_DATE("up to date"),
+            FAILED("failed");
+
+            public final String json;
+
+            Outcome(String json) {
+                this.json = json;
+            }
+        }
+
         public final String name;
-        /** {@code pushed}, {@code up to date}, or {@code failed}. */
-        public final String outcome;
+        public final Outcome outcome;
         /** What git said, when it failed. */
         public final String detail;
 
-        Remote(String name, String outcome, String detail) {
+        Remote(String name, Outcome outcome, String detail) {
             this.name = name;
             this.outcome = outcome;
             this.detail = detail;
@@ -530,7 +542,7 @@ public final class Worktrees {
         String local = git(root, "rev-parse", "refs/heads/" + DEVELOP).out.trim();
         Result tracking = run(root, "rev-parse", "--verify", "--quiet", "refs/remotes/" + REMOTE + "/" + DEVELOP);
         if (tracking.exit == 0 && tracking.out.trim().equals(local)) {
-            return new Remote(REMOTE, "up to date", null);
+            return new Remote(REMOTE, Remote.Outcome.UP_TO_DATE, null);
         }
         Result pushed;
         try {
@@ -542,12 +554,12 @@ public final class Worktrees {
                     REMOTE,
                     "refs/heads/" + DEVELOP + ":refs/heads/" + DEVELOP);
         } catch (GitFailed e) {
-            return new Remote(REMOTE, "failed", e.getMessage());
+            return new Remote(REMOTE, Remote.Outcome.FAILED, e.getMessage());
         }
         if (pushed.exit != 0) {
-            return new Remote(REMOTE, "failed", (pushed.err + pushed.out).trim());
+            return new Remote(REMOTE, Remote.Outcome.FAILED, (pushed.err + pushed.out).trim());
         }
-        return new Remote(REMOTE, "pushed", null);
+        return new Remote(REMOTE, Remote.Outcome.PUSHED, null);
     }
 
     /** The worktree where a branch is checked out, or null when it is checked out nowhere. */

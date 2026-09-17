@@ -929,14 +929,11 @@ public final class CodingServer {
 
     /** {@code POST /git/pull}: brings develop into the user's branch. */
     private Response gitPull(Session session) {
-        {
-            Worktrees.Merge merge;
-            synchronized (this) {
-                merge = worktrees.pull(session.username);
-            }
-            return merged(
-                    "pull", session.username, merge, "pulled " + Worktrees.DEVELOP, "nothing to pull", Voice.USER);
+        Worktrees.Merge merge;
+        synchronized (this) {
+            merge = worktrees.pull(session.username);
         }
+        return reply(merge, MergeReport.Op.PULL, session.username, MergeReport.Voice.USER);
     }
 
     /**
@@ -960,119 +957,31 @@ public final class CodingServer {
         } catch (Worktrees.GitFailed e) {
             return Response.error(500, "git failed for " + found.username + ": " + e.getMessage());
         }
-        return merged(
-                "pull",
-                found.username,
-                merge,
-                "pulled " + Worktrees.DEVELOP + " into " + found.username + "'s worktree",
-                "nothing to pull for " + found.username,
-                Voice.ADMIN);
-    }
-
-    /** Whom a pull or push reply addresses: the user it happened to, or the admin who asked for it. */
-    private enum Voice {
-        USER,
-        ADMIN
+        return reply(merge, MergeReport.Op.PULL, found.username, MergeReport.Voice.ADMIN);
     }
 
     /** {@code POST /git/push}: lands the user's commits on develop. */
     private Response gitPush(Session session) {
-        {
-            Worktrees.Merge merge;
-            synchronized (this) {
-                merge = worktrees.push(session.username);
-            }
-            String did = "pushed to " + Worktrees.DEVELOP + remoteSuffix(merge.remote)
-                    + (merge.detail == null
-                            ? ""
-                            : "; but your worktree is not up to date; commit and pull: " + merge.detail);
-            String nothing = merge.remote != null && merge.remote.outcome.equals("pushed")
-                    ? "nothing new of yours to push; pushed " + Worktrees.DEVELOP + " to " + merge.remote.name
-                    : "nothing to push"
-                            + (merge.remote != null && merge.remote.outcome.equals("failed")
-                                    ? remoteSuffix(merge.remote)
-                                    : "");
-            return merged("push", session.username, merge, did, nothing, Voice.USER);
+        Worktrees.Merge merge;
+        synchronized (this) {
+            merge = worktrees.push(session.username);
         }
-    }
-
-    /** How develop reached the remote, for the message: nothing to say without a remote. */
-    private static String remoteSuffix(Worktrees.Remote remote) {
-        if (remote == null) {
-            return "";
-        }
-        switch (remote.outcome) {
-            case "pushed":
-                return " and to " + remote.name;
-            case "up to date":
-                return " (" + remote.name + " already had it)";
-            default:
-                return "; could not push to " + remote.name + ", ask your coach: " + remote.detail;
-        }
+        return reply(merge, MergeReport.Op.PUSH, session.username, MergeReport.Voice.USER);
     }
 
     /**
-     * The reply to a pull or push: 200 when it happened or there was nothing to do, 409 with the
-     * reason otherwise. Recorded as the user's last merge for the admin page, whoever asked.
+     * The reply to a pull or push, and the record of it on the user's row. Nothing is handed to
+     * the report but the merge, who it happened to and who is being spoken to: what to say, how
+     * bad it is and what a coach should run are all its to work out, in one place.
      */
-    private Response merged(
-            String op, String username, Worktrees.Merge merge, String did, String nothing, Voice voice) {
-        JsonObject reply = new JsonObject();
-        reply.addProperty("op", op);
-        reply.addProperty(
-                "outcome",
-                merge.outcome == Worktrees.Outcome.MERGED
-                        ? (op.equals("pull") ? "pulled" : "pushed")
-                        : merge.outcome.name().toLowerCase(Locale.ROOT));
-        reply.add("files", GSON.toJsonTree(merge.files));
-        reply.addProperty("detail", merge.detail);
-        String whose = voice == Voice.USER ? "your" : username + "'s";
-        String help = voice == Voice.USER ? "; ask your coach for help" : "";
-        int status;
-        switch (merge.outcome) {
-            case MERGED:
-                status = 200;
-                reply.addProperty("message", did);
-                break;
-            case NOTHING:
-                status = 200;
-                reply.addProperty("message", nothing);
-                break;
-            case UNCOMMITTED:
-                status = 409;
-                reply.addProperty(
-                        "message",
-                        (voice == Voice.USER ? "" : username + " must ") + "commit first: "
-                                + String.join(", ", merge.files));
-                break;
-            case CONFLICTS:
-                status = 409;
-                reply.addProperty(
-                        "message",
-                        whose + " changes conflict with " + Worktrees.DEVELOP + " in " + String.join(", ", merge.files)
-                                + help);
-                break;
-            default:
-                status = 409;
-                reply.addProperty("message", "git could not " + op + help + ": " + merge.detail);
-                break;
-        }
-        if (merge.remote == null) {
-            reply.add("remote", null);
-        } else {
-            JsonObject remote = new JsonObject();
-            remote.addProperty("name", merge.remote.name);
-            remote.addProperty("outcome", merge.remote.outcome);
-            remote.addProperty("detail", merge.remote.detail);
-            reply.add("remote", remote);
-        }
+    private Response reply(Worktrees.Merge merge, MergeReport.Op op, String username, MergeReport.Voice voice) {
+        Worktrees.Worktree worktree = worktrees.find(username);
+        MergeReport report =
+                MergeReport.of(merge, op, username, voice, worktree == null ? null : worktree.path.toString());
         synchronized (this) {
-            JsonObject record = GSON.fromJson(GSON.toJson(reply), JsonObject.class);
-            record.addProperty("atMillis", System.currentTimeMillis());
-            record.addProperty("by", voice.name().toLowerCase(Locale.ROOT));
-            lastMergeByUsername.put(username, record);
+            lastMergeByUsername.put(username, report.record(System.currentTimeMillis()));
         }
-        return Response.json(status, GSON.toJson(reply));
+        return Response.json(report.status(), GSON.toJson(report.json()));
     }
 
     private static JsonObject statusJson(Worktrees.Status status) {

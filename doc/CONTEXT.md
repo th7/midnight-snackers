@@ -384,7 +384,7 @@ since they diverged. Not the save **conflict** (a stale base version on
 since both merge the same two branches, and both find it with
 `git merge-tree`, which touches no working tree, so either changes
 nothing anywhere, names the files, and tells the user to ask their
-coach. The admin page shows the coach the recipe, with the real path:
+coach. The admin page shows the coach the **recipe**, with the real path:
 
 ```
 cd <the user's worktree>
@@ -393,7 +393,28 @@ git add -A && git commit  # then the user presses Push
 ```
 
 The coach's merge *is* the pull, so Push is all that is left, and
-`develop` is never checked out to resolve anything.
+`develop` is never checked out to resolve anything. The commands are git's
+and the server writes them, like every other judgement it enforces; the
+page prints the lines it is handed rather than composing them itself.
+
+**Merge report** — How a **pull** or a **push** went, said once. It is
+handed the merge, which of the two it was, whom it happened to and whom it
+is being said to, and works out the rest: the status (200 when something or
+nothing happened, 409 otherwise), the sentence in the right **voice** (the
+user's own, or the admin's about them), the **recipe**, and the
+**severity** — how bad it is, and the one thing a page needs in order to
+draw it.
+
+Severity is why it exists. Both pages used to work it out for themselves,
+from the status code and the outcome's name, and they disagreed: a push
+that landed but could not reach `origin` was a warning on one and was
+folded in with conflicts on the other. Before that, the reply was a
+six-parameter method two of whose parameters were finished English
+sentences the caller composed, so adding an outcome meant touching the
+enum, a switch, three callers' prose and two partitions written in
+JavaScript. It is now a function of values, with no git and no listener in
+it, which is also how it is tested. Classes: `MergeReport`;
+`Worktrees.Remote.Outcome`.
 
 **Slug** — The username lowercased, every run of characters outside
 `[a-z0-9]` replaced by one `-`, trimmed of leading and trailing `-`, at
