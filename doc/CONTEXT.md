@@ -657,6 +657,23 @@ came only as a side effect of building a rigid-body world, so a test of the
 intake loaded the ball model and a launcher waiting a tenth of a second
 moved the balls to get there. Class: `SimDevices`.
 
+**Placement** — Where the field lets a robot be: a pose beyond a wall or
+inside an obstacle comes back pushed against it, at the heading it was
+given, clear of the obstacles first and inside the walls second so a robot
+pushed out of an obstacle at the wall still ends inside the field. It is
+the season's field and an eighteen-inch square and nothing else — no world,
+no bodies, no time, no balls — so the **placement page**, the run stream's
+hive tilts and the replay page's sizes cost a polygon overlap rather than a
+rigid-body engine.
+
+That it is only geometry is the point, and a test holds it rather than a
+comment: it loads the class with dyn4j and the **simulated robot** both
+forbidden and makes it answer anyway, and checks the same loader still
+refuses the simulated robot, so the gate cannot pass by being toothless.
+Living inside `SimRobot`, it meant that dragging the robot on the placement
+page loaded fifteen hundred lines of simulator and twelve dyn4j classes to
+clamp one pose. Class: `SimPlacement`; `SimPlacementTest`.
+
 **Simulated robot** — The robot, the walls, the field's obstacles and the
 balls as rigid bodies in a **dyn4j** world, driven by the model Road Runner
 was tuned with: each wheel's motor, at its commanded power, pushes its wheel

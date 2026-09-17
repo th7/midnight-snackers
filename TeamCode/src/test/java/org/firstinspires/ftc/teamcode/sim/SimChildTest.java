@@ -262,7 +262,7 @@ public class SimChildTest {
         assertEquals(-60, first.get("x").getAsDouble(), 0.001);
         assertEquals(
                 "placed against the wall, not beyond it",
-                SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2,
+                SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2,
                 first.get("y").getAsDouble(),
                 0.001);
         assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);

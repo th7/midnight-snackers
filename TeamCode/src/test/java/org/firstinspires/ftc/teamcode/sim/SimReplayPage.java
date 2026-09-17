@@ -88,10 +88,10 @@ public final class SimReplayPage {
         // Gson escapes '<' and '>' so the JSON is safe inside a <script> element.
         return template()
                 .replace("__TITLE__", title)
-                .replace("__FIELD_IN__", String.valueOf(SimRobot.FIELD_SIZE_IN))
-                .replace("__ROBOT_IN__", String.valueOf(SimRobot.ROBOT_SIZE_IN))
-                .replace("__WALL_IN__", String.valueOf(SimRobot.WALL_HEIGHT_IN))
-                .replace("__FIELD__", GSON.toJson(SimRobot.FIELD.json()))
+                .replace("__FIELD_IN__", String.valueOf(SimPlacement.FIELD_SIZE_IN))
+                .replace("__ROBOT_IN__", String.valueOf(SimPlacement.ROBOT_SIZE_IN))
+                .replace("__WALL_IN__", String.valueOf(SimPlacement.WALL_HEIGHT_IN))
+                .replace("__FIELD__", GSON.toJson(SimPlacement.FIELD.json()))
                 .replace("__DATA__", GSON.toJson(root));
     }
 

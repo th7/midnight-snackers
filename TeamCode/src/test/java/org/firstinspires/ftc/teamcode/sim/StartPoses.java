@@ -92,7 +92,7 @@ final class StartPoses {
      * @return the pose as placed
      */
     synchronized Pose2d put(String opMode, Pose2d pose) {
-        Pose2d placed = SimRobot.onTheField(pose);
+        Pose2d placed = SimPlacement.onTheField(pose);
         byOpMode.computeIfAbsent(opMode, name -> new Start()).pose = placed;
         save();
         return placed;
