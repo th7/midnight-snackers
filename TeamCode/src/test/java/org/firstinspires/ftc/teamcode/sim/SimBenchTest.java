@@ -735,8 +735,8 @@ public class SimBenchTest {
     private static final String ORIGIN = "{\"x\":0.0,\"y\":0.0,\"heading\":0.0}";
     /** How far from the field's centre a robot at {@code heading} can be before a corner of it is beyond a wall. */
     private static double limitAt(double heading) {
-        return SimRobot.FIELD_SIZE_IN / 2
-                - SimRobot.ROBOT_SIZE_IN / 2 * (Math.abs(Math.cos(heading)) + Math.abs(Math.sin(heading)));
+        return SimPlacement.FIELD_SIZE_IN / 2
+                - SimPlacement.ROBOT_SIZE_IN / 2 * (Math.abs(Math.cos(heading)) + Math.abs(Math.sin(heading)));
     }
 
     /**

@@ -44,14 +44,19 @@ public class Camera extends SubSystem {
             }
         }
 
-        goalDetection = detectionFilter.getCleanDetection();
+        goalDetection =
+                detectionFilter.agreed().map(DetectionFilter.Agreed::detection).orElse(null);
     }
 
     @Override
     protected void onTelemetry() {
-        telemetry.addData("detectionFilter.maxDetectionAgeNano", detectionFilter.maxDetectionAgeNano);
-        telemetry.addData("detectionFilter.lastDetectionAgeNano", detectionFilter.lastDetectionAgeNano());
-        telemetry.addData("detectionFilter.lastDetectionIsRecent", detectionFilter.lastDetectionIsRecent());
+        telemetry.addData("detectionFilter.maxAgeNano", DetectionFilter.MAX_AGE_NANO);
+        telemetry.addData(
+                "detectionFilter.lastAgeNano",
+                detectionFilter.lastAgeNano().isPresent()
+                        ? String.valueOf(detectionFilter.lastAgeNano().getAsLong())
+                        : "nothing seen yet");
+        telemetry.addData("detectionFilter.agreed", detectionFilter.agreed().isPresent());
         if (goalDetection != null) {
             telemetry.addData("goalDetection.id", goalDetection.id);
             if (goalDetection.ftcPose != null) {

@@ -134,6 +134,39 @@ the robot is), whether the robot is **near** a pose (within 3 inches and
 6 degrees), the **launch pose**, and builds the strafing and backward paths
 the plans follow. Class: `Nav`.
 
+**On the field** — Whether the robot's pose means anything beyond distance
+travelled since it was switched on: whether somebody has said where it is.
+Two things say so and they say the same thing — `placeAt`, a person setting
+the robot down or a plan's first step naming its start pose, and a
+**sighting**, the camera's answer. Until one of them has, there is nothing
+to aim at and the turntable points straight ahead.
+
+It used to be raised by the sighting alone, so an auto that placed itself by
+hand aimed straight ahead for the whole run unless the camera happened to
+see a tag. That it is one fact with one meaning, however the robot got
+there, is the point: a caller that knows where the robot is should not also
+have to know which of two doors marks it. It follows that a sighting
+arriving after a placement is a *later* sighting and nudges rather than
+placing, which is what we want — a start pose somebody measured is worth
+more than the first frame the camera agreed on. Methods: `Nav.placeAt`;
+`Nav.sighted`.
+
+**Turntable** — What the launcher and the camera ride on, and the only thing
+that decides where it points. Each tick the brain gives it an **aim**, how
+far from straight ahead the goal is; what it does with one depends on what
+it is **following**: the goal, straight ahead (the driver parked it), or the
+driver's own hand (the driver nudged it, ten ticks a press). An aim is a
+standing request, not an order, and only `followTheGoal` gives the turntable
+back after parking or a nudge. It starts following the goal.
+
+That the mode lives with the target it guards is what makes a nudge stick.
+It used to be two booleans on the brain over a target field on the turntable,
+set from a third module: a nudge survived only because the line above it in
+`Driver` flipped one of them, so deleting that line still compiled, still
+ran, and lost the nudge on the brain's next tick twenty milliseconds later.
+There is now no ordering to forget, because a nudge *is* the driver taking
+it over. Class: `Turntable`.
+
 **Launch pose** — Where to launch from: 40 inches short of the alliance's
 goal on the line from the robot to it, facing the goal. There is none when
 playing for no alliance, which has no goal; then the bumpers just drive,
@@ -149,9 +182,21 @@ simulator, or anyone else, can see of it. Class: `Intake`.
 
 **Sighting** — Where the goal's AprilTag says the robot is, as the camera
 faces, which is the turntable's heading. The brain turns it back by the
-turntable's offset and, when playing for an alliance, hands it to Nav: the
-first sighting places the robot, a later one nudges its position by at
-most an inch per axis and never its heading. Class: `Camera.sighting()`.
+turntable's offset and, when playing for an alliance, hands it to Nav.
+Class: `Camera.sighting()`.
+
+**Agreement** — What the camera waits for before it will say where the robot
+is: the last three detections of the goal's tag placing it within an inch of
+one another, the newest of them less than a tenth of a second old on the
+robot's clock. The filter answers that one question and every way of asking
+it is **total** — a filter that has seen nothing answers that it has seen
+nothing. It used to publish the newest detection's age as a bare number, which
+threw when there was no newest detection, so a driver who turned the camera's
+telemetry on before the robot had looked at anything ended the op mode in the
+middle of a match. The age is still there, and still readable exactly when
+nothing is agreeing, which is when it is worth reading; it is now an answer
+rather than an exception. Classes: `DetectionFilter`;
+`DetectionFilter.Agreed`.
 
 ## The coding server
 
@@ -215,11 +260,24 @@ session is still a session; only a **delete** takes sessions away, and it
 takes all of that user's at once.
 
 **Editable set** — The files the admin has picked for users to edit, each
-named by its **root-relative path** with `/` separators
-(`TeamCode/src/main/java/.../Plans.java`). A user may only ever name a file
-by exact match against this set; nothing a user sends is resolved against
-the filesystem. The admin picks from the host checkout; the key means the
-same path in every worktree.
+named by its **key**. A user may only ever name a file by exact match
+against this set; nothing a user sends is resolved against the filesystem.
+The admin picks from the host checkout; the key means the same path in
+every worktree. Class: `EditableSet`.
+
+**Key** — A file the server has vouched for, named by its **root-relative
+path** with `/` separators (`TeamCode/src/main/java/.../Plans.java`), and
+the only kind of thing the server resolves against a worktree. There are
+two ways to make one and no others: relativising a real path the server
+found itself, and a root-relative string that is neither absolute nor
+climbing out of the root — which is what the **editable set** and the
+**source set** hand back when a user's string matches one of theirs
+exactly. So a string off a request becomes a path only by being recognised,
+and the rule above is held by javac rather than by the one `if` that used
+to hold it, with a test that fails if a third way to make a key is ever
+added. The same check runs over what comes back out of the **state
+directory** and over the names git gives in a diff, since neither is more
+trustworthy than anything else read off disk. Class: `Key`.
 
 **Project root** — The repository checkout the coding server serves: the
 top of a git working tree with a `develop` branch. All paths users see are
@@ -326,7 +384,7 @@ since they diverged. Not the save **conflict** (a stale base version on
 since both merge the same two branches, and both find it with
 `git merge-tree`, which touches no working tree, so either changes
 nothing anywhere, names the files, and tells the user to ask their
-coach. The admin page shows the coach the recipe, with the real path:
+coach. The admin page shows the coach the **recipe**, with the real path:
 
 ```
 cd <the user's worktree>
@@ -335,7 +393,28 @@ git add -A && git commit  # then the user presses Push
 ```
 
 The coach's merge *is* the pull, so Push is all that is left, and
-`develop` is never checked out to resolve anything.
+`develop` is never checked out to resolve anything. The commands are git's
+and the server writes them, like every other judgement it enforces; the
+page prints the lines it is handed rather than composing them itself.
+
+**Merge report** — How a **pull** or a **push** went, said once. It is
+handed the merge, which of the two it was, whom it happened to and whom it
+is being said to, and works out the rest: the status (200 when something or
+nothing happened, 409 otherwise), the sentence in the right **voice** (the
+user's own, or the admin's about them), the **recipe**, and the
+**severity** — how bad it is, and the one thing a page needs in order to
+draw it.
+
+Severity is why it exists. Both pages used to work it out for themselves,
+from the status code and the outcome's name, and they disagreed: a push
+that landed but could not reach `origin` was a warning on one and was
+folded in with conflicts on the other. Before that, the reply was a
+six-parameter method two of whose parameters were finished English
+sentences the caller composed, so adding an outcome meant touching the
+enum, a switch, three callers' prose and two partitions written in
+JavaScript. It is now a function of values, with no git and no listener in
+it, which is also how it is tested. Classes: `MergeReport`;
+`Worktrees.Remote.Outcome`.
 
 **Slug** — The username lowercased, every run of characters outside
 `[a-z0-9]` replaced by one `-`, trimmed of leading and trailing `-`, at
@@ -611,6 +690,23 @@ says so) and wants time it can move by hand; before there were two, both
 came only as a side effect of building a rigid-body world, so a test of the
 intake loaded the ball model and a launcher waiting a tenth of a second
 moved the balls to get there. Class: `SimDevices`.
+
+**Placement** — Where the field lets a robot be: a pose beyond a wall or
+inside an obstacle comes back pushed against it, at the heading it was
+given, clear of the obstacles first and inside the walls second so a robot
+pushed out of an obstacle at the wall still ends inside the field. It is
+the season's field and an eighteen-inch square and nothing else — no world,
+no bodies, no time, no balls — so the **placement page**, the run stream's
+hive tilts and the replay page's sizes cost a polygon overlap rather than a
+rigid-body engine.
+
+That it is only geometry is the point, and a test holds it rather than a
+comment: it loads the class with dyn4j and the **simulated robot** both
+forbidden and makes it answer anyway, and checks the same loader still
+refuses the simulated robot, so the gate cannot pass by being toothless.
+Living inside `SimRobot`, it meant that dragging the robot on the placement
+page loaded fifteen hundred lines of simulator and twelve dyn4j classes to
+clamp one pose. Class: `SimPlacement`; `SimPlacementTest`.
 
 **Simulated robot** — The robot, the walls, the field's obstacles and the
 balls as rigid bodies in a **dyn4j** world, driven by the model Road Runner

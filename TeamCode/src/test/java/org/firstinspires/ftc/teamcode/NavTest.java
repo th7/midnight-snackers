@@ -71,7 +71,7 @@ public class NavTest {
         assertEquals(0, nav.currentPose().x(), DELTA);
         assertEquals(0, nav.currentPose().y(), DELTA);
 
-        nav.setPose(nav.pose(12, -6, 1));
+        nav.placeAt(nav.pose(12, -6, 1));
 
         assertEquals(12, nav.currentPose().x(), DELTA);
         assertEquals(-6, nav.currentPose().y(), DELTA);
@@ -81,7 +81,7 @@ public class NavTest {
     @Test
     public void theLaunchPoseIsFortyInchesShortOfTheGoalFacingIt() {
         Nav nav = navFor(Alliance.BLUE);
-        nav.setPose(nav.pose(10, 5, 2));
+        nav.placeAt(nav.pose(10, 5, 2));
         Vector2d goal = Alliance.BLUE.launchTarget;
 
         Nav.Pose launch = nav.launchPose().get();
@@ -104,21 +104,58 @@ public class NavTest {
         Vector2d goal = Alliance.BLUE.launchTarget;
         assertEquals(0, nav.relativeHeadingToTarget(), DELTA);
 
-        nav.setFieldPosition(nav.pose(0, 0, 0.25));
+        nav.sighted(nav.pose(0, 0, 0.25));
 
         assertEquals(-(Math.atan2(goal.y, goal.x) - 0.25), nav.relativeHeadingToTarget(), DELTA);
+    }
+
+    /**
+     * The bug this replaced: a plan that places the robot by hand said nothing about whether the
+     * robot was on the field, so an auto that set its own start pose aimed the turntable straight
+     * ahead for the whole run unless the camera happened to see a tag.
+     */
+    @Test
+    public void placingTheRobotByHandIsEnoughToAimTheTurntable() {
+        Nav nav = navFor(Alliance.BLUE);
+        Vector2d goal = Alliance.BLUE.launchTarget;
+        assertEquals("nowhere yet", 0, nav.relativeHeadingToTarget(), DELTA);
+
+        nav.placeAt(nav.pose(0, 0, 0.25));
+
+        assertEquals(-(Math.atan2(goal.y, goal.x) - 0.25), nav.relativeHeadingToTarget(), DELTA);
+    }
+
+    /**
+     * Placing the robot is placing it however it was done, so a sighting that arrives afterwards
+     * is a later sighting and nudges. Teleporting to the first frame the camera agreed on would
+     * throw away a start pose a person measured and set the robot down on.
+     */
+    @Test
+    public void aSightingNudgesRatherThanTeleportsOnceTheRobotHasBeenPlacedByHand() {
+        Nav nav = navFor(Alliance.BLUE);
+        nav.placeAt(nav.pose(10, 20, 0.5));
+
+        nav.sighted(nav.pose(20, 19.5, 0));
+
+        assertEquals(11, nav.currentPose().x(), DELTA);
+        assertEquals(19.5, nav.currentPose().y(), DELTA);
+        assertEquals(
+                "a later sighting never changes the heading",
+                0.5,
+                nav.currentPose().heading(),
+                DELTA);
     }
 
     @Test
     public void theFirstSightingPlacesTheRobotAndLaterOnesNudgeItAnInchAtMost() {
         Nav nav = navFor(Alliance.BLUE);
 
-        nav.setFieldPosition(nav.pose(10, 20, 0.5));
+        nav.sighted(nav.pose(10, 20, 0.5));
         assertEquals(10, nav.currentPose().x(), DELTA);
         assertEquals(20, nav.currentPose().y(), DELTA);
         assertEquals(0.5, nav.currentPose().heading(), DELTA);
 
-        nav.setFieldPosition(nav.pose(20, 19.5, 0));
+        nav.sighted(nav.pose(20, 19.5, 0));
         assertEquals(11, nav.currentPose().x(), DELTA);
         assertEquals(19.5, nav.currentPose().y(), DELTA);
         assertEquals(

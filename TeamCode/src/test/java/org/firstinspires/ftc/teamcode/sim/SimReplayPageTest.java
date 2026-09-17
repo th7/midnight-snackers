@@ -76,9 +76,9 @@ public class SimReplayPageTest {
     public void thePageDrawsTheFieldAndTheRobotAtTheSimulatorsSizes() {
         String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
 
-        assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
-        assertTrue(html, html.contains("ROBOT_IN = " + SimRobot.ROBOT_SIZE_IN));
-        assertTrue(html, html.contains("WALL_IN = " + SimRobot.WALL_HEIGHT_IN));
+        assertTrue(html, html.contains("FIELD_IN = " + SimPlacement.FIELD_SIZE_IN));
+        assertTrue(html, html.contains("ROBOT_IN = " + SimPlacement.ROBOT_SIZE_IN));
+        assertTrue(html, html.contains("WALL_IN = " + SimPlacement.WALL_HEIGHT_IN));
         assertFalse(
                 "no placeholder is left behind",
                 html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__") || html.contains("__WALL_IN__"));
@@ -217,7 +217,7 @@ public class SimReplayPageTest {
             assertTrue(id, html.contains("id=\"" + id + "\""));
         }
         assertTrue("saves the pose to the bench", html.contains("'start?opmode='"));
-        assertTrue(html, html.contains("FIELD_IN = " + SimRobot.FIELD_SIZE_IN));
+        assertTrue(html, html.contains("FIELD_IN = " + SimPlacement.FIELD_SIZE_IN));
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
         assertFalse(
                 "a replay is not a placement",

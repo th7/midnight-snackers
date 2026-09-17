@@ -743,7 +743,7 @@ public class WorktreesTest {
 
         assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
         assertEquals("origin", pushed.remote.name);
-        assertEquals("pushed", pushed.remote.outcome);
+        assertEquals(Worktrees.Remote.Outcome.PUSHED, pushed.remote.outcome);
         assertNull(pushed.remote.detail);
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
         assertEquals(
@@ -754,7 +754,7 @@ public class WorktreesTest {
         Worktrees.Merge again = worktrees.push("ada");
 
         assertEquals(Worktrees.Outcome.NOTHING, again.outcome);
-        assertEquals("up to date", again.remote.outcome);
+        assertEquals(Worktrees.Remote.Outcome.UP_TO_DATE, again.remote.outcome);
     }
 
     @Test
@@ -768,7 +768,7 @@ public class WorktreesTest {
         Worktrees.Merge pushed = worktrees.push("ada");
 
         assertEquals(Worktrees.Outcome.NOTHING, pushed.outcome);
-        assertEquals("pushed", pushed.remote.outcome);
+        assertEquals(Worktrees.Remote.Outcome.PUSHED, pushed.remote.outcome);
         assertEquals(GitFixture.commitOf(root, "develop"), GitFixture.commitOf(origin, "develop"));
     }
 
@@ -802,7 +802,7 @@ public class WorktreesTest {
         assertNotEquals(oldDevelop, GitFixture.commitOf(root, "develop"));
         assertEquals("class Mine {}\n", read(root.resolve("Mine.java")));
         assertEquals("origin", pushed.remote.name);
-        assertEquals("failed", pushed.remote.outcome);
+        assertEquals(Worktrees.Remote.Outcome.FAILED, pushed.remote.outcome);
         assertTrue(pushed.remote.detail, pushed.remote.detail.contains("no-such-origin"));
     }
 
@@ -822,7 +822,7 @@ public class WorktreesTest {
         Worktrees.Merge pushed = worktrees.push("ada");
 
         assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
-        assertEquals("failed", pushed.remote.outcome);
+        assertEquals(Worktrees.Remote.Outcome.FAILED, pushed.remote.outcome);
         assertTrue(
                 pushed.remote.detail,
                 pushed.remote.detail.contains("rejected") || pushed.remote.detail.contains("fetch first"));

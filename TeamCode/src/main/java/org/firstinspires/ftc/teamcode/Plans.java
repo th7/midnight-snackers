@@ -126,7 +126,7 @@ public class Plans extends SubSystem {
 
     // should be placed against the left side of the tile with the small launch line and against the wall
     private Step setFarLaunchPosition() {
-        return new Step("setBackPosition", () -> nav.setPose(nav.pose(-63.5, 15.375, 0)), () -> true);
+        return new Step("setBackPosition", () -> nav.placeAt(nav.pose(-63.5, 15.375, 0)), () -> true);
     }
 
     private Step backFromZeroALittle() {

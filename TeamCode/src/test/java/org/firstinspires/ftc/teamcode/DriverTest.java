@@ -33,7 +33,7 @@ public class DriverTest {
 
     /** Puts the robot where its launch pose is, so aiming has nothing left to do. */
     private void parkAtTheLaunchPose() {
-        robot.nav.setPose(robot.nav.launchPose().get());
+        robot.nav.placeAt(robot.nav.launchPose().get());
         robot.loop();
     }
 

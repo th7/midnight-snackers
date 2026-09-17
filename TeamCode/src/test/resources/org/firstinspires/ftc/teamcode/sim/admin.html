@@ -391,23 +391,15 @@
       head.appendChild(line);
     }
     var last = user.lastMerge;
-    var remoteFailed = last && last.remote && last.remote.outcome === 'failed';
-    if (last && (last.outcome === 'conflicts' || last.outcome === 'refused' || remoteFailed)) {
+    // the commands are git's, so the server writes them; the page prints the lines it is given
+    if (last && last.recipe && last.recipe.length) {
       var recipe = document.createElement('pre');
       recipe.className = 'recipe mono';
       var why = document.createElement('div');
       why.className = 'why';
       why.textContent = last.op + ': ' + last.message;
       recipe.appendChild(why);
-      if (last.outcome === 'conflicts') {
-        recipe.appendChild(document.createTextNode(
-          'cd ' + user.worktree + '\n' +
-          'git merge develop         # resolve the conflicts in an editor\n' +
-          'git add -A && git commit  # then ' + user.username + ' presses Push'));
-      } else if (remoteFailed) {
-        recipe.appendChild(document.createTextNode(
-          'git push origin develop   # from the checkout, once the network is back; a rejected push wants git pull first'));
-      }
+      recipe.appendChild(document.createTextNode(last.recipe.join('\n')));
       head.appendChild(recipe);
     }
 

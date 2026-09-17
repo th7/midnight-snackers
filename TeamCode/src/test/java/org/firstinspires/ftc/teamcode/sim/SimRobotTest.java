@@ -244,7 +244,7 @@ public class SimRobotTest {
     /** A robot placed beyond a wall is placed against it instead: the walls hold whatever pose it is given. */
     @Test
     public void aRobotPlacedOutsideTheWallsIsPlacedAgainstThem() {
-        double edge = SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2;
+        double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
 
         sim.setPose(new Pose2d(1000, -1000, 0));
 
@@ -255,7 +255,7 @@ public class SimRobotTest {
         sim.setPose(new Pose2d(1000, 0, Math.PI / 4));
         assertEquals(
                 "a turned robot reaches the wall with its corner",
-                SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2 * Math.sqrt(2),
+                SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2 * Math.sqrt(2),
                 sim.pose().position.x,
                 DELTA);
         assertEquals(Math.PI / 4, sim.pose().heading.toDouble(), DELTA);
@@ -285,8 +285,8 @@ public class SimRobotTest {
     @Test
     public void theWallStopsTheRobotWhereItsFrontEdgeMeetsIt() {
         robotDrive();
-        double wall = SimRobot.FIELD_SIZE_IN / 2;
-        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        double wall = SimPlacement.FIELD_SIZE_IN / 2;
+        double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(wall - halfRobot - 10, 0, 0));
         setPowers(1, 1, 1, 1);
 
@@ -301,7 +301,7 @@ public class SimRobotTest {
     @Test
     public void everyWallStopsTheRobot() {
         robotDrive();
-        double edge = SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2;
+        double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
 
         sim.setPose(new Pose2d(-edge + 5, 0, 0));
         setPowers(-1, -1, -1, -1);
@@ -322,8 +322,8 @@ public class SimRobotTest {
     @Test
     public void aTurnedRobotStopsWhereItsCornerMeetsTheWall() {
         robotDrive();
-        double wall = SimRobot.FIELD_SIZE_IN / 2;
-        double cornerReach = SimRobot.ROBOT_SIZE_IN / 2 * Math.sqrt(2);
+        double wall = SimPlacement.FIELD_SIZE_IN / 2;
+        double cornerReach = SimPlacement.ROBOT_SIZE_IN / 2 * Math.sqrt(2);
         sim.setPose(new Pose2d(wall - cornerReach - 10, 0, Math.PI / 4));
         setPowers(1, 1, 1, 1);
 
@@ -339,14 +339,14 @@ public class SimRobotTest {
     @Test
     public void drivingDiagonallyIntoTheWallSlidesAlongIt() {
         robotDrive();
-        double edge = SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2;
+        double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(edge, 0, 0));
         setPowers(0, 1, 1, 0); // forward and left
 
         sim.step(1.0);
 
         Pose2d pose = sim.pose();
-        double wall = SimRobot.FIELD_SIZE_IN / 2;
+        double wall = SimPlacement.FIELD_SIZE_IN / 2;
         assertEquals("still against the wall", wall, maxX(corners(pose)), CONTACT);
         assertTrue("y=" + pose.position.y, pose.position.y > 5);
         assertEquals(0, pose.heading.toDouble(), 0.1);
@@ -356,7 +356,7 @@ public class SimRobotTest {
     public void againstTheWallTheDeadWheelsReadTheRobotStandingStillNotTheWheelsSpinning() {
         Localizer localizer = robotLocalizer(sim);
         MecanumDrive drive = robotDrive(sim, localizer);
-        double edge = SimRobot.FIELD_SIZE_IN / 2 - SimRobot.ROBOT_SIZE_IN / 2;
+        double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(edge - 10, 0, 0));
         localizer.setPose(sim.pose());
         localizer.update();
@@ -383,7 +383,7 @@ public class SimRobotTest {
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
-        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         // Facing the right wall (-y), ten inches short of the flower.
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
         setPowers(1, 1, 1, 1);
@@ -406,7 +406,7 @@ public class SimRobotTest {
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
-        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot, -Math.PI / 2));
         setPowers(0, 1, 1, 0); // forward and left, which facing -y is toward +x
 
@@ -441,7 +441,7 @@ public class SimRobotTest {
     @Test
     public void theFrameStopsTheRobotAtItsNearestPart() {
         robotDrive();
-        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         double y = -28;
         double nearestFace = Double.POSITIVE_INFINITY;
         for (SimField.Obstacle part : SimRobot.FIELD.obstacles) {
@@ -478,7 +478,7 @@ public class SimRobotTest {
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
-        double halfRobot = SimRobot.ROBOT_SIZE_IN / 2;
+        double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
         localizer.setPose(sim.pose());
         localizer.update();
@@ -497,7 +497,7 @@ public class SimRobotTest {
 
     /** The robot's square's corners at a pose. */
     private static double[][] corners(Pose2d pose) {
-        double h = SimRobot.ROBOT_SIZE_IN / 2;
+        double h = SimPlacement.ROBOT_SIZE_IN / 2;
         double[][] local = {{h, h}, {-h, h}, {-h, -h}, {h, -h}};
         double[][] corners = new double[4][];
         for (int i = 0; i < 4; i++) {
@@ -593,7 +593,7 @@ public class SimRobotTest {
         sim.step(0.6);
 
         double[] ball = sim.pieces()[0];
-        double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
+        double front = sim.pose().position.x + SimPlacement.ROBOT_SIZE_IN / 2;
         assertTrue("the robot drove; x=" + sim.pose().position.x, sim.pose().position.x > 0);
         assertTrue(
                 "the ball is ahead of the robot's front edge: " + ball[0] + " vs " + front,
@@ -621,14 +621,14 @@ public class SimRobotTest {
         assertTrue("rolled on after the push: " + rollingTo + " vs " + pushedTo, rollingTo > pushedTo + 0.5);
         assertTrue("came to rest: " + restingAt + " vs " + rollingTo, restingAt > rollingTo);
         assertEquals("stays at rest", restingAt, sim.pieces()[0][0], DELTA);
-        assertTrue("inside the walls", restingAt < SimRobot.FIELD_SIZE_IN / 2 - BALL);
+        assertTrue("inside the walls", restingAt < SimPlacement.FIELD_SIZE_IN / 2 - BALL);
     }
 
     /** The wall holds the ball, the ball holds the robot: nothing goes through anything. */
     @Test
     public void aBallPinnedAgainstTheWallStopsTheRobotShortOfIt() {
         robotDrive();
-        double wall = SimRobot.FIELD_SIZE_IN / 2;
+        double wall = SimPlacement.FIELD_SIZE_IN / 2;
         sim.placePiece(0, 60, -40);
         sim.setPose(new Pose2d(42, -40, 0));
         setPowers(1, 1, 1, 1);
@@ -638,7 +638,7 @@ public class SimRobotTest {
         sim.step(0.5);
 
         double[] ball = sim.pieces()[0];
-        double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
+        double front = sim.pose().position.x + SimPlacement.ROBOT_SIZE_IN / 2;
         assertEquals("the ball is at the wall", wall - BALL, ball[0], CONTACT);
         assertEquals(-40, ball[1], 0.1);
         assertEquals("the robot is stopped by the ball", wall - 2 * BALL, front, CONTACT);
@@ -654,13 +654,13 @@ public class SimRobotTest {
         double face = minY(bar.footprint);
         double x = 0;
         sim.placePiece(0, x, face - BALL - 4);
-        sim.setPose(new Pose2d(x, face - BALL - 4 - BALL - SimRobot.ROBOT_SIZE_IN / 2 - 6, Math.PI / 2));
+        sim.setPose(new Pose2d(x, face - BALL - 4 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 6, Math.PI / 2));
         setPowers(1, 1, 1, 1);
 
         sim.step(1.5);
 
         double[] ball = sim.pieces()[0];
-        double front = sim.pose().position.y + SimRobot.ROBOT_SIZE_IN / 2;
+        double front = sim.pose().position.y + SimPlacement.ROBOT_SIZE_IN / 2;
         assertEquals("the ball is at the bar", face - BALL, ball[1], CONTACT);
         assertEquals("the robot is stopped by the ball", face - 2 * BALL, front, CONTACT);
     }
@@ -676,7 +676,7 @@ public class SimRobotTest {
         sim.step(0.6);
 
         double[] first = sim.pieces()[0], second = sim.pieces()[1];
-        double front = sim.pose().position.x + SimRobot.ROBOT_SIZE_IN / 2;
+        double front = sim.pose().position.x + SimPlacement.ROBOT_SIZE_IN / 2;
         assertTrue(
                 "both ahead of the robot", first[0] - BALL >= front - CONTACT && second[0] - BALL >= front - CONTACT);
         assertTrue(
@@ -811,7 +811,7 @@ public class SimRobotTest {
         double lane = flower.axis[1] + 0.8;
         robotDrive();
         sim.placePiece(0, flower.axis[0] - 50, lane);
-        sim.setPose(new Pose2d(flower.axis[0] - 50 - BALL - SimRobot.ROBOT_SIZE_IN / 2 - 1, lane, 0));
+        sim.setPose(new Pose2d(flower.axis[0] - 50 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 1, lane, 0));
         setPowers(1, 1, 1, 1);
         sim.step(1.0);
         double[][] before = sim.pieces();
@@ -853,7 +853,7 @@ public class SimRobotTest {
         double lane = flower.axis[1] + 0.8;
         robotDrive();
         sim.placePiece(0, flower.axis[0] - 10, lane);
-        sim.setPose(new Pose2d(flower.axis[0] - 10 - BALL - SimRobot.ROBOT_SIZE_IN / 2 - 2, lane, 0));
+        sim.setPose(new Pose2d(flower.axis[0] - 10 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 2, lane, 0));
         setPowers(1, 1, 1, 1);
 
         sim.step(2.0);
@@ -947,7 +947,7 @@ public class SimRobotTest {
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
         double[] ball = sim.pieces()[PRELOADED];
         assertNotNull("the first preloaded ball is on its way", ball);
-        assertTrue("ahead of the robot: x=" + ball[0], ball[0] > -60 + SimRobot.ROBOT_SIZE_IN / 2);
+        assertTrue("ahead of the robot: x=" + ball[0], ball[0] > -60 + SimPlacement.ROBOT_SIZE_IN / 2);
         assertTrue("in the air: z=" + ball[2], ball[2] > SimRobot.LAUNCH_HEIGHT_IN);
         assertEquals("straight ahead", 0, ball[1], 0.01);
     }
@@ -972,7 +972,7 @@ public class SimRobotTest {
         assertTrue("well down the field: x=" + landed[0], landed[0] > 20);
         assertEquals("at rest", resting[0], still[0], DELTA);
         assertEquals(resting[1], still[1], DELTA);
-        double half = SimRobot.FIELD_SIZE_IN / 2 - BALL;
+        double half = SimPlacement.FIELD_SIZE_IN / 2 - BALL;
         assertTrue(
                 "inside the walls", Math.abs(resting[0]) <= half + CONTACT && Math.abs(resting[1]) <= half + CONTACT);
     }
@@ -988,7 +988,8 @@ public class SimRobotTest {
         double[] ball = sim.pieces()[PRELOADED];
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
         assertEquals("on the floor", BALL, ball[2], DELTA);
-        assertTrue("just ahead of the robot: x=" + ball[0], ball[0] > -60 && ball[0] < -60 + SimRobot.ROBOT_SIZE_IN);
+        assertTrue(
+                "just ahead of the robot: x=" + ball[0], ball[0] > -60 && ball[0] < -60 + SimPlacement.ROBOT_SIZE_IN);
     }
 
     /** The launcher is on the turntable, which turns it from straight ahead by its encoder's angle. */

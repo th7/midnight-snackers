@@ -159,10 +159,10 @@ public class SimRobotNoiseTest {
     public void aRobotSetDownBeyondAWallIsSetDownAgainstIt() {
         SimRobot sim = new SimRobot(SimNoise.seeded(12));
 
-        sim.setDown(new Pose2d(SimRobot.FIELD_SIZE_IN, 0, 0));
+        sim.setDown(new Pose2d(SimPlacement.FIELD_SIZE_IN, 0, 0));
 
-        assertEquals(SimRobot.onTheField(sim.pose()), sim.pose());
-        assertTrue(sim.pose().position.x < SimRobot.FIELD_SIZE_IN / 2);
+        assertEquals(SimPlacement.onTheField(sim.pose()), sim.pose());
+        assertTrue(sim.pose().position.x < SimPlacement.FIELD_SIZE_IN / 2);
     }
 
     /** The robot's speed after 2.5 s at full power in the open, measured over the last half second. */
