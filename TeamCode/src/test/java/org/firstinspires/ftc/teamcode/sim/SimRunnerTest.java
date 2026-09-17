@@ -196,6 +196,35 @@ public class SimRunnerTest {
         assertTrue(Files.exists(out.resolve("StickTeleOp.html")));
     }
 
+    /**
+     * A tick's gamepad is what the op mode read that loop, not what the driver has pressed since.
+     * The controller page writes while a loop is running, so a tick that read the driver station a
+     * second time would say a button was down on a loop the op mode never saw it down -- and the
+     * replay would show a press the run did not have.
+     */
+    @Test
+    public void aTicksGamepadIsWhatTheOpModeReadNotWhatTheDriverPressedAfterwards() {
+        SimDriverStation station = new SimDriverStation();
+        station.set(1, state("{\"cross\": true}"));
+        TestTeleOps.MidLoopTeleOp teleOp = new TestTeleOps.MidLoopTeleOp();
+        teleOp.station = station;
+        teleOp.next = State.NEUTRAL;
+
+        SimRecording recording = SimRunner.record(
+                new SimRecording("MidLoopTeleOp", "teleop"),
+                teleOp,
+                sim,
+                SimRunner.LOOP_SECONDS,
+                folder.getRoot().toPath(),
+                station,
+                SimRunner.Pace.FASTEST);
+
+        assertTrue("the op mode read cross", teleOp.readCross);
+        assertTrue(
+                "the first tick carries the state the gamepad was given, not the one set during the loop",
+                recording.ticks().get(0).gamepad1.pressed.contains("cross"));
+    }
+
     @Test
     public void aTeleOpEndsDoneWhenItsTimeIsUp() {
         SimRecording recording = SimRunner.record(
