@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
@@ -17,8 +16,9 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
 /**
  * Every subsystem, built afresh for one run of an op mode, plus what they all share: the alliance
- * the run plays for, the gamepads, the telemetry and the dashboard. A subsystem reaches all of
- * that through the robot it was {@link #add}ed to instead of being handed each piece.
+ * the run plays for, the gamepads, the telemetry and the dashboard. A subsystem is handed what it
+ * needs when it is built and reaches back for nothing, so the order below is the order they depend
+ * on each other in, and javac says so.
  */
 public final class Robot implements Loopable {
     public final Alliance alliance;
@@ -60,7 +60,8 @@ public final class Robot implements Loopable {
         this.gamepad2 = gamepad2;
         this.telemetry = telemetry;
         this.dashboard = hardware.dashboard;
-        this.clock = Objects.requireNonNull(hardware.clock, "the hardware has no clock");
+        // Every device is there, or the hardware would not have been built.
+        this.clock = hardware.clock;
         // Each is handed what it needs, so the order here is the order they depend on each other
         // in, and javac says so: a subsystem built before one it is given does not compile.
         launcher = new Launcher(hardware.launcher, hardware.topGate, hardware.bottomGate, clock);

@@ -17,6 +17,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.dyn4j.collision.Filter;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
@@ -36,6 +37,7 @@ import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 /**
  * The robot on the season's field ({@link SimField}), as rigid bodies in a dyn4j world: the robot,
@@ -515,22 +517,30 @@ public class SimRobot {
      * on the simulation's clock.
      */
     public Hardware hardware() {
-        Hardware hardware = new Hardware();
-        hardware.launcher = launcher;
-        hardware.topGate = topGate;
-        hardware.bottomGate = bottomGate;
-        hardware.leftFront = leftFront;
-        hardware.rightFront = rightFront;
-        hardware.leftBack = leftBack;
-        hardware.rightBack = rightBack;
-        hardware.turnTable = turnTable;
-        hardware.intake = intake;
-        hardware.imu = () -> imu;
-        hardware.voltageSensor = voltageSensor;
-        hardware.aprilTags = ArrayList::new;
-        hardware.dashboard = dashboard;
-        hardware.clock = this::nanoTime;
-        return hardware;
+        return hardware(ArrayList::new);
+    }
+
+    /**
+     * The same devices, with a camera that sees {@code aprilTags}: the simulator has no vision of
+     * its own, so a test that wants the robot to see something says what.
+     */
+    public Hardware hardware(Supplier<List<AprilTagDetection>> aprilTags) {
+        return Hardware.builder()
+                .launcher(launcher)
+                .topGate(topGate)
+                .bottomGate(bottomGate)
+                .leftFront(leftFront)
+                .rightFront(rightFront)
+                .leftBack(leftBack)
+                .rightBack(rightBack)
+                .turnTable(turnTable)
+                .intake(intake)
+                .imu(() -> imu)
+                .voltageSensor(voltageSensor)
+                .aprilTags(aprilTags)
+                .dashboard(dashboard)
+                .clock(this::nanoTime)
+                .build();
     }
 
     /**

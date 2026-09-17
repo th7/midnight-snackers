@@ -33,8 +33,19 @@ measure of their own speed. On the robot the clock is the
 system's; in the simulator it is the simulated clock. A timed step must
 name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
-enforces rather than leaving to care. Class: `Hardware`;
-`Robot.clock`.
+enforces rather than leaving to care.
+
+It is **whole or not at all**. Both sides of the seam wire it by hand — the
+robot from its configuration, the simulator from its fakes — and nothing
+but this class can say the two agree, so it is built through a builder that
+names each device and refuses one that is missing any, naming what is
+missing. A device added here that an adapter has not kept up with then
+fails where that adapter is written, rather than as a null inside whichever
+subsystem reaches for it first, which on the robot is in the middle of a
+match. The devices are named as they are set rather than counted out in
+order, since nine of them are motors and a positional list would let a
+wheel be quietly swapped for its neighbour. Class: `Hardware`;
+`Hardware.Builder`; `Robot.clock`.
 
 
 **Wheels** — The four wheels, and the only thing that turns numbers into

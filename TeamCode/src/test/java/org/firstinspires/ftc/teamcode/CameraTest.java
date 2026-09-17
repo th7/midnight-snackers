@@ -12,7 +12,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
@@ -28,9 +27,7 @@ public class CameraTest {
 
     /** A robot whose camera sees {@code detections} instead of the simulator's empty view. */
     private static Camera cameraFed(SimRobot sim, List<AprilTagDetection> detections) {
-        Hardware hardware = sim.hardware();
-        hardware.aprilTags = () -> detections;
-        return new Robot(hardware, Alliance.RELATIVE, new FakeTelemetry()).camera;
+        return new Robot(sim.hardware(() -> detections), Alliance.RELATIVE, new FakeTelemetry()).camera;
     }
 
     /** A detection's age is judged on the robot's clock, the one its frames are stamped with. */

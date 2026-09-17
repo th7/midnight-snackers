@@ -327,10 +327,11 @@ public class SimBenchTest {
     @Test
     public void theChildRunsTheProjectsOwnSimulatorNotThisServers() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        String marker = "    public static Hardware fromHardwareMap(";
-        edit(project, HARDWARE, marker, "    public Hardware(int ignored) {\n    }\n\n" + marker);
-        edit(project, HARDWARE, "new Hardware()", "new Hardware(0)");
-        edit(project, SIM_ROBOT, "new Hardware()", "new Hardware(0)");
+        // The seam is renamed on both sides at once: the project's robot and its simulator still
+        // fit each other, and this server's simulator would not compile against them.
+        edit(project, HARDWARE, "public static Builder builder()", "public static Builder wiring()");
+        edit(project, HARDWARE, "return builder()", "return wiring()");
+        edit(project, SIM_ROBOT, "Hardware.builder()", "Hardware.wiring()");
         edit(
                 project,
                 SIM_CHILD,
@@ -352,9 +353,8 @@ public class SimBenchTest {
     @Test
     public void aProjectWhoseSimulatorDoesNotFitItsRobotFailsTheBuildNamingTheSeam() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        String marker = "    public static Hardware fromHardwareMap(";
         // the robot sources still compile on their own; only SimRobot.hardware() no longer fits
-        edit(project, HARDWARE, marker, "    private Hardware() {\n    }\n\n" + marker);
+        edit(project, HARDWARE, "public static Builder builder()", "private static Builder builder()");
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
         try {

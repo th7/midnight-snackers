@@ -11,7 +11,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
@@ -25,9 +24,7 @@ public class BrainTest {
     private final List<AprilTagDetection> detections = new ArrayList<>();
 
     private Robot robotFor(Alliance alliance) {
-        Hardware hardware = sim.hardware();
-        hardware.aprilTags = () -> detections;
-        return new Robot(hardware, alliance, new FakeTelemetry());
+        return new Robot(sim.hardware(() -> detections), alliance, new FakeTelemetry());
     }
 
     private void see(Robot robot, double x, double y, double yawRadians) {
