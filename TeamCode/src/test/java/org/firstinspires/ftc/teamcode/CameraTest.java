@@ -58,6 +58,20 @@ public class CameraTest {
         assertTrue(camera.sighting().isEmpty());
     }
 
+    /**
+     * A driver may ask to see the camera before it has seen anything -- gamepad 2's circle, any
+     * time from the moment the robot is built. Printing what it has not got is not a reason to end
+     * the op mode in the middle of a match.
+     */
+    @Test
+    public void turningTelemetryOnBeforeAnyTagIsSeenPrintsRatherThanThrowing() {
+        camera.toggleTelemetry();
+
+        camera.loop();
+
+        assertTrue("no tag seen, so nothing to sight", camera.sighting().isEmpty());
+    }
+
     @Test
     public void threeConsistentGoalDetectionsPlaceTheRobotOnTheField() {
         for (int i = 0; i < 3; i++) {

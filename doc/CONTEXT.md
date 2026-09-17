@@ -149,9 +149,21 @@ simulator, or anyone else, can see of it. Class: `Intake`.
 
 **Sighting** — Where the goal's AprilTag says the robot is, as the camera
 faces, which is the turntable's heading. The brain turns it back by the
-turntable's offset and, when playing for an alliance, hands it to Nav: the
-first sighting places the robot, a later one nudges its position by at
-most an inch per axis and never its heading. Class: `Camera.sighting()`.
+turntable's offset and, when playing for an alliance, hands it to Nav.
+Class: `Camera.sighting()`.
+
+**Agreement** — What the camera waits for before it will say where the robot
+is: the last three detections of the goal's tag placing it within an inch of
+one another, the newest of them less than a tenth of a second old on the
+robot's clock. The filter answers that one question and every way of asking
+it is **total** — a filter that has seen nothing answers that it has seen
+nothing. It used to publish the newest detection's age as a bare number, which
+threw when there was no newest detection, so a driver who turned the camera's
+telemetry on before the robot had looked at anything ended the op mode in the
+middle of a match. The age is still there, and still readable exactly when
+nothing is agreeing, which is when it is worth reading; it is now an answer
+rather than an exception. Classes: `DetectionFilter`;
+`DetectionFilter.Agreed`.
 
 ## The coding server
 
