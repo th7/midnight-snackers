@@ -16,37 +16,59 @@ and what is wired to what), `control` (the controllers and filters a
 subsystem steers by), `planrunner` (plans and steps) and `roadrunner`
 (trajectories, which we own rather than vendor).
 
-**Ticked in the open** — A subsystem answers three questions the compiler
-asks of every one of them: what it sets up, what it does each tick, and what
-it prints when a driver asks to see it. An empty body is a fine answer;
-leaving one out is not an option, so nothing is forgotten by silence.
+**Subsystem** — One part of the robot, and now only that: something the
+robot ticks, which is to say a `Loopable` that lives directly in
+`teamcode`. There is no base class to extend. A subsystem is built with
+everything it needs, sets itself up in its own constructor, does its work in
+`loop`, and prints to the **channel** it was handed. What used to be three
+hooks a base class asked for is one method an interface asks for, and the
+package says which classes are subsystems — which is the rule this glossary
+already opened with, now doing a job.
 
 **Whoever owns it, ticks it.** Anything that must be ticked is ticked by
 whatever it belongs to, on the first line of that thing's own loop: a
-subsystem's plan runner or drive runner in its `onLoop`, an auto's plan
-runner in the auto's. Registering them to be ticked by somebody else read
-tidily and cost more than it saved. The method that is supposed to say what
-a thing does each tick stopped saying it — `Drive`, which follows a
-trajectory every loop, had an empty `onLoop` — and the robot ended up
-ticking an op mode's plan runner, which meant the robot had to accept
-something that was not a subsystem and then ask which it had been given.
+subsystem's plan runner or drive runner in its `loop`, an auto's plan runner
+in the auto's `onLoop`, a TeleOp's driver in the TeleOp's. Registering them
+to be ticked by somebody else read tidily and cost more than it saved. The
+method that is supposed to say what a thing does each tick stopped saying it
+— `Drive`, which follows a trajectory every loop, had an empty one — and the
+robot ended up ticking an op mode's plan runner, which meant it had to
+accept something that was not a subsystem and then ask which it had been
+given.
 
 So the chain is plain the whole way down: an op mode's `init` builds the
-**Robot**, which builds its subsystems and initialises each; an op mode's
-`loop` ticks the robot, which ticks its subsystems in order, and then its
-own `onLoop`, which is where anything the op mode owns is ticked. `loop` is
-final at both levels, so the order is not a subclass's to rearrange, and an
-auto's plan advancing after every subsystem is the shape of it rather than
-a position in a list.
+**Robot**, which builds each subsystem and hands it what it needs; an op
+mode's `loop` ticks the robot, which ticks its subsystems in the order of
+the one list in its constructor, and then the op mode's own `onLoop`, which
+is where anything the op mode owns is ticked. `loop` is final at both
+levels, so the order is not a subclass's to rearrange, and an auto's plan
+advancing after every subsystem is the shape of it rather than a position in
+a list. That every subsystem is ticked at all is mechanical rather than
+remembered, and a test says so: it finds every `Loopable` in `teamcode` and
+fails naming any the op modes never reach. Classes: `Loopable`;
+`Robot.loopOrder`; `SubSystemsAreTickedTest`.
 
-The **Robot** ticks subsystems and nothing else, so it has one door:
-`add` registers a subsystem, ticks it and gives it somewhere to print.
-Registering one and initialising it are the same act and neither can happen
-without the other. Classes: `SubSystem`; `Robot.add`.
+**Channel** — The driver station's telemetry divided by the name of whoever
+is printing. Each subsystem is handed its own when it is built and prints to
+it and nothing else, always, knowing nothing about whether anyone is
+reading; the channel puts its own name on every caption, so two subsystems
+cannot print the same one. Telemetry costs a loop and a crowded screen, so a
+channel is off until a driver asks for it, and which button reaches which
+channels is said once, in the op mode.
 
-**Handed, not fetched** — A subsystem is given what it needs when it is
-built and reaches for nothing else; the only thing it is handed afterwards
-is somewhere to print. So the order in Robot's constructor is the order
+That the decision lives there and nowhere else is the point. It used to be a
+flag on every subsystem, a gate in a base class and a method on each of them
+that the op mode called by name; a subsystem carried the machinery for a
+question it had no business answering. **Nowhere** is a channel that reaches
+no screen, which is what Road Runner's tuning op modes are handed, said out
+loud rather than left as a null. Classes: `Channels`; `Prints`;
+`Prints.NOWHERE`.
+
+**Handed, not fetched** — A subsystem is given everything it needs when it
+is built — its devices, its clock, what it coordinates, and somewhere to
+print — and reaches for nothing else, ever. Nothing is handed to it
+afterwards, so there is no moment between being built and being ready. So
+the order in Robot's constructor is the order
 they depend on each other in, and javac says so: a subsystem built before
 one it is given does not compile, and one that asks for something the
 robot does not have does not compile either. Nothing reaches back into the

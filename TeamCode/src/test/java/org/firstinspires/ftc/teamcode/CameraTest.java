@@ -23,12 +23,10 @@ public class CameraTest {
 
     private final List<AprilTagDetection> detections = new ArrayList<>();
     private final SimDevices devices = new SimDevices();
-    private final Camera camera = cameraFed(devices, detections);
-
     /** A robot whose camera sees {@code detections} instead of the simulator's empty view. */
-    private static Camera cameraFed(SimDevices devices, List<AprilTagDetection> detections) {
-        return new Robot(devices.hardware(() -> detections), Alliance.RELATIVE, new FakeTelemetry()).camera;
-    }
+    private final Robot robot = new Robot(devices.hardware(() -> detections), Alliance.RELATIVE, new FakeTelemetry());
+
+    private final Camera camera = robot.camera;
 
     /** A detection's age is judged on the robot's clock, the one its frames are stamped with. */
     @Test
@@ -65,7 +63,7 @@ public class CameraTest {
      */
     @Test
     public void turningTelemetryOnBeforeAnyTagIsSeenPrintsRatherThanThrowing() {
-        camera.toggleTelemetry();
+        robot.channels.toggle("Camera");
 
         camera.loop();
 

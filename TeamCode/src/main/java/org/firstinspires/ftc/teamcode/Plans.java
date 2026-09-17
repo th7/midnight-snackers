@@ -2,13 +2,13 @@ package org.firstinspires.ftc.teamcode;
 
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.opmode.Auto;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Plans extends SubSystem {
+public class Plans implements Loopable {
     /** What a plan can ask the robot to do. */
     private final Drive drive;
 
@@ -22,16 +22,6 @@ public class Plans extends SubSystem {
         this.launcher = launcher;
         this.clock = clock;
     }
-
-    @Override
-    protected void onInit() {}
-
-    /** The plans are looked up when an op mode runs one; there is nothing to do each tick. */
-    @Override
-    protected void onLoop() {}
-
-    @Override
-    protected void onTelemetry() {}
 
     @Auto(alliance = Alliance.RELATIVE)
     public Plan scoreAThing() {
@@ -152,4 +142,7 @@ public class Plans extends SubSystem {
     public PlanPart driveForward() {
         return new Plan(new Step("driveForward", () -> drive.strafeTo(nav.pose(24, 0, 0)), drive::done));
     }
+
+    @Override
+    public void loop() {}
 }

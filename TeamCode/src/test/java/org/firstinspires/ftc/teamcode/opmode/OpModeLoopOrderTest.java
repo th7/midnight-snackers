@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.ArrayList;
 import java.util.List;
-import org.firstinspires.ftc.teamcode.Driver;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Loopable;
@@ -54,7 +53,11 @@ public class OpModeLoopOrderTest {
     }
 
     private static <T extends OpMode> T initialised(T opMode) {
-        opMode.useHardware(new SimRobot().hardware());
+        return initialised(opMode, new SimRobot());
+    }
+
+    private static <T extends OpMode> T initialised(T opMode, SimRobot sim) {
+        opMode.useHardware(sim.hardware());
         opMode.telemetry = new FakeTelemetry();
         opMode.gamepad1 = new Gamepad();
         opMode.gamepad2 = new Gamepad();
@@ -81,14 +84,17 @@ public class OpModeLoopOrderTest {
     }
 
     @Test
-    public void aTeleOpTicksItsDriverAfterTheRobot() {
-        BlueTeleOp opMode = initialised(new BlueTeleOp());
-
+    public void aTeleOpTicksItsOwnDriverAfterTheRobot() {
+        SimRobot sim = new SimRobot();
+        BlueTeleOp opMode = initialised(new BlueTeleOp(), sim);
         List<Loopable> order = opMode.loopOrder();
+        assertEquals("the robot ticks subsystems and nothing else", opMode.robot.plans, order.get(order.size() - 1));
+        assertEquals(opMode.robot.brain, order.get(order.size() - 2));
+        opMode.gamepad1.left_stick_y = -1;
 
-        assertEquals(opMode.robot.brain, order.get(order.size() - 3));
-        assertEquals(opMode.robot.plans, order.get(order.size() - 2));
-        assertTrue(order.get(order.size() - 1) instanceof Driver);
+        opMode.loop();
+
+        assertTrue("the driver ran, so it asked the wheels for something", sim.leftFront.power > 0);
     }
 
     @Test

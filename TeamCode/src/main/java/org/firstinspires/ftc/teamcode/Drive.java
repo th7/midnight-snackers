@@ -5,7 +5,8 @@ import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.TrajectoryActionBuilder;
 import com.acmerobotics.roadrunner.Vector2d;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.control.DriveRunner;
 import org.firstinspires.ftc.teamcode.control.FastDrive;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
@@ -19,7 +20,8 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
  * {@link #cancel}led, which also stops the robot. An action being followed owns the wheels: manual and toward do nothing
  * until it is done or cancelled.
  */
-public class Drive extends SubSystem {
+public class Drive implements Loopable {
+    private final Prints telemetry;
     /**
      * The axes a driver holds while the drive steers {@link #toward} a pose: an axis held is
      * driven at the driver's power, one not held is the drive's to steer.
@@ -73,26 +75,13 @@ public class Drive extends SubSystem {
     private final Localizer localizer;
     private final Dashboard dashboard;
 
-    public Drive(Wheels wheels, MecanumDrive mecanumDrive, Localizer localizer, Dashboard dashboard) {
+    public Drive(Wheels wheels, MecanumDrive mecanumDrive, Localizer localizer, Dashboard dashboard, Prints telemetry) {
         this.wheels = wheels;
         this.mecanumDrive = mecanumDrive;
         this.localizer = localizer;
         this.dashboard = dashboard;
-    }
-
-    /**
-     * The drive runner draws the robot where Nav says it is, so the dashboard field view shows
-     * the robot whenever the op mode is running, not only during RoadRunner actions.
-     */
-    @Override
-    protected void onInit() {
-        driveRunner = new DriveRunner(dashboard, localizer::pose);
-    }
-
-    /** The drive runner is the drive's, so the drive ticks it: this is what Drive does each loop. */
-    @Override
-    protected void onLoop() {
-        driveRunner.loop();
+        this.telemetry = telemetry;
+        this.driveRunner = new DriveRunner(dashboard, localizer::pose);
     }
 
     /**
@@ -186,9 +175,10 @@ public class Drive extends SubSystem {
         wheels.drive(new PoseVelocity2d(new Vector2d(straight, strafe), turn));
     }
 
-    /** What the last steer decided: one loop's numbers, all read off the one error. */
     @Override
-    protected void onTelemetry() {
+    public void loop() {
+        driveRunner.loop();
+
         if (steering == null) {
             telemetry.addData("steering", "the drive has not steered toward a pose yet");
             return;

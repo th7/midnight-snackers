@@ -8,56 +8,16 @@ import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.List;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
 /**
- * A robot is built once per run from the hardware and the alliance. Everything a subsystem used to
- * be handed, it now reaches through the robot it was added to.
+ * A robot is built once per run from the hardware and the alliance, and every subsystem is handed
+ * what it needs -- its devices, its clock, and its own channel to print to -- as it is built.
  */
 public class RobotTest {
-    private static class Recorder extends SubSystem {
-        Telemetry initialisedWith;
-        int inits = 0;
-
-        @Override
-        protected void onInit() {
-            initialisedWith = telemetry;
-            inits++;
-        }
-
-        @Override
-        protected void onLoop() {}
-
-        @Override
-        protected void onTelemetry() {}
-    }
-
-    /** A subsystem that coordinates others: it reaches them through the robot it was added to. */
-    /** A subsystem handed what it coordinates, the way the real ones are. */
-    private static class Coordinator extends SubSystem {
-        final Nav navSeen;
-        final Brain brainSeen;
-
-        Coordinator(Nav nav, Brain brain) {
-            this.navSeen = nav;
-            this.brainSeen = brain;
-        }
-
-        @Override
-        protected void onInit() {}
-
-        @Override
-        protected void onLoop() {}
-
-        @Override
-        protected void onTelemetry() {}
-    }
-
     private final SimRobot sim = new SimRobot();
     private final FakeTelemetry telemetry = new FakeTelemetry();
     private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, telemetry);
@@ -103,23 +63,6 @@ public class RobotTest {
         assertFalse(robot.brain.usingCameraLocalization());
         assertTrue(new Robot(sim.hardware(), Alliance.BLUE, telemetry).brain.usingCameraLocalization());
         assertTrue(new Robot(sim.hardware(), Alliance.RED, telemetry).brain.usingCameraLocalization());
-    }
-
-    @Test
-    public void addingASubsystemGivesItTelemetryThenInitialisesItThenTicksItLast() {
-        Recorder recorder = robot.add(new Recorder());
-
-        assertSame(telemetry, recorder.initialisedWith);
-        assertEquals(1, recorder.inits);
-        assertSame(recorder, robot.loopOrder().get(robot.loopOrder().size() - 1));
-    }
-
-    @Test
-    public void aSubsystemThatCoordinatesOthersIsHandedThem() {
-        Coordinator coordinator = robot.add(new Coordinator(robot.nav, robot.brain));
-
-        assertSame(robot.nav, coordinator.navSeen);
-        assertSame(robot.brain, coordinator.brainSeen);
     }
 
     @Test

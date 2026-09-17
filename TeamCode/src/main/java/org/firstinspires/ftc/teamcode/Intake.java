@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
 
 /**
  * The intake: what takes pollen off the floor and into the hopper. It is on or off and nothing
@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
  * reversing to clear a jam) is still to be built, and the simulator holds the intake to this much:
  * the pollen the front of the robot meets go in while the motor is running.
  */
-public class Intake extends SubSystem {
+public class Intake implements Loopable {
     /** What the motor runs at while the intake is on: all of it, since on is all this says. */
     public static final double RUNNING_POWER = 1;
 
@@ -20,21 +20,9 @@ public class Intake extends SubSystem {
 
     public Intake(DcMotorEx intake) {
         this.intake = intake;
-    }
-
-    /** The motor says what the intake is doing from the start, not from the first loop. */
-    @Override
-    protected void onInit() {
+        // on from the moment the robot is built, not from its first loop
         driveTheMotor();
     }
-
-    @Override
-    protected void onLoop() {
-        driveTheMotor();
-    }
-
-    @Override
-    protected void onTelemetry() {}
 
     /** Take pollen in. */
     public void on() {
@@ -53,5 +41,10 @@ public class Intake extends SubSystem {
 
     private void driveTheMotor() {
         intake.setPower(on ? RUNNING_POWER : 0);
+    }
+
+    @Override
+    public void loop() {
+        driveTheMotor();
     }
 }

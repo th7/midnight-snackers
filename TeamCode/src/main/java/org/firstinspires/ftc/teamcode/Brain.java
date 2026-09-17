@@ -2,12 +2,14 @@ package org.firstinspires.ftc.teamcode;
 
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Brain extends SubSystem {
+public class Brain implements Loopable {
+    private final Prints telemetry;
     /** The subsystems the brain coordinates. */
     private final Drive drive;
 
@@ -17,51 +19,26 @@ public class Brain extends SubSystem {
     private final Turntable turntable;
     private final Alliance alliance;
 
-    public Brain(Drive drive, Launcher launcher, Camera camera, Nav nav, Turntable turntable, Alliance alliance) {
+    public Brain(
+            Drive drive,
+            Launcher launcher,
+            Camera camera,
+            Nav nav,
+            Turntable turntable,
+            Alliance alliance,
+            Prints telemetry) {
         this.drive = drive;
         this.launcher = launcher;
         this.camera = camera;
         this.nav = nav;
         this.turntable = turntable;
         this.alliance = alliance;
+        this.telemetry = telemetry;
+        this.usingCameraLocalization = alliance.usesCameraLocalization();
     }
 
     private boolean usingCameraLocalization;
     private final PlanRunner planRunner = new PlanRunner();
-
-    /** The camera may place the robot on the field only when playing for an alliance. */
-    @Override
-    protected void onInit() {
-        usingCameraLocalization = alliance.usesCameraLocalization();
-    }
-
-    @Override
-    protected void onTelemetry() {}
-
-    @Override
-    protected void onLoop() {
-        planRunner.loop();
-
-        // The standing request, every tick. Whether the turntable acts on it is the turntable's:
-        // it may be parked or in the driver's hand, and the brain has no business knowing which.
-        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
-        telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
-        turntable.aimAt(relativeHeadingToTarget);
-
-        Optional<Nav.Pose> sighting = camera.sighting();
-
-        if (sighting.isPresent()) {
-            telemetry.addData("camera pose found", true);
-            // the camera faces where the turntable does, so the robot's heading is that less the turn
-            Nav.Pose robotPose = sighting.get().rotated(-turntable.offsetRadians());
-
-            if (usingCameraLocalization) {
-                nav.sighted(robotPose);
-            }
-        }
-
-        setTelemetry();
-    }
 
     public void cancelPlan() {
         planRunner.cancel();
@@ -114,5 +91,30 @@ public class Brain extends SubSystem {
     /** Whether the camera's tag sightings are used to place the robot on the field. */
     public boolean usingCameraLocalization() {
         return usingCameraLocalization;
+    }
+
+    @Override
+    public void loop() {
+        planRunner.loop();
+
+        // The standing request, every tick. Whether the turntable acts on it is the turntable's:
+        // it may be parked or in the driver's hand, and the brain has no business knowing which.
+        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
+        telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
+        turntable.aimAt(relativeHeadingToTarget);
+
+        Optional<Nav.Pose> sighting = camera.sighting();
+
+        if (sighting.isPresent()) {
+            telemetry.addData("camera pose found", true);
+            // the camera faces where the turntable does, so the robot's heading is that less the turn
+            Nav.Pose robotPose = sighting.get().rotated(-turntable.offsetRadians());
+
+            if (usingCameraLocalization) {
+                nav.sighted(robotPose);
+            }
+        }
+
+        setTelemetry();
     }
 }

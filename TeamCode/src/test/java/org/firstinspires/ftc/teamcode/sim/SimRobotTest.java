@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.Localizer;
 import org.firstinspires.ftc.teamcode.Turntable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
@@ -1336,7 +1337,8 @@ public class SimRobotTest {
 
     /** The localizer as the robot code builds it, reading the same ports the real one does. */
     private static Localizer robotLocalizer(SimRobot sim) {
-        return new Localizer(sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime);
+        return new Localizer(
+                sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime, Prints.NOWHERE);
     }
 
     /** The drive as the robot code builds it, so the motor directions are the robot's. */

@@ -5,7 +5,7 @@ import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
 
 /**
  * Where the robot is on the field, and where the places worth going are. Everything in and out is a
@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.base.SubSystem;
  * red, they are mirrored for you. Positive y moves toward your goal, positive headings turn
  * toward your goal.
  */
-public class Nav extends SubSystem {
+public class Nav implements Loopable {
     // COORDINATES!!! ARGH
     // Imagine facing the field from the audience. Blue goal is forward left, red goal is forward right. Any further
     // mention of left/right or forward/backward is relative to this perspective.
@@ -88,16 +88,6 @@ public class Nav extends SubSystem {
         this.ySign = alliance.ySign;
         this.launchTarget = alliance.launchTarget;
     }
-
-    @Override
-    protected void onInit() {}
-
-    /** Nothing: the pose is the {@link Localizer}'s to move on, once a loop, before this ticks. */
-    @Override
-    protected void onLoop() {}
-
-    @Override
-    protected void onTelemetry() {}
 
     /** A pose from coordinates given the blue way, mirrored for the alliance. */
     public Pose pose(double x, double y, double heading) {
@@ -201,4 +191,7 @@ public class Nav extends SubSystem {
         return new Vector2d(
                 from.x + Math.cos(directionRadians) * distance, from.y + Math.sin(directionRadians) * distance);
     }
+
+    @Override
+    public void loop() {}
 }

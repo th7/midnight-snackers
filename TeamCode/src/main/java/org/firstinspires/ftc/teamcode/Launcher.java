@@ -4,12 +4,14 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.teamcode.base.SubSystem;
+import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Launcher extends SubSystem {
+public class Launcher implements Loopable {
+    private final Prints telemetry;
     /**
      * How long a launch holds the bottom gate open, in seconds: long enough for the chambered ball
      * to drop into the flywheel. The driver tunes it from gamepad 2 while the robot is on the
@@ -35,29 +37,16 @@ public class Launcher extends SubSystem {
     private double bottomGateWaitSeconds = BOTTOM_GATE_WAIT_SECONDS;
     private final PlanRunner planRunner = new PlanRunner();
 
-    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier clock) {
+    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier clock, Prints telemetry) {
         this.clock = clock;
         this.launcher = launcher;
         this.topGate = topGate;
         this.bottomGate = bottomGate;
-    }
-
-    @Override
-    protected void onInit() {
+        this.telemetry = telemetry;
+        // the wiring the flywheel and the gates need, once, when the robot is built
         launcher.setPositionPIDFCoefficients(5);
-
         launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
-
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        topGate.setPosition(topGatePosition);
-        bottomGate.setPosition(bottomGatePosition);
-    }
-
-    @Override
-    protected void onLoop() {
-        planRunner.loop();
-        launcher.setVelocity(launcherVelocity);
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);
     }
@@ -173,18 +162,6 @@ public class Launcher extends SubSystem {
         return bottomGateWaitSeconds;
     }
 
-    @Override
-    protected void onTelemetry() {
-        telemetry.addData("launcherStep", planRunner.currentStep());
-
-        telemetry.addData("launcherPower", launcher.getPower());
-        telemetry.addData("launcherVelocityTarget", launcherVelocity);
-        telemetry.addData("launcherVelocityActual", launcher.getVelocity());
-        telemetry.addData("topGatePosition", topGatePosition);
-        telemetry.addData("bottomGatePosition", bottomGatePosition);
-        telemetry.addData("bottomGateWaitSeconds", bottomGateWaitSeconds);
-    }
-
     public boolean launchDone() {
         return planRunner.done();
     }
@@ -199,5 +176,22 @@ public class Launcher extends SubSystem {
 
     private boolean launcherOn() {
         return launcherVelocity > 0;
+    }
+
+    @Override
+    public void loop() {
+        planRunner.loop();
+        launcher.setVelocity(launcherVelocity);
+        topGate.setPosition(topGatePosition);
+        bottomGate.setPosition(bottomGatePosition);
+
+        telemetry.addData("launcherStep", planRunner.currentStep());
+
+        telemetry.addData("launcherPower", launcher.getPower());
+        telemetry.addData("launcherVelocityTarget", launcherVelocity);
+        telemetry.addData("launcherVelocityActual", launcher.getVelocity());
+        telemetry.addData("topGatePosition", topGatePosition);
+        telemetry.addData("bottomGatePosition", bottomGatePosition);
+        telemetry.addData("bottomGateWaitSeconds", bottomGateWaitSeconds);
     }
 }
