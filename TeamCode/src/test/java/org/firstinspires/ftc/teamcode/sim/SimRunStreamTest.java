@@ -266,4 +266,87 @@ public class SimRunStreamTest {
         assertTrue(Outcome.killedAfterStop(2.0).startsWith("killed 2.0s after Stop"));
         assertTrue(Outcome.noOpModeNamed("org.example.Nope").contains("org.example.Nope"));
     }
+
+    // --- the handshake: what a bench does with the child's first line ---
+
+    /**
+     * Whether a run can be made on the child that answered, and what to send it, is one decision
+     * read off one line. It used to be stated here in prose, decided in SimBench and realised in
+     * SimChild, with the refusals worded twice.
+     */
+    @Test
+    public void aChildOfThisVersionIsToldWhereToStartAndWhichRobot() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L);
+
+        assertEquals(SimRunStream.PROTOCOL, handshake.protocol);
+        assertFalse(handshake.message, handshake.refused());
+        assertNull("its first line was the hello", handshake.firstContentLine);
+        assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L), handshake.startLine);
+    }
+
+    /** A child from before the seed runs the exact robot whatever it is told, so it is not told. */
+    @Test
+    public void aChildFromBeforeTheSeedRunsWhenNoSeedIsAskedFor() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(3), new Pose2d(12, 0, 0), null);
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), null), handshake.startLine);
+    }
+
+    @Test
+    public void aChildFromBeforeTheSeedIsRefusedOneByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(3), StartPoses.ORIGIN, 1L);
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotSeed(3), handshake.outcome);
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.SEEDED_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains("clear the seed"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    /** A child from before placement starts at the origin on its own, so it may run from there. */
+    @Test
+    public void aChildFromBeforePlacementRunsFromTheOriginAndPlacesItself() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(2), StartPoses.ORIGIN, null);
+
+        assertFalse(handshake.message, handshake.refused());
+        assertNull("it is not told where to start, because it cannot be", handshake.startLine);
+    }
+
+    @Test
+    public void aChildFromBeforePlacementIsRefusedAnywhereElseByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(2), new Pose2d(12, 0, 0), null);
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotPlace(2), handshake.outcome);
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.PLACED_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains("back at the origin"));
+    }
+
+    /** A version-one child prints no hello, so its first line is content and comes back as it was. */
+    @Test
+    public void aVersionOneChildsFirstLineIsContent() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake("[{\"name\":\"an op mode\"}]", StartPoses.ORIGIN, null);
+
+        assertEquals(1, handshake.protocol);
+        assertFalse(handshake.refused());
+        assertEquals("[{\"name\":\"an op mode\"}]", handshake.firstContentLine);
+    }
+
+    /** One that speaks a protocol this bench cannot read is refused before any of that. */
+    @Test
+    public void aChildThisBenchCannotReadIsRefusedBeforeItIsPlaced() {
+        SimRunStream.WrongProtocol wrong = org.junit.Assert.assertThrows(
+                SimRunStream.WrongProtocol.class,
+                () -> SimRunStream.handshake(helloOf(SimRunStream.PROTOCOL + 1), StartPoses.ORIGIN, null));
+
+        assertEquals(SimRunStream.PROTOCOL + 1, wrong.childProtocol);
+    }
+
+    private static String helloOf(int protocol) {
+        JsonObject line = new JsonObject();
+        line.addProperty("protocol", protocol);
+        return line.toString();
+    }
 }

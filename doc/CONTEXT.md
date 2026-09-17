@@ -493,8 +493,12 @@ so the bench lets it run when that is the op mode's robot and refuses it
 by name, with the fix, when a seed is set. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
-recording: the page reads either **source**. Class: `SimRunStream`;
-`SimReplayPage.Source`.
+recording: the page reads either **source**. Every one of those decisions —
+which protocol the child speaks, whether this run can be made on a child of
+that version, what to send it, and the refusal with whose the fix is — is
+one answer read off the child's first line, the **handshake**, and is made
+where the versions are defined rather than by the bench that asks. Class:
+`SimRunStream`; `SimRunStream.Handshake`; `SimReplayPage.Source`.
 
 **Run** — One execution of one op mode on a fresh simulated robot, on the
 simulation's own clock: the world moves one **loop period** between one op

@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Twist2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -205,6 +207,86 @@ public final class SimRunStream {
                             + " Pull develop.");
         }
         return child;
+    }
+
+    /**
+     * What a bench does with the child's first line: which protocol it speaks, what to send it so
+     * the run can start, and -- when a child of that version cannot make this run -- why not.
+     *
+     * <p>One decision, in one place, next to the constants that define it. It used to be stated
+     * here in prose, decided in {@code SimBench}, and realised in {@link SimChild}, with the
+     * refusals worded once in {@link Outcome} and again, differently, where they were decided; and
+     * the hello was consumed two different ways by the two callers that read one.
+     */
+    public static final class Handshake {
+        /** The protocol the child speaks; 1 for one that printed no hello. */
+        public final int protocol;
+        /** The child's first line when it was content rather than a hello; null when it was a hello. */
+        public final String firstContentLine;
+        /** The line to send the child, or null when it places itself or the run is refused. */
+        public final JsonObject startLine;
+        /** How the run ends when a child of this version cannot make it; null when it can. */
+        public final String outcome;
+        /** What to tell whoever asked, and whose the fix is; null when the run can be made. */
+        public final String message;
+
+        private Handshake(int protocol, String firstContentLine, JsonObject startLine, String outcome, String message) {
+            this.protocol = protocol;
+            this.firstContentLine = firstContentLine;
+            this.startLine = startLine;
+            this.outcome = outcome;
+            this.message = message;
+        }
+
+        /** Whether the run cannot be made on this child. */
+        public boolean refused() {
+            return outcome != null;
+        }
+    }
+
+    /**
+     * Reads the child's first line and decides the run: a child that waits to be placed is told
+     * where and, when the op mode runs on a seed, which robot; one from before the seed runs the
+     * exact robot, so it may run when that is the op mode's robot and not otherwise; one from
+     * before placing places itself at the origin, so it may run when that is the start pose and
+     * not otherwise.
+     *
+     * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than
+     *                       the oldest it reads, which is decided before any of the above
+     */
+    public static Handshake handshake(String firstLine, Pose2d start, Long seed) {
+        int protocol = protocolOf(firstLine);
+        String content = protocol == 1 ? firstLine : null;
+        if (seed != null && protocol < SEEDED_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotSeed(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and runs the exact robot on its own; a seed needs protocol "
+                            + SEEDED_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or clear the seed.");
+        }
+        if (protocol >= PLACED_PROTOCOL) {
+            return new Handshake(protocol, content, SimDriverStation.startLine(start, seed), null, null);
+        }
+        Twist2d fromOrigin = start.minus(StartPoses.ORIGIN);
+        if (Math.hypot(fromOrigin.line.x, fromOrigin.line.y) < 1e-9 && Math.abs(fromOrigin.angle) < 1e-9) {
+            return new Handshake(protocol, content, null, null, null);
+        }
+        return new Handshake(
+                protocol,
+                content,
+                null,
+                Outcome.cannotPlace(protocol),
+                "the simulator in these sources speaks protocol "
+                        + protocol
+                        + " and starts the robot at the origin on its own; placing it elsewhere needs protocol "
+                        + PLACED_PROTOCOL
+                        + ": the sources are older than the server. Pull develop, or place the robot"
+                        + " back at the origin.");
     }
 
     public static String started() {

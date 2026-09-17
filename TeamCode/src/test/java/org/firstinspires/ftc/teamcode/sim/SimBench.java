@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import com.acmerobotics.roadrunner.Twist2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -736,19 +735,24 @@ public final class SimBench {
                 }
                 if (first) {
                     first = false;
-                    int protocol;
+                    SimRunStream.Handshake handshake;
                     try {
-                        protocol = SimRunStream.protocolOf(line);
+                        handshake = SimRunStream.handshake(line, run.start, run.seed);
                     } catch (SimRunStream.WrongProtocol e) {
                         run.finish(SimRunStream.Outcome.wrongProtocol(e.childProtocol), e.getMessage());
                         child.destroyForcibly();
                         break;
                     }
-                    if (!place(run, protocol)) {
+                    if (handshake.refused()) {
+                        run.finish(handshake.outcome, handshake.message);
                         child.destroyForcibly();
                         break;
                     }
-                    line = SimRunStream.afterHello(line);
+                    if (handshake.startLine != null) {
+                        // a child already gone ends the run by its exit code
+                        run.send(handshake.startLine);
+                    }
+                    line = handshake.firstContentLine;
                     if (line == null) {
                         continue; // the hello, consumed
                     }
@@ -774,46 +778,6 @@ public final class SimBench {
         } else {
             run.finish(SimRunStream.Outcome.childExited(child.exitValue()), run.log());
         }
-    }
-
-    /**
-     * Places the robot for the run, and says which robot. A child that waits to be placed is told
-     * where and, when the op mode runs on a seed, which robot; one from before the seed runs the
-     * exact robot, so it may run when that is the op mode's robot and not otherwise; one from
-     * before placing places itself at the origin, so it may run when that is the start pose and
-     * not otherwise.
-     *
-     * @return false when the run cannot start where the robot is placed, with the run finished saying why
-     */
-    private static boolean place(Run run, int childProtocol) {
-        if (run.seed != null && childProtocol < SimRunStream.SEEDED_PROTOCOL) {
-            run.finish(
-                    SimRunStream.Outcome.cannotSeed(childProtocol),
-                    "the simulator in these sources speaks protocol "
-                            + childProtocol
-                            + " and runs the exact robot on its own; a seed needs protocol "
-                            + SimRunStream.SEEDED_PROTOCOL
-                            + ": the sources are older than the server. Pull develop, or clear the seed.");
-            return false;
-        }
-        if (childProtocol >= SimRunStream.PLACED_PROTOCOL) {
-            run.send(SimDriverStation.startLine(
-                    run.start, run.seed)); // a child already gone ends the run by its exit code
-            return true;
-        }
-        Twist2d fromOrigin = run.start.minus(StartPoses.ORIGIN);
-        if (Math.hypot(fromOrigin.line.x, fromOrigin.line.y) < 1e-9 && Math.abs(fromOrigin.angle) < 1e-9) {
-            return true;
-        }
-        run.finish(
-                SimRunStream.Outcome.cannotPlace(childProtocol),
-                "the simulator in these sources speaks protocol "
-                        + childProtocol
-                        + " and starts the robot at the origin on its own; placing it elsewhere needs protocol "
-                        + SimRunStream.PLACED_PROTOCOL
-                        + ": the sources are older than the server. Pull develop, or place the robot"
-                        + " back at the origin.");
-        return false;
     }
 
     /** The run in progress, or null. */
