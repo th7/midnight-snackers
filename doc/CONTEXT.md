@@ -260,11 +260,24 @@ session is still a session; only a **delete** takes sessions away, and it
 takes all of that user's at once.
 
 **Editable set** — The files the admin has picked for users to edit, each
-named by its **root-relative path** with `/` separators
-(`TeamCode/src/main/java/.../Plans.java`). A user may only ever name a file
-by exact match against this set; nothing a user sends is resolved against
-the filesystem. The admin picks from the host checkout; the key means the
-same path in every worktree.
+named by its **key**. A user may only ever name a file by exact match
+against this set; nothing a user sends is resolved against the filesystem.
+The admin picks from the host checkout; the key means the same path in
+every worktree. Class: `EditableSet`.
+
+**Key** — A file the server has vouched for, named by its **root-relative
+path** with `/` separators (`TeamCode/src/main/java/.../Plans.java`), and
+the only kind of thing the server resolves against a worktree. There are
+two ways to make one and no others: relativising a real path the server
+found itself, and a root-relative string that is neither absolute nor
+climbing out of the root — which is what the **editable set** and the
+**source set** hand back when a user's string matches one of theirs
+exactly. So a string off a request becomes a path only by being recognised,
+and the rule above is held by javac rather than by the one `if` that used
+to hold it, with a test that fails if a third way to make a key is ever
+added. The same check runs over what comes back out of the **state
+directory** and over the names git gives in a diff, since neither is more
+trustworthy than anything else read off disk. Class: `Key`.
 
 **Project root** — The repository checkout the coding server serves: the
 top of a git working tree with a `develop` branch. All paths users see are

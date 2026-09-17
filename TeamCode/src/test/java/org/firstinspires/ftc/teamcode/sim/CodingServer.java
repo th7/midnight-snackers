@@ -31,8 +31,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Stream;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
@@ -230,10 +230,11 @@ public final class CodingServer {
 
     private int nextSessionId = 1;
     /**
-     * Root-relative paths with '/' separators, exactly as users must name them. A user-supplied
-     * path is only ever looked up here by exact match, never resolved against the filesystem.
+     * The files the admin has picked. A user-supplied path is only ever looked up here by exact
+     * match; what comes back is a {@link Key}, which is the only thing the server resolves against
+     * a worktree.
      */
-    private final TreeSet<String> editable = new TreeSet<>();
+    private final EditableSet editable;
 
     private CodingServer(
             Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
@@ -242,7 +243,7 @@ public final class CodingServer {
         this.worktrees = new Worktrees(this.root, this.stateDir, "git");
         this.benches = benches;
         loadSessions();
-        loadEditable();
+        this.editable = new EditableSet(this.root, stateDir.resolve(EDITABLE_FILE));
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
         this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
     }
@@ -432,19 +433,21 @@ public final class CodingServer {
     }
 
     /** {@code GET} or {@code PUT /files/<key>}: reads, or with a body writes, one file of the editable set. */
-    private Response file(Session session, String key, String edit) {
+    private Response file(Session session, String path, String edit) {
         synchronized (this) {
-            if (!editable.contains(key)) {
-                return Response.error(404, "not an editable file: " + key);
+            Optional<Key> key = editable.lookUp(path);
+            if (key.isEmpty()) {
+                return Response.error(404, "not an editable file: " + path);
             }
             Path worktree = worktreeOf(session).path;
-            return edit == null ? read(session, worktree, key) : write(worktree, key, edit);
+            return edit == null ? read(session, worktree, key.get()) : write(worktree, key.get(), edit);
         }
     }
 
     private synchronized JsonObject fileList(boolean withEditors) {
         JsonArray list = new JsonArray();
-        for (String path : editable) {
+        for (Key key : editable.list()) {
+            String path = key.path();
             JsonObject item = new JsonObject();
             item.addProperty("path", path);
             if (withEditors) {
@@ -484,10 +487,10 @@ public final class CodingServer {
         }
     }
 
-    private Current current(Path worktree, String key) {
+    private Current current(Path worktree, Key key) {
         byte[] bytes;
         try {
-            bytes = Files.readAllBytes(worktree.resolve(key));
+            bytes = Files.readAllBytes(key.under(worktree));
         } catch (IOException e) {
             return new Current(Response.error(404, "could not read " + key + ": " + e.getMessage()));
         }
@@ -521,20 +524,20 @@ public final class CodingServer {
         }
     }
 
-    private Response read(Session session, Path worktree, String key) {
+    private Response read(Session session, Path worktree, Key key) {
         Current current = current(worktree, key);
         if (current.problem != null) {
             return current.problem;
         }
-        session.openFile = key;
+        session.openFile = key.path();
         JsonObject body = new JsonObject();
-        body.addProperty("path", key);
+        body.addProperty("path", key.path());
         body.addProperty("content", current.content);
         body.addProperty("version", current.version);
         return Response.json(GSON.toJson(body));
     }
 
-    private Response write(Path worktree, String key, String requestBody) {
+    private Response write(Path worktree, Key key, String requestBody) {
         JsonObject edit;
         try {
             edit = GSON.fromJson(requestBody, JsonObject.class);
@@ -550,19 +553,19 @@ public final class CodingServer {
         }
         if (!current.version.equals(edit.get("baseVersion").getAsString())) {
             JsonObject body = new JsonObject();
-            body.addProperty("path", key);
+            body.addProperty("path", key.path());
             body.addProperty("content", current.content);
             body.addProperty("version", current.version);
             return Response.json(409, GSON.toJson(body));
         }
         byte[] bytes = edit.get("content").getAsString().getBytes(StandardCharsets.UTF_8);
         try {
-            replace(worktree.resolve(key), bytes);
+            replace(key.under(worktree), bytes);
         } catch (IOException e) {
             return Response.error(500, "could not write " + key + ": " + e.getMessage());
         }
         JsonObject body = new JsonObject();
-        body.addProperty("path", key);
+        body.addProperty("path", key.path());
         body.addProperty("version", version(bytes));
         return Response.json(GSON.toJson(body));
     }
@@ -690,13 +693,21 @@ public final class CodingServer {
             this.navigator = navigator;
         }
 
-        /** The navigator's name for a root-relative key, or null when the key is not a source file. */
-        String sourceOf(String key) {
-            if (key == null || !key.startsWith(prefix)) {
+        /** The navigator's name for a root-relative path, or null when it is not a source file. */
+        String sourceOf(String path) {
+            if (path == null || !path.startsWith(prefix)) {
                 return null;
             }
-            String source = key.substring(prefix.length());
+            String source = path.substring(prefix.length());
             return navigator.files().contains(source) ? source : null;
+        }
+
+        /**
+         * The key for a path a user named, or empty: an exact match against the files the
+         * navigator enumerated, the same discipline the editable set follows.
+         */
+        Optional<Key> lookUp(String path) {
+            return sourceOf(path) == null ? Optional.empty() : Key.under(worktree, path);
         }
 
         String keyOf(String source) {
@@ -791,21 +802,22 @@ public final class CodingServer {
     }
 
     /** Any main source file, read-only: where a jump to a definition may land. */
-    private Response source(Session session, String key) {
+    private Response source(Session session, String path) {
         Sources sources = sourcesOf(session);
-        if (sources == null || sources.sourceOf(key) == null) {
-            return Response.error(404, "not a source file: " + key);
+        Optional<Key> key = sources == null ? Optional.empty() : sources.lookUp(path);
+        if (key.isEmpty()) {
+            return Response.error(404, "not a source file: " + path);
         }
-        Current current = current(sources.worktree, key);
+        Current current = current(sources.worktree, key.get());
         if (current.problem != null) {
             return current.problem;
         }
         JsonObject body = new JsonObject();
-        body.addProperty("path", key);
+        body.addProperty("path", key.get().path());
         body.addProperty("content", current.content);
         body.addProperty("version", current.version);
         synchronized (this) {
-            body.addProperty("editable", editable.contains(key));
+            body.addProperty("editable", editable.contains(key.get()));
         }
         return Response.json(GSON.toJson(body));
     }
@@ -887,11 +899,13 @@ public final class CodingServer {
      */
     private static Formatting format(Path worktree, List<String> uncommitted) {
         Formatting formatting = new Formatting();
-        for (String key : uncommitted) {
-            if (!key.endsWith(".java")) {
+        for (String named : uncommitted) {
+            Optional<Key> found = Key.under(worktree, named);
+            if (found.isEmpty() || !found.get().isJava()) {
                 continue;
             }
-            Path file = worktree.resolve(key);
+            Key key = found.get();
+            Path file = key.under(worktree);
             if (!Files.isRegularFile(file)) {
                 continue; // deleted, or never a file: git has it either way
             }
@@ -900,7 +914,7 @@ public final class CodingServer {
                 byte[] after = JavaFormatter.format(utf8(before)).getBytes(StandardCharsets.UTF_8);
                 if (!Arrays.equals(before, after)) {
                     replace(file, after);
-                    formatting.formatted.add(key);
+                    formatting.formatted.add(key.path());
                 }
             } catch (JavaFormatter.Unparseable e) {
                 formatting.refused.add(key + " (" + e.getMessage() + ")");
@@ -1165,8 +1179,9 @@ public final class CodingServer {
         return path;
     }
 
+    /** How the admin's file browser spells a path it is listing: one rule, Key's. */
     private String keyOf(Path path) {
-        return root.relativize(path).toString().replace('\\', '/');
+        return Key.of(root, path).path();
     }
 
     private Response tree(String dir) {
@@ -1206,19 +1221,13 @@ public final class CodingServer {
         if (file == null || !Files.isRegularFile(file)) {
             return Response.error(400, "not a file under the project root: " + relative);
         }
-        synchronized (this) {
-            editable.add(keyOf(file));
-            saveEditable();
-        }
+        editable.add(Key.of(root, file));
         return Response.json(GSON.toJson(fileList(false)));
     }
 
-    private Response removeEditable(String key) {
-        synchronized (this) {
-            if (key == null || !editable.remove(key)) {
-                return Response.error(404, "not an editable file: " + key);
-            }
-            saveEditable();
+    private Response removeEditable(String path) {
+        if (path == null || !editable.remove(path)) {
+            return Response.error(404, "not an editable file: " + path);
         }
         return Response.json(GSON.toJson(fileList(false)));
     }
@@ -1468,39 +1477,6 @@ public final class CodingServer {
         JsonObject body = new JsonObject();
         body.add("sessions", list);
         StateStore.save(stateDir.resolve(SESSIONS_FILE), body);
-    }
-
-    /** The editable set is stored under this root's absolute path, next to any other checkout's. */
-    private void loadEditable() {
-        JsonObject stored = StateStore.load(stateDir.resolve(EDITABLE_FILE));
-        if (stored == null) {
-            return;
-        }
-        try {
-            JsonElement ours = stored.getAsJsonObject("roots").get(root.toString());
-            if (ours != null) {
-                for (JsonElement element : ours.getAsJsonArray()) {
-                    editable.add(element.getAsString());
-                }
-            }
-        } catch (RuntimeException e) {
-            throw new IllegalStateException(
-                    "could not read the editable files in " + stateDir.resolve(EDITABLE_FILE) + ": " + e, e);
-        }
-    }
-
-    private void saveEditable() {
-        Path file = stateDir.resolve(EDITABLE_FILE);
-        JsonObject stored = StateStore.load(file);
-        JsonObject roots = stored == null || !stored.has("roots") ? new JsonObject() : stored.getAsJsonObject("roots");
-        JsonArray ours = new JsonArray();
-        for (String key : editable) {
-            ours.add(key);
-        }
-        roots.add(root.toString(), ours);
-        JsonObject body = new JsonObject();
-        body.add("roots", roots);
-        StateStore.save(file, body);
     }
 
     // --- pages ---
