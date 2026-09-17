@@ -16,6 +16,27 @@ and what is wired to what), `control` (the controllers and filters a
 subsystem steers by), `planrunner` (plans and steps) and `roadrunner`
 (trajectories, which we own rather than vendor).
 
+**Ticked in the open** — A subsystem answers three questions the compiler
+asks of every one of them: what it sets up, what it does each tick, and what
+it prints when a driver asks to see it. An empty body is a fine answer;
+leaving one out is not an option, so nothing is forgotten by silence.
+
+Anything a subsystem owns and must tick — a plan runner, a drive runner —
+it ticks itself, on the first line of its own `onLoop`. Registering helpers
+to be ticked automatically read tidily and cost more than it saved: the one
+method that is supposed to say what a subsystem does each tick stopped
+saying it, and `Drive`, which follows a trajectory every loop, had an empty
+`onLoop`. Three subsystems own one helper each; three lines say so.
+
+The **Robot** owns the order, which is the list in its constructor, and
+owns calling `init` and `loop` on each. It has two doors and javac picks:
+`add` takes a subsystem, ticks it and gives it somewhere to print, so a
+registered subsystem cannot be an uninitialised one; `alsoTick` takes
+something that is not a subsystem, which is how an auto registers its own
+plan runner, and refuses a subsystem rather than leaving it with a null
+telemetry to find in the middle of a match. Classes: `SubSystem`;
+`Robot.add`; `Robot.alsoTick`.
+
 **Handed, not fetched** — A subsystem is given what it needs when it is
 built and reaches for nothing else; the only thing it is handed afterwards
 is somewhere to print. So the order in Robot's constructor is the order

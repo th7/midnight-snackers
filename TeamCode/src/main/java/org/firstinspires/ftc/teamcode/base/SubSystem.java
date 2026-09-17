@@ -11,19 +11,18 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  * <p>A subsystem is handed what it needs when it is built and reaches for nothing else; the only
  * thing it is given afterwards is somewhere to print.
  *
- * <p>When each of those runs is this class's to decide, so {@link #init()}, {@link #loop()} and
- * {@link #toggleTelemetry()} are final: a subsystem cannot skip its helpers or its telemetry by
- * overriding them.
+ * <p>When each of those runs is this class's to decide, so {@link #init}, {@link #loop()} and
+ * {@link #toggleTelemetry()} are final: a subsystem cannot take over when its hooks run, or print
+ * without being asked.
+ *
+ * <p>Anything a subsystem owns and must tick -- a plan runner, a drive runner -- it ticks itself,
+ * in its own {@link #onLoop()}. Registering helpers to be ticked automatically read tidily and
+ * cost more than it saved: the one method that says what a subsystem does each tick stopped saying
+ * it, and {@code Drive}, which follows a trajectory every loop, had an empty {@code onLoop}.
  */
 public abstract class SubSystem implements Loopable {
     protected Telemetry telemetry;
-    private final LoopGroup helpers = new LoopGroup();
     private boolean telemetryOn = false;
-
-    /** Registers a helper (a PlanRunner, a DriveRunner) to be ticked before {@link #onLoop()}. */
-    protected <T extends Loopable> T add(T helper) {
-        return helpers.add(helper);
-    }
 
     /**
      * Gives the subsystem somewhere to print and sets it up. Subclasses override
@@ -35,12 +34,11 @@ public abstract class SubSystem implements Loopable {
     }
 
     /**
-     * Ticks registered helpers, then this subsystem's own work, then its telemetry if a driver has
-     * asked for it. Subclasses override {@link #onLoop()}.
+     * Ticks this subsystem's own work, then its telemetry if a driver has asked for it.
+     * Subclasses override {@link #onLoop()}.
      */
     @Override
     public final void loop() {
-        helpers.loop();
         onLoop();
         if (telemetryOn) {
             telemetry.addData(getClass().getSimpleName(), "telemetry on");

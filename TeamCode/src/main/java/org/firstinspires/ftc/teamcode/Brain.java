@@ -27,7 +27,7 @@ public class Brain extends SubSystem {
     }
 
     private boolean usingCameraLocalization;
-    private final PlanRunner planRunner = add(new PlanRunner());
+    private final PlanRunner planRunner = new PlanRunner();
 
     /** The camera may place the robot on the field only when playing for an alliance. */
     @Override
@@ -40,6 +40,8 @@ public class Brain extends SubSystem {
 
     @Override
     protected void onLoop() {
+        planRunner.loop();
+
         // The standing request, every tick. Whether the turntable acts on it is the turntable's:
         // it may be parked or in the driver's hand, and the brain has no business knowing which.
         double relativeHeadingToTarget = nav.relativeHeadingToTarget();

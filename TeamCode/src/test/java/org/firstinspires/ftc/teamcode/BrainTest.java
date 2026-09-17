@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +54,26 @@ public class BrainTest {
                 -Math.PI / 2,
                 robot.nav.currentPose().heading(),
                 DELTA);
+    }
+
+    /**
+     * The brain runs its own plan, so its plan runner has to be ticked every loop. Nothing used to
+     * say so: breaking the tick left every test in the suite green except the ones belonging to the
+     * mechanism that did it.
+     */
+    @Test
+    public void theBrainsOwnPlanRunsOnEveryLoop() {
+        Robot robot = robotFor(Alliance.RELATIVE);
+        assertEquals("nothing commanded yet", 0, devices.launcher.commandedVelocity, DELTA);
+
+        robot.brain.autoShootFast();
+        for (int i = 0; i < 3; i++) {
+            robot.loop();
+        }
+
+        assertTrue(
+                "the plan reached its launch step, so the flywheel was commanded",
+                devices.launcher.commandedVelocity > 0);
     }
 
     @Test
