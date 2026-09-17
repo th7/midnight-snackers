@@ -89,14 +89,28 @@ public final class Robot implements Loopable {
     }
 
     /**
-     * Registers something to tick after everything registered so far. A subsystem is also given
-     * somewhere to print and initialised.
+     * Registers a subsystem to tick after everything registered so far, and gives it somewhere to
+     * print. Being initialised here is what makes it one, so there is no way to register a
+     * subsystem and forget to.
      */
-    public <T extends Loopable> T add(T loopable) {
-        loop.add(loopable);
+    public <T extends SubSystem> T add(T subSystem) {
+        loop.add(subSystem);
+        subSystem.init(telemetry);
+        return subSystem;
+    }
+
+    /**
+     * Registers something that is not a subsystem -- an op mode's own plan runner -- to tick after
+     * everything registered so far. It has nothing to set up and nowhere to print, which is what
+     * makes it not one; a subsystem offered here is refused rather than left uninitialised, since
+     * what that costs is a null telemetry in the middle of a match.
+     */
+    public <T extends Loopable> T alsoTick(T loopable) {
         if (loopable instanceof SubSystem) {
-            ((SubSystem) loopable).init(telemetry);
+            throw new IllegalArgumentException(loopable.getClass().getSimpleName()
+                    + " is a subsystem: add() it, so it is given somewhere to print");
         }
+        loop.add(loopable);
         return loopable;
     }
 

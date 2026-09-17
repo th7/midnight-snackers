@@ -6,6 +6,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
@@ -55,9 +56,14 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         robot = new Robot(hardware, alliance, telemetry, gamepad1, gamepad2);
     }
 
-    /** Registers something to tick after everything registered so far; see {@link Robot#add}. */
-    protected <T extends Loopable> T add(T loopable) {
-        return robot.add(loopable);
+    /** Registers a subsystem to tick after everything registered so far; see {@link Robot#add}. */
+    protected <T extends SubSystem> T add(T subSystem) {
+        return robot.add(subSystem);
+    }
+
+    /** Registers a non-subsystem to tick after everything so far; see {@link Robot#alsoTick}. */
+    protected <T extends Loopable> T alsoTick(T loopable) {
+        return robot.alsoTick(loopable);
     }
 
     /** Where a person finds this op mode's code: its class, unless a subclass knows better. */

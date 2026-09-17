@@ -15,7 +15,7 @@ public abstract class AutoOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        planRunner = add(new PlanRunner());
+        planRunner = alsoTick(new PlanRunner());
         planRunner.run(getPlan());
     }
 

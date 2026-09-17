@@ -33,7 +33,7 @@ public class Launcher extends SubSystem {
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
     private double bottomGateWaitSeconds = BOTTOM_GATE_WAIT_SECONDS;
-    private final PlanRunner planRunner = add(new PlanRunner());
+    private final PlanRunner planRunner = new PlanRunner();
 
     public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier clock) {
         this.clock = clock;
@@ -56,6 +56,7 @@ public class Launcher extends SubSystem {
 
     @Override
     protected void onLoop() {
+        planRunner.loop();
         launcher.setVelocity(launcherVelocity);
         topGate.setPosition(topGatePosition);
         bottomGate.setPosition(bottomGatePosition);

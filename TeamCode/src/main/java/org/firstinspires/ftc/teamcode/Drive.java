@@ -86,11 +86,14 @@ public class Drive extends SubSystem {
      */
     @Override
     protected void onInit() {
-        driveRunner = add(new DriveRunner(dashboard, localizer::pose));
+        driveRunner = new DriveRunner(dashboard, localizer::pose);
     }
 
+    /** The drive runner is the drive's, so the drive ticks it: this is what Drive does each loop. */
     @Override
-    protected void onLoop() {}
+    protected void onLoop() {
+        driveRunner.loop();
+    }
 
     /**
      * Drives at these powers, -1 to 1 each, this loop. Nothing happens while an action is being

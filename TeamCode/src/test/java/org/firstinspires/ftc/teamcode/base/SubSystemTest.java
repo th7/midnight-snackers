@@ -14,11 +14,9 @@ public class SubSystemTest {
     private final List<String> ticks = new ArrayList<>();
     private final FakeTelemetry fakeTelemetry = new FakeTelemetry();
 
-    /** A subsystem with one registered helper, the way Launcher owns a PlanRunner. */
-    private class WithHelper extends SubSystem {
-        final Loopable helper = add(() -> ticks.add("helper"));
-
-        WithHelper() {
+    /** A subsystem that records when each of its three hooks runs. */
+    private class Recording extends SubSystem {
+        Recording() {
             telemetry = fakeTelemetry;
         }
 
@@ -39,25 +37,8 @@ public class SubSystemTest {
     }
 
     @Test
-    public void ticksRegisteredHelpersBeforeItsOwnWork() {
-        new WithHelper().loop();
-
-        assertEquals(List.of("helper", "onLoop"), ticks);
-    }
-
-    @Test
-    public void ticksHelpersOnEveryLoop() {
-        WithHelper subSystem = new WithHelper();
-
-        subSystem.loop();
-        subSystem.loop();
-
-        assertEquals(List.of("helper", "onLoop", "helper", "onLoop"), ticks);
-    }
-
-    @Test
     public void setsUpItsHardwareWhenItIsInitialised() {
-        new WithHelper().init(new FakeTelemetry());
+        new Recording().init(new FakeTelemetry());
 
         assertEquals(List.of("onInit"), ticks);
     }
@@ -65,44 +46,44 @@ public class SubSystemTest {
     /** Telemetry costs a loop time and a crowded screen, so a subsystem prints only when asked. */
     @Test
     public void printsNoTelemetryUntilItIsToggledOn() {
-        WithHelper subSystem = new WithHelper();
+        Recording subSystem = new Recording();
 
         subSystem.loop();
 
-        assertEquals(List.of("helper", "onLoop"), ticks);
+        assertEquals(List.of("onLoop"), ticks);
     }
 
     @Test
     public void printsItsTelemetryAfterItsOwnWorkOnceToggledOn() {
-        WithHelper subSystem = new WithHelper();
+        Recording subSystem = new Recording();
 
         subSystem.toggleTelemetry();
         subSystem.loop();
 
-        assertEquals(List.of("helper", "onLoop", "onTelemetry"), ticks);
+        assertEquals(List.of("onLoop", "onTelemetry"), ticks);
     }
 
     @Test
     public void stopsPrintingWhenToggledBackOff() {
-        WithHelper subSystem = new WithHelper();
+        Recording subSystem = new Recording();
 
         subSystem.toggleTelemetry();
         subSystem.loop();
         subSystem.toggleTelemetry();
         subSystem.loop();
 
-        assertEquals(List.of("helper", "onLoop", "onTelemetry", "helper", "onLoop"), ticks);
+        assertEquals(List.of("onLoop", "onTelemetry", "onLoop"), ticks);
     }
 
     /** So the screen says whose numbers these are, without every subsystem remembering to. */
     @Test
     public void saysWhichSubsystemIsPrinting() {
-        WithHelper subSystem = new WithHelper();
+        Recording subSystem = new Recording();
 
         subSystem.toggleTelemetry();
         subSystem.loop();
 
-        assertEquals(List.of("WithHelper"), fakeTelemetry.captions);
+        assertEquals(List.of("Recording"), fakeTelemetry.captions);
     }
 
     /**
