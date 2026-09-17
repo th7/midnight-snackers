@@ -61,11 +61,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         return robot.add(subSystem);
     }
 
-    /** Registers a non-subsystem to tick after everything so far; see {@link Robot#alsoTick}. */
-    protected <T extends Loopable> T alsoTick(T loopable) {
-        return robot.alsoTick(loopable);
-    }
-
     /** Where a person finds this op mode's code: its class, unless a subclass knows better. */
     public String where() {
         return getClass().getName();

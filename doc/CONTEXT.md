@@ -21,21 +21,28 @@ asks of every one of them: what it sets up, what it does each tick, and what
 it prints when a driver asks to see it. An empty body is a fine answer;
 leaving one out is not an option, so nothing is forgotten by silence.
 
-Anything a subsystem owns and must tick — a plan runner, a drive runner —
-it ticks itself, on the first line of its own `onLoop`. Registering helpers
-to be ticked automatically read tidily and cost more than it saved: the one
-method that is supposed to say what a subsystem does each tick stopped
-saying it, and `Drive`, which follows a trajectory every loop, had an empty
-`onLoop`. Three subsystems own one helper each; three lines say so.
+**Whoever owns it, ticks it.** Anything that must be ticked is ticked by
+whatever it belongs to, on the first line of that thing's own loop: a
+subsystem's plan runner or drive runner in its `onLoop`, an auto's plan
+runner in the auto's. Registering them to be ticked by somebody else read
+tidily and cost more than it saved. The method that is supposed to say what
+a thing does each tick stopped saying it — `Drive`, which follows a
+trajectory every loop, had an empty `onLoop` — and the robot ended up
+ticking an op mode's plan runner, which meant the robot had to accept
+something that was not a subsystem and then ask which it had been given.
 
-The **Robot** owns the order, which is the list in its constructor, and
-owns calling `init` and `loop` on each. It has two doors and javac picks:
-`add` takes a subsystem, ticks it and gives it somewhere to print, so a
-registered subsystem cannot be an uninitialised one; `alsoTick` takes
-something that is not a subsystem, which is how an auto registers its own
-plan runner, and refuses a subsystem rather than leaving it with a null
-telemetry to find in the middle of a match. Classes: `SubSystem`;
-`Robot.add`; `Robot.alsoTick`.
+So the chain is plain the whole way down: an op mode's `init` builds the
+**Robot**, which builds its subsystems and initialises each; an op mode's
+`loop` ticks the robot, which ticks its subsystems in order, and then its
+own `onLoop`, which is where anything the op mode owns is ticked. `loop` is
+final at both levels, so the order is not a subclass's to rearrange, and an
+auto's plan advancing after every subsystem is the shape of it rather than
+a position in a list.
+
+The **Robot** ticks subsystems and nothing else, so it has one door:
+`add` registers a subsystem, ticks it and gives it somewhere to print.
+Registering one and initialising it are the same act and neither can happen
+without the other. Classes: `SubSystem`; `Robot.add`.
 
 **Handed, not fetched** — A subsystem is given what it needs when it is
 built and reaches for nothing else; the only thing it is handed afterwards

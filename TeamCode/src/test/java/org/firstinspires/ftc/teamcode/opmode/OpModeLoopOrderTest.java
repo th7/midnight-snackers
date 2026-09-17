@@ -11,8 +11,9 @@ import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
+import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
@@ -36,13 +37,19 @@ public class OpModeLoopOrderTest {
     }
 
     private static class TestAuto extends AutoOp {
+        final List<String> planTicks = new ArrayList<>();
+
         TestAuto() {
             super(Alliance.RELATIVE);
         }
 
+        /** A plan that never finishes, so every tick of it is counted. */
         @Override
         public PlanPart getPlan() {
-            return robot.plans.driveForward();
+            return new Plan(new Step("count", () -> {}, () -> {
+                planTicks.add("tick");
+                return false;
+            }));
         }
     }
 
@@ -135,14 +142,25 @@ public class OpModeLoopOrderTest {
         assertEquals(1, ((FakeTelemetry) sim.dashboard.telemetry()).updates);
     }
 
+    /**
+     * An auto's plan runner is the auto's own, so the auto ticks it, once a loop. That this
+     * happens after every subsystem is now the shape rather than a list position: it runs in
+     * {@code onLoop}, and {@link OpMode#loop()} is final and runs that after the robot.
+     *
+     * <p>It used to be registered on the robot, which is what forced {@code Robot.add} to accept
+     * something that was not a subsystem, and the robot to ask which it had been given.
+     */
     @Test
-    public void autoOpTicksItsPlanAfterEverySubsystem() {
+    public void anAutoTicksItsOwnPlanOncePerLoopAfterEverySubsystem() {
         TestAuto opMode = initialised(new TestAuto());
-
         List<Loopable> order = opMode.loopOrder();
+        assertEquals("the robot ticks subsystems and nothing else", opMode.robot.plans, order.get(order.size() - 1));
+        assertEquals(opMode.robot.brain, order.get(order.size() - 2));
+        assertEquals("not ticked before the op mode loops", List.of(), opMode.planTicks);
 
-        assertEquals(opMode.robot.brain, order.get(order.size() - 3));
-        assertEquals(opMode.robot.plans, order.get(order.size() - 2));
-        assertTrue(order.get(order.size() - 1) instanceof PlanRunner);
+        opMode.loop();
+        opMode.loop();
+
+        assertEquals(List.of("tick", "tick"), opMode.planTicks);
     }
 }

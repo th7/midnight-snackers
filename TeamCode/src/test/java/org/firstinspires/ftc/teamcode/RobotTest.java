@@ -4,15 +4,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
@@ -123,30 +120,6 @@ public class RobotTest {
 
         assertSame(robot.nav, coordinator.navSeen);
         assertSame(robot.brain, coordinator.brainSeen);
-    }
-
-    @Test
-    public void somethingThatIsNotASubsystemJoinsTheLoopAfterTheSubsystems() {
-        List<String> ticks = new ArrayList<>();
-        Loopable alsoTicked = robot.alsoTick(() -> ticks.add("helper"));
-
-        robot.loop();
-
-        assertSame(alsoTicked, robot.loopOrder().get(robot.loopOrder().size() - 1));
-        assertEquals(List.of("helper"), ticks);
-    }
-
-    /**
-     * A subsystem registered through the door that does not initialise would run a whole match
-     * with a null telemetry, and find out the first time a driver asked to see it. Refused at the
-     * moment the robot is built instead.
-     */
-    @Test
-    public void aSubsystemOfferedToAlsoTickIsRefusedRatherThanLeftUninitialised() {
-        IllegalArgumentException refused = assertThrows(
-                IllegalArgumentException.class, () -> robot.alsoTick(new Coordinator(robot.nav, robot.brain)));
-
-        assertTrue(refused.getMessage(), refused.getMessage().contains("add()"));
     }
 
     @Test

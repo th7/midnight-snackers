@@ -15,12 +15,17 @@ public abstract class AutoOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        planRunner = alsoTick(new PlanRunner());
+        planRunner = new PlanRunner();
         planRunner.run(getPlan());
     }
 
+    /**
+     * The plan runner is the auto's own, so the auto ticks it. {@link OpMode#loop()} runs this
+     * after the robot, so the plan advances once every subsystem has, by construction.
+     */
     @Override
     protected void onLoop() {
+        planRunner.loop();
         telemetry.addData("Current Step:", planRunner.currentStep());
     }
 
