@@ -10,6 +10,15 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher extends SubSystem {
+    /**
+     * How long a launch holds the bottom gate open, in seconds: long enough for the chambered ball
+     * to drop into the flywheel. The driver tunes it from gamepad 2 while the robot is on the
+     * field, so it is one number the launch plan reads rather than a literal in a step.
+     */
+    public static final double BOTTOM_GATE_WAIT_SECONDS = 0.15;
+    /** What one press of the driver's bumper moves {@link #BOTTOM_GATE_WAIT_SECONDS} by. */
+    public static final double BOTTOM_GATE_WAIT_STEP_SECONDS = 0.01;
+
     private final LongSupplier clock;
 
     private final double topGateOpenPosition = 1;
@@ -23,7 +32,7 @@ public class Launcher extends SubSystem {
     private double topGatePosition = topGateOpenPosition;
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
-    private double bottomGateWaitTime = 0.45;
+    private double bottomGateWaitSeconds = BOTTOM_GATE_WAIT_SECONDS;
     private final PlanRunner planRunner = add(new PlanRunner());
 
     public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier clock) {
@@ -63,7 +72,7 @@ public class Launcher extends SubSystem {
                 ensureFlywheelReady(),
                 launchCloseTopGate(),
                 launchOpenBottomGate(),
-                Step.waitFor("ball to fall into launcher", 0.15, clock),
+                Step.waitFor("ball to fall into launcher", bottomGateWaitSeconds, clock),
                 launchCloseBottomGate(),
                 launchOpenTopGate(),
                 Step.waitFor("ball to fall into bottom position", 0.15, clock));
@@ -148,12 +157,19 @@ public class Launcher extends SubSystem {
         launcherVelocity = closeLauncherPower;
     }
 
+    /** Holds the bottom gate open a little longer on the next launch. */
     public void increaseBottomGateWaitTime() {
-        bottomGateWaitTime = bottomGateWaitTime + 0.0001;
+        bottomGateWaitSeconds = bottomGateWaitSeconds + BOTTOM_GATE_WAIT_STEP_SECONDS;
     }
 
+    /** Holds it open a little less; never below nothing, which would close it the loop it opened. */
     public void decreaseBottomGateWaitTime() {
-        bottomGateWaitTime = bottomGateWaitTime - 0.0001;
+        bottomGateWaitSeconds = Math.max(0, bottomGateWaitSeconds - BOTTOM_GATE_WAIT_STEP_SECONDS);
+    }
+
+    /** How long the next launch holds the bottom gate open, in seconds. */
+    public double bottomGateWaitSeconds() {
+        return bottomGateWaitSeconds;
     }
 
     @Override
@@ -165,7 +181,7 @@ public class Launcher extends SubSystem {
         telemetry.addData("launcherVelocityActual", launcher.getVelocity());
         telemetry.addData("topGatePosition", topGatePosition);
         telemetry.addData("bottomGatePosition", bottomGatePosition);
-        telemetry.addData("bottomGateWaitTime", bottomGateWaitTime);
+        telemetry.addData("bottomGateWaitSeconds", bottomGateWaitSeconds);
     }
 
     public boolean launchDone() {

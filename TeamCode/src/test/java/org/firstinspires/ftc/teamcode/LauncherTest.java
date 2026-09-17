@@ -54,6 +54,62 @@ public class LauncherTest {
         assertEquals(TOP_GATE_CLOSED, sim.topGate.position, DELTA);
     }
 
+    /**
+     * How long one launch holds the bottom gate open, on the simulated clock: the wait the driver
+     * tunes from gamepad 2.
+     */
+    private double secondsWithTheBottomGateOpen() {
+        sim.launcher.measuredVelocity = CLOSE_LAUNCH_VELOCITY;
+        launcher.launchyLaunch();
+        Double openedAt = null;
+        Double closedAt = null;
+        for (int loops = 0; !launcher.launchDone() && loops < 4000; loops++) {
+            launcher.loop();
+            boolean open = sim.bottomGate.position > BOTTOM_GATE_CLOSED + DELTA;
+            if (open && openedAt == null) {
+                openedAt = sim.nanoTime() / 1e9;
+            } else if (!open && openedAt != null && closedAt == null) {
+                closedAt = sim.nanoTime() / 1e9;
+            }
+            sim.step(0.005);
+        }
+        if (openedAt == null || closedAt == null) {
+            throw new AssertionError("the launch never opened and closed the bottom gate");
+        }
+        return closedAt - openedAt;
+    }
+
+    /** Left alone, the launch waits what it has always waited. */
+    @Test
+    public void theBottomGateWaitStartsAtWhatTheLaunchHasAlwaysWaited() {
+        assertEquals(0.15, launcher.bottomGateWaitSeconds(), DELTA);
+    }
+
+    /**
+     * The driver's gamepad-2 bumpers tune that wait: they moved a number the launch never read,
+     * so a driver tuning at the field watched the telemetry change and the robot not.
+     */
+    @Test
+    public void tuningTheBottomGateWaitChangesHowLongTheLaunchHoldsItOpen() {
+        double before = secondsWithTheBottomGateOpen();
+
+        for (int presses = 0; presses < 10; presses++) {
+            launcher.increaseBottomGateWaitTime();
+        }
+
+        assertEquals(before + 10 * Launcher.BOTTOM_GATE_WAIT_STEP_SECONDS, secondsWithTheBottomGateOpen(), 0.01);
+    }
+
+    /** A wait cannot be tuned below nothing: the gate would close in the same loop it opened. */
+    @Test
+    public void theBottomGateWaitStopsAtZero() {
+        for (int presses = 0; presses < 1000; presses++) {
+            launcher.decreaseBottomGateWaitTime();
+        }
+
+        assertEquals(0, launcher.bottomGateWaitSeconds(), DELTA);
+    }
+
     /** The launch's timed steps run on the robot's clock, which is the simulation's. */
     @Test
     public void launchRunsToCompletionOnTheSimulatedClockAndParksTheGates() {
