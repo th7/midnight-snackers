@@ -1270,16 +1270,24 @@ public final class CodingServer {
                 user.addProperty("branch", worktree == null ? null : worktree.branch);
                 JsonElement status = JsonNull.INSTANCE;
                 String statusError = null;
+                // Whether a delete would be refused is the server's judgement, and the same one the
+                // delete itself makes, so the page is told rather than working it out from the
+                // status: that reads a different thing, and the two disagree once the worktree
+                // directory has gone. A user git cannot be read for is not deletable, since what
+                // the delete would throw away is exactly what could not be counted.
+                boolean deletable = worktree == null;
                 if (worktree != null) {
                     // git is asked once per user, however many logins they have
                     try {
                         status = statusJson(worktrees.status(session.username));
+                        deletable = worktrees.unsaved(session.username).none();
                     } catch (Worktrees.GitFailed e) {
                         statusError = e.getMessage();
                     }
                 }
                 user.add("status", status);
                 user.addProperty("statusError", statusError);
+                user.addProperty("deletable", deletable);
                 user.add("lastMerge", lastMergeByUsername.get(session.username));
                 user.add("sessions", new JsonArray());
                 byUsername.put(session.username, user);

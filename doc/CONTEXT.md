@@ -171,7 +171,11 @@ user's rather than any one session's is said once, on the user — the
 worktree, its branch, its **status** (the same changed, ahead and behind
 that `GET /git/status` gives the user; null until the worktree exists, and
 null with a **statusError** when git cannot read it, so one broken worktree
-does not blank the list), how their last pull or push ended, and Pull and
+does not blank the list), whether they are **deletable** (whether a
+**delete** would go through rather than be refused — said by the server,
+since the server is what enforces it, and false for a user git cannot be
+read for, because what a delete would throw away is exactly what could not
+be counted), how their last pull or push ended, and Pull and
 Delete buttons. Logging in again adds a session to the user, never a
 second row; a **delete** takes the row away, and a login after that is a
 new row for the same branch.

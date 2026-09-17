@@ -311,8 +311,8 @@
     var pending = pendingCount(user);
     var expanded = isExpanded(user);
     var armed = deleteArmedByUsername[user.username];
-    if (armed && user.status && !user.status.changed.length && !user.status.ahead) {
-      // what the server refused over has since been pushed: the loaded button is taken back
+    if (armed && user.deletable) {
+      // the server says a delete would no longer be refused: the loaded button is taken back
       delete deleteArmedByUsername[user.username];
       armed = false;
       if (resultByUsername[user.username] && resultByUsername[user.username].from === 'delete') {
