@@ -377,7 +377,9 @@ message is refused. `GET /git/status` reports the uncommitted files
 (**changed**), the commits the branch has that `develop` lacks
 (**ahead**), the commits `develop` has that the branch lacks
 (**behind**), and the branch's tip (**head**), which moves on a commit
-and on any pull or push, whoever asked for it.
+and on any pull or push, whoever asked for it. It also says whether a
+**push** would land the user's work (**pushable**), which is what the Push
+button is offered by.
 
 **Formatter** — palantir-java-format, run in the server's own process over
 one file's text: imports ordered, the unused ones removed, then the text
@@ -403,6 +405,12 @@ merge runs there so that working tree shows the pushed work; git refuses,
 changing nothing, if an uncommitted edit there would be overwritten.
 Checked out nowhere, only the branch moves. It needs a clean worktree
 (commit first) and refuses, changing nothing, on a **merge conflict**.
+A clean worktree with a commit `develop` lacks is **pushable**: the same
+question the push asks before it merges anything, asked in `GET
+/git/status` so the Push button is offered for exactly the presses that go
+somewhere — said by the server, since the server is what enforces it, as
+with **deletable**. A conflict counts as pushable: the press is how the
+user is sent to their coach.
 Then `develop` is pushed to the remote named `origin`, when there is
 one, whether or not anything was merged, so origin is current whenever
 the network allows; nothing is sent when origin already has it. A remote

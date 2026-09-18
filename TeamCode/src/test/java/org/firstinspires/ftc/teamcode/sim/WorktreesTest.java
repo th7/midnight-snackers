@@ -677,6 +677,9 @@ public class WorktreesTest {
         assertEquals("", GitFixture.git(root, "status", "--porcelain"));
         assertEquals(mine, GitFixture.head(ada.path));
         assertEquals("", GitFixture.git(ada.path, "status", "--porcelain"));
+        assertTrue(
+                "a conflict is worth pressing Push for: pressing it is how the user is sent to their coach",
+                worktrees.status("ada").pushable());
     }
 
     @Test
@@ -693,6 +696,48 @@ public class WorktreesTest {
         assertEquals(Worktrees.Outcome.UNCOMMITTED, refused.outcome);
         assertEquals("[Mine.java]", refused.files.toString());
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
+    }
+
+    /**
+     * What the status offers against what a push then does, on the one state: {@code pushable} is
+     * true exactly when pressing Push would take the user's work somewhere, and false for the two
+     * outcomes that are nothing but a refusal to the user — nothing to land, and work to commit
+     * first — which must also leave {@code develop} where it was.
+     */
+    private void pushDoesWhatTheStatusOffered(Worktrees worktrees, String username, Worktrees.Outcome expected)
+            throws IOException {
+        boolean offered = worktrees.status(username).pushable();
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Worktrees.Merge merge = worktrees.push(username);
+
+        assertEquals(expected, merge.outcome);
+        boolean worthPressing =
+                merge.outcome != Worktrees.Outcome.NOTHING && merge.outcome != Worktrees.Outcome.UNCOMMITTED;
+        assertEquals("pushable said " + offered + " and the push was " + merge.outcome, worthPressing, offered);
+        if (!worthPressing) {
+            assertEquals("a push that was only refused moved develop", develop, GitFixture.commitOf(root, "develop"));
+        }
+    }
+
+    @Test
+    public void pushableIsTrueExactlyWhenPressingPushWouldNotJustBeRefused() throws IOException {
+        Worktrees worktrees = worktrees();
+        Worktrees.Worktree ada = worktrees.ensure("ada");
+
+        pushDoesWhatTheStatusOffered(worktrees, "ada", Worktrees.Outcome.NOTHING);
+
+        Files.write(ada.path.resolve("Mine.java"), "class Mine {}\n".getBytes(StandardCharsets.UTF_8));
+        pushDoesWhatTheStatusOffered(worktrees, "ada", Worktrees.Outcome.UNCOMMITTED);
+
+        worktrees.commit("ada", "mine");
+        Files.write(ada.path.resolve("Other.java"), "class Other {}\n".getBytes(StandardCharsets.UTF_8));
+        // a commit to land and an edit in the way: what a user has as soon as they type after committing
+        pushDoesWhatTheStatusOffered(worktrees, "ada", Worktrees.Outcome.UNCOMMITTED);
+
+        worktrees.commit("ada", "other");
+        pushDoesWhatTheStatusOffered(worktrees, "ada", Worktrees.Outcome.MERGED);
+        pushDoesWhatTheStatusOffered(worktrees, "ada", Worktrees.Outcome.NOTHING);
     }
 
     @Test

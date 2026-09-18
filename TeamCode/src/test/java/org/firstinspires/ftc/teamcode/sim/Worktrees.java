@@ -97,6 +97,17 @@ public final class Worktrees {
             this.behind = behind;
             this.head = head;
         }
+
+        /**
+         * Whether pressing Push would take the user's work somewhere: a clean worktree, since a
+         * push cannot carry what is uncommitted, and a commit {@code develop} lacks to carry. The
+         * question {@link Worktrees#push} itself asks before it merges anything, so a page that
+         * offers the button by this cannot offer what the push will only refuse. A merge conflict
+         * is not part of it: the push finds that, and being sent to the coach is worth the press.
+         */
+        public boolean pushable() {
+            return changed.isEmpty() && ahead > 0;
+        }
     }
 
     /** What a user has that {@code develop} does not: what removing their worktree would throw away. */
@@ -463,18 +474,22 @@ public final class Worktrees {
      * to {@link #REMOTE} when there is one, whether or not anything was merged, so the remote
      * is current whenever the network allows; a remote push that fails leaves the local merge
      * in place and is reported, never forced.
+     * <p>
+     * Uncommitted work is refused (commit first) and a branch {@code develop} already has is
+     * nothing to land: the two the button is not offered for, so they are asked here as
+     * {@link Status#pushable} asks them and the offer cannot outrun what the push does.
      *
      * @return {@link Outcome#MERGED} with a {@code detail} when the push landed but the
      *         worktree could not be fast-forwarded, which a commit and a pull will heal
      */
     public synchronized Merge push(String username) {
         Worktree worktree = ensure(username);
-        List<String> changed = changedFiles(worktree);
-        if (!changed.isEmpty()) {
-            return new Merge(Outcome.UNCOMMITTED, changed, null);
-        }
-        if (isAncestor(worktree.branch, DEVELOP)) {
-            return new Merge(Outcome.NOTHING, List.of(), null, pushDevelop());
+        // the two refusals the Push button is not offered for, asked as the button asks them
+        Status status = status(username);
+        if (!status.pushable()) {
+            return status.changed.isEmpty()
+                    ? new Merge(Outcome.NOTHING, List.of(), null, pushDevelop())
+                    : new Merge(Outcome.UNCOMMITTED, status.changed, null);
         }
         MergeTree tree = mergeTree(DEVELOP, worktree.branch);
         if (!tree.conflicts.isEmpty()) {
