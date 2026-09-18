@@ -991,6 +991,11 @@ public final class CodingServer {
         body.addProperty("ahead", status.ahead);
         body.addProperty("behind", status.behind);
         body.addProperty("head", status.head);
+        // Whether a push would land is the server's judgement, and the same one the push itself
+        // makes, so the page is told rather than working it out from the counts: it would have to
+        // write the rule a second time, and a Push button offered over uncommitted work is a
+        // button whose only answer is no.
+        body.addProperty("pushable", status.pushable());
         return body;
     }
 

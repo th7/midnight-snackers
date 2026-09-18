@@ -619,8 +619,11 @@
       behind = status.behind;
       pullButton.classList.toggle('behind', behind > 0);
       pullButton.disabled = busy;
-      pushButton.disabled = busy || (!status.ahead && !n);
-      pushButton.title = status.ahead ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push' : 'Land your commits on develop';
+      // the host says whether a push would land, since it is the host that decides; the words are this page's
+      pushButton.disabled = busy || !status.pushable;
+      pushButton.title = status.pushable
+        ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push'
+        : (n ? 'commit before you push' : 'nothing to push: develop has your work');
       var badge = pullButton.querySelector('.badge');
       if (behind > 0) {
         if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; pullButton.appendChild(badge); }

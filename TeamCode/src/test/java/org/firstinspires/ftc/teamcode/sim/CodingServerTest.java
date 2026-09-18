@@ -2197,12 +2197,46 @@ public class CodingServerTest {
         assertTrue(logins, logins.contains("Plans.java"));
     }
 
+    /** The status's {@code pushable}, for a user whose cookie this is. */
+    private boolean pushable(String cookie) throws IOException {
+        return json(user("GET", "/git/status", cookie).body).get("pushable").getAsBoolean();
+    }
+
+    @Test
+    public void gitStatusSaysWhetherAPushWouldLandAndThePushRouteAgrees() throws IOException {
+        String cookie = savedEditor(plans("mine"));
+
+        assertFalse("an uncommitted edit is not something a push can take", pushable(cookie));
+        assertEquals(409, user("POST", "/git/push", cookie).status);
+
+        assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
+        assertTrue("a commit develop lacks, and nothing in the way", pushable(cookie));
+
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
+        assertEquals(200, user("PUT", "/files/TeamCode/Plans.java", cookie, edit(plans("typing"), version)).status);
+
+        assertFalse("typing after a commit puts the edit back in the way", pushable(cookie));
+        assertEquals(
+                1, json(user("GET", "/git/status", cookie).body).get("ahead").getAsInt());
+        assertEquals("and a push would still only be refused", 409, user("POST", "/git/push", cookie).status);
+
+        assertEquals(200, user("POST", "/git/commit", cookie, message("typing")).status);
+        assertEquals(200, user("POST", "/git/push", cookie).status);
+
+        assertFalse("everything is on develop now", pushable(cookie));
+    }
+
     @Test
     public void theEditTabHasAPushButton() throws IOException {
         String page = user("GET", "/", approvedUser("ada")).body;
 
         assertTrue(page, page.contains("id=\"push\""));
         assertTrue(page, page.contains("'/git/push'"));
+        assertTrue(
+                "whether a push would land is the server's judgement, and the page wears it",
+                page.contains("status.pushable"));
     }
 
     // --- push reaches origin ---
