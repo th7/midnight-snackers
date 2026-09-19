@@ -8,15 +8,30 @@ is ever written down.
 
 Most of what the field document holds is public and needs no keys at all -- its metadata, its
 element listing, its BOM and its blobs (the panel graphic, the April Tag images). Only geometry
-is authenticated. So a call here asks for keys when it needs them and not before, and when it
-needs them and has none it raises: a pipeline that quietly regenerated nothing would leave
-yesterday's assets in place and look like it had worked.
+is authenticated.
 
-Keys come from the environment, never from a file in the repository:
+There are two ways a request here comes to be signed, and the difference is where the secret
+lives rather than what reaches Onshape.
+
+Under my-agent, an egress proxy signs `cad.onshape.com` on the way out. The container holds no
+keys and needs none, and because the signature covers the path and query of the request the
+proxy finally sends, a signature computed in here would not match: so the request goes bare, and
+Authorization, Date and On-Nonce are the proxy's to set. This module will not set them when it
+has no keys of its own.
+
+Away from the proxy -- a teammate's laptop -- the key pair is in the environment and this signs
+for itself. Keys come from the environment, never from a file in the repository:
 
     export ONSHAPE_ACCESS_KEY=...   # from dev-portal.onshape.com
     export ONSHAPE_SECRET_KEY=...
-    python3 onshape.py --check      # one signed call, to see that Onshape accepts the signature
+
+Either way:
+
+    python3 onshape.py --check      # one call, to see that Onshape answers it
+
+A client is built whichever is true, because which one is in force cannot be told from in here:
+an empty environment means the proxy is signing, or that nothing is. Onshape settles it, and a
+refusal says both things it could be rather than sending someone hunting for the wrong one.
 
 No dependencies beyond Python 3.
 """
@@ -29,6 +44,9 @@ import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+
+# The one call that reaches the network, named here so a test can stand in for Onshape.
+urlopen = urllib.request.urlopen
 
 BASE = 'https://cad.onshape.com'
 ACCESS_KEY_VARIABLE = 'ONSHAPE_ACCESS_KEY'
@@ -112,6 +130,15 @@ def credentials():
     return values[ACCESS_KEY_VARIABLE], values[SECRET_KEY_VARIABLE]
 
 
+def optional_credentials():
+    """The key pair if this machine has one, or (None, None) if it does not. Half a pair is no
+    pair: signing with a blank secret would fail at Onshape as a puzzling 401 rather than here."""
+    try:
+        return credentials()
+    except NoCredentials:
+        return None, None
+
+
 class Client:
     """A caller for one Onshape server. Built without a key pair it can still reach everything
     public; `authenticated()` is how a caller that needs geometry insists on one."""
@@ -123,8 +150,22 @@ class Client:
 
     @classmethod
     def authenticated(cls, base=BASE):
-        """A client with keys from the environment, or NoCredentials."""
+        """A client with keys from the environment, or NoCredentials. For a caller that must sign
+        for itself; most callers want `configured`."""
         access, secret = credentials()
+        return cls(access=access, secret=secret, base=base)
+
+    @classmethod
+    def configured(cls, base=BASE):
+        """However this machine reaches Onshape.
+
+        With a key pair in the environment the client signs for itself, which is how a teammate
+        works away from my-agent. Without one it sends the request bare, because an egress proxy
+        may be signing on the way out -- and where it is, this container holds no keys and needs
+        none. Refusing to build a client here would stop a run that would have worked; whether
+        anything authenticated the request is Onshape's to say, and `get` reports its answer.
+        """
+        access, secret = optional_credentials()
         return cls(access=access, secret=secret, base=base)
 
     @property
@@ -142,23 +183,35 @@ class Client:
         sent['Accept'] = accept
         request = urllib.request.Request(self.base + url, headers=sent, method='GET')
         try:
-            with urllib.request.urlopen(request) as response:
+            with urlopen(request) as response:
                 return response.read()
         except urllib.error.HTTPError as error:
             body = error.read().decode('utf-8', 'replace')[:400]
-            if error.code in (401, 403) and not self.signed:
-                raise NoCredentials(
-                    'Onshape refused an unsigned request for ' + path + ' (' + str(error.code)
-                    + '). This part of the document is not public; export the key pair. ' + body
-                ) from None
+            if error.code in (401, 403):
+                raise NoCredentials(self._refusal(path, error.code, body)) from None
             raise RuntimeError('Onshape ' + str(error.code) + ' for ' + path + ': ' + body) from None
+
+    def _refusal(self, path, code, body):
+        """What to do about a 401, which depends on who was supposed to have signed. Sending
+        someone hunting for environment variables when the answer is that the proxy's onshape
+        service is switched off would cost an afternoon."""
+        if self.signed:
+            return ('Onshape refused the signed request for ' + path + ' (' + str(code)
+                    + '): the key pair was refused -- revoked, deleted, or scoped away from this '
+                    'document. Make a new one and set ' + ACCESS_KEY_VARIABLE + ' and '
+                    + SECRET_KEY_VARIABLE + '. ' + body)
+        return ('Onshape refused an unsigned request for ' + path + ' (' + str(code)
+                + ') and nothing authenticated it. Either an egress proxy is meant to be signing '
+                'cad.onshape.com on the way out and its onshape service is not switched on, or '
+                'there is no proxy here and this machine needs its own key pair in '
+                + ACCESS_KEY_VARIABLE + ' and ' + SECRET_KEY_VARIABLE + '. ' + body)
 
 
 def check(document, workspace):
-    """One signed call, to see that Onshape accepts the signature. Signing can only be proved
-    against Onshape itself: the unit tests pin the algorithm so it cannot drift, but agreeing
-    with the server is a thing only the server can say."""
-    client = Client.authenticated()
+    """One authenticated call, to see that Onshape answers it. Whoever signed -- the proxy, or
+    this module with keys from the environment -- only the server can say the signature was
+    right: the unit tests pin the algorithm so it cannot drift, and this is what proves it."""
+    client = Client.configured()
     url = '/api/v10/documents/d/' + document + '/w/' + workspace + '/currentmicroversion'
     body = client.get(url).decode('utf-8', 'replace')
     print('Onshape accepted the signature.')
