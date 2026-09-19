@@ -1014,6 +1014,30 @@ public class CodingServerTest {
     }
 
     /**
+     * The field page is reached through the bench, which the coding server mounts under /sim, so
+     * its address there is /sim/field and not /field. Held because the page finds its own model,
+     * its own assets and its own runs by links relative to wherever it was served from: served at
+     * the wrong address it would not 404, it would load and then fetch nothing.
+     */
+    @Test
+    public void theFieldPageAndItsModelAreServedUnderTheBenchsPrefix() throws IOException {
+        String cookie = approvedUser("mia");
+
+        Reply page = user("GET", "/sim/field", cookie);
+        assertEquals(200, page.status);
+        assertTrue(page.body, page.body.contains("importmap"));
+        assertTrue(
+                "the page reaches its assets by relative link: " + page.body, page.body.contains("./assets/field.glb"));
+
+        Reply model = user("GET", "/sim/model", cookie);
+        assertEquals(200, model.status);
+        assertTrue(model.body, model.body.contains("\"hives\"") && model.body.contains("\"robotIn\""));
+
+        assertEquals(
+                "and not at the root, which is the coding server's own", 404, user("GET", "/field", cookie).status);
+    }
+
+    /**
      * What a caller the server does not know may still reach, and why each one has to be reachable:
      * the page that offers the login, the login itself, and the poll the login page waits on.
      */
