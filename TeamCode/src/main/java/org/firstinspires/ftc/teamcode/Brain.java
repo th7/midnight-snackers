@@ -76,7 +76,7 @@ public class Brain implements Loopable {
     }
 
     private Step launch() {
-        return new Step("launchSlow", launcher::launchyLaunch, launcher::launchDone);
+        return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
     }
 
     private Step launchSlow() {
@@ -85,6 +85,7 @@ public class Brain implements Loopable {
 
     private void setTelemetry() {
         telemetry.addData("usingCameraLocalization", usingCameraLocalization);
+        telemetry.addData("brainStep", planRunner.currentStep());
     }
 
     public void toggleCameraLocalization() {

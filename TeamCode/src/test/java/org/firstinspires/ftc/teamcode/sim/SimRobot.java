@@ -1363,9 +1363,4 @@ public class SimRobot {
     private static double clamp(double power) {
         return Math.max(-1, Math.min(1, power));
     }
-
-    /** The bodies in the world, for a test of the model itself. */
-    List<Body> bodies() {
-        return world.getBodies();
-    }
 }

@@ -62,7 +62,9 @@ public class Nav implements Loopable {
         }
     }
 
-    private static final double LAUNCH_DISTANCE = 40;
+    /** How far short of the goal the robot launches from. Read by what checks the launch. */
+    public static final double LAUNCH_DISTANCE = 40;
+
     private static final double NEAR_INCHES = 3;
     private static final double NEAR_RADIANS = Math.PI * 2 / 60;
     /** The most a later sighting may move the robot, per axis, so one bad frame cannot teleport it. */

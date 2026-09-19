@@ -39,8 +39,9 @@ public final class Robot implements Loopable {
     public final Nav nav;
     /**
      * Road Runner's drive: the trajectories it builds and follows, and the pose history it draws.
-     * Shared by the {@link Localizer}, which moves the pose on through it, and {@link Nav}, which
-     * builds paths with it.
+     * Held by the {@link Drive}, which builds paths with it and follows them, and given the
+     * {@link Localizer} to read the pose from. Nav says where; the drive says how, and
+     * {@code NavTest.navDoesNotHoldTheDriveThatBuildsPaths} keeps it that way.
      */
     public final MecanumDrive mecanumDrive;
     /** The four wheels: the one place a power reaches a drive motor. */
