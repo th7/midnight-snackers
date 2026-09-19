@@ -125,6 +125,33 @@ two agree with each other; this says the library the browser hands it to
 accepts it, which only the other side can say. It needs node, and a missing
 node fails the run rather than skipping the check.
 
+## The camera's view
+
+`/field?run=<id>&view=camera` shows what the robot's webcam would have seen of
+the goal tags: the tags where they are, in the perspective the lens gives, and
+nothing else. The field is hidden rather than absent, so a tag still leans with
+the hive it hangs on as the run plays.
+
+    node tools/browser/frames.mjs --bench http://localhost:21986/sim --run 3 --into frames/
+
+writes one PNG per loop at the camera's own resolution. The coding server wants
+an approved session, which `--cookie` carries.
+
+Two things in it are assumed and must be measured before a pose read off these
+frames means anything. Both are written at the top of `field.html`:
+
+* **The lens.** `teamwebcamcalibrations.xml` is still the SDK's stock file --
+  every `<Camera>` block in it is commented out -- so the focal length and
+  principal point are a plausible 640x480 webcam and not this team's. A
+  detector's range and bearing scale directly with them.
+* **The tag's printed size.** The CAD gives a plate 5 in by 17 in; a 36h11
+  tag's black square is smaller than the plate, and the season manual is what
+  says by how much. The artwork is fitted to the plate keeping its own 3:1
+  shape, which is a guess at the printing rather than a measurement of the tag.
+
+Where the tags *are* is not assumed: that comes from the CAD, through the hive
+they hang on, and moves as the hive leans.
+
 ## Running the tests
 
 The scripts under `tools/` are tested by the same command locally and in CI:

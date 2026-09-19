@@ -83,6 +83,36 @@ function serve() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+/**
+ * How much of a PNG is not black. Chromium encodes the screenshot, so rather than decode it,
+ * the same browser is asked to read it back through a canvas -- which is the one image decoder
+ * certainly present and certainly agreeing with what drew it.
+ */
+async function litPixels(png) {
+  const page = await browser.newPage();
+  try {
+    return await page.evaluate(async (bytes) => {
+      const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      const data = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+      let lit = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] > 24 || data[i + 1] > 24 || data[i + 2] > 24) {
+          lit++;
+        }
+      }
+      return lit;
+    }, Array.from(png));
+  } finally {
+    await page.close();
+  }
+}
+
 const problems = [];
 const check = (ok, said) => { if (!ok) problems.push(said); };
 
@@ -283,6 +313,90 @@ try {
         `the robot ended facing ${played.last.run.robot.heading}, not the tick's 0.8`);
     check(played.last.hiveTurned, 'the blue hive did not lean, though the last tick says it did');
     check(played.last.drawn > 1000, `a run frame drew only ${played.last.drawn} triangles`);
+  }
+
+  // --- the camera's view of the tags -------------------------------------------------------
+  const camera = await (async () => {
+    const view = await browser.newPage({ viewport: { width: 640, height: 480 } });
+    const wrong = [];
+    view.on('pageerror', (e) => wrong.push(String(e && e.message ? e.message : e)));
+    try {
+      await view.goto(`${base}/field?run=1&view=camera`, { waitUntil: 'load', timeout: 60_000 });
+      await view.waitForFunction(() => window.fieldPage && window.fieldPage.camera3,
+          null, { timeout: 90_000 });
+      await view.evaluate(() => window.fieldPage.tagsReady);
+      await view.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+      // Where the lens says each tag should land, worked out from the camera matrix rather than
+      // from the picture: a tag drawn in the wrong place still looks like a tag.
+      const seen = await view.evaluate(() => {
+        const page = window.fieldPage;
+        const out = { tags: page.tags, lens: page.lens, at: [] };
+        page.scene.traverse((o) => {
+          if (!/^tag /.test(o.name || '')) {
+            return;
+          }
+          const where = new o.position.constructor();
+          o.getWorldPosition(where);
+          const ndc = where.clone().project(page.camera3);
+          out.at.push({
+            name: o.name,
+            px: (ndc.x + 1) / 2 * page.lens.width,
+            py: (1 - ndc.y) / 2 * page.lens.height,
+            inFront: ndc.z > -1 && ndc.z < 1
+          });
+        });
+        return out;
+      });
+      // Blank but for the tags: anything else left drawing is in every frame that is captured.
+      seen.strays = await view.evaluate(() => {
+        const out = [];
+        window.fieldPage.scene.traverse((o) => {
+          if (o.isMesh && o.visible && !o.userData.tag && !/^tag /.test(o.name || '')) {
+            let hidden = false;
+            for (let up = o.parent; up; up = up.parent) {
+              if (!up.visible) {
+                hidden = true;
+              }
+            }
+            if (!hidden) {
+              out.push(o.name || '(unnamed)');
+            }
+          }
+        });
+        return out;
+      });
+      const shot = await view.screenshot();
+      return { seen, shot, wrong };
+    } catch (stuck) {
+      return { seen: null, shot: null, wrong: wrong.concat(String(stuck && stuck.message)) };
+    } finally {
+      await view.close();
+    }
+  })();
+
+  check(camera.wrong.length === 0, `the camera view threw: ${camera.wrong.join('; ')}`);
+  if (camera.seen) {
+    check(camera.seen.tags.length === 4, `${camera.seen.tags.length} goal tags were made, of 4`);
+    const onScreen = camera.seen.at.filter(
+        (t) => t.inFront && t.px > 0 && t.px < camera.seen.lens.width
+            && t.py > 0 && t.py < camera.seen.lens.height);
+    check(camera.seen.strays.length === 0,
+        `the camera's view is meant to be blank but for the tags, and ${camera.seen.strays.length} `
+        + `other things are drawn in it: ${camera.seen.strays.slice(0, 4).join(', ')}`);
+    check(onScreen.length > 0,
+        'the lens has no tag in view at all from where the run puts the robot, so nothing '
+        + 'about the picture says whether the tags are where they should be');
+
+    // And the picture has to agree: a frame of pure black is what a tag drawn behind the camera,
+    // or never textured, or hidden with the field, all look like.
+    const lit = await litPixels(camera.shot);
+    check(lit > 200, `only ${lit} pixels of the camera's frame are lit; the tags are not drawn`);
+    if (onScreen.length) {
+      console.log(`  the lens sees ${onScreen.length} of 4 goal tags, `
+          + `the nearest at ${onScreen[0].px.toFixed(0)},${onScreen[0].py.toFixed(0)} px of `
+          + `${camera.seen.lens.width}x${camera.seen.lens.height}; ${lit} pixels lit`);
+    }
   }
 
   check(thrown.length === 0, `the page threw: ${thrown.join('; ')}`);

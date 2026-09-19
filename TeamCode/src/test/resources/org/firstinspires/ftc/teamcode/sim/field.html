@@ -250,22 +250,23 @@ function leanHive(hive, degrees) {
 }
 
 async function showRun() {
-  const id = new URLSearchParams(location.search).get('run');
-  if (!id || !field) {
-    return;
+  const asked = new URLSearchParams(location.search);
+  const id = asked.get('run');
+  const wantsCamera = asked.get('view') === 'camera';
+  if (!field || (!id && !wantsCamera)) {
+    return; // the field on its own, which needs nothing more than the model it has drawn
   }
   try {
-    const [modelBody, runBody] = await Promise.all([
-      fetch('model').then((r) => r.json()),
-      fetch('runs/' + encodeURIComponent(id) + '/ticks?from=0').then((r) => r.json())
-    ]);
-    model = modelBody;
-    ticks = runBody.ticks || [];
+    model = await fetch('model').then((r) => r.json());
+    if (id) {
+      const runBody = await fetch('runs/' + encodeURIComponent(id) + '/ticks?from=0').then((r) => r.json());
+      ticks = runBody.ticks || [];
+    }
   } catch (wrong) {
-    problem.textContent = 'Run ' + id + ' did not load: ' + (wrong && wrong.message);
+    problem.textContent = 'The run did not load: ' + (wrong && wrong.message);
     return;
   }
-  if (!ticks.length) {
+  if (id && !ticks.length) {
     problem.textContent = 'Run ' + id + ' has no loops to play.';
     return;
   }
@@ -301,11 +302,22 @@ async function showRun() {
 
   robot = makeRobot(model.robotIn || 18);
   scene.add(robot);
+  makeTags(new THREE.TextureLoader());
+  if (tagsPending === 0) {
+    tagsDrawable();
+  }
+  if (wantsCamera) {
+    showCameraView();
+  }
 
-  scrub.max = String(ticks.length - 1);
-  runBar.hidden = false;
-  document.title = 'Run ' + id;
-  goTo(0);
+  if (ticks.length) {
+    scrub.max = String(ticks.length - 1);
+    runBar.hidden = wantsCamera;
+    document.title = 'Run ' + id;
+    goTo(0);
+  } else {
+    aimCamera(); // no run: the lens looks from where a robot at the origin would carry it
+  }
 }
 
 /** The scene node a hive's parts hang under, which the export names for the CAD assembly. */
@@ -340,6 +352,9 @@ function tiltAt(upTo, alliance) {
 }
 
 function goTo(index) {
+  if (!ticks.length) {
+    return;
+  }
   at = Math.max(0, Math.min(index, ticks.length - 1));
   const tick = ticks[at];
 
@@ -353,7 +368,9 @@ function goTo(index) {
     }
     const to = where && where[ball.movedIndex];
     if (to) {
-      ball.mesh.visible = true;
+      // The camera's view is the tags and nothing else, and a tick that moves a ball must not
+      // put it back on screen: what is captured there is meant to be blank but for the tags.
+      ball.mesh.visible = !cameraView;
       ball.mesh.position.set(to[0], to[1], to.length > 2 ? to[2] : ball.piece.radius);
     } else if (where) {
       ball.mesh.visible = false; // taken in by the robot, or gone off the field
@@ -365,6 +382,7 @@ function goTo(index) {
     leanHive(hive, leaning === null ? hive.rest : leaning);
   }
 
+  aimCamera();
   scrub.value = String(at);
   const held = tick.held ? ', holding ' + tick.held : '';
   clock.textContent = tick.t.toFixed(2) + ' s  ·  loop ' + (at + 1) + ' of ' + ticks.length + held;
@@ -426,8 +444,194 @@ function advance() {
 renderer.setAnimationLoop(() => {
   advance();
   controls.update();
-  renderer.render(scene, camera);
+  renderer.render(scene, cameraView || camera);
 });
+
+// --- the camera's view -------------------------------------------------------------------
+// `?view=camera` shows what the robot's webcam would see of the goal tags: the tags where they
+// are, in the perspective the camera's own lens gives, and nothing else. The field is hidden
+// rather than absent, so the tags carry the hives' lean with them as the run plays.
+//
+// WHAT IS ASSUMED, AND MUST BE MEASURED BEFORE ANY OF IT IS TRUSTED FOR POSE:
+//
+//   * The lens. teamwebcamcalibrations.xml is still the SDK's stock file -- every <Camera> block
+//     in it is commented out -- so these are a plausible 640x480 webcam and not this team's. A
+//     detector's range and bearing scale directly with them. Calibrate, then put the real
+//     numbers here.
+//   * The tag's printed size. The CAD gives a plate 5 in by 17 in; a 36h11 tag's black square is
+//     smaller than the plate and the manual is what says by how much. The artwork is fitted to
+//     the plate here, preserving its own 3:1 shape, which is a guess at the printing and not a
+//     measurement of the tag.
+//
+// What is not assumed is where the tags are: that comes from the CAD, through the hive they
+// hang on, and moves as the hive leans.
+const CAMERA = {
+  width: 640,
+  height: 480,
+  fx: 622.0,
+  fy: 622.0,
+  cx: 320.0,
+  cy: 240.0,
+  // Where the webcam sits on the robot and which way it looks, from AprilTagWebcam: the FTC
+  // convention is +x right, +y forward, +z up, from the middle of the robot at floor height,
+  // and a pitch of -90 would be looking level.
+  rightIn: 0.75,
+  forwardIn: 4,
+  upIn: 16,
+  pitchDegrees: -68
+};
+
+// The four goal tags' artwork, named in full rather than built from the hive and the side: a
+// path a page assembles is a path nothing can check, and SimAssetsTest reads these back out to
+// hold each one to an asset the bench will actually serve.
+const TAG_ARTWORK = {
+  blueaudience: 'assets/textures/GoalAprilTag_blueaudience.png',
+  bluescoring: 'assets/textures/GoalAprilTag_bluescoring.png',
+  redaudience: 'assets/textures/GoalAprilTag_redaudience.png',
+  redscoring: 'assets/textures/GoalAprilTag_redscoring.png'
+};
+let tagQuads = [];
+let cameraView = null;
+// A quad with no texture yet draws white, which is a tag a detector would never read and a
+// frame nobody should keep. Anything capturing frames waits on this.
+let tagsPending = 0;
+let tagsDrawable = null;
+const tagsReady = new Promise((resolve) => { tagsDrawable = resolve; });
+
+/** A pinhole lens as a projection matrix, so a principal point off centre is not quietly lost. */
+function lensProjection(lens, near, far) {
+  const m = new THREE.Matrix4();
+  m.set(
+      2 * lens.fx / lens.width, 0, (lens.width - 2 * lens.cx) / lens.width, 0,
+      0, 2 * lens.fy / lens.height, -(lens.height - 2 * lens.cy) / lens.height, 0,
+      0, 0, -(far + near) / (far - near), -2 * far * near / (far - near),
+      0, 0, -1, 0);
+  return m;
+}
+
+/** A point in a hive's own frame, in the field's, with the hive at the tilt it is exported at. */
+function fromHive(hive, point) {
+  const rest = THREE.MathUtils.degToRad(hive.tilt);
+  const c = Math.cos(rest);
+  const sn = Math.sin(rest);
+  return new THREE.Vector3(
+      hive.pivot[0] + point[0] * c - point[2] * sn,
+      hive.pivot[1] + point[1],
+      hive.pivot[2] + point[0] * sn + point[2] * c);
+}
+
+/**
+ * A textured quad over each goal tag's plate, hung under the hive it belongs to so that it leans
+ * with it. The plate is given in the hive's own frame, where it is square to the axes: a thin
+ * slab, five inches one way and seventeen the other, facing along the hive's z.
+ */
+function makeTags(loader) {
+  for (const hive of model.hives) {
+    const group = hives.find((h) => h.alliance === hive.alliance);
+    for (const part of hive.parts) {
+      if (!/april[\s_-]*tag/i.test(part.name)) {
+        continue;
+      }
+      const side = /scoring/i.test(part.name) ? 'scoring' : 'audience';
+      const image = TAG_ARTWORK[hive.alliance.toLowerCase() + side];
+      if (!image) {
+        problem.textContent = 'No artwork for ' + hive.alliance + ' ' + side + '.';
+        continue;
+      }
+      const xs = part.vertices.map((v) => v[0]);
+      const ys = part.vertices.map((v) => v[1]);
+      const zs = part.vertices.map((v) => v[2]);
+      const width = Math.max(...xs) - Math.min(...xs);
+      const height = Math.max(...ys) - Math.min(...ys);
+      const face = Math.min(...zs) - 0.02; // just clear of the plate, on the side it faces
+
+      tagsPending++;
+      const texture = loader.load(image, () => {
+        if (--tagsPending === 0) {
+          tagsDrawable();
+        }
+      }, undefined, () => {
+        problem.textContent = 'The tag artwork ' + image + ' did not load.';
+        if (--tagsPending === 0) {
+          tagsDrawable();
+        }
+      });
+      texture.colorSpace = THREE.SRGBColorSpace;
+      // A tag is nearly always seen at a slant, which is where a texture blurs into grey along
+      // one axis and a detector loses its edges. This is the filtering that keeps them.
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      // The artwork is 3:1 and the plate is not, so it keeps its shape and is centred rather
+      // than stretched to fill: a stretched tag is a tag a detector reads at the wrong range.
+      const drawnHeight = Math.min(height, width * 3);
+      const quad = new THREE.Mesh(
+          new THREE.PlaneGeometry(width, drawnHeight),
+          new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false }));
+
+      // The plate lies in the hive's xy; the quad is made in three's xy and turned to match,
+      // then placed by its corners so the artwork sits where the plate does.
+      const middle = [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, face];
+      quad.position.copy(fromHive(hive, middle));
+      quad.rotation.y = THREE.MathUtils.degToRad(hive.tilt);
+      quad.rotateZ(Math.PI / 2);
+      quad.name = 'tag ' + hive.alliance + ' ' + side;
+      // Hung under the hive so it leans with it -- which means it is inside the field, and the
+      // camera view hides the field. Marked so that it is the one thing not hidden.
+      quad.userData.tag = true;
+      quad.renderOrder = 2;
+      (group ? group.group : scene).add(quad);
+      tagQuads.push(quad);
+    }
+  }
+}
+
+/** Everything but the tags hidden, the background black, and the lens the robot's. */
+function showCameraView() {
+  cameraView = new THREE.PerspectiveCamera();
+  cameraView.projectionMatrix.copy(lensProjection(CAMERA, 1, 4000));
+  cameraView.projectionMatrixInverse.copy(cameraView.projectionMatrix).invert();
+  scene.background = new THREE.Color(0x000000);
+  floor.visible = false;
+  tiles.visible = false;
+  if (field) {
+    field.traverse((o) => {
+      if (o.isMesh && !o.userData.tag) {
+        o.visible = false;
+      }
+    });
+  }
+  for (const ball of balls) {
+    ball.mesh.visible = false;
+  }
+  if (robot) {
+    robot.visible = false;
+  }
+  // Nothing of the page is in the camera's view: a frame kept from this is meant to be what the
+  // webcam would have seen, and a heads-up display is not part of that.
+  document.getElementById('hud').hidden = true;
+  runBar.hidden = true;
+  aimCamera();
+}
+
+/** The camera where the robot's webcam is, looking where it looks. */
+function aimCamera() {
+  if (!cameraView) {
+    return;
+  }
+  const tick = ticks.length ? ticks[at] : { x: 0, y: 0, heading: 0 };
+  const h = tick.heading;
+  const forward = new THREE.Vector3(Math.cos(h), Math.sin(h), 0);
+  const right = new THREE.Vector3(Math.sin(h), -Math.cos(h), 0);
+  cameraView.position.set(
+      tick.x + right.x * CAMERA.rightIn + forward.x * CAMERA.forwardIn,
+      tick.y + right.y * CAMERA.rightIn + forward.y * CAMERA.forwardIn,
+      CAMERA.upIn);
+  // A pitch of -90 looks level; anything above that tips the lens up by the difference.
+  const up = THREE.MathUtils.degToRad(CAMERA.pitchDegrees + 90);
+  const look = new THREE.Vector3(
+      forward.x * Math.cos(up), forward.y * Math.cos(up), Math.sin(up));
+  cameraView.up.set(0, 0, 1);
+  cameraView.lookAt(cameraView.position.clone().add(look));
+}
 
 // The page's testing seam. That the model arrived says nothing about whether it was drawn: a
 // camera pointed away from the field, or a frustum that culls all of it, leaves a page that has
@@ -449,7 +653,11 @@ window.fieldPage = {
             balls: balls.length, hives: hives.length }
         : null;
   },
-  goTo: (i) => goTo(i)
+  goTo: (i) => goTo(i),
+  get camera3() { return cameraView; },
+  get tags() { return tagQuads.map((q) => q.name); },
+  lens: CAMERA,
+  tagsReady: tagsReady
 };
 </script>
 </body>
