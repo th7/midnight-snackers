@@ -13,8 +13,9 @@ import com.acmerobotics.roadrunner.Vector2d;
  * pose costs a polygon overlap rather than a rigid-body engine. It used to live inside
  * {@link SimRobot}, which meant that dragging the robot on the placement page, encoding a tick's
  * hive tilts and templating the replay page each loaded fifteen hundred lines of simulator and a
- * dozen dyn4j classes to answer a question none of them was asking. {@code SimRobotPlacesOnlyTheGeometryTest}
- * holds that seam: it loads this class with dyn4j forbidden.
+ * dozen dyn4j classes to answer a question none of them was asking. {@code SimPlacementTest.placingAPoseNeedsNeitherTheRigidBodyEngineNorTheSimulatedRobot}
+ * holds that seam: it loads this class with dyn4j and {@link SimRobot} both forbidden, and
+ * checks the same loader still refuses {@link SimRobot}, so the gate cannot pass by being toothless.
  */
 public final class SimPlacement {
     /** The season's field: its walls, the elements the robot runs into, and the hives' cells. */

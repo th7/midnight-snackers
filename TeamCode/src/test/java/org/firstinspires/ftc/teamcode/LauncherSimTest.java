@@ -16,9 +16,6 @@ import org.junit.Test;
  * the cell the blue hive is holding up.
  */
 public class LauncherSimTest {
-    /** How far from the goal the robot code launches from ({@code Nav}), in inches. */
-    private static final double LAUNCH_DISTANCE = 40;
-
     private final SimRobot sim = new SimRobot();
     private final Robot robot = new Robot(sim.hardware(), Alliance.BLUE, new FakeTelemetry());
 
@@ -26,7 +23,7 @@ public class LauncherSimTest {
     public void aCloseLaunchFromTheLaunchDistanceScoresOneBallInTheBlueHive() {
         SimField.Cell cell = sim.upturnedCell("Blue");
         int already = sim.scored("Blue");
-        sim.setPose(facing(cell, LAUNCH_DISTANCE));
+        sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE));
         robot.launcher.setCloseLaunchPower();
 
         robot.launcher.launchyLaunch();
@@ -52,7 +49,7 @@ public class LauncherSimTest {
         SimField.Cell cell = sim.upturnedCell("Blue");
         double leaning = sim.tilt("Blue");
         assertEquals("three fifths full to start with", 0.6, sim.load("Blue"), 0.001);
-        sim.setPose(facing(cell, LAUNCH_DISTANCE));
+        sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE));
         robot.launcher.setCloseLaunchPower();
 
         for (int launch = 0; launch < SimRobot.PRELOAD; launch++) {

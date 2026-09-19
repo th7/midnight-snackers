@@ -104,7 +104,7 @@ public class Launcher implements Loopable {
 
     private Step launchCloseBottomGate() {
         return new Step(
-                "launchOpenBottomGate",
+                "launchCloseBottomGate",
                 () -> {
                     bottomGatePosition = bottomGateClosedPosition;
                 },

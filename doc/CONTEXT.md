@@ -181,8 +181,11 @@ are.
 the alliance's mirroring (y and heading negated for red) happens there and
 nowhere else. It answers the **current pose** (where the localizer believes
 the robot is), whether the robot is **near** a pose (within 3 inches and
-6 degrees), the **launch pose**, and builds the strafing and backward paths
-the plans follow. Class: `Nav`.
+6 degrees), and the **launch pose**. It says where, not how: the strafing
+and backward paths the plans follow are built by the drive, from the
+robot's own model of itself, and a test holds Road Runner's drive out of
+Nav. Classes: `Nav`; `Drive.strafeTo`; `Drive.backwardTo`;
+`NavTest.navDoesNotHoldTheDriveThatBuildsPaths`.
 
 **On the field** — Whether the robot's pose means anything beyond distance
 travelled since it was switched on: whether somebody has said where it is.
