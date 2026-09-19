@@ -112,11 +112,13 @@ key.shadow.bias = -0.0015;
 scene.add(key);
 scene.add(new THREE.HemisphereLight(0xbfd4e8, 0x2a2f36, 1.0));
 
-// The gaffer tape the CAD lays on the floor has its top face at exactly z = 0. A floor drawn
-// at z = 0 too puts two surfaces in one plane, and which of them a pixel belongs to is then
-// decided by rounding error -- which is the tape flickering as the camera moves. This sits
-// below the tape by far more than that error, and under everything else the field stands on.
-const FLOOR_Z = -0.25;
+// The floor is the floor, at z = 0, where the CAD's soft tiles put it and where everything
+// standing on the field is measured from. The gaffer tape's top face is at z = 0 too, and two
+// surfaces in one plane leave which of them a pixel belongs to up to rounding error -- the tape
+// flickering as the camera moves. So the tape is lifted a hundredth of an inch instead, which
+// settles it and keeps the floor where it belongs.
+const FLOOR_Z = 0;
+const TAPE_Z = 0.01;
 // three.js renames a node as it loads it -- a space becomes an underscore, and a name used twice
 // gets a number -- so what the CAD calls "FTC Field Side Glass 11in" is "FTC_Field_Side_Glass_11in"
 // here. Anything matching on a part's name has to allow for that, or it silently matches nothing.
@@ -163,6 +165,11 @@ new GLTFLoader().load('./assets/field.glb', (gltf) => {
     }
     object.material.roughness = 0.62;
     object.material.metalness = 0.05;
+
+    // Lifted off the floor it is stuck to, so the two do not fight for the same pixels.
+    if (/tape/i.test(object.name)) {
+      object.position.z += TAPE_Z;
+    }
 
     // What is transparent in the real field and would hide the match if it were not here: a
     // hive's skins, which are the walls of the basket a ball is scored in, and the perimeter's
@@ -217,19 +224,27 @@ function secondsOf(i) {
 
 /** The robot, as the simulator collides it: a cube of its size, standing on the floor. */
 function makeRobot(size) {
+  const group = new THREE.Group();
   const body = new THREE.Mesh(
       new THREE.BoxGeometry(size, size, size),
       new THREE.MeshStandardMaterial({ color: 0x2f6fb5, roughness: 0.45, metalness: 0.1 }));
-  body.castShadow = true;
-  // Which way it is facing, which a cube cannot say on its own.
-  const nose = new THREE.Mesh(
-      new THREE.BoxGeometry(size * 0.18, size * 0.5, size * 0.5),
-      new THREE.MeshStandardMaterial({ color: 0xffc24a, roughness: 0.5 }));
-  nose.position.set(size / 2, 0, 0);
-  body.add(nose);
-  const group = new THREE.Group();
-  group.add(body);
   body.position.z = size / 2;
+  body.castShadow = true;
+  group.add(body);
+
+  // An arrow lying on the lid, pointing the way the robot faces. A cube says nothing about its
+  // heading on its own, and the heading is half of what a replay is watched for.
+  const arrow = new THREE.Group();
+  const paint = new THREE.MeshStandardMaterial({ color: 0xffc24a, roughness: 0.5 });
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(size * 0.42, size * 0.12, 0.2), paint);
+  shaft.position.set(-size * 0.08, 0, 0);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(size * 0.16, size * 0.26, 3), paint);
+  head.rotation.z = -Math.PI / 2; // a cone points along its own y; this turns it to point at +x
+  head.position.set(size * 0.26, 0, 0);
+  arrow.add(shaft);
+  arrow.add(head);
+  arrow.position.z = size + 0.1; // resting on the lid rather than sunk into it
+  group.add(arrow);
   return group;
 }
 
@@ -538,12 +553,15 @@ function makeTags(loader) {
         problem.textContent = 'No artwork for ' + hive.alliance + ' ' + side + '.';
         continue;
       }
+      // The plate in the hive's own frame, where it is square to the axes: thin in z, five
+      // inches along x and seventeen along y, lying under the basket's floor and facing down.
+      // That is why the robot's camera is pitched up to see it.
       const xs = part.vertices.map((v) => v[0]);
       const ys = part.vertices.map((v) => v[1]);
       const zs = part.vertices.map((v) => v[2]);
-      const width = Math.max(...xs) - Math.min(...xs);
-      const height = Math.max(...ys) - Math.min(...ys);
-      const face = Math.min(...zs) - 0.02; // just clear of the plate, on the side it faces
+      const acrossBeam = Math.max(...ys) - Math.min(...ys);   // 17 in, and the artwork's long way
+      const alongBeam = Math.max(...xs) - Math.min(...xs);    // 5 in
+      const under = Math.min(...zs) - 0.02;                   // just clear of the plate's underside
 
       tagsPending++;
       const texture = loader.load(image, () => {
@@ -560,19 +578,29 @@ function makeTags(loader) {
       // A tag is nearly always seen at a slant, which is where a texture blurs into grey along
       // one axis and a detector loses its edges. This is the filtering that keeps them.
       texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      // The artwork is 3:1 and the plate is not, so it keeps its shape and is centred rather
-      // than stretched to fill: a stretched tag is a tag a detector reads at the wrong range.
-      const drawnHeight = Math.min(height, width * 3);
+
+      // The artwork is a whole plate of four tags with a labelled band, and it is 3:1 while the
+      // plate is 3.4:1. It keeps its own shape and is centred rather than stretched to fill:
+      // stretched, the tags stop being square, and a square is what a detector looks for.
+      const long = Math.min(acrossBeam, alongBeam * 3);
       const quad = new THREE.Mesh(
-          new THREE.PlaneGeometry(width, drawnHeight),
+          new THREE.PlaneGeometry(long, alongBeam),
           new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false }));
 
-      // The plate lies in the hive's xy; the quad is made in three's xy and turned to match,
-      // then placed by its corners so the artwork sits where the plate does.
-      const middle = [(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, face];
-      quad.position.copy(fromHive(hive, middle));
-      quad.rotation.y = THREE.MathUtils.degToRad(hive.tilt);
-      quad.rotateZ(Math.PI / 2);
+      // Placed by a basis rather than by turns in sequence, which is easy to get subtly wrong and
+      // hard to see: the quad's own x is the artwork's long way and lies along the hive's y, its
+      // own y lies along the hive's x, and its face looks along the hive's -z, which is down.
+      // Face and not back, so the artwork reads the right way round to anything looking up at it;
+      // mirrored, a tag is one no detector will ever read.
+      const facing = new THREE.Matrix4().makeBasis(
+          new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, -1));
+      quad.quaternion.setFromRotationMatrix(
+          new THREE.Matrix4().makeRotationY(-THREE.MathUtils.degToRad(hive.tilt)).multiply(facing));
+      quad.position.copy(fromHive(hive, [
+        (Math.max(...xs) + Math.min(...xs)) / 2,
+        (Math.max(...ys) + Math.min(...ys)) / 2,
+        under
+      ]));
       quad.name = 'tag ' + hive.alliance + ' ' + side;
       // Hung under the hive so it leans with it -- which means it is inside the field, and the
       // camera view hides the field. Marked so that it is the one thing not hidden.

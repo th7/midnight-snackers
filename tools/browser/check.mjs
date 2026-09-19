@@ -239,8 +239,10 @@ try {
       }
       if (/tape/i.test(o.name)) {
         o.geometry.computeBoundingBox();
-        const top = o.geometry.boundingBox.max.z;
-        out.tapeTop = out.tapeTop === null ? top : Math.max(out.tapeTop, top);
+        // Where it ends up, not where its vertices say: the tape is lifted off the floor by
+        // moving the mesh, so its own geometry still reports a top of zero.
+        const box = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
+        out.tapeTop = out.tapeTop === null ? box.max.z : Math.max(out.tapeTop, box.max.z);
       }
     });
     return out;
@@ -256,13 +258,16 @@ try {
   check(drawn2.solidSeeThrough.length === 0,
       `drawn solid and should not be: ${drawn2.solidSeeThrough.slice(0, 4).join(', ')}`);
 
-  // The tape's top face is at z = 0. A floor drawn there too leaves the two in one plane, and
-  // which one a pixel belongs to is decided by rounding -- which is the tape flickering.
+  // The tape's top face is at z = 0 in the CAD, which is where the floor is drawn. Left there
+  // the two are in one plane and which of them a pixel belongs to is decided by rounding --
+  // which is the tape flickering. It is lifted clear, and not so far that it floats.
   check(drawn2.tapeTop !== null, 'no tape in the scene to stand clear of the floor');
   if (drawn2.tapeTop !== null) {
-    check(drawn2.floorZ < drawn2.tapeTop - 0.1,
-        `the floor is drawn at z=${drawn2.floorZ} and the tape's top is at z=${drawn2.tapeTop}; `
-        + 'that close they fight for the same pixels and the tape flickers');
+    const clear = drawn2.tapeTop - drawn2.floorZ;
+    check(clear > 0.001,
+        `the tape's top is ${clear} in above the floor at z=${drawn2.floorZ}; in the same plane `
+        + 'they fight for the same pixels and the tape flickers');
+    check(clear < 0.5, `the tape stands ${clear} in off the floor, which is tape that is floating`);
   }
 
   // --- and now the same page with a run to play --------------------------------------------
