@@ -45,6 +45,24 @@ public final class TestTeleOps {
         }
     }
 
+    @TeleOp(name = "Slow machine", group = "Test")
+    public static class SlowMachineTeleOp extends OpMode {
+        public static final double REAL_SECONDS_PER_LOOP = 0.25;
+
+        public SlowMachineTeleOp() {
+            super(Alliance.RELATIVE);
+        }
+
+        @Override
+        protected void onLoop() {
+            try {
+                Thread.sleep((long) (REAL_SECONDS_PER_LOOP * 1000));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     @TeleOp(name = "Drive intents", group = "Test")
     public static class DriveIntentsTeleOp extends OpMode {
         public static final double PHASE_SECONDS = 0.4;
