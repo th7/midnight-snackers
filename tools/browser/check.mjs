@@ -63,7 +63,12 @@ const url = `http://127.0.0.1:${server.address().port}/field`;
 let browser = null;
 try {
   browser = await chromium.launch({
-    executablePath: process.env.CHROME_BIN || undefined,
+    // In the image, apt's chromium, which CHROME_BIN names. Everywhere else, Playwright's own
+    // full browser rather than its default: `chrome-headless-shell` is the faster build and it
+    // is the one without the graphics stack WebGL needs, so a page that draws would not.
+    ...(process.env.CHROME_BIN
+        ? { executablePath: process.env.CHROME_BIN }
+        : { channel: 'chromium' }),
     args: [
       // The image strips setuid bits and containers run with no-new-privileges, so Chromium's
       // own sandbox cannot start. See doc/browser-tests.md.
@@ -96,14 +101,46 @@ page.on('response', (response) => {
   }
 });
 
+/** The page sets window.fieldPage last, so anything it threw on the way is why it never did. */
+function whyItNeverReported() {
+  if (thrown.length) {
+    return `the page threw before it could report: ${thrown.join('; ')}`;
+  }
+  if (failed.length) {
+    return `a request the page made failed: ${failed.join('; ')}`;
+  }
+  return 'the page never reported itself loaded, and threw nothing to say why';
+}
+
 try {
   await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
 
+  // Before anything about the field: can this browser do WebGL at all? Without it three.js
+  // throws when it makes its renderer, the page never reaches the line that reports itself,
+  // and every check below would fail as an unexplained timeout.
+  const webgl = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) {
+      return null;
+    }
+    const named = gl.getExtension('WEBGL_debug_renderer_info');
+    return named ? gl.getParameter(named.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  });
+  if (!webgl) {
+    throw new Error('this browser has no WebGL, so the page cannot draw whatever else is right. '
+        + 'SwiftShader is what supplies it here; see doc/browser-tests.md for the flags.');
+  }
+
   // The model is three megabytes and SwiftShader is not quick; wait for the page to say it is
   // loaded rather than for a time that would be a guess on one machine and wrong on another.
-  await page.waitForFunction(
-      () => window.fieldPage && (window.fieldPage.loaded || window.fieldPage.problem),
-      null, { timeout: 120_000 });
+  try {
+    await page.waitForFunction(
+        () => window.fieldPage && (window.fieldPage.loaded || window.fieldPage.problem),
+        null, { timeout: 90_000 });
+  } catch (timedOut) {
+    throw new Error(whyItNeverReported());
+  }
 
   const state = await page.evaluate(() => ({
     loaded: window.fieldPage.loaded,
@@ -127,17 +164,19 @@ try {
   check(thrown.length === 0, `the page threw: ${thrown.join('; ')}`);
   check(failed.length === 0, `a request the page made failed: ${failed.join('; ')}`);
 
-  if (problems.length) {
-    const shot = path.join(here, 'field-as-drawn.png');
-    await page.screenshot({ path: shot });
-    console.error(`what the browser saw: ${shot}`);
-  } else {
-    console.log(`${state.said}`);
-    console.log(`  ${drawn.toLocaleString()} triangles drawn in a frame, at 1200x800, on SwiftShader`);
+  if (!problems.length) {
+    console.log(state.said);
+    console.log(`  ${drawn.toLocaleString()} triangles drawn in a frame, at 1200x800, on ${webgl}`);
   }
 } catch (wrong) {
-  problems.push(`the page could not be driven: ${wrong && wrong.message}`);
+  problems.push(String(wrong && wrong.message ? wrong.message : wrong));
 } finally {
+  if (problems.length) {
+    // Whatever went wrong, the first question is what the browser actually had on screen.
+    const shot = path.join(here, 'field-as-drawn.png');
+    await page.screenshot({ path: shot }).catch(() => {});
+    console.error(`what the browser saw: ${shot}`);
+  }
   await browser.close();
   server.close();
 }

@@ -75,7 +75,11 @@ download is switched off, because there is no linux-arm64 build it would rather 
 
 In CI, on `ubuntu-latest`, `npx playwright install --with-deps chromium` fetches
 Playwright's build and the shared libraries it needs, and `CHROME_BIN` is unset so
-Playwright uses its own.
+Playwright uses its own — asked for as `channel: 'chromium'`, the full browser.
+Playwright's default is `chrome-headless-shell`, which is the faster build and the one
+without the graphics stack WebGL needs. A page that draws does not draw in it, and the
+way that failure arrives is a timeout waiting for a page that threw while making its
+renderer, which says nothing about WebGL at all.
 
 So the command is the same in both places and the browser is not quite. Both are
 Chromium, both render through SwiftShader, and the checks are about whether a page draws
