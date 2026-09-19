@@ -412,6 +412,20 @@ public final class SimBench {
      *
      * @param startedBy the name to record on a run started through these routes, or null
      */
+    /**
+     * The field as the simulator knows it, for a page that draws it. {@code field.glb} carries the
+     * shape of every part and nothing about what they are: which game pieces move, the order a
+     * tick lists them in, where each hive hangs and how far it leans at rest, and how big the
+     * robot is. That is all here.
+     */
+    private static JsonObject model() {
+        // A copy, since the field is loaded once and shared: adding to the original would add to
+        // every reader of it.
+        JsonObject model = GSON.fromJson(GSON.toJson(SimPlacement.FIELD.json()), JsonObject.class);
+        model.addProperty("robotIn", SimPlacement.ROBOT_SIZE_IN);
+        return model;
+    }
+
     public Router routes(String startedBy) {
         return new Router()
                 .route("GET", "/catalog", (request, params) -> catalogJson())
@@ -424,6 +438,10 @@ public final class SimBench {
                 // The field in three dimensions, drawn from that model. Its asset links are
                 // relative, so the page reaches its own assets wherever the bench is mounted.
                 .route("GET", "/field", (request, params) -> Response.html(SimAssets.page("field.html")))
+                // What the visual model does not carry and a replay needs: which game pieces move
+                // and in what order a tick lists them, and where each hive hangs and how far it
+                // leans at rest. The geometry is in field.glb; this is what it means.
+                .route("GET", "/model", (request, params) -> Response.json(GSON.toJson(model())))
                 .route(
                         "GET",
                         "/start",
