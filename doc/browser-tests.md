@@ -9,41 +9,18 @@ because a shader failed to compile, passes every gate we have.
 
 A browser is what closes that. This says what the image needs for one.
 
-## What to add to `.my-agent/Dockerfile`
+## The browser
 
-This is a fragment to merge into the existing one, not a replacement — end the
-file as `USER agent` as it already does.
+`.my-agent/Dockerfile` installs Debian's `chromium` and `fonts-liberation`, and
+runs the browser once in the layer that installed it so an image that cannot
+start one is a failed build rather than a failed test weeks later. Debian's
+package rather than a build fetched from a URL: it is packaged for whichever
+architecture the image is built for, and apt brings the shared libraries with
+it, which is a long list and a quiet failure to get wrong.
 
-```dockerfile
-# --- a browser, for the page tests ------------------------------------------------
-# Debian's chromium rather than a build fetched from a URL: it is packaged for
-# whichever architecture the image is being built for, and apt pulls the shared
-# libraries it needs, which is a long list and a quiet failure to get wrong.
-USER root
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        chromium \
-        fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
-
-# Where a test harness finds it. Playwright and Puppeteer both download a browser
-# of their own by default, which for linux-arm64 is either missing or a second
-# copy of what apt just installed.
-ENV CHROME_BIN=/usr/bin/chromium \
-    PUPPETEER_SKIP_DOWNLOAD=1 \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-
-# apt reintroduces setuid bits, chromium's sandbox helper among them.
-RUN find / -xdev -perm /6000 -type f -exec chmod -s {} +
-
-USER agent
-# Run it once in the layer that installed it, so a browser that cannot start is a
-# failed build rather than a failed test weeks later.
-RUN chromium --version \
-    && chromium --headless --no-sandbox --disable-gpu \
-        --dump-dom about:blank > /dev/null
-```
+`CHROME_BIN` and `PUPPETEER_EXECUTABLE_PATH` point at it, and the two download
+switches are off, so a harness uses that browser rather than fetching a second
+copy — which on linux-arm64 is either missing or a duplicate.
 
 ## Why the flags
 
