@@ -19,7 +19,7 @@ public class HardwareTest {
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("turnTable"));
         assertTrue(refused.getMessage(), refused.getMessage().contains("imu"));
-        assertTrue(refused.getMessage(), refused.getMessage().contains("clock"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("nanoClock"));
         assertFalse("not the one it was given", refused.getMessage().contains("launcher"));
     }
 

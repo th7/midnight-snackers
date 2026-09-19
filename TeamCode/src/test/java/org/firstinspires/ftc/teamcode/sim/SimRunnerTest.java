@@ -132,7 +132,8 @@ public class SimRunnerTest {
 
         double wallSeconds = (System.nanoTime() - before) / 1e9;
         assertTrue(
-                "two simulated seconds took " + wallSeconds + "s of wall clock", wallSeconds < WaitingAuto.SECONDS / 2);
+                "two simulated seconds took " + wallSeconds + "s of wall nanoClock",
+                wallSeconds < WaitingAuto.SECONDS / 2);
     }
 
     @Test
@@ -148,7 +149,7 @@ public class SimRunnerTest {
                 new SimDriverStation());
 
         double wallSeconds = (System.nanoTime() - before) / 1e9;
-        assertTrue("0.3 simulated seconds took " + wallSeconds + "s of wall clock", wallSeconds >= 0.25);
+        assertTrue("0.3 simulated seconds took " + wallSeconds + "s of wall nanoClock", wallSeconds >= 0.25);
     }
 
     @Test

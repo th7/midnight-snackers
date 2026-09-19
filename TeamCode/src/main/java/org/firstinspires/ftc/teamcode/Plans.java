@@ -13,13 +13,13 @@ public class Plans implements Loopable {
 
     private final Nav nav;
     private final Launcher launcher;
-    private final LongSupplier clock;
+    private final LongSupplier nanoClock;
 
-    public Plans(Drive drive, Nav nav, Launcher launcher, LongSupplier clock) {
+    public Plans(Drive drive, Nav nav, Launcher launcher, LongSupplier nanoClock) {
         this.drive = drive;
         this.nav = nav;
         this.launcher = launcher;
-        this.clock = clock;
+        this.nanoClock = nanoClock;
     }
 
     @Auto(alliance = Alliance.RELATIVE)
@@ -123,7 +123,7 @@ public class Plans implements Loopable {
     @Auto(alliance = Alliance.RELATIVE)
     public PlanPart forwardLeftBackwardRight() {
         return new Plan(
-                Step.waitFor("forwardLeftBackwardRight", 5, clock),
+                Step.waitFor("forwardLeftBackwardRight", 5, nanoClock),
                 new Step(
                         "forwardLeftBackwardRight",
                         () -> drive.strafeTo(

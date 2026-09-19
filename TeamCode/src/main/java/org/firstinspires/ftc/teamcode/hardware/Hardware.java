@@ -31,7 +31,7 @@ public final class Hardware {
     public final Supplier<List<AprilTagDetection>> aprilTags;
     public final Dashboard dashboard;
 
-    public final LongSupplier clock;
+    public final LongSupplier nanoClock;
 
     private Hardware(Builder wiring) {
         this.launcher = wiring.launcher;
@@ -47,7 +47,7 @@ public final class Hardware {
         this.voltageSensor = wiring.voltageSensor;
         this.aprilTags = wiring.aprilTags;
         this.dashboard = wiring.dashboard;
-        this.clock = wiring.clock;
+        this.nanoClock = wiring.nanoClock;
     }
 
     public static Builder builder() {
@@ -73,7 +73,7 @@ public final class Hardware {
                 .voltageSensor(hardwareMap.voltageSensor.iterator().next())
                 .aprilTags(AprilTagWebcam.detections(hardwareMap))
                 .dashboard(Dashboard.ftc())
-                .clock(System::nanoTime)
+                .nanoClock(System::nanoTime)
                 .build();
     }
 
@@ -91,7 +91,7 @@ public final class Hardware {
         private VoltageSensor voltageSensor;
         private Supplier<List<AprilTagDetection>> aprilTags;
         private Dashboard dashboard;
-        private LongSupplier clock;
+        private LongSupplier nanoClock;
 
         private Builder() {}
 
@@ -160,8 +160,8 @@ public final class Hardware {
             return this;
         }
 
-        public Builder clock(LongSupplier clock) {
-            this.clock = clock;
+        public Builder nanoClock(LongSupplier nanoClock) {
+            this.nanoClock = nanoClock;
             return this;
         }
 
@@ -180,7 +180,7 @@ public final class Hardware {
             named("voltageSensor", voltageSensor, missing);
             named("aprilTags", aprilTags, missing);
             named("dashboard", dashboard, missing);
-            named("clock", clock, missing);
+            named("nanoClock", nanoClock, missing);
             if (!missing.isEmpty()) {
                 throw new IllegalStateException("the hardware has no " + String.join(", ", missing));
             }

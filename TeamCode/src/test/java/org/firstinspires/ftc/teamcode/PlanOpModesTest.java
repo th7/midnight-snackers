@@ -87,8 +87,8 @@ public class PlanOpModesTest {
     }
 
     public static class WrongShape extends Plans {
-        public WrongShape(Drive drive, Nav nav, Launcher launcher, LongSupplier clock) {
-            super(drive, nav, launcher, clock);
+        public WrongShape(Drive drive, Nav nav, Launcher launcher, LongSupplier nanoClock) {
+            super(drive, nav, launcher, nanoClock);
         }
 
         @Auto(alliance = Alliance.RELATIVE)
@@ -108,8 +108,8 @@ public class PlanOpModesTest {
     }
 
     public static class Twice extends Plans {
-        public Twice(Drive drive, Nav nav, Launcher launcher, LongSupplier clock) {
-            super(drive, nav, launcher, clock);
+        public Twice(Drive drive, Nav nav, Launcher launcher, LongSupplier nanoClock) {
+            super(drive, nav, launcher, nanoClock);
         }
 
         @Auto(name = "Same", alliance = Alliance.RED)

@@ -12,8 +12,9 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.junit.Test;
 
 public class SimRobotNoiseTest {
-    private static final double MAX_SPEED_IN_PER_S =
-            (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kS) / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
+    private static final double MAX_SPEED_IN_PER_S = (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kSVolts)
+            / MecanumDrive.PARAMS.kVVoltSecondsPerTick
+            * MecanumDrive.PARAMS.inPerTick;
 
     private static final Pose2d OPEN = new Pose2d(-60, 0, 0);
 
@@ -59,7 +60,9 @@ public class SimRobotNoiseTest {
     public void aFresherBatteryDrivesFaster() {
         SimRobot fresh = new SimRobot(SimNoise.NONE.withBattery(13.8, 0, 0));
 
-        double expected = (13.8 - MecanumDrive.PARAMS.kS) / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
+        double expected = (13.8 - MecanumDrive.PARAMS.kSVolts)
+                / MecanumDrive.PARAMS.kVVoltSecondsPerTick
+                * MecanumDrive.PARAMS.inPerTick;
         assertEquals(expected, freeSpeed(fresh), 0.03 * expected);
         assertTrue(freeSpeed(fresh) > freeSpeed(new SimRobot()) + 3);
     }

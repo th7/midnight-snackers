@@ -24,13 +24,13 @@ public class SimDevicesTest {
     @Test
     public void theClockStartsAtNothingAndMovesOnlyWhenItIsAdvanced() {
         Hardware hardware = devices.hardware();
-        assertEquals(0, hardware.clock.getAsLong());
+        assertEquals(0, hardware.nanoClock.getAsLong());
 
         devices.advance(0.02);
-        assertEquals(0.02, hardware.clock.getAsLong() / 1e9, DELTA);
+        assertEquals(0.02, hardware.nanoClock.getAsLong() / 1e9, DELTA);
 
         devices.advance(1.5);
-        assertEquals(1.52, hardware.clock.getAsLong() / 1e9, DELTA);
+        assertEquals(1.52, hardware.nanoClock.getAsLong() / 1e9, DELTA);
     }
 
     @Test
@@ -46,7 +46,7 @@ public class SimDevicesTest {
     public void theSimulatedRobotIsTheSameSeamWithAWorldBehindIt() {
         Hardware hardware = new SimRobot().hardware();
 
-        assertEquals(0, hardware.clock.getAsLong());
+        assertEquals(0, hardware.nanoClock.getAsLong());
         assertEquals(SimDevices.BATTERY_VOLTS, hardware.voltageSensor.getVoltage(), DELTA);
     }
 }

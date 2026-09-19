@@ -15,15 +15,15 @@ public class Nav implements Loopable {
             this.pose2d = pose2d;
         }
 
-        public double x() {
+        public double xInches() {
             return pose2d.position.x;
         }
 
-        public double y() {
+        public double yInches() {
             return pose2d.position.y;
         }
 
-        public double heading() {
+        public double headingRadians() {
             return pose2d.heading.toDouble();
         }
 
@@ -33,11 +33,11 @@ public class Nav implements Loopable {
 
         @Override
         public String toString() {
-            return String.format("(%.1f, %.1f, %.2f)", x(), y(), heading());
+            return String.format("(%.1f, %.1f, %.2f)", xInches(), yInches(), headingRadians());
         }
     }
 
-    public static final double LAUNCH_DISTANCE = 40;
+    public static final double LAUNCH_DISTANCE_INCHES = 40;
 
     private static final double NEAR_INCHES = 3;
     private static final double NEAR_RADIANS = Math.PI * 2 / 60;
@@ -80,7 +80,7 @@ public class Nav implements Loopable {
         Vector2d from = getPose().position;
         double bearingToTarget = angleRadians(from, launchTarget);
         double distanceToTarget = distanceInches(from, launchTarget);
-        double distanceError = distanceToTarget - LAUNCH_DISTANCE;
+        double distanceError = distanceToTarget - LAUNCH_DISTANCE_INCHES;
         Vector2d position = pointAtDistanceInDirection(from, distanceError, bearingToTarget);
         return Optional.of(new Pose(new Pose2d(position, bearingToTarget)));
     }
@@ -105,8 +105,8 @@ public class Nav implements Loopable {
         }
 
         Pose2d currentPose = getPose();
-        double xError = clamp(sighting.x() - currentPose.position.x, SIGHTING_NUDGE_INCHES);
-        double yError = clamp(sighting.y() - currentPose.position.y, SIGHTING_NUDGE_INCHES);
+        double xError = clamp(sighting.xInches() - currentPose.position.x, SIGHTING_NUDGE_INCHES);
+        double yError = clamp(sighting.yInches() - currentPose.position.y, SIGHTING_NUDGE_INCHES);
         Vector2d adjustedPosition = new Vector2d(currentPose.position.x + xError, currentPose.position.y + yError);
         localizer.setPose(new Pose2d(adjustedPosition, currentPose.heading));
     }
@@ -115,8 +115,8 @@ public class Nav implements Loopable {
         Pose2d currentPose = getPose();
         double headingError = currentPose.heading.minus(target.pose2d.heading);
         return Math.abs(headingError) <= NEAR_RADIANS
-                && Math.abs(currentPose.position.x - target.x()) <= NEAR_INCHES
-                && Math.abs(currentPose.position.y - target.y()) <= NEAR_INCHES;
+                && Math.abs(currentPose.position.x - target.xInches()) <= NEAR_INCHES
+                && Math.abs(currentPose.position.y - target.yInches()) <= NEAR_INCHES;
     }
 
     private Pose2d getPose() {

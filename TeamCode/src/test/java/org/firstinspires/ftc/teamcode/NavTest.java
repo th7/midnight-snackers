@@ -22,7 +22,7 @@ public class NavTest {
     }
 
     private static double distance(Nav.Pose from, Vector2d to) {
-        return Math.hypot(to.x - from.x(), to.y - from.y());
+        return Math.hypot(to.x - from.xInches(), to.y - from.yInches());
     }
 
     @Test
@@ -43,26 +43,26 @@ public class NavTest {
         Nav.Pose blue = navFor(Alliance.BLUE).pose(1, 2, 0.5);
         Nav.Pose relative = navFor(Alliance.RELATIVE).pose(1, 2, 0.5);
 
-        assertEquals(1, red.x(), DELTA);
-        assertEquals(-2, red.y(), DELTA);
-        assertEquals(-0.5, red.heading(), DELTA);
-        assertEquals(2, blue.y(), DELTA);
-        assertEquals(0.5, blue.heading(), DELTA);
-        assertEquals(2, relative.y(), DELTA);
-        assertEquals(0.5, relative.heading(), DELTA);
+        assertEquals(1, red.xInches(), DELTA);
+        assertEquals(-2, red.yInches(), DELTA);
+        assertEquals(-0.5, red.headingRadians(), DELTA);
+        assertEquals(2, blue.yInches(), DELTA);
+        assertEquals(0.5, blue.headingRadians(), DELTA);
+        assertEquals(2, relative.yInches(), DELTA);
+        assertEquals(0.5, relative.headingRadians(), DELTA);
     }
 
     @Test
     public void theRobotStartsAtTheOriginAndIsWhereItWasLastPut() {
         Nav nav = navFor(Alliance.BLUE);
-        assertEquals(0, nav.currentPose().x(), DELTA);
-        assertEquals(0, nav.currentPose().y(), DELTA);
+        assertEquals(0, nav.currentPose().xInches(), DELTA);
+        assertEquals(0, nav.currentPose().yInches(), DELTA);
 
         nav.placeAt(nav.pose(12, -6, 1));
 
-        assertEquals(12, nav.currentPose().x(), DELTA);
-        assertEquals(-6, nav.currentPose().y(), DELTA);
-        assertEquals(1, nav.currentPose().heading(), DELTA);
+        assertEquals(12, nav.currentPose().xInches(), DELTA);
+        assertEquals(-6, nav.currentPose().yInches(), DELTA);
+        assertEquals(1, nav.currentPose().headingRadians(), DELTA);
     }
 
     @Test
@@ -74,9 +74,12 @@ public class NavTest {
         Nav.Pose launch = nav.launchPose().get();
 
         assertEquals(40, distance(launch, goal), DELTA);
-        assertEquals(Math.atan2(goal.y - launch.y(), goal.x - launch.x()), launch.heading(), DELTA);
+        assertEquals(Math.atan2(goal.y - launch.yInches(), goal.x - launch.xInches()), launch.headingRadians(), DELTA);
         assertEquals(
-                "on the line from the robot to the goal", Math.atan2(goal.y - 5, goal.x - 10), launch.heading(), DELTA);
+                "on the line from the robot to the goal",
+                Math.atan2(goal.y - 5, goal.x - 10),
+                launch.headingRadians(),
+                DELTA);
     }
 
     @Test
@@ -114,12 +117,12 @@ public class NavTest {
 
         nav.sighted(nav.pose(20, 19.5, 0));
 
-        assertEquals(11, nav.currentPose().x(), DELTA);
-        assertEquals(19.5, nav.currentPose().y(), DELTA);
+        assertEquals(11, nav.currentPose().xInches(), DELTA);
+        assertEquals(19.5, nav.currentPose().yInches(), DELTA);
         assertEquals(
                 "a later sighting never changes the heading",
                 0.5,
-                nav.currentPose().heading(),
+                nav.currentPose().headingRadians(),
                 DELTA);
     }
 
@@ -128,17 +131,17 @@ public class NavTest {
         Nav nav = navFor(Alliance.BLUE);
 
         nav.sighted(nav.pose(10, 20, 0.5));
-        assertEquals(10, nav.currentPose().x(), DELTA);
-        assertEquals(20, nav.currentPose().y(), DELTA);
-        assertEquals(0.5, nav.currentPose().heading(), DELTA);
+        assertEquals(10, nav.currentPose().xInches(), DELTA);
+        assertEquals(20, nav.currentPose().yInches(), DELTA);
+        assertEquals(0.5, nav.currentPose().headingRadians(), DELTA);
 
         nav.sighted(nav.pose(20, 19.5, 0));
-        assertEquals(11, nav.currentPose().x(), DELTA);
-        assertEquals(19.5, nav.currentPose().y(), DELTA);
+        assertEquals(11, nav.currentPose().xInches(), DELTA);
+        assertEquals(19.5, nav.currentPose().yInches(), DELTA);
         assertEquals(
                 "a later sighting never changes the heading",
                 0.5,
-                nav.currentPose().heading(),
+                nav.currentPose().headingRadians(),
                 DELTA);
     }
 
@@ -156,8 +159,8 @@ public class NavTest {
     public void aPoseRotatedKeepsItsPlaceAndTurnsItsHeading() {
         Nav.Pose pose = navFor(Alliance.BLUE).pose(3, 4, 1).rotated(-0.25);
 
-        assertEquals(3, pose.x(), DELTA);
-        assertEquals(4, pose.y(), DELTA);
-        assertEquals(0.75, pose.heading(), DELTA);
+        assertEquals(3, pose.xInches(), DELTA);
+        assertEquals(4, pose.yInches(), DELTA);
+        assertEquals(0.75, pose.headingRadians(), DELTA);
     }
 }

@@ -60,12 +60,12 @@ public final class TestTeleOps {
         @Override
         public void init() {
             super.init();
-            startedAtNanos = robot.clock.getAsLong();
+            startedAtNanos = robot.nanoClock.getAsLong();
         }
 
         @Override
         protected void onLoop() {
-            double elapsed = (robot.clock.getAsLong() - startedAtNanos) / 1e9;
+            double elapsed = (robot.nanoClock.getAsLong() - startedAtNanos) / 1e9;
             int phase = (int) (elapsed / PHASE_SECONDS);
             switch (phase) {
                 case 0:

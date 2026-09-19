@@ -24,12 +24,13 @@ public class SimRobotTest {
 
     private static final double CONTACT = 0.1;
 
-    private static final double MAX_SPEED_IN_PER_S =
-            (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kS) / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
+    private static final double MAX_SPEED_IN_PER_S = (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kSVolts)
+            / MecanumDrive.PARAMS.kVVoltSecondsPerTick
+            * MecanumDrive.PARAMS.inPerTick;
 
     private static final double CLOSE_LAUNCH_VELOCITY = 1050;
 
-    private static final double LAUNCH_DISTANCE = 40;
+    private static final double LAUNCH_DISTANCE_INCHES = 40;
 
     private static final double TOP_GATE_OPEN = 1, TOP_GATE_CLOSED = 0.6;
     private static final double BOTTOM_GATE_OPEN = 0.5, BOTTOM_GATE_CLOSED = 0.4;
@@ -45,9 +46,9 @@ public class SimRobotTest {
 
         assertEquals(520_000_000L, sim.nanoTime());
         assertEquals(
-                "the hardware's clock is the world's",
+                "the hardware's nanoClock is the world's",
                 520_000_000L,
-                sim.hardware().clock.getAsLong());
+                sim.hardware().nanoClock.getAsLong());
     }
 
     @Test
@@ -199,14 +200,17 @@ public class SimRobotTest {
                 creeper::nanoTime);
         localizer.update();
 
-        double power = MecanumDrive.PARAMS.kS / SimRobot.BATTERY_VOLTS;
+        double power = MecanumDrive.PARAMS.kSVolts / SimRobot.BATTERY_VOLTS;
         creeper.leftFront.setPower(power);
         creeper.rightFront.setPower(power);
         creeper.leftBack.setPower(power);
         creeper.rightBack.setPower(power);
         creeper.step(3.0);
 
-        double creep = 0.1 * MecanumDrive.PARAMS.kS / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
+        double creep = 0.1
+                * MecanumDrive.PARAMS.kSVolts
+                / MecanumDrive.PARAMS.kVVoltSecondsPerTick
+                * MecanumDrive.PARAMS.inPerTick;
         localizer.update();
         assertEquals("inches per second", creep, localizer.velocity().linearVel.norm(), 0.02);
         assertEquals("a multiple of the hub's step", 0, Math.round(creeper.rightBack.getVelocity()) % 20);
@@ -998,7 +1002,7 @@ public class SimRobotTest {
             SimRobot sim = new SimRobot();
             SimField.Cell cell = sim.upturnedCell(alliance);
             int already = sim.scored(alliance);
-            sim.setPose(facing(sim, cell, LAUNCH_DISTANCE));
+            sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
             sim.topGate.position = TOP_GATE_OPEN;
             sim.bottomGate.position = BOTTOM_GATE_CLOSED;
             sim.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
@@ -1025,7 +1029,7 @@ public class SimRobotTest {
         SimField.Cell cell = sim.upturnedCell("Blue");
         int already = sim.scored("Blue");
 
-        Pose2d behind = facing(sim, cell, -LAUNCH_DISTANCE);
+        Pose2d behind = facing(sim, cell, -LAUNCH_DISTANCE_INCHES);
         sim.setPose(new Pose2d(behind.position, behind.heading.plus(Math.PI)));
         readyToLaunch(CLOSE_LAUNCH_VELOCITY);
 
@@ -1174,7 +1178,7 @@ public class SimRobotTest {
         }
 
         SimRobot after = sim;
-        after.setPose(facing(after, now, LAUNCH_DISTANCE));
+        after.setPose(facing(after, now, LAUNCH_DISTANCE_INCHES));
         after.topGate.position = TOP_GATE_OPEN;
         after.bottomGate.position = BOTTOM_GATE_CLOSED;
         after.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;

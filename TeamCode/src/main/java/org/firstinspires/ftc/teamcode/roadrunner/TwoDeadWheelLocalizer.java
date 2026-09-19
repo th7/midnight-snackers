@@ -36,14 +36,14 @@ public final class TwoDeadWheelLocalizer {
     private Pose2d pose;
 
     public TwoDeadWheelLocalizer(
-            HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose, LongSupplier clock) {
+            HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose, LongSupplier nanoClock) {
         this(
                 hardwareMap.get(DcMotorEx.class, "rightBack"),
                 hardwareMap.get(DcMotorEx.class, "leftFront"),
                 imu,
                 inPerTick,
                 initialPose,
-                clock);
+                nanoClock);
     }
 
     public TwoDeadWheelLocalizer(
@@ -52,9 +52,9 @@ public final class TwoDeadWheelLocalizer {
             IMU imu,
             double inPerTick,
             Pose2d initialPose,
-            LongSupplier clock) {
-        par = new ClockedOverflowEncoder(new RawEncoder(parMotor), clock);
-        perp = new ClockedOverflowEncoder(new RawEncoder(perpMotor), clock);
+            LongSupplier nanoClock) {
+        par = new ClockedOverflowEncoder(new RawEncoder(parMotor), nanoClock);
+        perp = new ClockedOverflowEncoder(new RawEncoder(perpMotor), nanoClock);
 
         par.setDirection(DcMotorSimple.Direction.REVERSE);
         perp.setDirection(DcMotorSimple.Direction.REVERSE);

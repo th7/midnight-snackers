@@ -35,11 +35,11 @@ public class Localizer implements Loopable, PoseEstimate {
             DcMotorEx perpendicular,
             LazyImu imu,
             Pose2d startingPose,
-            LongSupplier clock,
+            LongSupplier nanoClock,
             Prints telemetry) {
         this.telemetry = telemetry;
         deadWheels = new TwoDeadWheelLocalizer(
-                parallel, perpendicular, imu.get(), MecanumDrive.PARAMS.inPerTick, startingPose, clock);
+                parallel, perpendicular, imu.get(), MecanumDrive.PARAMS.inPerTick, startingPose, nanoClock);
     }
 
     public TwoDeadWheelLocalizer deadWheels() {

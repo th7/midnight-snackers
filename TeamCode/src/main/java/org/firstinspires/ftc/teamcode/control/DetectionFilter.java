@@ -14,12 +14,12 @@ public class DetectionFilter {
     private static final int MAX_POSITION_DIFFERENCE_INCHES = 1;
 
     private final LinkedList<AprilTagDetection> storedDetections = new LinkedList<>();
-    private final LongSupplier clock;
+    private final LongSupplier nanoClock;
 
     public record Agreed(AprilTagDetection detection, long ageNano) {}
 
-    public DetectionFilter(LongSupplier clock) {
-        this.clock = clock;
+    public DetectionFilter(LongSupplier nanoClock) {
+        this.nanoClock = nanoClock;
     }
 
     public void addDetection(AprilTagDetection detection) {
@@ -48,7 +48,7 @@ public class DetectionFilter {
     }
 
     private long ageOf(AprilTagDetection detection) {
-        return clock.getAsLong() - detection.frameAcquisitionNanoTime;
+        return nanoClock.getAsLong() - detection.frameAcquisitionNanoTime;
     }
 
     private boolean dataIsConsistent() {

@@ -18,7 +18,7 @@ public class LauncherSimTest {
     public void aCloseLaunchFromTheLaunchDistanceScoresOneBallInTheBlueHive() {
         SimField.Cell cell = sim.upturnedCell("Blue");
         int already = sim.scored("Blue");
-        sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE));
+        sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE_INCHES));
         robot.launcher.setCloseLaunchPower();
 
         robot.launcher.launchyLaunch();
@@ -39,7 +39,7 @@ public class LauncherSimTest {
         SimField.Cell cell = sim.upturnedCell("Blue");
         double leaning = sim.tilt("Blue");
         assertEquals("three fifths full to start with", 0.6, sim.load("Blue"), 0.001);
-        sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE));
+        sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE_INCHES));
         robot.launcher.setCloseLaunchPower();
 
         for (int launch = 0; launch < SimRobot.PRELOAD; launch++) {

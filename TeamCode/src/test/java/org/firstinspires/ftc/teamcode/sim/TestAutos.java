@@ -60,7 +60,7 @@ public final class TestAutos {
 
         @Override
         public PlanPart getPlan() {
-            return Step.waitFor("wait", SECONDS, robot.clock);
+            return Step.waitFor("wait", SECONDS, robot.nanoClock);
         }
     }
 

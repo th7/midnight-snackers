@@ -85,7 +85,7 @@ public class LauncherTest {
         double before = secondsWithTheBottomGateOpen();
 
         for (int presses = 0; presses < 10; presses++) {
-            launcher.increaseBottomGateWaitTime();
+            launcher.increaseBottomGateWaitSeconds();
         }
 
         assertEquals(before + 10 * Launcher.BOTTOM_GATE_WAIT_STEP_SECONDS, secondsWithTheBottomGateOpen(), 0.01);
@@ -94,7 +94,7 @@ public class LauncherTest {
     @Test
     public void theBottomGateWaitStopsAtZero() {
         for (int presses = 0; presses < 1000; presses++) {
-            launcher.decreaseBottomGateWaitTime();
+            launcher.decreaseBottomGateWaitSeconds();
         }
 
         assertEquals(0, launcher.bottomGateWaitSeconds(), DELTA);

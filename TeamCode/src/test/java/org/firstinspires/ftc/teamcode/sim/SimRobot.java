@@ -774,17 +774,20 @@ public class SimRobot {
             FakeDcMotorEx motor, int mount, SimNoise.Motor factors, double velocity, double dt) {
         int direction = motor.getDirection() == DcMotorSimple.Direction.REVERSE ? -1 : 1;
         double volts = mount * direction * clamp(motor.power) * voltageSensor.voltage;
-        double kS = drive.kS * factors.kS, kV = drive.kV * factors.kV, kA = drive.kA * factors.kA;
+        double kSVolts = drive.kSVolts * factors.kSVolts,
+                kVVoltSecondsPerTick = drive.kVVoltSecondsPerTick * factors.kVVoltSecondsPerTick,
+                kAVoltSecondsSquaredPerTick = drive.kAVoltSecondsSquaredPerTick * factors.kAVoltSecondsSquaredPerTick;
         double ticksPerSecond = velocity / drive.inPerTick;
-        boolean creeping = Math.abs(ticksPerSecond) <= kS / kA * dt;
+        boolean creeping = Math.abs(ticksPerSecond) <= kSVolts / kAVoltSecondsSquaredPerTick * dt;
         double acceleration;
-        if (creeping && Math.abs(volts) <= kS) {
+        if (creeping && Math.abs(volts) <= kSVolts) {
             acceleration = -velocity / dt;
         } else {
             double sign = ticksPerSecond != 0 ? Math.signum(ticksPerSecond) : Math.signum(volts);
 
-            double backEmf = clamp(motor.power) == 0 && !brakesAtZeroPower(motor) ? 0 : kV * ticksPerSecond;
-            acceleration = (volts - kS * sign - backEmf) / kA * drive.inPerTick;
+            double backEmf =
+                    clamp(motor.power) == 0 && !brakesAtZeroPower(motor) ? 0 : kVVoltSecondsPerTick * ticksPerSecond;
+            acceleration = (volts - kSVolts * sign - backEmf) / kAVoltSecondsSquaredPerTick * drive.inPerTick;
         }
         double traction = noise.tractionInPerS2;
         return Math.max(-traction, Math.min(traction, acceleration));

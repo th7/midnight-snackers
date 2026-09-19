@@ -17,9 +17,9 @@ public class SimNoiseTest {
         SimNoise none = SimNoise.NONE;
 
         for (int wheel = 0; wheel < 4; wheel++) {
-            assertEquals(1, none.motor(wheel).kS, 0);
-            assertEquals(1, none.motor(wheel).kV, 0);
-            assertEquals(1, none.motor(wheel).kA, 0);
+            assertEquals(1, none.motor(wheel).kSVolts, 0);
+            assertEquals(1, none.motor(wheel).kVVoltSecondsPerTick, 0);
+            assertEquals(1, none.motor(wheel).kAVoltSecondsSquaredPerTick, 0);
         }
         assertEquals(SimRobot.BATTERY_VOLTS, none.batteryVolts(1000, 4), 0);
         assertEquals(Double.POSITIVE_INFINITY, none.tractionInPerS2, 0);
@@ -35,9 +35,10 @@ public class SimNoiseTest {
         SimNoise second = SimNoise.seeded(42);
 
         for (int wheel = 0; wheel < 4; wheel++) {
-            assertEquals(first.motor(wheel).kS, second.motor(wheel).kS, 0);
-            assertEquals(first.motor(wheel).kV, second.motor(wheel).kV, 0);
-            assertEquals(first.motor(wheel).kA, second.motor(wheel).kA, 0);
+            assertEquals(first.motor(wheel).kSVolts, second.motor(wheel).kSVolts, 0);
+            assertEquals(first.motor(wheel).kVVoltSecondsPerTick, second.motor(wheel).kVVoltSecondsPerTick, 0);
+            assertEquals(
+                    first.motor(wheel).kAVoltSecondsSquaredPerTick, second.motor(wheel).kAVoltSecondsSquaredPerTick, 0);
         }
         assertEquals(first.freshVolts, second.freshVolts, 0);
         assertEquals(first.tractionInPerS2, second.tractionInPerS2, 0);
@@ -52,7 +53,7 @@ public class SimNoiseTest {
         SimNoise first = SimNoise.seeded(1);
         SimNoise second = SimNoise.seeded(2);
 
-        assertNotEquals(first.motor(0).kV, second.motor(0).kV, 0);
+        assertNotEquals(first.motor(0).kVVoltSecondsPerTick, second.motor(0).kVVoltSecondsPerTick, 0);
         assertNotEquals(first.freshVolts, second.freshVolts, 0);
         assertNotEquals(first.tractionInPerS2, second.tractionInPerS2, 0);
     }
@@ -63,9 +64,14 @@ public class SimNoiseTest {
             SimNoise noise = SimNoise.seeded(seed);
             for (int wheel = 0; wheel < 4; wheel++) {
                 SimNoise.Motor motor = noise.motor(wheel);
-                assertEquals("seed " + seed + " kS", 1, motor.kS, SimNoise.MOTOR_SPREAD);
-                assertEquals("seed " + seed + " kV", 1, motor.kV, SimNoise.MOTOR_SPREAD);
-                assertEquals("seed " + seed + " kA", 1, motor.kA, SimNoise.MOTOR_SPREAD);
+                assertEquals("seed " + seed + " kSVolts", 1, motor.kSVolts, SimNoise.MOTOR_SPREAD);
+                assertEquals(
+                        "seed " + seed + " kVVoltSecondsPerTick", 1, motor.kVVoltSecondsPerTick, SimNoise.MOTOR_SPREAD);
+                assertEquals(
+                        "seed " + seed + " kAVoltSecondsSquaredPerTick",
+                        1,
+                        motor.kAVoltSecondsSquaredPerTick,
+                        SimNoise.MOTOR_SPREAD);
             }
         }
     }
@@ -76,7 +82,7 @@ public class SimNoiseTest {
 
         Set<Double> kVs = new HashSet<>();
         for (int wheel = 0; wheel < 4; wheel++) {
-            kVs.add(noise.motor(wheel).kV);
+            kVs.add(noise.motor(wheel).kVVoltSecondsPerTick);
         }
         assertEquals("four wheels, four kVs", 4, kVs.size());
     }
@@ -149,7 +155,9 @@ public class SimNoiseTest {
         String line = SimNoise.NONE.withBattery(13.8, 0.2, 0.004).toString();
 
         assertTrue(line, line.startsWith("seed 0:"));
-        assertTrue(line, line.contains("lf kS x1.000 kV x1.000 kA x1.000"));
+        assertTrue(
+                line,
+                line.contains("lf kSVolts x1.000 kVVoltSecondsPerTick x1.000 kAVoltSecondsSquaredPerTick x1.000"));
         assertTrue("ASCII, so any log carries it: " + line, line.chars().allMatch(c -> c < 128));
         assertTrue(line, line.contains("battery 13.80 V sag 0.20 V/power drain 0.0040 V/s"));
         assertTrue(line, line.contains("traction Infinity g"));
@@ -164,14 +172,17 @@ public class SimNoiseTest {
         SimNoise weaker = noise.withMotor(SimNoise.RIGHT_FRONT, new SimNoise.Motor(1, 1.2, 1));
 
         assertEquals(9, weaker.seed);
-        assertEquals(1.2, weaker.motor(SimNoise.RIGHT_FRONT).kV, 0);
-        assertEquals(noise.motor(SimNoise.LEFT_FRONT).kV, weaker.motor(SimNoise.LEFT_FRONT).kV, 0);
+        assertEquals(1.2, weaker.motor(SimNoise.RIGHT_FRONT).kVVoltSecondsPerTick, 0);
+        assertEquals(
+                noise.motor(SimNoise.LEFT_FRONT).kVVoltSecondsPerTick,
+                weaker.motor(SimNoise.LEFT_FRONT).kVVoltSecondsPerTick,
+                0);
         assertEquals(noise.freshVolts, weaker.freshVolts, 0);
         assertEquals(noise.tractionInPerS2, weaker.tractionInPerS2, 0);
         assertEquals(
                 "the original is unchanged",
-                noise.motor(SimNoise.RIGHT_FRONT).kV,
-                SimNoise.seeded(9).motor(SimNoise.RIGHT_FRONT).kV,
+                noise.motor(SimNoise.RIGHT_FRONT).kVVoltSecondsPerTick,
+                SimNoise.seeded(9).motor(SimNoise.RIGHT_FRONT).kVVoltSecondsPerTick,
                 0);
     }
 }

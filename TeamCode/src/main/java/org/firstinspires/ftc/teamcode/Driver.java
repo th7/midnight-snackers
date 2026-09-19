@@ -94,10 +94,10 @@ public class Driver implements Loopable {
         }
 
         if (gamepad2.rightBumperWasPressed()) {
-            launcher.increaseBottomGateWaitTime();
+            launcher.increaseBottomGateWaitSeconds();
         }
         if (gamepad2.leftBumperWasPressed()) {
-            launcher.decreaseBottomGateWaitTime();
+            launcher.decreaseBottomGateWaitSeconds();
         }
         if (gamepad2.dpadUpWasPressed()) {
             launcher.increasePower();

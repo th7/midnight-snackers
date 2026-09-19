@@ -13,7 +13,7 @@ public final class ClockedOverflowEncoder implements Encoder {
 
     public final RawEncoder encoder;
 
-    private final LongSupplier clock;
+    private final LongSupplier nanoClock;
 
     private final double[] recent = new double[3];
 
@@ -22,17 +22,17 @@ public final class ClockedOverflowEncoder implements Encoder {
     private long lastReadNanos;
     private double estimate = 0;
 
-    public ClockedOverflowEncoder(RawEncoder encoder, LongSupplier clock) {
+    public ClockedOverflowEncoder(RawEncoder encoder, LongSupplier nanoClock) {
         this.encoder = encoder;
-        this.clock = clock;
+        this.nanoClock = nanoClock;
         this.lastPosition = encoder.getPositionAndVelocity().position;
-        this.lastReadNanos = clock.getAsLong();
+        this.lastReadNanos = nanoClock.getAsLong();
     }
 
     @Override
     public PositionVelocityPair getPositionAndVelocity() {
         PositionVelocityPair reading = encoder.getPositionAndVelocity();
-        long now = clock.getAsLong();
+        long now = nanoClock.getAsLong();
         long elapsedNanos = now - lastReadNanos;
 
         if (elapsedNanos > 0) {

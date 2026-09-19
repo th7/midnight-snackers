@@ -42,12 +42,15 @@ public final class MecanumDrive {
     public static Params PARAMS = new Params();
     public final MecanumKinematics kinematics = new MecanumKinematics(
             PARAMS.inPerTick * PARAMS.trackWidthTicks, PARAMS.inPerTick / PARAMS.lateralInPerTick);
-    public final TurnConstraints defaultTurnConstraints =
-            new TurnConstraints(PARAMS.maxAngVel, -PARAMS.maxAngAccel, PARAMS.maxAngAccel);
+    public final TurnConstraints defaultTurnConstraints = new TurnConstraints(
+            PARAMS.maxAngVelRadiansPerSecond,
+            -PARAMS.maxAngAccelRadiansPerSecondSquared,
+            PARAMS.maxAngAccelRadiansPerSecondSquared);
     public final VelConstraint defaultVelConstraint = new MinVelConstraint(Arrays.asList(
-            kinematics.new WheelVelConstraint(PARAMS.maxWheelVel), new AngularVelConstraint(PARAMS.maxAngVel)));
-    public final AccelConstraint defaultAccelConstraint =
-            new ProfileAccelConstraint(PARAMS.minProfileAccel, PARAMS.maxProfileAccel);
+            kinematics.new WheelVelConstraint(PARAMS.maxWheelVelInchesPerSecond),
+            new AngularVelConstraint(PARAMS.maxAngVelRadiansPerSecond)));
+    public final AccelConstraint defaultAccelConstraint = new ProfileAccelConstraint(
+            PARAMS.minProfileAccelInchesPerSecondSquared, PARAMS.maxProfileAccelInchesPerSecondSquared);
 
     public final Wheels wheels;
 
@@ -60,15 +63,15 @@ public final class MecanumDrive {
     private final DownsampledWriter driveCommandWriter = new DownsampledWriter("DRIVE_COMMAND", 50_000_000);
     private final DownsampledWriter mecanumCommandWriter = new DownsampledWriter("MECANUM_COMMAND", 50_000_000);
 
-    private final LongSupplier clock;
+    private final LongSupplier nanoClock;
 
     private double now() {
-        return clock.getAsLong() * 1e-9;
+        return nanoClock.getAsLong() * 1e-9;
     }
 
     public MecanumDrive(
-            Wheels wheels, LazyImu lazyImu, VoltageSensor voltageSensor, PoseEstimate where, LongSupplier clock) {
-        this.clock = clock;
+            Wheels wheels, LazyImu lazyImu, VoltageSensor voltageSensor, PoseEstimate where, LongSupplier nanoClock) {
+        this.nanoClock = nanoClock;
         this.wheels = wheels;
         this.lazyImu = lazyImu;
         this.voltageSensor = voltageSensor;
@@ -121,16 +124,16 @@ public final class MecanumDrive {
         public double lateralInPerTick = 0.0004592815203259795;
         public double trackWidthTicks = 25311.699425025417;
 
-        public double kS = 0.9891921306123841;
-        public double kV = 0.0001281158359065848;
-        public double kA = 0.00005;
+        public double kSVolts = 0.9891921306123841;
+        public double kVVoltSecondsPerTick = 0.0001281158359065848;
+        public double kAVoltSecondsSquaredPerTick = 0.00005;
 
-        public double maxWheelVel = 50;
-        public double minProfileAccel = -30;
-        public double maxProfileAccel = 50;
+        public double maxWheelVelInchesPerSecond = 50;
+        public double minProfileAccelInchesPerSecondSquared = -30;
+        public double maxProfileAccelInchesPerSecondSquared = 50;
 
-        public double maxAngVel = Math.PI;
-        public double maxAngAccel = Math.PI;
+        public double maxAngVelRadiansPerSecond = Math.PI;
+        public double maxAngAccelRadiansPerSecondSquared = Math.PI;
 
         public double axialGain = 3.5;
         public double lateralGain = 5;
@@ -139,7 +142,7 @@ public final class MecanumDrive {
         public double axialVelGain = 0.0;
         public double lateralVelGain = 0.0;
         public double headingVelGain = 0.0;
-        public double trajectoryTimeout = 10;
+        public double trajectoryTimeoutSeconds = 10;
     }
 
     public final class FollowTrajectoryAction implements Action {
@@ -177,7 +180,7 @@ public final class MecanumDrive {
             Pose2d error = txWorldTarget.value().minusExp(where.pose());
 
             if ((t >= timeTrajectory.duration && error.position.norm() < 0.1 && robotVelRobot.linearVel.norm() < 0.1)
-                    || t >= timeTrajectory.duration + PARAMS.trajectoryTimeout) {
+                    || t >= timeTrajectory.duration + PARAMS.trajectoryTimeoutSeconds) {
                 wheels.stop();
 
                 return false;
@@ -196,8 +199,10 @@ public final class MecanumDrive {
             MecanumKinematics.WheelVelocities<Time> wheelVels = kinematics.inverse(command);
             double voltage = voltageSensor.getVoltage();
 
-            final MotorFeedforward feedforward =
-                    new MotorFeedforward(PARAMS.kS, PARAMS.kV / PARAMS.inPerTick, PARAMS.kA / PARAMS.inPerTick);
+            final MotorFeedforward feedforward = new MotorFeedforward(
+                    PARAMS.kSVolts,
+                    PARAMS.kVVoltSecondsPerTick / PARAMS.inPerTick,
+                    PARAMS.kAVoltSecondsSquaredPerTick / PARAMS.inPerTick);
             double leftFrontPower = feedforward.compute(wheelVels.leftFront) / voltage;
             double leftBackPower = feedforward.compute(wheelVels.leftBack) / voltage;
             double rightBackPower = feedforward.compute(wheelVels.rightBack) / voltage;
@@ -264,7 +269,7 @@ public final class MecanumDrive {
             PoseVelocity2d robotVelRobot = where.velocity();
 
             if ((t >= turn.duration && error.heading.toDouble() < 0.1 && robotVelRobot.angVel < 0.1)
-                    || t >= turn.duration + PARAMS.trajectoryTimeout) {
+                    || t >= turn.duration + PARAMS.trajectoryTimeoutSeconds) {
                 wheels.stop();
 
                 return false;
@@ -282,8 +287,10 @@ public final class MecanumDrive {
 
             MecanumKinematics.WheelVelocities<Time> wheelVels = kinematics.inverse(command);
             double voltage = voltageSensor.getVoltage();
-            final MotorFeedforward feedforward =
-                    new MotorFeedforward(PARAMS.kS, PARAMS.kV / PARAMS.inPerTick, PARAMS.kA / PARAMS.inPerTick);
+            final MotorFeedforward feedforward = new MotorFeedforward(
+                    PARAMS.kSVolts,
+                    PARAMS.kVVoltSecondsPerTick / PARAMS.inPerTick,
+                    PARAMS.kAVoltSecondsSquaredPerTick / PARAMS.inPerTick);
             double leftFrontPower = feedforward.compute(wheelVels.leftFront) / voltage;
             double leftBackPower = feedforward.compute(wheelVels.leftBack) / voltage;
             double rightBackPower = feedforward.compute(wheelVels.rightBack) / voltage;

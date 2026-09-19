@@ -73,9 +73,9 @@ public class CameraTest {
 
         Nav.Pose pose = camera.sighting().get();
 
-        assertEquals(-10, pose.x(), DELTA);
-        assertEquals(-20, pose.y(), DELTA);
-        assertEquals(0, pose.heading(), DELTA);
+        assertEquals(-10, pose.xInches(), DELTA);
+        assertEquals(-20, pose.yInches(), DELTA);
+        assertEquals(0, pose.headingRadians(), DELTA);
     }
 
     @Test
