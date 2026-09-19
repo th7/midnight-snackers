@@ -68,6 +68,8 @@ public class Drive implements Loopable {
         }
     }
 
+    private static final boolean NOT_ARRIVED = false;
+
     private DriveRunner driveRunner;
     private final FastDrive fastDrive = new FastDrive();
     /** What the last {@link #toward} decided, for telemetry; null until the drive has steered. */
@@ -104,16 +106,17 @@ public class Drive implements Loopable {
         return toward(target, Held.NONE);
     }
 
-    /**
-     * Steers toward {@code target} on the axes the driver is not holding, this loop. Nothing
-     * moves while an action is being followed.
-     *
-     * @return whether the robot has arrived and come to rest there
-     */
     public boolean toward(Nav.Pose target, Held held) {
+        if (anActionOwnsTheWheels()) {
+            return NOT_ARRIVED;
+        }
         steering = fastDrive.steer(localizer.pose(), target.pose2d);
         power(held.straightOr(steering.straight), held.strafeOr(steering.strafe), held.turnOr(steering.turn));
         return steering.arrived;
+    }
+
+    private boolean anActionOwnsTheWheels() {
+        return !done();
     }
 
     /**
@@ -172,7 +175,7 @@ public class Drive implements Loopable {
     }
 
     private void power(float straight, float strafe, float turn) {
-        if (!done()) {
+        if (anActionOwnsTheWheels()) {
             return;
         }
         wheels.drive(new PoseVelocity2d(new Vector2d(straight, strafe), turn));
