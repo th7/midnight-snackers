@@ -99,6 +99,20 @@ We take whatever the document holds at the time we refresh the assets:
 nothing here pins an Onshape version, and small changes between refreshes
 are expected.
 
+## The renderer
+
+The bench draws `field.glb` with three.js, vendored under the simulator's
+resources (`vendor/`, MIT, in `doc/legal`) so the page loads nothing from the
+network -- the robot's wifi has none. The page is `field.html`, served at
+`/field` on the bench, and it reaches its own assets by relative link so it
+works wherever the bench is mounted.
+
+`tools/renderer/check.mjs` loads the model with that same three.js, in node.
+The writer is already checked by reading back what it writes, which says the
+two agree with each other; this says the library the browser hands it to
+accepts it, which only the other side can say. It needs node, and a missing
+node fails the run rather than skipping the check.
+
 ## Running the tests
 
 The scripts under `tools/` are tested by the same command locally and in CI:

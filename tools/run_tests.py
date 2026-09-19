@@ -6,8 +6,14 @@
 Discovery that finds nothing reports success, which is the failure this guards against: a
 renamed directory or a pattern that stops matching would leave a green step that judged nothing.
 A run that discovers no tests, or that could not import a test module, fails here instead.
+
+It also runs the renderer check, which loads the field's visual model with the three.js the page
+uses. That needs node, and a missing node fails the run rather than skipping the check: a gate
+that quietly steps aside is worse than no gate, because the run still comes out green.
 """
 import os
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -35,7 +41,24 @@ def main():
         print('No tests were discovered under tools/. That is a broken runner, not a pass.',
               file=sys.stderr)
         return 2
-    return 0 if result.wasSuccessful() else 1
+    if not result.wasSuccessful():
+        return 1
+    return renderer_check()
+
+
+def renderer_check():
+    """Load the field's visual model with the real three.js. Needs node."""
+    check = os.path.join(TOOLS, 'renderer', 'check.mjs')
+    if not os.path.isfile(check):
+        print(check + ' is gone; this runner expects it.', file=sys.stderr)
+        return 2
+    node = shutil.which('node')
+    if node is None:
+        print('node is not installed, so the renderer check could not run. That is a failure, '
+              'not a pass: install node, or take the check out deliberately.', file=sys.stderr)
+        return 2
+    print()
+    return subprocess.call([node, check])
 
 
 if __name__ == '__main__':

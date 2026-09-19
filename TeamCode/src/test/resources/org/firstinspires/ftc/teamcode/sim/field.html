@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The field</title>
+<style>
+  :root {
+    --bg: #11161c; --panel: #1a222b; --line: #2b3742; --text: #dfe7ee; --dim: #8fa0af;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #eef2f5; --panel: #ffffff; --line: #cfd8e0; --text: #1b2430; --dim: #5d6b79; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text); overflow: hidden;
+    font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas { display: block; touch-action: none; }
+  #hud {
+    position: fixed; top: 12px; left: 12px; padding: 10px 12px; border-radius: 8px;
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    border: 1px solid var(--line); max-width: min(360px, calc(100vw - 24px));
+  }
+  #hud h1 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+  #hud p { margin: 0; color: var(--dim); }
+  #hud kbd {
+    border: 1px solid var(--line); border-radius: 4px; padding: 0 4px;
+    background: var(--bg); font: inherit; font-size: 12px;
+  }
+  #problem { color: #e06c75; white-space: pre-wrap; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "assets/vendor/three.module.min.js",
+    "three/addons/": "assets/vendor/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="hud">
+  <h1>The field</h1>
+  <p id="said">Loading the model&hellip;</p>
+  <p id="problem"></p>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const said = document.getElementById('said');
+const problem = document.getElementById('problem');
+
+// The model is in Road Runner's frame: inches, z up, the origin in the middle of the floor.
+// three.js is y up by default, so everything made after this is told otherwise rather than the
+// scene being turned, which would put the model's own axes at odds with the numbers on it.
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
+const FIELD_IN = 141.17;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const styles = getComputedStyle(document.documentElement);
+scene.background = new THREE.Color(styles.getPropertyValue('--bg').trim() || '#11161c');
+
+const camera = new THREE.PerspectiveCamera(38, 1, 1, 4000);
+camera.position.set(-170, -190, 130);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 18);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2 - 0.02; // no going under the floor
+controls.minDistance = 30;
+controls.maxDistance = 900;
+
+// A key light high on the audience's left, a soft fill from the sky, and a little bounce from
+// the floor, which is what stops the undersides reading as black.
+const key = new THREE.DirectionalLight(0xffffff, 2.1);
+key.position.set(-120, -160, 260);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 40;
+key.shadow.camera.far = 700;
+const reach = FIELD_IN * 1.1;
+Object.assign(key.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach });
+key.shadow.bias = -0.0015;
+scene.add(key);
+scene.add(new THREE.HemisphereLight(0xbfd4e8, 0x2a2f36, 1.0));
+
+const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(FIELD_IN, FIELD_IN),
+    new THREE.MeshStandardMaterial({ color: 0x20262e, roughness: 0.95, metalness: 0 }));
+floor.receiveShadow = true;
+scene.add(floor);
+
+const tiles = new THREE.GridHelper(FIELD_IN, 6, 0x4a5a68, 0x33414d);
+tiles.rotation.x = Math.PI / 2; // GridHelper lies in xz; the field's floor is xy
+tiles.position.z = 0.05;
+scene.add(tiles);
+
+function fit() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', fit);
+fit();
+
+new GLTFLoader().load('assets/field.glb', (gltf) => {
+  let meshes = 0;
+  let triangles = 0;
+  gltf.scene.traverse((object) => {
+    if (!object.isMesh) {
+      return;
+    }
+    meshes++;
+    triangles += object.geometry.index ? object.geometry.index.count / 3
+                                       : object.geometry.attributes.position.count / 3;
+    object.castShadow = true;
+    object.receiveShadow = true;
+    // The export carries no normals, so a flat-shaded part would come out unlit.
+    if (!object.geometry.attributes.normal) {
+      object.geometry.computeVertexNormals();
+    }
+    object.material.roughness = 0.62;
+    object.material.metalness = 0.05;
+  });
+  scene.add(gltf.scene);
+  said.textContent = meshes + ' parts, ' + triangles.toLocaleString() + ' triangles. '
+      + 'Drag to orbit, scroll to zoom.';
+}, undefined, (wrong) => {
+  said.textContent = 'The field did not load.';
+  problem.textContent = String(wrong && wrong.message ? wrong.message : wrong);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
