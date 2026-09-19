@@ -16,11 +16,6 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
-/**
- * The Localizer settles where the robot is before anything reads it, and Brain reads Camera and
- * Nav from the current tick and sets the Turntable target, so the order subsystems are ticked in
- * is part of the op mode's contract, not an accident of construction.
- */
 public class OpModeLoopOrderTest {
     private static class TestOp extends OpMode {
         final List<String> onLoops = new ArrayList<>();
@@ -42,7 +37,6 @@ public class OpModeLoopOrderTest {
             super(Alliance.RELATIVE);
         }
 
-        /** A plan that never finishes, so every tick of it is counted. */
         @Override
         public PlanPart getPlan() {
             return new Plan(new Step("count", () -> {}, () -> {
@@ -106,10 +100,6 @@ public class OpModeLoopOrderTest {
         assertEquals(List.of("onLoop"), opMode.onLoops);
     }
 
-    /**
-     * The robot controller keeps one instance of an op mode registered by instance and calls
-     * {@code init()} on it for every run, so a second init must leave the loop as the first did.
-     */
     @Test
     public void initialisingAgainTicksEachSubsystemOnce() {
         TestAuto opMode = initialised(new TestAuto());
@@ -148,14 +138,6 @@ public class OpModeLoopOrderTest {
         assertEquals(1, ((FakeTelemetry) sim.dashboard.telemetry()).updates);
     }
 
-    /**
-     * An auto's plan runner is the auto's own, so the auto ticks it, once a loop. That this
-     * happens after every subsystem is now the shape rather than a list position: it runs in
-     * {@code onLoop}, and {@link OpMode#loop()} is final and runs that after the robot.
-     *
-     * <p>It used to be registered on the robot, which is what forced {@code Robot.add} to accept
-     * something that was not a subsystem, and the robot to ask which it had been given.
-     */
     @Test
     public void anAutoTicksItsOwnPlanOncePerLoopAfterEverySubsystem() {
         TestAuto opMode = initialised(new TestAuto());

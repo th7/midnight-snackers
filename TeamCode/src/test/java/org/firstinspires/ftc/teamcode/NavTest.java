@@ -14,14 +14,6 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
-/**
- * Nav speaks in poses on the field: it mirrors them for the alliance, says where the robot is
- * and whether it is near somewhere, and knows where to launch from.
- *
- * <p>Where things are is all it knows. How the robot gets to one of them -- what path to take and
- * what to ask the wheels for along the way -- is the drive's, and Nav does not hold the drive that
- * would tell it.
- */
 public class NavTest {
     private static final double DELTA = 0.001;
 
@@ -33,11 +25,6 @@ public class NavTest {
         return Math.hypot(to.x - from.x(), to.y - from.y());
     }
 
-    /**
-     * Nav says where; the drive says how. A path is built from the robot's own model of itself --
-     * its track width, its wheels, what it can accelerate at -- which is the drive's to know, so
-     * Road Runner's drive belongs there and not here.
-     */
     @Test
     public void navDoesNotHoldTheDriveThatBuildsPaths() {
         List<String> held = new ArrayList<>();
@@ -109,11 +96,6 @@ public class NavTest {
         assertEquals(-(Math.atan2(goal.y, goal.x) - 0.25), nav.relativeHeadingToTarget(), DELTA);
     }
 
-    /**
-     * The bug this replaced: a plan that places the robot by hand said nothing about whether the
-     * robot was on the field, so an auto that set its own start pose aimed the turntable straight
-     * ahead for the whole run unless the camera happened to see a tag.
-     */
     @Test
     public void placingTheRobotByHandIsEnoughToAimTheTurntable() {
         Nav nav = navFor(Alliance.BLUE);
@@ -125,11 +107,6 @@ public class NavTest {
         assertEquals(-(Math.atan2(goal.y, goal.x) - 0.25), nav.relativeHeadingToTarget(), DELTA);
     }
 
-    /**
-     * Placing the robot is placing it however it was done, so a sighting that arrives afterwards
-     * is a later sighting and nudges. Teleporting to the first frame the camera agreed on would
-     * throw away a start pose a person measured and set the robot down on.
-     */
     @Test
     public void aSightingNudgesRatherThanTeleportsOnceTheRobotHasBeenPlacedByHand() {
         Nav nav = navFor(Alliance.BLUE);

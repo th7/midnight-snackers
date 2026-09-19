@@ -13,23 +13,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 
-/**
- * What the driver does during a run: the state of the two gamepads and the Stop button; and before
- * it, where the robot is placed ({@link #startLine}), which the child waits for before its run
- * starts. The controller page sends the gamepads, the bench relays them, and the runner copies the
- * gamepad states into the op mode's gamepads before every loop, the way the robot controller
- * copies in each packet from the real driver station, so the SDK's own edge detection
- * ({@code crossWasPressed()}) sees presses and releases exactly as it does on the robot. A state
- * holds until the next one replaces it, like a real gamepad. Safe to set from another thread while
- * the run reads it.
- */
 public final class SimDriverStation {
-    /**
-     * One gamepad's inputs as a value, named as the SDK names the {@link Gamepad} fields: the
-     * PlayStation names for the buttons, {@code left_stick_x} and the like for the axes.
-     */
     public static final class State {
-        /** The on/off inputs, by the SDK's PlayStation field names. */
         public static final List<String> BUTTONS = List.of(
                 "dpad_up",
                 "dpad_down",
@@ -47,9 +32,9 @@ public final class SimDriverStation {
                 "options",
                 "touchpad",
                 "ps");
-        /** The 0 to 1 inputs. */
+
         public static final List<String> TRIGGERS = List.of("left_trigger", "right_trigger");
-        /** The -1 to 1 inputs; a stick pushed forward reads negative y, as on the robot. */
+
         public static final List<String> AXES =
                 List.of("left_stick_x", "left_stick_y", "right_stick_x", "right_stick_y");
 
@@ -61,7 +46,7 @@ public final class SimDriverStation {
         public final float rightStickY;
         public final float leftTrigger;
         public final float rightTrigger;
-        /** The buttons held, from {@link #BUTTONS}. */
+
         public final Set<String> pressed;
 
         private State(float[] axes, Set<String> pressed) {
@@ -74,10 +59,6 @@ public final class SimDriverStation {
             this.pressed = pressed;
         }
 
-        /**
-         * @param json the inputs that are not neutral, e.g. {@code {"cross": true, "left_stick_y": -1}}
-         * @throws IllegalArgumentException for a name that is not a gamepad input
-         */
         public static State fromJson(JsonObject json) {
             float[] axes = new float[6];
             Set<String> pressed = new TreeSet<>();
@@ -98,7 +79,6 @@ public final class SimDriverStation {
             return new State(axes, Collections.unmodifiableSet(pressed));
         }
 
-        /** The inputs that are not neutral; an empty object for {@link #NEUTRAL}. */
         public JsonObject toJson() {
             JsonObject json = new JsonObject();
             for (String button : BUTTONS) {
@@ -131,10 +111,6 @@ public final class SimDriverStation {
                     && rightTrigger == 0;
         }
 
-        /**
-         * Make {@code gamepad} read these inputs, through the SDK's own packet copy so that its
-         * edge detection notices what changed since the last state it was given.
-         */
         public void applyTo(Gamepad gamepad) {
             Gamepad source = new Gamepad();
             source.type = Gamepad.Type.SONY_PS4;
@@ -148,7 +124,7 @@ public final class SimDriverStation {
             source.dpad_down = pressed.contains("dpad_down");
             source.dpad_left = pressed.contains("dpad_left");
             source.dpad_right = pressed.contains("dpad_right");
-            // The SDK serializes the Xbox names; the PlayStation names are aliases it derives.
+
             source.a = pressed.contains("cross");
             source.b = pressed.contains("circle");
             source.x = pressed.contains("square");
@@ -200,15 +176,10 @@ public final class SimDriverStation {
     private volatile Pose2d start;
     private volatile Long seed;
 
-    /** The line that places the exact robot before the run: {@code {"start": {"x": .., "y": .., "heading": ..}}}. */
     public static JsonObject startLine(Pose2d start) {
         return startLine(start, null);
     }
 
-    /**
-     * The line that places the robot before the run and says which robot it is: {@code {"start":
-     * {"x": .., "y": .., "heading": ..}, "seed": ..}}, with no seed for the exact robot.
-     */
     public static JsonObject startLine(Pose2d start, Long seed) {
         JsonObject line = new JsonObject();
         line.add("start", StartPoses.toJson(start));
@@ -218,28 +189,20 @@ public final class SimDriverStation {
         return line;
     }
 
-    /** The robot is placed: the run may start, on the exact robot. */
     public void place(Pose2d pose) {
         place(pose, null);
     }
 
-    /** The robot is placed: the run may start, on the robot drawn from {@code seed}, or the exact one for null. */
     public void place(Pose2d pose, Long seed) {
         start = Objects.requireNonNull(pose, "start");
         this.seed = seed;
         placed.countDown();
     }
 
-    /** Which robot the run is on, once placed: a {@link SimNoise} seed, or null for the exact robot. */
     public Long seed() {
         return seed;
     }
 
-    /**
-     * Waits until the robot is placed, or Stop is pressed first.
-     *
-     * @return where it was placed, or empty when the run was stopped (or this thread interrupted) before it was placed
-     */
     public Optional<Pose2d> awaitPlacement() {
         try {
             placed.await();
@@ -250,9 +213,6 @@ public final class SimDriverStation {
         return Optional.ofNullable(start);
     }
 
-    /**
-     * @param gamepad 1 or 2
-     */
     public synchronized void set(int gamepad, State state) {
         states[index(gamepad)] = Objects.requireNonNull(state, "state");
     }
@@ -261,7 +221,6 @@ public final class SimDriverStation {
         return states[index(gamepad)];
     }
 
-    /** Copy both states into the op mode's gamepads, as the robot controller does each packet. */
     public synchronized Applied applyTo(Gamepad gamepad1, Gamepad gamepad2) {
         State one = states[0];
         State two = states[1];
@@ -270,12 +229,6 @@ public final class SimDriverStation {
         return new Applied(one, two);
     }
 
-    /**
-     * The two states a loop's gamepads were given: what the op mode read that loop, which is what
-     * its {@link SimRecording.Tick} carries. Asking the station again afterwards would answer with
-     * whatever the driver has pressed since -- the controller page writes while a loop is running
-     * -- and a tick built from that would show a press on a loop the op mode never saw one.
-     */
     public static final class Applied {
         public final State gamepad1;
         public final State gamepad2;
@@ -286,7 +239,6 @@ public final class SimDriverStation {
         }
     }
 
-    /** The driver pressed Stop: the run ends after the loop in progress, or never starts if not yet placed. */
     public void stop() {
         stopRequested = true;
         placed.countDown();
@@ -296,12 +248,6 @@ public final class SimDriverStation {
         return stopRequested;
     }
 
-    /**
-     * One line of what the bench sends the child: the {@link #startLine start line} that places
-     * the robot, {@code {"gamepad": 1, "state": {...}}}, or {@code {"stop": true}}.
-     *
-     * @throws IllegalArgumentException for anything else, a start that is not a pose or a seed that is not a whole number included
-     */
     public void accept(JsonObject line) {
         if (line.has("start")) {
             if (!line.get("start").isJsonObject()) {

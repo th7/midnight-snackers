@@ -11,13 +11,9 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
-/**
- * The drive takes one intent at a time, from whoever is driving, and writes the motors itself:
- * manual powers, steering toward a pose, or following a Road Runner action.
- */
 public class DriveTest {
     private static final double DELTA = 0.0001;
-    /** An action that never finishes and drives nothing, like a path still being planned. */
+
     private static final Action FOREVER = packet -> true;
 
     private final SimDevices devices = new SimDevices();
@@ -25,7 +21,6 @@ public class DriveTest {
     private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, screen);
     private final Drive drive = robot.drive;
 
-    /** The four wheel powers, in {@link #assertPowers}' order. */
     private double[] powers() {
         return new double[] {
             devices.leftFront.power, devices.rightFront.power, devices.leftBack.power, devices.rightBack.power
@@ -67,17 +62,12 @@ public class DriveTest {
         assertPowers(0.1, 0.7, 0.5, 0.3);
     }
 
-    /**
-     * A command that would ask more of a wheel than it has is scaled down whole, so the robot goes
-     * slower in the direction asked for rather than somewhere else. Twice a command, once a wheel
-     * has run out, is still the same command: every wheel in the same ratio.
-     */
     @Test
     public void aCommandTooBigForAWheelIsScaledDownWhole() {
-        drive.manual(0.25f, 0.25f, 0.25f); // the most a wheel is asked for is 0.75: nothing is clipped
+        drive.manual(0.25f, 0.25f, 0.25f);
         double[] gentle = powers();
 
-        drive.manual(0.5f, 0.5f, 0.5f); // the same again, but a wheel is now asked for 1.5
+        drive.manual(0.5f, 0.5f, 0.5f);
 
         double[] hard = powers();
         double scale = 1 / 1.5 * 2;
@@ -107,8 +97,6 @@ public class DriveTest {
     public void anAxisTheDriverHoldsIsTheirsAndTheRestAreTheDrives() {
         drive.toward(robot.nav.pose(48, 0, 0), Held.NONE.strafe(0.5f));
 
-        // full power forward from the drive, plus the driver's strafe; a wheel is asked for 1.5,
-        // so the whole command is scaled to fit rather than the far wheels being clipped
         assertPowers(1.0 / 3, 1, 1, 1.0 / 3);
     }
 
@@ -134,12 +122,6 @@ public class DriveTest {
         assertPowers(1, 1, 1, 1);
     }
 
-    /**
-     * Cancelling is a driver or a plan saying they are done with what the drive was doing, and a
-     * robot nobody is driving should not still be driving. It used to keep its last power until
-     * something else asked for something, so a plan step that cancelled its own path as it arrived
-     * left the robot rolling into whatever came next.
-     */
     @Test
     public void cancellingStopsTheWheels() {
         drive.manual(0.8f, 0, 0);
@@ -202,7 +184,6 @@ public class DriveTest {
                 screen.captions.contains("Drive.steeringArrived"));
     }
 
-    /** The dashboard field view shows the robot where Nav says it is, even when nothing is driving. */
     @Test
     public void idleLoopsDrawTheRobotAtNavsPoseOnTheDashboard() {
         drive.loop();

@@ -21,10 +21,6 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
-/**
- * Every plan method in {@link Plans} that carries {@link Auto} is an autonomous op mode on the
- * driver station, registered by {@link PlanOpModes} without a class of its own.
- */
 public class PlanOpModesTest {
     private final FakeOpModeManager manager = new FakeOpModeManager();
 

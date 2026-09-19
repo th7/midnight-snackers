@@ -15,41 +15,17 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * The season's field, reduced from FIRST's CAD by {@code tools/field/step_to_field.py} to
- * {@code field.json} next to this class: the size between the walls and their height, each field
- * element as a low-poly convex shape, the hives, the flowers, the game pieces where a match
- * starts, the gaffer tape on the floor, and the <b>obstacles</b>: the convex footprint of every
- * part of an element that stands lower than the robot is tall, which is what {@link SimRobot} runs
- * into. Each obstacle says how high it stands and how far it clears the floor, so a ball rolls
- * under one that overhangs. The game pieces on the floor in the open are <b>loose</b>: the
- * simulator rolls them, and the ticks say where they are; so are the pollen a flower holds, which
- * stand in its bore. The replay page draws the same model, obstacles included, so what it draws is
- * what the simulator collides.
- * <p>
- * Everything is in the field frame Road Runner uses: inches, origin at the centre of the field,
- * +x away from the audience, +y to the audience's left, +z up. A hive is the exception: it turns
- * about its axle, so what it is made of is given in its own frame and {@link Hive#at} says where
- * that is at the tilt the hive leans at.
- */
 public final class SimField {
-    /** A game piece's kind, which says how much of a hive's load it is. */
     public static final String NECTAR = "Nectar";
 
     public static final String POLLEN = "Pollen";
 
-    /**
-     * A convex polygon on the floor, wound counter-clockwise, that the robot's footprint may not
-     * enter: one part of a field element, so that what is driven through between — the frame's
-     * legs, a flower's pipes — blocks nothing. How high it {@link #stands} and how far it
-     * {@link #clears} the floor say what meets it: a ball rolls under one that overhangs it.
-     */
     public static final class Obstacle {
         public final String name;
         public final double[][] footprint;
-        /** How high above the floor its underside is, in inches: how much rolls under it. */
+
         public final double clears;
-        /** How high above the floor its top is, in inches. */
+
         public final double stands;
 
         Obstacle(String name, double[][] footprint, double clears, double stands) {
@@ -60,28 +36,17 @@ public final class SimField {
         }
     }
 
-    /**
-     * A flower: the tower at a wall whose four pipes make the <b>bore</b> a stack of pollen stands
-     * in, one on another from the floor up. The bore is a circle on the floor — the {@link #axis}
-     * midway between the pipes and the {@link #bore} radius the nearest of them leaves clear — and
-     * the {@link #gap} between two neighbouring pipes is narrower than a pollen, so what is in the
-     * bore stays in it. The bore's wall begins at the {@link #lip}, the height the pipes start at:
-     * a pollen standing wholly below the lip is held by nothing above it, which is why the one at
-     * the bottom of the stack is the one that comes out. What holds it is the {@link #nest}: the
-     * ring around the bottom of the bore — the flower's base plate — that it sits in the middle
-     * of and has to climb to leave, carrying whatever rests on it.
-     */
     public static final class Flower {
         public final String name;
-        /** Where the bore stands on the floor, {x, y} in the field frame. */
+
         public final double[] axis;
-        /** How far from the axis the pipes leave clear, in inches. */
+
         public final double bore;
-        /** The narrowest gap between two of the pipes, in inches: what keeps a pollen in the bore. */
+
         public final double gap;
-        /** How high the pipes begin, in inches: below it the bore's wall reaches nothing. */
+
         public final double lip;
-        /** How high the ring around the bottom of the bore stands, in inches: the climb out of the nest. */
+
         public final double nest;
 
         Flower(JsonObject json, Gson gson) {
@@ -93,13 +58,11 @@ public final class SimField {
             this.nest = json.get("nest").getAsDouble();
         }
 
-        /** Whether a ball standing at {@code x, y} is in the bore, and so under what the bore holds. */
         public boolean standsIn(double x, double y) {
             return Math.hypot(x - axis[0], y - axis[1]) <= bore;
         }
     }
 
-    /** A field element's shape: its vertices and its faces, each a ring of vertex indices seen from outside. */
     public static final class Element {
         public final String group;
         public final String name;
@@ -116,27 +79,19 @@ public final class SimField {
         }
     }
 
-    /**
-     * A hive: the see-saw that hangs from the frame's top bar with a {@link Cell} at each end and
-     * tips one way or the other about its axle. Everything it is made of is given in the hive's
-     * own frame — the origin on the axle, +x along the beam toward the scoring cell with the beam
-     * level, +y the field's and +z up — so that the <b>tilt</b> it leans at, in degrees above
-     * level, is all that says where it is. {@link #tilt} is the tilt the field is set up at; the
-     * hive tips to the other side of level, {@code -tilt}.
-     */
     public static final class Hive {
         public final String name;
-        /** "Blue" or "Red": whose hive it is. */
+
         public final String alliance;
 
         public final String colour;
-        /** The middle of the axle it turns on, in the field frame. */
+
         public final double[] pivot;
-        /** How far above level the beam leans toward the scoring cell, in degrees, as the field is set up. */
+
         public final double tilt;
 
         public final List<Cell> cells;
-        /** What the hive is made of besides its cells, in the hive's frame: drawn, and turns with it. */
+
         public final List<Element> parts;
 
         Hive(JsonObject json, Gson gson) {
@@ -163,19 +118,16 @@ public final class SimField {
             this.cells = Collections.unmodifiableList(cells);
         }
 
-        /** Where the hive's point {@code local} is in the field frame, with the hive leaning at {@code tilt}. */
         public double[] at(double tilt, double[] local) {
             double[] turned = direction(tilt, local);
             return new double[] {pivot[0] + turned[0], pivot[1] + turned[1], pivot[2] + turned[2]};
         }
 
-        /** Where the hive's direction {@code local} points in the field frame at that tilt. */
         public double[] direction(double tilt, double[] local) {
             double c = Math.cos(Math.toRadians(tilt)), s = Math.sin(Math.toRadians(tilt));
             return new double[] {local[0] * c - local[2] * s, local[1], local[0] * s + local[2] * c};
         }
 
-        /** The hive's ring {@code local} in the field frame at that tilt. */
         public double[][] at(double tilt, double[][] local) {
             double[][] out = new double[local.length][];
             for (int i = 0; i < local.length; i++) {
@@ -185,37 +137,26 @@ public final class SimField {
         }
     }
 
-    /**
-     * A hive cell: the basket a launched ball scores in, in its hive's frame. It is the opening
-     * the CAD's goal ribs frame — the <b>mouth</b> — swept twelve inches to the <b>back</b> that
-     * closes it, with a wall between every pair of the mouth's corners. A ball that crosses the
-     * mouth going in is in the cell and one that meets a wall or the back bounces off, whichever
-     * side it comes from.
-     * <p>
-     * Which way the cell is turned is the tilt's to say: a cell is <b>upturned</b> when its mouth
-     * faces up, and then it holds what is in it, resting on the floor at the back; the cell at the
-     * hive's other end is <b>downturned</b>, and what is in it rolls out of the mouth.
-     */
     public static final class Cell {
         public final Hive hive;
         public final String name;
-        /** "Blue" or "Red": whose hive the cell is in. */
+
         public final String alliance;
-        /** "Audience" or "Scoring": which end of the hive the cell is at. */
+
         public final String side;
-        /** The opening the ball comes in through, as its ring in the hive's frame. */
+
         public final double[][] mouth;
-        /** The mouth's ring again at the closed end of the cell. */
+
         public final double[][] back;
-        /** One wall per pair of the mouth's corners, each a ring in the hive's frame. */
+
         public final List<double[][]> walls;
-        /** What stops a ball: the walls and the back. */
+
         public final List<double[][]> panels;
-        /** The middle of the cell, in the hive's frame. */
+
         public final double[] centre;
 
         public final double[] mouthCentre;
-        /** The mouth's unit normal in the hive's frame, pointing out of the cell. */
+
         public final double[] mouthNormal;
 
         Cell(Hive hive, JsonObject json, Gson gson) {
@@ -248,7 +189,6 @@ public final class SimField {
             this.mouthNormal = normal;
         }
 
-        /** The middle of the cell in the field frame, with its hive leaning at that tilt. */
         public double[] centreAt(double tilt) {
             return hive.at(tilt, centre);
         }
@@ -257,7 +197,6 @@ public final class SimField {
             return hive.at(tilt, mouthCentre);
         }
 
-        /** The mouth's unit normal in the field frame at that tilt, pointing out of the cell. */
         public double[] mouthNormalAt(double tilt) {
             return hive.direction(tilt, mouthNormal);
         }
@@ -266,7 +205,6 @@ public final class SimField {
             return hive.at(tilt, mouth);
         }
 
-        /** The walls and the back in the field frame at that tilt. */
         public List<double[][]> panelsAt(double tilt) {
             List<double[][]> out = new ArrayList<>(panels.size());
             for (double[][] panel : panels) {
@@ -275,10 +213,6 @@ public final class SimField {
             return out;
         }
 
-        /**
-         * Whether the cell holds what is in it at that tilt: its mouth faces up, so the balls rest
-         * on the floor at the back. A downturned cell's roll out of the mouth.
-         */
         public boolean upturnedAt(double tilt) {
             return mouthNormalAt(tilt)[2] > 0;
         }
@@ -298,10 +232,6 @@ public final class SimField {
         }
     }
 
-    /**
-     * A flat ring's unit normal by Newell's method, which is robust to near-collinear corners;
-     * pointing the way the ring winds counter-clockwise around it.
-     */
     static double[] normal(double[][] ring) {
         double[] n = new double[3];
         for (int i = 0; i < ring.length; i++) {
@@ -314,16 +244,15 @@ public final class SimField {
         return new double[] {n[0] / length, n[1] / length, n[2] / length};
     }
 
-    /** A ball the field is set up with: on the floor in the open, stacked in a flower, or in a hive cell. */
     public static final class Piece {
         public final String name;
-        /** {@link #NECTAR} or {@link #POLLEN}. */
+
         public final String kind;
-        /** "Blue" or "Red" for a piece of one alliance's, else null. */
+
         public final String alliance;
-        /** The cell the field is set up with the piece inside, or null. */
+
         public final String cell;
-        /** The flower the field is set up with the piece stacked in the bore of, or null. */
+
         public final String flower;
 
         public final double x;
@@ -346,25 +275,24 @@ public final class SimField {
 
     private static final String MODEL = "field.json";
 
-    /** Between the walls, in inches; the field is a square of this side centred on the origin. */
     public final double size;
 
     public final double wallHeight;
     public final List<Element> elements;
     public final List<Obstacle> obstacles;
-    /** The two hives, one per alliance. */
+
     public final List<Hive> hives;
-    /** Every hive's cells, hive by hive: what a launched ball scores in. */
+
     public final List<Cell> cells;
-    /** The four flowers, one at each wall: the bores the field's stacks of pollen stand in. */
+
     public final List<Flower> flowers;
-    /** The game pieces the simulator rolls, in the order the page and the ticks name them. */
+
     public final List<Piece> loosePieces;
-    /** The game pieces the field is set up with inside a hive cell: the nectar each hive starts with. */
+
     public final List<Piece> cellPieces;
-    /** The game pieces the field is set up with stacked in a flower: the pollen each flower holds. */
+
     public final List<Piece> flowerPieces;
-    /** Every piece a run moves, in the order a tick lists them. */
+
     public final List<Piece> movedPieces;
 
     private final JsonObject json;
@@ -449,7 +377,6 @@ public final class SimField {
         this.obstacles = Collections.unmodifiableList(obstacles);
     }
 
-    /** The season's field, from the model next to this class. */
     public static SimField load() {
         try (InputStream in = SimField.class.getResourceAsStream(MODEL)) {
             if (in == null) {
@@ -462,12 +389,10 @@ public final class SimField {
         }
     }
 
-    /** The whole model as the page reads it. */
     public JsonObject json() {
         return json;
     }
 
-    /** The obstacle of that name, or null. */
     public Obstacle obstacle(String name) {
         for (Obstacle obstacle : obstacles) {
             if (obstacle.name.equals(name)) {
@@ -477,7 +402,6 @@ public final class SimField {
         return null;
     }
 
-    /** The hive of that name, or null. */
     public Hive hive(String name) {
         for (Hive hive : hives) {
             if (hive.name.equals(name)) {
@@ -487,7 +411,6 @@ public final class SimField {
         return null;
     }
 
-    /** The flower of that name, or null. */
     public Flower flower(String name) {
         for (Flower flower : flowers) {
             if (flower.name.equals(name)) {
@@ -497,7 +420,6 @@ public final class SimField {
         return null;
     }
 
-    /** The cell of that name, or null. */
     public Cell cell(String name) {
         for (Cell cell : cells) {
             if (cell.name.equals(name)) {

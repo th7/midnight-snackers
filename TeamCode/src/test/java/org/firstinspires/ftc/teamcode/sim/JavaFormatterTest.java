@@ -15,11 +15,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.junit.Test;
 
-/**
- * The formatter itself, and the gate that keeps it the one CI checks with: what the coding server
- * writes into a commit has to be what {@code :TeamCode:spotlessCheck} accepts, or a student's push
- * fails on formatting alone.
- */
 public class JavaFormatterTest {
     @Test
     public void badlyIndentedJavaComesBackAsPalantirWritesIt() throws Exception {
@@ -52,12 +47,6 @@ public class JavaFormatterTest {
         }
     }
 
-    /**
-     * The gate: the version on the test classpath is the version Spotless is configured with,
-     * both read from the one {@code palantirJavaFormatVersion} property in TeamCode/build.gradle.
-     * Run outside Gradle there is no property to compare against, and this says so rather than
-     * passing on nothing.
-     */
     @Test
     public void theFormatterOnTheClasspathIsTheVersionSpotlessChecksWith() {
         String spotless = System.getProperty("palantirJavaFormat.version");
@@ -68,12 +57,6 @@ public class JavaFormatterTest {
         assertEquals(spotless, JavaFormatter.version());
     }
 
-    /**
-     * The same gate, over behaviour rather than a version string: this project's own Java is what
-     * {@code spotlessCheck} accepts, since CI says so on every pull request, so the formatter that
-     * commits a student's work must leave every one of these files alone. A version bump, a
-     * changed step, or a step Spotless runs that the formatter does not, all show up here.
-     */
     @Test
     public void everyJavaFileInThisProjectIsAlreadyWhatTheFormatterWouldWrite() throws Exception {
         List<Path> sources = javaFilesUnderSrc();
@@ -99,7 +82,6 @@ public class JavaFormatterTest {
                 differ);
     }
 
-    /** Every Java file under TeamCode's {@code src}, which is exactly what Spotless targets. */
     private static List<Path> javaFilesUnderSrc() throws IOException {
         Path src = Paths.get("src");
         try (Stream<Path> walk = Files.walk(src)) {

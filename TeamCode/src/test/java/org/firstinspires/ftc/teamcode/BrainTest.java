@@ -16,7 +16,6 @@ import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.junit.Test;
 
-/** The brain places the robot on the field from what the camera sees, less the turntable's turn. */
 public class BrainTest {
     private static final double DELTA = 0.001;
     private static final int BLUE_GOAL_TAG = 20;
@@ -56,11 +55,6 @@ public class BrainTest {
                 DELTA);
     }
 
-    /**
-     * The brain runs its own plan, so its plan runner has to be ticked every loop. Nothing used to
-     * say so: breaking the tick left every test in the suite green except the ones belonging to the
-     * mechanism that did it.
-     */
     @Test
     public void theBrainsOwnPlanRunsOnEveryLoop() {
         Robot robot = robotFor(Alliance.RELATIVE);

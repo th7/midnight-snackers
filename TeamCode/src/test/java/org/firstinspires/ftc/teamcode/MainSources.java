@@ -33,30 +33,15 @@ import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.firstinspires.ftc.teamcode.sim.SimBuild;
 
-/**
- * The robot's main sources, asked questions about by javac's own understanding of them.
- *
- * <p>Some rules about this code are not about any one class's behaviour but about what the code as
- * a whole is allowed to mention, and a test is the only thing that can hold them. Reading the
- * sources as text to do it is close enough to work and wrong in both directions: a name in a
- * comment or a string is not a use, and a use through a star import or an inherited name does not
- * carry the name being looked for. So this compiles them, stops after {@code analyze()}, and
- * matches <b>resolved symbols</b> -- the same machinery {@code SourceNavigator} answers the editor
- * with, asked a different question.
- *
- * <p>Compiled once and shared: a rule costs a scan, not a build.
- */
 final class MainSources {
     private static final Path ROOT = Paths.get("src", "main", "java");
 
     private static MainSources compiled;
 
-    /** Every type named in the sources, and everywhere it is named. */
     private final Map<String, List<Reference>> byType;
 
     private final int fileCount;
 
-    /** Where a type is named in the sources, and what it is named inside. */
     record Reference(String file, long line, String inside) {
         @Override
         public String toString() {
@@ -69,11 +54,6 @@ final class MainSources {
         this.fileCount = fileCount;
     }
 
-    /**
-     * The main sources, compiled. Fails rather than answering from nothing: a rule that looked at
-     * no files, or at files that did not compile, has not judged anything and must not look as
-     * though it has.
-     */
     static synchronized MainSources compiled() {
         if (compiled != null) {
             return compiled;
@@ -128,18 +108,13 @@ final class MainSources {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            // The answers are read out above and kept as values, so nothing here is needed again.
-            // Holding the compiler's trees and an open file manager for the life of the test JVM
-            // would leave sixty parsed files on the heap behind every later test.
             try {
                 files.close();
             } catch (IOException ignored) {
-                // nothing is read through it again
             }
         }
     }
 
-    /** Reads every name javac resolved to a type out of the trees, once, into plain values. */
     private static Map<String, List<Reference>> index(List<CompilationUnitTree> units, Trees trees) {
         SourcePositions positions = trees.getSourcePositions();
         Map<String, List<Reference>> byType = new HashMap<>();
@@ -178,11 +153,6 @@ final class MainSources {
         return byType;
     }
 
-    /**
-     * {@code Trees.instance(task)}, by reflection: the other overload names a class the Android
-     * platform jar this compiles against does not have, which stops javac resolving the call. The
-     * same dodge {@code SourceNavigator} needs, for the same reason.
-     */
     private static Trees treesOf(JavacTask task) {
         try {
             return (Trees) Trees.class
@@ -193,21 +163,14 @@ final class MainSources {
         }
     }
 
-    /** How many source files these rules are reading, so a rule can say it looked at something. */
     int fileCount() {
         return fileCount;
     }
 
-    /**
-     * Everywhere {@code qualifiedTypeName} is named: an import of it, a use of its simple name
-     * under a star import, a reference through any other name it has. Only names that javac
-     * resolved to that very type, so a mention in a comment or a string is not one.
-     */
     List<Reference> referencesTo(String qualifiedTypeName) {
         return byType.getOrDefault(qualifiedTypeName, List.of());
     }
 
-    /** The name of the class a reference sits inside, for a message that says where to look. */
     private static String enclosingTypeOf(TreePath path) {
         for (TreePath up = path; up != null; up = up.getParentPath()) {
             if (up.getLeaf() instanceof ClassTree) {

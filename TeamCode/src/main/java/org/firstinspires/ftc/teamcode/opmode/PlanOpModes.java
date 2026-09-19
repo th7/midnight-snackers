@@ -13,10 +13,6 @@ import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Plans;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 
-/**
- * Registers an autonomous op mode for every {@link Auto} annotation in {@link Plans}. The robot
- * controller calls {@link #register(OpModeManager)} at startup, as it does every registrar.
- */
 public final class PlanOpModes {
     private PlanOpModes() {}
 
@@ -25,13 +21,6 @@ public final class PlanOpModes {
         register(manager, Plans.class);
     }
 
-    /**
-     * Registers the {@link Auto} plans declared by {@code plans}. Each op mode calls its method on
-     * the {@link Plans} it builds, so only {@link Plans} itself makes sense on the robot.
-     *
-     * @throws IllegalStateException for an annotation the robot controller could not honour: a
-     *                               method that cannot be called for a plan, or a name used twice
-     */
     public static void register(OpModeManager manager, Class<? extends Plans> plans) {
         Method[] methods = plans.getDeclaredMethods();
         Arrays.sort(methods, Comparator.comparing(Method::getName));

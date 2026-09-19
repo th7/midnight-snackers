@@ -11,11 +11,9 @@ import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.control.DetectionFilter;
-import org.firstinspires.ftc.teamcode.hardware.AprilTagWebcam;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class Camera implements Loopable {
-    /** The name this prints under: said here, where the printing is, and nowhere else. */
     public static final String CHANNEL = "Camera";
 
     private final Prints telemetry;
@@ -23,20 +21,12 @@ public class Camera implements Loopable {
     private final Supplier<List<AprilTagDetection>> detectionSource;
     private AprilTagDetection goalDetection;
 
-    /**
-     * @param detectionSource the latest AprilTag detections; {@link AprilTagWebcam#detections} on the robot.
-     * @param clock the robot's clock, which the detections' frames are stamped on, to judge their age
-     */
     public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier clock, Prints telemetry) {
         this.detectionSource = detectionSource;
         this.detectionFilter = new DetectionFilter(clock);
         this.telemetry = telemetry;
     }
 
-    /**
-     * Where the goal's tag says the robot is on the field, as the camera faces: the turntable's
-     * heading, not the robot's. Empty until three consistent recent detections agree.
-     */
     public Optional<Nav.Pose> sighting() {
         if (goalDetection == null || goalDetection.robotPose == null) {
             return Optional.empty();

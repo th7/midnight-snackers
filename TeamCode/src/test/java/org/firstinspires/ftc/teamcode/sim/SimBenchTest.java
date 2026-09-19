@@ -56,7 +56,6 @@ public class SimBenchTest {
         return folder.getRoot().toPath().resolve("sim");
     }
 
-    /** The real TeamCode module, which the tests run from. */
     private static Path real(String relative) {
         Path path = Paths.get(relative).toAbsolutePath();
         assertTrue("tests run from the TeamCode module directory: " + path, Files.isDirectory(path));
@@ -76,27 +75,23 @@ public class SimBenchTest {
         }
     }
 
-    /** The real simulator (the test tree and its resources) copied into a temp project, so its child runs the project's own. */
     static Path simulatorInto(Path project) throws IOException {
         copyTree(real("src/test/java"), project.resolve("TeamCode/src/test/java"));
         copyTree(real("src/test/resources"), project.resolve("TeamCode/src/test/resources"));
         return project;
     }
 
-    /** A temp project that is the real one with the stand-in Plans as its plans: the child sees nothing but the project. */
     static Path projectWith(Path project, String plans) throws IOException {
         realProjectCopiedUnder(project);
         sourceRootWith(project, plans);
         return project;
     }
 
-    /** A copy of the real project (main sources and simulator) under a temp directory, for a test that changes one of them. */
     static Path realProjectCopiedUnder(Path project) throws IOException {
         copyTree(real("src/main/java"), project.resolve("TeamCode/src/main/java"));
         return simulatorInto(project);
     }
 
-    /** Edits one file of a copied project in place. */
     static void edit(Path project, String relative, String from, String to) throws IOException {
         Path file = project.resolve(relative);
         String source = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
@@ -113,13 +108,9 @@ public class SimBenchTest {
             new SimCatalog.Entry("BlueTeleOp", "TeleOp", SimCatalog.TELEOP, "", null);
 
     static final String TEMP_NAME = "Temp";
-    /** The line of {@link #tempPlans} that holds the loop counter, where a compile error is planted. */
+
     static final int TEMP_LOOPS_LINE = 8;
 
-    /**
-     * A stand-in for the team's Plans with one {@code @Auto} plan, the way a student's edit adds
-     * one: compiled first on the child's classpath, it is the Plans the registrar finds.
-     */
     static String tempPlans(int loops, String group) {
         return "package org.firstinspires.ftc.teamcode;\n"
                 + "import org.firstinspires.ftc.teamcode.opmode.Auto;\n"
@@ -129,7 +120,6 @@ public class SimBenchTest {
                 + "\n"
                 + "public class Plans implements Loopable {\n"
                 + "    private int loops = 0;\n"
-                // Plans is wired with what it drives; this stand-in drives nothing and only needs to compile.
                 + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
                 + " org.firstinspires.ftc.teamcode.Nav nav,"
                 + " org.firstinspires.ftc.teamcode.Launcher launcher,"
@@ -146,13 +136,12 @@ public class SimBenchTest {
         return tempPlans(loops, "Test");
     }
 
-    /** Writes the stand-in Plans under a temp project and returns the package root. */
     static Path sourceRootWith(Path project, String source) throws IOException {
         Path sourceRoot = project.resolve("TeamCode/src/main/java");
         Path file = sourceRoot.resolve("org/firstinspires/ftc/teamcode/Plans.java");
         Files.createDirectories(file.getParent());
         Files.write(file, source.getBytes(StandardCharsets.UTF_8));
-        // a save within the same second as the previous one must still be noticed
+
         Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 2000));
         return sourceRoot;
     }
@@ -166,7 +155,6 @@ public class SimBenchTest {
         return run;
     }
 
-    /** A run in a status, as {@link SimBench#statusOf} reads it: only the outcome decides. */
     private static JsonObject item(int id, String outcome) {
         JsonObject item = new JsonObject();
         item.addProperty("id", id);
@@ -189,11 +177,6 @@ public class SimBenchTest {
                 SimBench.statusOf(List.of(done, going)));
     }
 
-    /**
-     * The other half of a status that is one moment: a run's line is taken only while nobody is
-     * changing the run, since the lock a writer holds is the lock the reader waits for. Held
-     * across a finish, a reader that answered early would be carrying half of it.
-     */
     @Test
     public void aRunsLineWaitsForWhoeverIsChangingTheRun() throws Exception {
         bench = new SimBench(
@@ -256,7 +239,6 @@ public class SimBenchTest {
         assertNull(bench.current());
     }
 
-    /** Registers an auto that never finishes, slowly, the way a big catalog loads slowly. */
     public static class SlowRegistrar {
         public static final double SECONDS = 1.5;
 
@@ -319,15 +301,10 @@ public class SimBenchTest {
         }
     }
 
-    /**
-     * The project's robot and simulator changed together, in a way this server's simulator could
-     * not be built against: the child runs the project's simulator, so the run is fine.
-     */
     @Test
     public void theChildRunsTheProjectsOwnSimulatorNotThisServers() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        // The seam is renamed on both sides at once: the project's robot and its simulator still
-        // fit each other, and this server's simulator would not compile against them.
+
         edit(project, HARDWARE, "public static Builder builder()", "public static Builder wiring()");
         edit(project, HARDWARE, "return builder()", "return wiring()");
         edit(project, SIM_DEVICES, "Hardware.builder()", "Hardware.wiring()");
@@ -345,14 +322,10 @@ public class SimBenchTest {
         assertTrue(run.log(), run.log().contains("this project's simulator"));
     }
 
-    /**
-     * The project's simulator does not fit its own robot sources: the run must not start, and the
-     * build must say which seam does not fit.
-     */
     @Test
     public void aProjectWhoseSimulatorDoesNotFitItsRobotFailsTheBuildNamingTheSeam() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        // the robot sources still compile on their own; only SimRobot.hardware() no longer fits
+
         edit(project, HARDWARE, "public static Builder builder()", "private static Builder builder()");
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
 
@@ -369,7 +342,6 @@ public class SimBenchTest {
         assertEquals(0, run.ticks().size());
     }
 
-    /** A child that dies instead of listing the op modes is not a silent failure: the error says what it printed. */
     @Test
     public void aChildThatCannotListTheOpModesSaysWhatItPrinted() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
@@ -390,7 +362,6 @@ public class SimBenchTest {
         }
     }
 
-    /** The child sees the project and the libraries, so a class the project lacks is missing, not this server's. */
     @Test
     public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
@@ -405,7 +376,6 @@ public class SimBenchTest {
                 catalog.find("BlueTeleOp").isPresent());
     }
 
-    /** A child from before the bench placed the robot starts itself, at the origin, as such a child did. */
     static void placesItself(Path project) throws IOException {
         edit(
                 project,
@@ -414,14 +384,13 @@ public class SimBenchTest {
                 "java.util.Optional.of(new com.acmerobotics.roadrunner.Pose2d(0, 0, 0))");
     }
 
-    /** A project from before the child said its protocol: its first line is content, and it still runs, from the origin. */
     @Test
     public void aChildThatPrintsNoHelloIsAVersionOneChildAndStillRuns() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
         edit(project, SIM_CHILD, "protocol.println(SimRunStream.hello());", "");
         placesItself(project);
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-        exactRobot("BlueTeleOp"); // such a child cannot run a seeded one
+        exactRobot("BlueTeleOp");
 
         assertTrue(bench.catalog().find("BlueTeleOp").isPresent());
         SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
@@ -431,11 +400,6 @@ public class SimBenchTest {
         assertEquals(0, run.ticks().get(0).getAsJsonObject().get("x").getAsDouble(), 0.001);
     }
 
-    /**
-     * A child from before the bench placed the robot starts itself at the origin, so the bench
-     * lets it when that is the start pose, and refuses by name, with the fix, when it is not:
-     * a run from the wrong place is not a run.
-     */
     @Test
     public void aChildFromBeforePlacementRunsFromTheOriginAndIsRefusedAnywhereElse() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
@@ -443,7 +407,7 @@ public class SimBenchTest {
         edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + before + ";");
         placesItself(project);
         bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-        exactRobot("BlueTeleOp"); // such a child cannot run a seeded one
+        exactRobot("BlueTeleOp");
 
         SimBench.Run atTheOrigin = await(bench.start(BLUE_TELEOP, "ada"));
         assertEquals(atTheOrigin.message() + "\n" + atTheOrigin.log(), "done", atTheOrigin.outcome());
@@ -459,8 +423,6 @@ public class SimBenchTest {
         assertEquals(0, elsewhere.ticks().size());
         assertNull(bench.current());
     }
-
-    // --- the seed: which robot an op mode runs on, set per op mode, carried by each run ---
 
     @Test
     public void eachOpModeHasASeedTheCatalogShowsAndARouteSets() throws Exception {
@@ -510,11 +472,6 @@ public class SimBenchTest {
         assertTrue(bench.status(), bench.status().contains("\"seed\":null"));
     }
 
-    /**
-     * A child from before the seed runs the exact robot whatever it is told, so the bench lets it
-     * when that is the op mode's robot, and refuses by name, with the fix, when a seed is set: a
-     * run on the wrong robot is not a run.
-     */
     @Test
     public void aChildFromBeforeTheSeedRunsTheExactRobotAndIsRefusedASeed() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
@@ -538,7 +495,6 @@ public class SimBenchTest {
         assertNull(bench.current());
     }
 
-    /** A project whose simulator speaks a protocol this server cannot read is refused by name, not misread. */
     @Test
     public void aChildOfAnotherProtocolIsRefusedByNameNotMisread() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
@@ -716,12 +672,6 @@ public class SimBenchTest {
         return false;
     }
 
-    /** The bench's routes as the coding server mounts them for ada. */
-    /**
-     * An op mode nobody has, and a route asked for with the wrong method. Held here since the
-     * standalone dev server that used to assert it over HTTP was removed; the bench's routes are
-     * the same routes either way.
-     */
     @Test
     public void anOpModeNobodyHasAndAMethodTheRouteDoesNotTakeAreRefused() {
         bench = new SimBench(
@@ -736,7 +686,6 @@ public class SimBenchTest {
         return bench.routes("ada");
     }
 
-    /** Clears the op mode's seed, so its runs are on the exact robot: what every run was before there were seeds. */
     private void exactRobot(String opMode) throws Exception {
         assertEquals(200, routes().handle(put("/seed?opmode=" + encode(opMode), "{\"seed\": null}")).status);
     }
@@ -761,18 +710,13 @@ public class SimBenchTest {
         return new com.google.gson.Gson().fromJson(body, com.google.gson.JsonObject.class);
     }
 
-    /** The origin, as the bench answers it for an op mode nobody has placed the robot for. */
     private static final String ORIGIN = "{\"x\":0.0,\"y\":0.0,\"heading\":0.0}";
-    /** How far from the field's centre a robot at {@code heading} can be before a corner of it is beyond a wall. */
+
     private static double limitAt(double heading) {
         return SimPlacement.FIELD_SIZE_IN / 2
                 - SimPlacement.ROBOT_SIZE_IN / 2 * (Math.abs(Math.cos(heading)) + Math.abs(Math.sin(heading)));
     }
 
-    /**
-     * The start pose is where the robot is placed before a run, per op mode: the run starts
-     * there, and it is remembered by the bench over its output directory, so a restart keeps it.
-     */
     @Test
     public void theStartPoseIsRememberedPerOpModeAndTheRunStartsThere() throws Exception {
         bench = new SimBench(
@@ -800,7 +744,6 @@ public class SimBenchTest {
                 ORIGIN,
                 routes().handle(get("/start?opmode=" + encode("Never done"))).body);
 
-        // On the exact robot, so each run starts on its pose rather than near it, as a seeded robot is set down.
         assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": null}")).status);
         assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Never done"), "{\"seed\": null}")).status);
         SimBench.Run run =
@@ -844,7 +787,6 @@ public class SimBenchTest {
         assertEquals(ORIGIN, routes().handle(get(start)).body);
     }
 
-    /** The placement page: the field with the robot where the run will start, to drag into place. */
     @Test
     public void thePlacementPageShowsTheRobotWhereTheRunWillStart() throws Exception {
         bench = new SimBench(

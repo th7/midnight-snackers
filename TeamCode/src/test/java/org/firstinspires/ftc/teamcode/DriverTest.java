@@ -11,7 +11,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
-/** The driver's gamepads drive the robot through the Driver super system, not through an op mode. */
 public class DriverTest {
     private static final double DELTA = 0.0001;
 
@@ -23,7 +22,6 @@ public class DriverTest {
     private final Driver driver =
             new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable, gamepad1, gamepad2);
 
-    /** One op mode loop: the robot ticks, then the driver, the way {@code TeleOp} does it. */
     private void tick() {
         robot.loop();
         driver.loop();
@@ -36,7 +34,6 @@ public class DriverTest {
         assertEquals("rightBack", rightBack, devices.rightBack.power, DELTA);
     }
 
-    /** Puts the robot where its launch pose is, so aiming has nothing left to do. */
     private void parkAtTheLaunchPose() {
         robot.nav.placeAt(robot.nav.launchPose().get());
         tick();
@@ -81,7 +78,7 @@ public class DriverTest {
         assertPowers(1, -1, -1, 1);
 
         gamepad1.left_stick_x = 0;
-        gamepad1.left_stick_y = -1; // straight is the drive's under the left bumper, not the driver's
+        gamepad1.left_stick_y = -1;
         tick();
         assertPowers(0, 0, 0, 0);
     }

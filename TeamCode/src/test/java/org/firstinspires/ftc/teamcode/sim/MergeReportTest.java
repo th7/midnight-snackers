@@ -6,12 +6,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import org.junit.Test;
 
-/**
- * How a pull or a push is reported, with no repository, no listener and no browser: the whole of
- * it is a function of the merge, whose it was and who is being told. That is what the module is
- * for -- it used to be a six-parameter method whose callers composed half the prose, so the only
- * way to see what a given outcome said was to make git produce it.
- */
 public class MergeReportTest {
     private static final String WORKTREE = "/state/worktrees/checkout/ada";
 
@@ -26,8 +20,6 @@ public class MergeReportTest {
     private static Worktrees.Merge pushed(Worktrees.Outcome outcome, Worktrees.Remote.Outcome remote, String detail) {
         return new Worktrees.Merge(outcome, List.of(), null, new Worktrees.Remote("origin", remote, detail));
     }
-
-    // --- what it says ---
 
     @Test
     public void aPullThatLandedSpeaksToTheUserOrAboutThemAccordingToTheVoice() {
@@ -89,8 +81,6 @@ public class MergeReportTest {
                         .message());
     }
 
-    // --- how bad it is: the partition the two pages used to make for themselves, differently ---
-
     @Test
     public void severityIsDecidedOnceHere() {
         assertEquals(
@@ -124,7 +114,6 @@ public class MergeReportTest {
                         .severity());
     }
 
-    /** A push that landed but never reached origin is the case the two pages disagreed about. */
     @Test
     public void aLandedPushThatCouldNotReachTheRemoteIsAWarningNotASuccess() {
         assertEquals(
@@ -161,8 +150,6 @@ public class MergeReportTest {
                                 MergeReport.Voice.USER)
                         .status());
     }
-
-    // --- the recipe, which used to be written in the admin page's own hand ---
 
     @Test
     public void aConflictsRecipeNamesTheRealWorktreeAndTheUser() {
@@ -204,8 +191,6 @@ public class MergeReportTest {
                                 MergeReport.Voice.USER)
                         .recipe());
     }
-
-    // --- the wire ---
 
     @Test
     public void theReplyCarriesItsOwnVerdictSoNoPageHasToWorkOneOut() {

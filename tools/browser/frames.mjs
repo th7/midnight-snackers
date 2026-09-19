@@ -1,20 +1,4 @@
-/**
- * Write what the robot's webcam would have seen of the goal tags, frame by frame, for one run.
- *
- *     node tools/browser/frames.mjs --bench http://localhost:21986/sim --run 3 --into frames/
- *     node tools/browser/frames.mjs --bench ... --run 3 --into frames/ --cookie "session=..."
- *
- * The bench is where the run and the field model come from; the page and its assets come from
- * there too, so what is captured is the page as served rather than a copy of it. The coding
- * server wants an approved session, which is what `--cookie` carries.
- *
- * Each frame is a PNG at the camera's own resolution, named for the loop it is. What is in one
- * is the tags and nothing else: the field is hidden rather than absent, so a tag still moves
- * with the hive it hangs on as the run plays.
- *
- * The lens and the tag artwork's fit to its plate are assumptions, written down in field.html.
- * Frames from here are geometry, not a measurement, until the webcam has been calibrated.
- */
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -66,16 +50,14 @@ try {
     throw new Error('run ' + run + ' has no loops to capture');
   }
   await page.setViewportSize({ width: lens.width, height: lens.height });
-  // The page keeps its heads-up display and its play controls, because it is watched as well as
-  // captured. A frame is meant to be what the webcam would have seen, and neither is part of
-  // that, so they go for the capture and only for the capture.
+
   await page.addStyleTag({ content: '#hud, #run { display: none !important; }' });
   fs.mkdirSync(into, { recursive: true });
 
   const width = String(loops).length;
   for (let loop = 0; loop < loops; loop += Math.max(1, every)) {
     await page.evaluate((i) => window.fieldPage.goTo(i), loop);
-    // Two frames: the first carries the move, the second is drawn with it in place.
+
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const name = 'loop-' + String(loop).padStart(width, '0') + '.png';
     await page.screenshot({ path: path.join(into, name) });

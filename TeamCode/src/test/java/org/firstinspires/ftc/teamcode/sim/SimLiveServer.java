@@ -2,11 +2,6 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
-/**
- * Serves a run to a browser while it is still going: the replay page in live mode at {@code /},
- * and {@code /ticks?from=N} for everything recorded since tick N. The run is a
- * {@link SimReplayPage.Source}, normally a {@link SimRecording} in this JVM.
- */
 public final class SimLiveServer {
     private final TinyHttpServer http;
     private final SimReplayPage.Source recording;
@@ -26,9 +21,6 @@ public final class SimLiveServer {
         this.http = TinyHttpServer.start(port, "sim-live-view", routes);
     }
 
-    /**
-     * @param port the port to listen on, or 0 for any free port (see {@link #port()})
-     */
     public static SimLiveServer start(SimReplayPage.Source recording, int port) {
         return new SimLiveServer(recording, port);
     }
@@ -41,16 +33,10 @@ public final class SimLiveServer {
         return http.url();
     }
 
-    /**
-     * Whether some viewer has fetched an update that carried the run's outcome, i.e. has seen the end.
-     */
     public boolean viewerSawOutcome() {
         return viewerSawOutcome;
     }
 
-    /**
-     * Block until a viewer has seen the end, or {@code maxSeconds} pass.
-     */
     public void awaitViewerSawOutcome(double maxSeconds) {
         long deadline = System.nanoTime() + (long) (maxSeconds * 1_000_000_000L);
         while (!viewerSawOutcome && System.nanoTime() < deadline) {

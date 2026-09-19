@@ -13,19 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- * The lines a run's child prints, one JSON object per line, in order: {@code {"protocol": N}}
- * first, {@code {"started": true}} as the op mode's time begins, each tick as it happens, and
- * finally {@code {"outcome": "..."}}. They are written here and read here; but the child runs the
- * simulator of the sources it was built from, which may be another version of this code, so the
- * lines carry a {@link #PROTOCOL version}: the child says its own first, and a bench refuses one
- * it cannot read ({@link #afterHello}) rather than misreading it. Every way a run can end is
- * named here in {@link Outcome}. A tick's line is also the form the replay page reads, so a run
- * the bench knows only by its lines is the page the child wrote. (The driver station's lines,
- * the other way, are {@link SimDriverStation#accept}.)
- */
 public final class SimRunStream {
-    /** What the lines say, in the order they were printed. */
     public interface Listener {
         void started();
 
@@ -34,54 +22,38 @@ public final class SimRunStream {
         void finished(String outcome);
     }
 
-    /** How a run ended, as the pages show it. */
     public static final class Outcome {
         private Outcome() {}
 
-        /** An auto's plan finished, or a TeleOp's period was over. */
         public static String done() {
             return "done";
         }
 
-        /** The driver pressed Stop, or the bench was stopped. */
         public static String stopped() {
             return "stopped";
         }
 
-        /** An auto's plan was not done within its timeout. */
         public static String timedOut(double seconds) {
             return String.format("timed out after %.1fs", seconds);
         }
 
-        /** The op mode threw. */
         public static String failed(Throwable e) {
             return "failed: " + e;
         }
 
-        /** The sources did not compile; the run's message says what the compiler said. */
         public static String buildFailed() {
             return "build failed";
         }
 
-        /** The child's simulator speaks a protocol this bench cannot read; the run's message says whose the fix is. */
         public static String wrongProtocol(int childProtocol) {
             return "wrong protocol: the simulator speaks " + childProtocol + ", this server " + PROTOCOL;
         }
 
-        /**
-         * The child's simulator is from before the bench placed the robot, and the robot is placed
-         * somewhere other than the origin, where such a child starts on its own; the run's message
-         * says whose the fix is.
-         */
         public static String cannotPlace(int childProtocol) {
             return "wrong protocol: the simulator speaks " + childProtocol
                     + " and cannot place the robot; placing needs " + PLACED_PROTOCOL;
         }
 
-        /**
-         * The child's simulator is from before the seed, and the op mode runs on one; such a child
-         * runs the exact robot whatever it is told. The run's message says whose the fix is.
-         */
         public static String cannotSeed(int childProtocol) {
             return "wrong protocol: the simulator speaks " + childProtocol
                     + " and cannot run a seeded robot; a seed needs " + SEEDED_PROTOCOL;
@@ -91,17 +63,14 @@ public final class SimRunStream {
             return "could not start the child JVM";
         }
 
-        /** The bench killed the child after {@code seconds}, for {@code why}. */
         public static String killed(double seconds, String why) {
             return String.format("killed after %.1fs: %s", seconds, why);
         }
 
-        /** The child ignored Stop for {@code seconds} and was killed. */
         public static String killedAfterStop(double seconds) {
             return String.format("killed %.1fs after Stop: the op mode did not return", seconds);
         }
 
-        /** The child ended without saying how; the run's message is its log. */
         public static String childExited(int code) {
             return "child exited with code " + code;
         }
@@ -114,35 +83,19 @@ public final class SimRunStream {
             return "could not build " + name + ": " + e;
         }
 
-        /** A line on the child's standard input was not a driver station line. */
         public static String badDriverStation(String problem) {
             return "could not read the driver station: " + problem;
         }
     }
 
-    /**
-     * The version of these lines, and of what the child reads. Bump it when a change would leave
-     * a bench of the old version misreading a child of the new, or sending it a line it cannot
-     * read; then {@link #OLDEST_PROTOCOL_READ} says how old a child a bench still reads, and the
-     * test of the oldest one pins what such a child printed.
-     */
     public static final int PROTOCOL = 4;
-    /** The oldest child a bench still reads. A child of version 1 prints no hello: its first line is content. */
+
     public static final int OLDEST_PROTOCOL_READ = 1;
-    /**
-     * From this version on, a child waits to be placed ({@link SimDriverStation#startLine}) before
-     * its run starts, and the bench places it first thing. An older child places itself at the
-     * origin, so the bench lets it run from there and refuses to run it from anywhere else.
-     */
+
     public static final int PLACED_PROTOCOL = 3;
-    /**
-     * From this version on, the start line may name a {@link SimNoise} seed and the child runs the
-     * robot drawn from it. An older child runs the exact robot whatever it is told, so the bench
-     * lets it run when that is the op mode's robot and refuses to run it on a seed.
-     */
+
     public static final int SEEDED_PROTOCOL = 4;
 
-    /** The child speaks a protocol this bench cannot read; the message names both and whose the fix is. */
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
 
@@ -156,35 +109,22 @@ public final class SimRunStream {
 
     private SimRunStream() {}
 
-    /** The child's first line, before the catalog or the run: which protocol it speaks. */
     public static String hello() {
         JsonObject line = new JsonObject();
         line.addProperty("protocol", PROTOCOL);
         return GSON.toJson(line);
     }
 
-    /**
-     * Reads the child's first line. A hello is consumed, and null comes back: the next line is
-     * content. A version-1 child prints no hello, so its first line is content and comes back as it was.
-     *
-     * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than the oldest it reads
-     */
     public static String afterHello(String firstLine) {
         return protocolOf(firstLine) == 1 ? firstLine : null;
     }
 
-    /**
-     * The protocol the child's first line says it speaks: 1 when the line is content, since a
-     * version-1 child prints no hello.
-     *
-     * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than the oldest it reads
-     */
     public static int protocolOf(String firstLine) {
         JsonObject json;
         try {
             json = GSON.fromJson(firstLine, JsonObject.class);
         } catch (RuntimeException e) {
-            return 1; // a catalog line is an array: content
+            return 1;
         }
         if (json == null || !json.has("protocol")) {
             return 1;
@@ -209,25 +149,15 @@ public final class SimRunStream {
         return child;
     }
 
-    /**
-     * What a bench does with the child's first line: which protocol it speaks, what to send it so
-     * the run can start, and -- when a child of that version cannot make this run -- why not.
-     *
-     * <p>One decision, in one place, next to the constants that define it. It used to be stated
-     * here in prose, decided in {@code SimBench}, and realised in {@link SimChild}, with the
-     * refusals worded once in {@link Outcome} and again, differently, where they were decided; and
-     * the hello was consumed two different ways by the two callers that read one.
-     */
     public static final class Handshake {
-        /** The protocol the child speaks; 1 for one that printed no hello. */
         public final int protocol;
-        /** The child's first line when it was content rather than a hello; null when it was a hello. */
+
         public final String firstContentLine;
-        /** The line to send the child, or null when it places itself or the run is refused. */
+
         public final JsonObject startLine;
-        /** How the run ends when a child of this version cannot make it; null when it can. */
+
         public final String outcome;
-        /** What to tell whoever asked, and whose the fix is; null when the run can be made. */
+
         public final String message;
 
         private Handshake(int protocol, String firstContentLine, JsonObject startLine, String outcome, String message) {
@@ -238,22 +168,11 @@ public final class SimRunStream {
             this.message = message;
         }
 
-        /** Whether the run cannot be made on this child. */
         public boolean refused() {
             return outcome != null;
         }
     }
 
-    /**
-     * Reads the child's first line and decides the run: a child that waits to be placed is told
-     * where and, when the op mode runs on a seed, which robot; one from before the seed runs the
-     * exact robot, so it may run when that is the op mode's robot and not otherwise; one from
-     * before placing places itself at the origin, so it may run when that is the start pose and
-     * not otherwise.
-     *
-     * @throws WrongProtocol when the child's protocol is newer than this bench's, or older than
-     *                       the oldest it reads, which is decided before any of the above
-     */
     public static Handshake handshake(String firstLine, Pose2d start, Long seed) {
         int protocol = protocolOf(firstLine);
         String content = protocol == 1 ? firstLine : null;
@@ -305,11 +224,6 @@ public final class SimRunStream {
         return GSON.toJson(line);
     }
 
-    /**
-     * Reads one line to the listener.
-     *
-     * @throws IllegalArgumentException for a line that is none of the three
-     */
     public static void accept(String line, Listener listener) {
         JsonObject json;
         try {
@@ -331,12 +245,10 @@ public final class SimRunStream {
         }
     }
 
-    /** The run's time at a tick, in seconds. */
     public static double seconds(JsonObject tick) {
         return tick.get("t").getAsDouble();
     }
 
-    /** One tick in the form the page reads and the child streams: numbers rounded to three decimals. */
     public static JsonObject tickJson(SimRecording.Tick tick) {
         JsonObject t = new JsonObject();
         t.add("t", GSON.toJsonTree(tick.seconds));
@@ -361,13 +273,13 @@ public final class SimRunStream {
             gamepads.add("2", tick.gamepad2.toJson());
         }
         if (gamepads.size() > 0) {
-            t.add("gamepads", gamepads); // absent means neutral, so a replay stays small
+            t.add("gamepads", gamepads);
         }
         if (tick.pieces != null && tick.pieces.length > 0) {
-            t.add("pieces", GSON.toJsonTree(tick.pieces)); // absent means where the field was set up
+            t.add("pieces", GSON.toJsonTree(tick.pieces));
         }
         if (tick.held > 0) {
-            t.addProperty("held", tick.held); // absent means none
+            t.addProperty("held", tick.held);
         }
         JsonObject scored = new JsonObject();
         for (Map.Entry<String, Integer> entry : new TreeMap<>(tick.scored).entrySet()) {
@@ -376,7 +288,7 @@ public final class SimRunStream {
             }
         }
         if (scored.size() > 0) {
-            t.add("scored", scored); // absent means nothing scored
+            t.add("scored", scored);
         }
         JsonObject tilt = new JsonObject();
         for (SimField.Hive hive : SimPlacement.FIELD.hives) {
@@ -386,9 +298,6 @@ public final class SimRunStream {
             }
         }
         if (tilt.size() > 0) {
-            // A tick says where every hive leans that is not leaning the way the field was set up,
-            // so absent means exactly that and says nothing about the ticks before it: a hive that
-            // has tipped says so in every tick until it tips back, and then says nothing again.
             t.add("tilt", tilt);
         }
         return t;

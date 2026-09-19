@@ -64,7 +64,6 @@ public class SimDriverStationTest {
         }
     }
 
-    /** The field the SDK serializes each button as; the PlayStation names are aliases of the Xbox ones. */
     private static String aliasOf(String button) {
         switch (button) {
             case "cross":
@@ -158,7 +157,6 @@ public class SimDriverStationTest {
         assertTrue(e.getMessage(), e.getMessage().contains("nonsense"));
     }
 
-    /** Before the run, the bench places the robot: the runner waits for that line, and reads the pose from it. */
     @Test
     public void theStartLinePlacesTheRobotAndTheRunnerWaitsForIt() throws Exception {
         SimDriverStation station = new SimDriverStation();
@@ -184,7 +182,6 @@ public class SimDriverStationTest {
         assertFalse(station.stopRequested());
     }
 
-    /** The start line also says which robot: a seed for the noise, or none for the exact robot. */
     @Test
     public void theStartLineCarriesTheSeedWhenThereIsOne() {
         SimDriverStation station = new SimDriverStation();

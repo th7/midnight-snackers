@@ -171,7 +171,6 @@
     return el;
   }
 
-  /** What the user's worktree holds against its branch and develop: the same status their Edit tab shows. */
   function renderStatus(user) {
     var status = user.status;
     var git = document.createElement('div');
@@ -190,20 +189,13 @@
 
   var stateClass = { pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' };
 
-  /** What the admin's last Pull or Delete for each user said, by username, so a refresh does not wipe it. */
   var resultByUsername = {};
   var pullingByUsername = {};
 
-  /** Whose Delete the server has refused: theirs offers to delete anyway until it is taken back. */
   var deleteArmedByUsername = {};
 
-  /**
-   * Which users the admin has opened or closed by hand. Anyone they have not touched is open
-   * exactly while a login of theirs is waiting to be decided, so nothing to decide hides in a fold.
-   */
   var expandedByUsername = {};
 
-  /** The last listing, so folding one user open redraws without waiting for the next refresh. */
   var lastUsers = [];
 
   function pendingCount(user) {
@@ -219,7 +211,6 @@
     return chosen === undefined ? pendingCount(user) > 0 : chosen;
   }
 
-  /** A pull is the user's worktree's, and any login of theirs names them to the server: the newest does. */
   function pull(user) {
     var id = user.sessions[user.sessions.length - 1].id;
     pullingByUsername[user.username] = true;
@@ -231,10 +222,7 @@
     }).then(function (reply) {
       var result;
       try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-      // How bad it is is the server's answer, not one the page works out again: MergeReport exists
-      // because both pages used to derive it from the status code and the outcome name, and
-      // disagreed about a push that landed but could not reach origin. A reply that never arrived
-      // carries no severity, and that is the one case the page judges for itself.
+
       resultByUsername[user.username] = {
         text: result.message,
         kind: result.severity === undefined ? 'bad' : result.severity
@@ -244,7 +232,6 @@
     });
   }
 
-  /** What the page remembers about a user, dropped when they are. */
   function forget(username) {
     delete resultByUsername[username];
     delete pullingByUsername[username];
@@ -252,12 +239,6 @@
     delete deleteArmedByUsername[username];
   }
 
-  /**
-   * Delete is the user's: their logins are forgotten, their bench stops and their worktree goes,
-   * while their branch keeps everything they committed. The server refuses while they have work
-   * develop does not have and says what it is, so the button offers to ask for it anyway rather
-   * than the page guessing at a warning of its own.
-   */
   function remove(user) {
     var armed = deleteArmedByUsername[user.username];
     var path = '/admin/users/delete?username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
@@ -278,7 +259,6 @@
     });
   }
 
-  /** Branch, how many logins, and what any of them has open: what a folded-up user still says. */
   function metaOf(user) {
     var parts = [];
     if (user.branch) { parts.push(user.branch); }
@@ -291,7 +271,6 @@
     return parts.join(' · ');
   }
 
-  /** One login of one user: where from, how long ago, what it has open, and the admin's decision. */
   function renderSession(user, session) {
     var meta = session.address + ' · ' + age(session.ageSeconds)
         + (session.file ? ' · editing ' + session.file : '');
@@ -301,7 +280,6 @@
     var path = '/admin/logins/' + session.id;
     function decide(verb, label, cls) {
       return button(label, cls, function () {
-        // deciding the last pending login would otherwise fold the user shut under the admin's hand
         expandedByUsername[user.username] = true;
         post(path + verb).then(refresh);
       });
@@ -317,13 +295,11 @@
     return el;
   }
 
-  /** One user: their worktree's standing and Pull, with their logins folded under them. */
   function renderUser(user, index) {
     var pending = pendingCount(user);
     var expanded = isExpanded(user);
     var armed = deleteArmedByUsername[user.username];
     if (armed && user.deletable) {
-      // the server says a delete would no longer be refused: the loaded button is taken back
       delete deleteArmedByUsername[user.username];
       armed = false;
       if (resultByUsername[user.username] && resultByUsername[user.username].from === 'delete') {
@@ -346,7 +322,7 @@
     fold.querySelector('.name').textContent = user.username;
     fold.addEventListener('click', function () {
       expandedByUsername[user.username] = !expanded;
-      delete deleteArmedByUsername[user.username];  // the admin's nearest way to say never mind
+      delete deleteArmedByUsername[user.username];
       renderUsers(lastUsers);
     });
     left.appendChild(fold);
@@ -382,7 +358,6 @@
         pullButton.disabled = true;
         pullButton.title = 'git could not read the worktree';
       } else {
-        // uncommitted edits ride along; the pull itself refuses, naming them, only where develop changed the same file
         pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from develop into ' + user.username + '\'s branch'
             : user.username + '\'s branch has everything on develop';
       }
@@ -402,7 +377,7 @@
       head.appendChild(line);
     }
     var last = user.lastMerge;
-    // the commands are git's, so the server writes them; the page prints the lines it is given
+
     if (last && last.recipe && last.recipe.length) {
       var recipe = document.createElement('pre');
       recipe.className = 'recipe mono';
@@ -528,7 +503,7 @@
   });
   loadEditable().then(function () { browse(''); });
   refresh();
-  setInterval(refresh, 2000);  // each listing asks git about every worktree, as the Edit tab does at this pace
+  setInterval(refresh, 2000);
 })();
 </script>
 </body>

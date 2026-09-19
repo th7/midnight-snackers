@@ -9,11 +9,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Temp repositories for the tests: made with the real git, with a {@code develop} branch and a commit on it. */
 final class GitFixture {
     private GitFixture() {}
 
-    /** A new repository at {@code root} whose only branch is {@code develop}, with one commit holding {@code README}. */
     static void init(Path root) throws IOException {
         Files.createDirectories(root);
         git(root, "init", "-q", "-b", Worktrees.DEVELOP);
@@ -21,7 +19,6 @@ final class GitFixture {
         commitAll(root, "first");
     }
 
-    /** A bare repository at {@code bare} as {@code root}'s origin, with {@code develop} already pushed to it. */
     static void withOrigin(Path root, Path bare) throws IOException {
         Files.createDirectories(bare);
         git(bare, "init", "-q", "--bare");
@@ -29,7 +26,6 @@ final class GitFixture {
         git(root, "push", "-q", "origin", Worktrees.DEVELOP);
     }
 
-    /** Commits everything under {@code cwd}'s tree, and returns the new commit. */
     static String commitAll(Path cwd, String message) throws IOException {
         git(cwd, "add", "-A");
         git(
@@ -54,7 +50,6 @@ final class GitFixture {
         return git(cwd, "rev-parse", ref).trim();
     }
 
-    /** Runs git in {@code cwd}, asserting it succeeds, and returns its stdout. */
     static String git(Path cwd, String... args) throws IOException {
         List<String> command = new ArrayList<>();
         command.add("git");

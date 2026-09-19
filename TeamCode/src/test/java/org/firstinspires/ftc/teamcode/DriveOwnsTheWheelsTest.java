@@ -14,15 +14,6 @@ import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
-/**
- * One place turns four numbers into four motors turning, and everything that wants the robot to
- * move asks it. Which place that is matters more than it looks: while two of them write the same
- * four motors, whether the robot does what you asked comes down to which ran last, and nothing in
- * the code says which that is.
- *
- * <p>So this asks the motors themselves who wrote them. A power that arrives from anywhere but
- * {@link Wheels} is a second hand on the controls.
- */
 public class DriveOwnsTheWheelsTest {
     private final SimDevices devices = new SimDevices();
     private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
@@ -31,7 +22,6 @@ public class DriveOwnsTheWheelsTest {
         return List.of(devices.leftFront, devices.rightFront, devices.leftBack, devices.rightBack);
     }
 
-    /** Every class that has written any of the four wheels since the robot was built. */
     private Set<String> whoWroteTheWheels() {
         Set<String> writers = new LinkedHashSet<>();
         for (FakeDcMotorEx wheel : wheels()) {
@@ -85,10 +75,6 @@ public class DriveOwnsTheWheelsTest {
         assertOnlyWheelsWrote(whoWroteTheWheels());
     }
 
-    /**
-     * And the whole of a run, every intent the robot gives itself included: the plans, the brain's
-     * steering, and the trajectories they follow.
-     */
     @Test
     public void nothingElseWritesAWheelOverAWholeRun() {
         clearHistory();

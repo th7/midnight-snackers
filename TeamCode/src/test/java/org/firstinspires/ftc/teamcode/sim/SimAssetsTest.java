@@ -15,13 +15,7 @@ import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.junit.Test;
 
-/**
- * What the bench serves beside its pages: the field's visual model, the artwork printed on it, and
- * the renderer that draws them. All of it sits on the classpath next to {@link SimField}, and a
- * name that asks for anything else is refused rather than read.
- */
 public class SimAssetsTest {
-
     private static byte[] onTheClasspath(String name) {
         try (InputStream in = SimField.class.getResourceAsStream(name)) {
             assertNotNull(name + " is not on the classpath", in);
@@ -42,9 +36,6 @@ public class SimAssetsTest {
 
     @Test
     public void theModelIsBigEnoughThatServingItAsTextWouldHaveRuinedIt() {
-        // The guard against a quiet regression to String bodies: glTF begins with "glTF" and then
-        // bytes that are not UTF-8, so a round trip through a String shows up here as a size that
-        // no longer matches and a magic number that does not survive.
         byte[] model = SimAssets.body(SimAssets.serve("field.glb"));
 
         assertTrue("a real model, not a stub: " + model.length, model.length > 1_000_000);
@@ -74,11 +65,6 @@ public class SimAssetsTest {
         assertEquals(404, SimAssets.serve("no-such-asset.glb").status);
     }
 
-    /**
-     * The name comes off the URL, so it must not be able to name anything but an asset. A walk up
-     * out of the directory, an absolute path, or a backslash where a slash was expected: each is
-     * refused before anything is opened.
-     */
     @Test
     public void aNameThatClimbsOutOfTheAssetsIsRefused() {
         for (String hostile : new String[] {
@@ -95,17 +81,10 @@ public class SimAssetsTest {
         }
     }
 
-    /**
-     * Every asset the field page names is one the bench will actually serve. A page that asks for
-     * a file nobody has does not say so: it draws an empty canvas, or a field with a part missing,
-     * and the only clue is in a console nobody has open. The names are in the page's import map
-     * and in the one line that loads the model, and they are checked here against the route that
-     * has to answer for them.
-     */
     @Test
     public void everyAssetTheFieldPageAsksForIsOneTheBenchServes() {
         String page = SimAssets.page("field.html");
-        // An import map target has to begin with ./ ; a plain fetch need not. Both are asked for.
+
         Matcher named = Pattern.compile("[\"']" + "(?:\\./)?" + "(assets/[A-Za-z0-9._/-]+)" + "[\"']")
                 .matcher(page);
         Set<String> asked = new TreeSet<>();
@@ -116,7 +95,7 @@ public class SimAssetsTest {
         assertTrue("the page names no assets at all: " + page.length() + " bytes", asked.size() >= 3);
         for (String url : asked) {
             String name = url.substring("assets/".length());
-            // An import map may name a directory, which stands for the files under it.
+
             if (name.endsWith("/")) {
                 assertNotNull(
                         name + " is a directory the page imports from, and nothing is under it",
@@ -127,7 +106,6 @@ public class SimAssetsTest {
         }
     }
 
-    /** The page loads the model through the addons, which reach for each other by relative path. */
     @Test
     public void theVendoredAddonsCanReachWhatTheyImport() {
         for (String name : new String[] {
@@ -140,11 +118,6 @@ public class SimAssetsTest {
         }
     }
 
-    /**
-     * Only the kinds of file the page actually loads are served. Everything the simulator keeps on
-     * that classpath sits in the same place -- the collision model, the page templates -- and a
-     * route that served whatever it was asked for would hand out all of it.
-     */
     @Test
     public void onlyTheKindsOfFileThePageLoadsAreServed() {
         assertEquals(

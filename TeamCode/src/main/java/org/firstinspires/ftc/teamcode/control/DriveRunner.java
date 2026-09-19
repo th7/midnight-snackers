@@ -14,10 +14,6 @@ public class DriveRunner implements Loopable {
     private final Supplier<Pose2d> poseSupplier;
     private Action roadRunnerAction = null;
 
-    /**
-     * @param poseSupplier the robot's current pose, so it is drawn on the dashboard field view even
-     *                     when no RoadRunner action is running; null to draw nothing then
-     */
     public DriveRunner(Dashboard dashboard, Supplier<Pose2d> poseSupplier) {
         this.dashboard = dashboard;
         this.poseSupplier = poseSupplier;
@@ -36,7 +32,6 @@ public class DriveRunner implements Loopable {
         } else if (poseSupplier != null) {
             Drawing.drawRobot(canvas, poseSupplier.get());
         } else {
-            // Nothing to draw; the dashboard keeps showing its last field overlay.
             return;
         }
 

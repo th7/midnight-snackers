@@ -8,23 +8,8 @@ import java.util.function.Function;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
-/**
- * Which method and path reach which handler, said once per server. A route's pattern is a path
- * whose {@code {name}} segments are parameters and whose final {@code {name*}} takes the rest of
- * the path, slashes included. Routes are tried in the order they were added. A path no route or
- * mount knows is a 404; a path a route knows by another method is a 405 naming the methods that
- * would do. A {@link #guard} answers for every route here and every path under a mount's
- * prefix before any of them does, but never for a path none of them knows.
- * <p>
- * {@link #mount} puts another router's routes under a prefix, so the same routes can be served
- * at the root of one server and under {@code /sim} on another; the mounted router sees the path
- * with the prefix taken off, and its own not-found names the full path.
- */
 public final class Router implements Function<Request, Response> {
     public interface Handler {
-        /**
-         * @param params the pattern's parameters, by name
-         */
         Response handle(Request request, Map<String, String> params);
     }
 
@@ -42,7 +27,6 @@ public final class Router implements Function<Request, Response> {
             this.handler = handler;
         }
 
-        /** The parameters when {@code path} matches, else null. */
         Map<String, String> match(String path) {
             String[] parts = path.split("/", -1);
             if (rest ? parts.length < segments.length : parts.length != segments.length) {
@@ -83,7 +67,6 @@ public final class Router implements Function<Request, Response> {
         }
     }
 
-    /** Either a route or a mount, in the order added. */
     private final List<Object> entries = new ArrayList<>();
 
     private Function<Request, Response> guard = request -> null;
@@ -101,21 +84,15 @@ public final class Router implements Function<Request, Response> {
                         .withHeader("Location", target.apply(params)));
     }
 
-    /** Serves {@code router}'s routes under {@code prefix}; an empty prefix mounts them here. */
     public Router mount(String prefix, Router router) {
         return mount(prefix, request -> router);
     }
 
-    /** Serves, under {@code prefix}, the routes of whichever router {@code choose} picks for the request. */
     public Router mount(String prefix, Function<Request, Router> choose) {
         entries.add(new Mount(prefix, choose));
         return this;
     }
 
-    /**
-     * @param guard answers for every route and mount here, before any of them: a response refuses
-     *              the request, null lets it through
-     */
     public Router guard(Function<Request, Response> guard) {
         this.guard = guard;
         return this;
@@ -131,11 +108,6 @@ public final class Router implements Function<Request, Response> {
         return response != null ? response : Response.error(404, "not found: " + request.path);
     }
 
-    /**
-     * Whether a route here matches the path by any method, or a mount's prefix covers it. A
-     * mount is known by its prefix alone, so the guard answers before the mounted router is even
-     * chosen: choosing it may need what the guard checks.
-     */
     private boolean knows(String path) {
         for (Object entry : entries) {
             if (entry instanceof Route ? ((Route) entry).match(path) != null : ((Mount) entry).covers(path)) {
@@ -145,7 +117,6 @@ public final class Router implements Function<Request, Response> {
         return false;
     }
 
-    /** The response, or null when nothing here knows the path. */
     private Response handle(Request request, String path) {
         if (!knows(path)) {
             return null;

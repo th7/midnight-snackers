@@ -37,9 +37,6 @@ public final class TwoDeadWheelLocalizer {
 
     public TwoDeadWheelLocalizer(
             HardwareMap hardwareMap, IMU imu, double inPerTick, Pose2d initialPose, LongSupplier clock) {
-        // TODO: make sure your config has **motors** with these names (or change them)
-        //   the encoders should be plugged into the slot matching the named motor
-        //   see https://ftc-docs.firstinspires.org/en/latest/hardware_and_software_configuration/configuring/index.html
         this(
                 hardwareMap.get(DcMotorEx.class, "rightBack"),
                 hardwareMap.get(DcMotorEx.class, "leftFront"),
@@ -49,11 +46,6 @@ public final class TwoDeadWheelLocalizer {
                 clock);
     }
 
-    /**
-     * @param parMotor  the motor whose encoder port carries the parallel dead wheel
-     * @param perpMotor the motor whose encoder port carries the perpendicular dead wheel
-     * @param clock     the robot's clock, which the encoders measure their own speed against
-     */
     public TwoDeadWheelLocalizer(
             DcMotorEx parMotor,
             DcMotorEx perpMotor,
@@ -64,7 +56,6 @@ public final class TwoDeadWheelLocalizer {
         par = new ClockedOverflowEncoder(new RawEncoder(parMotor), clock);
         perp = new ClockedOverflowEncoder(new RawEncoder(perpMotor), clock);
 
-        // TODO: reverse encoder directions if needed
         par.setDirection(DcMotorSimple.Direction.REVERSE);
         perp.setDirection(DcMotorSimple.Direction.REVERSE);
 
@@ -90,7 +81,7 @@ public final class TwoDeadWheelLocalizer {
         PositionVelocityPair perpPosVel = perp.getPositionAndVelocity();
 
         YawPitchRollAngles angles = imu.getRobotYawPitchRollAngles();
-        // Use degrees here to work around https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/1070
+
         AngularVelocity angularVelocityDegrees = imu.getRobotAngularVelocity(AngleUnit.DEGREES);
         AngularVelocity angularVelocity = new AngularVelocity(
                 UnnormalizedAngleUnit.RADIANS,
@@ -104,7 +95,6 @@ public final class TwoDeadWheelLocalizer {
 
         Rotation2d heading = Rotation2d.exp(angles.getYaw(AngleUnit.RADIANS));
 
-        // see https://github.com/FIRST-Tech-Challenge/FtcRobotController/issues/617
         double rawHeadingVel = angularVelocity.zRotationRate;
         if (Math.abs(rawHeadingVel - lastRawHeadingVel) > Math.PI) {
             headingVelOffset -= Math.signum(rawHeadingVel) * 2 * Math.PI;
@@ -151,7 +141,7 @@ public final class TwoDeadWheelLocalizer {
     }
 
     public static class Params {
-        public double parYTicks = 610.3360642343223; // y position of the parallel encoder (in tick units)
-        public double perpXTicks = 5186.563208836955; // x position of the perpendicular encoder (in tick units)
+        public double parYTicks = 610.3360642343223;
+        public double perpXTicks = 5186.563208836955;
     }
 }

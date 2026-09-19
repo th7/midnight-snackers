@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""A reader for the glTF 2.0 that Onshape exports an assembly as.
-
-Onshape answers with either a .glb -- a small binary container around a JSON document and one
-blob -- or the JSON on its own with its buffer inline as a data: URI. Either way what comes out
-here is a flat list of parts: each one its node's name, the names of the nodes above it, its
-triangles already placed in the assembly's frame, and its colour.
-
-Only what the field pipeline needs is read. Everything the format allows and this does not
-handle raises rather than being skipped: a part silently dropped, or one whose triangles are
-read at the wrong stride, would reach the simulator as geometry that looks plausible and is
-wrong, which is the one outcome worth spending code to prevent.
-
-No dependencies beyond Python 3.
-"""
 import base64
 import json
 import struct
@@ -21,29 +7,17 @@ GLB_MAGIC = b'glTF'
 GLB_VERSION = 2
 CHUNK_JSON, CHUNK_BIN = 0x4E4F534A, 0x004E4942
 
-# componentType -> (struct format, bytes). glTF allows signed widths for attributes; indices are
-# always unsigned, and positions are always float, so these are what a mesh can hold.
 COMPONENTS = {
     5120: ('<b', 1), 5121: ('<B', 1), 5122: ('<h', 2),
     5123: ('<H', 2), 5125: ('<I', 4), 5126: ('<f', 4),
 }
 COUNTS = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
-TRIANGLES = 4  # primitive mode; the only one a solid export uses
-
+TRIANGLES = 4
 
 class NotGltf(Exception):
-    """The bytes are not glTF we can read, or they are glTF that says something we will not guess
-    at. Raised in place of returning geometry that cannot be trusted."""
-
+    pass
 
 class Part:
-    """One primitive of one mesh, where the assembly puts it.
-
-    `name` is the node's, which for an Onshape export is the instance ('Flower HIPS Pipe <2>');
-    `path` is every named node from the scene root down to it, which is how a part is found by
-    the assembly it belongs to. `triangles` are triples of (x, y, z) in the assembly's frame and
-    the file's units, which for glTF are metres.
-    """
 
     __slots__ = ('name', 'path', 'triangles', 'colour')
 
@@ -56,11 +30,7 @@ class Part:
     def __repr__(self):
         return '<Part ' + (self.name or '(unnamed)') + ' ' + str(len(self.triangles)) + ' triangles>'
 
-
-# --- the container ---------------------------------------------------------------------------
-
 def _unpack_glb(data):
-    """A .glb into its document and its binary chunk."""
     if len(data) < 12:
         raise NotGltf('too short to be a glb: ' + str(len(data)) + ' bytes')
     magic, version, length = struct.unpack_from('<4sII', data, 0)
@@ -86,11 +56,7 @@ def _unpack_glb(data):
         raise NotGltf('the glb has no JSON chunk')
     return document, blob
 
-
 def _buffers(document, blob):
-    """Every buffer the document declares, as bytes. A buffer with no uri is the glb's own blob;
-    a data: uri carries its own. A uri pointing at a file beside the document is refused: we
-    fetch one response, and a reader that quietly returned short buffers would be worse."""
     out = []
     for index, buffer in enumerate(document.get('buffers', [])):
         uri = buffer.get('uri')
@@ -107,11 +73,7 @@ def _buffers(document, blob):
                           + '); ask Onshape for a glb or for buffers inline')
     return out
 
-
-# --- accessors -------------------------------------------------------------------------------
-
 def _read_accessor(document, buffers, index):
-    """One accessor as a list of tuples, honouring its buffer view's stride."""
     accessors = document.get('accessors', [])
     if not 0 <= index < len(accessors):
         raise NotGltf('accessor ' + str(index) + ' does not exist')
@@ -153,24 +115,16 @@ def _read_accessor(document, buffers, index):
         out.append(tuple(struct.unpack_from(fmt, data, at + c * width)[0] for c in range(per)))
     return out
 
-
-# --- placement -------------------------------------------------------------------------------
-
 IDENTITY = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
 
-
 def multiply(a, b):
-    """a * b, both column-major as glTF writes them: element (row, col) is m[col * 4 + row]."""
     out = [0.0] * 16
     for col in range(4):
         for row in range(4):
             out[col * 4 + row] = sum(a[k * 4 + row] * b[col * 4 + k] for k in range(4))
     return tuple(out)
 
-
 def from_trs(translation, rotation, scale):
-    """glTF composes a node as translation * rotation * scale, in that order. Any other order
-    puts a part that is both turned and scaled somewhere else entirely."""
     x, y, z, w = rotation
     r = ((1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y)),
          (2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x)),
@@ -181,9 +135,7 @@ def from_trs(translation, rotation, scale):
             r[2][0] * sz, r[2][1] * sz, r[2][2] * sz, 0.0,
             translation[0], translation[1], translation[2], 1.0)
 
-
 def placement(node):
-    """Where a node puts what hangs below it: its matrix, or its translation, rotation and scale."""
     if 'matrix' in node:
         matrix = node['matrix']
         if len(matrix) != 16:
@@ -195,31 +147,14 @@ def placement(node):
                     node.get('rotation', (0.0, 0.0, 0.0, 1.0)),
                     node.get('scale', (1.0, 1.0, 1.0)))
 
-
 def apply(matrix, point):
-    """A point through a column-major matrix."""
     x, y, z = point[0], point[1], point[2]
     return (matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12],
             matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13],
             matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14])
 
-
-# --- colour ----------------------------------------------------------------------------------
-
 def hex_colour(factor):
-    """A material's base colour as '#rrggbb'.
-
-    glTF defines baseColorFactor in linear space and the hex the rest of the pipeline uses is
-    sRGB, so whether a transfer function belongs here was an open question. It does not: Onshape
-    writes the appearance's sRGB value straight into the factor.
-
-    Settled by exporting the field assembly and comparing every part the STEP pipeline had
-    already coloured. Of 71 parts named by both, 67 agree exactly, and the four that differ are
-    the April Tag plates, which `step_to_field.colour_for` deliberately overrides to #4a4a4a
-    (the CAD has them white). A transfer function here would have moved all 67.
-    """
     return '#' + ''.join('%02x' % max(0, min(255, round(c * 255))) for c in factor[:3])
-
 
 def _colour_of(document, primitive):
     index = primitive.get('material')
@@ -230,9 +165,6 @@ def _colour_of(document, primitive):
         raise NotGltf('a primitive names material ' + str(index) + ', which does not exist')
     factor = materials[index].get('pbrMetallicRoughness', {}).get('baseColorFactor')
     return hex_colour(factor) if factor else None
-
-
-# --- the walk --------------------------------------------------------------------------------
 
 def _primitive_parts(document, buffers, primitive, name, path, matrix):
     if primitive.get('mode', TRIANGLES) != TRIANGLES:
@@ -258,9 +190,7 @@ def _primitive_parts(document, buffers, primitive, name, path, matrix):
                  for i in range(0, len(order), 3)]
     return Part(name, path, triangles, _colour_of(document, primitive))
 
-
 def read(data):
-    """Every part of the glTF in `data`, placed in the assembly's frame."""
     if data[:4] == GLB_MAGIC:
         document, blob = _unpack_glb(data)
     else:
@@ -306,22 +236,10 @@ def read(data):
         walk(root, IDENTITY, [])
     return parts
 
-
-# --- writing ---------------------------------------------------------------------------------
-
 def _colour_factor(colour):
-    """'#rrggbb' -> the linear-looking factor Onshape puts there, which is what `hex_colour`
-    reads back: the two are inverses, and neither applies a transfer function."""
     return [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)] + [1.0]
 
-
 def write(parts, generator='midnight-snackers tools/field'):
-    """`parts` as a .glb.
-
-    Each part becomes one mesh of one primitive under a node, and the nodes are nested to match
-    the paths, so that what `read` gives back is what went in -- names, tree, triangles and
-    colours alike. Points shared between a part's triangles are written once and indexed.
-    """
     document = {
         'asset': {'version': '2.0', 'generator': generator},
         'scene': 0, 'scenes': [{'nodes': []}],
@@ -348,8 +266,6 @@ def write(parts, generator='midnight-snackers tools/field'):
             materials[colour] = len(document['materials']) - 1
         return materials[colour]
 
-    # The nodes named by a path, so that parts of one assembly hang under one node. Only the
-    # branches are shared: a leaf is always its own node, or two parts alike would collide.
     branches = {}
 
     def branch(path):
@@ -368,7 +284,7 @@ def write(parts, generator='midnight-snackers tools/field'):
 
     for part in parts:
         if not part.triangles:
-            continue  # a mesh with no primitive is a file some readers refuse
+            continue
         order, points = [], {}
         for triangle in part.triangles:
             for point in triangle:

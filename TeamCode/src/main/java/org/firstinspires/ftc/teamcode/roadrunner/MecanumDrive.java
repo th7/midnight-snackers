@@ -48,30 +48,24 @@ public final class MecanumDrive {
             kinematics.new WheelVelConstraint(PARAMS.maxWheelVel), new AngularVelConstraint(PARAMS.maxAngVel)));
     public final AccelConstraint defaultAccelConstraint =
             new ProfileAccelConstraint(PARAMS.minProfileAccel, PARAMS.maxProfileAccel);
-    /** The four wheels, which this drive asks to turn and never reaches past. */
+
     public final Wheels wheels;
 
     public final VoltageSensor voltageSensor;
     public final LazyImu lazyImu;
-    /** Where the robot is, how fast, and where it has been; this drive reads it and never updates it. */
+
     public final PoseEstimate where;
 
     private final DownsampledWriter targetPoseWriter = new DownsampledWriter("TARGET_POSE", 50_000_000);
     private final DownsampledWriter driveCommandWriter = new DownsampledWriter("DRIVE_COMMAND", 50_000_000);
     private final DownsampledWriter mecanumCommandWriter = new DownsampledWriter("MECANUM_COMMAND", 50_000_000);
-    /** The clock the trajectory followers run on: the robot's, so a simulation can own time. */
+
     private final LongSupplier clock;
 
-    /** Seconds on the drive's clock, in place of {@code Actions.now()}. */
     private double now() {
         return clock.getAsLong() * 1e-9;
     }
 
-    /**
-     * Build the drive from already-resolved devices and whatever knows where the robot is, so it
-     * can run on fakes as well as on the robot. The drive reads that and never updates it: whoever
-     * owns the localizer decides when it moves on, once per loop.
-     */
     public MecanumDrive(
             Wheels wheels, LazyImu lazyImu, VoltageSensor voltageSensor, PoseEstimate where, LongSupplier clock) {
         this.clock = clock;
@@ -118,42 +112,33 @@ public final class MecanumDrive {
     }
 
     public static class Params {
-        // IMU orientation
-        // TODO: fill in these values based on
-        //   see
-        // https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html?highlight=imu#physical-hub-mounting
         public RevHubOrientationOnRobot.LogoFacingDirection logoFacingDirection =
                 RevHubOrientationOnRobot.LogoFacingDirection.DOWN;
         public RevHubOrientationOnRobot.UsbFacingDirection usbFacingDirection =
                 RevHubOrientationOnRobot.UsbFacingDirection.RIGHT;
 
-        // drive model parameters
         public double inPerTick = 0.0005352925;
         public double lateralInPerTick = 0.0004592815203259795;
         public double trackWidthTicks = 25311.699425025417;
 
-        // feedforward parameters (in tick units)
         public double kS = 0.9891921306123841;
         public double kV = 0.0001281158359065848;
         public double kA = 0.00005;
 
-        // path profile parameters (in inches)
         public double maxWheelVel = 50;
         public double minProfileAccel = -30;
         public double maxProfileAccel = 50;
 
-        // turn profile parameters (in radians)
-        public double maxAngVel = Math.PI; // shared with path
+        public double maxAngVel = Math.PI;
         public double maxAngAccel = Math.PI;
 
-        // path controller gains
         public double axialGain = 3.5;
         public double lateralGain = 5;
-        public double headingGain = 5; // shared with turn
+        public double headingGain = 5;
 
         public double axialVelGain = 0.0;
         public double lateralVelGain = 0.0;
-        public double headingVelGain = 0.0; // shared with turn
+        public double headingVelGain = 0.0;
         public double trajectoryTimeout = 10;
     }
 
@@ -193,7 +178,6 @@ public final class MecanumDrive {
 
             if ((t >= timeTrajectory.duration && error.position.norm() < 0.1 && robotVelRobot.linearVel.norm() < 0.1)
                     || t >= timeTrajectory.duration + PARAMS.trajectoryTimeout) {
-
                 wheels.stop();
 
                 return false;
@@ -231,7 +215,6 @@ public final class MecanumDrive {
             p.put("yError", error.position.y);
             p.put("headingError (deg)", Math.toDegrees(error.heading.toDouble()));
 
-            // only draw when active; only one drive action should be active at a time
             Canvas c = p.fieldOverlay();
             drawPoseHistory(c);
 

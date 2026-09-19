@@ -10,11 +10,6 @@ import org.firstinspires.ftc.teamcode.sim.SimField;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
-/**
- * The real {@link Launcher} on the simulated robot: its gate sequence, timed on the simulation's
- * clock, drops a preloaded ball into the spinning flywheel, and the ball flies into the mouth of
- * the cell the blue hive is holding up.
- */
 public class LauncherSimTest {
     private final SimRobot sim = new SimRobot();
     private final Robot robot = new Robot(sim.hardware(), Alliance.BLUE, new FakeTelemetry());
@@ -39,11 +34,6 @@ public class LauncherSimTest {
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
     }
 
-    /**
-     * The preload is what a hive is short of: the three nectar the blue hive is set up with are
-     * three fifths of its load and four pollen are four eighths, so launching the lot empties the
-     * robot, fills the hive and tips it, which drops everything that was in it on the floor.
-     */
     @Test
     public void thePreloadEmptiesTheRobotAndFillsTheHive() {
         SimField.Cell cell = sim.upturnedCell("Blue");
@@ -67,7 +57,6 @@ public class LauncherSimTest {
         assertEquals("and the cell that went under dropped what was in it", 0, sim.scored("Blue"));
     }
 
-    /** The pose {@code distance} inches out from the cell's mouth, facing it, as the hive leans now. */
     private Pose2d facing(SimField.Cell cell, double distance) {
         double[] centre = cell.mouthCentreAt(sim.tilt(cell.alliance));
         double[] normal = cell.mouthNormalAt(sim.tilt(cell.alliance));

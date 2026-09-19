@@ -1,12 +1,3 @@
-"""Reading glTF: what a part is called, where its triangles are, and what colour it is.
-
-Onshape exports the assembly as glTF, which is a published format, so these tests build glTF
-byte for byte and read it back. Nothing here touches the network or Onshape.
-
-The failure worth designing against is silent garbage: an accessor that runs off the end of its
-buffer, or a component type nobody handled, must raise rather than return plausible-looking
-triangles that are quietly wrong.
-"""
 import base64
 import json
 import math
@@ -18,10 +9,7 @@ import gltf
 FLOAT, UNSIGNED_BYTE, UNSIGNED_SHORT, UNSIGNED_INT = 5126, 5121, 5123, 5125
 TRIANGLE = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
 
-
 def glb(document, buffer=b''):
-    """A .glb container around a glTF document and its binary chunk, padded as the format says:
-    the JSON chunk with spaces, the binary chunk with zeros, both to four bytes."""
     text = json.dumps(document).encode('utf-8')
     text += b' ' * (-len(text) % 4)
     buffer += b'\x00' * (-len(buffer) % 4)
@@ -30,9 +18,7 @@ def glb(document, buffer=b''):
         chunks += struct.pack('<II', len(buffer), 0x004E4942) + buffer
     return struct.pack('<4sII', b'glTF', 2, 12 + len(chunks)) + chunks
 
-
 class Build:
-    """A glTF document under construction: parts go in, bytes come out."""
 
     def __init__(self):
         self.doc = {'asset': {'version': '2.0'}, 'scenes': [{'nodes': []}], 'scene': 0,
@@ -49,7 +35,6 @@ class Build:
         return len(self.doc['bufferViews']) - 1
 
     def positions(self, points, stride=None, pad=0):
-        """A VEC3 FLOAT accessor. `pad` bytes of filler after each point makes it interleaved."""
         data = b''.join(struct.pack('<fff', *p) + b'\x00' * pad for p in points)
         view = self._view(data, stride)
         self.doc['accessors'].append({'bufferView': view, 'componentType': FLOAT,
@@ -92,16 +77,13 @@ class Build:
         self.doc['buffers'] = [{'byteLength': len(self.blob)}] if self.blob else []
         return glb(self.doc, self.blob)
 
-
 def one_triangle(points=TRIANGLE, name='Part', node_name=None, **placement):
-    """The simplest whole document: one indexed triangle in one node."""
     build = Build()
     position = build.positions(points)
     index = build.indices([0, 1, 2])
     mesh = build.mesh(name, [{'attributes': {'POSITION': position}, 'indices': index}])
     build.node(name=node_name if node_name is not None else name, mesh=mesh, **placement)
     return build
-
 
 class Container(unittest.TestCase):
     def test_a_triangle_reads_back_as_itself(self):
@@ -124,7 +106,6 @@ class Container(unittest.TestCase):
             gltf.read(one_triangle().bytes()[:20])
 
     def test_plain_json_gltf_with_an_embedded_buffer_reads(self):
-        """Onshape can answer with JSON rather than a .glb; a data: buffer is the same geometry."""
         build = one_triangle()
         body = build.bytes()
         del body
@@ -134,7 +115,6 @@ class Container(unittest.TestCase):
         parts = gltf.read(json.dumps(build.doc).encode('utf-8'))
         self.assertEqual([TRIANGLE], [tuple(t) for t in parts[0].triangles])
 
-
 class Placement(unittest.TestCase):
     def test_a_translation_moves_the_triangle(self):
         parts = gltf.read(one_triangle(translation=[10.0, 20.0, 30.0]).bytes())
@@ -142,8 +122,6 @@ class Placement(unittest.TestCase):
                          [tuple(t) for t in parts[0].triangles[0]])
 
     def test_a_scale_and_a_rotation_are_applied_in_the_order_the_format_says(self):
-        """glTF composes a node as translation * rotation * scale, so a scaled point is rotated
-        and only then moved; any other order puts the part somewhere else entirely."""
         quarter_turn_about_z = [0.0, 0.0, math.sin(math.pi / 4), math.cos(math.pi / 4)]
         parts = gltf.read(one_triangle(translation=[1.0, 0.0, 0.0], scale=[2.0, 2.0, 2.0],
                                        rotation=quarter_turn_about_z).bytes())
@@ -151,8 +129,6 @@ class Placement(unittest.TestCase):
         self.assertEqual([(1.0, 0.0, 0.0), (1.0, 2.0, 0.0), (-1.0, 0.0, 0.0)], got)
 
     def test_a_matrix_is_read_column_major(self):
-        """glTF writes a matrix down its columns. Read row-major, a translation lands in the wrong
-        place and a shear appears out of nowhere."""
         matrix = [1, 0, 0, 0,
                   0, 1, 0, 0,
                   0, 0, 1, 0,
@@ -161,7 +137,6 @@ class Placement(unittest.TestCase):
         self.assertEqual((5.0, 6.0, 7.0), tuple(parts[0].triangles[0][0]))
 
     def test_transforms_compose_down_the_tree(self):
-        """An assembly is nested, so a part's place is every transform above it, in order."""
         build = Build()
         position = build.positions(TRIANGLE)
         index = build.indices([0, 1, 2])
@@ -183,7 +158,6 @@ class Placement(unittest.TestCase):
         self.assertEqual(1, len(parts))
         self.assertEqual((0.0, 0.0, 9.0), tuple(parts[0].triangles[0][0]))
 
-
 class Accessors(unittest.TestCase):
     def test_indices_of_every_width_read_the_same(self):
         for component in (UNSIGNED_BYTE, UNSIGNED_SHORT, UNSIGNED_INT):
@@ -196,8 +170,6 @@ class Accessors(unittest.TestCase):
                 self.assertEqual([TRIANGLE], [tuple(t) for t in gltf.read(build.bytes())[0].triangles])
 
     def test_interleaved_positions_are_read_by_their_stride(self):
-        """A byteStride wider than the element means other attributes sit between the points; a
-        reader that ignores it walks into them and reports nonsense coordinates."""
         build = Build()
         position = build.positions(TRIANGLE, stride=16, pad=4)
         index = build.indices([0, 1, 2])
@@ -213,8 +185,6 @@ class Accessors(unittest.TestCase):
         self.assertEqual([TRIANGLE], [tuple(t) for t in gltf.read(build.bytes())[0].triangles])
 
     def test_an_accessor_that_runs_past_its_buffer_is_refused(self):
-        """Silent garbage is the failure to design out: a short buffer must stop the read, not
-        yield triangles that look plausible and are wrong."""
         build = one_triangle()
         build.doc['accessors'][0]['count'] = 400
         with self.assertRaises(gltf.NotGltf):
@@ -235,11 +205,8 @@ class Accessors(unittest.TestCase):
         with self.assertRaises(gltf.NotGltf):
             gltf.read(build.bytes())
 
-
 class Naming(unittest.TestCase):
     def test_a_part_is_named_by_its_node_rather_than_its_mesh(self):
-        """Onshape names the node for the instance and the mesh for the shape, and the pipeline
-        filters and groups by instance name -- 'am-5855 Flower Assembly <2>', not 'HIPS Pipe'."""
         parts = gltf.read(one_triangle(name='Shape', node_name='Instance <2>').bytes())
         self.assertEqual('Instance <2>', parts[0].name)
 
@@ -255,7 +222,6 @@ class Naming(unittest.TestCase):
         self.assertEqual('', parts[0].name)
 
     def test_a_part_carries_the_names_of_the_nodes_above_it(self):
-        """The hive's parts are found by the assembly they sit in, which is a node further up."""
         build = Build()
         position = build.positions(TRIANGLE)
         index = build.indices([0, 1, 2])
@@ -264,7 +230,6 @@ class Naming(unittest.TestCase):
         build.node(name='am-5855 Flower Assembly <1>', children=[leaf])
         parts = gltf.read(build.bytes())
         self.assertEqual(['am-5855 Flower Assembly <1>', 'Flower HIPS Pipe'], parts[0].path)
-
 
 class Colour(unittest.TestCase):
     def test_a_base_colour_becomes_a_hex_string(self):
@@ -277,7 +242,6 @@ class Colour(unittest.TestCase):
         self.assertIsNone(gltf.read(one_triangle().bytes())[0].colour)
 
     def test_each_primitive_of_a_mesh_keeps_its_own_colour(self):
-        """One Onshape part can carry two appearances; merging them would lose one."""
         build = Build()
         position = build.positions(TRIANGLE)
         index = build.indices([0, 1, 2])
@@ -289,15 +253,10 @@ class Colour(unittest.TestCase):
         build.node(name='Part', mesh=mesh)
         self.assertEqual(['#ff0000', '#0000ff'], [p.colour for p in gltf.read(build.bytes())])
 
-
 if __name__ == '__main__':
     unittest.main()
 
-
 class Writing(unittest.TestCase):
-    """Writing glTF, checked by reading it back: the reader is tested against bytes built by hand
-    above, so a round trip through it says the writer agrees with the format and not merely with
-    itself."""
 
     def roundtrip(self, parts):
         return gltf.read(gltf.write(parts))
@@ -318,7 +277,6 @@ class Writing(unittest.TestCase):
         self.assertEqual(0, len(body) % 4, 'the chunks are padded to four bytes')
 
     def test_parts_keep_the_tree_their_paths_describe(self):
-        """A renderer groups by the assembly a part sits in, so the nesting has to survive."""
         parts = [
             gltf.Part('Pipe', ['Field', 'Flower <1>', 'Pipe'], [TRIANGLE], '#5fa73d'),
             gltf.Part('Backstop', ['Field', 'Flower <1>', 'Backstop'], [TRIANGLE], '#641c65'),
@@ -338,8 +296,6 @@ class Writing(unittest.TestCase):
         self.assertIsNone(self.roundtrip([gltf.Part('P', ['P'], [TRIANGLE], None)])[0].colour)
 
     def test_positions_carry_the_bounds_the_format_requires(self):
-        """glTF requires min and max on a POSITION accessor; a viewer uses them to frame the scene
-        and some refuse the file without them."""
         body = gltf.write([gltf.Part('P', ['P'], [TRIANGLE], None)])
         document, _ = gltf._unpack_glb(body)
         position = next(a for a in document['accessors'] if a['type'] == 'VEC3')
@@ -347,8 +303,6 @@ class Writing(unittest.TestCase):
         self.assertEqual([1.0, 1.0, 0.0], position['max'])
 
     def test_vertices_shared_between_triangles_are_written_once(self):
-        """Two triangles sharing an edge are four points, not six; at the size of a field that
-        difference is megabytes."""
         second = (TRIANGLE[1], (1.0, 1.0, 0.0), TRIANGLE[2])
         body = gltf.write([gltf.Part('P', ['P'], [TRIANGLE, second], None)])
         document, _ = gltf._unpack_glb(body)
@@ -356,8 +310,6 @@ class Writing(unittest.TestCase):
         self.assertEqual(4, position['count'])
 
     def test_nothing_written_is_empty(self):
-        """A part whose triangles all fell away is not written at all, rather than written as a
-        mesh with no primitive, which is a file some readers reject."""
         back = self.roundtrip([gltf.Part('Gone', ['Gone'], [], None),
                                gltf.Part('Here', ['Here'], [TRIANGLE], None)])
         self.assertEqual(['Here'], [p.name for p in back])

@@ -14,17 +14,11 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
-/**
- * The JSON files in the coding server's state directory: each written whole and moved into place,
- * readable by this user only, and a failure to read one is a failure to start rather than a
- * silent fresh start.
- */
 final class StateStore {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
     private StateStore() {}
 
-    /** The object in a store file, null when there is no file yet, and a failure to start when it cannot be read. */
     static JsonObject load(Path file) {
         if (!Files.exists(file)) {
             return null;
@@ -41,7 +35,6 @@ final class StateStore {
         }
     }
 
-    /** Written whole and moved into place, readable by this user only; a failure names the file. */
     static void save(Path file, JsonObject body) {
         boolean posix = posix();
         Set<PosixFilePermission> ownerOnlyFile = PosixFilePermissions.fromString("rw-------");
@@ -66,7 +59,6 @@ final class StateStore {
         }
     }
 
-    /** Creates the directory, parents included, and makes it readable by this user only. */
     static void ownerOnlyDirectory(Path dir) throws IOException {
         Files.createDirectories(dir);
         if (posix()) {

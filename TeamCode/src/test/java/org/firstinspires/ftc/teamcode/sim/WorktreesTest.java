@@ -49,8 +49,6 @@ public class WorktreesTest {
         }
     }
 
-    // --- one worktree per username, on its own branch, from develop ---
-
     @Test
     public void ensureMakesAWorktreeOnItsOwnBranchAtDevelopNotAtTheHostsHead() throws IOException {
         String develop = GitFixture.head(root);
@@ -130,8 +128,6 @@ public class WorktreesTest {
                         "refs/heads/",
                         "--exclude=refs/heads/coding/*"));
     }
-
-    // --- what outlives the process ---
 
     @Test
     public void theStoreOutlivesTheProcessAndIsOwnerOnly() throws IOException {
@@ -213,8 +209,6 @@ public class WorktreesTest {
         java.util.Arrays.sort(names);
         return names;
     }
-
-    // --- removing a user's worktree, keeping their branch ---
 
     @Test
     public void removeTakesTheWorktreeDirectoryAndLeavesTheBranchAndTheMapping() throws IOException {
@@ -363,8 +357,6 @@ public class WorktreesTest {
         assertNull("asking must not make a worktree", worktrees.find("nobody"));
     }
 
-    // --- status and commit ---
-
     @Test
     public void statusListsTheChangedFilesAndCommitMakesOneCommitAuthoredByTheUsername() throws IOException {
         Worktrees worktrees = worktrees();
@@ -426,8 +418,6 @@ public class WorktreesTest {
         assertEquals(1, status.behind);
         assertEquals("[]", status.changed.toString());
     }
-
-    // --- pull: develop into the user's branch ---
 
     private void commitOnDevelop(String file, String content) throws IOException {
         Files.write(root.resolve(file), content.getBytes(StandardCharsets.UTF_8));
@@ -578,8 +568,6 @@ public class WorktreesTest {
         return Path.of(GitFixture.git(worktree, "rev-parse", "--git-dir").trim());
     }
 
-    // --- push: the user's branch into develop ---
-
     private static int parentsOf(Path cwd, String ref) throws IOException {
         return GitFixture.git(cwd, "rev-list", "--parents", "-1", ref).trim().split(" ").length - 1;
     }
@@ -698,12 +686,6 @@ public class WorktreesTest {
         assertEquals(develop, GitFixture.commitOf(root, "develop"));
     }
 
-    /**
-     * What the status offers against what a push then does, on the one state: {@code pushable} is
-     * true exactly when pressing Push would take the user's work somewhere, and false for the two
-     * outcomes that are nothing but a refusal to the user — nothing to land, and work to commit
-     * first — which must also leave {@code develop} where it was.
-     */
     private void pushDoesWhatTheStatusOffered(Worktrees worktrees, String username, Worktrees.Outcome expected)
             throws IOException {
         boolean offered = worktrees.status(username).pushable();
@@ -732,7 +714,7 @@ public class WorktreesTest {
 
         worktrees.commit("ada", "mine");
         Files.write(ada.path.resolve("Other.java"), "class Other {}\n".getBytes(StandardCharsets.UTF_8));
-        // a commit to land and an edit in the way: what a user has as soon as they type after committing
+
         pushDoesWhatTheStatusOffered(worktrees, "ada", Worktrees.Outcome.UNCOMMITTED);
 
         worktrees.commit("ada", "other");
@@ -760,8 +742,6 @@ public class WorktreesTest {
         assertEquals("bob's commit and the merge that landed it", 2, worktrees.status("ada").behind);
         assertEquals(0, worktrees.status("bob").behind);
     }
-
-    // --- push reaches origin ---
 
     private Path origin() throws IOException {
         Path bare = folder.getRoot().toPath().resolve("origin.git");
@@ -874,8 +854,6 @@ public class WorktreesTest {
         assertEquals("origin was not forced", theirs, GitFixture.commitOf(origin, "develop"));
         assertEquals("class Mine {}\n", GitFixture.git(root, "show", "develop:Mine.java"));
     }
-
-    // --- what must be there before the server starts ---
 
     @Test
     public void aRootThatIsNotARepositoryStopsStartupNamingIt() throws IOException {

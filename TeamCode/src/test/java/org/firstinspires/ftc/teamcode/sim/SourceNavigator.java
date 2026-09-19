@@ -35,20 +35,7 @@ import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 
-/**
- * Go to definition and find usages for the main sources, answered by the JDK's own compiler:
- * the same kind of task that {@link SimBuild} runs, stopped after {@code analyze()} instead of
- * writing classes, and asked through the {@code com.sun.source} Trees API which declaration the
- * symbol under a position is and where every reference to it sits. No language server and no
- * extra process. The analysis is kept between questions and redone when the sources change,
- * noticed by the same fingerprint the build uses. A file that does not compile still answers
- * for the parts that do.
- * <p>
- * Files are named relative to the source root with {@code /} separators. Lines and columns are
- * 1-based and count characters, so a tab is one column, the way an editor counts.
- */
 public final class SourceNavigator {
-    /** A place in the sources: the file, its 1-based line and character column, and the line's text. */
     public static final class Location {
         public final String file;
         public final int line;
@@ -68,12 +55,11 @@ public final class SourceNavigator {
         }
     }
 
-    /** What is under a position: a name, a kind, and where it is declared when that is in the sources. */
     public static final class Symbol {
         public final String name;
-        /** {@code class}, {@code method}, {@code field}, {@code local variable}, and the other element kinds, in words. */
+
         public final String kind;
-        /** Null when the symbol comes from outside the sources: the SDK, the JDK. */
+
         public final Location definition;
 
         Symbol(String name, String kind, Location definition) {
@@ -83,7 +69,6 @@ public final class SourceNavigator {
         }
     }
 
-    /** A symbol and every reference to it in the sources, never its declaration, sorted by file, line, column. */
     public static final class Usages {
         public final Symbol symbol;
         public final List<Location> usages;
@@ -94,7 +79,6 @@ public final class SourceNavigator {
         }
     }
 
-    /** The tree kinds whose element is the thing a user means when the cursor is on them. */
     private static final Set<Tree.Kind> NAMED = Set.of(
             Tree.Kind.IDENTIFIER,
             Tree.Kind.MEMBER_SELECT,
@@ -107,11 +91,10 @@ public final class SourceNavigator {
             Tree.Kind.ANNOTATION_TYPE,
             Tree.Kind.TYPE_PARAMETER);
 
-    /** One analysis of the whole tree, kept until a source changes. */
     private static final class Analysis {
         final Trees trees;
         final SourcePositions positions;
-        /** By source-root-relative key, in key order. */
+
         final Map<String, CompilationUnitTree> units = new LinkedHashMap<>();
 
         final Map<String, String> texts = new LinkedHashMap<>();
@@ -129,24 +112,20 @@ public final class SourceNavigator {
     private String lastFingerprint;
     private Analysis analysis;
 
-    /** @param sourceRoot the package root, e.g. {@code TeamCode/src/main/java} */
     public SourceNavigator(Path sourceRoot) {
         this.sourceRoot = sourceRoot.toAbsolutePath().normalize();
     }
 
-    /** Every source file's key, sorted. */
     public synchronized List<String> files() {
         return List.copyOf(analysis().files);
     }
 
-    /** The symbol under the position, or null when there is none there or no such file. */
     public synchronized Symbol definition(String file, int line, int column) {
         Analysis analysis = analysis();
         Element element = elementAt(analysis, file, line, column);
         return element == null ? null : symbolOf(analysis, element);
     }
 
-    /** The symbol under the position and every reference to it in the sources, or null when there is none there. */
     public synchronized Usages usages(String file, int line, int column) {
         Analysis analysis = analysis();
         Element target = elementAt(analysis, file, line, column);
@@ -193,9 +172,6 @@ public final class SourceNavigator {
         return new Usages(symbolOf(analysis, target), usages);
     }
 
-    // --- what is where ---
-
-    /** The element of the innermost named tree covering the position, or null. */
     private static Element elementAt(Analysis analysis, String file, int line, int column) {
         CompilationUnitTree unit = analysis.units.get(file);
         if (unit == null || line < 1 || column < 1) {
@@ -217,8 +193,6 @@ public final class SourceNavigator {
                 long start = analysis.positions.getStartPosition(unit, tree);
                 long end = analysis.positions.getEndPosition(unit, tree);
                 if (start >= 0 && end >= 0 && start <= offset && offset < end) {
-                    // only trees covering the position are entered; ancestors are visited before
-                    // their descendants, so the last one remembered is the deepest
                     super.scan(tree, p);
                 }
                 return null;
@@ -276,13 +250,12 @@ public final class SourceNavigator {
         }
         Element element = analysis.trees.getElement(path);
         if (element == null || element.asType().getKind() == TypeKind.ERROR) {
-            return null; // a name javac could not resolve: a typo, or a class from outside the libraries
+            return null;
         }
         Tree leaf = path.getLeaf();
         if (!(leaf instanceof IdentifierTree
                 || leaf instanceof MemberSelectTree
                 || leaf instanceof MemberReferenceTree)) {
-            // a declaration: only its name means the thing, not its modifiers, type, or body
             String name = element.getKind() == ElementKind.CONSTRUCTOR
                     ? element.getEnclosingElement().getSimpleName().toString()
                     : element.getSimpleName().toString();
@@ -344,7 +317,6 @@ public final class SourceNavigator {
         return element.getKind().name().toLowerCase(Locale.ROOT).replace('_', ' ');
     }
 
-    /** Where a reference's own name starts: an identifier at its start, a selection or reference just before its end. */
     private static long namePosition(Analysis analysis, CompilationUnitTree unit, String key, Tree node, String name) {
         long start = analysis.positions.getStartPosition(unit, node);
         if (node instanceof IdentifierTree) {
@@ -359,7 +331,6 @@ public final class SourceNavigator {
         return start < 0 ? -1 : wordFrom(text, name, start);
     }
 
-    /** The first whole-word occurrence of {@code name} at or after {@code from}, or -1. */
     private static long wordFrom(String text, String name, long from) {
         Matcher matcher = Pattern.compile("(?<![\\p{L}\\p{N}_$])" + Pattern.quote(name) + "(?![\\p{L}\\p{N}_$])")
                 .matcher(text);
@@ -386,10 +357,6 @@ public final class SourceNavigator {
         return null;
     }
 
-    /**
-     * {@code Trees.instance(task)}, by reflection: the other overload names a class the Android
-     * platform jar this compiles against does not have, which stops javac resolving the call.
-     */
     private static Trees treesOf(JavacTask task) {
         try {
             return (Trees) Trees.class
@@ -399,8 +366,6 @@ public final class SourceNavigator {
             throw new IllegalStateException("could not get the compiler's trees", e);
         }
     }
-
-    // --- the analysis, redone when a source changes ---
 
     private Analysis analysis() {
         List<Path> sources = SimBuild.sourcesUnder(sourceRoot);
@@ -455,7 +420,6 @@ public final class SourceNavigator {
             try {
                 analysis.fileManager.close();
             } catch (IOException ignored) {
-                // the old analysis is being dropped anyway
             }
         }
         analysis = made;

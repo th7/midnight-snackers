@@ -41,7 +41,6 @@ public class CodingServerTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    /** Where the server keeps what outlives it, deliberately nowhere near the project root. */
     @Rule
     public TemporaryFolder state = new TemporaryFolder();
 
@@ -51,14 +50,12 @@ public class CodingServerTest {
 
     private Path root;
 
-    /** The project root is a repository with one commit on {@code develop}, checked out, the way the host is. */
     @Before
     public void aRepositoryWithADevelopBranch() throws IOException {
         root = folder.getRoot().toPath();
         GitFixture.init(root);
     }
 
-    /** The benches the server has made, one per worktree, in the order it asked for them. */
     private final java.util.List<SimBench> benches = new java.util.ArrayList<>();
 
     private CodingServer server() {
@@ -72,7 +69,6 @@ public class CodingServerTest {
         return server;
     }
 
-    /** A bench over the worktree's own sources, so a run builds what that user saved. */
     private static SimBench.Factory sourcesBench() {
         return worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
     }
@@ -100,12 +96,10 @@ public class CodingServerTest {
         return server;
     }
 
-    /** A directory the server has to create itself, parents included, the way a first run on a new machine does. */
     private Path stateDir() {
         return state.getRoot().toPath().resolve("nested").resolve("coding-server");
     }
 
-    /** Stops the server and starts a fresh one over the same root and state directory, the way a restart does. */
     private void restart() {
         server.stop();
         server = null;
@@ -118,8 +112,6 @@ public class CodingServerTest {
             server.stop();
         }
     }
-
-    // --- login and approval ---
 
     @Test
     public void theAdminListenerIsBoundToLoopbackOnly() {
@@ -154,15 +146,10 @@ public class CodingServerTest {
         assertTrue("the admin list must never carry the session token", !logins.contains(cookie));
     }
 
-    /**
-     * The admin listing is a list of users, each with the logins they have made: a teammate who
-     * logs in again is one more session under the same name, not a second row, and what is the
-     * user's rather than any one login's — worktree, branch, status — is said once, on them.
-     */
     @Test
     public void theAdminListingGathersEachUsersLoginsUnderThem() throws IOException {
-        login("ada"); // ada's first browser
-        login("ada"); // and her second, on the machine next to it
+        login("ada");
+        login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
         login("bob");
         admin("POST", "/admin/logins/" + idOf("bob") + "/deny");
@@ -271,8 +258,6 @@ public class CodingServerTest {
         assertEquals(404, user("GET", "/admin/tree", cookie).status);
     }
 
-    // --- the editable set ---
-
     @Test
     public void theTreeStaysUnderTheRoot() throws IOException {
         folder.newFolder("TeamCode");
@@ -342,8 +327,6 @@ public class CodingServerTest {
         assertEquals(404, user("GET", "/admin/files", cookie).status);
     }
 
-    // --- read, write, conflict ---
-
     private String approvedEditorOf(String... files) throws IOException {
         folder.newFolder("TeamCode");
         for (String file : files) {
@@ -356,12 +339,10 @@ public class CodingServerTest {
         return cookie;
     }
 
-    /** Ada's copy of the file: the one in her worktree, which is where her reads and writes go. */
     private Path file(String name) throws IOException {
         return worktreeOf("ada").resolve("TeamCode").resolve(name);
     }
 
-    /** The user's worktree, as the admin listing reports it. */
     private Path worktreeOf(String username) throws IOException {
         JsonObject user = userOf(username);
         if (user.get("worktree").isJsonNull()) {
@@ -536,8 +517,6 @@ public class CodingServerTest {
         assertEquals("127.0.0.1", bobsLogin.get("address").getAsString());
     }
 
-    // --- pages ---
-
     @Test
     public void theDashboardPageHasTheFileListAndAnEditorThatSavesAsYouType() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
@@ -574,11 +553,6 @@ public class CodingServerTest {
         assertTrue(info, info.contains("\"addresses\":["));
     }
 
-    /**
-     * Each user's logins are a list under them, folded away behind their row, so the admin reads
-     * a roster of teammates and opens the one they are deciding about. A login waiting to be
-     * decided is never hidden by the fold: its user opens with it showing.
-     */
     @Test
     public void theAdminPageKeepsEachUsersLoginsUnderThemBehindAToggle() throws IOException {
         String page = admin("GET", "/admin").body;
@@ -590,8 +564,6 @@ public class CodingServerTest {
         assertTrue(page, page.contains("session.state"));
         assertTrue("each login keeps its own decisions", page.contains("'/admin/logins/' + session.id"));
     }
-
-    // --- simulate ---
 
     private String approvedUser(String name) throws IOException {
         String cookie = login(name);
@@ -752,7 +724,6 @@ public class CodingServerTest {
         assertEquals(403, user("GET", "/sim/place?opmode=" + encode("Count to three"), pending).status);
     }
 
-    /** Where each user places the robot for an op mode is their own bench's to remember, under their worktree. */
     @Test
     public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
         serverWith(worktree -> new SimBench(
@@ -774,7 +745,7 @@ public class CodingServerTest {
         Reply page = user("GET", "/sim/place?opmode=" + encode("Count to three"), ada);
         assertEquals(200, page.status);
         assertTrue(page.body, page.body.contains("\"placing\":{\"x\":24.0,\"y\":-12.0,\"heading\":0.5}"));
-        // On the exact robot, so the run starts on the pose rather than near it as a seeded robot is set down.
+
         assertEquals(200, user("PUT", "/sim/seed?opmode=" + encode("Count to three"), ada, "{\"seed\": null}").status);
         Reply started = user("POST", "/sim/run?opmode=" + encode("Count to three"), ada);
         assertEquals(started.body, 200, started.status);
@@ -784,7 +755,6 @@ public class CodingServerTest {
         assertTrue(ticks, ticks.contains("\"x\":24.0,\"y\":-12.0,\"heading\":0.5"));
     }
 
-    /** Which robot each user runs an op mode on is their own bench's to remember too. */
     @Test
     public void eachUserSeedsTheRobotOnTheirOwnBench() throws Exception {
         serverWith(worktree -> new SimBench(
@@ -880,8 +850,6 @@ public class CodingServerTest {
         assertEquals(403, user("GET", "/sim/runs/" + id + "/log", null).status);
     }
 
-    // --- compile on save ---
-
     @Test
     public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
@@ -960,13 +928,11 @@ public class CodingServerTest {
         assertTrue(page, page.contains("id=\"run-message\""));
         assertTrue(page, page.contains("as last saved"));
         assertFalse(page, page.contains("started with"));
-        // the catalog is fetched every time the tab opens and again when a run ends, never cached for the page's life
+
         assertTrue(page, page.split("fetch\\('/sim/catalog'\\)").length - 1 >= 1);
         assertTrue(page, page.contains("loadCatalog()"));
         assertTrue(page, page.contains("wasRunning && !running"));
     }
-
-    // --- the editor: CodeMirror, served from the host because the robot's wifi has no internet ---
 
     @Test
     public void theEditorBundleIsServedFromTheHostToAnApprovedSession() throws IOException {
@@ -989,11 +955,6 @@ public class CodingServerTest {
         assertEquals(404, admin("GET", "/static/codemirror.js").status);
     }
 
-    /**
-     * Nothing but the login itself answers a caller the server does not know. The editor bundle is
-     * not a secret, but an unapproved session has no business fetching anything: what is open is
-     * open deliberately and is listed here, and everything else refuses.
-     */
     @Test
     public void onlyTheLoginAnswersASessionThatIsNotApproved() throws IOException {
         for (String path : new String[] {
@@ -1013,12 +974,6 @@ public class CodingServerTest {
         }
     }
 
-    /**
-     * The field page is reached through the bench, which the coding server mounts under /sim, so
-     * its address there is /sim/field and not /field. Held because the page finds its own model,
-     * its own assets and its own runs by links relative to wherever it was served from: served at
-     * the wrong address it would not 404, it would load and then fetch nothing.
-     */
     @Test
     public void theFieldPageAndItsModelAreServedUnderTheBenchsPrefix() throws IOException {
         String cookie = approvedUser("mia");
@@ -1037,10 +992,6 @@ public class CodingServerTest {
                 "and not at the root, which is the coding server's own", 404, user("GET", "/field", cookie).status);
     }
 
-    /**
-     * What a caller the server does not know may still reach, and why each one has to be reachable:
-     * the page that offers the login, the login itself, and the poll the login page waits on.
-     */
     @Test
     public void whatIsOpenIsTheLoginAndNothingElse() throws IOException {
         assertEquals("the page that offers the login", 200, user("GET", "/", null).status);
@@ -1069,7 +1020,6 @@ public class CodingServerTest {
         assertTrue(page, page.contains("CM.oneDark"));
     }
 
-    /** The page only ever reaches the bundle through {@code CM.<name>}; each such name must be one the bundle exports. */
     @Test
     public void everyEditorNameThePageUsesIsInTheBundle() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
@@ -1092,15 +1042,9 @@ public class CodingServerTest {
         }
     }
 
-    /**
-     * Every page toggles elements with the {@code hidden} attribute, and any author
-     * {@code display:} rule on the same element silently beats it unless the page says otherwise.
-     */
     private static void assertHiddenWins(String page) {
         assertTrue(page, page.replaceAll("\\s+", " ").contains("[hidden] { display: none !important; }"));
     }
-
-    // --- persistence: sessions and the editable set outlive the process ---
 
     @Test
     public void anApprovedSessionSurvivesARestart() throws IOException {
@@ -1160,11 +1104,6 @@ public class CodingServerTest {
                 json(admin("GET", "/admin/users").body).getAsJsonArray("users").size());
     }
 
-    /**
-     * The token in a teammate's cookie is the only thing that proves who they are, so at rest it
-     * is kept the way a password would be: as a salted scrypt hash, never as the token itself and
-     * never as a fast digest of it.
-     */
     @Test
     public void theSessionStoreHoldsASaltedScryptHashOfEachSecretAndNeverTheSecret() throws IOException {
         String ada = login("ada");
@@ -1279,7 +1218,6 @@ public class CodingServerTest {
         }
     }
 
-    /** Only git writes under the project root, and only under {@code .git}: the worktrees are in the state directory. */
     @Test
     public void nothingIsWrittenUnderTheProjectRootOutsideDotGit() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
@@ -1297,8 +1235,6 @@ public class CodingServerTest {
                         folder.getRoot().toPath().resolve("TeamCode").toFile().list()));
         assertTrue(worktreeOf("ada").startsWith(stateDir()));
     }
-
-    // --- a worktree per user ---
 
     @Test
     public void approvingALoginMakesAWorktreeAndASaveChangesItNotTheHostCheckout() throws IOException {
@@ -1457,7 +1393,6 @@ public class CodingServerTest {
         assertEquals(403, user("GET", "/files", cookie).status);
     }
 
-    /** The XDG Base Directory spec: {@code $XDG_STATE_HOME}, else {@code ~/.local/state}, and a relative value is ignored. */
     @Test
     public void theStateDirectoryFollowsTheXdgBaseDirectoryConvention() {
         Path xdg = state.getRoot().toPath().resolve("xdg");
@@ -1477,7 +1412,6 @@ public class CodingServerTest {
         return stateDir().resolve("sessions.json");
     }
 
-    /** The random part of a {@code session=<id>.<secret>} cookie. */
     private static String secretOf(String cookie) {
         return cookie.substring(cookie.lastIndexOf('.') + 1);
     }
@@ -1491,8 +1425,6 @@ public class CodingServerTest {
         }
         throw new AssertionError("no stored session for " + username);
     }
-
-    // --- commit ---
 
     private static String message(String text) {
         JsonObject body = new JsonObject();
@@ -1604,19 +1536,11 @@ public class CodingServerTest {
         assertTrue(page, page.contains("prompt("));
     }
 
-    // --- commit formats the Java it commits ---
-
-    /** As a student types it. */
     private static final String BADLY_INDENTED = "class Plans {\n  int edited;\n      void go( ) {int x=1;}\n}\n";
 
-    /** As palantir-java-format writes it, which is what spotlessCheck accepts. */
     private static final String FORMATTED =
             "class Plans {\n    int edited;\n\n    void go() {\n        int x = 1;\n    }\n}\n";
 
-    /**
-     * A one-field {@code Plans.java} already in the formatter's shape, so the pull and push tests
-     * below stay about merging: a commit of this changes the branch and nothing in the file.
-     */
     private static String plans(String field) {
         return "class Plans {\n    int " + field + ";\n}\n";
     }
@@ -1731,7 +1655,6 @@ public class CodingServerTest {
         assertTrue(commit, commit.contains("reloadOpen("));
     }
 
-    /** The body of a top-level {@code function name() {...}} in the page, braces matched. */
     private static String functionBody(String page, String name) {
         int at = page.indexOf("function " + name + "(");
         assertTrue("no function " + name + " in the page", at >= 0);
@@ -1747,8 +1670,6 @@ public class CodingServerTest {
         fail("function " + name + " in the page is never closed");
         return null;
     }
-
-    // --- pull ---
 
     private void commitOnDevelop(String file, String content) throws IOException {
         Files.write(root.resolve(file), content.getBytes(StandardCharsets.UTF_8));
@@ -1922,9 +1843,6 @@ public class CodingServerTest {
         assertTrue("the reply's message, coach and all, is what the page shows", page.contains("say(result.message"));
     }
 
-    // --- the admin's view of each user's branch, and pulling for them ---
-
-    /** The admin listing's entry for the user, worktree and all. */
     private JsonObject userOf(String username) throws IOException {
         JsonObject found = null;
         for (var element : json(admin("GET", "/admin/users").body).getAsJsonArray("users")) {
@@ -1937,7 +1855,6 @@ public class CodingServerTest {
         return found;
     }
 
-    /** The user's newest login, the one the admin's decisions in these tests act on. */
     private JsonObject newestSessionOf(String username) throws IOException {
         JsonArray sessions = userOf(username).getAsJsonArray("sessions");
         assertTrue(username + " has no sessions", sessions.size() > 0);
@@ -2038,7 +1955,7 @@ public class CodingServerTest {
     public void theAdminListingStillAnswersWhenOneWorktreesStatusCannotBeRead() throws IOException {
         approvedEditorOf("Plans.java");
         approvedUser("bob");
-        // ada's branch vanishes from under her worktree: git can no longer count what she is ahead or behind by
+
         GitFixture.git(root, "update-ref", "-d", "refs/heads/coding/ada");
 
         Reply listing = admin("GET", "/admin/users");
@@ -2166,8 +2083,6 @@ public class CodingServerTest {
         assertEquals(404, user("POST", "/admin/logins/" + idOf("ada") + "/pull", cookie).status);
     }
 
-    // --- push ---
-
     @Test
     public void pushLandsTheUsersCommitsOnDevelopAndTheHostCheckoutShowsThem() throws IOException {
         String cookie = savedEditor(plans("mine"));
@@ -2260,7 +2175,6 @@ public class CodingServerTest {
         assertTrue(logins, logins.contains("Plans.java"));
     }
 
-    /** The status's {@code pushable}, for a user whose cookie this is. */
     private boolean pushable(String cookie) throws IOException {
         return json(user("GET", "/git/status", cookie).body).get("pushable").getAsBoolean();
     }
@@ -2301,8 +2215,6 @@ public class CodingServerTest {
                 "whether a push would land is the server's judgement, and the page wears it",
                 page.contains("status.pushable"));
     }
-
-    // --- push reaches origin ---
 
     @Test
     public void pushLandsOnOriginTooAndTheReplySaysSo() throws IOException {
@@ -2362,11 +2274,8 @@ public class CodingServerTest {
                 page.contains("result.outcome === 'nothing'"));
     }
 
-    // --- go to definition, find usages, and viewing what is not editable ---
-
     private static final String SRC = "TeamCode/src/main/java/org/example/";
 
-    /** Two classes on develop, Auto.java editable, and ada approved. */
     private String navigatingUser() throws IOException {
         Path src = root.resolve(SRC);
         Files.createDirectories(src);
@@ -2539,9 +2448,6 @@ public class CodingServerTest {
         assertTrue(page, page.contains("view only"));
     }
 
-    // --- deleting a user ---
-
-    /** Whether the admin listing has a row for that username at all. */
     private boolean listed(String username) throws IOException {
         return admin("GET", "/admin/users").body.contains("\"username\":\"" + username + "\"");
     }
@@ -2718,13 +2624,6 @@ public class CodingServerTest {
         assertTrue("the server's refusal is what the admin reads", page.contains("deleteArmedByUsername"));
     }
 
-    /**
-     * Whether a delete would be refused is the server's to say. The page loads its Delete anyway
-     * button on the server's refusal and takes it back when the user has nothing left to lose, so
-     * it must be told which -- working it out from the status would be the page deciding what the
-     * server enforces, and from a different reading: the status makes the worktree, unsaved does
-     * not, so the two disagree once the directory has gone.
-     */
     @Test
     public void theUserListingSaysWhetherADeleteWouldBeRefused() throws IOException {
         approvedUser("bob");
@@ -2740,7 +2639,6 @@ public class CodingServerTest {
         assertTrue("develop has it now", deletable("ada"));
     }
 
-    /** And it is the same answer the delete itself gives. */
     @Test
     public void theListingAgreesWithWhatTheDeleteDoes() throws IOException {
         savedEditor("edited");
@@ -2762,15 +2660,12 @@ public class CodingServerTest {
         return true;
     }
 
-    // --- helpers ---
-
     private String login(String username) throws IOException {
         Reply login = user("POST", "/login?username=" + username, null);
         assertEquals(200, login.status);
         return login.sessionCookie();
     }
 
-    /** The admin's id for the newest session of that username, read off the admin listing. */
     private String idOf(String username) throws IOException {
         return newestSessionOf(username).get("id").getAsString();
     }
@@ -2824,7 +2719,6 @@ public class CodingServerTest {
             return connection.getHeaderField(name);
         }
 
-        /** The {@code session=...} pair from Set-Cookie, ready to send back as a Cookie header. */
         String sessionCookie() {
             String set = header("Set-Cookie");
             return set == null ? null : set.split(";")[0].trim();

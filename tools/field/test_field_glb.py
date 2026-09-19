@@ -1,12 +1,3 @@
-"""Building the field's visual model: what is kept, where it is put, and how much detail survives.
-
-The collision model and the visual model are built from different things -- `field.json` from
-FIRST's STEP, `field.glb` from the Onshape export -- so the one contract worth enforcing is that
-they agree about where the field is. A renderer drawing a flower a foot from where the simulator
-collides one is worse than a renderer with no flowers.
-
-Nothing here touches the network.
-"""
 import math
 import unittest
 
@@ -15,9 +6,7 @@ import gltf
 
 IN = 0.0254
 
-
 def box(centre, size=1.0):
-    """A cube's twelve triangles, in metres, centred on `centre` (given in metres)."""
     x, y, z = centre
     h = size / 2
     corners = [(x + a * h, y + b * h, z + c * h)
@@ -29,22 +18,17 @@ def box(centre, size=1.0):
         out.append((corners[a], corners[c], corners[d]))
     return out
 
-
 class Frame(unittest.TestCase):
-    """The export is metres, z up, centred; Road Runner is inches and a quarter turn round."""
 
     def test_a_point_turns_a_quarter_and_becomes_inches(self):
         self.assertEqual((2.0, -1.0, 3.0),
                          tuple(round(c, 6) for c in field_glb.to_field((1 * IN, 2 * IN, 3 * IN))))
 
     def test_the_turn_is_the_one_that_puts_blue_at_negative_y(self):
-        """Blue's hive stands where the export puts x positive. A turn the other way would put it
-        at positive y, where red's is; `SimFieldTest` holds the same fact from the other side."""
         self.assertLess(field_glb.to_field((1.0, 0.0, 0.0))[1], 0)
 
     def test_the_floor_stays_the_floor(self):
         self.assertEqual(0.0, field_glb.to_field((1.0, 2.0, 0.0))[2])
-
 
 class Keeping(unittest.TestCase):
     def test_hardware_is_dropped_by_name(self):
@@ -56,15 +40,11 @@ class Keeping(unittest.TestCase):
         self.assertEqual(['Flower HIPS Pipe'], [p.name for p in kept])
 
     def test_a_part_inside_an_assembly_we_drop_goes_with_it(self):
-        """The soft tiles are the floor, which the page draws itself; what is inside them goes too."""
         parts = [gltf.Part('Tile Corner', ['Field', 'am-2499: Soft Tiles <1>', 'Tile Corner'],
                            box((0, 0, 0)), '#333333')]
         self.assertEqual([], field_glb.visual_parts(parts))
 
     def test_the_wall_is_kept_though_its_name_says_rivet(self):
-        """The perimeter is what the field is seen through, and the simulator drops it because it
-        models the walls itself. Drawing needs it. Its rail is called 'FTC Rail with Rivet Holes',
-        so the rule that drops rivets would drop the wall with them unless the wall is named."""
         parts = [gltf.Part('am-2556a: FTC Rail with Rivet Holes',
                            ['Field', 'am-0481b FTC Perimeter RevB <1>', 'am-2556a: FTC Rail with Rivet Holes'],
                            box((0, 0, 0)), '#cccccc'),
@@ -89,9 +69,7 @@ class Keeping(unittest.TestCase):
         self.assertAlmostEqual(-1.0 / IN, centre[1], places=1)
         self.assertAlmostEqual(0.5 / IN, centre[2], places=1)
 
-
 class Snapping(unittest.TestCase):
-    """A CAD tessellation spends most of its triangles on fillets nobody sees at field scale."""
 
     def test_no_point_moves_further_than_the_grid_can_move_it(self):
         triangles = box((0.3, 0.2, 0.1), 0.4)
@@ -124,18 +102,13 @@ class Snapping(unittest.TestCase):
         reach = max(math.hypot(v[0], v[1]) for t in snapped for v in t)
         self.assertAlmostEqual(10.0, reach, delta=1.0)
 
-
 class Agreeing(unittest.TestCase):
-    """The two models are built from different exports that name their parts differently, so what
-    is checked is not part-by-part placement but the two things a misread frame gets wrong."""
 
     COLLISION = {'size': 141.17, 'elements': []}
 
     def field(self, blue_at, red_at, reach=70.0):
-        """A stand-in field: blue parts on one side, red on the other, reaching `reach` inches.
-        Positions are given in the field frame and turned back into the export's."""
         def export(x, y, z):
-            return (-y * IN, x * IN, z * IN)  # the inverse of to_field
+            return (-y * IN, x * IN, z * IN)
         parts = []
         for i in range(12):
             parts.append(gltf.Part('Blue Cell %d' % i, ['Field', 'Blue Cell %d' % i],
@@ -149,8 +122,6 @@ class Agreeing(unittest.TestCase):
         self.assertEqual([], field_glb.disagreements(self.field(-12.76, 12.74), self.COLLISION))
 
     def test_a_field_turned_the_wrong_way_is_caught(self):
-        """The failure worth having this check for at all: everything else about the field is
-        symmetric, so a mirrored model looks entirely reasonable."""
         said = field_glb.disagreements(self.field(12.76, -12.74), self.COLLISION)
         self.assertEqual(1, len(said))
         self.assertIn('wrong way round', said[0])
@@ -163,13 +134,10 @@ class Agreeing(unittest.TestCase):
         self.assertTrue(any('units' in line for line in said), said)
 
     def test_a_check_with_too_little_to_go_on_says_so_rather_than_passing(self):
-        """The failure this is against is one this check has already made: nothing compared, and
-        a clean answer that had judged nothing at all."""
         parts = [gltf.Part('Nothing Named', ['Field', 'Nothing Named'], box((0, 0, 0), 0.05), None)]
         said = field_glb.disagreements(parts, self.COLLISION)
         self.assertEqual(1, len(said))
         self.assertIn('could not judge', said[0])
-
 
 if __name__ == '__main__':
     unittest.main()

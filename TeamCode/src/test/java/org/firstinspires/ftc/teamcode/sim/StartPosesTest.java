@@ -17,8 +17,6 @@ public class StartPosesTest {
         return folder.getRoot().toPath().resolve("start-poses.json");
     }
 
-    // --- the seed: which robot an op mode's runs are made on, kept beside where they start ---
-
     @Test
     public void everyOpModeRunsOnSeedOneUntilSomeoneSaysOtherwise() {
         StartPoses starts = new StartPoses(file());

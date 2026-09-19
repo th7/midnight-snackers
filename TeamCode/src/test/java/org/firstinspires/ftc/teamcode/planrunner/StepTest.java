@@ -11,7 +11,7 @@ public class StepTest {
     private long nanoNow = 0;
 
     @Test
-    public void startRunsExactlyOnceOnFirstDoneCall() {
+    public void startRunsExactlyOnceOnTheFirstTick() {
         AtomicInteger startCount = new AtomicInteger();
         Step step = new Step("step", startCount::incrementAndGet, () -> false, () -> nanoNow);
 
@@ -23,7 +23,7 @@ public class StepTest {
     }
 
     @Test
-    public void doneReflectsTheSupplier() {
+    public void aTickAnswersWhatTheStepsOwnDoneSupplierSays() {
         boolean[] finished = {false};
         Step step = new Step("step", () -> {}, () -> finished[0], () -> nanoNow);
 
@@ -46,7 +46,6 @@ public class StepTest {
         assertTrue(step.tick());
     }
 
-    /** A wait is a timed step on the clock it is given, so a simulated clock can run it. */
     @Test
     public void waitForCountsOnTheGivenClock() {
         nanoNow = 7_000_000_000L;

@@ -15,10 +15,6 @@ import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
 import org.junit.Test;
 
-/**
- * Runs the real RedTeleOp against the simulated robot, driven from a simulated gamepad the way
- * the bench's on-screen controller drives it. Takes a few seconds of wall clock.
- */
 public class RedTeleOpSimTest {
     private static final double TIMEOUT_SECONDS = 30;
 
@@ -48,9 +44,7 @@ public class RedTeleOpSimTest {
             }
             return true;
         });
-        // The robot has inertia: it coasts on after the stick is released, and this waits for it to
-        // rest: no movement over a tenth of a second of the simulation's time. Two wall-clock polls
-        // can fall within one loop of the simulation and see the same pose while it still coasts.
+
         long[] lastNanos = {sim.nanoTime()};
         double[] lastSeen = {sim.pose().position.x};
         await("came to rest", () -> {

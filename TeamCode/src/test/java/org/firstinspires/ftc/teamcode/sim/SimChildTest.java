@@ -54,7 +54,6 @@ public class SimChildTest {
                     }
                 }
             } catch (IOException ignored) {
-                // the child went away
             }
         });
         errReader.start();
@@ -71,13 +70,8 @@ public class SimChildTest {
         }
     }
 
-    /** The origin, where a run starts unless it is placed elsewhere. */
     private static final Pose2d ORIGIN = new Pose2d(0, 0, 0);
 
-    /**
-     * Places the robot, as the bench does first thing: a child of this version waits for the
-     * line before its run starts. The input stays open, since its end would end the run.
-     */
     private static Process placed(Process child, Pose2d start) throws IOException {
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
         in.write(new Gson().toJson(SimDriverStation.startLine(start)) + "\n");
@@ -85,7 +79,6 @@ public class SimChildTest {
         return child;
     }
 
-    /** A project's child runs that project and the libraries: with no simulator in the project, there is no child to run. */
     @Test
     public void aChildOverAProjectRunsOnThatProjectAndTheLibrariesAlone() throws Exception {
         Path empty = folder.getRoot().toPath().resolve("empty");
@@ -121,7 +114,6 @@ public class SimChildTest {
             try {
                 child.getErrorStream().transferTo(java.io.OutputStream.nullOutputStream());
             } catch (IOException ignored) {
-                // the child went away
             }
         });
         drain.start();
@@ -247,7 +239,6 @@ public class SimChildTest {
         assertTrue(last.toString(), last.get("outcome").getAsString().startsWith("timed out"));
     }
 
-    /** The run starts where the bench placed the robot: the first tick is the start pose, kept inside the walls. */
     @Test
     public void theRunStartsWhereTheRobotWasPlaced() throws Exception {
         Pose2d start = new Pose2d(-60, 1000, Math.PI / 2);
@@ -268,10 +259,6 @@ public class SimChildTest {
         assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);
     }
 
-    /**
-     * A start line with a seed runs the robot drawn from it: set down near the start pose, not on
-     * it, and named in the child's log so the run can say which robot it was.
-     */
     @Test
     public void aSeedOnTheStartLineRunsTheRobotDrawnFromIt() throws Exception {
         Pose2d start = new Pose2d(-60, 12, 0);
@@ -290,7 +277,6 @@ public class SimChildTest {
         assertTrue(output.stderr, output.stderr.contains(SimNoise.seeded(7).toString()));
     }
 
-    /** Until it is placed, the child has not started: Stop then ends the run stopped, with no ticks. */
     @Test
     public void stopBeforePlacementEndsTheRunStopped() throws Exception {
         Process child = SimChild.launchOnThisClasspath(

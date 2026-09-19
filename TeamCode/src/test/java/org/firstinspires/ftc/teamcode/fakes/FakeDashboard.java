@@ -6,9 +6,6 @@ import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 
-/**
- * Records every packet sent to the dashboard so tests can inspect what would have been drawn.
- */
 public class FakeDashboard implements Dashboard {
     public final List<TelemetryPacket> packets = new ArrayList<>();
     private final Telemetry telemetry = new FakeTelemetry();

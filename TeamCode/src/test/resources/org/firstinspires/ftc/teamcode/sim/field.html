@@ -72,9 +72,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const said = document.getElementById('said');
 const problem = document.getElementById('problem');
 
-// The model is in Road Runner's frame: inches, z up, the origin in the middle of the floor.
-// three.js is y up by default, so everything made after this is told otherwise rather than the
-// scene being turned, which would put the model's own axes at odds with the numbers on it.
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 const FIELD_IN = 141.17;
@@ -94,12 +91,10 @@ camera.position.set(-170, -190, 130);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 18);
 controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI / 2 - 0.02; // no going under the floor
+controls.maxPolarAngle = Math.PI / 2 - 0.02;
 controls.minDistance = 30;
 controls.maxDistance = 900;
 
-// A key light high on the audience's left, a soft fill from the sky, and a little bounce from
-// the floor, which is what stops the undersides reading as black.
 const key = new THREE.DirectionalLight(0xffffff, 2.1);
 key.position.set(-120, -160, 260);
 key.castShadow = true;
@@ -112,16 +107,9 @@ key.shadow.bias = -0.0015;
 scene.add(key);
 scene.add(new THREE.HemisphereLight(0xbfd4e8, 0x2a2f36, 1.0));
 
-// The floor is the floor, at z = 0, where the CAD's soft tiles put it and where everything
-// standing on the field is measured from. The gaffer tape's top face is at z = 0 too, and two
-// surfaces in one plane leave which of them a pixel belongs to up to rounding error -- the tape
-// flickering as the camera moves. So the tape is lifted a hundredth of an inch instead, which
-// settles it and keeps the floor where it belongs.
 const FLOOR_Z = 0;
 const TAPE_Z = 0.01;
-// three.js renames a node as it loads it -- a space becomes an underscore, and a name used twice
-// gets a number -- so what the CAD calls "FTC Field Side Glass 11in" is "FTC_Field_Side_Glass_11in"
-// here. Anything matching on a part's name has to allow for that, or it silently matches nothing.
+
 const SEE_THROUGH = /skin|side[\s_]glass/i;
 const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(FIELD_IN, FIELD_IN),
@@ -131,7 +119,7 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 const tiles = new THREE.GridHelper(FIELD_IN, 6, 0x4a5a68, 0x33414d);
-tiles.rotation.x = Math.PI / 2; // GridHelper lies in xz; the field's floor is xy
+tiles.rotation.x = Math.PI / 2;
 tiles.position.z = FLOOR_Z + 0.02;
 scene.add(tiles);
 
@@ -159,23 +147,17 @@ new GLTFLoader().load('./assets/field.glb', (gltf) => {
                                        : object.geometry.attributes.position.count / 3;
     object.castShadow = true;
     object.receiveShadow = true;
-    // The export carries no normals, so a flat-shaded part would come out unlit.
+
     if (!object.geometry.attributes.normal) {
       object.geometry.computeVertexNormals();
     }
     object.material.roughness = 0.62;
     object.material.metalness = 0.05;
 
-    // Lifted off the floor it is stuck to, so the two do not fight for the same pixels.
     if (/tape/i.test(object.name)) {
       object.position.z += TAPE_Z;
     }
 
-    // What is transparent in the real field and would hide the match if it were not here: a
-    // hive's skins, which are the walls of the basket a ball is scored in, and the perimeter's
-    // side glass, which is the polycarbonate the whole field is watched through. The CAD gives
-    // both the same near-white it gives anything uncoloured, so they have to be named. Drawn
-    // from both sides, since a see-through box is looked into as well as at.
     if (SEE_THROUGH.test(object.name)) {
       object.material = object.material.clone();
       object.material.transparent = true;
@@ -196,23 +178,18 @@ new GLTFLoader().load('./assets/field.glb', (gltf) => {
   problem.textContent = String(wrong && wrong.message ? wrong.message : wrong);
 });
 
-// --- a run -------------------------------------------------------------------------------
-// `?run=<id>` plays one back: the robot where the simulator had it, the game pieces where they
-// had rolled to, and each hive leaning the way the run left it. The geometry is all in the model
-// already; what a tick carries is where it had moved to.
-
 let field = null;
 let model = null;
 let ticks = [];
-let moved = [];       // the pieces a tick lists, in the order it lists them
-let movingBalls = []; // one sphere per entry a tick lists, in the order it lists them
-let staticBalls = []; // the pieces no tick lists: the rows set out beyond the walls
-let hives = [];       // { group, pivot, rest }
+let moved = [];
+let movingBalls = [];
+let staticBalls = [];
+let hives = [];
 let robot = null;
 let at = 0;
 let playing = false;
-let playingFrom = 0;  // wall-clock ms the current play started
-let playingAt = 0;    // the run's own seconds when it started
+let playingFrom = 0;
+let playingAt = 0;
 
 const runBar = document.getElementById('run');
 const playButton = document.getElementById('play');
@@ -223,7 +200,6 @@ function secondsOf(i) {
   return ticks.length ? ticks[Math.max(0, Math.min(i, ticks.length - 1))].t : 0;
 }
 
-/** One game piece, as a ball of its own size and colour, added to the scene. */
 function makeBall(piece) {
   const ball = new THREE.Mesh(
       new THREE.SphereGeometry(piece.radius, 20, 14),
@@ -234,7 +210,6 @@ function makeBall(piece) {
   return ball;
 }
 
-/** The robot, as the simulator collides it: a cube of its size, standing on the floor. */
 function makeRobot(size) {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
@@ -244,27 +219,20 @@ function makeRobot(size) {
   body.castShadow = true;
   group.add(body);
 
-  // An arrow lying on the lid, pointing the way the robot faces. A cube says nothing about its
-  // heading on its own, and the heading is half of what a replay is watched for.
   const arrow = new THREE.Group();
   const paint = new THREE.MeshStandardMaterial({ color: 0xffc24a, roughness: 0.5 });
   const shaft = new THREE.Mesh(new THREE.BoxGeometry(size * 0.42, size * 0.12, 0.2), paint);
   shaft.position.set(-size * 0.08, 0, 0);
   const head = new THREE.Mesh(new THREE.ConeGeometry(size * 0.16, size * 0.26, 3), paint);
-  head.rotation.z = -Math.PI / 2; // a cone points along its own y; this turns it to point at +x
+  head.rotation.z = -Math.PI / 2;
   head.position.set(size * 0.26, 0, 0);
   arrow.add(shaft);
   arrow.add(head);
-  arrow.position.z = size + 0.1; // resting on the lid rather than sunk into it
+  arrow.position.z = size + 0.1;
   group.add(arrow);
   return group;
 }
 
-/**
- * A hive leans about the axle it hangs from, which is a turn about the field's y axis through
- * its pivot. The model is exported at the tilt the field is set up at, so what is applied here
- * is the difference from that, and a tick that says nothing leaves the hive where it was.
- */
 function leanHive(hive, degrees) {
   const turn = THREE.MathUtils.degToRad(hive.rest - degrees);
   const [px, py, pz] = hive.pivot;
@@ -281,7 +249,7 @@ async function showRun() {
   const id = asked.get('run');
   const wantsCamera = asked.get('view') === 'camera';
   if (!field || (!id && !wantsCamera)) {
-    return; // the field on its own, which needs nothing more than the model it has drawn
+    return;
   }
   try {
     model = await fetch('model').then((r) => r.json());
@@ -300,19 +268,12 @@ async function showRun() {
 
   moved = model.moved;
 
-  // The CAD's own game pieces stand where the field was set up. A run moves them, so they are
-  // drawn here instead and the model's are hidden -- two of each would be worse than none.
   field.traverse((o) => {
     if (o.isMesh && /pollen|nectar/i.test(o.name)) {
       o.visible = false;
     }
   });
 
-  // A tick lists the loose pieces, then the hives' nectar, then the flowers' pollen, and then
-  // whatever the robot started out holding. So it is longer than the field's own movable pieces,
-  // and the entries past the end are the balls the robot brought with it: null while they are
-  // held, and somewhere on the field once they have been launched. A ball with no mesh made for
-  // it is a ball that never appears, which is what became of every pollen the robot shot.
   const listed = ticks.reduce(
       (most, tick) => Math.max(most, tick.pieces ? tick.pieces.length : 0), moved.length);
   const spare = moved[0] || { colour: '#ffef3f', radius: 1.4 };
@@ -323,12 +284,11 @@ async function showRun() {
     if (i < moved.length) {
       ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
     } else {
-      ball.visible = false; // held, until a tick says otherwise
+      ball.visible = false;
     }
     movingBalls.push(ball);
   }
 
-  // The ones the simulator never moves: the rows set out beyond the walls, which no tick lists.
   staticBalls = model.pieces
       .filter((piece) => !piece.loose && !piece.cell && !piece.flower)
       .map((piece) => {
@@ -360,11 +320,10 @@ async function showRun() {
     document.title = 'Run ' + id;
     goTo(0);
   } else {
-    aimCamera(); // no run: the lens looks from where a robot at the origin would carry it
+    aimCamera();
   }
 }
 
-/** The scene node a hive's parts hang under, which the export names for the CAD assembly. */
 function nodeNameFor(alliance) {
   let found = null;
   field.traverse((o) => {
@@ -376,7 +335,6 @@ function nodeNameFor(alliance) {
   return found;
 }
 
-/** The last tick at or before `upTo` that said where the pieces were. */
 function piecesAt(upTo) {
   for (let i = upTo; i >= 0; i--) {
     if (ticks[i].pieces) {
@@ -407,12 +365,10 @@ function goTo(index) {
       const ball = movingBalls[i];
       const to = where[i];
       if (to) {
-        // The camera's view is the tags and nothing else, and a tick that moves a ball must not
-        // put it back on screen: what is captured there is meant to be blank but for the tags.
         ball.visible = !cameraView;
         ball.position.set(to[0], to[1], to.length > 2 ? to[2] : ball.userData.radius);
       } else {
-        ball.visible = false; // held in the robot, or gone off the field
+        ball.visible = false;
       }
     }
   }
@@ -462,7 +418,6 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-/** Where the run has got to, played in its own time rather than a tick a frame. */
 function advance() {
   if (!playing || ticks.length < 2) {
     return;
@@ -487,24 +442,6 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, cameraView || camera);
 });
 
-// --- the camera's view -------------------------------------------------------------------
-// `?view=camera` shows what the robot's webcam would see of the goal tags: the tags where they
-// are, in the perspective the camera's own lens gives, and nothing else. The field is hidden
-// rather than absent, so the tags carry the hives' lean with them as the run plays.
-//
-// WHAT IS ASSUMED, AND MUST BE MEASURED BEFORE ANY OF IT IS TRUSTED FOR POSE:
-//
-//   * The lens. teamwebcamcalibrations.xml is still the SDK's stock file -- every <Camera> block
-//     in it is commented out -- so these are a plausible 640x480 webcam and not this team's. A
-//     detector's range and bearing scale directly with them. Calibrate, then put the real
-//     numbers here.
-//   * The tag's printed size. The CAD gives a plate 5 in by 17 in; a 36h11 tag's black square is
-//     smaller than the plate and the manual is what says by how much. The artwork is fitted to
-//     the plate here, preserving its own 3:1 shape, which is a guess at the printing and not a
-//     measurement of the tag.
-//
-// What is not assumed is where the tags are: that comes from the CAD, through the hive they
-// hang on, and moves as the hive leans.
 const CAMERA = {
   width: 640,
   height: 480,
@@ -512,18 +449,13 @@ const CAMERA = {
   fy: 622.0,
   cx: 320.0,
   cy: 240.0,
-  // Where the webcam sits on the robot and which way it looks, from AprilTagWebcam: the FTC
-  // convention is +x right, +y forward, +z up, from the middle of the robot at floor height,
-  // and a pitch of -90 would be looking level.
+
   rightIn: 0.75,
   forwardIn: 4,
   upIn: 16,
   pitchDegrees: -68
 };
 
-// The four goal tags' artwork, named in full rather than built from the hive and the side: a
-// path a page assembles is a path nothing can check, and SimAssetsTest reads these back out to
-// hold each one to an asset the bench will actually serve.
 const TAG_ARTWORK = {
   blueaudience: 'assets/textures/GoalAprilTag_blueaudience.png',
   bluescoring: 'assets/textures/GoalAprilTag_bluescoring.png',
@@ -532,13 +464,11 @@ const TAG_ARTWORK = {
 };
 let tagQuads = [];
 let cameraView = null;
-// A quad with no texture yet draws white, which is a tag a detector would never read and a
-// frame nobody should keep. Anything capturing frames waits on this.
+
 let tagsPending = 0;
 let tagsDrawable = null;
 const tagsReady = new Promise((resolve) => { tagsDrawable = resolve; });
 
-/** A pinhole lens as a projection matrix, so a principal point off centre is not quietly lost. */
 function lensProjection(lens, near, far) {
   const m = new THREE.Matrix4();
   m.set(
@@ -549,7 +479,6 @@ function lensProjection(lens, near, far) {
   return m;
 }
 
-/** A point in the field's frame, in a hive's own, with the hive at the tilt it is exported at. */
 function toHive(hive, point) {
   const rest = THREE.MathUtils.degToRad(hive.tilt);
   const c = Math.cos(rest);
@@ -560,18 +489,6 @@ function toHive(hive, point) {
   return new THREE.Vector3(dx * c + dz * sn, dy, -dx * sn + dz * c);
 }
 
-/**
- * How far down the plate this tag is printed on reaches, in the hive's own frame.
- *
- * Not what field.json says: that is a hull of the points that bound the part, and it comes out
- * thinner than the part really is -- a scoring plate reaches to -1.528 where the hull says
- * -1.500. A quad placed by the hull sits inside the plate that is actually drawn, and the two
- * fight for the same pixels.
- *
- * And not the part's bounding box either. The plate is square to the hive's axes but the hive
- * leans, so a box square to the field's is much bigger than the plate and its lowest corner is
- * most of an inch below the underside. The points themselves are what is asked.
- */
 function plateBottom(hive, group, side) {
   let found = null;
   (group || field).traverse((o) => {
@@ -592,7 +509,6 @@ function plateBottom(hive, group, side) {
   return lowest;
 }
 
-/** A point in a hive's own frame, in the field's, with the hive at the tilt it is exported at. */
 function fromHive(hive, point) {
   const rest = THREE.MathUtils.degToRad(hive.tilt);
   const c = Math.cos(rest);
@@ -603,11 +519,6 @@ function fromHive(hive, point) {
       hive.pivot[2] + point[0] * sn + point[2] * c);
 }
 
-/**
- * A textured quad over each goal tag's plate, hung under the hive it belongs to so that it leans
- * with it. The plate is given in the hive's own frame, where it is square to the axes: a thin
- * slab, five inches one way and seventeen the other, facing along the hive's z.
- */
 function makeTags(loader) {
   for (const hive of model.hives) {
     const group = hives.find((h) => h.alliance === hive.alliance);
@@ -621,16 +532,13 @@ function makeTags(loader) {
         problem.textContent = 'No artwork for ' + hive.alliance + ' ' + side + '.';
         continue;
       }
-      // The plate in the hive's own frame, where it is square to the axes: thin in z, five
-      // inches along x and seventeen along y, lying under the basket's floor and facing down.
-      // That is why the robot's camera is pitched up to see it.
+
       const xs = part.vertices.map((v) => v[0]);
       const ys = part.vertices.map((v) => v[1]);
       const zs = part.vertices.map((v) => v[2]);
-      const acrossBeam = Math.max(...ys) - Math.min(...ys);   // 17 in, and the artwork's long way
-      const alongBeam = Math.max(...xs) - Math.min(...xs);    // 5 in
-      // Below the plate that is drawn, by a hundredth of an inch: enough that nothing rounds
-      // the two onto the same pixel, little enough that the artwork still reads as printed on it.
+      const acrossBeam = Math.max(...ys) - Math.min(...ys);
+      const alongBeam = Math.max(...xs) - Math.min(...xs);
+
       const drawn = plateBottom(hive, group ? group.group : null, side);
       const under = (drawn === null ? Math.min(...zs) : drawn) - 0.01;
 
@@ -646,23 +554,14 @@ function makeTags(loader) {
         }
       });
       texture.colorSpace = THREE.SRGBColorSpace;
-      // A tag is nearly always seen at a slant, which is where a texture blurs into grey along
-      // one axis and a detector loses its edges. This is the filtering that keeps them.
+
       texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-      // The artwork is a whole plate of four tags with a labelled band, and it is 3:1 while the
-      // plate is 3.4:1. It keeps its own shape and is centred rather than stretched to fill:
-      // stretched, the tags stop being square, and a square is what a detector looks for.
       const long = Math.min(acrossBeam, alongBeam * 3);
       const quad = new THREE.Mesh(
           new THREE.PlaneGeometry(long, alongBeam),
           new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false }));
 
-      // Placed by a basis rather than by turns in sequence, which is easy to get subtly wrong and
-      // hard to see: the quad's own x is the artwork's long way and lies along the hive's y, its
-      // own y lies along the hive's x, and its face looks along the hive's -z, which is down.
-      // Face and not back, so the artwork reads the right way round to anything looking up at it;
-      // mirrored, a tag is one no detector will ever read.
       const facing = new THREE.Matrix4().makeBasis(
           new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, -1));
       quad.quaternion.setFromRotationMatrix(
@@ -673,8 +572,7 @@ function makeTags(loader) {
         under
       ]));
       quad.name = 'tag ' + hive.alliance + ' ' + side;
-      // Hung under the hive so it leans with it -- which means it is inside the field, and the
-      // camera view hides the field. Marked so that it is the one thing not hidden.
+
       quad.userData.tag = true;
       quad.userData.plate = drawn;
       quad.renderOrder = 2;
@@ -684,7 +582,6 @@ function makeTags(loader) {
   }
 }
 
-/** Everything but the tags hidden, the background black, and the lens the robot's. */
 function showCameraView() {
   cameraView = new THREE.PerspectiveCamera();
   cameraView.projectionMatrix.copy(lensProjection(CAMERA, 1, 4000));
@@ -705,17 +602,13 @@ function showCameraView() {
   if (robot) {
     robot.visible = false;
   }
-  // The page's own furniture stays: this is watched as well as captured, and a run with no way
-  // to play or scrub it is one that can only be stared at. What captures frames hides them
-  // itself -- see tools/browser/frames.mjs -- since only it knows they must not be in the shot.
-  // The lens does not orbit, though, so what the page says about dragging would be a lie.
+
   document.querySelector('#hud h1').textContent = "The webcam's view";
   said.textContent = 'The goal tags as the robot\u2019s camera would see them. Play and scrub '
       + 'the run; the view follows the robot.';
   aimCamera();
 }
 
-/** The camera where the robot's webcam is, looking where it looks. */
 function aimCamera() {
   if (!cameraView) {
     return;
@@ -728,7 +621,7 @@ function aimCamera() {
       tick.x + right.x * CAMERA.rightIn + forward.x * CAMERA.forwardIn,
       tick.y + right.y * CAMERA.rightIn + forward.y * CAMERA.forwardIn,
       CAMERA.upIn);
-  // A pitch of -90 looks level; anything above that tips the lens up by the difference.
+
   const up = THREE.MathUtils.degToRad(CAMERA.pitchDegrees + 90);
   const look = new THREE.Vector3(
       forward.x * Math.cos(up), forward.y * Math.cos(up), Math.sin(up));
@@ -736,11 +629,6 @@ function aimCamera() {
   cameraView.lookAt(cameraView.position.clone().add(look));
 }
 
-// The page's testing seam. That the model arrived says nothing about whether it was drawn: a
-// camera pointed away from the field, or a frustum that culls all of it, leaves a page that has
-// loaded everything and rasterises nothing, and the canvas is the background colour either way.
-// `drawnTriangles` is what tells those apart; the scene is here so a test can ask which parts
-// are in it and how they are drawn, and the camera so it can look somewhere of its choosing.
 window.fieldPage = {
   scene: scene,
   camera: camera,
@@ -759,12 +647,12 @@ window.fieldPage = {
         : null;
   },
   goTo: (i) => goTo(i),
-  /** The first ball past the field's own, which is one the robot brought and can launch. */
+
   get launchedBall() { return movingBalls.length > moved.length ? movingBalls[moved.length] : null; },
   get camera3() { return cameraView; },
   get tags() { return tagQuads.map((q) => q.name); },
   lens: CAMERA,
-  /** Whether each tag was placed against the plate in the scene or fell back to the hull. */
+
   get tagPlacedAgainstGeometry() {
     return tagQuads.map((quad) => quad.userData.plate !== null && quad.userData.plate !== undefined);
   },

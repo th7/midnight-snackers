@@ -17,23 +17,12 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
-/** What this JVM has on its classpath, for the tests and tools that ask what the team code holds. */
 public final class Classpath {
     private Classpath() {}
 
-    /**
-     * What one scan of a package found: the classes it read, and the ones it could not.
-     *
-     * <p>A class of ours that will not load on a plain JVM is a thing this scan could not judge,
-     * not a thing that is not there. Left out quietly, it would take every invariant that reads a
-     * scan down with it -- that every subsystem is ticked, that every op mode is listed -- and
-     * they would pass by looking at less. So {@link #all()} is how the classes are had, and it
-     * refuses to hand over a partial answer.
-     */
     public static final class Scan {
-        /** The classes that loaded, in the order the classpath holds them. */
         public final List<Class<?>> classes;
-        /** The ones that did not, by name, each with what went wrong. */
+
         public final Map<String, String> unreadable;
 
         Scan(List<Class<?>> classes, Map<String, String> unreadable) {
@@ -41,11 +30,6 @@ public final class Classpath {
             this.unreadable = Map.copyOf(unreadable);
         }
 
-        /**
-         * The classes, when the scan read every one of them.
-         *
-         * @throws IllegalStateException naming the classes it could not read, and why
-         */
         public List<Class<?>> all() {
             if (!unreadable.isEmpty()) {
                 throw new IllegalStateException("the classpath scan could not read " + unreadable.size()
@@ -55,12 +39,6 @@ public final class Classpath {
         }
     }
 
-    /**
-     * The top-level classes in a package and its subpackages, and the ones that would not load,
-     * found by listing every entry of this JVM's classpath (directories and jars), so a freshly
-     * compiled directory placed first is seen the same way the class loader sees it. Classes are
-     * loaded without being initialized.
-     */
     public static Scan scan(String packageName) {
         String prefix = packageName.replace('.', '/') + "/";
         Set<String> classFiles = new LinkedHashSet<>();
@@ -102,7 +80,7 @@ public final class Classpath {
                     .substring(0, classFile.length() - ".class".length())
                     .replace('/', '.');
             if (rest.contains("$") || rest.endsWith(".package-info") || rest.endsWith(".module-info")) {
-                continue; // a nested class is part of the class that declares it
+                continue;
             }
             try {
                 classes.add(Class.forName(rest, false, Classpath.class.getClassLoader()));
@@ -113,21 +91,10 @@ public final class Classpath {
         return new Scan(classes, unreadable);
     }
 
-    /**
-     * The top-level classes in a package and its subpackages.
-     *
-     * @throws IllegalStateException when any class in the package would not load, since a scan
-     *                               that read only some of them cannot answer for the package
-     */
     public static List<Class<?>> classesUnder(String packageName) {
         return scan(packageName).all();
     }
 
-    /**
-     * Whether a class was compiled alongside the tests rather than as robot code. The test source
-     * set compiles to its own directory, so a class from the same place as this one is a test's
-     * own: a fake or a fixture, and not something the robot is expected to run.
-     */
     public static boolean isTestClass(Class<?> type) {
         return sourceOf(type) != null && sourceOf(type).equals(sourceOf(Classpath.class));
     }

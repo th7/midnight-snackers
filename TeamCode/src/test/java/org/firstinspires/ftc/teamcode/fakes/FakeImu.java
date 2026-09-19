@@ -10,17 +10,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
-/**
- * An IMU whose yaw and yaw rate are set directly by the test or simulation.
- */
 public class FakeImu implements IMU {
     public double yawRadians = 0;
     public double yawRateRadiansPerSecond = 0;
-    /**
-     * How many times the robot code has read the yaw. The localizer reads it once, first thing,
-     * every time it updates, and nothing else on the robot reads it at all, so this counts
-     * localizer updates: what a test uses to ask how often the robot's idea of where it is moved.
-     */
+
     public int yawReads = 0;
 
     @Override

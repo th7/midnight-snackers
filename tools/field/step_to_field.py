@@ -1,33 +1,4 @@
 #!/usr/bin/env python3
-"""Turn the season's field CAD (a STEP AP242 assembly, as FIRST publishes it) into the simulator's
-low-poly field model, field.json, next to replay.html under TeamCode/src/test/resources.
-
-    python3 tools/field/step_to_field.py "BIOBUZZ_Full Field.20260912.step"
-
-No dependencies beyond Python 3. The STEP file is walked directly: every product's placement is
-composed down the assembly tree, and every solid is reduced to the points that bound it (its
-B-rep vertices, its circular and elliptical edges sampled along their arcs, and the control points
-of its spline edges, which bound the splines). Bolts, brackets and the other hardware are dropped
-by name, and what is left is simplified to the general shape of each part: the convex hull of its
-support points in a few dozen directions, so a box stays a box and a pipe becomes an octagonal
-prism. Game pieces become balls, and the gaffer tape becomes marks on the floor.
-
-The model is in the simulator's field frame, Road Runner's: inches, origin at the centre of the
-field, +x away from the audience, +y to the audience's left, +z up. The CAD is in metres with +y
-up and the audience at +z, which is where the hives' audience-facing cells hang.
-
-What the robot collides with is the footprint of each field element below the robot's height, part
-by part -- the frame's legs and feet, a flower's pipes -- so that what is driven through between
-blocks nothing. Each obstacle says how high it stands and how far it clears the
-floor, which is what lets a ball roll under one that overhangs; a part that stands lower than the
-floor's lip is no obstacle at all, being driven and rolled over. The hives hang above the robot on
-the axle the frame's top bar holds, so each is written out in its own frame with the tilt it leans
-at, and what a flying ball meets is written out with it: each cell is the opening the goal ribs
-frame, swept to the back skin that closes it. Each flower is written out as the bore its four
-pipes make, which a stack of pollen stands in. The pollen on the floor in the open is marked loose,
-for the simulator to roll; the nectar the CAD rests inside a cell is marked as that cell's, and the
-pollen the CAD stacks in a flower as that flower's.
-"""
 import json
 import math
 import os
@@ -35,24 +6,18 @@ import re
 import sys
 
 INCH = 0.0254
-ROBOT_HEIGHT_IN = 18  # SimRobot.ROBOT_SIZE_IN: what stands lower than this is in the robot's way
-FLOOR_LIP_IN = 0.5  # what stands lower than this is part of the floor: driven over, rolled over
-FACE_AREA = 40  # square inches: a flat face this big is one the hives are measured from
+ROBOT_HEIGHT_IN = 18
+FLOOR_LIP_IN = 0.5
+FACE_AREA = 40
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'TeamCode', 'src', 'test', 'resources',
                    'org', 'firstinspires', 'ftc', 'teamcode', 'sim', 'field.json')
 
-# Hardware and the parts the simulator models on its own (the floor, the walls); none of it is drawn.
 SKIP = re.compile(r'screw|fhts|nut\b|washer|rivet|rivnut|bolt|spacer|bearing|cable tie|plug|\bpin\b|'
                   r'sticker|damper|pivot damper|flower.*bracket|hinge|panel link|strap|clip|under tile|peanut|'
                   r'fastener|quick release|soft tiles|perimeter|rail|side glass', re.I)
-# Alliance colours for the parts the CAD leaves uncoloured (the goal ribs, the nectar).
 BLUE, RED, DARK = '#1651b0', '#c62828', '#2f2f2f'
 
-
-# --- reading STEP ---------------------------------------------------------------------------------
-
 def parse_args(s):
-    """A STEP argument list like "('',#12,(1.,2.,3.),.T.)" as nested Python values; #12 is ('ref', 12)."""
     pos = 0
     n = len(s)
 
@@ -105,9 +70,7 @@ def parse_args(s):
 
     return value()
 
-
 class Step:
-    """The entities of a STEP file by id, parsed on demand."""
 
     def __init__(self, path):
         self.e = {}
@@ -116,7 +79,6 @@ class Step:
             data = f.read()
         start = data.index('\nDATA;') + 6
         end = data.index('\nENDSEC;', start)
-        # A record starts at a line beginning with '#'; continuation lines do not.
         for rec in re.split(r'\n(?=#\d+=)', data[start:end]):
             rec = rec.strip()
             if not rec.startswith('#'):
@@ -125,7 +87,6 @@ class Step:
             eid = int(rec[1:eq])
             rest = rec[eq + 1:].rstrip(';').replace('\n', '')
             if rest.startswith('('):
-                # a complex entity: (TYPE1(args)TYPE2(args)...)
                 parts = re.findall(r'([A-Z_0-9]+)\((.*?)\)(?=[A-Z_]|\)$)', rest[1:-1] + ')')
                 self.e[eid] = ('COMPLEX', {name: '(' + args + ')' for name, args in parts})
             else:
@@ -148,7 +109,6 @@ class Step:
         return tuple(self.args(eid)[1])
 
     def placement(self, eid):
-        """AXIS2_PLACEMENT_3D as (x axis, y axis, z axis, origin)."""
         a = self.args(eid)
         o = self.point(a[1][1])
         z = norm(tuple(self.args(a[2][1])[1])) if a[2] else (0, 0, 1)
@@ -156,29 +116,21 @@ class Step:
         x = norm(sub(x, scale(z, dot(x, z))))
         return (x, cross(z, x), z, o)
 
-
-# --- vectors and placements -----------------------------------------------------------------------
-
 def dot(a, b):
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
 
 def sub(a, b):
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
-
 def scale(a, s):
     return (a[0] * s, a[1] * s, a[2] * s)
-
 
 def cross(a, b):
     return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
 
-
 def norm(v):
     n = math.sqrt(dot(v, v))
     return (v[0] / n, v[1] / n, v[2] / n)
-
 
 def apply(m, p):
     x, y, z, o = m
@@ -186,30 +138,20 @@ def apply(m, p):
             o[1] + p[0] * x[1] + p[1] * y[1] + p[2] * z[1],
             o[2] + p[0] * x[2] + p[1] * y[2] + p[2] * z[2])
 
-
 def apply_dir(m, d):
     return apply((m[0], m[1], m[2], (0, 0, 0)), d)
 
-
 def compose(a, b):
-    """a after b."""
     return (apply_dir(a, b[0]), apply_dir(a, b[1]), apply_dir(a, b[2]), apply(a, b[3]))
-
 
 def invert(m):
     x, y, z, o = m
     rot = ((x[0], y[0], z[0]), (x[1], y[1], z[1]), (x[2], y[2], z[2]))
     return rot + (apply_dir(rot + ((0, 0, 0),), scale(o, -1)),)
 
-
 IDENTITY = ((1, 0, 0), (0, 1, 0), (0, 0, 1), (0, 0, 0))
 
-
-# --- the points that bound a solid ----------------------------------------------------------------
-
 def arc_points(m, r1, r2, start, end, same_sense):
-    """Points along a circle's or ellipse's arc from the start vertex to the end vertex, the way
-    the edge runs; the whole turn when they coincide."""
     x, y, z, c = m
 
     def angle(p):
@@ -224,7 +166,6 @@ def arc_points(m, r1, r2, start, end, same_sense):
     n = max(2, int(abs(sweep) / (2 * math.pi) * 16) + 1)
     return [apply(m, (r1 * math.cos(a0 + sweep * k / n), r2 * math.sin(a0 + sweep * k / n), 0))
             for k in range(n + 1)]
-
 
 def solid_points(st, solid):
     pts = []
@@ -260,21 +201,14 @@ def solid_points(st, solid):
                     pts += [st.point(cp[1]) for cp in st.args(curve)['B_SPLINE_CURVE'][1]]
     return pts
 
-
 def ring_area(ring, n):
-    """The area of a flat ring, by Newell, whatever the origin."""
     twice = (0.0, 0.0, 0.0)
     for a, b in zip(ring, ring[1:] + ring[:1]):
         c = cross(a, b)
         twice = (twice[0] + c[0], twice[1] + c[1], twice[2] + c[2])
     return abs(dot(twice, n)) / 2
 
-
 def solid_faces(st, solid, least_area):
-    """The solid's flat faces of at least least_area (in the file's units squared): each as its
-    outward normal, its outer boundary's vertices in order, and the rings of any holes in it. The
-    CAD names every boundary a FACE_BOUND, outer ones included, so the biggest is the outer one
-    and the rest are holes: the hive ribs' openings, and the bolt holes through the skins."""
     out = []
     shell = st.args(solid)[1][1]
     for face_ref in st.args(shell)[1]:
@@ -303,9 +237,7 @@ def solid_faces(st, solid, least_area):
             out.append((n, ring, [r for _, r in rings[1:]]))
     return out
 
-
 def solid_colours(st):
-    """Solid id -> '#rrggbb' from the STYLED_ITEMs, for the solids the CAD colours."""
     colours = {}
     for si in st.by_type('STYLED_ITEM'):
         a = st.args(si)
@@ -320,13 +252,7 @@ def solid_colours(st):
                             colours[a[2][1]] = '#%02x%02x%02x' % tuple(int(round(v * 255)) for v in st.args(col[1])[1:4])
     return colours
 
-
-# --- the assembly ---------------------------------------------------------------------------------
-
 def placed_solids(st):
-    """Every solid in the assembly, placed: (path of product names from the root, solid name,
-    colour or None, world points in inches, CAD frame, and its flat faces of FACE_AREA or more
-    as (normal, outer ring of points, rings of the holes in it) in the same frame)."""
     product_name = {}
     for pd in st.by_type('PRODUCT_DEFINITION'):
         product_name[pd] = st.args(st.args(st.args(pd)[2][1])[2][1])[1]
@@ -342,7 +268,6 @@ def placed_solids(st):
         if st.type(brep) == 'ADVANCED_BREP_SHAPE_REPRESENTATION':
             rep_solids.setdefault(rep, []).extend(
                 s[1] for s in st.args(brep)[1] if st.type(s[1]) == 'MANIFOLD_SOLID_BREP')
-    # An occurrence's transformation: the child's placement in the parent, relative to the parent's origin.
     transform = {}
     for cdsr in st.by_type('CONTEXT_DEPENDENT_SHAPE_REPRESENTATION'):
         rel, pds = st.args(cdsr)[0][1], st.args(cdsr)[1][1]
@@ -380,12 +305,7 @@ def placed_solids(st):
         walk(r, IDENTITY, [product_name[r]])
     return out
 
-
-# --- low-poly shapes ------------------------------------------------------------------------------
-
 def support_directions():
-    """The 26 directions of the axes and their diagonals, plus every 22.5 degrees round the
-    horizon so that upright round things keep a round footprint."""
     dirs = set()
     for x in (-1, 0, 1):
         for y in (-1, 0, 1):
@@ -397,22 +317,16 @@ def support_directions():
         dirs.add((round(math.cos(a), 12), round(math.sin(a), 12), 0.0))
     return sorted(dirs)
 
-
 DIRECTIONS = support_directions()
 
-
 def support_points(points):
-    """The point farthest along each direction: the vertices of a hull that boxes the points the
-    way a few dozen planes can."""
     out = set()
     for d in DIRECTIONS:
         best = max(points, key=lambda p: dot(p, d))
         out.add(tuple(round(c, 3) for c in best))
     return sorted(out)
 
-
 def hull3d(points, eps=1e-6):
-    """The convex hull of a few points as outward-facing triangles of indices, incrementally."""
     pts = list(points)
     p0 = min(range(len(pts)), key=lambda i: pts[i])
     p1 = max(range(len(pts)), key=lambda i: math.dist(pts[i], pts[p0]))
@@ -454,9 +368,7 @@ def hull3d(points, eps=1e-6):
         faces = [f for f in faces if f not in visible] + [(a, b, i) for a, b in horizon]
     return faces
 
-
 def hull2d(points):
-    """Andrew's monotone chain: the convex hull of 2D points, counter-clockwise."""
     pts = sorted(set(points))
     if len(pts) <= 2:
         return pts
@@ -476,19 +388,14 @@ def hull2d(points):
         upper.append(p)
     return lower[:-1] + upper[:-1]
 
-
 def outside_by(p, verts, tris):
-    """How far p stands outside the hull: its largest distance beyond any face's plane, or zero."""
     worst = 0.0
     for t in tris:
         n = norm(cross(sub(verts[t[1]], verts[t[0]]), sub(verts[t[2]], verts[t[0]])))
         worst = max(worst, dot(n, sub(p, verts[t[0]])))
     return worst
 
-
 def decimate(verts, tol):
-    """Drop hull vertices one at a time, the least consequential first, while the shape without
-    them stays within tol of the vertex dropped: a rounded corner becomes a corner."""
     verts = list(verts)
     hulls = {}
 
@@ -508,17 +415,11 @@ def decimate(verts, tol):
         hulls = {}
     return verts
 
-
 def polygons(points):
-    """A solid's low-poly shape: its hull's coplanar triangles merged into convex polygons, each a
-    list of vertex indices counter-clockwise seen from outside. Returns (vertices, faces). The
-    bigger the part, the coarser its shape, within a fraction of its thinnest dimension so a plate
-    stays a plate: a quarter inch on a pipe, an inch on a hive cell."""
     verts = support_points(points)
     tris = hull3d(verts)
     if tris is None:
         return None
-    # The part's thickness: how far the hull reaches from its flattest side.
     thickness = min(max(-dot(norm(cross(sub(verts[t[1]], verts[t[0]]), sub(verts[t[2]], verts[t[0]]))), sub(v, verts[t[0]]))
                         for v in verts) for t in tris)
     extent = max(max(p[i] for p in verts) - min(p[i] for p in verts) for i in range(3))
@@ -545,10 +446,7 @@ def polygons(points):
     renumber = {old: new for new, old in enumerate(used)}
     return [verts[i] for i in used], [[renumber[i] for i in f] for f in faces]
 
-
 def plate(verts, tris, thickness):
-    """A thin part as its outline extruded: the hull of its points projected onto its flattest
-    side, simplified, at both faces. Returns (vertices, faces) like {@link polygons}."""
     flattest = min(tris, key=lambda t: max(-dot(norm(cross(sub(verts[t[1]], verts[t[0]]), sub(verts[t[2]], verts[t[0]]))), sub(v, verts[t[0]])) for v in verts))
     n = norm(cross(sub(verts[flattest[1]], verts[flattest[0]]), sub(verts[flattest[2]], verts[flattest[0]])))
     u = norm(cross(n, (0, 0, 1) if abs(n[2]) < 0.9 else (1, 0, 0)))
@@ -565,10 +463,7 @@ def plate(verts, tris, thickness):
         faces.append([i + k, j + k, j, i])
     return out, faces
 
-
 def footprint_below(vertices, faces, height):
-    """The convex footprint of the shape's part below the given height: its vertices down there
-    and where its edges cross that height. None when nothing of it is that low."""
     low = [(p[0], p[1]) for p in vertices if p[2] <= height]
     for f in faces:
         for a, b in zip(f, f[1:] + f[:1]):
@@ -580,9 +475,7 @@ def footprint_below(vertices, faces, height):
         return None
     return simplify(hull2d([(round(x, 3), round(y, 3)) for x, y in low]))
 
-
 def simplify(ring, tol=0.05):
-    """Drop a polygon's vertices that lie within tol of the edge between their neighbours."""
     out = list(ring)
     changed = True
     while changed and len(out) > 3:
@@ -597,20 +490,13 @@ def simplify(ring, tol=0.05):
                 break
     return out
 
-
-# --- the field ------------------------------------------------------------------------------------
-
 def to_field(p):
-    """CAD (x, y up, z toward the audience), inches -> Road Runner (x forward, y left, z up)."""
     return (-p[2], -p[0], p[1])
 
-
 def clean(name):
-    """'am-5853-Blue Hive <1>' -> 'Blue Hive <1>'; 'am-5869: Hive Goal Top Skin' -> 'Hive Goal Top Skin'."""
     name = re.sub(r'^am-\d+[a-z]?(?:-[A-Za-z0-9]+(?=:))?:?[-\s]*', '', name)
     name = re.sub(r'__Fillet\d+$', '', name)
     return re.sub(r'\s+', ' ', name).strip()
-
 
 def colour_for(name, cad):
     if re.search(r'april tag', name, re.I):
@@ -619,20 +505,9 @@ def colour_for(name, cad):
         return cad or DARK
     return BLUE if re.search(r'blue', name, re.I) else RED
 
-
-# --- the hives ------------------------------------------------------------------------------------
-
-# A hive part whose shape the cells already say, so drawing it as a solid would only wall the cell
-# in: the ribs frame the mouth the cell is swept from, and the skins are the cell's own walls.
 CELL_SHAPE = re.compile(r'goal rib|skin', re.I)
 
-
 def hive_of(name, parts):
-    """A hive: the see-saw hanging from the frame's top bar, a cell at each end, that tips one way
-    or the other about its axle. Everything it is made of is given in the hive's own frame -- the
-    origin on the axle, +x along the beam toward the scoring cell with the beam level, +y the
-    field's and +z up -- so that the tilt it leans at is all that says where it is. Its parts are
-    (cell name or None, part name, colour, points, faces) each, in the field frame."""
     bearings = [p for cell, part, colour, pts, faces in parts if re.search(r'bearing', part, re.I) for p in pts]
     pivot = [round((min(c) + max(c)) / 2, 2) for c in zip(*bearings)]
     points = {}
@@ -642,8 +517,6 @@ def hive_of(name, parts):
     ends = {cell: [(min(c) + max(c)) / 2 for c in zip(*pts)] for cell, pts in points.items()}
     scoring = next(cell for cell in ends if 'Scoring' in cell)
     audience = next(cell for cell in ends if 'Audience' in cell)
-    # The beam runs from one cell to the other; the goal ribs stand square across it, and their
-    # faces say how far above level it leans more exactly than the ends of it do.
     beam = sub(ends[scoring], ends[audience])
     square = [n if dot(n, beam) > 0 else scale(n, -1)
               for cell, part, colour, pts, faces in parts if part.endswith('Goal Rib')
@@ -676,11 +549,7 @@ def hive_of(name, parts):
             'pivot': pivot, 'tilt': tilt, 'cells': cells,
             'parts': sorted(drawn, key=lambda p: (p['name'], p['vertices']))}
 
-
 def hive_cell(name, parts, to_hive, direction):
-    """A cell as the CAD builds the basket: the opening the goal ribs frame, swept from the mouth
-    at the hive's end to the back skin that closes it. The mouth is the end away from the back;
-    what a ball meets is the wall between every pair of the mouth's corners, and the back."""
     across = lambda n: abs(direction(n)[0]) > 0.99
     centre = sum(to_hive(p)[0] for cell, part, colour, pts, faces in parts for p in pts) / sum(
         len(pts) for cell, part, colour, pts, faces in parts)
@@ -703,10 +572,7 @@ def hive_cell(name, parts, to_hive, direction):
     return {'name': name, 'side': 'Scoring' if 'Scoring' in name else 'Audience',
             'mouth': front, 'back': behind, 'walls': walls}
 
-
 def in_a_cell(piece, hives):
-    """The name of the cell the field is set up with this piece inside -- the nectar the hives
-    hold at the start -- or None for a piece out on the field."""
     for hive in hives:
         c, s = math.cos(math.radians(hive['tilt'])), math.sin(math.radians(hive['tilt']))
         d = sub(piece['centre'], hive['pivot'])
@@ -716,9 +582,7 @@ def in_a_cell(piece, hives):
                 return cell['name']
     return None
 
-
 def holds(cell, p):
-    """Whether the point, in its hive's frame, is inside the cell."""
     mouth, back = cell['mouth'][0][0], cell['back'][0][0]
     if p[0] < min(mouth, back) or p[0] > max(mouth, back):
         return False
@@ -726,23 +590,9 @@ def holds(cell, p):
     return all((b[0] - a[0]) * (p[2] - a[1]) - (b[1] - a[1]) * (p[1] - a[0]) > 0
                for a, b in zip(ring, ring[1:] + ring[:1]))
 
-
-# --- the flowers ----------------------------------------------------------------------------------
-
-# The part of a flower that makes its bore: four upright pipes at the corners of a square, which a
-# stack of pollen stands in.
 FLOWER_PIPE = 'Flower HIPS Pipe'
 
-
 def flower_of(name, parts):
-    """A flower: the tower at a wall whose four pipes make the <b>bore</b> a stack of pollen stands
-    in. The bore is a circle on the floor -- the axis midway between the pipes and the radius the
-    nearest of them leaves clear -- with the <b>gap</b> between two neighbouring pipes, which is
-    what keeps a pollen in the bore rather than out between them, and the <b>lip</b> the pipes
-    begin at, below which the bore's wall reaches nothing. The <b>nest</b> is the ring around the
-    bottom of the bore that the ball at the bottom sits in the middle of: the flower's lowest part
-    over the bore, its base plate, and how high it stands is how far that ball has to climb to
-    leave. Each part comes in as (name, the points that bound it) in the field frame."""
     pipes = [pts for part, pts in parts if part == FLOWER_PIPE]
     axes, radii = [], []
     for pts in pipes:
@@ -763,20 +613,14 @@ def flower_of(name, parts):
             'gap': round(gap, 2), 'lip': round(min(p[2] for pts in pipes for p in pts), 2),
             'nest': round(nest, 2)}
 
-
 def in_a_flower(piece, flowers):
-    """The name of the flower whose bore the field is set up with this piece standing in -- the
-    stack of pollen a flower holds -- or None for a piece out on the field."""
     x, y, _ = piece['centre']
     for flower in flowers:
         if math.hypot(x - flower['axis'][0], y - flower['axis'][1]) <= flower['bore']:
             return flower['name']
     return None
 
-
 def is_loose(piece, size, obstacles):
-    """A game piece that rests on the floor inside the walls and in the open is the robot's to push.
-    One a flower or a hive holds is that flower's or that cell's, wherever it stands."""
     x, y, z = piece['centre']
     r = piece['radius']
     if piece.get('flower') or piece.get('cell'):
@@ -789,7 +633,6 @@ def is_loose(piece, size, obstacles):
             return False
     return True
 
-
 def build(step_path):
     st = Step(step_path)
     solids = placed_solids(st)
@@ -798,8 +641,6 @@ def build(step_path):
     wall = round(max(p[1] for path, name, _, pts, _ in solids if 'Perimeter' in path[1] and 'Rail' in name for p in pts), 2)
 
     elements, hives, pieces, tape = [], {}, [], []
-    # A hive is a body of its own, given in its own frame; every other kept part is a solid shape
-    # where the CAD puts it.
     for path, name, cad_colour, pts, faces in solids:
         top = clean(path[1]) if len(path) > 1 else clean(path[0])
         if re.search(r'gaffer tape', name, re.I):
@@ -816,7 +657,6 @@ def build(step_path):
                            'radius': round(max(b - a for a, b in zip(lo, hi)) / 2, 2)})
             continue
         if 'Hive' in top:
-            # The bearings say where the axle is, so they are kept here and dropped as hardware later.
             cell = clean(path[2]) if len(path) > 2 and 'Cell' in path[2] else None
             hives.setdefault(top, []).append((cell, clean(name), cad_colour, [to_field(p) for p in pts],
                                               [(to_field(n), [to_field(p) for p in ring],
@@ -838,13 +678,11 @@ def build(step_path):
                              'vertices': [[round(c, 2) for c in v] for v in verts], 'faces': faces})
         if e['group'].startswith('Flower Assembly'):
             flower_parts.setdefault(e['group'], []).append((e['name'], points))
-        # Every part blocks on its own, so that what is driven through between -- the frame's legs,
-        # a flower's pipes -- blocks nothing.
         seen[(e['group'], e['name'])] = seen.get((e['group'], e['name']), 0) + 1
         key = '%s / %s <%d>' % (e['group'], e['name'], seen[(e['group'], e['name'])])
         clears, stands = min(v[2] for v in verts), max(v[2] for v in verts)
         if stands <= FLOOR_LIP_IN:
-            continue  # part of the floor: the robot drives over it and a ball rolls over it
+            continue
         low = footprint_below(verts, faces, ROBOT_HEIGHT_IN)
         if low and all(abs(x) < size / 2 and abs(y) < size / 2 for x, y in low):
             out_obstacles.append({'name': key, 'footprint': [list(p) for p in simplify(hull2d(low))],
@@ -871,9 +709,7 @@ def build(step_path):
         'tape': sorted(tape, key=lambda t: (t['colour'], t['footprint'])),
     }
 
-
 REQUIRED = ('size', 'wallHeight', 'elements', 'obstacles', 'hives', 'flowers', 'pieces', 'tape')
-
 
 def checked(field):
     for key in REQUIRED:
@@ -895,7 +731,6 @@ def checked(field):
                 raise ValueError('a game piece has no %r: %r' % (key, piece))
     return field
 
-
 def main():
     if len(sys.argv) != 2:
         sys.exit('usage: step_to_field.py <field.step>')
@@ -908,7 +743,6 @@ def main():
               os.path.relpath(OUT), len(field['elements']), len(field['obstacles']), len(field['hives']),
               len(field['flowers']), len(field['pieces']), len(field['tape']),
               field['size'], field['wallHeight']))
-
 
 if __name__ == '__main__':
     main()

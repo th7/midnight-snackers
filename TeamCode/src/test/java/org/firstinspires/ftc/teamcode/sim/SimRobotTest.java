@@ -21,23 +21,20 @@ import org.junit.Test;
 
 public class SimRobotTest {
     private static final double DELTA = 0.001;
-    /** How close a body rests to what it is pressed against: the engine's contact tolerance, with room. */
+
     private static final double CONTACT = 0.1;
-    /** The free speed of the tuned drive at full power: (battery - kS) / kV ticks per second, in inches. */
+
     private static final double MAX_SPEED_IN_PER_S =
             (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kS) / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
-    /** What the launcher spins at for a close shot, as {@code Launcher} sets it: encoder ticks per second. */
-    private static final double CLOSE_LAUNCH_VELOCITY = 1050;
-    /** How far from the goal the robot code launches from ({@code Nav}), in inches. */
-    private static final double LAUNCH_DISTANCE = 40;
-    /** The gate positions {@code Launcher} drives the servos to. */
-    private static final double TOP_GATE_OPEN = 1, TOP_GATE_CLOSED = 0.6;
 
+    private static final double CLOSE_LAUNCH_VELOCITY = 1050;
+
+    private static final double LAUNCH_DISTANCE = 40;
+
+    private static final double TOP_GATE_OPEN = 1, TOP_GATE_CLOSED = 0.6;
     private static final double BOTTOM_GATE_OPEN = 0.5, BOTTOM_GATE_CLOSED = 0.4;
 
     private final SimRobot sim = new SimRobot();
-
-    // --- the clock: the simulation owns time, and the robot code reads it through its hardware ---
 
     @Test
     public void theClockStartsAtZeroAndAdvancesExactlyWithTheWorld() {
@@ -52,8 +49,6 @@ public class SimRobotTest {
                 520_000_000L,
                 sim.hardware().clock.getAsLong());
     }
-
-    // --- the drive: the tuned feedforward model, inertia included ---
 
     @Test
     public void withTheRobotsMotorDirectionsForwardPowerDrivesStraightAheadAndReachesNearMaxSpeed() {
@@ -72,7 +67,6 @@ public class SimRobotTest {
         assertEquals(0, pose.heading.toDouble(), 0.01);
     }
 
-    /** The drive has inertia: kA in the tuned model. It takes time to reach speed and time to stop. */
     @Test
     public void theRobotTakesTimeToGetUpToSpeed() {
         robotDrive();
@@ -88,7 +82,6 @@ public class SimRobotTest {
         assertTrue("and still accelerating: " + later, later < MAX_SPEED_IN_PER_S * 0.5 && later > early);
     }
 
-    /** Braking is what the robot's own drive asks for, so braking is how the robot really stops. */
     @Test
     public void theRobotsOwnDriveSetsEveryWheelToBrake() {
         robotDrive();
@@ -98,11 +91,6 @@ public class SimRobotTest {
         }
     }
 
-    /**
-     * Braking is the zero power behavior {@link MecanumDrive} sets, and it is what the robot stops
-     * like: the motors' terminals are shorted, so a turning wheel is held back by its own back EMF
-     * as well as by friction, and the robot is down within a foot or two of the cut.
-     */
     @Test
     public void withTheWheelsBrakingCuttingThePowerStopsTheRobotShort() {
         double braked = rollOutAfterTheCut(sim, DcMotor.ZeroPowerBehavior.BRAKE);
@@ -114,11 +102,6 @@ public class SimRobotTest {
         assertEquals("and stays stopped", stopped, sim.pose().position.x, DELTA);
     }
 
-    /**
-     * Floating is the other zero power behavior, and the simulation stops the robot the way it
-     * really would: with the terminals open there is no back EMF to hold the wheels, only
-     * friction, so the robot rolls on several times as far as braking wheels let it.
-     */
     @Test
     public void withTheWheelsFloatingCuttingThePowerLetsTheRobotRollOnMuchFurther() {
         double braked = rollOutAfterTheCut(new SimRobot(), DcMotor.ZeroPowerBehavior.BRAKE);
@@ -133,10 +116,6 @@ public class SimRobotTest {
         assertEquals("and friction still brings it to a stop", stopped, sim.pose().position.x, DELTA);
     }
 
-    /**
-     * The two behaviors stop the robot differently, so which one a wheel is on is not the
-     * simulation's to guess: a wheel left rolling at zero power with neither set says so.
-     */
     @Test
     public void aWheelRollingAtZeroPowerWithNoBehaviorSetIsRefusedRatherThanGuessedAt() {
         robotDrive();
@@ -192,7 +171,6 @@ public class SimRobotTest {
         MecanumDrive drive = robotDrive(sim, localizer);
         localizer.update();
 
-        // A gentle arc: forward with a little more on the right side.
         setPowers(0.6, 0.9, 0.6, 0.9);
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
@@ -209,12 +187,6 @@ public class SimRobotTest {
         assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
     }
 
-    /**
-     * The hub reports an encoder's velocity in multiples of 20 ticks per second, and Road Runner's
-     * encoder wrapper relies on that to undo the hub's 16-bit overflow: it reads the remainder as
-     * a count of overflows. A velocity reported between the hub's steps is read as tens of inches
-     * a second, so the simulated encoders report what the hub would.
-     */
     @Test
     public void theRobotsOwnLocalizerReadsACreepingRobotAsCreeping() {
         SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(new SimNoise.Motor(0.9, 1, 1)));
@@ -226,13 +198,13 @@ public class SimRobotTest {
                 localizer,
                 creeper::nanoTime);
         localizer.update();
-        // The tuned kS, as the feedforward applies it at a standstill: a tenth of it too much for these motors.
+
         double power = MecanumDrive.PARAMS.kS / SimRobot.BATTERY_VOLTS;
         creeper.leftFront.setPower(power);
         creeper.rightFront.setPower(power);
         creeper.leftBack.setPower(power);
         creeper.rightBack.setPower(power);
-        creeper.step(3.0); // several of the drive's time constants (kA / kV, 0.4 s), so the creep has settled
+        creeper.step(3.0);
 
         double creep = 0.1 * MecanumDrive.PARAMS.kS / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
         localizer.update();
@@ -240,9 +212,6 @@ public class SimRobotTest {
         assertEquals("a multiple of the hub's step", 0, Math.round(creeper.rightBack.getVelocity()) % 20);
     }
 
-    // --- the walls and the obstacles ---
-
-    /** A robot placed beyond a wall is placed against it instead: the walls hold whatever pose it is given. */
     @Test
     public void aRobotPlacedOutsideTheWallsIsPlacedAgainstThem() {
         double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
@@ -268,7 +237,6 @@ public class SimRobotTest {
         assertEquals(inside.heading.toDouble(), sim.pose().heading.toDouble(), DELTA);
     }
 
-    /** Placing the robot puts it down still: whatever it was doing before does not carry over. */
     @Test
     public void aPlacedRobotStartsFromRest() {
         robotDrive();
@@ -310,12 +278,12 @@ public class SimRobotTest {
         assertEquals("back wall", -edge, sim.pose().position.x, CONTACT);
 
         sim.setPose(new Pose2d(0, edge - 5, 0));
-        setPowers(-1, 1, 1, -1); // strafe left
+        setPowers(-1, 1, 1, -1);
         sim.step(1.0);
         assertEquals("left wall", edge, sim.pose().position.y, CONTACT);
 
         sim.setPose(new Pose2d(0, -edge + 5, 0));
-        setPowers(1, -1, -1, 1); // strafe right
+        setPowers(1, -1, -1, 1);
         sim.step(1.0);
         assertEquals("right wall", -edge, sim.pose().position.y, CONTACT);
     }
@@ -332,7 +300,7 @@ public class SimRobotTest {
 
         assertEquals(wall - cornerReach, sim.pose().position.x, CONTACT);
         assertEquals(Math.PI / 4, sim.pose().heading.toDouble(), 0.02);
-        // Pressing a corner into the wall while sliding along it, the robot pivots; it still stays inside.
+
         sim.step(0.5);
         assertTrue("no corner past the wall: " + sim.pose(), maxX(corners(sim.pose())) <= wall + CONTACT);
     }
@@ -342,7 +310,7 @@ public class SimRobotTest {
         robotDrive();
         double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(edge, 0, 0));
-        setPowers(0, 1, 1, 0); // forward and left
+        setPowers(0, 1, 1, 0);
 
         sim.step(1.0);
 
@@ -374,10 +342,6 @@ public class SimRobotTest {
         assertEquals(0, estimated.position.y, 0.5);
     }
 
-    /**
-     * The flowers stand against the walls. Driving straight at one stops the robot where its front
-     * edge meets the flower's inward face — its nearest pipe — as the field model places it.
-     */
     @Test
     public void aFlowerStopsTheRobotWhereItsFrontEdgeMeetsIt() {
         robotDrive();
@@ -385,7 +349,7 @@ public class SimRobotTest {
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
-        // Facing the right wall (-y), ten inches short of the flower.
+
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
         setPowers(1, 1, 1, 1);
 
@@ -397,10 +361,6 @@ public class SimRobotTest {
         assertEquals(-Math.PI / 2, pose.heading.toDouble(), 0.02);
     }
 
-    /**
-     * A flower's inward face is only a few inches wide, so a robot pushed into it off-centre
-     * pivots on it as it slides by; it never gets into the flower.
-     */
     @Test
     public void drivingDiagonallyIntoAFlowerSlidesAlongItWithoutEnteringIt() {
         robotDrive();
@@ -409,7 +369,7 @@ public class SimRobotTest {
         double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot, -Math.PI / 2));
-        setPowers(0, 1, 1, 0); // forward and left, which facing -y is toward +x
+        setPowers(0, 1, 1, 0);
 
         for (int i = 0; i < 10; i++) {
             sim.step(0.1);
@@ -424,7 +384,6 @@ public class SimRobotTest {
         assertTrue("x=" + pose.position.x, pose.position.x > x + 2);
     }
 
-    /** The frame in the middle of the field is driven through, between its legs. */
     @Test
     public void theRobotDrivesUnderTheHivesBetweenTheFramesLegs() {
         robotDrive();
@@ -438,7 +397,6 @@ public class SimRobotTest {
         assertEquals(-8, pose.position.y, 0.01);
     }
 
-    /** The frame's feet and legs stand in the way; the nearest part in the robot's path stops it. */
     @Test
     public void theFrameStopsTheRobotAtItsNearestPart() {
         robotDrive();
@@ -461,7 +419,7 @@ public class SimRobotTest {
         sim.step(0.8);
         assertEquals("stopped at the nearest part", nearestFace - halfRobot, sim.pose().position.x, 0.5);
         assertEquals(y, sim.pose().position.y, 0.5);
-        // Pushed into the end of a foot bar off-centre, the robot pivots on it; it never gets into the frame.
+
         for (int i = 0; i < 12; i++) {
             sim.step(0.1);
             for (SimField.Obstacle part : SimRobot.FIELD.obstacles) {
@@ -496,7 +454,6 @@ public class SimRobotTest {
         assertEquals(x, estimated.position.x, 0.5);
     }
 
-    /** The robot's square's corners at a pose. */
     private static double[][] corners(Pose2d pose) {
         double h = SimPlacement.ROBOT_SIZE_IN / 2;
         double[][] local = {{h, h}, {-h, h}, {-h, -h}, {h, -h}};
@@ -510,10 +467,6 @@ public class SimRobotTest {
         return corners;
     }
 
-    /**
-     * How far the deepest of the points is inside a convex counter-clockwise polygon: its least
-     * distance to an edge, or negative for a point outside.
-     */
     private static double deepestInside(double[][] polygon, double[][] points) {
         double deepest = Double.NEGATIVE_INFINITY;
         for (double[] p : points) {
@@ -547,7 +500,6 @@ public class SimRobotTest {
         return v;
     }
 
-    /** The obstacles that are parts of that field element: a flower's pipes, the frame's legs and feet. */
     private static List<SimField.Obstacle> partsOf(String element) {
         List<SimField.Obstacle> parts = new ArrayList<>();
         for (SimField.Obstacle obstacle : SimRobot.FIELD.obstacles) {
@@ -559,7 +511,6 @@ public class SimRobotTest {
         return parts;
     }
 
-    /** Every corner of every part of that element, for the extent of the whole of it. */
     private static double[][] cornersOf(String element) {
         List<double[]> corners = new ArrayList<>();
         for (SimField.Obstacle part : partsOf(element)) {
@@ -574,14 +525,12 @@ public class SimRobotTest {
         return v;
     }
 
-    // --- the loose pollen: balls the robot pushes, that roll on and stop, and that stop the robot ---
-
     private static final double BALL = SimRobot.FIELD.loosePieces.get(0).radius;
     private static final double BALL_NECTAR = SimRobot.FIELD.cellPieces.get(0).radius;
     private static final int LOOSE = SimRobot.FIELD.loosePieces.size();
-    /** Where the pollen the flowers hold start in {@link SimRobot#pieces}: after the hives' nectar. */
+
     private static final int IN_FLOWERS = LOOSE + SimRobot.FIELD.cellPieces.size();
-    /** Where the robot's preload starts: after the loose balls, the hives' nectar and the flowers' stacks. */
+
     private static final int PRELOADED = IN_FLOWERS + SimRobot.FIELD.flowerPieces.size();
 
     @Test
@@ -625,7 +574,6 @@ public class SimRobotTest {
         assertTrue("inside the walls", restingAt < SimPlacement.FIELD_SIZE_IN / 2 - BALL);
     }
 
-    /** The wall holds the ball, the ball holds the robot: nothing goes through anything. */
     @Test
     public void aBallPinnedAgainstTheWallStopsTheRobotShortOfIt() {
         robotDrive();
@@ -649,7 +597,7 @@ public class SimRobotTest {
     @Test
     public void aBallPinnedAgainstAnObstacleStopsTheRobotShortOfIt() {
         robotDrive();
-        // The frame's foot bar on that side runs along y from -24.7 to -22.8, x from -19.5 to 19.5.
+
         SimField.Obstacle bar = SimRobot.FIELD.obstacle("Frame <1> / Sheet Metal Foot Bar <1>");
         assertNotNull(bar);
         double face = minY(bar.footprint);
@@ -734,13 +682,6 @@ public class SimRobotTest {
         assertEquals("three fifths full", 0.6, sim.load("Blue"), 0.001);
     }
 
-    // --- the flowers: a stack of pollen in each bore, standing until the bottom one is taken ---
-
-    /**
-     * Every flower stands its four pollen one on another in its bore, the bottom one on the floor,
-     * and nothing moves them: a stack that came apart on its own would be a flower nobody could
-     * ever be driven to.
-     */
     @Test
     public void eachFlowerStandsItsPollenInAStackThatStaysPut() {
         for (SimField.Flower flower : SimRobot.FIELD.flowers) {
@@ -756,10 +697,6 @@ public class SimRobotTest {
         }
     }
 
-    /**
-     * The pollen at the bottom of a bore stands wholly below the lip, so the bore's wall reaches
-     * nothing of it: it is a ball in the world like any other, which is what lets it be taken.
-     */
     @Test
     public void onlyTheBottomPollenOfAFlowerStandsBelowTheLip() {
         SimField.Flower flower = SimRobot.FIELD.flowers.get(0);
@@ -778,10 +715,6 @@ public class SimRobotTest {
         }
     }
 
-    /**
-     * Knock the pollen at the bottom of a bore out of the flower and the stack comes down one
-     * place, landing and settling into a stack that stands as still as the one it came from.
-     */
     @Test
     public void takingTheBottomPollenOutOfAFlowerDropsTheStackOnePlaceAndItStandsAgain() {
         SimField.Flower flower = SimRobot.FIELD.flowers.get(0);
@@ -800,11 +733,6 @@ public class SimRobotTest {
         }
     }
 
-    /**
-     * A pollen the robot has let go of is too light to empty a flower. It rolls into the bore under
-     * the pipes, knocks the pollen sitting in the nest sideways and rolls off; the nest's ring takes
-     * the knock, and the pollen rolls back into it with the stack above it never having moved.
-     */
     @Test
     public void aPollenTheRobotHasLetGoOfCannotKnockTheBottomPollenOut() {
         SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
@@ -839,18 +767,11 @@ public class SimRobotTest {
         }
     }
 
-    /**
-     * A pollen the robot is still pushing does take one out. A ball rolls under everything a flower
-     * is made of — its pipes begin four inches up — so the one the robot drives in goes in under
-     * them, and with the robot's drive behind it the nest's ring is no barrier: the pollen at the
-     * bottom is pushed clean out of the flower. Nothing is left on the bore's floor, so the stack
-     * comes down one place and stands again — the whole of it, from the push to the settling.
-     */
     @Test
     public void aPollenTheRobotIsStillPushingKnocksTheBottomPollenOutAndTheStackComesDown() {
         SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
         int bottom = bottomOf(flower);
-        // Pushed in off the bore's axis, so that what is squeezed out has a way out.
+
         double lane = flower.axis[1] + 0.8;
         robotDrive();
         sim.placePiece(0, flower.axis[0] - 10, lane);
@@ -875,7 +796,6 @@ public class SimRobotTest {
         }
     }
 
-    /** The pollen the field is set up with in that flower, as indices into {@link SimRobot#pieces}. */
     private static List<Integer> pollenOf(SimField.Flower flower) {
         List<Integer> pollen = new ArrayList<>();
         for (int piece = 0; piece < SimRobot.FIELD.flowerPieces.size(); piece++) {
@@ -886,12 +806,10 @@ public class SimRobotTest {
         return pollen;
     }
 
-    /** How far a ball is from the bore's axis. */
     private static double fromTheAxis(SimField.Flower flower, double[] at) {
         return Math.hypot(at[0] - flower.axis[0], at[1] - flower.axis[1]);
     }
 
-    /** The piece that is lowest in the flower's bore now. */
     private int bottomOf(SimField.Flower flower) {
         int bottom = -1;
         for (int piece : pollenOf(flower)) {
@@ -904,7 +822,6 @@ public class SimRobotTest {
         return bottom;
     }
 
-    /** That many balls standing in the flower's bore, each at rest on what is under it. */
     private void assertStandingIn(SimField.Flower flower, int standing) {
         List<double[]> stack = new ArrayList<>();
         for (double[] at : sim.pieces()) {
@@ -921,12 +838,6 @@ public class SimRobotTest {
         }
     }
 
-    // --- the launcher: a held ball drops through the gates into the flywheel and flies ---
-
-    /**
-     * The flywheel spinning and a ball in the chamber, both gates closed, as the robot code has it
-     * just before it opens the bottom gate: the top gate was open for the ball to drop in.
-     */
     private void readyToLaunch(double flywheelVelocity) {
         sim.topGate.position = TOP_GATE_OPEN;
         sim.bottomGate.position = BOTTOM_GATE_CLOSED;
@@ -993,7 +904,6 @@ public class SimRobotTest {
                 "just ahead of the robot: x=" + ball[0], ball[0] > -60 && ball[0] < -60 + SimPlacement.ROBOT_SIZE_IN);
     }
 
-    /** The launcher is on the turntable, which turns it from straight ahead by its encoder's angle. */
     @Test
     public void theTurntableTurnsTheLauncherCounterClockwiseWithItsEncoder() {
         sim.setPose(new Pose2d(0, -40, 0));
@@ -1008,7 +918,6 @@ public class SimRobotTest {
         assertEquals(0, ball[0], 0.5);
     }
 
-    /** The gates cycle one ball at a time: the next drops into the chamber only when the top gate opens over an empty one. */
     @Test
     public void theNextBallDropsIntoTheChamberWhenTheTopGateOpensOverAnEmptyOne() {
         sim.setPose(new Pose2d(-60, 0, 0));
@@ -1032,9 +941,6 @@ public class SimRobotTest {
         assertEquals("the ball that dropped in is launched", SimRobot.PRELOAD - 2, sim.held());
     }
 
-    // --- the hives: a ball through an upturned cell's mouth stays in it, and fills the hive ---
-
-    /** The pose {@code distance} inches out from the cell's mouth, facing it, as the hive leans now. */
     private static Pose2d facing(SimRobot sim, SimField.Cell cell, double distance) {
         double[] centre = cell.mouthCentreAt(sim.tilt(cell.alliance));
         double[] normal = cell.mouthNormalAt(sim.tilt(cell.alliance));
@@ -1043,7 +949,6 @@ public class SimRobotTest {
         return new Pose2d(centre[0] + nx * distance, centre[1] + ny * distance, Math.atan2(-ny, -nx));
     }
 
-    /** Whether the point is inside the box the cell fills, as the hive leans now. */
     private static boolean within(SimRobot sim, SimField.Cell cell, double[] point) {
         double[] min = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         double[] max = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY};
@@ -1064,7 +969,6 @@ public class SimRobotTest {
         return true;
     }
 
-    /** Take the nectar the alliance's hive was set up with out of it, so the hive starts empty. */
     private static void emptyTheHive(SimRobot sim, String alliance) {
         for (int i = 0; i < SimRobot.FIELD.cellPieces.size(); i++) {
             if (SimRobot.FIELD.cellPieces.get(i).alliance.equals(alliance)) {
@@ -1073,7 +977,6 @@ public class SimRobotTest {
         }
     }
 
-    /** The balls of that kind, by their index in {@link SimRobot#pieces}. */
     private static int[] ballsOf(String kind) {
         List<Integer> out = new ArrayList<>();
         for (int i = 0; i < LOOSE; i++) {
@@ -1089,10 +992,6 @@ public class SimRobotTest {
         return out.stream().mapToInt(Integer::intValue).toArray();
     }
 
-    /**
-     * The launcher is calibrated to the robot code: a close shot from the code's launch distance
-     * goes in through the mouth of the cell the alliance's hive is holding up, and rests there.
-     */
     @Test
     public void aCloseShotFromTheLaunchDistanceScoresInTheAlliancesUpturnedCell() {
         for (String alliance : new String[] {"Blue", "Red"}) {
@@ -1125,7 +1024,7 @@ public class SimRobotTest {
     public void aBallThatHitsTheHiveAnywhereButTheMouthDoesNotScore() {
         SimField.Cell cell = sim.upturnedCell("Blue");
         int already = sim.scored("Blue");
-        // From behind the cell, facing its back: the ball meets the back panel, not the mouth.
+
         Pose2d behind = facing(sim, cell, -LAUNCH_DISTANCE);
         sim.setPose(new Pose2d(behind.position, behind.heading.plus(Math.PI)));
         readyToLaunch(CLOSE_LAUNCH_VELOCITY);
@@ -1139,7 +1038,6 @@ public class SimRobotTest {
         assertEquals("the ball fell to the floor", BALL, ball[2], DELTA);
     }
 
-    /** A cell that is turned over holds nothing: what is in it rolls out of the mouth and falls. */
     @Test
     public void aBallInADownturnedCellRollsOutAndFallsToTheFloor() {
         SimField.Cell down = downturnedCell("Blue");
@@ -1163,7 +1061,6 @@ public class SimRobotTest {
         throw new IllegalStateException("no downturned cell for " + alliance);
     }
 
-    /** Five nectar fill a hive, and it tips. */
     @Test
     public void fiveNectarTipAHive() {
         emptyTheHive(sim, "Blue");
@@ -1184,7 +1081,6 @@ public class SimRobotTest {
         assertEquals("the fifth fills it and it tips", -leaning, sim.tilt("Blue"), DELTA);
     }
 
-    /** Eight pollen fill a hive, and it tips. */
     @Test
     public void eightPollenTipAHive() {
         emptyTheHive(sim, "Blue");
@@ -1204,10 +1100,6 @@ public class SimRobotTest {
         assertEquals("the eighth fills it and it tips", -leaning, sim.tilt("Blue"), DELTA);
     }
 
-    /**
-     * Nectar and pollen fill a hive together, each worth its share: the three nectar a hive is set
-     * up with are three fifths of it, so four pollen fill it and three do not.
-     */
     @Test
     public void nectarAndPollenTogetherFillAHive() {
         double leaning = sim.tilt("Blue");
@@ -1226,10 +1118,6 @@ public class SimRobotTest {
         assertEquals("the fourth pollen fills it", -leaning, sim.tilt("Blue"), DELTA);
     }
 
-    /**
-     * A hive tips back: filling the cell that came up tips it the other way again, back to the
-     * tilt it was set up at, and that cell drops what was in it.
-     */
     @Test
     public void aHiveTipsBackWhenTheCellThatCameUpIsFilled() {
         emptyTheHive(sim, "Blue");
@@ -1260,10 +1148,6 @@ public class SimRobotTest {
         }
     }
 
-    /**
-     * Tipping empties the hive: the cell that goes under drops what was in it on the floor, and
-     * the one that comes up is what a ball scores in from then on.
-     */
     @Test
     public void aHiveThatTipsDropsWhatWasInItAndHoldsUpItsOtherCell() {
         SimField.Cell was = sim.upturnedCell("Blue");
@@ -1304,11 +1188,6 @@ public class SimRobotTest {
         assertTrue(within(after, now, after.pieces()[PRELOADED]));
     }
 
-    /**
-     * How far the robot rolls on after its power is cut, with its wheels on {@code behavior}: up to
-     * speed for half a second, then nothing commanded until it is at rest. It starts at the back of
-     * the field, since floating wheels take most of the field's length to stop.
-     */
     private static double rollOutAfterTheCut(SimRobot sim, DcMotor.ZeroPowerBehavior behavior) {
         robotDrive(sim, robotLocalizer(sim));
         for (FakeDcMotorEx wheel : wheelsOf(sim)) {
@@ -1324,9 +1203,6 @@ public class SimRobotTest {
         return sim.pose().position.x - cutAt;
     }
 
-    /**
-     * The robot's own drive on the simulated motors, which applies the motor directions the robot uses.
-     */
     private MecanumDrive robotDrive() {
         return robotDrive(sim, robotLocalizer(sim));
     }
@@ -1335,13 +1211,11 @@ public class SimRobotTest {
         return new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack};
     }
 
-    /** The localizer as the robot code builds it, reading the same ports the real one does. */
     private static Localizer robotLocalizer(SimRobot sim) {
         return new Localizer(
                 sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime, Prints.NOWHERE);
     }
 
-    /** The drive as the robot code builds it, so the motor directions are the robot's. */
     private static MecanumDrive robotDrive(SimRobot sim, Localizer localizer) {
         return new MecanumDrive(
                 new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),

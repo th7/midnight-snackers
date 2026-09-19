@@ -21,14 +21,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-/**
- * A deliberately small HTTP/1.0 responder on a server socket, for the simulator's browser pages.
- * The Android compile classpath offers no HTTP server, and this only ever talks to a developer's
- * browser: no keep-alive, no TLS, bodies capped at {@link #MAX_BODY_BYTES}. By default it listens
- * on every interface because when the tests run in a container, the published port arrives over
- * the bridge, not loopback; {@link #start(InetAddress, int, String, Function)} binds one address
- * instead, which is how a page is kept reachable only from the machine it runs on.
- */
 public final class TinyHttpServer {
     public static final int MAX_BODY_BYTES = 1 << 20;
 
@@ -36,7 +28,7 @@ public final class TinyHttpServer {
         public final String method;
         public final String path;
         public final Map<String, String> query;
-        /** Header names lower-cased. */
+
         public final Map<String, String> headers;
 
         public final String body;
@@ -57,17 +49,10 @@ public final class TinyHttpServer {
             this.remoteAddress = remoteAddress;
         }
 
-        /**
-         * A request made by hand, as if it had come off the wire from loopback: the query is
-         * parsed out of {@code target} as {@link #parse} would.
-         */
         public static Request of(String method, String target, String body) {
             return of(method, target, Map.of(), body);
         }
 
-        /**
-         * @param headers header names lower-cased
-         */
         public static Request of(String method, String target, Map<String, String> headers, String body) {
             return parse(
                     method + " " + target,
@@ -80,10 +65,6 @@ public final class TinyHttpServer {
             return query.get(key);
         }
 
-        /**
-         * @return the query value as a number, or {@code fallback} when it is absent
-         * @throws NumberFormatException when it is present and not a number
-         */
         public int queryInt(String key, int fallback) {
             String value = query.get(key);
             return value == null ? fallback : Integer.parseInt(value);
@@ -113,11 +94,6 @@ public final class TinyHttpServer {
         public final String contentType;
         public final String body;
 
-        /**
-         * The body as it goes out, when it is not text: the field's visual model is glTF, and
-         * bytes carried as a String come back from UTF-8 as replacement characters. Null for
-         * every text response, whose body is encoded on the way out instead.
-         */
         private final byte[] binary;
 
         public final Map<String, String> headers;
@@ -134,12 +110,10 @@ public final class TinyHttpServer {
             this.headers = headers;
         }
 
-        /** A response that is bytes rather than text: a model, an image, anything not UTF-8. */
         public static Response bytes(String contentType, byte[] body) {
             return new Response(200, contentType, "", body.clone(), Collections.emptyMap());
         }
 
-        /** What goes on the wire. */
         byte[] encoded() {
             return binary != null ? binary : body.getBytes(StandardCharsets.UTF_8);
         }
@@ -178,19 +152,10 @@ public final class TinyHttpServer {
         this.handler = handler;
     }
 
-    /**
-     * Listens on every interface.
-     *
-     * @param port the port to listen on, or 0 for any free port (see {@link #port()})
-     */
     public static TinyHttpServer start(int port, String threadName, Function<Request, Response> handler) {
         return start(ANY_INTERFACE, port, threadName, handler);
     }
 
-    /**
-     * @param bind the one address to listen on; the operating system then refuses connections
-     *             arriving on any other interface
-     */
     public static TinyHttpServer start(
             InetAddress bind, int port, String threadName, Function<Request, Response> handler) {
         try {
@@ -222,7 +187,6 @@ public final class TinyHttpServer {
         try {
             socket.close();
         } catch (IOException ignored) {
-            // closing is best effort; the acceptor loop ends either way
         }
         connections.shutdownNow();
     }
@@ -272,14 +236,9 @@ public final class TinyHttpServer {
             }
             write(out, response);
         } catch (IOException e) {
-            // the browser went away mid-response; nothing to do
         }
     }
 
-    /**
-     * Lets the client finish sending an over-cap body so it reads the 413 instead of a reset,
-     * within reason: past the drain limit the connection is simply closed.
-     */
     private static void drain(InputStream in, long length) throws IOException {
         long remaining = Math.min(length, 16L * MAX_BODY_BYTES);
         byte[] sink = new byte[8192];
@@ -304,7 +263,6 @@ public final class TinyHttpServer {
         }
     }
 
-    /** One header line, without its line ending; null at end of stream. */
     private static String readLine(InputStream in) throws IOException {
         ByteArrayOutputStream line = new ByteArrayOutputStream();
         int c;

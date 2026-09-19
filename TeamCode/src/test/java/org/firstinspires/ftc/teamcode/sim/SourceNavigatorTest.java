@@ -69,11 +69,10 @@ public class SourceNavigatorTest {
         Path path = sourceRoot.resolve(file);
         Files.createDirectories(path.getParent());
         Files.write(path, source.getBytes(StandardCharsets.UTF_8));
-        // a save within the same second as the previous one must still be noticed
+
         Files.setLastModifiedTime(path, FileTime.fromMillis(System.currentTimeMillis() + 2000));
     }
 
-    /** The 1-based line and character column of the {@code nth} occurrence of {@code token} on the first line holding {@code lineText}. */
     static int[] at(String source, String lineText, String token, int nth) {
         String[] lines = source.split("\n");
         for (int i = 0; i < lines.length; i++) {
@@ -112,8 +111,6 @@ public class SourceNavigatorTest {
                 file + ":" + where[0] + ":" + where[1], location.file + ":" + location.line + ":" + location.column);
         assertEquals(source.split("\n")[where[0] - 1].trim(), location.text);
     }
-
-    // --- go to definition ---
 
     @Test
     public void theDefinitionOfAClassNamedInAnotherFile() {
@@ -160,7 +157,6 @@ public class SourceNavigatorTest {
         assertNull(symbol.definition);
     }
 
-    /** The sources are navigated against the libraries alone: a class of this server's robot is not a symbol in a project that lacks it. */
     @Test
     public void aClassOfThisServersRobotIsNotASymbolInAProjectThatLacksIt() throws IOException {
         String source = "package org.example;\n"
@@ -185,8 +181,6 @@ public class SourceNavigatorTest {
         assertNull(definitionAt(AUTO, AUTO_SOURCE, "public int run() {", "public"));
         assertNull(navigator.definition("org/example/Missing.java", 1, 1));
     }
-
-    // --- find usages ---
 
     @Test
     public void theUsagesOfAMethodAreItsCallSitesNotItsDeclaration() {
@@ -227,8 +221,6 @@ public class SourceNavigatorTest {
     public void nothingUnderTheCursorMeansNoUsages() {
         assertNull(navigator.usages(AUTO, 2, 1));
     }
-
-    // --- the tree as it is ---
 
     @Test
     public void aBrokenFileElsewhereStillAnswers() throws IOException {
