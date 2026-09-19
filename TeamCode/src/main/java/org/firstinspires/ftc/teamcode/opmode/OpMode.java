@@ -3,7 +3,13 @@ package org.firstinspires.ftc.teamcode.opmode;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import java.util.List;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Brain;
+import org.firstinspires.ftc.teamcode.Camera;
+import org.firstinspires.ftc.teamcode.Drive;
+import org.firstinspires.ftc.teamcode.Launcher;
+import org.firstinspires.ftc.teamcode.Localizer;
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
@@ -82,13 +88,13 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
      */
     private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {
-            robot.channels.toggle("Drive", "Localizer");
+            robot.channels.toggle(Drive.CHANNEL, Localizer.CHANNEL);
         }
         if (gamepad2.squareWasPressed()) {
-            robot.channels.toggle("Turntable", "Launcher");
+            robot.channels.toggle(Turntable.CHANNEL, Launcher.CHANNEL);
         }
         if (gamepad2.circleWasPressed()) {
-            robot.channels.toggle("Camera", "Brain");
+            robot.channels.toggle(Camera.CHANNEL, Brain.CHANNEL);
         }
     }
 }

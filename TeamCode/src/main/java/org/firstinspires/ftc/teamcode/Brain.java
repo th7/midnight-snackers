@@ -9,6 +9,9 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Brain implements Loopable {
+    /** The name this prints under: said here, where the printing is, and nowhere else. */
+    public static final String CHANNEL = "Brain";
+
     private final Prints telemetry;
     /** The subsystems the brain coordinates. */
     private final Drive drive;

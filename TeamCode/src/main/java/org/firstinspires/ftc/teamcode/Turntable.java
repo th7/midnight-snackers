@@ -20,6 +20,9 @@ import org.firstinspires.ftc.teamcode.base.Prints;
  * gives it back after parking or a nudge.
  */
 public class Turntable implements Loopable {
+    /** The name this prints under: said here, where the printing is, and nowhere else. */
+    public static final String CHANNEL = "Turntable";
+
     private final Prints telemetry;
     public static final int TICKS_PER_REVOLUTION = 1700;
 

@@ -18,6 +18,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 public final class Channels implements Prints {
     private final Telemetry telemetry;
     private final Set<String> on = new LinkedHashSet<>();
+    private final Set<String> made = new LinkedHashSet<>();
 
     public Channels(Telemetry telemetry) {
         this.telemetry = telemetry;
@@ -25,6 +26,7 @@ public final class Channels implements Prints {
 
     /** Somewhere for {@code name} to print, which reaches the screen only while it is on. */
     public Prints channel(String name) {
+        made.add(name);
         return new Prints() {
             @Override
             public void addData(String caption, Object value) {
@@ -59,6 +61,15 @@ public final class Channels implements Prints {
     /** The channels reaching the screen, in the order they were turned on. */
     public Set<String> areOn() {
         return Set.copyOf(on);
+    }
+
+    /**
+     * The names something was given somewhere to print under. A driver's button reaches a channel
+     * by name, and a name nobody was handed reaches no screen however many times it is toggled, so
+     * this is what the op mode's buttons are held against.
+     */
+    public Set<String> made() {
+        return Set.copyOf(made);
     }
 
     /** Printing straight to the driver station, under nobody's channel: an op mode's own lines. */
