@@ -18,8 +18,7 @@ import org.junit.Test;
 public class OnlyTheAdapterStartsAProcessTest {
     private static final String PACKAGE = "org/firstinspires/ftc/teamcode/sim/";
 
-    private static final Set<String> MAY_START_ONE =
-            Set.of("RealGit", "SimChild", "SimBench", "GitFixture", "SimReplayPageTest", "SimBuild");
+    private static final Set<String> MAY_START_ONE = Set.of("RealGit", "SimChild", "GitFixture", "SimReplayPageTest");
 
     private static final String THIS_RULE = OnlyTheAdapterStartsAProcessTest.class.getSimpleName();
 
@@ -77,14 +76,14 @@ public class OnlyTheAdapterStartsAProcessTest {
     }
 
     @Test
-    public void worktreesTalksToGitWithoutStartingOne() throws IOException {
+    public void theModulesThatTalkToSomethingOutsideThisProcessDoItThroughAnInterface() throws IOException {
         List<Path> classes = compiledClasses();
-        List<Path> worktrees = classes.stream()
-                .filter(file -> outermost(file).equals("Worktrees"))
+        List<Path> through = classes.stream()
+                .filter(file -> Set.of("Worktrees", "SimBench").contains(outermost(file)))
                 .toList();
 
-        assertTrue("Worktrees was not compiled, so this rule judged nothing", !worktrees.isEmpty());
-        for (Path classFile : worktrees) {
+        assertTrue("neither was compiled, so this rule judged nothing", through.size() > 1);
+        for (Path classFile : through) {
             for (String reference : STARTS_A_PROCESS) {
                 assertTrue(
                         classFile.getFileName() + " reaches " + reference + " rather than the Git interface",
