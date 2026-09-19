@@ -20,6 +20,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Java formatting (same command as local; fix with ./gradlew :TeamCode:spotlessApply)
         run: ./gradlew :TeamCode:spotlessCheck
+      - name: Tool tests (same command as local)
+        run: python3 tools/run_tests.py
       - name: Unit tests (same command as local)
         run: ./gradlew :TeamCode:testDebugUnitTest
       - name: Test report and simulation replays
