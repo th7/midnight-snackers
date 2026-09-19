@@ -94,15 +94,25 @@ key.shadow.bias = -0.0015;
 scene.add(key);
 scene.add(new THREE.HemisphereLight(0xbfd4e8, 0x2a2f36, 1.0));
 
+// The gaffer tape the CAD lays on the floor has its top face at exactly z = 0. A floor drawn
+// at z = 0 too puts two surfaces in one plane, and which of them a pixel belongs to is then
+// decided by rounding error -- which is the tape flickering as the camera moves. This sits
+// below the tape by far more than that error, and under everything else the field stands on.
+const FLOOR_Z = -0.25;
+// three.js renames a node as it loads it -- a space becomes an underscore, and a name used twice
+// gets a number -- so what the CAD calls "FTC Field Side Glass 11in" is "FTC_Field_Side_Glass_11in"
+// here. Anything matching on a part's name has to allow for that, or it silently matches nothing.
+const SEE_THROUGH = /skin|side[\s_]glass/i;
 const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(FIELD_IN, FIELD_IN),
     new THREE.MeshStandardMaterial({ color: 0x20262e, roughness: 0.95, metalness: 0 }));
+floor.position.z = FLOOR_Z;
 floor.receiveShadow = true;
 scene.add(floor);
 
 const tiles = new THREE.GridHelper(FIELD_IN, 6, 0x4a5a68, 0x33414d);
 tiles.rotation.x = Math.PI / 2; // GridHelper lies in xz; the field's floor is xy
-tiles.position.z = 0.05;
+tiles.position.z = FLOOR_Z + 0.02;
 scene.add(tiles);
 
 function fit() {
@@ -135,6 +145,20 @@ new GLTFLoader().load('./assets/field.glb', (gltf) => {
     }
     object.material.roughness = 0.62;
     object.material.metalness = 0.05;
+
+    // What is transparent in the real field and would hide the match if it were not here: a
+    // hive's skins, which are the walls of the basket a ball is scored in, and the perimeter's
+    // side glass, which is the polycarbonate the whole field is watched through. The CAD gives
+    // both the same near-white it gives anything uncoloured, so they have to be named. Drawn
+    // from both sides, since a see-through box is looked into as well as at.
+    if (SEE_THROUGH.test(object.name)) {
+      object.material = object.material.clone();
+      object.material.transparent = true;
+      object.material.opacity = 0.22;
+      object.material.side = THREE.DoubleSide;
+      object.material.depthWrite = false;
+      object.castShadow = false;
+    }
   });
   scene.add(gltf.scene);
   loaded = { parts: meshes, triangles: triangles };
@@ -150,11 +174,16 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
-// What a browser test needs to judge this page, and no more. That the model arrived says
-// nothing about whether it was drawn: a camera pointed away from the field, or a frustum that
-// culls all of it, leaves a page that has loaded everything and rasterises nothing, and the
-// canvas is the background colour either way. `drawnTriangles` is what tells those apart.
+// The page's testing seam. That the model arrived says nothing about whether it was drawn: a
+// camera pointed away from the field, or a frustum that culls all of it, leaves a page that has
+// loaded everything and rasterises nothing, and the canvas is the background colour either way.
+// `drawnTriangles` is what tells those apart; the scene is here so a test can ask which parts
+// are in it and how they are drawn, and the camera so it can look somewhere of its choosing.
 window.fieldPage = {
+  scene: scene,
+  camera: camera,
+  controls: controls,
+  floorZ: FLOOR_Z,
   get loaded() { return loaded; },
   get drawnTriangles() { return renderer.info.render.triangles; },
   get problem() { return problem.textContent; }

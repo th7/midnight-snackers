@@ -61,6 +61,25 @@ class Keeping(unittest.TestCase):
                            box((0, 0, 0)), '#333333')]
         self.assertEqual([], field_glb.visual_parts(parts))
 
+    def test_the_wall_is_kept_though_its_name_says_rivet(self):
+        """The perimeter is what the field is seen through, and the simulator drops it because it
+        models the walls itself. Drawing needs it. Its rail is called 'FTC Rail with Rivet Holes',
+        so the rule that drops rivets would drop the wall with them unless the wall is named."""
+        parts = [gltf.Part('am-2556a: FTC Rail with Rivet Holes',
+                           ['Field', 'am-0481b FTC Perimeter RevB <1>', 'am-2556a: FTC Rail with Rivet Holes'],
+                           box((0, 0, 0)), '#cccccc'),
+                 gltf.Part('FTC Field Side Glass 11in',
+                           ['Field', 'am-0481b FTC Perimeter RevB <1>', 'FTC Field Side Glass 11in'],
+                           box((0, 0, 0)), None),
+                 gltf.Part('187 pop rivet',
+                           ['Field', 'am-0481b FTC Perimeter RevB <1>', '187 pop rivet'],
+                           box((0, 0, 0)), '#888888')]
+        kept = [p.name for p in field_glb.visual_parts(parts)]
+
+        self.assertIn('am-2556a: FTC Rail with Rivet Holes', kept)
+        self.assertIn('FTC Field Side Glass 11in', kept)
+        self.assertNotIn('187 pop rivet', kept, 'the rivets themselves are still hardware')
+
     def test_what_is_kept_is_put_in_the_field_frame(self):
         parts = [gltf.Part('Pipe', ['Field', 'Pipe'], box((1.0, 0.0, 0.5)), '#5fa73d')]
         kept = field_glb.visual_parts(parts)

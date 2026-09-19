@@ -45,10 +45,18 @@ OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'TeamCode', 'src', 'te
 COLLISION = os.path.join(os.path.dirname(OUT), 'field.json')
 
 # Hardware, and the parts the page draws itself. The collision model drops the same names; this
-# keeps its own copy because the two models are allowed to diverge about what is worth drawing.
+# keeps its own copy because the two models are allowed to diverge about what is worth drawing,
+# and the walls are where they do.
 SKIP = re.compile(r'screw|fhts|nut\b|washer|rivet|rivnut|bolt|spacer|bearing|cable tie|plug|\bpin\b|'
                   r'damper|hinge|panel link|strap|clip|under tile|peanut|'
                   r'fastener|quick release|soft tiles|perimeter|rail|side glass', re.I)
+
+# The wall, which is drawn and is not collided: the simulator keeps the perimeter to itself and
+# models it as four planes, so the collision model drops it, and a field drawn without it is a
+# floor with things standing on it. Named here because its own parts are named for what SKIP
+# drops -- the rail is "FTC Rail with Rivet Holes" -- and a part named here is kept whatever else
+# it or the assembly above it matches.
+KEEP = re.compile(r'field panel|ftc rail|side glass', re.I)
 
 
 def to_field(p):
@@ -83,7 +91,8 @@ def visual_parts(parts, grid=GRID_IN):
     """The parts worth drawing, in the field frame, at the detail worth keeping."""
     out = []
     for part in parts:
-        if any(SKIP.search(name) for name in list(part.path) + [part.name]):
+        if not KEEP.search(part.name) and any(
+                SKIP.search(name) for name in list(part.path) + [part.name]):
             continue
         triangles = snap([tuple(to_field(p) for p in t) for t in part.triangles], grid)
         if triangles:
