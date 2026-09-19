@@ -21,6 +21,9 @@ import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
  * until it is done or cancelled.
  */
 public class Drive implements Loopable {
+    /** The name this prints under: said here, where the printing is, and nowhere else. */
+    public static final String CHANNEL = "Drive";
+
     private final Prints telemetry;
     /**
      * The axes a driver holds while the drive steers {@link #toward} a pose: an axis held is

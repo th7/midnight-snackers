@@ -15,6 +15,9 @@ import org.firstinspires.ftc.teamcode.hardware.AprilTagWebcam;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class Camera implements Loopable {
+    /** The name this prints under: said here, where the printing is, and nowhere else. */
+    public static final String CHANNEL = "Camera";
+
     private final Prints telemetry;
     private final DetectionFilter detectionFilter;
     private final Supplier<List<AprilTagDetection>> detectionSource;

@@ -36,6 +36,9 @@ import org.firstinspires.ftc.teamcode.roadrunner.messages.PoseMessage;
  * {@link Nav}'s. This subsystem only keeps it current.
  */
 public class Localizer implements Loopable, PoseEstimate {
+    /** The name this prints under: said here, where the printing is, and nowhere else. */
+    public static final String CHANNEL = "Localizer";
+
     private final Prints telemetry;
     /** How much of the trail is kept: enough to see where the robot has just been. */
     private static final int TRAIL = 100;

@@ -63,7 +63,7 @@ public class CameraTest {
      */
     @Test
     public void turningTelemetryOnBeforeAnyTagIsSeenPrintsRatherThanThrowing() {
-        robot.channels.toggle("Camera");
+        robot.channels.toggle(Camera.CHANNEL);
 
         camera.loop();
 

@@ -69,10 +69,10 @@ public final class Robot implements Loopable {
         // Each is handed what it needs, so the order here is the order they depend on each other
         // in, and javac says so: a subsystem built before one it is given does not compile.
         launcher = new Launcher(
-                hardware.launcher, hardware.topGate, hardware.bottomGate, clock, channels.channel("Launcher"));
+                hardware.launcher, hardware.topGate, hardware.bottomGate, clock, channels.channel(Launcher.CHANNEL));
         intake = new Intake(hardware.intake);
-        camera = new Camera(hardware.aprilTags, clock, channels.channel("Camera"));
-        turntable = new Turntable(hardware.turnTable, channels.channel("Turntable"));
+        camera = new Camera(hardware.aprilTags, clock, channels.channel(Camera.CHANNEL));
+        turntable = new Turntable(hardware.turnTable, channels.channel(Turntable.CHANNEL));
         // One Wheels, shared: the drive asks it to turn the robot by hand or toward a pose, and
         // Road Runner's drive asks it while following a trajectory. Nothing else may.
         wheels = new Wheels(hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront);
@@ -84,11 +84,11 @@ public final class Robot implements Loopable {
                 hardware.imu,
                 new Pose2d(0, 0, 0),
                 clock,
-                channels.channel("Localizer"));
+                channels.channel(Localizer.CHANNEL));
         mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer, clock);
-        drive = new Drive(wheels, mecanumDrive, localizer, dashboard, channels.channel("Drive"));
+        drive = new Drive(wheels, mecanumDrive, localizer, dashboard, channels.channel(Drive.CHANNEL));
         nav = new Nav(localizer, alliance);
-        brain = new Brain(drive, launcher, camera, nav, turntable, alliance, channels.channel("Brain"));
+        brain = new Brain(drive, launcher, camera, nav, turntable, alliance, channels.channel(Brain.CHANNEL));
         plans = new Plans(drive, nav, launcher, clock);
         // This list is the loop order. The localizer goes first: where the robot is is the first
         // fact of a tick, and everything that reads the pose during the tick reads the one it

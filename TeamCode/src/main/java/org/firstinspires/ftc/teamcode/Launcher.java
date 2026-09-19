@@ -11,6 +11,9 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher implements Loopable {
+    /** The name this prints under: said here, where the printing is, and nowhere else. */
+    public static final String CHANNEL = "Launcher";
+
     private final Prints telemetry;
     /**
      * How long a launch holds the bottom gate open, in seconds: long enough for the chambered ball
