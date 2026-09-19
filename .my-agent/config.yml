@@ -1,0 +1,39 @@
+# my-agent project config — uncomment and edit any section.
+#
+# To install project dev dependencies into the container, add a
+# `.my-agent/Dockerfile` layered on `my-agent-baseline:latest`. See
+# https://github.com/th7/my-agent/blob/main/.my-agent/Dockerfile for a
+# Python/uv example.
+#
+# env:
+#   - GITHUB_TOKEN                   # name only — value forwarded from host env
+#
+# ports:
+#   - "8765:8765"
+
+egress_allow:
+  - host: host.docker.internal
+    port: 5037
+
+features:
+  - all_recommended
+  # Project-authored agent briefs. Drop *.md files into
+  # .my-agent/file_briefs/ (each must lead with a `## Heading` line).
+  - file_briefs
+  - agent_env:
+      CLAUDE_CODE_COZY_TEAPOT: relaxed
+  - agent_settings:
+      includeGitInstructions: false
+      autoMemoryEnabled: false
+  - http_egress_proxy:
+      services:
+        github:
+          credential_source: github_app
+          block_push:
+            - main
+        anthropic:
+          credential_source: claude_oauth_token
+        mcp:
+          credential_source: github_app
+        onshape:
+          credential_source: onshape_api_key
