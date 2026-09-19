@@ -115,6 +115,8 @@ function fit() {
 window.addEventListener('resize', fit);
 fit();
 
+let loaded = null;
+
 new GLTFLoader().load('assets/field.glb', (gltf) => {
   let meshes = 0;
   let triangles = 0;
@@ -135,6 +137,7 @@ new GLTFLoader().load('assets/field.glb', (gltf) => {
     object.material.metalness = 0.05;
   });
   scene.add(gltf.scene);
+  loaded = { parts: meshes, triangles: triangles };
   said.textContent = meshes + ' parts, ' + triangles.toLocaleString() + ' triangles. '
       + 'Drag to orbit, scroll to zoom.';
 }, undefined, (wrong) => {
@@ -146,6 +149,16 @@ renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+// What a browser test needs to judge this page, and no more. That the model arrived says
+// nothing about whether it was drawn: a camera pointed away from the field, or a frustum that
+// culls all of it, leaves a page that has loaded everything and rasterises nothing, and the
+// canvas is the background colour either way. `drawnTriangles` is what tells those apart.
+window.fieldPage = {
+  get loaded() { return loaded; },
+  get drawnTriangles() { return renderer.info.render.triangles; },
+  get problem() { return problem.textContent; }
+};
 </script>
 </body>
 </html>

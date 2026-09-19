@@ -48,6 +48,40 @@ same on two machines. A GPU would make them faster and make the pixels depend on
 a driver — which for a test that looks at pixels is the difference between a
 verdict and a coin toss.
 
+## The test
+
+`tools/browser/check.mjs`, driven by Playwright, run by `python3 tools/run_tests.py` with
+everything else. It serves the simulator's resource directory over a throwaway HTTP
+server -- the page at `/field`, its assets under `/assets`, exactly as the bench lays
+them out -- opens the page, and asks what nothing else can ask:
+
+- the page threw nothing and no request it made failed;
+- the model reached the page, with its parts and its triangles;
+- and a frame actually rasterised some of them.
+
+That last one is the point. `renderer.info.render.triangles` after a frame is how a field
+that loaded and was not drawn is told from one that was: a camera pointed away, or a
+frustum that culls everything, leaves a page that has fetched every byte it asked for and
+shows the background colour. The page exposes `window.fieldPage` for this and nothing
+else.
+
+A failing run writes `tools/browser/field-as-drawn.png`, which CI keeps with the test
+results, because the first question about a page that did not draw is what it did draw.
+
+## Two browsers, and why
+
+In the image, Chromium comes from apt and `CHROME_BIN` points at it; Playwright's own
+download is switched off, because there is no linux-arm64 build it would rather use.
+
+In CI, on `ubuntu-latest`, `npx playwright install --with-deps chromium` fetches
+Playwright's build and the shared libraries it needs, and `CHROME_BIN` is unset so
+Playwright uses its own.
+
+So the command is the same in both places and the browser is not quite. Both are
+Chromium, both render through SwiftShader, and the checks are about whether a page draws
+rather than about exact pixels -- but it is a difference, and if a page test ever
+disagrees between the two, this is the first place to look.
+
 ## What a test can then say that nothing else can
 
 - The page loads with no uncaught error and no failed request.
@@ -58,9 +92,3 @@ verdict and a coin toss.
   we have can tell that from a field drawn correctly.
 - The controls orbit, and the page survives a resize.
 
-## Not settled
-
-CI runs on `ubuntu-latest`, not in this image, so a browser test in
-`.github/workflows/tests.yml` depends on what that runner has rather than on
-this fragment. Decide that before writing the first test, or the local command
-and the CI command stop being the same command.
