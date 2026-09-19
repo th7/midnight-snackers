@@ -8,9 +8,27 @@ import org.junit.Test;
 
 public class PlanRunnerTest {
     private final PlanRunner planRunner = new PlanRunner();
+    private final java.util.List<String> started = new java.util.ArrayList<>();
 
     private Step instantStep(String name) {
         return new Step(name, () -> {}, () -> true);
+    }
+
+    private Step recordingStep(String name) {
+        return new Step(name, () -> started.add(name), () -> true);
+    }
+
+    @Test
+    public void askingWhetherItIsDoneAndWhatStepItIsOnAdvancesNothingHoweverOftenAnyoneAsks() {
+        planRunner.run(new Plan(recordingStep("first"), recordingStep("second")));
+
+        for (int asked = 0; asked < 10; asked++) {
+            planRunner.done();
+            planRunner.currentStep();
+        }
+        planRunner.loop();
+
+        assertEquals(java.util.List.of("first"), started);
     }
 
     @Test

@@ -48,7 +48,8 @@ public class Step implements PlanPart {
         return new Step(label + " waitFor " + seconds, () -> {}, Step.secondsElapsed(seconds), clock);
     }
 
-    public boolean done() {
+    @Override
+    public boolean tick() {
         if (!started) {
             start.run();
             started = true;

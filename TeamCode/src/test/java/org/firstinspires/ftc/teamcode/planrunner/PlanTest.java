@@ -15,21 +15,21 @@ public class PlanTest {
     }
 
     @Test
-    public void advancesOnePartPerDoneCallAndOnlyThenReportsDone() {
+    public void advancesOnePartPerTickAndOnlyThenReportsFinished() {
         Plan plan = new Plan(instantStep("first"), instantStep("second"));
 
-        assertFalse(plan.done());
-        assertFalse(plan.done());
-        assertTrue(plan.done());
+        assertFalse(plan.tick());
+        assertFalse(plan.tick());
+        assertTrue(plan.tick());
     }
 
     @Test
     public void startsPartsInOrder() {
         Plan plan = new Plan(instantStep("first"), instantStep("second"));
 
-        plan.done();
+        plan.tick();
         assertEquals(1, started.size());
-        plan.done();
+        plan.tick();
 
         assertEquals("first", started.get(0));
         assertEquals("second", started.get(1));
@@ -41,13 +41,13 @@ public class PlanTest {
         Step blocking = new Step("blocking", () -> started.add("blocking"), () -> finished[0]);
         Plan plan = new Plan(blocking, instantStep("after"));
 
-        assertFalse(plan.done());
-        assertFalse(plan.done());
+        assertFalse(plan.tick());
+        assertFalse(plan.tick());
         assertEquals(1, started.size());
 
         finished[0] = true;
-        assertFalse(plan.done());
-        assertFalse(plan.done());
+        assertFalse(plan.tick());
+        assertFalse(plan.tick());
         assertEquals(2, started.size());
     }
 
@@ -56,7 +56,7 @@ public class PlanTest {
         Plan plan = new Plan(instantStep("first"), instantStep("second"));
 
         assertEquals("0. first", plan.currentStep());
-        plan.done();
+        plan.tick();
         assertEquals("1. second", plan.currentStep());
     }
 
@@ -65,7 +65,7 @@ public class PlanTest {
         Plan inner = new Plan(instantStep("inner1"), instantStep("inner2"));
         Plan plan = new Plan(inner, instantStep("outer"));
 
-        while (!plan.done()) {}
+        while (!plan.tick()) {}
 
         assertEquals(3, started.size());
         assertEquals("inner1", started.get(0));
@@ -75,6 +75,6 @@ public class PlanTest {
 
     @Test
     public void emptyPlanIsImmediatelyDone() {
-        assertTrue(new Plan().done());
+        assertTrue(new Plan().tick());
     }
 }
