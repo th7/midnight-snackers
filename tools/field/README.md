@@ -92,8 +92,13 @@ go on says so rather than passing.
 The export is a million and a half triangles, most of them spent on fillets
 nobody can see at the size of a field -- the two goal ribs alone are nearly
 half of them. Points are snapped to a twentieth of an inch and the triangles
-that collapse are dropped, which leaves about a sixth of them, three
+that collapse are dropped, which leaves about a fifth of them, four
 megabytes, and moves nothing further than a twenty-third of an inch.
+
+The perimeter is kept here and dropped by the collision model, which models
+the walls itself: a field drawn without it is a floor with things standing
+on it. Its parts have to be named to be kept, because they are named for
+what the hardware rule drops -- the rail is "FTC Rail with Rivet Holes".
 
 We take whatever the document holds at the time we refresh the assets:
 nothing here pins an Onshape version, and small changes between refreshes

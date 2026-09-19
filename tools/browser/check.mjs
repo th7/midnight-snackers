@@ -161,6 +161,50 @@ try {
   const drawn = await page.evaluate(() => window.fieldPage.drawnTriangles);
   check(drawn > 1000, `only ${drawn} triangles were drawn in a frame; the field is loaded but not on screen`);
 
+  // The three things that were wrong the first time anyone looked at this page.
+  // three.js renames nodes as it loads them: spaces become underscores and repeats get numbers,
+  // so these patterns allow for the separator. A pattern that assumed the CAD's spelling would
+  // match nothing and every check below would pass by finding nothing to disagree with.
+  const drawn2 = await page.evaluate(() => {
+    const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.fieldPage.floorZ };
+    window.fieldPage.scene.traverse((o) => {
+      if (!o.isMesh) {
+        return;
+      }
+      if (/field[\s_]panel|ftc[\s_]rail|side[\s_]glass/i.test(o.name)) {
+        out.walls++;
+      }
+      if (/skin|side[\s_]glass/i.test(o.name)) {
+        (o.material.transparent ? out.seeThrough : out.solidSeeThrough).push(o.name);
+      }
+      if (/tape/i.test(o.name)) {
+        o.geometry.computeBoundingBox();
+        const top = o.geometry.boundingBox.max.z;
+        out.tapeTop = out.tapeTop === null ? top : Math.max(out.tapeTop, top);
+      }
+    });
+    return out;
+  });
+
+  // The field was a floor with things standing on it: the perimeter is dropped by the collision
+  // model, which models the walls itself, and the visual model has to keep it.
+  check(drawn2.walls > 50, `only ${drawn2.walls} wall parts are in the scene; the field has no perimeter`);
+
+  // Drawn solid, a hive's skins close the basket over what was scored in it, and the perimeter's
+  // side glass is what the whole field is watched through.
+  check(drawn2.seeThrough.length > 0, 'nothing in the scene is see-through');
+  check(drawn2.solidSeeThrough.length === 0,
+      `drawn solid and should not be: ${drawn2.solidSeeThrough.slice(0, 4).join(', ')}`);
+
+  // The tape's top face is at z = 0. A floor drawn there too leaves the two in one plane, and
+  // which one a pixel belongs to is decided by rounding -- which is the tape flickering.
+  check(drawn2.tapeTop !== null, 'no tape in the scene to stand clear of the floor');
+  if (drawn2.tapeTop !== null) {
+    check(drawn2.floorZ < drawn2.tapeTop - 0.1,
+        `the floor is drawn at z=${drawn2.floorZ} and the tape's top is at z=${drawn2.tapeTop}; `
+        + 'that close they fight for the same pixels and the tape flickers');
+  }
+
   check(thrown.length === 0, `the page threw: ${thrown.join('; ')}`);
   check(failed.length === 0, `a request the page made failed: ${failed.join('; ')}`);
 
