@@ -205,7 +205,8 @@ let field = null;
 let model = null;
 let ticks = [];
 let moved = [];       // the pieces a tick lists, in the order it lists them
-let balls = [];       // one sphere per piece in the model, moved or not
+let movingBalls = []; // one sphere per entry a tick lists, in the order it lists them
+let staticBalls = []; // the pieces no tick lists: the rows set out beyond the walls
 let hives = [];       // { group, pivot, rest }
 let robot = null;
 let at = 0;
@@ -220,6 +221,17 @@ const clock = document.getElementById('clock');
 
 function secondsOf(i) {
   return ticks.length ? ticks[Math.max(0, Math.min(i, ticks.length - 1))].t : 0;
+}
+
+/** One game piece, as a ball of its own size and colour, added to the scene. */
+function makeBall(piece) {
+  const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(piece.radius, 20, 14),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(piece.colour), roughness: 0.55 }));
+  ball.castShadow = true;
+  ball.userData.radius = piece.radius;
+  scene.add(ball);
+  return ball;
 }
 
 /** The robot, as the simulator collides it: a cube of its size, standing on the floor. */
@@ -298,15 +310,35 @@ async function showRun() {
       o.visible = false;
     }
   });
-  balls = model.pieces.map((piece) => {
-    const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(piece.radius, 20, 14),
-        new THREE.MeshStandardMaterial({ color: new THREE.Color(piece.colour), roughness: 0.55 }));
-    ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
-    ball.castShadow = true;
-    scene.add(ball);
-    return { mesh: ball, piece: piece, movedIndex: moved.indexOf(piece) };
-  });
+
+  // A tick lists the loose pieces, then the hives' nectar, then the flowers' pollen, and then
+  // whatever the robot started out holding. So it is longer than the field's own movable pieces,
+  // and the entries past the end are the balls the robot brought with it: null while they are
+  // held, and somewhere on the field once they have been launched. A ball with no mesh made for
+  // it is a ball that never appears, which is what became of every pollen the robot shot.
+  const listed = ticks.reduce(
+      (most, tick) => Math.max(most, tick.pieces ? tick.pieces.length : 0), moved.length);
+  const spare = moved[0] || { colour: '#ffef3f', radius: 1.4 };
+  movingBalls = [];
+  for (let i = 0; i < listed; i++) {
+    const piece = i < moved.length ? moved[i] : spare;
+    const ball = makeBall(piece);
+    if (i < moved.length) {
+      ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
+    } else {
+      ball.visible = false; // held, until a tick says otherwise
+    }
+    movingBalls.push(ball);
+  }
+
+  // The ones the simulator never moves: the rows set out beyond the walls, which no tick lists.
+  staticBalls = model.pieces
+      .filter((piece) => !piece.loose && !piece.cell && !piece.flower)
+      .map((piece) => {
+        const ball = makeBall(piece);
+        ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
+        return ball;
+      });
 
   hives = model.hives.map((hive) => ({
     group: field.getObjectByName(nodeNameFor(hive.alliance)),
@@ -327,7 +359,7 @@ async function showRun() {
 
   if (ticks.length) {
     scrub.max = String(ticks.length - 1);
-    runBar.hidden = wantsCamera;
+    runBar.hidden = false;
     document.title = 'Run ' + id;
     goTo(0);
   } else {
@@ -377,18 +409,18 @@ function goTo(index) {
   robot.rotation.z = tick.heading;
 
   const where = piecesAt(at);
-  for (const ball of balls) {
-    if (ball.movedIndex < 0) {
-      continue; // set out beyond the walls and never touched
-    }
-    const to = where && where[ball.movedIndex];
-    if (to) {
-      // The camera's view is the tags and nothing else, and a tick that moves a ball must not
-      // put it back on screen: what is captured there is meant to be blank but for the tags.
-      ball.mesh.visible = !cameraView;
-      ball.mesh.position.set(to[0], to[1], to.length > 2 ? to[2] : ball.piece.radius);
-    } else if (where) {
-      ball.mesh.visible = false; // taken in by the robot, or gone off the field
+  if (where) {
+    for (let i = 0; i < movingBalls.length; i++) {
+      const ball = movingBalls[i];
+      const to = where[i];
+      if (to) {
+        // The camera's view is the tags and nothing else, and a tick that moves a ball must not
+        // put it back on screen: what is captured there is meant to be blank but for the tags.
+        ball.visible = !cameraView;
+        ball.position.set(to[0], to[1], to.length > 2 ? to[2] : ball.userData.radius);
+      } else {
+        ball.visible = false; // held in the robot, or gone off the field
+      }
     }
   }
 
@@ -627,16 +659,19 @@ function showCameraView() {
       }
     });
   }
-  for (const ball of balls) {
-    ball.mesh.visible = false;
+  for (const ball of movingBalls.concat(staticBalls)) {
+    ball.visible = false;
   }
   if (robot) {
     robot.visible = false;
   }
-  // Nothing of the page is in the camera's view: a frame kept from this is meant to be what the
-  // webcam would have seen, and a heads-up display is not part of that.
-  document.getElementById('hud').hidden = true;
-  runBar.hidden = true;
+  // The page's own furniture stays: this is watched as well as captured, and a run with no way
+  // to play or scrub it is one that can only be stared at. What captures frames hides them
+  // itself -- see tools/browser/frames.mjs -- since only it knows they must not be in the shot.
+  // The lens does not orbit, though, so what the page says about dragging would be a lie.
+  document.querySelector('#hud h1').textContent = "The webcam's view";
+  said.textContent = 'The goal tags as the robot\u2019s camera would see them. Play and scrub '
+      + 'the run; the view follows the robot.';
   aimCamera();
 }
 
@@ -678,10 +713,14 @@ window.fieldPage = {
     return ticks.length
         ? { loops: ticks.length, at: at, seconds: secondsOf(at), playing: playing,
             robot: robot && { x: robot.position.x, y: robot.position.y, heading: robot.rotation.z },
-            balls: balls.length, hives: hives.length }
+            balls: movingBalls.length + staticBalls.length,
+            launchable: Math.max(0, movingBalls.length - moved.length),
+            hives: hives.length }
         : null;
   },
   goTo: (i) => goTo(i),
+  /** The first ball past the field's own, which is one the robot brought and can launch. */
+  get launchedBall() { return movingBalls.length > moved.length ? movingBalls[moved.length] : null; },
   get camera3() { return cameraView; },
   get tags() { return tagQuads.map((q) => q.name); },
   lens: CAMERA,
