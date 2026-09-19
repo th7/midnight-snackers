@@ -13,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -187,12 +186,6 @@ public final class Worktrees {
         }
     }
 
-    public static final class GitFailed extends RuntimeException {
-        GitFailed(String message) {
-            super(message);
-        }
-    }
-
     private static final class Result {
         final int exit;
         final String out;
@@ -207,12 +200,16 @@ public final class Worktrees {
 
     private final Path root;
     private final Path stateDir;
-    private final String git;
+    private final Git git;
     private final Path directory;
 
     private final Map<String, Worktree> byUsername = new LinkedHashMap<>();
 
     public Worktrees(Path root, Path stateDir, String git) {
+        this(root, stateDir, new RealGit(git, root.toAbsolutePath().normalize()));
+    }
+
+    public Worktrees(Path root, Path stateDir, Git git) {
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
         this.git = git;
@@ -224,6 +221,14 @@ public final class Worktrees {
                 : this.root.getFileName().toString();
         this.directory = this.stateDir.resolve("worktrees").resolve(name + "-" + shortHash(this.root.toString()));
         load();
+    }
+
+    private static Git.Branch develop() {
+        return Git.Branch.of(DEVELOP);
+    }
+
+    private static Git.Author author(String username, Worktree worktree) {
+        return Git.Author.of(username, email(worktree));
     }
 
     public Path directory() {
@@ -244,9 +249,9 @@ public final class Worktrees {
             if (Files.isDirectory(existing.path) && Files.exists(existing.path.resolve(".git"))) {
                 return existing;
             }
-            git(root, "worktree", "prune");
+            git.pruneWorktrees();
             directoryReady();
-            git(root, "worktree", "add", "-q", existing.path.toString(), existing.branch);
+            git.addWorktree(existing.path, Git.Branch.of(existing.branch));
             System.out.println(
                     "recreated the worktree for " + username + " at " + existing.path + " on " + existing.branch);
             return existing;
@@ -259,15 +264,15 @@ public final class Worktrees {
         Path path = directory.resolve(slug);
         String branch = BRANCH_PREFIX + slug;
         directoryReady();
-        git(root, "worktree", "add", "-q", "-b", branch, path.toString(), DEVELOP);
+        git.createWorktree(path, Git.Branch.of(branch), develop());
         Worktree made = new Worktree(username, slug, path, branch);
         byUsername.put(username, made);
         try {
             save();
         } catch (RuntimeException e) {
             byUsername.remove(username);
-            git(root, "worktree", "remove", "--force", path.toString());
-            git(root, "branch", "-D", branch);
+            git.removeWorktree(path);
+            git.deleteBranch(Git.Branch.of(branch));
             throw e;
         }
         return made;
@@ -279,7 +284,7 @@ public final class Worktrees {
             return new Unsaved(List.of(), 0);
         }
         List<String> changed = Files.isDirectory(worktree.path) ? changedFiles(worktree) : List.of();
-        return new Unsaved(changed, count(DEVELOP + ".." + worktree.branch));
+        return new Unsaved(changed, count(DEVELOP, worktree.branch));
     }
 
     public synchronized Removal remove(String username, boolean force) {
@@ -294,9 +299,9 @@ public final class Worktrees {
             }
         }
         if (Files.isDirectory(worktree.path)) {
-            git(root, "worktree", "remove", "--force", worktree.path.toString());
+            git.removeWorktree(worktree.path);
         } else {
-            git(root, "worktree", "prune");
+            git.pruneWorktrees();
         }
         return new Removal(true, null);
     }
@@ -306,8 +311,8 @@ public final class Worktrees {
         return new Status(
                 worktree.branch,
                 changedFiles(worktree),
-                count(DEVELOP + ".." + worktree.branch),
-                count(worktree.branch + ".." + DEVELOP),
+                count(DEVELOP, worktree.branch),
+                count(worktree.branch, DEVELOP),
                 head(worktree));
     }
 
@@ -317,21 +322,12 @@ public final class Worktrees {
 
     public synchronized Commit commit(String username, String message) {
         Worktree worktree = ensure(username);
-        git(worktree.path, "add", "-A");
-        List<String> files = nulSeparated(git(worktree.path, "diff", "--cached", "--name-only", "-z").out);
+        git.stageEverything(worktree.path);
+        List<String> files = git.stagedFiles(worktree.path);
         if (files.isEmpty()) {
             return new Commit(false, head(worktree), files);
         }
-        git(
-                worktree.path,
-                "-c",
-                "user.name=" + username,
-                "-c",
-                "user.email=" + worktree.slug + "@coding-server.invalid",
-                "commit",
-                "-q",
-                "-m",
-                message);
+        git.commitStaged(worktree.path, author(username, worktree), message);
         return new Commit(true, head(worktree), files);
     }
 
@@ -340,29 +336,24 @@ public final class Worktrees {
         if (isAncestor(DEVELOP, worktree.branch)) {
             return new Merge(Outcome.NOTHING, List.of(), null);
         }
-        MergeTree tree = mergeTree(worktree.branch, DEVELOP);
+        Git.MergeTree tree = mergeTree(worktree.branch, DEVELOP);
         if (!tree.conflicts.isEmpty()) {
             return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
         }
         List<String> overwritten = new ArrayList<>(changedFiles(worktree));
-        overwritten.retainAll(filesChangedBetween(worktree.branch, tree.tree));
+        overwritten.retainAll(filesChangedBetween(worktree.branch, tree.tree.text()));
         if (!overwritten.isEmpty()) {
             return new Merge(Outcome.UNCOMMITTED, overwritten, null);
         }
-        Result merged = run(
+        Git.Outcome merged = git.merge(
                 worktree.path,
-                "-c",
-                "user.name=" + username,
-                "-c",
-                "user.email=" + email(worktree),
-                "merge",
-                "-q",
-                "-m",
+                author(username, worktree),
                 "Pull " + DEVELOP,
-                DEVELOP);
-        if (merged.exit != 0) {
-            run(worktree.path, "merge", "--abort");
-            return new Merge(Outcome.REFUSED, List.of(), (merged.err + merged.out).trim());
+                develop(),
+                Git.History.FAST_FORWARD_WHEN_IT_CAN);
+        if (!merged.ok) {
+            git.abortMerge(worktree.path);
+            return new Merge(Outcome.REFUSED, List.of(), merged.said);
         }
         return new Merge(Outcome.MERGED, List.of(), null);
     }
@@ -376,95 +367,63 @@ public final class Worktrees {
                     ? new Merge(Outcome.NOTHING, List.of(), null, pushDevelop())
                     : new Merge(Outcome.UNCOMMITTED, status.changed, null);
         }
-        MergeTree tree = mergeTree(DEVELOP, worktree.branch);
+        Git.MergeTree tree = mergeTree(DEVELOP, worktree.branch);
         if (!tree.conflicts.isEmpty()) {
             return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
         }
         String message = "Push " + username + "'s work";
         Path checkedOut = checkedOutAt(DEVELOP);
         if (checkedOut != null) {
-            Result merged = run(
+            Git.Outcome merged = git.merge(
                     checkedOut,
-                    "-c",
-                    "user.name=" + username,
-                    "-c",
-                    "user.email=" + email(worktree),
-                    "merge",
-                    "--no-ff",
-                    "-q",
-                    "-m",
+                    author(username, worktree),
                     message,
-                    worktree.branch);
-            if (merged.exit != 0) {
-                run(checkedOut, "merge", "--abort");
-                return new Merge(Outcome.REFUSED, List.of(), (merged.err + merged.out).trim());
+                    Git.Branch.of(worktree.branch),
+                    Git.History.ALWAYS_A_MERGE_COMMIT);
+            if (!merged.ok) {
+                git.abortMerge(checkedOut);
+                return new Merge(Outcome.REFUSED, List.of(), merged.said);
             }
         } else {
-            String old = git(root, "rev-parse", "refs/heads/" + DEVELOP).out.trim();
-            String tip = git(
-                            root,
-                            "-c",
-                            "user.name=" + username,
-                            "-c",
-                            "user.email=" + email(worktree),
-                            "commit-tree",
-                            tree.tree,
-                            "-p",
-                            old,
-                            "-p",
-                            worktree.branch,
-                            "-m",
-                            message)
-                    .out
-                    .trim();
-            Result moved = run(root, "update-ref", "refs/heads/" + DEVELOP, tip, old);
-            if (moved.exit != 0) {
-                return new Merge(Outcome.REFUSED, List.of(), (moved.err + moved.out).trim());
+            Git.Revision old = git.commitAt(develop().tip());
+            Git.Revision tip = git.commitTree(
+                    author(username, worktree),
+                    tree.tree,
+                    message,
+                    old,
+                    git.commitAt(Git.Branch.of(worktree.branch).tip()));
+            Git.Outcome moved = git.moveBranch(develop(), tip, old);
+            if (!moved.ok) {
+                return new Merge(Outcome.REFUSED, List.of(), moved.said);
             }
         }
         Remote remote = pushDevelop();
-        Result caughtUp = run(worktree.path, "merge", "--ff-only", "-q", DEVELOP);
-        if (caughtUp.exit != 0) {
-            return new Merge(Outcome.MERGED, List.of(), (caughtUp.err + caughtUp.out).trim(), remote);
+        Git.Outcome caughtUp = git.fastForwardOnly(worktree.path, develop());
+        if (!caughtUp.ok) {
+            return new Merge(Outcome.MERGED, List.of(), caughtUp.said, remote);
         }
         return new Merge(Outcome.MERGED, List.of(), null, remote);
     }
 
     private Remote pushDevelop() {
-        if (!git(root, "remote").out.lines().anyMatch(REMOTE::equals)) {
+        if (!git.hasRemote(REMOTE)) {
             return null;
         }
-        String local = git(root, "rev-parse", "refs/heads/" + DEVELOP).out.trim();
-        Result tracking = run(root, "rev-parse", "--verify", "--quiet", "refs/remotes/" + REMOTE + "/" + DEVELOP);
-        if (tracking.exit == 0 && tracking.out.trim().equals(local)) {
+        Git.Revision local = git.commitAt(develop().tip());
+        if (git.remoteCommit(REMOTE, develop()).filter(local::equals).isPresent()) {
             return new Remote(REMOTE, Remote.Outcome.UP_TO_DATE, null);
         }
-        Result pushed;
-        try {
-            pushed = run(
-                    root,
-                    REMOTE_TIMEOUT_SECONDS,
-                    "push",
-                    "--quiet",
-                    REMOTE,
-                    "refs/heads/" + DEVELOP + ":refs/heads/" + DEVELOP);
-        } catch (GitFailed e) {
-            return new Remote(REMOTE, Remote.Outcome.FAILED, e.getMessage());
-        }
-        if (pushed.exit != 0) {
-            return new Remote(REMOTE, Remote.Outcome.FAILED, (pushed.err + pushed.out).trim());
+        Git.Outcome pushed = git.push(REMOTE, develop());
+        if (!pushed.ok) {
+            return new Remote(REMOTE, Remote.Outcome.FAILED, pushed.said);
         }
         return new Remote(REMOTE, Remote.Outcome.PUSHED, null);
     }
 
     private Path checkedOutAt(String branch) {
-        String[] lines = git(root, "worktree", "list", "--porcelain").out.split("\n");
-        Path current = null;
-        for (String line : lines) {
-            if (line.startsWith("worktree ")) {
-                current = Path.of(line.substring("worktree ".length()));
-            } else if (line.equals("branch refs/heads/" + branch)) {
-                return current;
+        for (Git.Checkout checkout : git.checkouts()) {
+            if (checkout.branch.name().equals(branch)) {
+                return checkout.path;
             }
         }
         return null;
@@ -475,72 +434,27 @@ public final class Worktrees {
     }
 
     private boolean isAncestor(String maybeAncestor, String of) {
-        Result result = run(root, "merge-base", "--is-ancestor", maybeAncestor, of);
-        if (result.exit > 1) {
-            throw new GitFailed(
-                    "git merge-base --is-ancestor " + maybeAncestor + " " + of + " failed: " + result.err.trim());
-        }
-        return result.exit == 0;
+        return git.isAncestor(Git.Revision.of(maybeAncestor), Git.Revision.of(of));
     }
 
-    private static final class MergeTree {
-        final String tree;
-        final List<String> conflicts;
-
-        MergeTree(String tree, List<String> conflicts) {
-            this.tree = tree;
-            this.conflicts = conflicts;
-        }
-    }
-
-    private MergeTree mergeTree(String ours, String theirs) {
-        Result result = run(root, "merge-tree", "--write-tree", "--name-only", ours, theirs);
-        if (result.exit > 1) {
-            throw new GitFailed("git merge-tree " + ours + " " + theirs + " failed: " + result.err.trim());
-        }
-
-        String[] lines = result.out.split("\n");
-        List<String> files = new ArrayList<>();
-        if (result.exit == 1) {
-            for (int i = 1; i < lines.length && !lines[i].isEmpty(); i++) {
-                if (!files.contains(lines[i])) {
-                    files.add(lines[i]);
-                }
-            }
-            files.sort(null);
-        }
-        return new MergeTree(lines[0].trim(), files);
+    private Git.MergeTree mergeTree(String ours, String theirs) {
+        return git.mergeTree(Git.Revision.of(ours), Git.Revision.of(theirs));
     }
 
     private List<String> filesChangedBetween(String from, String to) {
-        return nulSeparated(git(root, "diff", "--name-only", "-z", from, to).out);
+        return git.filesChangedBetween(Git.Revision.of(from), Git.Revision.of(to));
     }
 
     private List<String> changedFiles(Worktree worktree) {
-        String[] entries = git(worktree.path, "status", "--porcelain", "-z", "--untracked-files=all")
-                .out
-                .split("\0");
-        List<String> files = new ArrayList<>();
-        for (int i = 0; i < entries.length; i++) {
-            if (entries[i].length() < 4) {
-                continue;
-            }
-            files.add(entries[i].substring(3));
-            char x = entries[i].charAt(0);
-            if (x == 'R' || x == 'C') {
-                i++;
-            }
-        }
-        files.sort(null);
-        return files;
+        return git.uncommittedFiles(worktree.path);
     }
 
-    private int count(String range) {
-        return Integer.parseInt(git(root, "rev-list", "--count", range).out.trim());
+    private int count(String from, String to) {
+        return git.commitsBetween(Git.Revision.of(from), Git.Revision.of(to));
     }
 
     private String head(Worktree worktree) {
-        return git(worktree.path, "rev-parse", "HEAD").out.trim();
+        return git.head(worktree.path).text();
     }
 
     private static List<String> nulSeparated(String out) {
@@ -573,7 +487,7 @@ public final class Worktrees {
     }
 
     private boolean branchExists(String branch) {
-        return run(root, "rev-parse", "--verify", "--quiet", "refs/heads/" + branch).exit == 0;
+        return git.commitIfThere(Git.Branch.of(branch).tip()).isPresent();
     }
 
     private void directoryReady() {
@@ -586,21 +500,21 @@ public final class Worktrees {
     }
 
     private void checkVersion() {
-        Result result;
+        String said;
         try {
-            result = run(null, "--version");
-        } catch (GitFailed e) {
-            throw new IllegalStateException("could not run git at " + git + ": " + e.getMessage(), e);
+            said = git.version();
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("could not run git: " + e.getMessage(), e);
         }
-        Matcher matcher = VERSION.matcher(result.out);
-        if (result.exit != 0 || !matcher.find()) {
-            throw new IllegalStateException(git + " --version did not say which git it is: " + result.out + result.err);
+        Matcher matcher = VERSION.matcher(said);
+        if (!matcher.find()) {
+            throw new IllegalStateException("git --version did not say which git it is: " + said);
         }
         int major = Integer.parseInt(matcher.group(1));
         int minor = Integer.parseInt(matcher.group(2));
         if (major < MIN_GIT_MAJOR || (major == MIN_GIT_MAJOR && minor < MIN_GIT_MINOR)) {
             throw new IllegalStateException("the coding server needs git " + MIN_GIT_MAJOR + "." + MIN_GIT_MINOR
-                    + " or later (for merge-tree --write-tree); " + git + " is " + result.out.trim());
+                    + " or later (for merge-tree --write-tree); this is " + said.trim());
         }
     }
 
@@ -608,11 +522,7 @@ public final class Worktrees {
         if (!Files.isDirectory(root)) {
             throw new IllegalStateException("not a directory: " + root);
         }
-        Result result = run(root, "rev-parse", "--show-toplevel");
-        if (result.exit != 0) {
-            throw new IllegalStateException("not a git repository: " + root + " (" + result.err.trim() + ")");
-        }
-        Path top = Path.of(result.out.trim());
+        Path top = git.topLevel().orElseThrow(() -> new IllegalStateException("not a git repository: " + root));
         try {
             if (!top.toRealPath().equals(root.toRealPath())) {
                 throw new IllegalStateException(
@@ -675,64 +585,6 @@ public final class Worktrees {
             return hex.toString();
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    private Result git(Path cwd, String... args) {
-        Result result = run(cwd, args);
-        if (result.exit != 0) {
-            throw new GitFailed(
-                    "git " + String.join(" ", args) + " failed in " + cwd + ": " + (result.err + result.out).trim());
-        }
-        return result;
-    }
-
-    private Result run(Path cwd, String... args) {
-        return run(cwd, GIT_TIMEOUT_SECONDS, args);
-    }
-
-    private Result run(Path cwd, long timeoutSeconds, String... args) {
-        List<String> command = new ArrayList<>();
-        command.add(git);
-        command.addAll(List.of(args));
-        ProcessBuilder builder = new ProcessBuilder(command);
-        if (cwd != null) {
-            builder.directory(cwd.toFile());
-        }
-        builder.environment().put("GIT_TERMINAL_PROMPT", "0");
-        Process process;
-        try {
-            process = builder.start();
-        } catch (IOException e) {
-            throw new GitFailed("could not start " + git + ": " + e.getMessage());
-        }
-        process.getOutputStream();
-        StringBuilder err = new StringBuilder();
-        Thread stderr = new Thread(
-                () -> {
-                    try {
-                        err.append(new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8));
-                    } catch (IOException ignored) {
-                    }
-                },
-                "git-stderr");
-        stderr.start();
-        try {
-            String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
-                throw new GitFailed(
-                        "git " + String.join(" ", args) + " did not finish within " + timeoutSeconds + " seconds");
-            }
-            stderr.join();
-            return new Result(process.exitValue(), out, err.toString());
-        } catch (IOException e) {
-            process.destroyForcibly();
-            throw new GitFailed("git " + String.join(" ", args) + ": " + e.getMessage());
-        } catch (InterruptedException e) {
-            process.destroyForcibly();
-            Thread.currentThread().interrupt();
-            throw new GitFailed("interrupted while running git " + String.join(" ", args));
         }
     }
 }

@@ -356,7 +356,7 @@ public final class CodingServer {
     private Response handleUser(Request request) {
         try {
             return userRoutes.handle(request);
-        } catch (Worktrees.GitFailed e) {
+        } catch (Git.Failed e) {
             Session session = sessionOf(request);
             return Response.error(
                     500, "git failed for " + (session == null ? "?" : session.username) + ": " + e.getMessage());
@@ -843,7 +843,7 @@ public final class CodingServer {
             synchronized (this) {
                 merge = worktrees.pull(found.username);
             }
-        } catch (Worktrees.GitFailed e) {
+        } catch (Git.Failed e) {
             return Response.error(500, "git failed for " + found.username + ": " + e.getMessage());
         }
         return reply(merge, MergeReport.Op.PULL, found.username, MergeReport.Voice.ADMIN);
@@ -1057,7 +1057,7 @@ public final class CodingServer {
                     try {
                         status = statusJson(worktrees.status(session.username));
                         deletable = worktrees.unsaved(session.username).none();
-                    } catch (Worktrees.GitFailed e) {
+                    } catch (Git.Failed e) {
                         statusError = e.getMessage();
                     }
                 }
@@ -1099,7 +1099,7 @@ public final class CodingServer {
             case "approve":
                 try {
                     worktrees.ensure(found.username);
-                } catch (Worktrees.GitFailed e) {
+                } catch (Git.Failed e) {
                     return Response.error(
                             500, "could not make a worktree for " + found.username + ": " + e.getMessage());
                 }
@@ -1143,7 +1143,7 @@ public final class CodingServer {
             if (removal.refused != null) {
                 return refusal(username, removal.refused);
             }
-        } catch (Worktrees.GitFailed e) {
+        } catch (Git.Failed e) {
             return Response.error(500, "git failed for " + username + ": " + e.getMessage());
         }
         synchronized (this) {
