@@ -581,10 +581,6 @@ project rebuilds, are libraries. So a class a project lacks is missing —
 in its build, in its child, and to the navigator — rather than quietly
 the server's. Method: `SimBuild.libraries()`.
 
-**Bench page** — The standalone page for one developer at
-`./gradlew :TeamCode:simDev` (http://localhost:8765/), with no login.
-Class: `SimDevServer`.
-
 **Catalog** — The op modes the simulator can run, exactly as the robot
 controller lists them: every concrete `OpMode` of ours that carries the
 `@Autonomous` or `@TeleOp` annotation, plus whatever a **registrar** (a

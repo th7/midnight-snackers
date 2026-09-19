@@ -293,9 +293,9 @@ public final class CodingServer {
                 null,
                 worktree,
                 worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
-                SimDevServer.DEFAULT_RUN_TIMEOUT_SECONDS,
-                SimDevServer.DEFAULT_TELEOP_SECONDS,
-                SimDevServer.DEFAULT_KILL_GRACE_SECONDS);
+                SimBench.DEFAULT_RUN_TIMEOUT_SECONDS,
+                SimBench.DEFAULT_TELEOP_SECONDS,
+                SimBench.DEFAULT_KILL_GRACE_SECONDS);
         CodingServer server = start(
                 root,
                 benches,
