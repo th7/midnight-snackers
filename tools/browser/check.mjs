@@ -37,9 +37,38 @@ const TYPES = {
  * stands in for that, over the same directory, so the page is exercised exactly as it is
  * served -- the route itself is held by SimAssetsTest, which is Java's to answer for.
  */
+/**
+ * A run for the page to play: the robot driving a few inches and turning, a loose pollen rolling
+ * with it, and one hive leaning further than the field was set up at. Small on purpose -- what is
+ * being checked is that a tick reaches the scene, not the simulator that made it.
+ */
+function cannedRun(model) {
+  const moved = model.pieces.filter((p) => p.loose)
+      .concat(model.pieces.filter((p) => p.cell))
+      .concat(model.pieces.filter((p) => p.flower));
+  const blue = model.hives.find((h) => h.alliance === 'Blue');
+  const places = (n) => moved.map((piece, i) => i === 0 ? [n * 6, n * 3, piece.radius] : piece.centre);
+  return {
+    outcome: 'done',
+    ticks: [0, 1, 2].map((n) => ({
+      t: n * 0.25, x: -30 + n * 12, y: -20 + n * 5, heading: n * 0.4, step: 'drive',
+      powers: [0, 0, 0, 0], packets: [], pieces: places(n),
+      tilt: n === 2 && blue ? { Blue: blue.tilt - 25 } : undefined
+    }))
+  };
+}
+
 function serve() {
+  const model = JSON.parse(fs.readFileSync(path.join(sim, 'field.json'), 'utf8'));
+  model.robotIn = 18;
+  const run = cannedRun(model);
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    if (asked === '/model' || asked === '/runs/1/ticks') {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(asked === '/model' ? model : run));
+      return;
+    }
     const relative = asked === '/field' || asked === '/' ? 'field.html'
         : asked.startsWith('/assets/') ? asked.slice('/assets/'.length)
         : null;
@@ -58,7 +87,8 @@ const problems = [];
 const check = (ok, said) => { if (!ok) problems.push(said); };
 
 const server = await serve();
-const url = `http://127.0.0.1:${server.address().port}/field`;
+const base = `http://127.0.0.1:${server.address().port}`;
+const url = `${base}/field`;
 
 let browser = null;
 try {
@@ -205,12 +235,66 @@ try {
         + 'that close they fight for the same pixels and the tape flickers');
   }
 
+  // --- and now the same page with a run to play --------------------------------------------
+  const played = await (async () => {
+    const replay = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    const wrong = [];
+    replay.on('pageerror', (e) => wrong.push(String(e && e.message ? e.message : e)));
+    try {
+      await replay.goto(`${base}/field?run=1`, { waitUntil: 'load', timeout: 60_000 });
+      await replay.waitForFunction(() => window.fieldPage && window.fieldPage.run,
+          null, { timeout: 90_000 });
+      const first = await replay.evaluate(() => window.fieldPage.run);
+      await replay.evaluate(() => window.fieldPage.goTo(2));
+      await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      const last = await replay.evaluate(() => ({
+        run: window.fieldPage.run,
+        drawn: window.fieldPage.drawnTriangles,
+        hiveTurned: (() => {
+          let turned = false;
+          window.fieldPage.scene.traverse((o) => {
+            if (!o.isMesh && /blue[\s_-]*hive/i.test(o.name || '')
+                && Math.abs(o.matrix.elements[8]) > 0.01) {
+              turned = true;
+            }
+          });
+          return turned;
+        })()
+      }));
+      return { first, last, wrong };
+    } catch (stuck) {
+      return { first: null, last: null, wrong: wrong.concat(String(stuck && stuck.message)) };
+    } finally {
+      await replay.close();
+    }
+  })();
+
+  check(played.wrong.length === 0, `the run page threw: ${played.wrong.join('; ')}`);
+  if (played.first && played.last) {
+    check(played.first.loops === 3, `the run page read ${played.first.loops} loops of 3`);
+    check(played.first.balls > 20, `only ${played.first.balls} game pieces are drawn`);
+    check(played.first.hives === 2, `${played.first.hives} hives were found to lean`);
+    // The robot has to be where the tick put it, not merely on the field somewhere.
+    check(played.first.robot && Math.abs(played.first.robot.x + 30) < 0.01,
+        `the robot started at x=${played.first.robot && played.first.robot.x}, not the tick's -30`);
+    check(played.last.run.robot && Math.abs(played.last.run.robot.x - -6) < 0.01,
+        `the robot ended at x=${played.last.run.robot && played.last.run.robot.x}, not the tick's -6`);
+    check(Math.abs(played.last.run.robot.heading - 0.8) < 0.01,
+        `the robot ended facing ${played.last.run.robot.heading}, not the tick's 0.8`);
+    check(played.last.hiveTurned, 'the blue hive did not lean, though the last tick says it did');
+    check(played.last.drawn > 1000, `a run frame drew only ${played.last.drawn} triangles`);
+  }
+
   check(thrown.length === 0, `the page threw: ${thrown.join('; ')}`);
   check(failed.length === 0, `a request the page made failed: ${failed.join('; ')}`);
 
   if (!problems.length) {
     console.log(state.said);
     console.log(`  ${drawn.toLocaleString()} triangles drawn in a frame, at 1200x800, on ${webgl}`);
+    if (played.last) {
+      console.log(`  a run plays: ${played.first.loops} loops, ${played.first.balls} game pieces, `
+          + `${played.first.hives} hives, the robot ending where its last tick puts it`);
+    }
   }
 } catch (wrong) {
   problems.push(String(wrong && wrong.message ? wrong.message : wrong));

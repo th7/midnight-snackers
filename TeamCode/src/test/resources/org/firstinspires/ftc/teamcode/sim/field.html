@@ -30,6 +30,19 @@
     background: var(--bg); font: inherit; font-size: 12px;
   }
   #problem { color: #e06c75; white-space: pre-wrap; }
+  #run[hidden] { display: none; }
+  #run {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px;
+    display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line); width: min(720px, calc(100vw - 24px));
+  }
+  #run button {
+    font: inherit; color: var(--text); background: var(--bg); cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; min-width: 62px;
+  }
+  #scrub { flex: 1; accent-color: #4c8dff; }
+  #clock { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 </style>
 <script type="importmap">
 {
@@ -45,6 +58,11 @@
   <h1>The field</h1>
   <p id="said">Loading the model&hellip;</p>
   <p id="problem"></p>
+</div>
+<div id="run" hidden>
+  <button id="play" type="button">Play</button>
+  <input id="scrub" type="range" min="0" max="0" value="0" step="1" aria-label="loop">
+  <span id="clock"></span>
 </div>
 <script type="module">
 import * as THREE from 'three';
@@ -161,15 +179,252 @@ new GLTFLoader().load('./assets/field.glb', (gltf) => {
     }
   });
   scene.add(gltf.scene);
+  field = gltf.scene;
   loaded = { parts: meshes, triangles: triangles };
   said.textContent = meshes + ' parts, ' + triangles.toLocaleString() + ' triangles. '
       + 'Drag to orbit, scroll to zoom.';
+  showRun();
 }, undefined, (wrong) => {
   said.textContent = 'The field did not load.';
   problem.textContent = String(wrong && wrong.message ? wrong.message : wrong);
 });
 
+// --- a run -------------------------------------------------------------------------------
+// `?run=<id>` plays one back: the robot where the simulator had it, the game pieces where they
+// had rolled to, and each hive leaning the way the run left it. The geometry is all in the model
+// already; what a tick carries is where it had moved to.
+
+let field = null;
+let model = null;
+let ticks = [];
+let moved = [];       // the pieces a tick lists, in the order it lists them
+let balls = [];       // one sphere per piece in the model, moved or not
+let hives = [];       // { group, pivot, rest }
+let robot = null;
+let at = 0;
+let playing = false;
+let playingFrom = 0;  // wall-clock ms the current play started
+let playingAt = 0;    // the run's own seconds when it started
+
+const runBar = document.getElementById('run');
+const playButton = document.getElementById('play');
+const scrub = document.getElementById('scrub');
+const clock = document.getElementById('clock');
+
+function secondsOf(i) {
+  return ticks.length ? ticks[Math.max(0, Math.min(i, ticks.length - 1))].t : 0;
+}
+
+/** The robot, as the simulator collides it: a cube of its size, standing on the floor. */
+function makeRobot(size) {
+  const body = new THREE.Mesh(
+      new THREE.BoxGeometry(size, size, size),
+      new THREE.MeshStandardMaterial({ color: 0x2f6fb5, roughness: 0.45, metalness: 0.1 }));
+  body.castShadow = true;
+  // Which way it is facing, which a cube cannot say on its own.
+  const nose = new THREE.Mesh(
+      new THREE.BoxGeometry(size * 0.18, size * 0.5, size * 0.5),
+      new THREE.MeshStandardMaterial({ color: 0xffc24a, roughness: 0.5 }));
+  nose.position.set(size / 2, 0, 0);
+  body.add(nose);
+  const group = new THREE.Group();
+  group.add(body);
+  body.position.z = size / 2;
+  return group;
+}
+
+/**
+ * A hive leans about the axle it hangs from, which is a turn about the field's y axis through
+ * its pivot. The model is exported at the tilt the field is set up at, so what is applied here
+ * is the difference from that, and a tick that says nothing leaves the hive where it was.
+ */
+function leanHive(hive, degrees) {
+  const turn = THREE.MathUtils.degToRad(hive.rest - degrees);
+  const [px, py, pz] = hive.pivot;
+  hive.group.matrixAutoUpdate = false;
+  hive.group.matrix
+      .makeTranslation(px, py, pz)
+      .multiply(new THREE.Matrix4().makeRotationY(turn))
+      .multiply(new THREE.Matrix4().makeTranslation(-px, -py, -pz));
+  hive.group.updateMatrixWorld(true);
+}
+
+async function showRun() {
+  const id = new URLSearchParams(location.search).get('run');
+  if (!id || !field) {
+    return;
+  }
+  try {
+    const [modelBody, runBody] = await Promise.all([
+      fetch('model').then((r) => r.json()),
+      fetch('runs/' + encodeURIComponent(id) + '/ticks?from=0').then((r) => r.json())
+    ]);
+    model = modelBody;
+    ticks = runBody.ticks || [];
+  } catch (wrong) {
+    problem.textContent = 'Run ' + id + ' did not load: ' + (wrong && wrong.message);
+    return;
+  }
+  if (!ticks.length) {
+    problem.textContent = 'Run ' + id + ' has no loops to play.';
+    return;
+  }
+
+  // The order a tick lists the pieces it moved, which is the order the simulator moves them in.
+  moved = model.pieces.filter((p) => p.loose)
+      .concat(model.pieces.filter((p) => p.cell))
+      .concat(model.pieces.filter((p) => p.flower));
+
+  // The CAD's own game pieces stand where the field was set up. A run moves them, so they are
+  // drawn here instead and the model's are hidden -- two of each would be worse than none.
+  field.traverse((o) => {
+    if (o.isMesh && /pollen|nectar/i.test(o.name)) {
+      o.visible = false;
+    }
+  });
+  balls = model.pieces.map((piece) => {
+    const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(piece.radius, 20, 14),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(piece.colour), roughness: 0.55 }));
+    ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
+    ball.castShadow = true;
+    scene.add(ball);
+    return { mesh: ball, piece: piece, movedIndex: moved.indexOf(piece) };
+  });
+
+  hives = model.hives.map((hive) => ({
+    group: field.getObjectByName(nodeNameFor(hive.alliance)),
+    pivot: hive.pivot,
+    rest: hive.tilt,
+    alliance: hive.alliance
+  })).filter((h) => h.group);
+
+  robot = makeRobot(model.robotIn || 18);
+  scene.add(robot);
+
+  scrub.max = String(ticks.length - 1);
+  runBar.hidden = false;
+  document.title = 'Run ' + id;
+  goTo(0);
+}
+
+/** The scene node a hive's parts hang under, which the export names for the CAD assembly. */
+function nodeNameFor(alliance) {
+  let found = null;
+  field.traverse((o) => {
+    if (!found && !o.isMesh && o.name
+        && new RegExp(alliance + '[\\s_-]*Hive', 'i').test(o.name)) {
+      found = o.name;
+    }
+  });
+  return found;
+}
+
+/** The last tick at or before `upTo` that said where the pieces were. */
+function piecesAt(upTo) {
+  for (let i = upTo; i >= 0; i--) {
+    if (ticks[i].pieces) {
+      return ticks[i].pieces;
+    }
+  }
+  return null;
+}
+
+function tiltAt(upTo, alliance) {
+  for (let i = upTo; i >= 0; i--) {
+    if (ticks[i].tilt && ticks[i].tilt[alliance] !== undefined) {
+      return ticks[i].tilt[alliance];
+    }
+  }
+  return null;
+}
+
+function goTo(index) {
+  at = Math.max(0, Math.min(index, ticks.length - 1));
+  const tick = ticks[at];
+
+  robot.position.set(tick.x, tick.y, 0);
+  robot.rotation.z = tick.heading;
+
+  const where = piecesAt(at);
+  for (const ball of balls) {
+    if (ball.movedIndex < 0) {
+      continue; // set out beyond the walls and never touched
+    }
+    const to = where && where[ball.movedIndex];
+    if (to) {
+      ball.mesh.visible = true;
+      ball.mesh.position.set(to[0], to[1], to.length > 2 ? to[2] : ball.piece.radius);
+    } else if (where) {
+      ball.mesh.visible = false; // taken in by the robot, or gone off the field
+    }
+  }
+
+  for (const hive of hives) {
+    const leaning = tiltAt(at, hive.alliance);
+    leanHive(hive, leaning === null ? hive.rest : leaning);
+  }
+
+  scrub.value = String(at);
+  const held = tick.held ? ', holding ' + tick.held : '';
+  clock.textContent = tick.t.toFixed(2) + ' s  ·  loop ' + (at + 1) + ' of ' + ticks.length + held;
+}
+
+playButton.addEventListener('click', () => {
+  playing = !playing;
+  playButton.textContent = playing ? 'Pause' : 'Play';
+  if (playing) {
+    if (at >= ticks.length - 1) {
+      goTo(0);
+    }
+    playingFrom = performance.now();
+    playingAt = secondsOf(at);
+  }
+});
+scrub.addEventListener('input', () => {
+  playing = false;
+  playButton.textContent = 'Play';
+  goTo(Number(scrub.value));
+});
+window.addEventListener('keydown', (event) => {
+  if (!ticks.length) {
+    return;
+  }
+  if (event.key === ' ') {
+    event.preventDefault();
+    playButton.click();
+  } else if (event.key === 'ArrowRight') {
+    playing = false;
+    playButton.textContent = 'Play';
+    goTo(at + 1);
+  } else if (event.key === 'ArrowLeft') {
+    playing = false;
+    playButton.textContent = 'Play';
+    goTo(at - 1);
+  }
+});
+
+/** Where the run has got to, played in its own time rather than a tick a frame. */
+function advance() {
+  if (!playing || ticks.length < 2) {
+    return;
+  }
+  const into = playingAt + (performance.now() - playingFrom) / 1000;
+  let next = at;
+  while (next < ticks.length - 1 && ticks[next + 1].t <= into) {
+    next++;
+  }
+  if (next !== at) {
+    goTo(next);
+  }
+  if (at >= ticks.length - 1) {
+    playing = false;
+    playButton.textContent = 'Play';
+  }
+}
+
 renderer.setAnimationLoop(() => {
+  advance();
   controls.update();
   renderer.render(scene, camera);
 });
@@ -186,7 +441,15 @@ window.fieldPage = {
   floorZ: FLOOR_Z,
   get loaded() { return loaded; },
   get drawnTriangles() { return renderer.info.render.triangles; },
-  get problem() { return problem.textContent; }
+  get problem() { return problem.textContent; },
+  get run() {
+    return ticks.length
+        ? { loops: ticks.length, at: at, seconds: secondsOf(at), playing: playing,
+            robot: robot && { x: robot.position.x, y: robot.position.y, heading: robot.rotation.z },
+            balls: balls.length, hives: hives.length }
+        : null;
+  },
+  goTo: (i) => goTo(i)
 };
 </script>
 </body>

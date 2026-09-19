@@ -112,6 +112,13 @@ network -- the robot's wifi has none. The page is `field.html`, served at
 `/field` on the bench, and it reaches its own assets by relative link so it
 works wherever the bench is mounted.
 
+`/field?run=<id>` plays a run back: the robot where the simulator had it, the
+game pieces where they had rolled to, and each hive leaning the way the run
+left it. The geometry is all in `field.glb`; what a tick carries is where
+things had moved to. What the geometry cannot say -- which pieces move and in
+what order a tick lists them, where each hive hangs, how big the robot is --
+comes from `/model`, which is the collision model with the robot's size added.
+
 `tools/renderer/check.mjs` loads the model with that same three.js, in node.
 The writer is already checked by reading back what it writes, which says the
 two agree with each other; this says the library the browser hands it to
