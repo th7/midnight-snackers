@@ -49,6 +49,11 @@ from datetime import datetime, timezone
 urlopen = urllib.request.urlopen
 
 BASE = 'https://cad.onshape.com'
+# FIRST's "BIOBUZZ Playing Field", which the field model is built from. No version is pinned: we
+# take whatever the document holds when we refresh the assets.
+FIELD_DOCUMENT = 'a355e772e3d24813de7852ee'
+FIELD_WORKSPACE = 'f106353168f1f92100b81259'
+FIELD_ASSEMBLY = '95d1e1e442b4138cccaf2d73'
 ACCESS_KEY_VARIABLE = 'ONSHAPE_ACCESS_KEY'
 SECRET_KEY_VARIABLE = 'ONSHAPE_SECRET_KEY'
 NONCE_LENGTH = 25
@@ -222,9 +227,9 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--check', action='store_true',
                         help='make one signed call and report whether Onshape accepted it')
-    parser.add_argument('--document', default='a355e772e3d24813de7852ee',
+    parser.add_argument('--document', default=FIELD_DOCUMENT,
                         help="the field document (default: FIRST's BIOBUZZ Playing Field)")
-    parser.add_argument('--workspace', default='f106353168f1f92100b81259')
+    parser.add_argument('--workspace', default=FIELD_WORKSPACE)
     args = parser.parse_args(argv)
     if not args.check:
         parser.error('nothing to do; --check makes one signed call')

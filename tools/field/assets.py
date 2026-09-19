@@ -31,8 +31,8 @@ TEXTURES = (
     'GoalAprilTag_redscoring.png',
 )
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
-DOCUMENT = 'a355e772e3d24813de7852ee'
-WORKSPACE = 'f106353168f1f92100b81259'
+DOCUMENT = onshape.FIELD_DOCUMENT
+WORKSPACE = onshape.FIELD_WORKSPACE
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'TeamCode', 'src', 'test', 'resources',
                    'org', 'firstinspires', 'ftc', 'teamcode', 'sim', 'textures')
 
