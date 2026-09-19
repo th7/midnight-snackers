@@ -69,6 +69,32 @@ Nothing is written until every image has arrived and been checked, so a
 rename upstream stops the run rather than quietly fetching less than it
 used to.
 
+## Two models, deliberately
+
+`field.json` is the field the simulator **collides**: each part a convex
+shape, built from FIRST's published STEP by `step_to_field.py`.
+
+`field.glb` is the field as it **looks**: the Onshape assembly's real
+tessellation, fillets and all, built by `field_glb.py`.
+
+    python3 tools/field/field_glb.py                    # fetch and build
+    python3 tools/field/field_glb.py --export f.gltf    # from an export in hand
+
+They are not the same model and are not meant to be. A physics engine wants
+convex shapes and a renderer wants the detail, and one model cannot be good
+at both. What they must agree about is where the field is, which the build
+checks before it writes anything: blue's parts at negative y and red's at
+positive, which a quarter turn the wrong way swaps while leaving a field
+that otherwise looks entirely reasonable, and a reach that matches the
+walls, which a frame read in metres does not. A check that has too little to
+go on says so rather than passing.
+
+The export is a million and a half triangles, most of them spent on fillets
+nobody can see at the size of a field -- the two goal ribs alone are nearly
+half of them. Points are snapped to a twentieth of an inch and the triangles
+that collapse are dropped, which leaves about a sixth of them, three
+megabytes, and moves nothing further than a twenty-third of an inch.
+
 We take whatever the document holds at the time we refresh the assets:
 nothing here pins an Onshape version, and small changes between refreshes
 are expected.

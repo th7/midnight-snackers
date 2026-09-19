@@ -305,3 +305,117 @@ def read(data):
     for root in scenes[scene].get('nodes', []):
         walk(root, IDENTITY, [])
     return parts
+
+
+# --- writing ---------------------------------------------------------------------------------
+
+def _colour_factor(colour):
+    """'#rrggbb' -> the linear-looking factor Onshape puts there, which is what `hex_colour`
+    reads back: the two are inverses, and neither applies a transfer function."""
+    return [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)] + [1.0]
+
+
+def write(parts, generator='midnight-snackers tools/field'):
+    """`parts` as a .glb.
+
+    Each part becomes one mesh of one primitive under a node, and the nodes are nested to match
+    the paths, so that what `read` gives back is what went in -- names, tree, triangles and
+    colours alike. Points shared between a part's triangles are written once and indexed.
+    """
+    document = {
+        'asset': {'version': '2.0', 'generator': generator},
+        'scene': 0, 'scenes': [{'nodes': []}],
+        'nodes': [], 'meshes': [], 'materials': [],
+        'accessors': [], 'bufferViews': [], 'buffers': [],
+    }
+    blob = bytearray()
+    materials = {}
+
+    def view(data, target):
+        blob.extend(b'\x00' * (-len(blob) % 4))
+        offset = len(blob)
+        blob.extend(data)
+        document['bufferViews'].append(
+            {'buffer': 0, 'byteOffset': offset, 'byteLength': len(data), 'target': target})
+        return len(document['bufferViews']) - 1
+
+    def material_for(colour):
+        if colour not in materials:
+            document['materials'].append(
+                {'name': colour,
+                 'pbrMetallicRoughness': {'baseColorFactor': _colour_factor(colour),
+                                          'metallicFactor': 0.0, 'roughnessFactor': 0.7}})
+            materials[colour] = len(document['materials']) - 1
+        return materials[colour]
+
+    # The nodes named by a path, so that parts of one assembly hang under one node. Only the
+    # branches are shared: a leaf is always its own node, or two parts alike would collide.
+    branches = {}
+
+    def branch(path):
+        parent = None
+        for depth in range(len(path)):
+            key = tuple(path[:depth + 1])
+            if key not in branches:
+                document['nodes'].append({'name': path[depth]})
+                branches[key] = len(document['nodes']) - 1
+                if parent is None:
+                    document['scenes'][0]['nodes'].append(branches[key])
+                else:
+                    document['nodes'][parent].setdefault('children', []).append(branches[key])
+            parent = branches[key]
+        return parent
+
+    for part in parts:
+        if not part.triangles:
+            continue  # a mesh with no primitive is a file some readers refuse
+        order, points = [], {}
+        for triangle in part.triangles:
+            for point in triangle:
+                key = tuple(point)
+                if key not in points:
+                    points[key] = len(points)
+                order.append(points[key])
+
+        data = b''.join(struct.pack('<fff', *p) for p in points)
+        lows = [min(p[i] for p in points) for i in range(3)]
+        highs = [max(p[i] for p in points) for i in range(3)]
+        document['accessors'].append(
+            {'bufferView': view(data, 34962), 'componentType': 5126, 'count': len(points),
+             'type': 'VEC3', 'min': lows, 'max': highs})
+        position = len(document['accessors']) - 1
+
+        narrow = len(points) <= 0xFFFF
+        fmt, component = ('<H', 5123) if narrow else ('<I', 5125)
+        data = b''.join(struct.pack(fmt, i) for i in order)
+        document['accessors'].append(
+            {'bufferView': view(data, 34963), 'componentType': component, 'count': len(order),
+             'type': 'SCALAR'})
+
+        primitive = {'attributes': {'POSITION': position},
+                     'indices': len(document['accessors']) - 1, 'mode': TRIANGLES}
+        if part.colour:
+            primitive['material'] = material_for(part.colour)
+        document['meshes'].append({'name': part.name, 'primitives': [primitive]})
+
+        path = list(part.path) if part.path else [part.name]
+        node = {'name': path[-1], 'mesh': len(document['meshes']) - 1}
+        document['nodes'].append(node)
+        index = len(document['nodes']) - 1
+        parent = branch(path[:-1]) if len(path) > 1 else None
+        if parent is None:
+            document['scenes'][0]['nodes'].append(index)
+        else:
+            document['nodes'][parent].setdefault('children', []).append(index)
+
+    if not document['materials']:
+        del document['materials']
+    document['buffers'] = [{'byteLength': len(blob)}] if blob else []
+
+    text = json.dumps(document, separators=(',', ':')).encode('utf-8')
+    text += b' ' * (-len(text) % 4)
+    blob.extend(b'\x00' * (-len(blob) % 4))
+    chunks = struct.pack('<II', len(text), CHUNK_JSON) + text
+    if blob:
+        chunks += struct.pack('<II', len(blob), CHUNK_BIN) + bytes(blob)
+    return struct.pack('<4sII', GLB_MAGIC, GLB_VERSION, 12 + len(chunks)) + chunks

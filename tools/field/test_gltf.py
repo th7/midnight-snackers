@@ -292,3 +292,72 @@ class Colour(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Writing(unittest.TestCase):
+    """Writing glTF, checked by reading it back: the reader is tested against bytes built by hand
+    above, so a round trip through it says the writer agrees with the format and not merely with
+    itself."""
+
+    def roundtrip(self, parts):
+        return gltf.read(gltf.write(parts))
+
+    def test_a_triangle_survives_a_round_trip(self):
+        part = gltf.Part('Part', ['Root', 'Part'], [TRIANGLE], '#5fa73d')
+        back = self.roundtrip([part])
+        self.assertEqual(1, len(back))
+        self.assertEqual('Part', back[0].name)
+        self.assertEqual(['Root', 'Part'], back[0].path)
+        self.assertEqual([TRIANGLE], [tuple(t) for t in back[0].triangles])
+        self.assertEqual('#5fa73d', back[0].colour)
+
+    def test_what_is_written_is_a_glb(self):
+        body = gltf.write([gltf.Part('Part', ['Part'], [TRIANGLE], None)])
+        self.assertEqual(b'glTF', body[:4])
+        self.assertEqual(len(body), struct.unpack_from('<I', body, 8)[0])
+        self.assertEqual(0, len(body) % 4, 'the chunks are padded to four bytes')
+
+    def test_parts_keep_the_tree_their_paths_describe(self):
+        """A renderer groups by the assembly a part sits in, so the nesting has to survive."""
+        parts = [
+            gltf.Part('Pipe', ['Field', 'Flower <1>', 'Pipe'], [TRIANGLE], '#5fa73d'),
+            gltf.Part('Backstop', ['Field', 'Flower <1>', 'Backstop'], [TRIANGLE], '#641c65'),
+            gltf.Part('Tray', ['Field', 'Tray'], [TRIANGLE], '#666666'),
+        ]
+        back = self.roundtrip(parts)
+        self.assertEqual(sorted(p.path for p in parts), sorted(p.path for p in back))
+
+    def test_two_parts_of_the_same_colour_share_one_material(self):
+        body = gltf.write([gltf.Part('A', ['A'], [TRIANGLE], '#5fa73d'),
+                           gltf.Part('B', ['B'], [TRIANGLE], '#5fa73d'),
+                           gltf.Part('C', ['C'], [TRIANGLE], '#641c65')])
+        document, _ = gltf._unpack_glb(body)
+        self.assertEqual(2, len(document['materials']))
+
+    def test_a_part_with_no_colour_round_trips_without_one(self):
+        self.assertIsNone(self.roundtrip([gltf.Part('P', ['P'], [TRIANGLE], None)])[0].colour)
+
+    def test_positions_carry_the_bounds_the_format_requires(self):
+        """glTF requires min and max on a POSITION accessor; a viewer uses them to frame the scene
+        and some refuse the file without them."""
+        body = gltf.write([gltf.Part('P', ['P'], [TRIANGLE], None)])
+        document, _ = gltf._unpack_glb(body)
+        position = next(a for a in document['accessors'] if a['type'] == 'VEC3')
+        self.assertEqual([0.0, 0.0, 0.0], position['min'])
+        self.assertEqual([1.0, 1.0, 0.0], position['max'])
+
+    def test_vertices_shared_between_triangles_are_written_once(self):
+        """Two triangles sharing an edge are four points, not six; at the size of a field that
+        difference is megabytes."""
+        second = (TRIANGLE[1], (1.0, 1.0, 0.0), TRIANGLE[2])
+        body = gltf.write([gltf.Part('P', ['P'], [TRIANGLE, second], None)])
+        document, _ = gltf._unpack_glb(body)
+        position = next(a for a in document['accessors'] if a['type'] == 'VEC3')
+        self.assertEqual(4, position['count'])
+
+    def test_nothing_written_is_empty(self):
+        """A part whose triangles all fell away is not written at all, rather than written as a
+        mesh with no primitive, which is a file some readers reject."""
+        back = self.roundtrip([gltf.Part('Gone', ['Gone'], [], None),
+                               gltf.Part('Here', ['Here'], [TRIANGLE], None)])
+        self.assertEqual(['Here'], [p.name for p in back])
