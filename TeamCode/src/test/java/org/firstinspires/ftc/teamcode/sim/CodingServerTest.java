@@ -2355,6 +2355,11 @@ public class CodingServerTest {
         assertTrue(page, page.contains("last.recipe"));
         String dashboard = user("GET", "/", cookie).body;
         assertTrue("the page wears the severity it is given", dashboard.contains("result.severity"));
+        assertTrue("and so does the admin's", page.contains("result.severity"));
+        assertTrue("including the recipe it prints", page.contains("last.severity"));
+        assertFalse(
+                "neither page works severity out for itself, which is why MergeReport says it",
+                page.contains("result.outcome === 'nothing'"));
     }
 
     // --- go to definition, find usages, and viewing what is not editable ---

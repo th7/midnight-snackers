@@ -75,10 +75,14 @@
   #tree .row.dir .name::before { content: "▸ "; color: var(--muted); }
   .urls { display: grid; gap: 4px; }
   .recipe { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .recipe .why { color: var(--bad); }
+  .recipe .why { color: var(--muted); }
+  .recipe .why.ok { color: var(--ok); }
+  .recipe .why.warn { color: var(--warn); }
+  .recipe .why.bad { color: var(--bad); }
   .git { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; font-size: 12px; color: var(--muted); }
   .result { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
   .result.ok { color: var(--ok); }
+  .result.warn { color: var(--warn); }
   .result.bad { color: var(--bad); }
   button.pull { position: relative; }
   button.pull .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent); }
@@ -227,7 +231,14 @@
     }).then(function (reply) {
       var result;
       try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-      resultByUsername[user.username] = { text: result.message, kind: reply.ok ? (result.outcome === 'nothing' ? '' : 'ok') : 'bad' };
+      // How bad it is is the server's answer, not one the page works out again: MergeReport exists
+      // because both pages used to derive it from the status code and the outcome name, and
+      // disagreed about a push that landed but could not reach origin. A reply that never arrived
+      // carries no severity, and that is the one case the page judges for itself.
+      resultByUsername[user.username] = {
+        text: result.message,
+        kind: result.severity === undefined ? 'bad' : result.severity
+      };
       delete pullingByUsername[user.username];
       refresh();
     });
@@ -396,7 +407,7 @@
       var recipe = document.createElement('pre');
       recipe.className = 'recipe mono';
       var why = document.createElement('div');
-      why.className = 'why';
+      why.className = 'why ' + (last.severity || '');
       why.textContent = last.op + ': ' + last.message;
       recipe.appendChild(why);
       recipe.appendChild(document.createTextNode(last.recipe.join('\n')));
