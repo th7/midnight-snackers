@@ -9,7 +9,7 @@
 #   - GITHUB_TOKEN                   # name only — value forwarded from host env
 #
 # ports:
-#   - "8765:8765"
+#   - "21986:21986"                 # the coding server's user port
 
 egress_allow:
   - host: host.docker.internal

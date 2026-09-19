@@ -72,4 +72,43 @@ RUN yes | sdkmanager --licenses > /dev/null \
         "build-tools;36.0.0" \
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
+# --- a browser, for testing the simulator's pages ------------------------------
+# The pages are the part of the simulator nothing tests. tools/renderer/check.mjs
+# loads field.glb with the three.js the page uses, but it runs in node: no canvas,
+# no WebGL, and nothing has ever seen the field drawn. A page that throws on its
+# first frame, or puts the field behind the camera, passes every other gate.
+#
+# Debian's chromium rather than a build fetched from a URL: it is packaged for
+# whichever architecture the image is built for, and apt brings the shared
+# libraries with it — a long list, and a quiet failure to get wrong. Note that
+# amd64 is an added architecture here for Rosetta's sake, so this names no
+# architecture and takes the native one.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        chromium \
+        fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+# Where a test harness finds it. Playwright and Puppeteer each download a browser
+# of their own by default, which on linux-arm64 is either missing or a second copy
+# of what apt just installed.
+ENV CHROME_BIN=/usr/bin/chromium \
+    PUPPETEER_SKIP_DOWNLOAD=1 \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# Every apt layer above can ship setuid binaries, and chromium's sandbox helper is
+# one. The agent drops to uid 1000 at startup and is never meant to climb back, so
+# a root-owned entry point reachable from it is only attack surface. Containers
+# also run with --security-opt no-new-privileges, but that is a run-time argument
+# and the image should not depend on it.
+#
+# The consequence is that chromium's own sandbox cannot start, so browser tests
+# must pass --no-sandbox. See doc/browser-tests.md.
+RUN find / -xdev -perm /6000 -type f -exec chmod -s {} +
+
 USER agent
+
+# Run it once here, so a browser that cannot start is a failed build rather than a
+# failed test weeks later.
+RUN chromium --version \
+    && chromium --headless --no-sandbox --disable-gpu --dump-dom about:blank > /dev/null
