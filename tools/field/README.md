@@ -108,11 +108,14 @@ are expected.
 
 The bench draws `field.glb` with three.js, vendored under the simulator's
 resources (`vendor/`, MIT, in `doc/legal`) so the page loads nothing from the
-network -- the robot's wifi has none. The page is `field.html`, served at
-`/field` on the bench, and it reaches its own assets by relative link so it
-works wherever the bench is mounted.
+network -- the robot's wifi has none. The page is `field.html`, served by the
+bench at `/field`, which under the coding server means
+**<http://localhost:21986/sim/field>** -- the bench is mounted at `/sim`
+there. It reaches its own assets, its model and its runs by links relative to
+wherever it was served from, so it works under either, and a trailing slash
+is not routed because it would move what those links resolve against.
 
-`/field?run=<id>` plays a run back: the robot where the simulator had it, the
+`/sim/field?run=<id>` plays a run back: the robot where the simulator had it, the
 game pieces where they had rolled to, and each hive leaning the way the run
 left it. The geometry is all in `field.glb`; what a tick carries is where
 things had moved to. What the geometry cannot say -- which pieces move and in
@@ -127,7 +130,7 @@ node fails the run rather than skipping the check.
 
 ## The camera's view
 
-`/field?run=<id>&view=camera` shows what the robot's webcam would have seen of
+`/sim/field?run=<id>&view=camera` shows what the robot's webcam would have seen of
 the goal tags: the tags where they are, in the perspective the lens gives, and
 nothing else. The field is hidden rather than absent, so a tag still leans with
 the hive it hangs on as the run plays.
