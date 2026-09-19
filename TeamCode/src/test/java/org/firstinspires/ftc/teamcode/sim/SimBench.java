@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
@@ -28,6 +29,8 @@ public final class SimBench {
     private static final int LOG_LINES = 200;
 
     private static final double STARTUP_SECONDS = 60;
+    private static final double SILENCE_SECONDS = 5;
+    private static final long SILENCE_POLL_MILLIS = 100;
 
     public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
 
@@ -599,8 +602,8 @@ public final class SimBench {
                 "sim-run-" + run.id + "-log");
         stderr.setDaemon(true);
         stderr.start();
-        double maxSeconds = run.budgetSeconds() + killGraceSeconds;
         CountDownLatch started = new CountDownLatch(1);
+        AtomicLong lastHeardNanos = new AtomicLong(System.nanoTime());
         Thread watchdog = new Thread(
                 () -> {
                     try {
@@ -613,11 +616,16 @@ public final class SimBench {
                             }
                             return;
                         }
-                        if (!child.waitFor((long) (maxSeconds * 1000), TimeUnit.MILLISECONDS)) {
-                            run.finish(
-                                    SimRunStream.Outcome.killed(maxSeconds, "the op mode did not return"),
-                                    "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
-                            child.destroyForcibly();
+                        while (child.isAlive() && run.outcome() == null) {
+                            double silentSeconds = (System.nanoTime() - lastHeardNanos.get()) / 1e9;
+                            if (silentSeconds > SILENCE_SECONDS) {
+                                run.finish(
+                                        SimRunStream.Outcome.killed(SILENCE_SECONDS, "the op mode did not return"),
+                                        "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
+                                child.destroyForcibly();
+                                return;
+                            }
+                            Thread.sleep(SILENCE_POLL_MILLIS);
                         }
                     } catch (InterruptedException ignored) {
                     }
@@ -647,6 +655,7 @@ public final class SimBench {
                 new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
             boolean first = true;
             for (String line = out.readLine(); line != null; line = out.readLine()) {
+                lastHeardNanos.set(System.nanoTime());
                 if (line.isBlank()) {
                     continue;
                 }

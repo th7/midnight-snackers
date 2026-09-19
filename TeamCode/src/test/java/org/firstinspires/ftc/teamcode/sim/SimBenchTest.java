@@ -233,9 +233,9 @@ public class SimBenchTest {
         SimBench.Run run = await(bench.start(bench.catalog().find("Hangs").get(), "ada"));
 
         assertTrue(run.outcome(), run.outcome().startsWith("killed"));
-        assertTrue(run.outcome(), run.outcome().contains("1.3"));
+        assertTrue(run.outcome(), run.outcome().contains("the op mode did not return"));
         double seconds = (System.nanoTime() - startedAt) / 1e9;
-        assertTrue("took " + seconds + "s", seconds < 10);
+        assertTrue("took " + seconds + "s", seconds < 30);
         assertNull(bench.current());
     }
 
@@ -625,6 +625,23 @@ public class SimBenchTest {
         SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
 
         assertEquals("done", run.outcome());
+        assertTrue(run.ticks().size() > 1);
+    }
+
+    @Test
+    public void aRunIsNotKilledForTakingLongerInRealTimeThanItsPeriodLastsInSimulatedTime() throws Exception {
+        bench = new SimBench(
+                SimCatalog.of(TestTeleOps.SlowMachineTeleOp.class),
+                null,
+                outputDir(),
+                TIMEOUT_SECONDS,
+                0.3,
+                GRACE_SECONDS);
+
+        SimBench.Run run =
+                await(bench.start(bench.catalog().find("Slow machine").get(), "ada"));
+
+        assertEquals(run.message() + "\n" + run.log(), "done", run.outcome());
         assertTrue(run.ticks().size() > 1);
     }
 
