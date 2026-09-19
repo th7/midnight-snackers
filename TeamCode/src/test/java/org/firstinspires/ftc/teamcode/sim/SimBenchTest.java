@@ -700,6 +700,21 @@ public class SimBenchTest {
     }
 
     /** The bench's routes as the coding server mounts them for ada. */
+    /**
+     * An op mode nobody has, and a route asked for with the wrong method. Held here since the
+     * standalone dev server that used to assert it over HTTP was removed; the bench's routes are
+     * the same routes either way.
+     */
+    @Test
+    public void anOpModeNobodyHasAndAMethodTheRouteDoesNotTakeAreRefused() {
+        bench = new SimBench(
+                SimCatalog.of(HangingAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+
+        assertEquals(404, routes().handle(post("/run?opmode=org.example.Nope", "")).status);
+        assertEquals(405, routes().handle(get("/run?opmode=" + TEMP_NAME)).status);
+        assertEquals(404, routes().handle(get("/runs/999/ticks?from=0")).status);
+    }
+
     private Router routes() {
         return bench.routes("ada");
     }

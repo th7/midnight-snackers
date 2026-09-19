@@ -38,6 +38,13 @@ public final class SimBench {
     private static final int LOG_LINES = 200;
     /** How long a child may take to load its catalog and say the op mode has started. */
     private static final double STARTUP_SECONDS = 60;
+
+    /** How long a run may take before the bench kills it. */
+    public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
+    /** A match's driver-controlled period. */
+    public static final double DEFAULT_TELEOP_SECONDS = 120;
+    /** How long a killed child is given to stop before it is taken away. */
+    public static final double DEFAULT_KILL_GRACE_SECONDS = 5;
     /** Where the robot is placed for each op mode, remembered under the output directory. */
     static final String START_POSES_FILE = "start-poses.json";
 
