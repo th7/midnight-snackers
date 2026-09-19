@@ -26,19 +26,30 @@ panel artwork and the four goal April Tag images, as blobs.
 
 `onshape.py` is the client. Most of that document is public and needs no
 credentials -- its metadata, its element listing, its BOM and its blobs.
-Only geometry is authenticated, so exporting the assembly needs a key pair
-from <https://dev-portal.onshape.com>, in the environment and never in the
+Only geometry is authenticated, and there are two ways that happens.
+
+Under my-agent, an egress proxy signs `cad.onshape.com` on the way out: the
+container holds no keys and needs none. Because the signature covers the
+path and query of the request the proxy finally sends, one computed in the
+container would not match, so requests go out bare and `Authorization`,
+`Date` and `On-Nonce` are the proxy's to set.
+
+Away from the proxy -- a teammate's laptop -- the key pair comes from
+<https://dev-portal.onshape.com>, in the environment and never in the
 repository:
 
     export ONSHAPE_ACCESS_KEY=...
     export ONSHAPE_SECRET_KEY=...
+
+Either way:
+
     python3 tools/field/onshape.py --check
 
-`--check` makes one signed call and says whether Onshape accepted it. The
-unit tests pin the signing algorithm so it cannot drift silently, but only
-Onshape can say the signature is right, which is what that call is for. A
-call that needs keys and has none raises rather than carrying on, so a run
-that regenerates nothing cannot look like a run that worked.
+`--check` makes one call and says whether Onshape answered it. The unit
+tests pin the signing algorithm so it cannot drift silently, but only
+Onshape can say a signature is right, which is what that call is for. A
+geometry call nothing authenticated raises, naming both things it could be,
+so a run that regenerates nothing cannot look like a run that worked.
 
 `gltf.py` reads what the export answers with -- a `.glb`, or the JSON with
 its buffer inline -- into a flat list of parts, each with its node's name,
