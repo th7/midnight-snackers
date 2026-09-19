@@ -465,9 +465,7 @@
     for (let i = upTo; i >= 0; i--) if (ticks[i].pieces) return ticks[i].pieces;
     return null;
   }
-  const MOVED = FIELD.pieces.filter(p => p.loose)
-    .concat(FIELD.pieces.filter(p => p.cell))
-    .concat(FIELD.pieces.filter(p => p.flower));
+  const MOVED = FIELD.moved;
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {

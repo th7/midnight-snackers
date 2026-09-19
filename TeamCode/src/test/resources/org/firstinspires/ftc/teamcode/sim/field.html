@@ -298,10 +298,7 @@ async function showRun() {
     return;
   }
 
-  // The order a tick lists the pieces it moved, which is the order the simulator moves them in.
-  moved = model.pieces.filter((p) => p.loose)
-      .concat(model.pieces.filter((p) => p.cell))
-      .concat(model.pieces.filter((p) => p.flower));
+  moved = model.moved;
 
   // The CAD's own game pieces stand where the field was set up. A run moves them, so they are
   // drawn here instead and the model's are hidden -- two of each would be worse than none.
@@ -390,12 +387,8 @@ function piecesAt(upTo) {
 }
 
 function tiltAt(upTo, alliance) {
-  for (let i = upTo; i >= 0; i--) {
-    if (ticks[i].tilt && ticks[i].tilt[alliance] !== undefined) {
-      return ticks[i].tilt[alliance];
-    }
-  }
-  return null;
+  const said = ticks[upTo].tilt;
+  return said && said[alliance] !== undefined ? said[alliance] : null;
 }
 
 function goTo(index) {
