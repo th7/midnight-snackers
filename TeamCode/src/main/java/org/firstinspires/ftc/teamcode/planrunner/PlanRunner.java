@@ -13,7 +13,7 @@ public class PlanRunner implements Loopable {
 
     @Override
     public void loop() {
-        if (currentPlan != null && currentPlan.done()) {
+        if (currentPlan != null && currentPlan.tick()) {
             currentPlan = null;
         }
     }

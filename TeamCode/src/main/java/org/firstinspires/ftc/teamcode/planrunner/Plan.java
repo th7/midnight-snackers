@@ -19,10 +19,11 @@ public class Plan implements PlanPart {
         }
     }
 
-    public boolean done() {
+    @Override
+    public boolean tick() {
         PlanPart currentPlanPart = currentPlanPart();
         if (currentPlanPart != null) {
-            if (currentPlanPart.done()) {
+            if (currentPlanPart.tick()) {
                 currentPlanPartIndex += 1;
             }
             return false;

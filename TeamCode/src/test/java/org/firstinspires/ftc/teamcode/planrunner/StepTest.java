@@ -15,9 +15,9 @@ public class StepTest {
         AtomicInteger startCount = new AtomicInteger();
         Step step = new Step("step", startCount::incrementAndGet, () -> false, () -> nanoNow);
 
-        assertFalse(step.done());
-        assertFalse(step.done());
-        assertFalse(step.done());
+        assertFalse(step.tick());
+        assertFalse(step.tick());
+        assertFalse(step.tick());
 
         assertEquals(1, startCount.get());
     }
@@ -27,9 +27,9 @@ public class StepTest {
         boolean[] finished = {false};
         Step step = new Step("step", () -> {}, () -> finished[0], () -> nanoNow);
 
-        assertFalse(step.done());
+        assertFalse(step.tick());
         finished[0] = true;
-        assertTrue(step.done());
+        assertTrue(step.tick());
     }
 
     @Test
@@ -37,13 +37,13 @@ public class StepTest {
         nanoNow = 5_000_000_000L;
         Step step = new Step("step", () -> {}, Step.secondsElapsed(1), () -> nanoNow);
 
-        assertFalse(step.done());
+        assertFalse(step.tick());
 
         nanoNow += 999_999_999L;
-        assertFalse(step.done());
+        assertFalse(step.tick());
 
         nanoNow += 2;
-        assertTrue(step.done());
+        assertTrue(step.tick());
     }
 
     /** A wait is a timed step on the clock it is given, so a simulated clock can run it. */
@@ -52,12 +52,12 @@ public class StepTest {
         nanoNow = 7_000_000_000L;
         Step step = Step.waitFor("settle", 0.25, () -> nanoNow);
 
-        assertFalse(step.done());
+        assertFalse(step.tick());
         nanoNow += 250_000_000L;
-        assertFalse(step.done());
+        assertFalse(step.tick());
 
         nanoNow += 1;
-        assertTrue(step.done());
+        assertTrue(step.tick());
         assertEquals("settle waitFor 0.25", step.currentStep());
     }
 
