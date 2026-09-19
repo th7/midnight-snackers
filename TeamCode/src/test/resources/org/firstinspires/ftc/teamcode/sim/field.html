@@ -34,8 +34,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "assets/vendor/three.module.min.js",
-    "three/addons/": "assets/vendor/jsm/"
+    "three": "./assets/vendor/three.module.min.js",
+    "three/addons/": "./assets/vendor/jsm/"
   }
 }
 </script>
@@ -117,7 +117,7 @@ fit();
 
 let loaded = null;
 
-new GLTFLoader().load('assets/field.glb', (gltf) => {
+new GLTFLoader().load('./assets/field.glb', (gltf) => {
   let meshes = 0;
   let triangles = 0;
   gltf.scene.traverse((object) => {
