@@ -556,6 +556,49 @@ function lensProjection(lens, near, far) {
   return m;
 }
 
+/** A point in the field's frame, in a hive's own, with the hive at the tilt it is exported at. */
+function toHive(hive, point) {
+  const rest = THREE.MathUtils.degToRad(hive.tilt);
+  const c = Math.cos(rest);
+  const sn = Math.sin(rest);
+  const dx = point.x - hive.pivot[0];
+  const dy = point.y - hive.pivot[1];
+  const dz = point.z - hive.pivot[2];
+  return new THREE.Vector3(dx * c + dz * sn, dy, -dx * sn + dz * c);
+}
+
+/**
+ * How far down the plate this tag is printed on reaches, in the hive's own frame.
+ *
+ * Not what field.json says: that is a hull of the points that bound the part, and it comes out
+ * thinner than the part really is -- a scoring plate reaches to -1.528 where the hull says
+ * -1.500. A quad placed by the hull sits inside the plate that is actually drawn, and the two
+ * fight for the same pixels.
+ *
+ * And not the part's bounding box either. The plate is square to the hive's axes but the hive
+ * leans, so a box square to the field's is much bigger than the plate and its lowest corner is
+ * most of an inch below the underside. The points themselves are what is asked.
+ */
+function plateBottom(hive, group, side) {
+  let found = null;
+  (group || field).traverse((o) => {
+    if (o.isMesh && /april[\s_-]*tag/i.test(o.name) && new RegExp(side, 'i').test(o.name)) {
+      found = o;
+    }
+  });
+  if (!found) {
+    return null;
+  }
+  const points = found.geometry.attributes.position;
+  const point = new THREE.Vector3();
+  let lowest = Infinity;
+  for (let i = 0; i < points.count; i++) {
+    point.fromBufferAttribute(points, i).applyMatrix4(found.matrixWorld);
+    lowest = Math.min(lowest, toHive(hive, point).z);
+  }
+  return lowest;
+}
+
 /** A point in a hive's own frame, in the field's, with the hive at the tilt it is exported at. */
 function fromHive(hive, point) {
   const rest = THREE.MathUtils.degToRad(hive.tilt);
@@ -593,7 +636,10 @@ function makeTags(loader) {
       const zs = part.vertices.map((v) => v[2]);
       const acrossBeam = Math.max(...ys) - Math.min(...ys);   // 17 in, and the artwork's long way
       const alongBeam = Math.max(...xs) - Math.min(...xs);    // 5 in
-      const under = Math.min(...zs) - 0.02;                   // just clear of the plate's underside
+      // Below the plate that is drawn, by a hundredth of an inch: enough that nothing rounds
+      // the two onto the same pixel, little enough that the artwork still reads as printed on it.
+      const drawn = plateBottom(hive, group ? group.group : null, side);
+      const under = (drawn === null ? Math.min(...zs) : drawn) - 0.01;
 
       tagsPending++;
       const texture = loader.load(image, () => {
@@ -637,6 +683,7 @@ function makeTags(loader) {
       // Hung under the hive so it leans with it -- which means it is inside the field, and the
       // camera view hides the field. Marked so that it is the one thing not hidden.
       quad.userData.tag = true;
+      quad.userData.plate = drawn;
       quad.renderOrder = 2;
       (group ? group.group : scene).add(quad);
       tagQuads.push(quad);
@@ -724,6 +771,10 @@ window.fieldPage = {
   get camera3() { return cameraView; },
   get tags() { return tagQuads.map((q) => q.name); },
   lens: CAMERA,
+  /** Whether each tag was placed against the plate in the scene or fell back to the hull. */
+  get tagPlacedAgainstGeometry() {
+    return tagQuads.map((quad) => quad.userData.plate !== null && quad.userData.plate !== undefined);
+  },
   tagsReady: tagsReady
 };
 </script>

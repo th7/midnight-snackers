@@ -339,6 +339,7 @@ try {
   }
 
   // --- the camera's view of the tags -------------------------------------------------------
+  let seenClearance = [];
   const camera = await (async () => {
     const view = await browser.newPage({ viewport: { width: 640, height: 480 } });
     const wrong = [];
@@ -352,6 +353,44 @@ try {
 
       // Where the lens says each tag should land, worked out from the camera matrix rather than
       // from the picture: a tag drawn in the wrong place still looks like a tag.
+      // How far each tag's artwork stands off the plate it is printed on -- measured here from
+      // the quad's own facing and the plate's own points, rather than read back from a number
+      // the page stored. The page can only report the offset it applied, which tells us nothing
+      // about whether that offset cleared the geometry.
+      seenClearance = await view.evaluate(() => {
+        const page = window.fieldPage;
+        const out = [];
+        page.scene.traverse((quad) => {
+          if (!/^tag /.test(quad.name || '')) {
+            return;
+          }
+          const side = /scoring/i.test(quad.name) ? /scoring/i : /audience/i;
+          const alliance = /blue/i.test(quad.name) ? /blue/i : /red/i;
+          let plate = null;
+          page.scene.traverse((o) => {
+            if (o.isMesh && /april/i.test(o.name || '') && side.test(o.name) && alliance.test(o.name)) {
+              plate = o;
+            }
+          });
+          if (!plate) {
+            out.push(null);
+            return;
+          }
+          // The quad faces away from the plate, so every point of the plate must lie behind it.
+          const facing = new quad.position.constructor();
+          quad.getWorldDirection(facing);
+          const point = new quad.position.constructor();
+          const points = plate.geometry.attributes.position;
+          let nearest = -Infinity;
+          for (let i = 0; i < points.count; i++) {
+            point.fromBufferAttribute(points, i).applyMatrix4(plate.matrixWorld).sub(quad.position);
+            nearest = Math.max(nearest, point.dot(facing));
+          }
+          out.push(-nearest); // how far the nearest part of the plate is behind the quad
+        });
+        return out;
+      });
+      let placedAgainstGeometry = null;
       const seen = await view.evaluate(() => {
         const page = window.fieldPage;
         const out = { tags: page.tags, lens: page.lens, at: [] };
@@ -393,10 +432,12 @@ try {
       // captured, and frames.mjs hides them for a capture. Here they would be most of what is
       // lit, and the point of counting lit pixels is to see the tags.
       await view.addStyleTag({ content: '#hud, #run { display: none !important; }' });
+      placedAgainstGeometry = await view.evaluate(() => window.fieldPage.tagPlacedAgainstGeometry);
       const shot = await view.screenshot();
-      return { seen, shot, wrong };
+      return { seen, shot, wrong, placedAgainstGeometry };
     } catch (stuck) {
-      return { seen: null, shot: null, wrong: wrong.concat(String(stuck && stuck.message)) };
+      return { seen: null, shot: null, placedAgainstGeometry: null,
+               wrong: wrong.concat(String(stuck && stuck.message)) };
     } finally {
       await view.close();
     }
@@ -405,6 +446,18 @@ try {
   check(camera.wrong.length === 0, `the camera view threw: ${camera.wrong.join('; ')}`);
   if (camera.seen) {
     check(camera.seen.tags.length === 4, `${camera.seen.tags.length} goal tags were made, of 4`);
+    check(seenClearance.length === 4,
+        `${seenClearance.length} of 4 tags were measured against the plate they are printed on`);
+    const placed = await (async () => camera.placedAgainstGeometry)();
+    check(placed && placed.every(Boolean),
+        'a tag was placed against field.json\'s hull of its plate rather than the plate drawn');
+    for (const clear of seenClearance) {
+      check(clear !== null && clear > 0.001,
+          `a tag's artwork stands ${clear} in clear of its plate, so part of the plate is in `
+          + 'front of it and the two fight for the same pixels');
+      check(clear === null || clear < 0.5,
+          `a tag's artwork stands ${clear} in off its plate, which is not printed on it`);
+    }
     const onScreen = camera.seen.at.filter(
         (t) => t.inFront && t.px > 0 && t.px < camera.seen.lens.width
             && t.py > 0 && t.py < camera.seen.lens.height);
