@@ -46,12 +46,12 @@ public class BrainTest {
 
         see(robot, 10, 20, Math.PI / 2);
 
-        assertEquals(-10, robot.nav.currentPose().x(), DELTA);
-        assertEquals(-20, robot.nav.currentPose().y(), DELTA);
+        assertEquals(-10, robot.nav.currentPose().xInches(), DELTA);
+        assertEquals(-20, robot.nav.currentPose().yInches(), DELTA);
         assertEquals(
                 "the camera's heading is the turntable's, so the robot's is that less the turn",
                 -Math.PI / 2,
-                robot.nav.currentPose().heading(),
+                robot.nav.currentPose().headingRadians(),
                 DELTA);
     }
 
@@ -76,7 +76,7 @@ public class BrainTest {
 
         see(robot, 10, 20, Math.PI / 2);
 
-        assertEquals(0, robot.nav.currentPose().x(), DELTA);
-        assertEquals(0, robot.nav.currentPose().y(), DELTA);
+        assertEquals(0, robot.nav.currentPose().xInches(), DELTA);
+        assertEquals(0, robot.nav.currentPose().yInches(), DELTA);
     }
 }

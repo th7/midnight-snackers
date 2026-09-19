@@ -48,7 +48,7 @@ public final class SimDevices {
                 .voltageSensor(voltageSensor)
                 .aprilTags(aprilTags)
                 .dashboard(dashboard)
-                .clock(this::nanoTime)
+                .nanoClock(this::nanoTime)
                 .build();
     }
 

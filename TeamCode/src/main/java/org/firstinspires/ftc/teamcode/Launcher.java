@@ -19,7 +19,7 @@ public class Launcher implements Loopable {
 
     public static final double BOTTOM_GATE_WAIT_STEP_SECONDS = 0.01;
 
-    private final LongSupplier clock;
+    private final LongSupplier nanoClock;
 
     private final double topGateOpenPosition = 1;
     private final double topGateClosedPosition = 0.6;
@@ -35,8 +35,8 @@ public class Launcher implements Loopable {
     private double bottomGateWaitSeconds = BOTTOM_GATE_WAIT_SECONDS;
     private final PlanRunner planRunner = new PlanRunner();
 
-    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier clock, Prints telemetry) {
-        this.clock = clock;
+    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier nanoClock, Prints telemetry) {
+        this.nanoClock = nanoClock;
         this.launcher = launcher;
         this.topGate = topGate;
         this.bottomGate = bottomGate;
@@ -60,10 +60,10 @@ public class Launcher implements Loopable {
                 ensureFlywheelReady(),
                 launchCloseTopGate(),
                 launchOpenBottomGate(),
-                Step.waitFor("ball to fall into launcher", bottomGateWaitSeconds, clock),
+                Step.waitFor("ball to fall into launcher", bottomGateWaitSeconds, nanoClock),
                 launchCloseBottomGate(),
                 launchOpenTopGate(),
-                Step.waitFor("ball to fall into bottom position", 0.15, clock));
+                Step.waitFor("ball to fall into bottom position", 0.15, nanoClock));
     }
 
     private Step ensureFlywheelReady() {
@@ -84,7 +84,7 @@ public class Launcher implements Loopable {
                     topGatePosition = topGateClosedPosition;
                 },
                 Step.secondsElapsed(0.05),
-                clock);
+                nanoClock);
     }
 
     private Step launchOpenBottomGate() {
@@ -94,7 +94,7 @@ public class Launcher implements Loopable {
                     bottomGatePosition = bottomGateOpenPosition;
                 },
                 Step.secondsElapsed(0.05),
-                clock);
+                nanoClock);
     }
 
     private Step launchCloseBottomGate() {
@@ -104,7 +104,7 @@ public class Launcher implements Loopable {
                     bottomGatePosition = bottomGateClosedPosition;
                 },
                 Step.secondsElapsed(0.08),
-                clock);
+                nanoClock);
     }
 
     private Step launchOpenTopGate() {
@@ -114,7 +114,7 @@ public class Launcher implements Loopable {
                     topGatePosition = topGateOpenPosition;
                 },
                 Step.secondsElapsed(0.05),
-                clock);
+                nanoClock);
     }
 
     public void slowLaunchyLaunch() {
@@ -124,7 +124,7 @@ public class Launcher implements Loopable {
     }
 
     private Plan slowLaunchPlan() {
-        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8, clock));
+        return new Plan(launchPlan(), Step.waitFor("slow launch", 0.8, nanoClock));
     }
 
     public void increasePower() {
@@ -145,11 +145,11 @@ public class Launcher implements Loopable {
         launcherVelocity = closeLauncherPower;
     }
 
-    public void increaseBottomGateWaitTime() {
+    public void increaseBottomGateWaitSeconds() {
         bottomGateWaitSeconds = bottomGateWaitSeconds + BOTTOM_GATE_WAIT_STEP_SECONDS;
     }
 
-    public void decreaseBottomGateWaitTime() {
+    public void decreaseBottomGateWaitSeconds() {
         bottomGateWaitSeconds = Math.max(0, bottomGateWaitSeconds - BOTTOM_GATE_WAIT_STEP_SECONDS);
     }
 

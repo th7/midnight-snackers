@@ -123,7 +123,7 @@ public class SimBenchTest {
                 + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
                 + " org.firstinspires.ftc.teamcode.Nav nav,"
                 + " org.firstinspires.ftc.teamcode.Launcher launcher,"
-                + " java.util.function.LongSupplier clock) { }\n"
+                + " java.util.function.LongSupplier nanoClock) { }\n"
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group
                 + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops

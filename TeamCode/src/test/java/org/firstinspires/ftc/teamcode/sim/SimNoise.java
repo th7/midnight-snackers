@@ -38,12 +38,12 @@ public final class SimNoise {
     public static final int LEFT_FRONT = 0, RIGHT_FRONT = 1, LEFT_BACK = 2, RIGHT_BACK = 3;
 
     public static final class Motor {
-        public final double kS, kV, kA;
+        public final double kSVolts, kVVoltSecondsPerTick, kAVoltSecondsSquaredPerTick;
 
-        public Motor(double kS, double kV, double kA) {
-            this.kS = kS;
-            this.kV = kV;
-            this.kA = kA;
+        public Motor(double kSVolts, double kVVoltSecondsPerTick, double kAVoltSecondsSquaredPerTick) {
+            this.kSVolts = kSVolts;
+            this.kVVoltSecondsPerTick = kVVoltSecondsPerTick;
+            this.kAVoltSecondsSquaredPerTick = kAVoltSecondsSquaredPerTick;
         }
     }
 
@@ -252,7 +252,9 @@ public final class SimNoise {
         String[] names = {"lf", "rf", "lb", "rb"};
         for (int wheel = 0; wheel < 4; wheel++) {
             Motor motor = this.motors[wheel];
-            motors.append(String.format(" %s kS x%.3f kV x%.3f kA x%.3f", names[wheel], motor.kS, motor.kV, motor.kA));
+            motors.append(String.format(
+                    " %s kSVolts x%.3f kVVoltSecondsPerTick x%.3f kAVoltSecondsSquaredPerTick x%.3f",
+                    names[wheel], motor.kSVolts, motor.kVVoltSecondsPerTick, motor.kAVoltSecondsSquaredPerTick));
         }
         return String.format(
                 "seed %d:%s; battery %.2f V sag %.2f V/power drain %.4f V/s; traction %.2f g;"

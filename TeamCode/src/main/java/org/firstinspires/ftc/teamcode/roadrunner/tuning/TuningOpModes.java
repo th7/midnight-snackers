@@ -64,9 +64,9 @@ public final class TuningOpModes {
             return new DriveView(
                     DriveType.MECANUM,
                     MecanumDrive.PARAMS.inPerTick,
-                    MecanumDrive.PARAMS.maxWheelVel,
-                    MecanumDrive.PARAMS.minProfileAccel,
-                    MecanumDrive.PARAMS.maxProfileAccel,
+                    MecanumDrive.PARAMS.maxWheelVelInchesPerSecond,
+                    MecanumDrive.PARAMS.minProfileAccelInchesPerSecondSquared,
+                    MecanumDrive.PARAMS.maxProfileAccelInchesPerSecondSquared,
                     encoderGroups,
                     md.wheels.left(),
                     md.wheels.right(),
@@ -77,9 +77,9 @@ public final class TuningOpModes {
                     md.lazyImu,
                     md.voltageSensor,
                     () -> new MotorFeedforward(
-                            MecanumDrive.PARAMS.kS,
-                            MecanumDrive.PARAMS.kV / MecanumDrive.PARAMS.inPerTick,
-                            MecanumDrive.PARAMS.kA / MecanumDrive.PARAMS.inPerTick),
+                            MecanumDrive.PARAMS.kSVolts,
+                            MecanumDrive.PARAMS.kVVoltSecondsPerTick / MecanumDrive.PARAMS.inPerTick,
+                            MecanumDrive.PARAMS.kAVoltSecondsSquaredPerTick / MecanumDrive.PARAMS.inPerTick),
                     0);
         };
 

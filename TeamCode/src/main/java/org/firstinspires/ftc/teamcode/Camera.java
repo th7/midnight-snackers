@@ -21,9 +21,9 @@ public class Camera implements Loopable {
     private final Supplier<List<AprilTagDetection>> detectionSource;
     private AprilTagDetection goalDetection;
 
-    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier clock, Prints telemetry) {
+    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier nanoClock, Prints telemetry) {
         this.detectionSource = detectionSource;
-        this.detectionFilter = new DetectionFilter(clock);
+        this.detectionFilter = new DetectionFilter(nanoClock);
         this.telemetry = telemetry;
     }
 
@@ -92,9 +92,9 @@ public class Camera implements Loopable {
                     telemetry.addData(
                             "roadrunner x, y, h(rads)",
                             "%.02f, %.02f, %.02f",
-                            sighting.get().x(),
-                            sighting.get().y(),
-                            -sighting.get().heading());
+                            sighting.get().xInches(),
+                            sighting.get().yInches(),
+                            -sighting.get().headingRadians());
                 }
             }
         }

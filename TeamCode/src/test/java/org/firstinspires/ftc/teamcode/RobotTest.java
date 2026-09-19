@@ -64,8 +64,8 @@ public class RobotTest {
     public void theNavPlaysForTheRobotsAlliance() {
         Robot red = new Robot(sim.hardware(), Alliance.RED, telemetry);
 
-        assertEquals(-1, red.nav.pose(0, 1, 1).y(), 0);
-        assertEquals(1, robot.nav.pose(0, 1, 1).y(), 0);
+        assertEquals(-1, red.nav.pose(0, 1, 1).yInches(), 0);
+        assertEquals(1, robot.nav.pose(0, 1, 1).yInches(), 0);
     }
 
     @Test
@@ -75,10 +75,10 @@ public class RobotTest {
 
     @Test
     public void theRobotRunsOnItsHardwaresClock() {
-        assertEquals(0, robot.clock.getAsLong());
+        assertEquals(0, robot.nanoClock.getAsLong());
 
         sim.step(1.5);
 
-        assertEquals(1_500_000_000L, robot.clock.getAsLong());
+        assertEquals(1_500_000_000L, robot.nanoClock.getAsLong());
     }
 }

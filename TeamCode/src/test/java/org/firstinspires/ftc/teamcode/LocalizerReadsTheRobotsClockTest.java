@@ -59,7 +59,7 @@ public class LocalizerReadsTheRobotsClockTest {
     public void theEncoderGetsItWrongWhenTheClockIsNotTheRobots() {
         int recovered = recoveredWithReadsApart(5_000_000L);
 
-        assertNotEquals("a wrong clock must give a wrong count", TRUE_TICKS_PER_SECOND, recovered);
+        assertNotEquals("a wrong nanoClock must give a wrong count", TRUE_TICKS_PER_SECOND, recovered);
         assertEquals(
                 "wrong by whole wraps, which is what this failure looks like",
                 0,
@@ -99,7 +99,7 @@ public class LocalizerReadsTheRobotsClockTest {
                 .collect(Collectors.toList());
 
         assertEquals(
-                "these read the machine's clock instead of the robot's; use ClockedOverflowEncoder",
+                "these read the machine's nanoClock instead of the robot's; use ClockedOverflowEncoder",
                 List.of(),
                 offenders);
     }

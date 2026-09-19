@@ -40,8 +40,8 @@ public class FastDrive {
         }
     }
 
-    private final double positionXCloseEnough = 0.7;
-    private final double positionYCloseEnough = 0.5;
+    private final double positionXCloseEnoughInches = 0.7;
+    private final double positionYCloseEnoughInches = 0.5;
     private final double headingCloseEnoughRads = 0.017;
     private final float straightMinPower = 0.1f;
     private final float strafeMinPower = 0.1f;
@@ -59,7 +59,7 @@ public class FastDrive {
     public Steering steer(Pose2d currentPose, Pose2d destination) {
         Pose2d error = destination.minusExp(currentPose);
 
-        boolean nearStraight = Math.abs(error.position.x) < positionXCloseEnough;
+        boolean nearStraight = Math.abs(error.position.x) < positionXCloseEnoughInches;
         float straightPower;
         if (nearStraight) {
             straightPower = 0;
@@ -69,7 +69,7 @@ public class FastDrive {
             straightPower = clamp(xOutput, straightMinPower, 1);
         }
 
-        boolean nearStrafe = Math.abs(error.position.y) < positionYCloseEnough;
+        boolean nearStrafe = Math.abs(error.position.y) < positionYCloseEnoughInches;
         float strafePower;
         if (nearStrafe) {
             strafePower = 0;
