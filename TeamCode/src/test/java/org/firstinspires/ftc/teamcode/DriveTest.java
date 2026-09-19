@@ -21,7 +21,8 @@ public class DriveTest {
     private static final Action FOREVER = packet -> true;
 
     private final SimDevices devices = new SimDevices();
-    private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final FakeTelemetry screen = new FakeTelemetry();
+    private final Robot robot = new Robot(devices.hardware(), Alliance.RELATIVE, screen);
     private final Drive drive = robot.drive;
 
     /** The four wheel powers, in {@link #assertPowers}' order. */
@@ -172,6 +173,33 @@ public class DriveTest {
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage(), expected.getMessage().contains("in progress"));
         }
+    }
+
+    @Test
+    public void towardWhileAnActionIsFollowedCommandsNothingAndDoesNotClaimToHaveArrived() {
+        drive.follow(FOREVER);
+        drive.loop();
+
+        boolean arrived = drive.toward(robot.nav.pose(0, 0, 0));
+
+        assertFalse(arrived);
+        assertPowers(0, 0, 0, 0);
+    }
+
+    @Test
+    public void theSteeringDoesNotRunWhileAnActionOwnsTheWheelsSoItsControllersRememberNoLoopTheRobotIgnored() {
+        robot.channels.toggle(Drive.CHANNEL);
+        drive.follow(FOREVER);
+
+        drive.toward(robot.nav.pose(48, 0, 0));
+        drive.loop();
+
+        assertTrue(
+                "the drive should still say it has not steered: " + screen.captions,
+                screen.captions.contains("Drive.steering"));
+        assertFalse(
+                "nothing to report about a steering that never happened",
+                screen.captions.contains("Drive.steeringArrived"));
     }
 
     /** The dashboard field view shows the robot where Nav says it is, even when nothing is driving. */
