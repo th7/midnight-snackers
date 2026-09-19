@@ -376,8 +376,11 @@ public final class CodingServer {
     // --- the user listener ---
 
     /**
-     * The user listener: the login and dashboard pages, the editor bundle and {@code /me} for
-     * anyone; files, the simulator, navigation, git and builds for approved sessions only.
+     * The user listener. Three things answer a caller the server does not know, and each has to:
+     * the page that offers the login, the login itself, and the {@code /me} the login page polls
+     * to see when it is approved, which says nothing about anyone but its own caller. Everything
+     * else -- files, the simulator, navigation, git, builds and the editor bundle -- is for
+     * approved sessions only.
      */
     private Router userRoutes() {
         Router approved = new Router()
@@ -396,10 +399,13 @@ public final class CodingServer {
                 .route("POST", "/git/commit", (request, params) -> gitCommit(sessionOf(request), request.body))
                 .route("POST", "/git/pull", (request, params) -> gitPull(sessionOf(request)))
                 .route("POST", "/git/push", (request, params) -> gitPush(sessionOf(request)))
+                .route("GET", "/build", (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))))
                 .route(
                         "GET",
-                        "/build",
-                        (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))));
+                        "/static/{name}",
+                        (request, params) -> STATIC.contains(params.get("name"))
+                                ? new Response(200, "application/javascript; charset=utf-8", page(params.get("name")))
+                                : Response.error(404, "not found: " + request.path));
         return new Router()
                 .route(
                         "GET",
@@ -407,12 +413,6 @@ public final class CodingServer {
                         (request, params) -> Response.html(
                                 isApproved(sessionOf(request)) ? page("dashboard.html") : page("login.html")))
                 .route("POST", "/login", (request, params) -> login(request))
-                .route(
-                        "GET",
-                        "/static/{name}",
-                        (request, params) -> STATIC.contains(params.get("name"))
-                                ? new Response(200, "application/javascript; charset=utf-8", page(params.get("name")))
-                                : Response.error(404, "not found: " + request.path))
                 .route("GET", "/me", (request, params) -> Response.json(GSON.toJson(me(sessionOf(request)))))
                 .mount("", approved);
     }

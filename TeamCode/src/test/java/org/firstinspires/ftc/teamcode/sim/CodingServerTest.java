@@ -969,8 +969,8 @@ public class CodingServerTest {
     // --- the editor: CodeMirror, served from the host because the robot's wifi has no internet ---
 
     @Test
-    public void theEditorBundleIsServedFromTheHostToAnyoneOnTheUserPort() throws IOException {
-        Reply bundle = user("GET", "/static/codemirror.js", null);
+    public void theEditorBundleIsServedFromTheHostToAnApprovedSession() throws IOException {
+        Reply bundle = user("GET", "/static/codemirror.js", approvedUser("mia"));
 
         assertEquals(200, bundle.status);
         assertTrue(bundle.header("Content-Type"), bundle.header("Content-Type").startsWith("application/javascript"));
@@ -980,12 +980,51 @@ public class CodingServerTest {
 
     @Test
     public void theStaticRouteServesOnlyTheBundle() throws IOException {
-        assertEquals(404, user("GET", "/static/nope.js", null).status);
-        assertEquals(404, user("GET", "/static/dashboard.html", null).status);
-        assertEquals(404, user("GET", "/static/admin.html", null).status);
-        assertEquals(404, user("GET", "/static/../CodingServer.class", null).status);
-        assertEquals(404, user("GET", "/static/", null).status);
+        String cookie = approvedUser("mia");
+        assertEquals(404, user("GET", "/static/nope.js", cookie).status);
+        assertEquals(404, user("GET", "/static/dashboard.html", cookie).status);
+        assertEquals(404, user("GET", "/static/admin.html", cookie).status);
+        assertEquals(404, user("GET", "/static/../CodingServer.class", cookie).status);
+        assertEquals(404, user("GET", "/static/", cookie).status);
         assertEquals(404, admin("GET", "/static/codemirror.js").status);
+    }
+
+    /**
+     * Nothing but the login itself answers a caller the server does not know. The editor bundle is
+     * not a secret, but an unapproved session has no business fetching anything: what is open is
+     * open deliberately and is listed here, and everything else refuses.
+     */
+    @Test
+    public void onlyTheLoginAnswersASessionThatIsNotApproved() throws IOException {
+        for (String path : new String[] {
+            "/static/codemirror.js",
+            "/files",
+            "/files/Plans.java",
+            "/git/status",
+            "/build",
+            "/sim/catalog",
+            "/nav/definition",
+            "/source/Plans.java",
+            "/sim/assets/field.glb",
+            "/sim/assets/textures/GoalAprilTag_bluescoring.png",
+            "/sim/assets/vendor/three.module.min.js"
+        }) {
+            assertEquals(path + " needs an approved session", 403, user("GET", path, null).status);
+        }
+    }
+
+    /**
+     * What a caller the server does not know may still reach, and why each one has to be reachable:
+     * the page that offers the login, the login itself, and the poll the login page waits on.
+     */
+    @Test
+    public void whatIsOpenIsTheLoginAndNothingElse() throws IOException {
+        assertEquals("the page that offers the login", 200, user("GET", "/", null).status);
+        assertTrue(user("GET", "/", null).body.contains("login"));
+
+        Reply me = user("GET", "/me", null);
+        assertEquals("the login page polls this to see when it is approved", 200, me.status);
+        assertTrue("and it says nothing about anyone else: " + me.body, me.body.contains("\"none\""));
     }
 
     @Test
@@ -1011,7 +1050,7 @@ public class CodingServerTest {
     public void everyEditorNameThePageUsesIsInTheBundle() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         String page = user("GET", "/", cookie).body;
-        String bundle = user("GET", "/static/codemirror.js", null).body;
+        String bundle = user("GET", "/static/codemirror.js", cookie).body;
         String exports = bundle.substring(bundle.indexOf("window.CM="));
         exports = exports.substring(0, exports.indexOf("}") + 1);
 

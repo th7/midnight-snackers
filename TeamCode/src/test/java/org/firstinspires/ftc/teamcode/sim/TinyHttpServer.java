@@ -112,17 +112,36 @@ public final class TinyHttpServer {
         public final int status;
         public final String contentType;
         public final String body;
+
+        /**
+         * The body as it goes out, when it is not text: the field's visual model is glTF, and
+         * bytes carried as a String come back from UTF-8 as replacement characters. Null for
+         * every text response, whose body is encoded on the way out instead.
+         */
+        private final byte[] binary;
+
         public final Map<String, String> headers;
 
         public Response(int status, String contentType, String body) {
-            this(status, contentType, body, Collections.emptyMap());
+            this(status, contentType, body, null, Collections.emptyMap());
         }
 
-        private Response(int status, String contentType, String body, Map<String, String> headers) {
+        private Response(int status, String contentType, String body, byte[] binary, Map<String, String> headers) {
             this.status = status;
             this.contentType = contentType;
             this.body = body;
+            this.binary = binary;
             this.headers = headers;
+        }
+
+        /** A response that is bytes rather than text: a model, an image, anything not UTF-8. */
+        public static Response bytes(String contentType, byte[] body) {
+            return new Response(200, contentType, "", body.clone(), Collections.emptyMap());
+        }
+
+        /** What goes on the wire. */
+        byte[] encoded() {
+            return binary != null ? binary : body.getBytes(StandardCharsets.UTF_8);
         }
 
         public static Response html(String body) {
@@ -144,7 +163,7 @@ public final class TinyHttpServer {
         public Response withHeader(String name, String value) {
             Map<String, String> copy = new LinkedHashMap<>(headers);
             copy.put(name, value);
-            return new Response(status, contentType, body, Collections.unmodifiableMap(copy));
+            return new Response(status, contentType, body, binary, Collections.unmodifiableMap(copy));
         }
     }
 
@@ -335,7 +354,7 @@ public final class TinyHttpServer {
     }
 
     private static void write(OutputStream out, Response response) throws IOException {
-        byte[] bytes = response.body.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = response.encoded();
         StringBuilder head = new StringBuilder("HTTP/1.0 " + response.status + " " + reason(response.status) + "\r\n"
                 + "Content-Type: " + response.contentType + "\r\n"
                 + "Content-Length: " + bytes.length + "\r\n"
