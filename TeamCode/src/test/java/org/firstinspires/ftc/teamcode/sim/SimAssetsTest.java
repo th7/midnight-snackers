@@ -8,6 +8,10 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.junit.Test;
 
@@ -96,6 +100,50 @@ public class SimAssetsTest {
      * that classpath sits in the same place -- the collision model, the page templates -- and a
      * route that served whatever it was asked for would hand out all of it.
      */
+    /**
+     * Every asset the field page names is one the bench will actually serve. A page that asks for
+     * a file nobody has does not say so: it draws an empty canvas, or a field with a part missing,
+     * and the only clue is in a console nobody has open. The names are in the page's import map
+     * and in the one line that loads the model, and they are checked here against the route that
+     * has to answer for them.
+     */
+    @Test
+    public void everyAssetTheFieldPageAsksForIsOneTheBenchServes() {
+        String page = SimAssets.page("field.html");
+        Matcher named =
+                Pattern.compile("[\"']" + "(assets/[A-Za-z0-9._/-]+)" + "[\"']").matcher(page);
+        Set<String> asked = new TreeSet<>();
+        while (named.find()) {
+            asked.add(named.group(1));
+        }
+
+        assertTrue("the page names no assets at all: " + page.length() + " bytes", asked.size() >= 3);
+        for (String url : asked) {
+            String name = url.substring("assets/".length());
+            // An import map may name a directory, which stands for the files under it.
+            if (name.endsWith("/")) {
+                assertNotNull(
+                        name + " is a directory the page imports from, and nothing is under it",
+                        SimField.class.getResource(name.substring(0, name.length() - 1)));
+                continue;
+            }
+            assertEquals(url + " is asked for by the page and not served", 200, SimAssets.serve(name).status);
+        }
+    }
+
+    /** The page loads the model through the addons, which reach for each other by relative path. */
+    @Test
+    public void theVendoredAddonsCanReachWhatTheyImport() {
+        for (String name : new String[] {
+            "vendor/three.module.min.js",
+            "vendor/jsm/loaders/GLTFLoader.js",
+            "vendor/jsm/controls/OrbitControls.js",
+            "vendor/jsm/utils/BufferGeometryUtils.js"
+        }) {
+            assertEquals(name + " is not where the page expects it", 200, SimAssets.serve(name).status);
+        }
+    }
+
     @Test
     public void onlyTheKindsOfFileThePageLoadsAreServed() {
         assertEquals(

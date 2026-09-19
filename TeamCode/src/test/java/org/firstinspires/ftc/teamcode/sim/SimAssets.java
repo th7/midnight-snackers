@@ -59,6 +59,15 @@ public final class SimAssets {
         return response.encoded();
     }
 
+    /** A page template from the same directory. Pages are text and are not served by name. */
+    public static String page(String name) {
+        byte[] body = read(name);
+        if (body == null) {
+            throw new IllegalStateException("missing page " + name + " next to " + SimField.class.getName());
+        }
+        return new String(body, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private static byte[] read(String name) {
         try (InputStream in = SimField.class.getResourceAsStream(name)) {
             return in == null ? null : in.readAllBytes();

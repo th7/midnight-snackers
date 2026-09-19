@@ -414,6 +414,9 @@ public final class SimBench {
                 // they are reached the same way and behind the same guard: under the coding server
                 // that is an approved session, and nothing about them is more open than a run is.
                 .route("GET", "/assets/{name*}", (request, params) -> SimAssets.serve(params.get("name")))
+                // The field in three dimensions, drawn from that model. Its asset links are
+                // relative, so the page reaches its own assets wherever the bench is mounted.
+                .route("GET", "/field", (request, params) -> Response.html(SimAssets.page("field.html")))
                 .route(
                         "GET",
                         "/start",
