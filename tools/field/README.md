@@ -40,6 +40,14 @@ Onshape can say the signature is right, which is what that call is for. A
 call that needs keys and has none raises rather than carrying on, so a run
 that regenerates nothing cannot look like a run that worked.
 
+`gltf.py` reads what the export answers with -- a `.glb`, or the JSON with
+its buffer inline -- into a flat list of parts, each with its node's name,
+the names of the nodes above it, its triangles already placed in the
+assembly's frame, and its colour. It reads only what the pipeline needs,
+and raises on anything else rather than skipping it: a part silently
+dropped, or one read at the wrong stride, would reach the simulator as
+geometry that looks plausible and is wrong.
+
 We take whatever the document holds at the time we refresh the assets:
 nothing here pins an Onshape version, and small changes between refreshes
 are expected.
