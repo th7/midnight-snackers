@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -149,6 +150,76 @@ public class TinyHttpServerTest {
             }
         }
         throw new AssertionError("could not judge: this machine has no non-loopback IPv4 address to connect from");
+    }
+
+    /**
+     * The field's visual model is three megabytes of glTF, and a server that can only answer with
+     * a String cannot serve it: the bytes go out through UTF-8 and come back as replacement
+     * characters. These are the bytes that proves it -- 0x89, and a lone 0xFF, are not UTF-8 and
+     * never survive the round trip.
+     */
+    @Test
+    public void bytesThatAreNotTextSurviveBeingServed() throws IOException {
+        byte[] model = new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, (byte) 0xFF, 0x00, 0x7F};
+        server(request -> Response.bytes("model/gltf-binary", model));
+
+        Bytes reply = getBytes("/field.glb");
+
+        assertEquals(200, reply.status);
+        assertArrayEquals(model, reply.body);
+    }
+
+    @Test
+    public void aBinaryResponseSaysHowLongItIsAndWhatItIs() throws IOException {
+        byte[] model = new byte[2048];
+        for (int i = 0; i < model.length; i++) {
+            model[i] = (byte) i;
+        }
+        server(request -> Response.bytes("model/gltf-binary", model));
+
+        Bytes reply = getBytes("/field.glb");
+
+        assertArrayEquals(model, reply.body);
+        assertEquals("2048", reply.header("Content-Length"));
+        assertEquals("model/gltf-binary", reply.header("Content-Type"));
+    }
+
+    @Test
+    public void textIsStillMeasuredInBytesRatherThanCharacters() throws IOException {
+        // "héllo" is five characters and six bytes; a Content-Length of five truncates it.
+        server(request -> Response.html("héllo"));
+
+        Bytes reply = getBytes("/");
+
+        assertEquals("6", reply.header("Content-Length"));
+        assertEquals("héllo", new String(reply.body, StandardCharsets.UTF_8));
+    }
+
+    private Bytes getBytes(String path) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(server.url() + path.substring(1)).openConnection();
+        connection.setRequestMethod("GET");
+        int status = connection.getResponseCode();
+        try (InputStream in = status < 400 ? connection.getInputStream() : connection.getErrorStream()) {
+            return new Bytes(status, in == null ? new byte[0] : in.readAllBytes(), connection);
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static final class Bytes {
+        final int status;
+        final byte[] body;
+        private final HttpURLConnection connection;
+
+        Bytes(int status, byte[] body, HttpURLConnection connection) {
+            this.status = status;
+            this.body = body;
+            this.connection = connection;
+        }
+
+        String header(String name) {
+            return connection.getHeaderField(name);
+        }
     }
 
     private Reply get(String path) throws IOException {

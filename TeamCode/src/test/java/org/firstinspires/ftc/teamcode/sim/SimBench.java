@@ -409,6 +409,11 @@ public final class SimBench {
         return new Router()
                 .route("GET", "/catalog", (request, params) -> catalogJson())
                 .route("GET", "/status", (request, params) -> Response.json(status()))
+                // The model, artwork and renderer a replay page draws the field with. They belong
+                // to the bench rather than to a server, so that wherever the bench is reached from
+                // they are reached the same way and behind the same guard: under the coding server
+                // that is an approved session, and nothing about them is more open than a run is.
+                .route("GET", "/assets/{name*}", (request, params) -> SimAssets.serve(params.get("name")))
                 .route(
                         "GET",
                         "/start",
