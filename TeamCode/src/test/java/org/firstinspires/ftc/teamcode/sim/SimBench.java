@@ -462,7 +462,7 @@ public final class SimBench {
                                 name -> Response.html(
                                         SimReplayPage.placement(name, kindOf(name), startPoses.get(name)))))
                 .route("POST", "/run", (request, params) -> run(request.query("opmode"), startedBy))
-                .route("GET", "/runs/{id}", (request, params) -> withRun(params, request, this::page))
+                .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
                 .route(
                         "GET",

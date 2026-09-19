@@ -93,6 +93,14 @@ public final class Router implements Function<Request, Response> {
         return this;
     }
 
+    public Router redirect(String method, String pattern, Function<Map<String, String>, String> target) {
+        return route(
+                method,
+                pattern,
+                (request, params) -> new Response(308, "text/plain; charset=utf-8", "")
+                        .withHeader("Location", target.apply(params)));
+    }
+
     /** Serves {@code router}'s routes under {@code prefix}; an empty prefix mounts them here. */
     public Router mount(String prefix, Router router) {
         return mount(prefix, request -> router);
