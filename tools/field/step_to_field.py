@@ -872,10 +872,34 @@ def build(step_path):
     }
 
 
+REQUIRED = ('size', 'wallHeight', 'elements', 'obstacles', 'hives', 'flowers', 'pieces', 'tape')
+
+
+def checked(field):
+    for key in REQUIRED:
+        if key not in field:
+            raise ValueError('the field model has no %r, which its readers index by name' % key)
+    if not field['size'] > 0:
+        raise ValueError('the field model has a size of %r, so nothing could be placed on it'
+                         % field['size'])
+    for obstacle in field['obstacles']:
+        for key in ('name', 'footprint', 'clears', 'stands'):
+            if key not in obstacle:
+                raise ValueError('an obstacle has no %r: %r' % (key, obstacle))
+        if len(obstacle['footprint']) < 3:
+            raise ValueError('%s has a footprint of %d corners, which encloses nothing'
+                             % (obstacle['name'], len(obstacle['footprint'])))
+    for piece in field['pieces']:
+        for key in ('name', 'kind', 'centre', 'radius', 'loose'):
+            if key not in piece:
+                raise ValueError('a game piece has no %r: %r' % (key, piece))
+    return field
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit('usage: step_to_field.py <field.step>')
-    field = build(sys.argv[1])
+    field = checked(build(sys.argv[1]))
     with open(OUT, 'w') as f:
         json.dump(field, f, separators=(',', ':'))
         f.write('\n')
