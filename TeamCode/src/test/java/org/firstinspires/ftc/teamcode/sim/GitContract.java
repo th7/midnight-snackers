@@ -27,6 +27,10 @@ public abstract class GitContract {
 
     protected abstract Git gitFor(Path root) throws IOException;
 
+    protected abstract void giveItARemoteItCanReach(String name) throws IOException;
+
+    protected abstract void giveItARemoteItCannotReach(String name) throws IOException;
+
     private void started() throws IOException {
         if (git != null) {
             return;
@@ -265,7 +269,7 @@ public abstract class GitContract {
     @Test
     public void pushingSendsDevelopToTheRemoteAndThenHasNothingLeftToSend() throws IOException {
         started();
-        GitFixture.withOrigin(root, folder.getRoot().toPath().resolve("origin.git"));
+        giveItARemoteItCanReach("origin");
         Path ada = worktreeFor("ada");
         write(ada, "ada.txt", "ada's file");
         git.stageEverything(ada);
@@ -283,12 +287,7 @@ public abstract class GitContract {
     @Test
     public void aRemoteThatCannotBeReachedIsRefusedRatherThanThrown() throws IOException {
         started();
-        GitFixture.git(
-                root,
-                "remote",
-                "add",
-                "origin",
-                root.resolve("no-such-origin.git").toString());
+        giveItARemoteItCannotReach("origin");
 
         Git.Outcome pushed = git.push("origin", DEVELOP);
 
