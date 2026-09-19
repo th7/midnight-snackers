@@ -128,6 +128,84 @@ class MissingKeys(unittest.TestCase):
         Fetching a texture must not demand a key pair nobody needs."""
         self.assertNotIn('Authorization', onshape.headers('GET', '/api/v10/blobelements/d/a/w/b/e/c', ''))
 
+    def test_a_client_without_keys_is_built_rather_than_refused(self):
+        """An egress proxy may be signing on the way out, in which case this container holds no
+        keys and needs none. Refusing to build a client here would stop a run that would have
+        worked; what cannot authenticate is found out from Onshape, not guessed at beforehand."""
+        client = onshape.Client.configured()
+        self.assertFalse(client.signed)
+
+    def test_a_client_signs_for_itself_when_the_keys_are_in_the_environment(self):
+        """Away from the proxy -- a teammate's laptop -- the keys are how a request is signed."""
+        os.environ['ONSHAPE_ACCESS_KEY'] = ACCESS
+        os.environ['ONSHAPE_SECRET_KEY'] = SECRET
+        self.assertTrue(onshape.Client.configured().signed)
+
+
+class ProxySigns(unittest.TestCase):
+    """my-agent's egress proxy signs `cad.onshape.com` on the way out, over the request it finally
+    sees. An Authorization, Date or On-Nonce set in here is replaced, so setting one is at best
+    wasted and at worst a signature over a different request."""
+
+    def test_an_unsigned_client_sets_none_of_the_three_headers_the_proxy_owns(self):
+        sent = onshape.headers('GET', '/api/v10/assemblies/d/a/w/b/e/c/gltf', '')
+        for header in ('Authorization', 'Date', 'On-Nonce'):
+            self.assertNotIn(header, sent, header + ' is the proxy\'s to set')
+
+    def test_a_refusal_of_an_unsigned_request_names_both_ways_to_be_authenticated(self):
+        """The failure to avoid is a message that sends someone hunting for environment variables
+        when the real answer is that the proxy's onshape service is not switched on."""
+        client = onshape.Client()
+        with Refusing(401):
+            with self.assertRaises(onshape.NoCredentials) as raised:
+                client.get('/api/v10/assemblies/d/a/w/b/e/c/gltf')
+        message = str(raised.exception)
+        self.assertIn('ONSHAPE_ACCESS_KEY', message)
+        self.assertIn('proxy', message)
+
+    def test_a_refusal_of_a_signed_request_says_the_keys_were_refused(self):
+        """With keys in hand a 401 means those keys are wrong or revoked, and pointing at the
+        proxy would be a wild goose chase."""
+        client = onshape.Client(access=ACCESS, secret=SECRET)
+        with Refusing(403):
+            with self.assertRaises(onshape.NoCredentials) as raised:
+                client.get('/api/v10/assemblies/d/a/w/b/e/c/gltf')
+        self.assertIn('refused', str(raised.exception).lower())
+        self.assertNotIn(SECRET, str(raised.exception))
+
+    def test_a_failure_that_is_not_about_credentials_is_not_reported_as_one(self):
+        client = onshape.Client()
+        with Refusing(500):
+            with self.assertRaises(RuntimeError) as raised:
+                client.get('/api/v10/assemblies/d/a/w/b/e/c/gltf')
+        self.assertNotIsInstance(raised.exception, onshape.NoCredentials)
+
+
+class Refusing:
+    """Stands in for Onshape, answering every request with one HTTP status."""
+
+    def __init__(self, status):
+        self.status = status
+        self.saved = None
+
+    def __enter__(self):
+        import io
+        import urllib.error
+        status = self.status
+        self.saved = onshape.urlopen
+
+        def refuse(request, *args, **kwargs):
+            raise urllib.error.HTTPError(
+                request.full_url, status, 'no', {},
+                io.BytesIO(b'{"message": "Unauthenticated API request"}'))
+
+        onshape.urlopen = refuse
+        return self
+
+    def __exit__(self, *exception):
+        onshape.urlopen = self.saved
+        return False
+
 
 class Secrecy(unittest.TestCase):
     def test_the_secret_does_not_appear_in_the_missing_credentials_message(self):

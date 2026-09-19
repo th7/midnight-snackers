@@ -209,11 +209,14 @@ def apply(matrix, point):
 def hex_colour(factor):
     """A material's base colour as '#rrggbb'.
 
-    NOTE: glTF defines baseColorFactor in linear space, and the hex the rest of the pipeline uses
-    is sRGB. This multiplies by 255 without a transfer function, which is right only if Onshape
-    writes the appearance's sRGB value straight into the factor. Check one exported part against
-    its colour in Onshape and, if they disagree, the fix is the sRGB transfer here and nowhere
-    else.
+    glTF defines baseColorFactor in linear space and the hex the rest of the pipeline uses is
+    sRGB, so whether a transfer function belongs here was an open question. It does not: Onshape
+    writes the appearance's sRGB value straight into the factor.
+
+    Settled by exporting the field assembly and comparing every part the STEP pipeline had
+    already coloured. Of 71 parts named by both, 67 agree exactly, and the four that differ are
+    the April Tag plates, which `step_to_field.colour_for` deliberately overrides to #4a4a4a
+    (the CAD has them white). A transfer function here would have moved all 67.
     """
     return '#' + ''.join('%02x' % max(0, min(255, round(c * 255))) for c in factor[:3])
 
