@@ -15,10 +15,6 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
 
-/**
- * The field model is what the season's CAD says, reduced: the walls where the perimeter stands,
- * the elements as convex shapes, the game pieces, the tape, and what the robot runs into.
- */
 public class SimFieldTest {
     private final SimField field = SimField.load();
 
@@ -70,11 +66,6 @@ public class SimFieldTest {
         }
     }
 
-    /**
-     * What the robot collides with: the flowers' pipes and the frame's legs and feet, each a
-     * convex polygon inside the walls, wound counter-clockwise; nothing that hangs above the
-     * robot. Every element blocks part by part, so what is driven through between blocks nothing.
-     */
     @Test
     public void theObstaclesAreConvexPolygonsInsideTheWalls() {
         assertTrue(field.obstacles.size() >= 4);
@@ -97,11 +88,6 @@ public class SimFieldTest {
         }
     }
 
-    /**
-     * An obstacle says how high it stands and how far it clears the floor, which is what says
-     * whether something meets it or passes it: nothing is an obstacle that is part of the floor,
-     * and what overhangs by more than a ball is tall is one a ball rolls under.
-     */
     @Test
     public void everyObstacleSaysHowHighItStandsAndHowFarItClearsTheFloor() {
         double pollen = 2 * pollenRadius();
@@ -128,14 +114,6 @@ public class SimFieldTest {
                 field.obstacle("Frame <1> / Sheet Metal Foot Bar <1>").clears < pollen);
     }
 
-    // --- the flowers: a bore at each wall with a stack of pollen standing in it ---
-
-    /**
-     * Each wall has a flower: four pipes making a bore that a stack of pollen stands in, narrow
-     * enough between two of them that a pollen cannot leave sideways, and open below the lip the
-     * pipes begin at, where a ring in the base plate nests the pollen at the bottom. The pipes are
-     * what the robot runs into; the bore between them is clear.
-     */
     @Test
     public void eachWallHasAFlowerWhoseBoreHoldsAStackOfPollen() {
         assertEquals("one flower at each wall", 4, field.flowers.size());
@@ -178,12 +156,6 @@ public class SimFieldTest {
         assertNull(field.flower("Flower Assembly <9>"));
     }
 
-    /**
-     * The stack the CAD draws in each flower is four pollen standing one on another from the floor
-     * up, in the bore: that the drawing's stack is the stack the simulator's own model of resting
-     * pollen builds is the model measured against the drawing it came from. Only the bottom one
-     * stands wholly below the lip, which is why it is the one that comes out.
-     */
     @Test
     public void theCadStacksFourPollenInEachFlowerOneRestingOnAnother() {
         assertEquals("four in each of the four flowers", 16, field.flowerPieces.size());
@@ -224,7 +196,6 @@ public class SimFieldTest {
         }
     }
 
-    /** The obstacles that are parts of that element. */
     private List<SimField.Obstacle> partsOf(String element) {
         List<SimField.Obstacle> parts = new ArrayList<>();
         for (SimField.Obstacle obstacle : field.obstacles) {
@@ -258,14 +229,6 @@ public class SimFieldTest {
         assertEquals("red and blue", 2, colours.size());
     }
 
-    // --- the hives: a see-saw each, on the axle over the middle of the field ---
-
-    /**
-     * Each alliance has a hive: a beam with a cell at each end, on the axle the frame's top bar
-     * holds over the middle of the field. Everything a hive is made of is given in the hive's own
-     * frame, which the tilt it leans at turns into the field's. The two hives are one shape,
-     * leaning opposite ways.
-     */
     @Test
     public void eachAllianceHasAHiveOnTheFramesAxleLeaningItsOwnWay() {
         assertEquals(2, field.hives.size());
@@ -291,13 +254,6 @@ public class SimFieldTest {
         assertSameShape("one shape built twice", extentOf(blue), extentOf(red), 0.2);
     }
 
-    /**
-     * Which way round the field is. Everything else here is symmetric about the middle, so a model
-     * built a quarter turn out, or mirrored, satisfies every other test in this class while putting
-     * the blue goal where the red one stands. Two things fix it: blue is the hive at negative y,
-     * which a mirrored model gets wrong, and the trays stand off the ends of the y axis rather than
-     * the x, which a quarter turn gets wrong.
-     */
     @Test
     public void blueIsTheHiveAtNegativeYAndTheTraysStandOffTheYAxis() {
         SimField.Hive blue = field.hive("Blue Hive <1>");
@@ -305,8 +261,6 @@ public class SimFieldTest {
         assertTrue("the blue hive is the one at negative y: " + blue.pivot[1], blue.pivot[1] < 0);
         assertTrue("the red hive is the one at positive y: " + red.pivot[1], red.pivot[1] > 0);
 
-        // The trays sit beyond the walls on the audience side and the far side, one each, so they
-        // say which axis runs away from the audience.
         double nearest = Double.POSITIVE_INFINITY;
         double furthest = Double.NEGATIVE_INFINITY;
         for (SimField.Element element : field.elements) {
@@ -320,11 +274,6 @@ public class SimFieldTest {
         assertTrue("a tray stands off each end of the y axis", nearest < -60 && furthest > 60);
     }
 
-    /**
-     * Each hive carries its alliance's two goal tags, and carries them as parts of its own, in the
-     * hive's frame: the tilt is what puts them on the field, so a tag moves as the hive leans. A
-     * simulated camera has nowhere else to read them from.
-     */
     @Test
     public void eachHiveCarriesItsTwoGoalAprilTagsInItsOwnFrame() {
         for (SimField.Hive hive : field.hives) {
@@ -340,7 +289,6 @@ public class SimFieldTest {
         }
     }
 
-    /** Every shape the page draws has a colour to draw it in; the CAD's, or the alliance's. */
     @Test
     public void everythingDrawnHasAColour() {
         List<SimField.Element> drawn = new ArrayList<>(field.elements);
@@ -353,11 +301,6 @@ public class SimFieldTest {
         }
     }
 
-    /**
-     * A cell is the basket a ball goes in: its <b>mouth</b>, the opening at the hive's end, the
-     * same ring again at its back twelve inches in, and a wall between every pair of corners.
-     * Twenty inches across and fourteen high, the basket the CAD draws.
-     */
     @Test
     public void aCellIsAMouthAWallAllRoundAndABack() {
         assertEquals(4, field.cells.size());
@@ -382,7 +325,6 @@ public class SimFieldTest {
         assertNull(field.cell("Green Cell"));
     }
 
-    /** Nothing leaves a cell but through its mouth: every edge it has joins two of its panels. */
     @Test
     public void everyCellIsClosedButForItsMouth() {
         for (SimField.Cell cell : field.cells) {
@@ -400,11 +342,6 @@ public class SimFieldTest {
         }
     }
 
-    /**
-     * A hive leans one way at a time: the cell at its high end is <b>upturned</b>, its mouth above
-     * its back and facing up, and holds what goes in; the one at the low end is <b>downturned</b>,
-     * and what is in it rolls out. Tipping the hive the other way swaps them.
-     */
     @Test
     public void oneCellOfEachHiveIsUpturnedAndTheOtherDownturned() {
         for (SimField.Hive hive : field.hives) {
@@ -431,11 +368,6 @@ public class SimFieldTest {
         }
     }
 
-    /**
-     * The field is set up with nectar in each hive's upturned cell, where the CAD rests it: that
-     * the balls the CAD draws inside the cell are inside the cell the model builds is the model
-     * measured against the drawing it came from.
-     */
     @Test
     public void theNectarTheFieldIsSetUpWithRestsInEachHivesUpturnedCell() {
         assertEquals("three in each hive", 6, field.cellPieces.size());
@@ -454,7 +386,6 @@ public class SimFieldTest {
         assertEquals("the upturned cell of each hive", 2, cells.size());
     }
 
-    /** The frame's top bar joins the two hives, and each hive hangs from it by its pivot brackets. */
     @Test
     public void theHivesHangFromTheBarBetweenThem() {
         Set<String> names = new HashSet<>();
@@ -471,11 +402,6 @@ public class SimFieldTest {
         }
     }
 
-    /**
-     * The pollen on the floor in the open is loose, for the robot to push; the pollen stacked in a
-     * flower is that flower's, the nectar in the hives is those cells', and the rows lying outside
-     * the walls stay where they are.
-     */
     @Test
     public void thePollenOnTheOpenFloorIsLoose() {
         assertEquals("two rows of four in the corners", 8, field.loosePieces.size());
@@ -503,8 +429,7 @@ public class SimFieldTest {
             }
         }
         assertTrue("the flowers' stacks, the rows outside and the nectar are held: " + held, held > 30);
-        // Nothing inside the walls is left out of the model: what is not loose is a cell's or a
-        // flower's, and what is neither is a row the CAD lays out beyond the wall for the players.
+
         for (int i = 0; i < pieces.size(); i++) {
             JsonObject piece = pieces.get(i).getAsJsonObject();
             JsonArray centre = piece.getAsJsonArray("centre");
@@ -517,7 +442,6 @@ public class SimFieldTest {
         }
     }
 
-    /** The mean of a ring's corners. */
     private static double[] centreOf(double[][] ring) {
         double[] sum = new double[3];
         for (double[] v : ring) {
@@ -528,7 +452,6 @@ public class SimFieldTest {
         return sum;
     }
 
-    /** How big the rings are, corner to corner along each axis. */
     private static double[] extentOf(List<double[][]> rings) {
         double[] min = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
         double[] max = {-Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
@@ -543,11 +466,6 @@ public class SimFieldTest {
         return new double[] {max[0] - min[0], max[1] - min[1], max[2] - min[2]};
     }
 
-    /**
-     * A hive's shape in its own frame, cell by cell: where each cell's mouth and back are and how
-     * big the mouth is. The width is measured from the middle, so two hives built as mirror images
-     * of each other are one shape by this measure, as they are by eye.
-     */
     private static double[] extentOf(SimField.Hive hive) {
         List<Double> out = new ArrayList<>();
         for (String side : List.of("Audience", "Scoring")) {
@@ -579,7 +497,6 @@ public class SimFieldTest {
         }
     }
 
-    /** Every corner of the ring lies on the ring's own plane. */
     private static void assertFlatRing(String name, double[][] ring) {
         double[] n = SimField.normal(ring);
         for (double[] p : ring) {
@@ -596,14 +513,12 @@ public class SimFieldTest {
         return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     }
 
-    /** An edge of a ring, named the same way whichever of its panels names it and whichever way round. */
     private static String edge(double[] a, double[] b) {
         String one = String.format("%.2f,%.2f,%.2f", a[0], a[1], a[2]);
         String other = String.format("%.2f,%.2f,%.2f", b[0], b[1], b[2]);
         return one.compareTo(other) < 0 ? one + " - " + other : other + " - " + one;
     }
 
-    /** Whether the point, in the field frame, is inside the cell at that tilt. */
     private static boolean holds(SimField.Cell cell, double tilt, double[] point) {
         double[] inside = cell.centreAt(tilt);
         List<double[][]> rings = new ArrayList<>(cell.panelsAt(tilt));
@@ -632,7 +547,6 @@ public class SimFieldTest {
         return true;
     }
 
-    /** Every vertex lies on the polygon's own plane (its normal by Newell's method, robust to near-collinear corners). */
     private static void assertFlat(SimField.Element panel) {
         double[] n = new double[3];
         double[][] ring = panel.vertices;
@@ -666,7 +580,6 @@ public class SimFieldTest {
         }
     }
 
-    /** The page draws what the simulator loaded: one model, read once. */
     @Test
     public void thePageReadsTheModelTheSimulatorCollides() {
         JsonObject json = field.json();

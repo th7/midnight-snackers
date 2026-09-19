@@ -9,36 +9,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
 
-/**
- * The files the admin has picked for users to edit, and the only thing that decides whether a name
- * a user sent is one of them. A user's string is matched here, exactly, against what the admin
- * picked; what comes back is a {@link Key}, which is the only kind of thing the rest of the server
- * will resolve against a worktree.
- *
- * <p>It is stored per **project root**, so two checkouts on one machine keep their own picks, and
- * it outlives the process. A stored path is checked on the way back in exactly as a fresh pick is,
- * since a state file an editor has been at is no more trustworthy than anything else off disk.
- */
 final class EditableSet {
     private final Path root;
     private final Path storeFile;
     private final TreeSet<Key> keys = new TreeSet<>();
 
-    /**
-     * @param root the project root the picks are relative to and stored under
-     * @param storeFile the state file holding every root's picks
-     */
     EditableSet(Path root, Path storeFile) {
         this.root = root;
         this.storeFile = storeFile;
         load();
     }
 
-    /**
-     * The key for a path a user named, or empty: an exact match against what the admin picked, and
-     * never a resolution against the filesystem. A name that is not in the set is not a file here,
-     * whatever it is on disk.
-     */
     synchronized Optional<Key> lookUp(String userSuppliedPath) {
         for (Key key : keys) {
             if (key.path().equals(userSuppliedPath)) {
@@ -52,18 +33,15 @@ final class EditableSet {
         return keys.contains(key);
     }
 
-    /** The picks, in path order. */
     synchronized List<Key> list() {
         return new ArrayList<>(keys);
     }
 
-    /** Picks a file the server has already found under the root. */
     synchronized void add(Key key) {
         keys.add(key);
         save();
     }
 
-    /** Unpicks a file a user or the admin named; false when it was not picked in the first place. */
     synchronized boolean remove(String userSuppliedPath) {
         Optional<Key> key = lookUp(userSuppliedPath);
         if (key.isEmpty()) {
@@ -83,7 +61,6 @@ final class EditableSet {
             JsonElement ours = stored.getAsJsonObject("roots").get(root.toString());
             if (ours != null) {
                 for (JsonElement element : ours.getAsJsonArray()) {
-                    // checked on the way in, like any other path that did not come from here
                     Key.under(root, element.getAsString()).ifPresent(keys::add);
                 }
             }

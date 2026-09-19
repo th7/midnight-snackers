@@ -4,7 +4,6 @@ import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 
-/** An op mode that runs a plan for one alliance from start until the plan is done. */
 public abstract class AutoOp extends OpMode {
     private PlanRunner planRunner;
 
@@ -19,10 +18,6 @@ public abstract class AutoOp extends OpMode {
         planRunner.run(getPlan());
     }
 
-    /**
-     * The plan runner is the auto's own, so the auto ticks it. {@link OpMode#loop()} runs this
-     * after the robot, so the plan advances once every subsystem has, by construction.
-     */
     @Override
     protected void onLoop() {
         planRunner.loop();

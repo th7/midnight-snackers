@@ -14,12 +14,7 @@ import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
 import org.junit.Test;
 
-/**
- * The lines the child prints are written and read in one place, so the parent and the child
- * agree by construction, and every way a run can end is named there too.
- */
 public class SimRunStreamTest {
-    /** Remembers what each line said. */
     private static final class Heard implements SimRunStream.Listener {
         final List<String> events = new ArrayList<>();
         final List<JsonObject> ticks = new ArrayList<>();
@@ -80,10 +75,6 @@ public class SimRunStreamTest {
         assertEquals("done", heard.outcome);
     }
 
-    /**
-     * A tick says where every ball is, {x, y, z} each, or null for one held in the robot; how many
-     * the robot holds; and how many each alliance has scored, when any of that is worth saying.
-     */
     @Test
     public void aTickCarriesTheBallsWhatTheRobotHoldsAndTheScore() {
         Heard heard = new Heard();
@@ -110,12 +101,6 @@ public class SimRunStreamTest {
         assertFalse("nothing held, nothing scored: nothing said", quiet.has("held") || quiet.has("scored"));
     }
 
-    /**
-     * A tick says how far a hive leans only while it is not leaning the way the field was set up,
-     * so a replay stays small. Each tick says it in full, and says nothing about the ticks before
-     * it: a hive that has tipped says so in every tick until it tips back, and a hive that has
-     * tipped back says nothing again, which is how the page knows to draw it back where it started.
-     */
     @Test
     public void aTickSaysAHivesTiltOnlyWhileItIsNotLeaningTheWayTheFieldWasSetUp() {
         Heard heard = new Heard();
@@ -185,7 +170,6 @@ public class SimRunStreamTest {
         assertEquals(SimRunStream.PROTOCOL, SimRunStream.protocolOf(hello));
     }
 
-    /** A child of this version waits to be placed before its run starts; the bench places one that old. */
     @Test
     public void aChildOfThisVersionWaitsToBePlaced() {
         assertTrue(SimRunStream.PROTOCOL >= SimRunStream.PLACED_PROTOCOL);
@@ -199,10 +183,6 @@ public class SimRunStreamTest {
         assertTrue(Outcome.cannotPlace(1).contains("place"));
     }
 
-    /**
-     * A child from before the hello existed prints its content first. Those lines are pinned here
-     * as such a child printed them, because a bench must still read them.
-     */
     @Test
     public void aVersionOneChildPrintsNoHelloSoItsFirstLineIsContentAndStillReads() {
         assertEquals(1, SimRunStream.OLDEST_PROTOCOL_READ);
@@ -267,13 +247,6 @@ public class SimRunStreamTest {
         assertTrue(Outcome.noOpModeNamed("org.example.Nope").contains("org.example.Nope"));
     }
 
-    // --- the handshake: what a bench does with the child's first line ---
-
-    /**
-     * Whether a run can be made on the child that answered, and what to send it, is one decision
-     * read off one line. It used to be stated here in prose, decided in SimBench and realised in
-     * SimChild, with the refusals worded twice.
-     */
     @Test
     public void aChildOfThisVersionIsToldWhereToStartAndWhichRobot() {
         SimRunStream.Handshake handshake = SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L);
@@ -284,7 +257,6 @@ public class SimRunStreamTest {
         assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L), handshake.startLine);
     }
 
-    /** A child from before the seed runs the exact robot whatever it is told, so it is not told. */
     @Test
     public void aChildFromBeforeTheSeedRunsWhenNoSeedIsAskedFor() {
         SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(3), new Pose2d(12, 0, 0), null);
@@ -304,7 +276,6 @@ public class SimRunStreamTest {
         assertNull("a refused run is sent nothing", handshake.startLine);
     }
 
-    /** A child from before placement starts at the origin on its own, so it may run from there. */
     @Test
     public void aChildFromBeforePlacementRunsFromTheOriginAndPlacesItself() {
         SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(2), StartPoses.ORIGIN, null);
@@ -323,7 +294,6 @@ public class SimRunStreamTest {
         assertTrue(handshake.message, handshake.message.contains("back at the origin"));
     }
 
-    /** A version-one child prints no hello, so its first line is content and comes back as it was. */
     @Test
     public void aVersionOneChildsFirstLineIsContent() {
         SimRunStream.Handshake handshake =
@@ -334,7 +304,6 @@ public class SimRunStreamTest {
         assertEquals("[{\"name\":\"an op mode\"}]", handshake.firstContentLine);
     }
 
-    /** One that speaks a protocol this bench cannot read is refused before any of that. */
     @Test
     public void aChildThisBenchCannotReadIsRefusedBeforeItIsPlaced() {
         SimRunStream.WrongProtocol wrong = org.junit.Assert.assertThrows(

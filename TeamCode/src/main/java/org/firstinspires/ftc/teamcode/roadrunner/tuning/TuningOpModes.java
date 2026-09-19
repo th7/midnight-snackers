@@ -30,9 +30,6 @@ import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 
-/**
- * Registers the Road Runner tuning op modes for the mecanum drive with its two dead wheels.
- */
 public final class TuningOpModes {
     public static final String GROUP = "quickstart";
     public static final boolean DISABLED = false;
@@ -56,11 +53,6 @@ public final class TuningOpModes {
             MecanumDrive md = tuning.drive;
             TwoDeadWheelLocalizer dl = tuning.localizer.deadWheels();
 
-            // Road Runner's own overflow encoder, not the robot's clocked one: the tuning op modes
-            // run on the robot and nowhere else, where the wall clock is the robot's clock, and the
-            // ramp loggers read through the group's *unwrapped* encoders, which it finds by looking
-            // for this exact class. Wrapping the localizer's own raw encoders keeps the ports and
-            // the directions in one place -- the localizer -- rather than repeating them here.
             List<EncoderGroup> encoderGroups = new ArrayList<>();
             encoderGroups.add(new LynxQuadratureEncoderGroup(
                     hardwareMap.getAll(LynxModule.class),

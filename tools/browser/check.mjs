@@ -1,19 +1,4 @@
-/**
- * Open the field page in a real browser and see that it draws.
- *
- * Everything else about this page is checked without one. `SimAssetsTest` holds that every
- * asset it names is served; `tools/renderer/check.mjs` holds that three.js loads the model and
- * that the field comes out the right size and the right way round. Neither has a canvas, and
- * so neither can say the page draws at all: a shader that will not compile, a WebGL context
- * that will not start, a camera pointed away from the field -- each leaves a page that loads
- * everything it asks for and shows nothing, and no gate we had could tell that from a working
- * one.
- *
- *     node tools/browser/check.mjs
- *
- * There is no GPU, so Chromium falls back to SwiftShader. That is slower and it is also the
- * only way a page test comes out the same on two machines.
- */
+
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -32,25 +17,10 @@ const TYPES = {
   '.png': 'image/png'
 };
 
-/**
- * The bench serves the page at /field and its assets under /assets, from one directory. This
- * stands in for that, over the same directory, so the page is exercised exactly as it is
- * served -- the route itself is held by SimAssetsTest, which is Java's to answer for.
- */
-/**
- * A run for the page to play: the robot driving a few inches and turning, a loose pollen rolling
- * with it, and one hive that leans further than the field was set up at and then tips back. Small
- * on purpose -- what is being checked is that a tick reaches the scene, not the simulator that
- * made it. The hive tips back because a tick names every hive that is not leaning the way the
- * field was set up, so a page that reads the last tick that mentioned one draws it leaning for
- * the rest of the run.
- */
 function cannedRun(model) {
   const moved = model.moved;
   const blue = model.hives.find((h) => h.alliance === 'Blue');
-  // The field's own movable pieces, and then one the robot brought: held at first (null), and
-  // in the air once it has been launched. A tick lists the robot's preload past the end of the
-  // field's, which is exactly where a ball with no mesh made for it goes missing.
+
   const places = (n) => moved.map((piece, i) => i === 0 ? [n * 6, n * 3, piece.radius] : piece.centre)
       .concat([n < 2 ? null : [18, -9, 26]]);
   return {
@@ -63,7 +33,6 @@ function cannedRun(model) {
   };
 }
 
-/** What SimField adds to the model it serves: the order a tick lists the balls it moved. */
 function movedPieces(model) {
   const loose = [];
   const inCells = [];
@@ -103,11 +72,6 @@ function serve() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-/**
- * How much of a PNG is not black. Chromium encodes the screenshot, so rather than decode it,
- * the same browser is asked to read it back through a canvas -- which is the one image decoder
- * certainly present and certainly agreeing with what drew it.
- */
 async function litPixels(png) {
   const page = await browser.newPage();
   try {
@@ -143,19 +107,15 @@ const url = `${base}/field`;
 let browser = null;
 try {
   browser = await chromium.launch({
-    // In the image, apt's chromium, which CHROME_BIN names. Everywhere else, Playwright's own
-    // full browser rather than its default: `chrome-headless-shell` is the faster build and it
-    // is the one without the graphics stack WebGL needs, so a page that draws would not.
     ...(process.env.CHROME_BIN
         ? { executablePath: process.env.CHROME_BIN }
         : { channel: 'chromium' }),
     args: [
-      // The image strips setuid bits and containers run with no-new-privileges, so Chromium's
-      // own sandbox cannot start. See doc/browser-tests.md.
+
       '--no-sandbox',
-      // A container's /dev/shm is 64 MB, and Chromium runs out of it part way through a page.
+
       '--disable-dev-shm-usage',
-      // No GPU: WebGL falls back to SwiftShader, which newer Chromium will not do unless asked.
+
       '--enable-unsafe-swiftshader',
       '--use-gl=angle',
       '--use-angle=swiftshader'
@@ -181,7 +141,6 @@ page.on('response', (response) => {
   }
 });
 
-/** The page sets window.fieldPage last, so anything it threw on the way is why it never did. */
 function whyItNeverReported() {
   if (thrown.length) {
     return `the page threw before it could report: ${thrown.join('; ')}`;
@@ -195,9 +154,6 @@ function whyItNeverReported() {
 try {
   await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
 
-  // Before anything about the field: can this browser do WebGL at all? Without it three.js
-  // throws when it makes its renderer, the page never reaches the line that reports itself,
-  // and every check below would fail as an unexplained timeout.
   const webgl = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -212,8 +168,6 @@ try {
         + 'SwiftShader is what supplies it here; see doc/browser-tests.md for the flags.');
   }
 
-  // The model is three megabytes and SwiftShader is not quick; wait for the page to say it is
-  // loaded rather than for a time that would be a guess on one machine and wrong on another.
   try {
     await page.waitForFunction(
         () => window.fieldPage && (window.fieldPage.loaded || window.fieldPage.problem),
@@ -235,16 +189,10 @@ try {
     check(state.loaded.triangles > 100000, `only ${state.loaded.triangles} triangles reached the page`);
   }
 
-  // A frame has to have been drawn since the model arrived, so wait for one and then ask how
-  // much of it was rasterised. Zero is a field that loaded and was not drawn.
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const drawn = await page.evaluate(() => window.fieldPage.drawnTriangles);
   check(drawn > 1000, `only ${drawn} triangles were drawn in a frame; the field is loaded but not on screen`);
 
-  // The three things that were wrong the first time anyone looked at this page.
-  // three.js renames nodes as it loads them: spaces become underscores and repeats get numbers,
-  // so these patterns allow for the separator. A pattern that assumed the CAD's spelling would
-  // match nothing and every check below would pass by finding nothing to disagree with.
   const drawn2 = await page.evaluate(() => {
     const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.fieldPage.floorZ };
     window.fieldPage.scene.traverse((o) => {
@@ -259,8 +207,7 @@ try {
       }
       if (/tape/i.test(o.name)) {
         o.geometry.computeBoundingBox();
-        // Where it ends up, not where its vertices say: the tape is lifted off the floor by
-        // moving the mesh, so its own geometry still reports a top of zero.
+
         const box = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
         out.tapeTop = out.tapeTop === null ? box.max.z : Math.max(out.tapeTop, box.max.z);
       }
@@ -268,19 +215,12 @@ try {
     return out;
   });
 
-  // The field was a floor with things standing on it: the perimeter is dropped by the collision
-  // model, which models the walls itself, and the visual model has to keep it.
   check(drawn2.walls > 50, `only ${drawn2.walls} wall parts are in the scene; the field has no perimeter`);
 
-  // Drawn solid, a hive's skins close the basket over what was scored in it, and the perimeter's
-  // side glass is what the whole field is watched through.
   check(drawn2.seeThrough.length > 0, 'nothing in the scene is see-through');
   check(drawn2.solidSeeThrough.length === 0,
       `drawn solid and should not be: ${drawn2.solidSeeThrough.slice(0, 4).join(', ')}`);
 
-  // The tape's top face is at z = 0 in the CAD, which is where the floor is drawn. Left there
-  // the two are in one plane and which of them a pixel belongs to is decided by rounding --
-  // which is the tape flickering. It is lifted clear, and not so far that it floats.
   check(drawn2.tapeTop !== null, 'no tape in the scene to stand clear of the floor');
   if (drawn2.tapeTop !== null) {
     const clear = drawn2.tapeTop - drawn2.floorZ;
@@ -290,7 +230,6 @@ try {
     check(clear < 0.5, `the tape stands ${clear} in off the floor, which is tape that is floating`);
   }
 
-  // --- and now the same page with a run to play --------------------------------------------
   const played = await (async () => {
     const replay = await browser.newPage({ viewport: { width: 1000, height: 700 } });
     const wrong = [];
@@ -346,7 +285,7 @@ try {
     check(played.first.loops === 4, `the run page read ${played.first.loops} loops of 4`);
     check(played.first.balls > 20, `only ${played.first.balls} game pieces are drawn`);
     check(played.first.hives === 2, `${played.first.hives} hives were found to lean`);
-    // The robot has to be where the tick put it, not merely on the field somewhere.
+
     check(played.first.robot && Math.abs(played.first.robot.x + 30) < 0.01,
         `the robot started at x=${played.first.robot && played.first.robot.x}, not the tick's -30`);
     check(played.last.run.robot && Math.abs(played.last.run.robot.x - -6) < 0.01,
@@ -357,7 +296,7 @@ try {
     check(played.rested && !played.rested.turned,
         'the blue hive is still drawn leaning a tick after it tipped back, so the page is reading '
         + 'the last tick that named it rather than the tick it is drawing');
-    // The robot's own pollen: listed past the field's pieces, held at first and launched later.
+
     check(played.first.run ? played.first.run.launchable > 0 : played.first.launchable > 0,
         'no ball is drawn for what the robot brought with it, so a launched pollen would vanish');
     check(played.last.launched && played.last.launched.visible,
@@ -369,7 +308,6 @@ try {
     check(played.last.drawn > 1000, `a run frame drew only ${played.last.drawn} triangles`);
   }
 
-  // --- the camera's view of the tags -------------------------------------------------------
   let seenClearance = [];
   const camera = await (async () => {
     const view = await browser.newPage({ viewport: { width: 640, height: 480 } });
@@ -382,12 +320,6 @@ try {
       await view.evaluate(() => window.fieldPage.tagsReady);
       await view.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-      // Where the lens says each tag should land, worked out from the camera matrix rather than
-      // from the picture: a tag drawn in the wrong place still looks like a tag.
-      // How far each tag's artwork stands off the plate it is printed on -- measured here from
-      // the quad's own facing and the plate's own points, rather than read back from a number
-      // the page stored. The page can only report the offset it applied, which tells us nothing
-      // about whether that offset cleared the geometry.
       seenClearance = await view.evaluate(() => {
         const page = window.fieldPage;
         const out = [];
@@ -407,7 +339,7 @@ try {
             out.push(null);
             return;
           }
-          // The quad faces away from the plate, so every point of the plate must lie behind it.
+
           const facing = new quad.position.constructor();
           quad.getWorldDirection(facing);
           const point = new quad.position.constructor();
@@ -417,7 +349,7 @@ try {
             point.fromBufferAttribute(points, i).applyMatrix4(plate.matrixWorld).sub(quad.position);
             nearest = Math.max(nearest, point.dot(facing));
           }
-          out.push(-nearest); // how far the nearest part of the plate is behind the quad
+          out.push(-nearest);
         });
         return out;
       });
@@ -441,7 +373,7 @@ try {
         });
         return out;
       });
-      // Blank but for the tags: anything else left drawing is in every frame that is captured.
+
       seen.strays = await view.evaluate(() => {
         const out = [];
         window.fieldPage.scene.traverse((o) => {
@@ -459,9 +391,7 @@ try {
         });
         return out;
       });
-      // The page keeps its heads-up display and controls, because it is watched as well as
-      // captured, and frames.mjs hides them for a capture. Here they would be most of what is
-      // lit, and the point of counting lit pixels is to see the tags.
+
       await view.addStyleTag({ content: '#hud, #run { display: none !important; }' });
       placedAgainstGeometry = await view.evaluate(() => window.fieldPage.tagPlacedAgainstGeometry);
       const shot = await view.screenshot();
@@ -499,8 +429,6 @@ try {
         'the lens has no tag in view at all from where the run puts the robot, so nothing '
         + 'about the picture says whether the tags are where they should be');
 
-    // And the picture has to agree: a frame of pure black is what a tag drawn behind the camera,
-    // or never textured, or hidden with the field, all look like.
     const lit = await litPixels(camera.shot);
     check(lit > 200, `only ${lit} pixels of the camera's frame are lit; the tags are not drawn`);
     if (onScreen.length) {
@@ -525,7 +453,6 @@ try {
   problems.push(String(wrong && wrong.message ? wrong.message : wrong));
 } finally {
   if (problems.length) {
-    // Whatever went wrong, the first question is what the browser actually had on screen.
     const shot = path.join(here, 'field-as-drawn.png');
     await page.screenshot({ path: shot }).catch(() => {});
     console.error(`what the browser saw: ${shot}`);

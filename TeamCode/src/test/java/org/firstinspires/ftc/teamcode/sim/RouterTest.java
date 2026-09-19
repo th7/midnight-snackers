@@ -8,11 +8,6 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.junit.Test;
 
-/**
- * A router is the one place a server says which method and path reach which handler, so 404,
- * 405, path parameters, a guard over a whole family of routes, and mounting one router's routes
- * under another's prefix are each decided once.
- */
 public class RouterTest {
     private static Request get(String target) {
         return Request.of("GET", target, "");
@@ -123,7 +118,6 @@ public class RouterTest {
         assertEquals("status", server.handle(Request.of("GET", "/sim/status", Map.of("x-approved", "yes"), "")).body);
     }
 
-    /** Choosing the mounted router may need what the guard checks, e.g. an approved user's own bench. */
     @Test
     public void theGuardAnswersForEverythingUnderAMountsPrefixBeforeTheMountedRouterIsChosen() {
         Router server = new Router()

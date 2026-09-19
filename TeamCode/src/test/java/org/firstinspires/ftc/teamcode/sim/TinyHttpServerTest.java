@@ -53,7 +53,6 @@ public class TinyHttpServerTest {
 
     @Test
     public void listensOnEveryInterfaceSoAPublishedContainerPortReachesIt() {
-        // Traffic published from a container arrives over the bridge, not loopback.
         assertTrue(echoServer().bindAddress().isAnyLocalAddress());
     }
 
@@ -63,7 +62,6 @@ public class TinyHttpServerTest {
 
         String body = get("/hel%20lo+there?q=a%20b").body;
 
-        // %XX is decoded in the path; '+' is only a space in the query
         assertEquals("{\"path\":\"/hel lo+there\",\"q\":\"a b\"}", body);
     }
 
@@ -132,15 +130,10 @@ public class TinyHttpServerTest {
             socket.connect(new InetSocketAddress(lan, server.port()), 2000);
             fail("connected to the loopback-only server via " + lan);
         } catch (ConnectException | SocketTimeoutException refused) {
-            // the operating system refused it, which is the whole point
         }
         assertEquals(200, get("/").status);
     }
 
-    /**
-     * Fails, never skips, when the machine has no LAN address: this test would otherwise be
-     * silent on exactly the machines where the property is easiest to get wrong.
-     */
     private static InetAddress firstNonLoopbackAddress() throws IOException {
         for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
             for (InetAddress address : Collections.list(nic.getInetAddresses())) {
@@ -152,12 +145,6 @@ public class TinyHttpServerTest {
         throw new AssertionError("could not judge: this machine has no non-loopback IPv4 address to connect from");
     }
 
-    /**
-     * The field's visual model is three megabytes of glTF, and a server that can only answer with
-     * a String cannot serve it: the bytes go out through UTF-8 and come back as replacement
-     * characters. These are the bytes that proves it -- 0x89, and a lone 0xFF, are not UTF-8 and
-     * never survive the round trip.
-     */
     @Test
     public void bytesThatAreNotTextSurviveBeingServed() throws IOException {
         byte[] model = new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, (byte) 0xFF, 0x00, 0x7F};
@@ -186,7 +173,6 @@ public class TinyHttpServerTest {
 
     @Test
     public void textIsStillMeasuredInBytesRatherThanCharacters() throws IOException {
-        // "héllo" is five characters and six bytes; a Content-Length of five truncates it.
         server(request -> Response.html("héllo"));
 
         Bytes reply = getBytes("/");

@@ -8,11 +8,6 @@ import java.util.List;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.junit.Test;
 
-/**
- * Whether anyone is reading is decided here and nowhere else. Telemetry costs a loop and a crowded
- * screen, so a channel is off until a driver asks for it -- and whatever prints to it prints
- * unconditionally, knowing none of that.
- */
 public class ChannelsTest {
     private final FakeTelemetry screen = new FakeTelemetry();
     private final Channels channels = new Channels(screen);
@@ -79,7 +74,6 @@ public class ChannelsTest {
         assertEquals(java.util.Set.of("Drive"), channels.areOn());
     }
 
-    /** An op mode's own lines are nobody's channel, so they are always on and unprefixed. */
     @Test
     public void printingStraightToTheDriverStationIsNotAChannelAndIsAlwaysOn() {
         channels.addData("Current Step:", "driveForward");
@@ -87,7 +81,6 @@ public class ChannelsTest {
         assertEquals(List.of("Current Step:"), screen.captions);
     }
 
-    /** Nowhere goes to no screen, which is what the tuning op modes are handed. */
     @Test
     public void nowhereSwallowsEverything() {
         Prints.NOWHERE.addData("pose", "(1, 2, 3)");

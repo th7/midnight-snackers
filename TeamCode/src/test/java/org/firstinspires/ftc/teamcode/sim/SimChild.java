@@ -19,26 +19,6 @@ import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
-/**
- * The JVM a simulated run happens in. The server launches one per run with the freshly compiled
- * classes first on the classpath: the robot's main sources and the simulator itself, built with
- * them ({@link SimBuild}), so the run executes the sources as last saved, every class identity
- * is consistent, static state starts clean, and a hung op mode is a process that can be killed.
- * Its first line, either way, is the {@link SimRunStream#hello() protocol} it speaks.
- * <ul>
- * <li>{@code --list [source...]} prints the catalog as one JSON line.</li>
- * <li>{@code --run <name> <seconds> <replayDir> [source...]} runs the op mode of that name,
- * printing the {@link SimRunStream}: one line as the op mode's time begins, then each tick as
- * one line as it happens, and finally one line with the outcome. Standard input is the driver
- * station: one {@link SimDriverStation#accept line} at a time. The first must place the robot
- * ({@link SimDriverStation#startLine}); the run starts there, and until then Stop ends it
- * unstarted. The run ends stopped when the input ends.</li>
- * </ul>
- * The sources are the classes a fixed catalog was built from ({@link SimCatalog#sources()});
- * given none, the child discovers the catalog as the parent would.
- * The protocol owns the real standard output; anything the op mode prints goes to standard
- * error instead, so student output cannot corrupt the stream.
- */
 public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
     private static final Gson GSON = new Gson();
@@ -62,7 +42,6 @@ public final class SimChild {
         System.exit(2);
     }
 
-    /** The catalog the sources from {@code args[from]} on describe, or the discovered one given none. */
     private static SimCatalog catalog(String[] args, int from) {
         if (args.length <= from) {
             return SimCatalog.discover();
@@ -94,7 +73,7 @@ public final class SimChild {
         Thread driver = new Thread(() -> readDriverStation(driverStation, recording), "sim-driver-station");
         driver.setDaemon(true);
         driver.start();
-        // The run starts once the bench has placed the robot; Stop before that ends it unstarted.
+
         Optional<Pose2d> start = driverStation.awaitPlacement();
         if (start.isEmpty()) {
             recording.finish(SimRunStream.Outcome.stopped());
@@ -111,7 +90,6 @@ public final class SimChild {
         try {
             SimRunner.record(recording, opMode, sim, seconds, replayDir, driverStation);
         } catch (RuntimeException | Error e) {
-            // the outcome is on the recording
         }
         streamer.interrupt();
         try {
@@ -123,11 +101,6 @@ public final class SimChild {
         return recording.outcome();
     }
 
-    /**
-     * Standard input, line by line, into the driver station. A line that is not a driver station
-     * line is a bug in whoever is driving, so it ends the run with that as the outcome rather than
-     * letting the robot carry on as if nothing had been said. The end of the input ends the run too.
-     */
     private static void readDriverStation(SimDriverStation driverStation, SimRecording recording) {
         try (BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             for (String line = in.readLine(); line != null; line = in.readLine()) {
@@ -168,13 +141,6 @@ public final class SimChild {
         }
     }
 
-    // --- the parent's side ---
-
-    /**
-     * Starts a project's child on {@code classes}, the project's build, and the
-     * {@link SimBuild#libraries() libraries}: nothing of this server's own code, so a class the
-     * project lacks is missing rather than quietly this server's.
-     */
     public static Process launch(Path classes, String... args) {
         List<String> classpath = new ArrayList<>();
         classpath.add(classes.toAbsolutePath().toString());
@@ -182,7 +148,6 @@ public final class SimChild {
         return launchWith(classpath, args);
     }
 
-    /** Starts a child on this JVM's classpath as it is: a fixed catalog (the tests). */
     public static Process launchOnThisClasspath(String... args) {
         return launchWith(List.of(System.getProperty("java.class.path")), args);
     }

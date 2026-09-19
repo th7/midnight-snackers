@@ -12,10 +12,6 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
-/**
- * An auto's alliance decides which way the field's y axis and headings run, and whether the
- * camera may place the robot on the field at all.
- */
 public class AutoOpTest {
     private static AutoOp autoFor(Alliance alliance) {
         AutoOp opMode = new PlanOp(alliance, "AutoOpTest", plans -> new Step("wait", () -> {}, () -> false));

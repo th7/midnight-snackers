@@ -38,36 +38,6 @@ import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
-/**
- * The coding server: teammates on the LAN log in with a username, the person at this machine
- * approves them from a page only this machine can reach, and approved teammates edit the files
- * the admin has picked, each in a git worktree of their own, with every edit written straight
- * to disk there.
- * <pre>
- * ./gradlew :TeamCode:codingServer
- *     admin  http://localhost:21987/admin     (loopback only)
- *     users  http://&lt;this machine's LAN address&gt;:21986/
- * </pre>
- * Approving a login makes the user's {@link Worktrees worktree}, one per username on its own
- * branch off {@code develop}, under the state directory. The host checkout is never written by a
- * user's save. The Edit tab's Commit, Pull, and Push buttons commit the user's edits on their
- * branch, bring {@code develop} into it, and land it on {@code develop}; a merge conflict changes
- * nothing and sends the user to their coach. The admin page is a list of users, each with the
- * logins they have made folded under them: it shows each user's changed files and commits ahead
- * of and behind {@code develop}, has a Pull button that does their pull for them, and a Delete
- * button that takes a teammate away: their logins, their bench and their worktree, never their
- * branch, and never while they have work {@code develop} does not have unless asked twice. The
- * Simulate tab runs the autonomous op modes on the simulated robot through a {@link SimBench} per
- * worktree, one run at a time per user. Every run recompiles that worktree's main sources and
- * runs in a child JVM, so a saved edit is what the next run executes.
- * <p>
- * Sessions, the editable set, and the worktrees outlive the process. They live in the XDG state
- * directory ({@code $XDG_STATE_HOME/midnight-snackers/coding-server}, else
- * {@code ~/.local/state/midnight-snackers/coding-server}), readable by this user only. A
- * session's cookie is {@code <id>.<secret>}; the store holds a salted scrypt hash of the secret,
- * never the secret, so the file on disk cannot be replayed as a login. The editable set and the
- * worktrees are kept per project root, so two checkouts on one machine do not share them.
- */
 public final class CodingServer {
     public static final String ADMIN_PORT_ENV = "CODING_ADMIN_PORT";
     public static final String USER_PORT_ENV = "CODING_USER_PORT";
@@ -77,12 +47,12 @@ public final class CodingServer {
     public static final int MAX_USERNAME_LENGTH = 32;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final String COOKIE = "session";
-    /** What the pages load besides themselves: the editor, bundled so the host serves it without internet. */
+
     private static final Set<String> STATIC = Set.of("codemirror.js");
 
     private static final String SESSIONS_FILE = "sessions.json";
     private static final String EDITABLE_FILE = "editable.json";
-    /** scrypt at 16 MiB and roughly 50 ms per guess: sized for a stolen store, not for the LAN. */
+
     private static final int SCRYPT_N = 1 << 14;
 
     private static final int SCRYPT_R = 8;
@@ -105,12 +75,9 @@ public final class CodingServer {
         final long createdAtMillis;
         final Secret secret;
         State state;
-        /**
-         * The cookie value this session has been shown to own, so the scrypt check runs once per
-         * process. Null after a reload until the browser next presents it.
-         */
+
         String token;
-        /** The editable key this session last fetched, so others can see who has a file open. */
+
         String openFile;
 
         Session(int id, String username, InetAddress address, long createdAtMillis, Secret secret, State state) {
@@ -153,7 +120,6 @@ public final class CodingServer {
         }
     }
 
-    /** A session secret at rest: its salted scrypt hash and the parameters that made it. */
     private static final class Secret {
         final int n;
         final int r;
@@ -212,28 +178,24 @@ public final class CodingServer {
     private final Path stateDir;
     private final Worktrees worktrees;
     private final SimBench.Factory benches;
-    /** Each user's bench, made over their worktree on first use; by username. */
+
     private final Map<String, SimBench> benchByUsername = new LinkedHashMap<>();
-    /** How each user's last pull or push ended, for the admin page; by username. */
+
     private final Map<String, JsonObject> lastMergeByUsername = new LinkedHashMap<>();
-    /** Each user's navigator over their worktree's sources, made on first use; by username. */
+
     private final Map<String, SourceNavigator> navigatorByUsername = new LinkedHashMap<>();
-    /** Each user's bench routes, recording runs as started by them; by username, made with the bench. */
+
     private final Map<String, Router> benchRoutesByUsername = new LinkedHashMap<>();
 
     private final Router userRoutes = userRoutes();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
     private final SecureRandom random = new SecureRandom();
-    /** By id, in id order. */
+
     private final Map<Integer, Session> sessions = new LinkedHashMap<>();
 
     private int nextSessionId = 1;
-    /**
-     * The files the admin has picked. A user-supplied path is only ever looked up here by exact
-     * match; what comes back is a {@link Key}, which is the only thing the server resolves against
-     * a worktree.
-     */
+
     private final EditableSet editable;
 
     private CodingServer(
@@ -248,29 +210,12 @@ public final class CodingServer {
         this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
     }
 
-    /**
-     * @param root      the project checkout: a git repository with a {@code develop} branch
-     * @param benches   makes the bench for a user's worktree, the first time that user builds or runs
-     * @param adminBind the one address the admin listener answers on; {@link #main} always passes
-     *                  loopback, and this is a parameter only so a test can prove the property
-     * @param stateDir  where sessions, the editable set, and the worktrees are kept between runs;
-     *                  created on demand
-     * @throws IllegalStateException when a store under {@code stateDir} exists but cannot be read,
-     *                               rather than starting over and silently logging everyone out;
-     *                               when git, the repository, or {@code develop} is missing; or
-     *                               when this JVM cannot run the formatter every Commit goes
-     *                               through
-     */
     public static CodingServer start(
             Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
         JavaFormatter.check();
         return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir);
     }
 
-    /**
-     * The state directory by the XDG Base Directory convention: {@code $XDG_STATE_HOME} when it is
-     * set to an absolute path, else {@code $HOME/.local/state}, then this project's own subdirectory.
-     */
     static Path stateDir(Map<String, String> env) {
         String xdg = env.get("XDG_STATE_HOME");
         Path base;
@@ -286,7 +231,6 @@ public final class CodingServer {
         return base.resolve("midnight-snackers").resolve("coding-server");
     }
 
-    /** Run from the repository root (the Gradle task does); replays land where the bench puts them. */
     public static void main(String[] args) throws InterruptedException {
         Path root = Path.of("").toAbsolutePath();
         SimBench.Factory benches = worktree -> new SimBench(
@@ -347,12 +291,10 @@ public final class CodingServer {
         }
     }
 
-    /** The user's worktree, made if need be. */
     private Worktrees.Worktree worktreeOf(Session session) {
         return worktrees.ensure(session.username);
     }
 
-    /** The user's bench, made over their worktree the first time they build or run. */
     private SimBench benchOf(Session session) {
         synchronized (benchByUsername) {
             SimBench bench = benchByUsername.get(session.username);
@@ -365,7 +307,6 @@ public final class CodingServer {
         }
     }
 
-    /** The user's bench routes, mounted under {@code /sim}: runs they start are recorded as theirs. */
     private Router benchRoutesOf(Session session) {
         synchronized (benchByUsername) {
             benchOf(session);
@@ -373,15 +314,6 @@ public final class CodingServer {
         }
     }
 
-    // --- the user listener ---
-
-    /**
-     * The user listener. Three things answer a caller the server does not know, and each has to:
-     * the page that offers the login, the login itself, and the {@code /me} the login page polls
-     * to see when it is approved, which says nothing about anyone but its own caller. Everything
-     * else -- files, the simulator, navigation, git, builds and the editor bundle -- is for
-     * approved sessions only.
-     */
     private Router userRoutes() {
         Router approved = new Router()
                 .guard(request ->
@@ -421,7 +353,6 @@ public final class CodingServer {
         return session != null && session.state == State.APPROVED;
     }
 
-    /** The user routes, with git's refusal to make or use the worktree reported as the server's failure. */
     private Response handleUser(Request request) {
         try {
             return userRoutes.handle(request);
@@ -432,7 +363,6 @@ public final class CodingServer {
         }
     }
 
-    /** {@code GET} or {@code PUT /files/<key>}: reads, or with a body writes, one file of the editable set. */
     private Response file(Session session, String path, String edit) {
         synchronized (this) {
             Optional<Key> key = editable.lookUp(path);
@@ -466,9 +396,6 @@ public final class CodingServer {
         return body;
     }
 
-    // --- read, write, conflict ---
-
-    /** The file's text and version, or the response explaining why it has none. */
     private static final class Current {
         final String content;
         final String version;
@@ -501,7 +428,6 @@ public final class CodingServer {
         }
     }
 
-    /** A file's bytes as text, refusing anything that is not UTF-8 rather than replacing it with question marks. */
     private static String utf8(byte[] bytes) throws CharacterCodingException {
         return StandardCharsets.UTF_8
                 .newDecoder()
@@ -511,7 +437,6 @@ public final class CodingServer {
                 .toString();
     }
 
-    /** The version of a file is the SHA-256 of its bytes: stateless, and it notices edits made outside the server. */
     static String version(byte[] bytes) {
         try {
             StringBuilder hex = new StringBuilder();
@@ -570,7 +495,6 @@ public final class CodingServer {
         return Response.json(GSON.toJson(body));
     }
 
-    /** Writes a file whole, through a temporary next to it, so a reader never sees half of it. */
     private static void replace(Path target, byte[] bytes) throws IOException {
         Path temp = Files.createTempFile(target.getParent(), "." + target.getFileName(), ".editing");
         try {
@@ -635,10 +559,6 @@ public final class CodingServer {
         return body;
     }
 
-    /**
-     * The session a cookie proves, or null. The id names the session and the secret is checked
-     * against its hash once per process; after that the cookie value itself is remembered.
-     */
     private synchronized Session sessionOf(Request request) {
         String token = request.cookie(COOKIE);
         if (token == null) {
@@ -677,12 +597,9 @@ public final class CodingServer {
         return count;
     }
 
-    // --- go to definition, find usages, and viewing what is not editable ---
-
-    /** The sources a user may see: the worktree, its main source root, and the navigator over it; null without sources. */
     private static final class Sources {
         final Path worktree;
-        /** The source root's key, with a trailing slash, so a file's key is this plus the navigator's name for it. */
+
         final String prefix;
 
         final SourceNavigator navigator;
@@ -693,7 +610,6 @@ public final class CodingServer {
             this.navigator = navigator;
         }
 
-        /** The navigator's name for a root-relative path, or null when it is not a source file. */
         String sourceOf(String path) {
             if (path == null || !path.startsWith(prefix)) {
                 return null;
@@ -702,10 +618,6 @@ public final class CodingServer {
             return navigator.files().contains(source) ? source : null;
         }
 
-        /**
-         * The key for a path a user named, or empty: an exact match against the files the
-         * navigator enumerated, the same discipline the editable set follows.
-         */
         Optional<Key> lookUp(String path) {
             return sourceOf(path) == null ? Optional.empty() : Key.under(worktree, path);
         }
@@ -732,7 +644,6 @@ public final class CodingServer {
         return new Sources(worktree, worktree.relativize(sourceRoot).toString().replace('\\', '/') + "/", navigator);
     }
 
-    /** {@code GET /nav/definition} or {@code /nav/usages}, with {@code file}, {@code line} and {@code column}. */
     private Response navigate(Session session, String op, Request request) {
         if (!op.equals("definition") && !op.equals("usages")) {
             return Response.error(404, "not found: " + request.path);
@@ -791,7 +702,6 @@ public final class CodingServer {
         return body;
     }
 
-    /** A location with the file as a root-relative key; a null location is a null file with no line. */
     private static JsonObject locationJson(Sources sources, SourceNavigator.Location location) {
         JsonObject body = new JsonObject();
         body.addProperty("file", location == null ? null : sources.keyOf(location.file));
@@ -801,7 +711,6 @@ public final class CodingServer {
         return body;
     }
 
-    /** Any main source file, read-only: where a jump to a definition may land. */
     private Response source(Session session, String path) {
         Sources sources = sourcesOf(session);
         Optional<Key> key = sources == null ? Optional.empty() : sources.lookUp(path);
@@ -822,17 +731,10 @@ public final class CodingServer {
         return Response.json(GSON.toJson(body));
     }
 
-    // --- the user's branch: status, commit, pull, push ---
-
     private Response gitStatus(Session session) {
         return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
     }
 
-    /**
-     * {@code POST /git/commit} with a JSON body naming the message. The user's uncommitted Java is
-     * formatted first, so what is committed is what {@code spotlessCheck} accepts and their push
-     * never fails CI on formatting alone.
-     */
     private Response gitCommit(Session session, String requestBody) {
         {
             JsonObject body;
@@ -851,7 +753,6 @@ public final class CodingServer {
             Worktrees.Commit commit;
             Formatting formatting;
             synchronized (this) {
-                // under the server's lock, so a save in flight lands before or after, never inside
                 formatting = format(worktreeOf(session).path, worktrees.uncommitted(session.username));
                 commit = worktrees.commit(session.username, message);
             }
@@ -874,10 +775,9 @@ public final class CodingServer {
         return n + " " + noun + (n == 1 ? "" : "s");
     }
 
-    /** What formatting the uncommitted Java did: the files it rewrote, and the ones it could not. */
     private static final class Formatting {
         final List<String> formatted = new ArrayList<>();
-        /** A file the formatter left alone, against what stopped it: it is committed as the user wrote it. */
+
         final List<String> refused = new ArrayList<>();
 
         String said() {
@@ -892,11 +792,6 @@ public final class CodingServer {
         }
     }
 
-    /**
-     * Rewrites every uncommitted {@code .java} file in the worktree as the formatter would have it.
-     * A file it cannot read or parse is left exactly as the user saved it and named in the warning:
-     * a commit is a save point, and a save point that refuses half-written code is no use.
-     */
     private static Formatting format(Path worktree, List<String> uncommitted) {
         Formatting formatting = new Formatting();
         for (String named : uncommitted) {
@@ -907,7 +802,7 @@ public final class CodingServer {
             Key key = found.get();
             Path file = key.under(worktree);
             if (!Files.isRegularFile(file)) {
-                continue; // deleted, or never a file: git has it either way
+                continue;
             }
             try {
                 byte[] before = Files.readAllBytes(file);
@@ -927,7 +822,6 @@ public final class CodingServer {
         return formatting;
     }
 
-    /** {@code POST /git/pull}: brings develop into the user's branch. */
     private Response gitPull(Session session) {
         Worktrees.Merge merge;
         synchronized (this) {
@@ -936,11 +830,6 @@ public final class CodingServer {
         return reply(merge, MergeReport.Op.PULL, session.username, MergeReport.Voice.USER);
     }
 
-    /**
-     * {@code POST /admin/logins/<id>/pull}: the same pull, asked for by the admin on the user's
-     * behalf, so the reply and the record on the admin page name the user and never send the
-     * coach to the coach. 404 without a worktree to pull into.
-     */
     private Response adminPull(String id) {
         Session found = sessionById(id);
         if (found == null) {
@@ -960,7 +849,6 @@ public final class CodingServer {
         return reply(merge, MergeReport.Op.PULL, found.username, MergeReport.Voice.ADMIN);
     }
 
-    /** {@code POST /git/push}: lands the user's commits on develop. */
     private Response gitPush(Session session) {
         Worktrees.Merge merge;
         synchronized (this) {
@@ -969,11 +857,6 @@ public final class CodingServer {
         return reply(merge, MergeReport.Op.PUSH, session.username, MergeReport.Voice.USER);
     }
 
-    /**
-     * The reply to a pull or push, and the record of it on the user's row. Nothing is handed to
-     * the report but the merge, who it happened to and who is being spoken to: what to say, how
-     * bad it is and what a coach should run are all its to work out, in one place.
-     */
     private Response reply(Worktrees.Merge merge, MergeReport.Op op, String username, MergeReport.Voice voice) {
         Worktrees.Worktree worktree = worktrees.find(username);
         MergeReport report =
@@ -991,15 +874,11 @@ public final class CodingServer {
         body.addProperty("ahead", status.ahead);
         body.addProperty("behind", status.behind);
         body.addProperty("head", status.head);
-        // Whether a push would land is the server's judgement, and the same one the push itself
-        // makes, so the page is told rather than working it out from the counts: it would have to
-        // write the rule a second time, and a Push button offered over uncommitted work is a
-        // button whose only answer is no.
+
         body.addProperty("pushable", status.pushable());
         return body;
     }
 
-    /** The compile result of the user's sources as saved, with problems named by root-relative file. */
     private JsonObject buildCheck(Session session) {
         JsonObject body = new JsonObject();
         SimBench bench = benchOf(session);
@@ -1041,9 +920,6 @@ public final class CodingServer {
         return body;
     }
 
-    // --- the admin listener ---
-
-    /** The admin listener: the admin page, the users and their logins' decisions, and the editable set. */
     private Router adminRoutes() {
         return new Router()
                 .route("GET", "/", (request, params) -> Response.html(page("admin.html")))
@@ -1066,12 +942,6 @@ public final class CodingServer {
                 .route("POST", "/admin/files/remove", (request, params) -> removeEditable(request.query("path")));
     }
 
-    // --- the editable set ---
-
-    /**
-     * The directory or file at a root-relative path, or null when the path is absolute, climbs
-     * out of the root, follows a symlink out of it, or does not exist.
-     */
     private Path underRoot(String relative) {
         if (relative == null) {
             relative = "";
@@ -1093,7 +963,6 @@ public final class CodingServer {
         return path;
     }
 
-    /** How the admin's file browser spells a path it is listing: one rule, Key's. */
     private String keyOf(Path path) {
         return Key.of(root, path).path();
     }
@@ -1146,7 +1015,6 @@ public final class CodingServer {
         return Response.json(GSON.toJson(fileList(false)));
     }
 
-    /** The user port and this machine's LAN addresses, so the admin can tell teammates where to go. */
     private String info() {
         JsonArray addresses = new JsonArray();
         try {
@@ -1160,7 +1028,6 @@ public final class CodingServer {
                 }
             }
         } catch (SocketException e) {
-            // no addresses to offer; the admin can still find one by hand
         }
         JsonObject body = new JsonObject();
         body.addProperty("userPort", users.port());
@@ -1170,15 +1037,6 @@ public final class CodingServer {
         return GSON.toJson(body);
     }
 
-    /**
-     * Every user, in the order they first logged in, each with their logins under them, oldest
-     * first: logging in again is one more session under the same name, not a second user. What is
-     * the user's rather than any one login's is said once, on them — the worktree and its branch,
-     * its status (what {@code GET /git/status} tells the user: the changed files, ahead and
-     * behind) once there is a worktree, and how their last pull or push ended. A status git
-     * cannot give is null with the reason in {@code statusError}, so one broken worktree does not
-     * take the listing down.
-     */
     private synchronized String users() {
         JsonArray list = new JsonArray();
         long now = System.currentTimeMillis();
@@ -1193,14 +1051,9 @@ public final class CodingServer {
                 user.addProperty("branch", worktree == null ? null : worktree.branch);
                 JsonElement status = JsonNull.INSTANCE;
                 String statusError = null;
-                // Whether a delete would be refused is the server's judgement, and the same one the
-                // delete itself makes, so the page is told rather than working it out from the
-                // status: that reads a different thing, and the two disagree once the worktree
-                // directory has gone. A user git cannot be read for is not deletable, since what
-                // the delete would throw away is exactly what could not be counted.
+
                 boolean deletable = worktree == null;
                 if (worktree != null) {
-                    // git is asked once per user, however many logins they have
                     try {
                         status = statusJson(worktrees.status(session.username));
                         deletable = worktrees.unsaved(session.username).none();
@@ -1229,7 +1082,6 @@ public final class CodingServer {
         return GSON.toJson(root);
     }
 
-    /** The session with that id, or null when the id is not a number or nobody has it. */
     private synchronized Session sessionById(String id) {
         try {
             return sessions.get(Integer.parseInt(id));
@@ -1245,7 +1097,6 @@ public final class CodingServer {
         }
         switch (verb) {
             case "approve":
-                // the worktree is made here, in front of the admin, not at the user's first save
                 try {
                     worktrees.ensure(found.username);
                 } catch (Worktrees.GitFailed e) {
@@ -1267,15 +1118,6 @@ public final class CodingServer {
         return Response.json(GSON.toJson(me(found)));
     }
 
-    // --- deleting a user ---
-
-    /**
-     * {@code POST /admin/users/delete?username=<name>}: the user leaves. Every login they have is
-     * forgotten, their bench and its child stop, and their worktree directory goes; their branch
-     * and the mapping to it stay, so logging in again and being approved gives them their work
-     * back on the same branch. Refused with 409, changing nothing, while they have work
-     * {@code develop} does not have, unless {@code force}.
-     */
     private Response deleteUser(String username, boolean force) {
         if (username == null || username.isEmpty()) {
             return Response.error(400, "POST /admin/users/delete?username=<name>");
@@ -1286,7 +1128,6 @@ public final class CodingServer {
         }
         Worktrees.Worktree worktree = worktrees.find(username);
         try {
-            // asked before the bench is stopped, so a refusal does not cost the user a run
             if (!force) {
                 Worktrees.Unsaved unsaved = worktrees.unsaved(username);
                 if (!unsaved.none()) {
@@ -1297,8 +1138,7 @@ public final class CodingServer {
             synchronized (navigatorByUsername) {
                 navigatorByUsername.remove(username);
             }
-            // the same question again, and this time it is the answer that decides: work that
-            // arrived since is refused here, having cost a stopped run
+
             Worktrees.Removal removal = worktrees.remove(username, force);
             if (removal.refused != null) {
                 return refusal(username, removal.refused);
@@ -1329,7 +1169,6 @@ public final class CodingServer {
         return count;
     }
 
-    /** Stops the user's bench and its child, and forgets it, so a later login gets a fresh one. */
     private void stopBench(String username) {
         synchronized (benchByUsername) {
             SimBench bench = benchByUsername.remove(username);
@@ -1340,7 +1179,6 @@ public final class CodingServer {
         }
     }
 
-    /** 409: what the delete would have thrown away, named, so the admin can ask for it anyway. */
     private static Response refusal(String username, Worktrees.Unsaved unsaved) {
         List<String> parts = new ArrayList<>();
         if (!unsaved.changed.isEmpty()) {
@@ -1363,8 +1201,6 @@ public final class CodingServer {
     private static String plural(int count, String one) {
         return count + " " + (count == 1 ? one : one + "s");
     }
-
-    // --- what outlives the process ---
 
     private void loadSessions() {
         JsonObject stored = StateStore.load(stateDir.resolve(SESSIONS_FILE));
@@ -1392,8 +1228,6 @@ public final class CodingServer {
         body.add("sessions", list);
         StateStore.save(stateDir.resolve(SESSIONS_FILE), body);
     }
-
-    // --- pages ---
 
     private static String page(String name) {
         try (InputStream in = CodingServer.class.getResourceAsStream(name)) {

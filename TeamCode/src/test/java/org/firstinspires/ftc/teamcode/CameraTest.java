@@ -23,12 +23,11 @@ public class CameraTest {
 
     private final List<AprilTagDetection> detections = new ArrayList<>();
     private final SimDevices devices = new SimDevices();
-    /** A robot whose camera sees {@code detections} instead of the simulator's empty view. */
+
     private final Robot robot = new Robot(devices.hardware(() -> detections), Alliance.RELATIVE, new FakeTelemetry());
 
     private final Camera camera = robot.camera;
 
-    /** A detection's age is judged on the robot's clock, the one its frames are stamped with. */
     @Test
     public void aSightingGoesStaleATenthOfASecondAfterItsFrameOnTheRobotsClock() {
         for (int i = 0; i < 3; i++) {
@@ -50,17 +49,11 @@ public class CameraTest {
 
     @Test
     public void noDetectionsMeansNoPose() {
-
         camera.loop();
 
         assertTrue(camera.sighting().isEmpty());
     }
 
-    /**
-     * A driver may ask to see the camera before it has seen anything -- gamepad 2's circle, any
-     * time from the moment the robot is built. Printing what it has not got is not a reason to end
-     * the op mode in the middle of a match.
-     */
     @Test
     public void turningTelemetryOnBeforeAnyTagIsSeenPrintsRatherThanThrowing() {
         robot.channels.toggle(Camera.CHANNEL);

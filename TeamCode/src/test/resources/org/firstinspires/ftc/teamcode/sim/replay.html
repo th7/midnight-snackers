@@ -72,14 +72,12 @@
   kbd { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink); }
   canvas.moving, canvas.turning { cursor: grabbing; }
 
-  /* placing: the start pose as numbers, next to the field the robot is dragged on */
   #placement { display: grid; gap: 10px; }
   #placement label { display: grid; grid-template-columns: 6ch 1fr 3ch; gap: 8px; align-items: center; color: var(--muted); }
   #placement input { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); width: 100%; min-width: 0; }
   #placement .unit { color: var(--muted); font-size: 12px; }
   .place-msg { color: var(--muted); font-size: 13px; margin: 0; min-height: 1.2em; }
 
-  /* the controller: a PlayStation-style gamepad, every input clickable and labelled with its key */
   .controller-panel { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
   .controller-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
   .controller-head .section-label { margin: 0 auto 0 0; }
@@ -162,33 +160,33 @@
       <button class="pick" data-gamepad="2" data-key="Digit2" aria-pressed="false">Gamepad 2<kbd>2</kbd></button>
     </div>
     <svg id="controller" viewBox="0 0 640 322" role="group" aria-label="PlayStation-style controller">
-      <!-- shoulders: triggers above bumpers -->
+
       <g class="btn" data-button="left_trigger" data-key="KeyE"><rect class="cap" x="118" y="8" width="74" height="22" rx="8"/><text class="name" x="145" y="23">L2</text><rect class="kbox" x="164" y="12" width="20" height="14" rx="3"/><text class="klabel" x="174" y="19"></text></g>
       <g class="btn" data-button="left_bumper" data-key="KeyQ"><rect class="cap" x="118" y="36" width="74" height="22" rx="8"/><text class="name" x="145" y="51">L1</text><rect class="kbox" x="164" y="40" width="20" height="14" rx="3"/><text class="klabel" x="174" y="47"></text></g>
       <g class="btn" data-button="right_trigger" data-key="KeyO"><rect class="cap" x="448" y="8" width="74" height="22" rx="8"/><text class="name" x="495" y="23">R2</text><rect class="kbox" x="456" y="12" width="20" height="14" rx="3"/><text class="klabel" x="466" y="19"></text></g>
       <g class="btn" data-button="right_bumper" data-key="KeyU"><rect class="cap" x="448" y="36" width="74" height="22" rx="8"/><text class="name" x="495" y="51">R1</text><rect class="kbox" x="456" y="40" width="20" height="14" rx="3"/><text class="klabel" x="466" y="47"></text></g>
-      <!-- body -->
+
       <path class="body" d="M 135 62 H 505 C 560 62 588 95 592 140 L 610 245 C 614 285 590 318 556 318 C 522 318 506 292 492 268 L 470 262 H 170 L 148 268 C 134 292 118 318 84 318 C 50 318 26 285 30 245 L 48 140 C 52 95 80 62 135 62 Z"/>
-      <!-- d-pad, around (165, 150) -->
+
       <rect class="body" x="150" y="135" width="30" height="30"/>
       <g class="btn" data-button="dpad_up" data-key="KeyT"><rect class="cap" x="150" y="104" width="30" height="33" rx="5"/><path class="glyph" d="M 159 122 L 165 114 L 171 122"/><rect class="kbox" x="155" y="86" width="20" height="14" rx="3"/><text class="klabel" x="165" y="93"></text></g>
       <g class="btn" data-button="dpad_down" data-key="KeyG"><rect class="cap" x="150" y="163" width="30" height="33" rx="5"/><path class="glyph" d="M 159 178 L 165 186 L 171 178"/><rect class="kbox" x="155" y="200" width="20" height="14" rx="3"/><text class="klabel" x="165" y="207"></text></g>
       <g class="btn" data-button="dpad_left" data-key="KeyF"><rect class="cap" x="119" y="135" width="33" height="30" rx="5"/><path class="glyph" d="M 137 144 L 129 150 L 137 156"/><rect class="kbox" x="94" y="143" width="20" height="14" rx="3"/><text class="klabel" x="104" y="150"></text></g>
       <g class="btn" data-button="dpad_right" data-key="KeyH"><rect class="cap" x="178" y="135" width="33" height="30" rx="5"/><path class="glyph" d="M 193 144 L 201 150 L 193 156"/><rect class="kbox" x="216" y="143" width="20" height="14" rx="3"/><text class="klabel" x="226" y="150"></text></g>
-      <!-- centre: share, touchpad, options, ps -->
+
       <g class="btn" data-button="share" data-key="KeyC"><rect class="cap" x="228" y="92" width="14" height="30" rx="5"/><text class="tiny" x="235" y="86">share</text><rect class="kbox" x="225" y="128" width="20" height="14" rx="3"/><text class="klabel" x="235" y="135"></text></g>
       <g class="btn" data-button="touchpad" data-key="KeyV"><rect class="cap" x="250" y="82" width="140" height="70" rx="10"/><text class="name" x="320" y="112">touchpad</text><rect class="kbox" x="310" y="126" width="20" height="14" rx="3"/><text class="klabel" x="320" y="133"></text></g>
       <g class="btn" data-button="options" data-key="KeyB"><rect class="cap" x="398" y="92" width="14" height="30" rx="5"/><text class="tiny" x="405" y="86">options</text><rect class="kbox" x="395" y="128" width="20" height="14" rx="3"/><text class="klabel" x="405" y="135"></text></g>
       <g class="btn" data-button="ps" data-key="KeyP"><circle class="cap" cx="320" cy="180" r="12"/><text class="name" x="320" y="184">PS</text><rect class="kbox" x="310" y="197" width="20" height="14" rx="3"/><text class="klabel" x="320" y="204"></text></g>
-      <!-- face buttons, around (475, 150) -->
+
       <g class="btn" data-button="triangle" data-key="KeyI"><circle class="cap" cx="475" cy="108" r="17"/><path class="glyph" d="M 475 99 L 484 115 H 466 Z"/><rect class="kbox" x="465" y="78" width="20" height="14" rx="3"/><text class="klabel" x="475" y="85"></text></g>
       <g class="btn" data-button="circle" data-key="KeyL"><circle class="cap" cx="517" cy="150" r="17"/><circle class="glyph" cx="517" cy="150" r="7.5"/><rect class="kbox" x="540" y="143" width="20" height="14" rx="3"/><text class="klabel" x="550" y="150"></text></g>
       <g class="btn" data-button="cross" data-key="KeyK"><circle class="cap" cx="475" cy="192" r="17"/><path class="glyph" d="M 468 185 L 482 199 M 482 185 L 468 199"/><rect class="kbox" x="465" y="214" width="20" height="14" rx="3"/><text class="klabel" x="475" y="221"></text></g>
       <g class="btn" data-button="square" data-key="KeyJ"><circle class="cap" cx="433" cy="150" r="17"/><rect class="glyph" x="426" y="143" width="14" height="14"/><rect class="kbox" x="398" y="143" width="20" height="14" rx="3"/><text class="klabel" x="408" y="150"></text></g>
-      <!-- sticks: forward is up, which the SDK reads as negative y -->
+
       <g class="stick" data-stick="left" data-keys="KeyW KeyS KeyA KeyD"><circle class="well" cx="250" cy="218" r="32"/><circle class="knob" cx="250" cy="218" r="20"/></g>
       <g class="stick" data-stick="right" data-keys="ArrowUp ArrowDown ArrowLeft ArrowRight"><circle class="well" cx="390" cy="218" r="32"/><circle class="knob" cx="390" cy="218" r="20"/></g>
-      <!-- stick keys, under each stick: up on top, then left down right -->
+
       <g class="keys" data-for="left">
         <rect class="kbox" x="213" y="268" width="22" height="16" rx="3"/><text class="klabel" x="224" y="276" data-dir="0"></text>
         <rect class="kbox" x="187" y="288" width="22" height="16" rx="3"/><text class="klabel" x="198" y="296" data-dir="2"></text>
@@ -213,12 +211,10 @@
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
-  // Placing: no run, just the robot where the op mode's runs will start, to drag into place.
+
   const placing = !!rec.placing;
   const start = placing ? { x: rec.placing.x, y: rec.placing.y, heading: rec.placing.heading } : null;
-  // The field model, the robot and wall sizes come from SimRobot, so the page draws what the simulator
-  // collides: the walled square field, its elements, tape and game pieces, and the robot as a cube
-  // standing on it.
+
   const FIELD_IN = __FIELD_IN__, ROBOT_IN = __ROBOT_IN__, WALL_IN = __WALL_IN__;
   const FIELD = __FIELD__;
   const HALF = FIELD_IN / 2, TILE_IN = FIELD_IN / 6;
@@ -226,15 +222,12 @@
   const ctx = canvas.getContext('2d');
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-  // --- the camera: a perspective view that orbits the field's centre ---
-  // Points are [x, y, z] in field inches, Road Runner frame: +x forward, +y left, +z up.
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const unit = a => { const n = Math.hypot(a[0], a[1], a[2]); return [a[0] / n, a[1] / n, a[2] / n]; };
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  // Azimuth 0 is the audience side: looking along +x, with +y to the left. Elevation is the angle
-  // above the floor; zoom scales the framed field.
+
   const HOME = { az: 0, el: 0.62, zoom: 1 };
   const view = Object.assign({}, HOME);
   const EYE_DIST = 2.4 * FIELD_IN;
@@ -252,7 +245,7 @@
     cam.f = unit(sub([0, 0, WALL_IN / 2], cam.eye));
     cam.r = unit(cross(cam.f, [0, 0, 1]));
     cam.u = cross(cam.r, cam.f);
-    // Frame the walled field with a margin from whatever angle it is seen; zoom scales from there.
+
     cam.focal = 1; cam.ox = 0; cam.oy = 0;
     let top = Math.max(WALL_IN, ROBOT_IN);
     for (const e of FIELD.elements) for (const v of e.vertices) top = Math.max(top, v[2]);
@@ -268,20 +261,18 @@
     cam.oy = canvas.height / 2 - cam.focal * (minY + maxY) / 2;
   }
 
-  // The field point at height z under a canvas point: the ray from the eye through it, met with that plane.
   function pointOnPlane(sx, sy, z) {
     const a = (sx - cam.ox) / cam.focal, b = -(sy - cam.oy) / cam.focal;
     const d = [cam.f[0] + a * cam.r[0] + b * cam.u[0], cam.f[1] + a * cam.r[1] + b * cam.u[1], cam.f[2] + a * cam.r[2] + b * cam.u[2]];
     const t = (z - cam.eye[2]) / d[2];
     return t > 0 ? [cam.eye[0] + t * d[0], cam.eye[1] + t * d[1]] : null;
   }
-  // A pointer event's position in canvas pixels.
+
   function canvasPoint(e) {
     const rect = canvas.getBoundingClientRect();
     return { x: (e.clientX - rect.left) * canvas.width / rect.width, y: (e.clientY - rect.top) * canvas.height / rect.height };
   }
 
-  // A polygon or a line of 3D points as a canvas path. Straight lines stay straight in perspective.
   function trace(points, close) {
     ctx.beginPath();
     points.forEach((p, i) => { const s = project(p); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
@@ -290,7 +281,6 @@
   const floor = (x, y) => project([x, y, 0]);
   const depthOf = p => dot(sub(p, cam.eye), cam.f);
 
-  // The ground extends past the walls as far as the model does: the alliance areas are marked out there.
   const apron = { minX: -HALF, maxX: HALF, minY: -HALF, maxY: HALF };
   for (const m of FIELD.tape) for (const [x, y] of m.footprint) {
     apron.minX = Math.min(apron.minX, x - 6); apron.maxX = Math.max(apron.maxX, x + 6);
@@ -301,14 +291,13 @@
     apron.minY = Math.min(apron.minY, y - 6); apron.maxY = Math.max(apron.maxY, y + 6);
   }
 
-  // The four walls: the floor corners each runs between, and which way is outside the field.
   const WALLS = [
     { a: [HALF, -HALF], b: [HALF, HALF], out: [1, 0] },
     { a: [-HALF, -HALF], b: [-HALF, HALF], out: [-1, 0] },
     { a: [-HALF, HALF], b: [HALF, HALF], out: [0, 1] },
     { a: [-HALF, -HALF], b: [HALF, -HALF], out: [0, -1] }
   ];
-  // A wall the camera is outside of is in front of everything on the field; the others are behind.
+
   const wallInFront = w => cam.eye[0] * w.out[0] + cam.eye[1] * w.out[1] > HALF;
   const wallDistance = w => Math.hypot(cam.eye[0] - (w.a[0] + w.b[0]) / 2, cam.eye[1] - (w.a[1] + w.b[1]) / 2, cam.eye[2] - WALL_IN / 2);
 
@@ -324,7 +313,6 @@
   let index = 0, playing = false, clock = 0, lastFrame = null;
   let following = !!rec.live;
 
-  // While the run is live and not over, the controller drives it and owns the keyboard.
   const driving = () => rec.live && !rec.outcome && !rec.disconnected;
 
   function updateOutcome() {
@@ -374,13 +362,13 @@
     ctx.fillText('+x', px.x, px.y);
     ctx.fillText('+y', py.x, py.y);
     ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
-    // The gaffer tape, as laid on the floor.
+
     for (const mark of FIELD.tape) {
       ctx.fillStyle = mark.colour;
       trace(mark.footprint.map(([x, y]) => [x, y, 0]), true);
       ctx.fill();
     }
-    // What the simulator collides: the obstacles' footprints, outlined on the floor.
+
     ctx.strokeStyle = token('--wall-edge');
     ctx.setLineDash([3, 3]);
     for (const obstacle of FIELD.obstacles) {
@@ -390,8 +378,6 @@
     ctx.setLineDash([]);
   }
 
-  // Everything that stands on the field is drawn back to front by depth, one face at a time: the
-  // elements' faces, the robot's, and the game pieces as balls. Faces turned away are skipped.
   const light = unit([-0.5, 0.4, 0.8]);
   function shade(colour, n, alpha) {
     ctx.fillStyle = colour;
@@ -401,7 +387,7 @@
     ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // A solid shape: every face that is turned toward the camera, shaded and outlined.
+
   function facesOf(element, at = p => p) {
     const out = [];
     for (const ring of element.faces) {
@@ -414,9 +400,7 @@
     }
     return out;
   }
-  // A hive is drawn where it leans: its parts are solid, and each cell is its walls and its back,
-  // seen through from either side and outlined in the alliance's colour, with its mouth left open.
-  // What the hive is made of is given in its own frame, which the tilt turns into the field's.
+
   function hiveFaces(hive, tilt) {
     const radians = tilt * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians);
     const at = p => [hive.pivot[0] + p[0] * c - p[2] * s, hive.pivot[1] + p[1], hive.pivot[2] + p[0] * s + p[2] * c];
@@ -437,18 +421,12 @@
     }
     return out;
   }
-  // How far a hive leans at that tick: what the tick says, else the tilt the field is set up at.
-  // Every tick says where every hive leans that is not leaning the way the field was set up, so
-  // this reads the one tick and no earlier one: a hive that has tipped back says nothing in the
-  // tick it tipped back in, and is drawn back where it started rather than left where it was.
+
   function tiltAt(hive, upTo) {
     const said = ticks[upTo].tilt;
     return said && said[hive.alliance] !== undefined ? said[hive.alliance] : hive.tilt;
   }
-  // The balls the simulator moves are where the latest tick that says puts them, [x, y, z] each:
-  // the field's loose pieces, then the nectar the hives are set up with, then the pollen stacked in
-  // the flowers, then the robot's preload, which looks like the first loose piece; a ball held in
-  // the robot is null and not drawn. Without a tick, they are where the field was set up.
+
   function ballsAt(at) {
     const spec = MOVED[0] || { colour: '#888', radius: 1.4 };
     const out = [];
@@ -496,7 +474,6 @@
     ctx.stroke();
   }
 
-  // The dashboard's field overlay is a drawing on the floor: every op is projected onto it.
   function drawOps(ops) {
     ctx.save();
     ctx.lineWidth = 1;
@@ -540,15 +517,13 @@
           op.stroke ? ctx.strokeText(op.text, s.x, s.y) : ctx.fillText(op.text, s.x, s.y);
           break;
         }
-        default: break; // GRID, IMAGE, TRANSLATE, ROTATION, SCALE are not used by our code
+        default: break;
       }
     }
     ctx.restore();
   }
 
   function robotFaces(tick) {
-    // The robot's cube, in field inches: a point (fx, fy, z) in the robot's own frame lands at its
-    // pose rotated by the heading, standing on the floor.
     const h = ROBOT_IN / 2, cos = Math.cos(tick.heading), sin = Math.sin(tick.heading);
     const at = (fx, fy, z) => [tick.x + fx * cos - fy * sin, tick.y + fx * sin + fy * cos, z];
     const faces = [
@@ -558,12 +533,10 @@
       { pts: [at(-h, h, 0), at(h, h, 0), at(h, h, ROBOT_IN), at(-h, h, ROBOT_IN)], n: [-sin, cos, 0], fill: '--robot-side' },
       { pts: [at(h, -h, 0), at(-h, -h, 0), at(-h, -h, ROBOT_IN), at(h, -h, ROBOT_IN)], n: [sin, -cos, 0], fill: '--robot-side' }
     ];
-    // The front face is the true-pose colour; the rest are lit from the audience's left, above. The
-    // cube is a little see-through, so what the robot code draws under itself (its localizer's
-    // estimate, say) still shows.
+
     const out = [];
     for (const face of faces) {
-      if (dot(face.n, sub(cam.eye, face.pts[0])) <= 0) continue; // faces away from the camera
+      if (dot(face.n, sub(cam.eye, face.pts[0])) <= 0) continue;
       let depth = 0;
       for (const p of face.pts) depth += depthOf(p) / face.pts.length;
       out.push({ depth, draw: () => {
@@ -574,7 +547,7 @@
         ctx.stroke();
       } });
     }
-    // The heading, as an arrow on the top face from the centre to the front edge.
+
     const z = ROBOT_IN + 0.1;
     out.push({ depth: depthOf(at(0, 0, z)) - 0.01, draw: () => {
       ctx.strokeStyle = token('--true');
@@ -590,8 +563,7 @@
     for (const element of FIELD.elements) items = items.concat(facesOf(element));
     for (const hive of FIELD.hives) items = items.concat(hiveFaces(hive, tick && !placing ? tiltAt(hive, index) : hive.tilt));
     const at = tick && !placing ? latestPieces(index) : null;
-    // The balls the simulator does not move — the rows the CAD lays out beyond the walls — are where
-    // the field was set up; the loose ones, the hives' nectar and the flowers' stacks come from the tick.
+
     for (const piece of FIELD.pieces) {
       if (!piece.loose && !piece.cell && !piece.flower) items.push(ballOf(piece, piece.centre));
     }
@@ -601,7 +573,6 @@
     for (const item of items) item.draw();
   }
 
-  // Where the robot is grabbed to turn it: on the floor, this far in front of its centre.
   const HANDLE_OUT = ROBOT_IN / 2 + 10, HANDLE_R = 3, HANDLE_GRAB = 6;
   const handleAt = pose => [pose.x + HANDLE_OUT * Math.cos(pose.heading), pose.y + HANDLE_OUT * Math.sin(pose.heading)];
 
@@ -636,7 +607,7 @@
       drawTrail(index);
       for (const p of packets) drawOps(p.ops);
     }
-    // Back to front: the walls behind the field, what stands on it, then the walls between it and the camera.
+
     const walls = WALLS.slice().sort((a, b) => wallDistance(b) - wallDistance(a));
     for (const w of walls) if (!wallInFront(w)) drawWall(w);
     if (placing) drawHandle(start);
@@ -705,13 +676,12 @@
   scrub.addEventListener('input', () => { setPlaying(false); if (following) setFollowing(false); setIndex(parseInt(scrub.value, 10)); });
   follow.addEventListener('click', () => setFollowing(!following));
 
-  // --- placing: the robot is dragged to where the run starts, and the handle in front of it turns it ---
   const placement = document.getElementById('placement');
   const startX = document.getElementById('start-x'), startY = document.getElementById('start-y'), startHeading = document.getElementById('start-heading');
   const placeMsg = document.getElementById('place-msg');
   const round3 = v => Math.round(v * 1000) / 1000;
   const wrap = h => Math.atan2(Math.sin(h), Math.cos(h));
-  // The pose the walls allow, as the simulator keeps it: no corner of the robot's square beyond a wall.
+
   function insideTheWalls(pose) {
     const reach = ROBOT_IN / 2 * (Math.abs(Math.cos(pose.heading)) + Math.abs(Math.sin(pose.heading)));
     const limit = HALF - reach;
@@ -722,7 +692,7 @@
     if (document.activeElement !== startY) startY.value = start.y.toFixed(1);
     if (document.activeElement !== startHeading) startHeading.value = (start.heading * 180 / Math.PI).toFixed(0);
   }
-  // What is under a canvas point: the handle, the robot (its top or its footprint), or the field.
+
   function under(px, py) {
     const [hx, hy] = handleAt(start);
     const onFloor = pointOnPlane(px, py, 0);
@@ -774,8 +744,6 @@
     for (const input of [startX, startY, startHeading]) input.addEventListener('change', fromInputs);
   }
 
-  // Drag: while placing, the robot or its handle; otherwise, or anywhere else, orbit the field.
-  // Scroll to zoom, double-click to go back to the audience's view.
   canvas.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -827,11 +795,10 @@
   }, { passive: false });
   canvas.addEventListener('dblclick', () => { Object.assign(view, HOME); render(); });
 
-  // --- the controller ---
   const panel = document.getElementById('controller-panel');
   const controller = document.getElementById('controller');
   const controllerMsg = document.getElementById('controller-msg');
-  const STICK_TRAVEL = 14; // how far the knob moves, in viewBox units, at full deflection
+  const STICK_TRAVEL = 14;
   panel.hidden = !teleop || placing;
   if (teleop) document.getElementById('step-label').textContent = 'plan';
 
@@ -847,9 +814,8 @@
     }
   }
 
-  // What we send: per gamepad, only the inputs that are not neutral, named as the SDK names them.
   const sent = { 1: {}, 2: {} };
-  // Which keys and pointers hold what, so a release lands on the gamepad it was pressed on.
+
   const heldByKey = new Map();
   const stickKeys = { 1: { left: new Set(), right: new Set() }, 2: { left: new Set(), right: new Set() } };
   let selected = 1;
@@ -897,7 +863,6 @@
       .then(() => { inFlight = false; if (dirty.size) send(dirty.values().next().value); });
   }
 
-  // Several inputs at once go as one post, so a stick never reports half a move.
   function setInputs(gamepad, changes) {
     const state = sent[gamepad];
     for (const name of Object.keys(changes)) {
@@ -924,7 +889,7 @@
   function setStickFromKeys(gamepad, stick) {
     const held = stickKeys[gamepad][stick];
     let x = (held.has(3) ? 1 : 0) - (held.has(2) ? 1 : 0);
-    let y = (held.has(1) ? 1 : 0) - (held.has(0) ? 1 : 0); // up is forward, which the SDK reads as negative y
+    let y = (held.has(1) ? 1 : 0) - (held.has(0) ? 1 : 0);
     if (x && y) { x *= Math.SQRT1_2; y *= Math.SQRT1_2; }
     setInputs(gamepad, stickChanges(stick, x, y));
   }
@@ -947,7 +912,6 @@
   }
   stop.addEventListener('click', requestStop);
 
-  // Buttons and triggers: pressed while the pointer is down on them.
   for (const el of controller.querySelectorAll('.btn[data-button]')) {
     const name = el.dataset.button;
     const value = /_trigger$/.test(name) ? 1 : true;
@@ -962,7 +926,7 @@
       el.addEventListener('pointercancel', release);
     });
   }
-  // Sticks: drag the knob; it springs back when let go.
+
   for (const el of controller.querySelectorAll('.stick')) {
     const stick = el.dataset.stick;
     const well = el.querySelector('.well');
@@ -998,7 +962,6 @@
     pick.addEventListener('click', () => select(parseInt(pick.dataset.gamepad, 10)));
   }
 
-  // Keyboard: the labels on the controller are the map.
   const keyMap = new Map();
   for (const el of controller.querySelectorAll('.btn[data-button][data-key]')) keyMap.set(el.dataset.key, { button: el.dataset.button });
   for (const el of controller.querySelectorAll('.stick[data-keys]')) {
@@ -1035,7 +998,7 @@
     else { stickKeys[gamepad][action.stick].delete(action.dir); setStickFromKeys(gamepad, action.stick); }
   });
   window.addEventListener('blur', releaseEverything);
-  // In the bench the page sits in a frame; a click anywhere gives it the keyboard.
+
   document.addEventListener('pointerdown', () => window.focus());
 
   if (rec.live) {

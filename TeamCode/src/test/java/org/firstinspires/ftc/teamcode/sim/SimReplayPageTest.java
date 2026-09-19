@@ -68,10 +68,6 @@ public class SimReplayPageTest {
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
     }
 
-    /**
-     * The page draws the field in three dimensions: the robot as a cube of the simulator's size,
-     * and the walls as high as the simulator says they are.
-     */
     @Test
     public void thePageDrawsTheFieldAndTheRobotAtTheSimulatorsSizes() {
         String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
@@ -84,10 +80,6 @@ public class SimReplayPageTest {
                 html.contains("__FIELD_IN__") || html.contains("__ROBOT_IN__") || html.contains("__WALL_IN__"));
     }
 
-    /**
-     * The field elements, the tape and the game pieces the page draws are the simulator's own
-     * model, obstacles included, so what is drawn is what the robot runs into.
-     */
     @Test
     public void thePageCarriesTheFieldModelTheSimulatorCollides() {
         String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
@@ -97,11 +89,6 @@ public class SimReplayPageTest {
         assertFalse("no placeholder is left behind", html.contains("__FIELD__"));
     }
 
-    /**
-     * The hives are drawn where they lean: the page reads the tilt out of the tick, as the
-     * simulator wrote it, and turns the hive's own frame into the field's the way the simulator
-     * does, so a hive that tips during a run is drawn tipped from that tick on.
-     */
     @Test
     public void thePageDrawsEachHiveWhereItLeans() {
         SimRecording recording = new SimRecording("TipAuto");
@@ -127,18 +114,10 @@ public class SimReplayPageTest {
         assertTrue("from the model's own pivot and cells", html.contains("hive.pivot") && html.contains("hive.cells"));
     }
 
-    /**
-     * A tick says where a hive leans in full, so the page reads each tick on its own: a hive that
-     * has tipped back to the tilt the field was set up at says nothing in that tick, and is drawn
-     * back where it started rather than left where the tick it tipped in put it.
-     * <p>
-     * This runs the page's own rule, the way the page runs it, over a hive that tips and tips back.
-     */
     @Test
     public void thePageDrawsAHiveThatTipsBackWhereTheFieldWasSetUpAgain() throws Exception {
         SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
-        // As the run streams them: level, tipped, tipped back. A hive leaning the way the field was
-        // set up says nothing, so the third tick names no hive at all.
+
         String ticks = "[{}, {\"tilt\":{\"Blue\":" + -blue.tilt + "}}, {}]";
 
         double[] leaning = tiltOnThePage(ticks, blue);
@@ -148,10 +127,6 @@ public class SimReplayPageTest {
         assertEquals("and tipped back, not left tipped", blue.tilt, leaning[2], 0);
     }
 
-    /**
-     * How far {@code hive} leans at each of {@code ticks}, as the replay page works it out: the
-     * page's own {@code tiltAt} lifted out of the written page and run over those ticks in node.
-     */
     private double[] tiltOnThePage(String ticks, SimField.Hive hive) throws Exception {
         String html = SimReplayPage.page(new SimRecording("TiltRule"), false);
         Matcher rule = Pattern.compile("\n  function tiltAt\\(hive, upTo\\) \\{.*?\n  \\}", Pattern.DOTALL)
@@ -174,7 +149,6 @@ public class SimReplayPageTest {
         return new Gson().fromJson(out.trim(), double[].class);
     }
 
-    /** Where the loose game pieces are, tick by tick, so the page rolls them where the robot pushed them. */
     @Test
     public void aTickCarriesWhereTheLoosePiecesAre() {
         SimRecording recording = new SimRecording("PushAuto");
@@ -205,7 +179,6 @@ public class SimReplayPageTest {
                 html.split("\"pieces\"", -1).length - 1 - templateMentions("\"pieces\""));
     }
 
-    /** The placement page: the same field, the robot where the run will start, and the inputs to move it. */
     @Test
     public void thePlacementPageCarriesTheStartPoseAndTheInputsToMoveIt() {
         String html = SimReplayPage.placement("SquareAuto", "auto", new Pose2d(12.5, -3, 0.5));
@@ -278,10 +251,6 @@ public class SimReplayPageTest {
         assertTrue("Stop is a control, not an input", html.contains("id=\"stop\""));
     }
 
-    /**
-     * The bench holds a run only as the lines its child streamed; the page it serves for that run
-     * is the very page the child wrote from its own recording. One page module, two sources.
-     */
     @Test
     public void aRunKnownOnlyByItsChildsLinesIsTheSamePageAsTheRecordingItCameFrom() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");

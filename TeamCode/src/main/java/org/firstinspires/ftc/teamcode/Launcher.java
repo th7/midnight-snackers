@@ -11,17 +11,12 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Launcher implements Loopable {
-    /** The name this prints under: said here, where the printing is, and nowhere else. */
     public static final String CHANNEL = "Launcher";
 
     private final Prints telemetry;
-    /**
-     * How long a launch holds the bottom gate open, in seconds: long enough for the chambered ball
-     * to drop into the flywheel. The driver tunes it from gamepad 2 while the robot is on the
-     * field, so it is one number the launch plan reads rather than a literal in a step.
-     */
+
     public static final double BOTTOM_GATE_WAIT_SECONDS = 0.15;
-    /** What one press of the driver's bumper moves {@link #BOTTOM_GATE_WAIT_SECONDS} by. */
+
     public static final double BOTTOM_GATE_WAIT_STEP_SECONDS = 0.01;
 
     private final LongSupplier clock;
@@ -33,7 +28,7 @@ public class Launcher implements Loopable {
     private final double closeLauncherPower = 1050d;
     private final DcMotorEx launcher;
     private final Servo topGate;
-    private final Servo bottomGate; // bottomGate is closer to launcher
+    private final Servo bottomGate;
     private double topGatePosition = topGateOpenPosition;
     private double bottomGatePosition = bottomGateClosedPosition;
     private double launcherVelocity = 0d;
@@ -46,7 +41,7 @@ public class Launcher implements Loopable {
         this.topGate = topGate;
         this.bottomGate = bottomGate;
         this.telemetry = telemetry;
-        // the wiring the flywheel and the gates need, once, when the robot is built
+
         launcher.setPositionPIDFCoefficients(5);
         launcher.setVelocityPIDFCoefficients(250, 0, 0, 12.9);
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -150,17 +145,14 @@ public class Launcher implements Loopable {
         launcherVelocity = closeLauncherPower;
     }
 
-    /** Holds the bottom gate open a little longer on the next launch. */
     public void increaseBottomGateWaitTime() {
         bottomGateWaitSeconds = bottomGateWaitSeconds + BOTTOM_GATE_WAIT_STEP_SECONDS;
     }
 
-    /** Holds it open a little less; never below nothing, which would close it the loop it opened. */
     public void decreaseBottomGateWaitTime() {
         bottomGateWaitSeconds = Math.max(0, bottomGateWaitSeconds - BOTTOM_GATE_WAIT_STEP_SECONDS);
     }
 
-    /** How long the next launch holds the bottom gate open, in seconds. */
     public double bottomGateWaitSeconds() {
         return bottomGateWaitSeconds;
     }

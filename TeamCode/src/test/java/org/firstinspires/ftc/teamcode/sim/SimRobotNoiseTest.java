@@ -11,18 +11,11 @@ import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.junit.Test;
 
-/**
- * The noise moves the mechanisms, never the sensors: a noisy robot drives differently, and its
- * dead wheels and IMU still read exactly what it did.
- */
 public class SimRobotNoiseTest {
-    /** The free speed of the tuned drive at full power on the noise-free battery, in inches per second. */
     private static final double MAX_SPEED_IN_PER_S =
             (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kS) / MecanumDrive.PARAMS.kV * MecanumDrive.PARAMS.inPerTick;
 
     private static final Pose2d OPEN = new Pose2d(-60, 0, 0);
-
-    // --- the motors: each within a little of its tuning, and so of each other ---
 
     @Test
     public void weakerMotorsDriveSlower() {
@@ -45,8 +38,6 @@ public class SimRobotNoiseTest {
         assertTrue(
                 "heading=" + sim.pose().heading.toDouble(), sim.pose().heading.toDouble() < -0.05);
     }
-
-    // --- the battery: what the sensor reads is what the motors get ---
 
     @Test
     public void theBatteryReadsFreshThenSagsUnderLoadAndDrainsWithTime() {
@@ -72,8 +63,6 @@ public class SimRobotNoiseTest {
         assertEquals(expected, freeSpeed(fresh), 0.03 * expected);
         assertTrue(freeSpeed(fresh) > freeSpeed(new SimRobot()) + 3);
     }
-
-    // --- traction: a wheel cannot push, or brake, harder than the floor lets it ---
 
     @Test
     public void aWheelCannotAccelerateTheRobotHarderThanTraction() {
@@ -127,8 +116,6 @@ public class SimRobotNoiseTest {
         assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
     }
 
-    // --- setting down: a person's hand is near the pose, not on it ---
-
     @Test
     public void withoutNoiseSettingDownIsPlacingExactly() {
         SimRobot sim = new SimRobot();
@@ -166,7 +153,6 @@ public class SimRobotNoiseTest {
         assertTrue(sim.pose().position.x < SimPlacement.FIELD_SIZE_IN / 2);
     }
 
-    /** The robot's speed after 2.5 s at full power in the open, measured over the last half second. */
     private static double freeSpeed(SimRobot sim) {
         robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
@@ -191,13 +177,11 @@ public class SimRobotNoiseTest {
         return (sim.pose().position.x - x0) / 0.005;
     }
 
-    /** The localizer as the robot code builds it, reading the same ports the real one does. */
     private static Localizer robotLocalizer(SimRobot sim) {
         return new Localizer(
                 sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime, Prints.NOWHERE);
     }
 
-    /** The drive as the robot code builds it, so the motor directions are the robot's. */
     private static MecanumDrive robotDrive(SimRobot sim, Localizer localizer) {
         return new MecanumDrive(
                 new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),

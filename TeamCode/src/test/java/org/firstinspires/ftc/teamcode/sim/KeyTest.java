@@ -13,19 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
 
-/**
- * A key is a file the server has vouched for. These hold the reason it is a type at all: there is
- * no way to make one out of a string a request carried, so "nothing a user sends is resolved
- * against the filesystem" is something javac keeps rather than something one {@code if} keeps.
- */
 public class KeyTest {
     private static final Path ROOT = Paths.get("/srv/checkout").toAbsolutePath();
 
-    /**
-     * The gate. A key is made either from a real path the server found, or from a checked
-     * root-relative string -- and nothing else, so no future call site can smuggle a request
-     * string in by constructing one directly.
-     */
     @Test
     public void theOnlyWaysToMakeAKeyAreTheTwoCheckedOnes() {
         for (Constructor<?> constructor : Key.class.getDeclaredConstructors()) {

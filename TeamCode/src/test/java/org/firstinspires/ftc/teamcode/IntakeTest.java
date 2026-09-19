@@ -10,7 +10,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
-/** The intake is on or off, and its motor says which from the moment the robot is built. */
 public class IntakeTest {
     private final SimDevices devices = new SimDevices();
     private final FakeDcMotorEx motor = devices.intake;
@@ -43,7 +42,6 @@ public class IntakeTest {
         assertEquals(Intake.RUNNING_POWER, motor.power, 0.0001);
     }
 
-    /** The state is the subsystem's, so a loop that nobody has told anything leaves it alone. */
     @Test
     public void staysAsItWasLeftFromLoopToLoop() {
         robot.intake.off();

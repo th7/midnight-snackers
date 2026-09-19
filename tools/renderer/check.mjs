@@ -1,18 +1,4 @@
-/**
- * Load the field's visual model with the three.js the page actually uses.
- *
- * The writer that makes field.glb is checked by reading it back with the reader that made it,
- * which says the two agree with each other. This says something else: that the library the
- * browser will hand it to accepts it. It is the same distinction as signing a request and having
- * Onshape accept the signature -- only the other side can say.
- *
- * It runs in node, where there is no WebGL, so nothing here draws. What it proves is that the
- * file parses, that the scene has the meshes and materials it should, that the assembly's names
- * survive, and that the field comes out the size and the way round it is meant to be. A page that
- * got any of that wrong would show a blank canvas or a field inside out, and neither says why.
- *
- *     node tools/renderer/check.mjs
- */
+
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,21 +8,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const sim = path.join(here, '..', '..', 'TeamCode', 'src', 'test', 'resources',
                       'org', 'firstinspires', 'ftc', 'teamcode', 'sim');
 const vendor = path.join(sim, 'vendor');
-// A model given on the command line rather than the committed one, so that this check can be
-// pointed at a deliberately wrong field and shown to catch it.
+
 const model = process.argv[2] || path.join(sim, 'field.glb');
 
 const problems = [];
 const check = (ok, said) => { if (!ok) problems.push(said); };
 
-/**
- * The addons import the bare specifier 'three', which a browser resolves through the page's
- * import map and node does not resolve at all. The whole addon tree is copied to a temporary
- * one with that specifier rewritten to the vendored file, so the addons' own relative imports
- * -- GLTFLoader reaches for ../utils/BufferGeometryUtils.js -- still resolve between them.
- *
- * The copy is of the real vendored source, so what is loaded here is what the browser loads.
- */
 function mirroredAddons() {
   const three = JSON.stringify(path.join(vendor, 'three.module.min.js'));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'renderer-addons-'));
@@ -63,7 +40,7 @@ const addons = mirroredAddons();
 let scene = null;
 try {
   const { GLTFLoader } = await import(path.join(addons, 'loaders', 'GLTFLoader.js'));
-  await import(path.join(addons, 'controls', 'OrbitControls.js')); // it must at least load
+  await import(path.join(addons, 'controls', 'OrbitControls.js'));
   const bytes = fs.readFileSync(model);
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   scene = await new Promise((resolve, reject) =>
@@ -95,13 +72,10 @@ if (scene) {
   check(named.some((name) => /Flower/i.test(name)), 'no flower is named; the assembly names are gone');
   check(named.some((name) => /Hive/i.test(name)), 'no hive is named; the assembly names are gone');
 
-  // Inches, Road Runner's frame: the walls stand about 70 in out, and the field reaches further
-  // where the trays and the rows of game pieces are set out beyond them.
   check(box.max.x > 60 && box.max.x < 200, `the field reaches ${box.max.x.toFixed(1)} in along x`);
   check(box.min.z > -2 && box.min.z < 1, `the floor is at z = ${box.min.z.toFixed(1)} in, not 0`);
   check(box.max.z > 30 && box.max.z < 100, `the field stands ${box.max.z.toFixed(1)} in tall`);
 
-  // Which way round it is, the one thing the field is not symmetric about.
   const middle = new THREE.Vector3();
   let blue = null;
   scene.traverse((object) => {

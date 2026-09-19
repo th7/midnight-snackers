@@ -7,23 +7,15 @@ import org.firstinspires.ftc.teamcode.opmode.AutoOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-/**
- * Tiny autos for exercising the simulator itself. Nested classes, so the catalog never lists
- * them on the real bench.
- */
 public final class TestAutos {
     private TestAutos() {}
 
-    /** An auto for no alliance in particular, like every auto here. */
     public abstract static class TestAuto extends AutoOp {
         protected TestAuto() {
             super(Alliance.RELATIVE);
         }
     }
 
-    /**
-     * An auto whose single step finishes on its third loop.
-     */
     @Autonomous(name = "Count to three", group = "Test")
     public static class ThreeLoopAuto extends TestAuto {
         private int loops = 0;
@@ -34,9 +26,6 @@ public final class TestAutos {
         }
     }
 
-    /**
-     * An auto that prints to System.out from its step, the way student code does.
-     */
     @Autonomous(name = "Chatty", group = "Test")
     public static class ChattyAuto extends TestAuto {
         private int loops = 0;
@@ -47,9 +36,6 @@ public final class TestAutos {
         }
     }
 
-    /**
-     * An auto whose loop never returns, so no cooperative timeout can end it.
-     */
     @Autonomous(name = "Hangs", group = "Test")
     public static class HangingAuto extends TestAuto {
         @Override
@@ -61,7 +47,6 @@ public final class TestAutos {
                             try {
                                 Thread.sleep(1000);
                             } catch (InterruptedException e) {
-                                // keep hanging: the point is that nothing in-process can stop this
                             }
                         }
                     },
@@ -69,7 +54,6 @@ public final class TestAutos {
         }
     }
 
-    /** An auto that waits {@link #SECONDS} on the robot's clock, then is done. */
     @Autonomous(name = "Wait two seconds", group = "Test")
     public static class WaitingAuto extends TestAuto {
         public static final double SECONDS = 2;
@@ -88,10 +72,6 @@ public final class TestAutos {
         }
     }
 
-    /**
-     * An auto whose single step waits until the test calls {@link #release()}, so the test decides
-     * when the run ends instead of racing a timeout.
-     */
     @Autonomous(name = "Gated", group = "Test")
     public static class GatedAuto extends TestAuto {
         public static final String STEP = "wait for the gate";

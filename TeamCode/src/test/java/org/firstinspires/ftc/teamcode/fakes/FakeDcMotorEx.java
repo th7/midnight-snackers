@@ -11,11 +11,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
 public class FakeDcMotorEx implements DcMotorEx {
-    /**
-     * Every class that has set this motor's power, in order, one entry per call. A test uses it to
-     * ask who writes a motor and how often, which is a question about the code's shape that no
-     * amount of reading the powers themselves can answer.
-     */
     public final List<String> powerSetBy = new ArrayList<>();
 
     public double power = 0;
@@ -193,21 +188,10 @@ public class FakeDcMotorEx implements DcMotorEx {
         powerSetBy.add(caller());
     }
 
-    /** The class that called {@link #setPower}, for a test asking who is allowed to. */
     private static String caller() {
         return callerOutside(new Throwable().getStackTrace(), FakeDcMotorEx.class.getName());
     }
 
-    /**
-     * The first class in {@code frames} that is not {@code ownClassName}: whoever called in from
-     * outside this fake.
-     *
-     * <p>Walking out rather than counting in. This used to take {@code frames[2]} -- caller, then
-     * setPower, then the culprit -- which is right only while exactly one frame of this class sits
-     * between. A fake that grew one delegating method would quietly start naming itself as the
-     * writer of every motor, and the rule it exists to hold would go on passing. Taken as a
-     * function of the frames so that case can be tested rather than argued about.
-     */
     static String callerOutside(StackTraceElement[] frames, String ownClassName) {
         for (StackTraceElement frame : frames) {
             if (!frame.getClassName().equals(ownClassName)) {

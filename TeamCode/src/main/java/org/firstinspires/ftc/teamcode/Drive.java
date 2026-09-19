@@ -13,24 +13,12 @@ import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 
-/**
- * Moves the robot. Whoever is driving says what they want each loop and the drive writes the
- * motors itself: {@link #manual} powers from the sticks, {@link #toward} a pose the drive steers
- * to on its own, or {@link #follow} a Road Runner action that runs until it is done or
- * {@link #cancel}led, which also stops the robot. An action being followed owns the wheels: manual and toward do nothing
- * until it is done or cancelled.
- */
 public class Drive implements Loopable {
-    /** The name this prints under: said here, where the printing is, and nowhere else. */
     public static final String CHANNEL = "Drive";
 
     private final Prints telemetry;
-    /**
-     * The axes a driver holds while the drive steers {@link #toward} a pose: an axis held is
-     * driven at the driver's power, one not held is the drive's to steer.
-     */
+
     public static final class Held {
-        /** Nothing held: every axis is the drive's. */
         public static final Held NONE = new Held(null, null, null);
 
         private final Float straight;
@@ -72,7 +60,7 @@ public class Drive implements Loopable {
 
     private DriveRunner driveRunner;
     private final FastDrive fastDrive = new FastDrive();
-    /** What the last {@link #toward} decided, for telemetry; null until the drive has steered. */
+
     private FastDrive.Steering steering;
 
     private final Wheels wheels;
@@ -89,19 +77,10 @@ public class Drive implements Loopable {
         this.driveRunner = new DriveRunner(dashboard, localizer::pose);
     }
 
-    /**
-     * Drives at these powers, -1 to 1 each, this loop. Nothing happens while an action is being
-     * followed.
-     */
     public void manual(float straight, float strafe, float turn) {
         power(straight, strafe, turn);
     }
 
-    /**
-     * Steers toward {@code target} from where Nav says the robot is, this loop.
-     *
-     * @return whether the robot has arrived and come to rest there
-     */
     public boolean toward(Nav.Pose target) {
         return toward(target, Held.NONE);
     }
@@ -119,22 +98,10 @@ public class Drive implements Loopable {
         return !done();
     }
 
-    /**
-     * Follows a Road Runner action, loop by loop, until it is done or cancelled.
-     *
-     * @throws IllegalStateException while another action is still being followed
-     */
     public void follow(Action action) {
         driveRunner.drive(action);
     }
 
-    /**
-     * Strafes through the poses, from where the robot is now, until it arrives or is cancelled:
-     * the robot faces where each pose says while it goes, rather than turning to face the way it
-     * is travelling.
-     *
-     * @throws IllegalStateException while another action is still being followed
-     */
     public void strafeTo(Nav.Pose... path) {
         TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(localizer.pose());
         for (Nav.Pose pose : path) {
@@ -143,11 +110,6 @@ public class Drive implements Loopable {
         follow(builder.build());
     }
 
-    /**
-     * Backs through the poses, from where the robot is now, until it arrives or is cancelled.
-     *
-     * @throws IllegalStateException while another action is still being followed
-     */
     public void backwardTo(Nav.Pose... path) {
         TrajectoryActionBuilder builder = mecanumDrive.actionBuilder(localizer.pose());
         for (Nav.Pose pose : path) {
@@ -156,19 +118,10 @@ public class Drive implements Loopable {
         follow(builder.build());
     }
 
-    /** Whether no action is being followed. */
     public boolean done() {
         return driveRunner.done();
     }
 
-    /**
-     * Stops following the action, if any, and stops the robot.
-     *
-     * <p>Cancelling is whoever was driving saying they are done with it, and a robot nobody is
-     * driving should not still be driving. The wheels are asked for nothing, which brakes them
-     * rather than letting them coast. Whoever cancels is free to give an intent in the same loop,
-     * and that is what the robot will do.
-     */
     public void cancel() {
         driveRunner.cancel();
         wheels.stop();

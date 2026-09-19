@@ -51,7 +51,6 @@ public class SimBuildTest {
         return file;
     }
 
-    /** A stand-in for the simulator's own sources: something that uses the robot's. */
     private static final String BENCH =
             "package demo;\n" + "public class Bench { String said = new Greeter().greet(); }\n";
 
@@ -209,11 +208,6 @@ public class SimBuildTest {
                 new String(Files.readAllBytes(edited.classes.resolve("demo/page.html")), StandardCharsets.UTF_8));
     }
 
-    /**
-     * A server that restarts builds into the same build root as the last one, which left its
-     * output behind: the new build must not trip over it, and must clear it, since only the
-     * latest build is kept.
-     */
     @Test
     public void aBuildAfterARestartDoesNotTripOverWhatTheLastServerLeft() throws IOException {
         SimBuild before = build();
@@ -240,7 +234,6 @@ public class SimBuildTest {
         }
     }
 
-    /** What a project is built against and run with: this JVM's jars, none of this server's own code. */
     @Test
     public void theLibrariesAreThisJvmsJarsWithoutThisServersOwnCode() {
         List<String> libraries = SimBuild.libraries();

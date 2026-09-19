@@ -9,7 +9,6 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans implements Loopable {
-    /** What a plan can ask the robot to do. */
     private final Drive drive;
 
     private final Nav nav;
@@ -69,10 +68,6 @@ public class Plans implements Loopable {
         return driveNear(String.format("turnToHeadingAtZero %s", heading), x, y, heading);
     }
 
-    /**
-     * Strafes toward the pose and is done as soon as the robot is near it, without waiting for
-     * Road Runner to settle; the rest of the path is cancelled.
-     */
     private Step driveNear(String name, double x, double y, double heading) {
         return new Step(name, () -> drive.strafeTo(nav.pose(x, y, heading)), () -> {
             if (nav.near(nav.pose(x, y, heading))) {
@@ -96,7 +91,6 @@ public class Plans implements Loopable {
 
     private PlanPart moveToBackWallScorePosition() {
         return driveTo(60, 12, 0);
-        // not correct pose
     }
 
     private PlanPart driveTo(double x, double y, double heading) {
@@ -114,7 +108,6 @@ public class Plans implements Loopable {
         return new Plan(launch(), launch(), launch());
     }
 
-    // should be placed against the left side of the tile with the small launch line and against the wall
     private Step setFarLaunchPosition() {
         return new Step("setBackPosition", () -> nav.placeAt(nav.pose(-63.5, 15.375, 0)), () -> true);
     }

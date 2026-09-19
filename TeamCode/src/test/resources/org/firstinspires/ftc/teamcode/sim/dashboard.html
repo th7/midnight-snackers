@@ -79,7 +79,7 @@
   #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #files .editors { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 8px 20px; }
-  /* the user's branch: what is uncommitted, and the buttons that move work along */
+
   .git { margin: 0 20px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 8px; }
   .git .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
   .git .buttons button { position: relative; }
@@ -88,19 +88,19 @@
   .git #git-result.ok { color: var(--ok); }
   .git #git-result.bad { color: var(--bad); }
   .git #git-result.warn { color: var(--warn); }
-  /* the Pull button pulses, and wears the count, while develop has commits this branch lacks */
+
   .git .badge { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
   @keyframes pull-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--warn-soft); } 50% { box-shadow: 0 0 0 7px var(--warn-soft); } }
   .git button.behind { border-color: var(--warn); animation: pull-pulse 1.6s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .git button.behind { animation: none; } }
   .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; min-height: 0; }
-  /* explicit rows: a hidden message must not let the stage slide up into its auto-sized row */
+
   .stage > .stage-head { grid-row: 1; }
   .stage > #run-message { grid-row: 2; }
   .stage > #editor, .stage > #stage, .stage > .stage-empty { grid-row: 3; }
   .stage > #problems { grid-row: 4; }
   .stage > #usages { grid-row: 5; }
-  /* find usages: every reference to the symbol under the cursor, each a click away */
+
   #usages { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); background: var(--panel); max-height: 200px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
   #usages li { padding: 6px 20px; border-top: 1px solid var(--line); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
   #usages li.head { cursor: default; color: var(--muted); font-family: system-ui, sans-serif; display: flex; gap: 12px; align-items: center; border-top: 0; }
@@ -122,7 +122,7 @@
   button { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
   button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-  /* the CodeMirror editor fills its grid row; the bundle brings its own colours for the code */
+
   #editor { min-height: 0; overflow: hidden; background: var(--panel); }
   #editor .cm-editor { height: 100%; }
   #editor .cm-scroller { font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
@@ -211,14 +211,13 @@
   var buildStatus = document.getElementById('build-status');
   var problemsEl = document.getElementById('problems');
   var usagesEl = document.getElementById('usages');
-  var open = null;        // {path, version, readOnly}; version is null while nothing may be written
+  var open = null;
   var editableKeys = [];
   var saveTimer = null;
   var saving = false;
   var dirtyWhileSaving = false;
-  var pendingSave = false;  // an edit is waiting for the pause before it is saved
+  var pendingSave = false;
 
-  // --- the editor: CodeMirror from the bundle the host serves; one fresh state per file, so undo is per file ---
   var editable = new CM.Compartment();
   var theme = new CM.Compartment();
   var dark = matchMedia('(prefers-color-scheme: dark)');
@@ -337,7 +336,6 @@
     });
   }
 
-  /** A source file outside the editable set, shown read-only: where a jump to a definition may land. */
   function viewSource(path, line, column) {
     fetch('/source/' + path.split('/').map(encodeURIComponent).join('/')).then(function (r) {
       if (r.status === 403) { location.reload(); return; }
@@ -356,7 +354,6 @@
     });
   }
 
-  /** Opens a file at a place: in the editor when it is editable, read-only otherwise. */
   function openAt(path, line, column) {
     if (open && open.path === path) { goTo(line, column); return; }
     if (editableKeys.indexOf(path) >= 0) { load(path, line, column); } else { viewSource(path, line, column); }
@@ -374,23 +371,16 @@
     saveTimer = setTimeout(save, SAVE_DELAY_MS);
   }
 
-  /** Whether what the editor shows is what is on disk: nothing typed since the last save landed. */
   function clean() {
     return !!open && !!open.version && !pendingSave && !saving && !dirtyWhileSaving;
   }
 
-  /**
-   * Shows the host's text for what is open again: after a pull, a push, or a commit, which
-   * formats the Java it commits. A file with unsaved typing is left alone -- its next save says
-   * "changed on the host" and offers a reload.
-   */
   function reloadOpen() {
     if (!open) { return; }
     if (open.readOnly) { viewSource(open.path); }
     else if (clean()) { load(open.path); }
   }
 
-  /** Ctrl-S / Cmd-S: save what is in the editor now instead of after the pause. */
   function saveNow() {
     if (!open || !open.version) { return; }
     clearTimeout(saveTimer);
@@ -412,7 +402,7 @@
       if (r.status === 403) { location.reload(); return; }
       if (r.status === 409) {
         return r.json().then(function (current) {
-          open.version = null;  // nothing more is written until the host's version is loaded
+          open.version = null;
           setStatus('changed on the host', 'warn');
           reload.hidden = false;
           reload.onclick = function () { load(path); };
@@ -435,7 +425,6 @@
     });
   }
 
-  // --- compile on save: every saved edit is checked, and the problems listed under the editor ---
   var CHECK_DELAY_MS = 400;
   var checkTimer = null;
   var checking = false;
@@ -496,7 +485,6 @@
     });
   }
 
-  /** The compiler's problems for the open file, marked in the editor's gutter and under the text. */
   function showDiagnostics(problems) {
     if (!open) { return; }
     var doc = view.state.doc;
@@ -521,7 +509,6 @@
     view.focus();
   }
 
-  // --- go to definition and find usages: the compiler's own answer, from the host ---
   var navigate = (function () {
     function where() {
       if (!open) { return null; }
@@ -585,7 +572,6 @@
     return { definition: definition, usages: usages };
   })();
 
-  // --- the user's branch: commit what is saved ---
   var git = (function () {
     var changedEl = document.getElementById('changed');
     var commitButton = document.getElementById('commit');
@@ -594,14 +580,13 @@
     var resultEl = document.getElementById('git-result');
     var busy = false;
     var behind = 0;
-    var head = null;  // the branch tip last seen, so a pull the coach did for this user is noticed
+    var head = null;
 
     function say(text, kind) {
       resultEl.textContent = text;
       resultEl.className = kind || '';
     }
 
-    /** The tip moved without a button here being pressed: someone pulled or pushed for this user, so what is open may be stale. */
     function tipMoved(status) {
       if (head === null || head === status.head || busy) { head = status.head; return; }
       head = status.head;
@@ -619,7 +604,7 @@
       behind = status.behind;
       pullButton.classList.toggle('behind', behind > 0);
       pullButton.disabled = busy;
-      // the host says whether a push would land, since it is the host that decides; the words are this page's
+
       pushButton.disabled = busy || !status.pushable;
       pushButton.title = status.pushable
         ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push'
@@ -676,20 +661,19 @@
           var result = JSON.parse(reply.text);
           if (result.warning) { say(result.message + '; ' + result.warning, 'warn'); }
           else { say(result.message, result.committed ? 'ok' : ''); }
-          // the commit formats the Java it takes: what is open may have been rewritten under the editor
+
           if (open && result.formatted.indexOf(open.path) >= 0) { reloadOpen(); }
         }
-        head = null;  // the tip moved by this user's own hand: nothing else to reload
+        head = null;
         refresh();
       });
     }
 
-    /** After a pull or push the files on disk may have moved: show the reply, then reload what is open. */
     function afterMerge(reply) {
       if (!reply) { return; }
       var result;
       try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
-      // the server decided how bad this is; the page wears it
+
       var kind = result.severity;
       say(result.message, kind);
       if (reply.ok && result.outcome !== 'nothing') {
@@ -697,7 +681,7 @@
         refreshNow();
         scheduleCheck();
       }
-      head = null;  // this user moved the tip themselves, and what is open was just reloaded
+      head = null;
       refresh();
     }
 
@@ -726,7 +710,6 @@
   });
   refreshFiles();
 
-  // --- tabs: the active one lives in the hash so a reload comes back to it ---
   var tabs = Array.prototype.slice.call(document.querySelectorAll('nav [data-tab]'));
   function showTab(name) {
     if (name !== 'simulate') { name = 'edit'; }
@@ -741,7 +724,6 @@
   tabs.forEach(function (tab) { tab.addEventListener('click', function () { showTab(tab.dataset.tab); }); });
   window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });
 
-  // --- simulate: the bench's routes under /sim, this user's own bench, one run at a time per user ---
   var simulate = (function () {
     var list = document.getElementById('opmodes');
     var msg = document.getElementById('msg');
@@ -753,7 +735,7 @@
     var history = document.querySelector('#history tbody');
     var catalog = [];
     var shownRunId = null;
-    // The op mode whose placement page the stage shows, or null when it shows a run.
+
     var placingName = null;
     var running = false;
     var pollTimer = null;
@@ -822,7 +804,6 @@
       });
     }
 
-    // The seed as the input shows it: blank for the exact robot.
     function seedValue(seed) {
       return seed === null || seed === undefined ? '' : String(seed);
     }
@@ -831,7 +812,6 @@
       return run.seed === null || run.seed === undefined ? 'exact' : String(run.seed);
     }
 
-    // Sets which robot the op mode runs on, as typed in its row: a whole number, or blank for the exact robot.
     function setSeed(entry, input) {
       var typed = input.value.trim();
       var seed = typed === '' ? null : Number(typed);
@@ -862,7 +842,6 @@
       stage.src = '/sim/runs/' + id + '/';
     }
 
-    // The placement page: the robot where the op mode's runs start, to drag into place.
     function showPlacement(entry) {
       shownRunId = null;
       placingName = entry.name;
@@ -874,8 +853,7 @@
       stage.src = '/sim/place?opmode=' + encodeURIComponent(entry.name);
     }
 
-    // A TeleOp is driven from the keyboard, so the live view gets it as soon as it loads.
-    stage.addEventListener('load', function () { try { stage.contentWindow.focus(); } catch (e) { /* the driver clicks first */ } });
+    stage.addEventListener('load', function () { try { stage.contentWindow.focus(); } catch (e) {  } });
 
     function messageOf(run) {
       return run && run.message ? run.message : '';

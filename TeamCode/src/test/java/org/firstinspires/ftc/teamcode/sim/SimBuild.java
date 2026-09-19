@@ -25,31 +25,12 @@ import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
-/**
- * Compiles the robot's main sources, as they are on disk right now, with the JDK's own compiler
- * against the {@link #libraries()}, and with them the simulator's own sources: everything under the
- * harness root that is not a test, with the resources next to it copied along. The simulator
- * runs in the child against the robot sources it was built with, so a simulator that does not
- * fit them fails the build naming the seam, rather than the child failing at run time with a
- * linkage error nobody can read. About a second for the whole tree, so a simulated run can
- * always execute what was last saved. Output goes to a fresh directory under the build root each
- * time any of the trees changes; only the latest is kept, and whatever an earlier server run
- * left under the build root is cleared by the first build. This is not the Android build: no
- * Kotlin, no desugaring, no annotation processing. A Kotlin file is refused by name rather than
- * skipped.
- */
 public final class SimBuild {
-    /** What a compile error in the simulator's own sources means, said once ahead of them. */
     static final String SIMULATOR_DOES_NOT_FIT =
             "the simulator does not fit these robot sources: it was built from the code"
                     + " the server runs from, and these sources came from another version of it. Pull develop; if that does not help,"
                     + " the coach brings develop and the server's checkout to the same code and restarts the server.";
 
-    /**
-     * One compiler error: the file relative to the source root, its line, and the message. A
-     * problem in the simulator's own sources has no file the user can open: the file is empty
-     * and the message names it.
-     */
     public static final class Problem {
         public final String file;
         public final long line;
@@ -63,13 +44,12 @@ public final class SimBuild {
     }
 
     public static final class Result {
-        /** The compiled classes, or null when the build failed. */
         public final Path classes;
-        /** Compiler errors when the build failed, otherwise empty. */
+
         public final String diagnostics;
 
         public final List<Problem> problems;
-        /** False when the sources had not changed and the previous output was reused. */
+
         public final boolean rebuilt;
 
         Result(Path classes, List<Problem> problems, boolean rebuilt) {
@@ -90,19 +70,13 @@ public final class SimBuild {
 
     private final Path sourceRoot;
     private final Path harnessRoot;
-    /** The simulator's resources, next to its sources ({@code src/test/resources}); copied into the output as they are. */
+
     private final Path resourcesRoot;
 
     private final Path buildRoot;
     private String lastFingerprint;
     private Result lastResult;
 
-    /**
-     * @param sourceRoot  the package root, e.g. {@code TeamCode/src/main/java}
-     * @param harnessRoot the package root of the simulator's own sources, e.g. {@code TeamCode/src/test/java}
-     * @param buildRoot   where compiled output goes, e.g. {@code TeamCode/build/sim/classes}
-     * @throws IllegalArgumentException when there are no simulator sources at {@code harnessRoot}
-     */
     public SimBuild(Path sourceRoot, Path harnessRoot, Path buildRoot) {
         this.sourceRoot = sourceRoot.toAbsolutePath().normalize();
         this.harnessRoot = harnessRoot.toAbsolutePath().normalize();
@@ -117,20 +91,12 @@ public final class SimBuild {
         return sourceRoot;
     }
 
-    /**
-     * What a project is built against and run with: the libraries on this JVM's classpath, and
-     * none of this server's own code. The server's code is the directories on its classpath (its
-     * simulator and tests) and the jar its robot classes come from; the FTC SDK, Road Runner, and
-     * the FtcRobotController module's jar, which no project rebuilds, are libraries. So a class a
-     * project lacks is missing, in its build and in its child, rather than quietly this server's.
-     */
     public static List<String> libraries() {
         return librariesOf(
                 List.of(System.getProperty("java.class.path").split(Pattern.quote(File.pathSeparator))),
                 locationOf(OpMode.class));
     }
 
-    /** {@code classpath} without its directories, its entries that do not exist, and {@code serverRobotClasses}. */
     static List<String> librariesOf(List<String> classpath, Path serverRobotClasses) {
         Path robot = serverRobotClasses.toAbsolutePath().normalize();
         List<String> libraries = new ArrayList<>();
@@ -143,7 +109,6 @@ public final class SimBuild {
         return libraries;
     }
 
-    /** Where a class was loaded from: a jar, or a directory of classes. */
     private static Path locationOf(Class<?> type) {
         try {
             return Paths.get(
@@ -170,7 +135,7 @@ public final class SimBuild {
         Path output;
         try {
             if (lastResult == null) {
-                clearBuildRoot(); // what an earlier server run left, which a new build must not land on
+                clearBuildRoot();
             }
             Files.createDirectories(buildRoot);
             output = Files.createTempDirectory(buildRoot, "build-");
@@ -223,7 +188,6 @@ public final class SimBuild {
         return result;
     }
 
-    /** Every .java file under the source root, sorted by path; refuses a tree with Kotlin next to it. */
     static List<Path> sourcesUnder(Path sourceRoot) {
         Path mainDir = sourceRoot.getParent() == null ? sourceRoot : sourceRoot.getParent();
         try (Stream<Path> walk = Files.walk(mainDir)) {
@@ -244,10 +208,6 @@ public final class SimBuild {
         }
     }
 
-    /**
-     * Every .java file under the harness root that is not a test, sorted by path: the simulator
-     * the child runs, without what only tests it.
-     */
     static List<Path> harnessUnder(Path harnessRoot) {
         try (Stream<Path> walk = Files.walk(harnessRoot)) {
             return walk.filter(p -> p.toString().endsWith(".java")
@@ -260,7 +220,6 @@ public final class SimBuild {
         }
     }
 
-    /** Every regular file under a root that may not exist, sorted by path. */
     static List<Path> filesUnder(Path root) {
         if (!Files.isDirectory(root)) {
             return List.of();
@@ -286,7 +245,6 @@ public final class SimBuild {
         }
     }
 
-    /** Path, size, and modification time of every source: enough to notice a save. */
     static String fingerprintOf(Path sourceRoot, List<Path> sources) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -339,7 +297,6 @@ public final class SimBuild {
         return root.relativize(file).toString().replace('\\', '/');
     }
 
-    /** Everything under the build root: the output of earlier builds, this server's or an earlier one's. */
     private void clearBuildRoot() throws IOException {
         if (!Files.isDirectory(buildRoot)) {
             return;
@@ -355,11 +312,9 @@ public final class SimBuild {
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException ignored) {
-                    // a stale build directory is harmless
                 }
             });
         } catch (IOException ignored) {
-            // already gone
         }
     }
 }

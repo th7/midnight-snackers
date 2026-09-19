@@ -13,10 +13,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.junit.Test;
 
-/**
- * A robot is built once per run from the hardware and the alliance, and every subsystem is handed
- * what it needs -- its devices, its clock, and its own channel to print to -- as it is built.
- */
 public class RobotTest {
     private final SimRobot sim = new SimRobot();
     private final FakeTelemetry telemetry = new FakeTelemetry();
@@ -57,7 +53,6 @@ public class RobotTest {
         assertEquals(0, robot.gamepad1.left_stick_y, 0);
     }
 
-    /** The camera may place the robot only when playing for an alliance; no op mode has to say so. */
     @Test
     public void theBrainUsesTheCameraOnlyWhenPlayingForAnAlliance() {
         assertFalse(robot.brain.usingCameraLocalization());
@@ -78,7 +73,6 @@ public class RobotTest {
         assertSame(sim.dashboard, robot.dashboard);
     }
 
-    /** Every timer in the robot code reads the hardware's clock, so a simulation can own time. */
     @Test
     public void theRobotRunsOnItsHardwaresClock() {
         assertEquals(0, robot.clock.getAsLong());

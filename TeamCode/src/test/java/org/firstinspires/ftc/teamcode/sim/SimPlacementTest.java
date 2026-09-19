@@ -15,21 +15,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
 
-/**
- * Placing a pose is geometry. The seam this holds is that it is <em>only</em> geometry: the
- * placement page, the run stream and the replay page all ask where the field lets a robot be, and
- * none of them is running a simulation.
- */
 public class SimPlacementTest {
     private static final double DELTA = 0.001;
     private static final double HALF_ROBOT = SimPlacement.ROBOT_SIZE_IN / 2;
 
-    /**
-     * The gate. "The physics is not needed to place a pose" is the reason this module exists, and
-     * a sentence in a javadoc is not a mechanism, so load it with the rigid-body engine and the
-     * simulator itself forbidden and make it answer anyway. Before the split this failed: clamping
-     * one pose loaded twelve dyn4j classes.
-     */
     @Test
     public void placingAPoseNeedsNeitherTheRigidBodyEngineNorTheSimulatedRobot() throws Exception {
         List<String> forbidden = List.of("org.dyn4j.", SimRobot.class.getName());
@@ -68,7 +57,6 @@ public class SimPlacementTest {
         }
     }
 
-    /** The same loader must still refuse the simulator, or the test above proves nothing. */
     @Test
     public void theGateWouldNoticeIfTheSimulatorCameBackInThroughTheBackDoor() throws Exception {
         try (URLClassLoader loader = new URLClassLoader(classpath(), null) {
@@ -83,7 +71,6 @@ public class SimPlacementTest {
             Class.forName(SimRobot.class.getName(), true, loader);
             fail("the simulated robot should not initialise without the rigid-body engine");
         } catch (ExceptionInInitializerError | NoClassDefFoundError | ClassNotFoundException expected) {
-            // exactly the point: SimRobot does need dyn4j, and SimPlacement does not
         }
     }
 
@@ -103,7 +90,6 @@ public class SimPlacementTest {
         assertSame(open, SimPlacement.onTheField(open));
     }
 
-    /** Turned, the square reaches further, so the wall stops it sooner. */
     @Test
     public void aRobotAtFortyFiveDegreesIsStoppedFurtherFromTheWall() {
         double square = SimPlacement.onTheField(new Pose2d(1000, 0, 0)).position.x;

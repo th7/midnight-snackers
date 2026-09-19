@@ -5,9 +5,7 @@ import java.util.Optional;
 import org.firstinspires.ftc.teamcode.Drive.Held;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 
-/** Drives the robot from the gamepads. A TeleOp adds one; an auto has no driver. */
 public class Driver implements Loopable {
-    /** What a driver drives: named here, so forgetting to wire one up does not compile. */
     private final Drive drive;
 
     private final Launcher launcher;
@@ -34,12 +32,10 @@ public class Driver implements Loopable {
         this.gamepad2 = gamepad2;
     }
 
-    /** How far a stick must move before it counts as held. */
     private static final float HELD = 0.05f;
-    /** How far a stick must move to take the wheels back from an action. */
+
     private static final float TAKEOVER = 0.2f;
 
-    /** Steers toward the launch pose on the axes the driver is not holding; with no goal, just drives. */
     private void aim(Held held) {
         Optional<Nav.Pose> launchPose = nav.launchPose();
         if (launchPose.isPresent()) {
@@ -76,7 +72,6 @@ public class Driver implements Loopable {
         } else if (gamepad1.left_trigger > 0.2) {
             brain.autoShootFast();
         } else if (gamepad1.left_bumper) {
-            // aim at the goal; the driver may nudge sideways and around
             brain.cancelPlan();
             Held held = Held.NONE;
             if (Math.abs(gamepad1.left_stick_x) > HELD) {
@@ -87,7 +82,6 @@ public class Driver implements Loopable {
             }
             aim(held);
         } else if (gamepad1.right_bumper) {
-            // the driver moves the robot; the drive keeps it facing the goal unless the driver turns
             brain.cancelPlan();
             Held held = Held.NONE.straight(-gamepad1.left_stick_y).strafe(-gamepad1.left_stick_x);
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
@@ -99,7 +93,6 @@ public class Driver implements Loopable {
             drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
 
-        // adjust settings using second controller
         if (gamepad2.rightBumperWasPressed()) {
             launcher.increaseBottomGateWaitTime();
         }

@@ -9,11 +9,10 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Brain implements Loopable {
-    /** The name this prints under: said here, where the printing is, and nowhere else. */
     public static final String CHANNEL = "Brain";
 
     private final Prints telemetry;
-    /** The subsystems the brain coordinates. */
+
     private final Drive drive;
 
     private final Launcher launcher;
@@ -71,8 +70,7 @@ public class Brain implements Loopable {
         return new Step(
                 "moveToLaunchPose",
                 () -> {},
-                () -> nav.launchPose().map(drive::toward).orElse(true) // nowhere to go without a goal
-                );
+                () -> nav.launchPose().map(drive::toward).orElse(true));
     }
 
     private Step launch() {
@@ -92,7 +90,6 @@ public class Brain implements Loopable {
         usingCameraLocalization = !usingCameraLocalization;
     }
 
-    /** Whether the camera's tag sightings are used to place the robot on the field. */
     public boolean usingCameraLocalization() {
         return usingCameraLocalization;
     }
@@ -101,8 +98,6 @@ public class Brain implements Loopable {
     public void loop() {
         planRunner.loop();
 
-        // The standing request, every tick. Whether the turntable acts on it is the turntable's:
-        // it may be parked or in the driver's hand, and the brain has no business knowing which.
         double relativeHeadingToTarget = nav.relativeHeadingToTarget();
         telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
         turntable.aimAt(relativeHeadingToTarget);
@@ -111,7 +106,7 @@ public class Brain implements Loopable {
 
         if (sighting.isPresent()) {
             telemetry.addData("camera pose found", true);
-            // the camera faces where the turntable does, so the robot's heading is that less the turn
+
             Nav.Pose robotPose = sighting.get().rotated(-turntable.offsetRadians());
 
             if (usingCameraLocalization) {

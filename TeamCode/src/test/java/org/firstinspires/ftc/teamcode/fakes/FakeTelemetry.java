@@ -6,9 +6,8 @@ import org.firstinspires.ftc.robotcore.external.Func;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class FakeTelemetry implements Telemetry {
-    /** How many times {@link #update()} has been called. */
     public int updates = 0;
-    /** The caption of every datum added, in the order they were added. */
+
     public final List<String> captions = new ArrayList<>();
 
     @Override

@@ -7,15 +7,12 @@ import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 
-/**
- * Records what a registrar registers, the way the robot controller's manager would keep it.
- */
 public final class FakeOpModeManager implements OpModeManager {
     public static final class Registration {
         public final OpModeMeta meta;
-        /** The registered instance, or null when a class was registered. */
+
         public final OpMode instance;
-        /** The registered class, or null when an instance was registered. */
+
         public final Class<? extends OpMode> type;
 
         Registration(OpModeMeta meta, OpMode instance, Class<? extends OpMode> type) {
@@ -24,10 +21,6 @@ public final class FakeOpModeManager implements OpModeManager {
             this.type = type;
         }
 
-        /**
-         * The op mode as the robot controller runs it: the registered instance every time, or a
-         * new instance of the registered class each time.
-         */
         public OpMode opMode() {
             if (instance != null) {
                 return instance;

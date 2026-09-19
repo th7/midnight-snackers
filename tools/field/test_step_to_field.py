@@ -10,17 +10,14 @@ SIM_PLACEMENT_JAVA = os.path.join(
     REPO, 'TeamCode', 'src', 'test', 'java', 'org', 'firstinspires', 'ftc', 'teamcode', 'sim',
     'SimPlacement.java')
 
-
 def box(bottom, top, side=4):
     vertices = [(0, 0, bottom), (side, 0, bottom), (side, side, bottom), (0, side, bottom),
                 (0, 0, top), (side, 0, top), (side, side, top), (0, side, top)]
     faces = [[0, 1, 2, 3], [7, 6, 5, 4], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0]]
     return vertices, faces
 
-
 def piece(x, y, z=1.4, radius=1.4, **extra):
     return dict({'name': 'Pollen <1>', 'kind': 'pollen', 'centre': [x, y, z], 'radius': radius}, **extra)
-
 
 class ReadingStep(unittest.TestCase):
     def test_an_argument_list_becomes_nested_python_values_with_references_named(self):
@@ -35,7 +32,6 @@ class ReadingStep(unittest.TestCase):
 
     def test_a_quoted_name_keeps_the_spaces_and_punctuation_inside_it(self):
         self.assertEqual(['am-5853-Blue Hive <1>'], field.parse_args("('am-5853-Blue Hive <1>')"))
-
 
 class Shapes(unittest.TestCase):
     def test_a_hull_drops_the_points_inside_it_and_winds_counter_clockwise(self):
@@ -54,7 +50,6 @@ class Shapes(unittest.TestCase):
     def test_simplify_keeps_a_triangle_whatever_its_corners_are_like(self):
         self.assertEqual(3, len(field.simplify([(0, 0), (1, 0.001), (2, 0)])))
 
-
 class WhatTheRobotRunsInto(unittest.TestCase):
     def test_a_part_standing_on_the_floor_has_the_footprint_it_stands_on(self):
         vertices, faces = box(0, 10)
@@ -72,7 +67,6 @@ class WhatTheRobotRunsInto(unittest.TestCase):
 
         self.assertEqual([(0, 0), (4, 0), (4, 4), (0, 4)],
                          field.footprint_below(vertices, faces, 10))
-
 
 class WhichPiecesTheSimulatorRolls(unittest.TestCase):
     OBSTACLES = [{'name': 'leg', 'footprint': [[0, 0], [2, 0], [2, 2], [0, 2]]}]
@@ -96,7 +90,6 @@ class WhichPiecesTheSimulatorRolls(unittest.TestCase):
     def test_a_piece_outside_the_walls_is_not_loose(self):
         self.assertFalse(self.loose(piece(80, 20)))
 
-
 class TheFieldFrame(unittest.TestCase):
     def test_the_cad_frame_becomes_road_runners(self):
         self.assertEqual((-3, -1, 2), field.to_field((1, 2, 3)))
@@ -104,7 +97,6 @@ class TheFieldFrame(unittest.TestCase):
     def test_a_parts_catalogue_number_is_not_part_of_its_name(self):
         self.assertEqual('Blue Hive <1>', field.clean('am-5853-Blue Hive <1>'))
         self.assertEqual('Hive Goal Top Skin', field.clean('am-5869: Hive Goal Top Skin'))
-
 
 class TheModelTheReadersNeed(unittest.TestCase):
     def model(self, **changes):
@@ -166,7 +158,6 @@ class TheModelTheReadersNeed(unittest.TestCase):
 
         self.assertIn('size', str(refused.exception))
 
-
 class TheModelThatIsCommitted(unittest.TestCase):
     def test_the_field_the_simulator_loads_is_one_this_writer_would_accept(self):
         with open(field.OUT) as handle:
@@ -178,7 +169,6 @@ class TheModelThatIsCommitted(unittest.TestCase):
 
         self.assertIsNotNone(found, SIM_PLACEMENT_JAVA + ' no longer names ROBOT_SIZE_IN')
         self.assertEqual(float(found.group(1)), float(field.ROBOT_HEIGHT_IN))
-
 
 if __name__ == '__main__':
     unittest.main()

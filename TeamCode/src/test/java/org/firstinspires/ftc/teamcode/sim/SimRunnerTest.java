@@ -39,8 +39,6 @@ public class SimRunnerTest {
         assertTrue(Files.exists(out.resolve("ThreeLoopAuto.html")));
     }
 
-    // --- time: a run is a fixed number of loops, the same every time, paced to real time only when watched ---
-
     @Test
     public void theWorldMovesOneLoopPeriodPerLoopOnTheSimulatedClock() {
         SimRecording recording =
@@ -52,7 +50,7 @@ public class SimRunnerTest {
         }
         assertEquals(
                 "the world moved once per loop", ticks.size() * SimRunner.LOOP_SECONDS, sim.nanoTime() / 1e9, 1e-9);
-        // The loops at 0, 0.02, ... 2.00 s are still waiting; the one at 2.02 s finds the wait over.
+
         assertEquals((int) Math.ceil(WaitingAuto.SECONDS / SimRunner.LOOP_SECONDS) + 2, ticks.size());
     }
 
@@ -196,12 +194,6 @@ public class SimRunnerTest {
         assertTrue(Files.exists(out.resolve("StickTeleOp.html")));
     }
 
-    /**
-     * A tick's gamepad is what the op mode read that loop, not what the driver has pressed since.
-     * The controller page writes while a loop is running, so a tick that read the driver station a
-     * second time would say a button was down on a loop the op mode never saw it down -- and the
-     * replay would show a press the run did not have.
-     */
     @Test
     public void aTicksGamepadIsWhatTheOpModeReadNotWhatTheDriverPressedAfterwards() {
         SimDriverStation station = new SimDriverStation();
@@ -276,11 +268,9 @@ public class SimRunnerTest {
 
     @Test
     public void keepsEveryLoopsPoseButThinsDrawingsToTwentyPerSecond() {
-
         SimRecording recording =
                 SimRunner.run(new ThreeLoopAuto(), sim, 5, folder.getRoot().toPath());
 
-        // Three loops a few milliseconds apart: the first carries the dashboard drawing, the rest don't.
         assertEquals(3, recording.poses().size());
         assertFalse(recording.ticks().get(0).packets.isEmpty());
         assertTrue(recording.ticks().get(1).packets.isEmpty());
@@ -321,8 +311,7 @@ public class SimRunnerTest {
     @Test
     public void withALivePortTheRunCanBeWatchedWhileItRunsAndUntilTheViewerHasSeenTheEnd() throws Exception {
         int port = freePort();
-        // The auto runs until this test releases it, so the run is in progress for as long as the
-        // first fetch takes, however loaded the machine is. The timeout is only a safety net.
+
         GatedAuto auto = new GatedAuto();
         Thread runner =
                 new Thread(() -> SimRunner.run(auto, sim, 60, folder.getRoot().toPath(), port));

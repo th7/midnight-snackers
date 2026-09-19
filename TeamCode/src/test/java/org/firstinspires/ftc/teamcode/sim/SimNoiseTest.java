@@ -12,8 +12,6 @@ import org.junit.Test;
 public class SimNoiseTest {
     private static final Pose2d POSE = new Pose2d(-56, -12, 0.3);
 
-    // --- none: the tuned model exactly, which is what every run had before there was noise ---
-
     @Test
     public void noNoiseIsTheTunedModelExactly() {
         SimNoise none = SimNoise.NONE;
@@ -30,8 +28,6 @@ public class SimNoiseTest {
             assertEquals(SimRunner.LOOP_SECONDS, none.nextLoopSeconds(), 0);
         }
     }
-
-    // --- seeded: drawn once per run, the same for the same seed ---
 
     @Test
     public void theSameSeedDrawsTheSameRun() {

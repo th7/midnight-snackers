@@ -13,14 +13,6 @@ import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
 import org.junit.Test;
 
-/**
- * Runs the real forwardLeftBackwardRight auto, as the registrar registers it, against the
- * simulated robot, on the simulation's clock, so the plan's five second wait and the drive along
- * the square take a fraction of a second of wall clock and come out the same every time.
- * The plan is relative to wherever the robot is placed, and the robot is placed in the open near
- * the audience wall: the middle of the field, where the simulator puts a robot by default, is
- * inside this season's frame, and a 24-inch square from there runs into a leg.
- */
 public class ForwardLeftBackwardRightSimTest {
     private static final double POSITION_TOLERANCE_INCHES = 2;
     private static final double HEADING_TOLERANCE_RADIANS = Math.toRadians(5);
@@ -58,11 +50,6 @@ public class ForwardLeftBackwardRightSimTest {
         assertEquals("end heading", 0, end.heading.toDouble(), HEADING_TOLERANCE_RADIANS);
     }
 
-    /**
-     * The same auto on a robot whose motors, battery, traction, placement and loop timing are off
-     * their tuned values, as a real one's are. The plan is relative to wherever the robot was set
-     * down, so the square is judged from there.
-     */
     @Test
     public void drivesTheSquareOnAnImperfectRobotToo() {
         for (long seed = 1; seed <= 5; seed++) {

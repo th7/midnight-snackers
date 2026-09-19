@@ -14,20 +14,6 @@ import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
-/**
- * Everything the op modes touch outside their own code: the configured devices, the camera's
- * detections, the dashboard, and the clock. {@link #fromHardwareMap} is the real robot; tests and
- * the simulator fill one in from fakes.
- *
- * <p>It is wired by hand on both sides of the seam and nothing but this class can say the two
- * agree, so a hardware is made whole or not at all: {@link Builder#build()} refuses one that is
- * missing a device and names what is missing. A device added here that an adapter has not kept up
- * with then fails where that adapter is written, rather than as a null inside whichever subsystem
- * reaches for it first -- which, on the robot, is in the middle of a match.
- *
- * <p>The devices are named as they are set, not counted out in order: nine of them are motors, so
- * a positional list would let a wheel be quietly swapped for its neighbour.
- */
 public final class Hardware {
     public final DcMotorEx launcher;
     public final Servo topGate;
@@ -38,19 +24,13 @@ public final class Hardware {
     public final DcMotorEx rightBack;
     public final DcMotorEx turnTable;
     public final DcMotorEx intake;
-    /**
-     * Initialized with the hub orientation from {@link MecanumDrive.Params} on first use.
-     */
+
     public final LazyImu imu;
 
     public final VoltageSensor voltageSensor;
     public final Supplier<List<AprilTagDetection>> aprilTags;
     public final Dashboard dashboard;
-    /**
-     * The time, in nanoseconds from an arbitrary origin, as {@link System#nanoTime()} gives it. Every
-     * timer in the robot code reads this and nothing else, so a simulation can own time: run faster
-     * than real time, and the same way every time.
-     */
+
     public final LongSupplier clock;
 
     private Hardware(Builder wiring) {
@@ -70,14 +50,10 @@ public final class Hardware {
         this.clock = wiring.clock;
     }
 
-    /** Somewhere to name every device, for whoever is driving the robot code. */
     public static Builder builder() {
         return new Builder();
     }
 
-    /**
-     * The devices from the robot configuration. Only valid on the robot controller.
-     */
     public static Hardware fromHardwareMap(HardwareMap hardwareMap) {
         return builder()
                 .launcher(hardwareMap.get(DcMotorEx.class, "launcher"))
@@ -101,10 +77,6 @@ public final class Hardware {
                 .build();
     }
 
-    /**
-     * Names every device a hardware is made of. {@link #build()} refuses one that is missing any,
-     * so this is the one place that knows what a whole hardware is.
-     */
     public static final class Builder {
         private DcMotorEx launcher;
         private Servo topGate;
@@ -193,11 +165,6 @@ public final class Hardware {
             return this;
         }
 
-        /**
-         * The hardware, once every device has been named.
-         *
-         * @throws IllegalStateException naming every device that was not
-         */
         public Hardware build() {
             List<String> missing = new ArrayList<>();
             named("launcher", launcher, missing);
