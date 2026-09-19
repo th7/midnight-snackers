@@ -292,6 +292,68 @@ public class SimFieldTest {
     }
 
     /**
+     * Which way round the field is. Everything else here is symmetric about the middle, so a model
+     * built a quarter turn out, or mirrored, satisfies every other test in this class while putting
+     * the blue goal where the red one stands. Two things fix it: blue is the hive at negative y,
+     * which a mirrored model gets wrong, and the trays stand off the ends of the y axis rather than
+     * the x, which a quarter turn gets wrong.
+     */
+    @Test
+    public void blueIsTheHiveAtNegativeYAndTheTraysStandOffTheYAxis() {
+        SimField.Hive blue = field.hive("Blue Hive <1>");
+        SimField.Hive red = field.hive("Red Hive <1>");
+        assertTrue("the blue hive is the one at negative y: " + blue.pivot[1], blue.pivot[1] < 0);
+        assertTrue("the red hive is the one at positive y: " + red.pivot[1], red.pivot[1] > 0);
+
+        // The trays sit beyond the walls on the audience side and the far side, one each, so they
+        // say which axis runs away from the audience.
+        double nearest = Double.POSITIVE_INFINITY;
+        double furthest = Double.NEGATIVE_INFINITY;
+        for (SimField.Element element : field.elements) {
+            if (element.name.contains("Artifact Tray")) {
+                for (double[] vertex : element.vertices) {
+                    nearest = Math.min(nearest, vertex[1]);
+                    furthest = Math.max(furthest, vertex[1]);
+                }
+            }
+        }
+        assertTrue("a tray stands off each end of the y axis", nearest < -60 && furthest > 60);
+    }
+
+    /**
+     * Each hive carries its alliance's two goal tags, and carries them as parts of its own, in the
+     * hive's frame: the tilt is what puts them on the field, so a tag moves as the hive leans. A
+     * simulated camera has nowhere else to read them from.
+     */
+    @Test
+    public void eachHiveCarriesItsTwoGoalAprilTagsInItsOwnFrame() {
+        for (SimField.Hive hive : field.hives) {
+            Set<String> sides = new HashSet<>();
+            for (SimField.Element part : hive.parts) {
+                if (part.name.contains("April Tag")) {
+                    assertTrue(part.name + " is the hive's alliance's", part.name.startsWith(hive.alliance));
+                    assertTrue(part.name + " stands somewhere", part.vertices.length > 0);
+                    sides.add(part.name.contains("(Scoring)") ? "Scoring" : "Audience");
+                }
+            }
+            assertEquals(hive.name + " carries a goal tag at each end: " + sides, Set.of("Audience", "Scoring"), sides);
+        }
+    }
+
+    /** Every shape the page draws has a colour to draw it in; the CAD's, or the alliance's. */
+    @Test
+    public void everythingDrawnHasAColour() {
+        List<SimField.Element> drawn = new ArrayList<>(field.elements);
+        for (SimField.Hive hive : field.hives) {
+            drawn.addAll(hive.parts);
+        }
+        for (SimField.Element element : drawn) {
+            assertNotNull(element.name + " has no colour", element.colour);
+            assertTrue(element.name + " has colour " + element.colour, element.colour.matches("#[0-9a-fA-F]{6}"));
+        }
+    }
+
+    /**
      * A cell is the basket a ball goes in: its <b>mouth</b>, the opening at the hive's end, the
      * same ring again at its back twelve inches in, and a wall between every pair of corners.
      * Twenty inches across and fourteen high, the basket the CAD draws.
