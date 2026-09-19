@@ -650,11 +650,28 @@ public class SimFieldTest {
         }
     }
 
+    @Test
+    public void theOrderATickListsTheBallsInIsServedRatherThanWorkedOutAgainByWhoeverReadsIt() {
+        JsonArray moved = field.json().getAsJsonArray("moved");
+
+        assertEquals(field.movedPieces.size(), moved.size());
+        for (int i = 0; i < moved.size(); i++) {
+            assertEquals(
+                    field.movedPieces.get(i).name,
+                    moved.get(i).getAsJsonObject().get("name").getAsString());
+        }
+        assertEquals(field.loosePieces.size() + field.cellPieces.size() + field.flowerPieces.size(), moved.size());
+        for (int i = 0; i < field.loosePieces.size(); i++) {
+            assertEquals(field.loosePieces.get(i).name, field.movedPieces.get(i).name);
+        }
+    }
+
     /** The page draws what the simulator loaded: one model, read once. */
     @Test
     public void thePageReadsTheModelTheSimulatorCollides() {
         JsonObject json = field.json();
-        for (String key : List.of("size", "wallHeight", "elements", "obstacles", "flowers", "pieces", "tape")) {
+        for (String key :
+                List.of("size", "wallHeight", "elements", "obstacles", "flowers", "pieces", "tape", "moved")) {
             assertTrue(key, json.has(key));
         }
         assertEquals(field.size, json.get("size").getAsDouble(), 0);

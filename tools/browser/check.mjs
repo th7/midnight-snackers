@@ -39,13 +39,14 @@ const TYPES = {
  */
 /**
  * A run for the page to play: the robot driving a few inches and turning, a loose pollen rolling
- * with it, and one hive leaning further than the field was set up at. Small on purpose -- what is
- * being checked is that a tick reaches the scene, not the simulator that made it.
+ * with it, and one hive that leans further than the field was set up at and then tips back. Small
+ * on purpose -- what is being checked is that a tick reaches the scene, not the simulator that
+ * made it. The hive tips back because a tick names every hive that is not leaning the way the
+ * field was set up, so a page that reads the last tick that mentioned one draws it leaning for
+ * the rest of the run.
  */
 function cannedRun(model) {
-  const moved = model.pieces.filter((p) => p.loose)
-      .concat(model.pieces.filter((p) => p.cell))
-      .concat(model.pieces.filter((p) => p.flower));
+  const moved = model.moved;
   const blue = model.hives.find((h) => h.alliance === 'Blue');
   // The field's own movable pieces, and then one the robot brought: held at first (null), and
   // in the air once it has been launched. A tick lists the robot's preload past the end of the
@@ -54,7 +55,7 @@ function cannedRun(model) {
       .concat([n < 2 ? null : [18, -9, 26]]);
   return {
     outcome: 'done',
-    ticks: [0, 1, 2].map((n) => ({
+    ticks: [0, 1, 2, 3].map((n) => ({
       t: n * 0.25, x: -30 + n * 12, y: -20 + n * 5, heading: n * 0.4, step: 'drive',
       powers: [0, 0, 0, 0], packets: [], pieces: places(n),
       tilt: n === 2 && blue ? { Blue: blue.tilt - 25 } : undefined
@@ -62,9 +63,24 @@ function cannedRun(model) {
   };
 }
 
+/** What SimField adds to the model it serves: the order a tick lists the balls it moved. */
+function movedPieces(model) {
+  const loose = [];
+  const inCells = [];
+  const inFlowers = [];
+  for (const piece of model.pieces) {
+    if (!piece.loose && piece.cell === undefined && piece.flower === undefined) {
+      continue;
+    }
+    (piece.cell !== undefined ? inCells : piece.flower !== undefined ? inFlowers : loose).push(piece);
+  }
+  return loose.concat(inCells).concat(inFlowers);
+}
+
 function serve() {
   const model = JSON.parse(fs.readFileSync(path.join(sim, 'field.json'), 'utf8'));
   model.robotIn = 18;
+  model.moved = movedPieces(model);
   const run = cannedRun(model);
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
@@ -305,7 +321,19 @@ try {
           return turned;
         })()
       }));
-      return { first, last, wrong };
+      await replay.evaluate(() => window.fieldPage.goTo(3));
+      await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      const rested = await replay.evaluate(() => {
+        let turned = false;
+        window.fieldPage.scene.traverse((o) => {
+          if (!o.isMesh && /blue[\s_-]*hive/i.test(o.name || '')
+              && Math.abs(o.matrix.elements[8]) > 0.01) {
+            turned = true;
+          }
+        });
+        return { turned };
+      });
+      return { first, last, rested, wrong };
     } catch (stuck) {
       return { first: null, last: null, wrong: wrong.concat(String(stuck && stuck.message)) };
     } finally {
@@ -315,7 +343,7 @@ try {
 
   check(played.wrong.length === 0, `the run page threw: ${played.wrong.join('; ')}`);
   if (played.first && played.last) {
-    check(played.first.loops === 3, `the run page read ${played.first.loops} loops of 3`);
+    check(played.first.loops === 4, `the run page read ${played.first.loops} loops of 4`);
     check(played.first.balls > 20, `only ${played.first.balls} game pieces are drawn`);
     check(played.first.hives === 2, `${played.first.hives} hives were found to lean`);
     // The robot has to be where the tick put it, not merely on the field somewhere.
@@ -325,7 +353,10 @@ try {
         `the robot ended at x=${played.last.run.robot && played.last.run.robot.x}, not the tick's -6`);
     check(Math.abs(played.last.run.robot.heading - 0.8) < 0.01,
         `the robot ended facing ${played.last.run.robot.heading}, not the tick's 0.8`);
-    check(played.last.hiveTurned, 'the blue hive did not lean, though the last tick says it did');
+    check(played.last.hiveTurned, 'the blue hive did not lean, though its tick says it did');
+    check(played.rested && !played.rested.turned,
+        'the blue hive is still drawn leaning a tick after it tipped back, so the page is reading '
+        + 'the last tick that named it rather than the tick it is drawing');
     // The robot's own pollen: listed past the field's pieces, held at first and launched later.
     check(played.first.run ? played.first.run.launchable > 0 : played.first.launchable > 0,
         'no ball is drawn for what the robot brought with it, so a launched pollen would vanish');

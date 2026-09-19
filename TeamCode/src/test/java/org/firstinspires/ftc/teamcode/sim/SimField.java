@@ -11,7 +11,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The season's field, reduced from FIRST's CAD by {@code tools/field/step_to_field.py} to
@@ -362,6 +364,8 @@ public final class SimField {
     public final List<Piece> cellPieces;
     /** The game pieces the field is set up with stacked in a flower: the pollen each flower holds. */
     public final List<Piece> flowerPieces;
+    /** Every piece a run moves, in the order a tick lists them. */
+    public final List<Piece> movedPieces;
 
     private final JsonObject json;
 
@@ -398,6 +402,7 @@ public final class SimField {
         List<Piece> loose = new ArrayList<>();
         List<Piece> inCells = new ArrayList<>();
         List<Piece> inFlowers = new ArrayList<>();
+        Map<Piece, JsonObject> pieceJson = new IdentityHashMap<>();
         JsonArray pieces = json.getAsJsonArray("pieces");
         for (int i = 0; i < pieces.size(); i++) {
             JsonObject p = pieces.get(i).getAsJsonObject();
@@ -417,10 +422,20 @@ public final class SimField {
                     centre.get(2).getAsDouble(),
                     p.get("radius").getAsDouble());
             (piece.cell != null ? inCells : piece.flower != null ? inFlowers : loose).add(piece);
+            pieceJson.put(piece, p);
         }
         this.loosePieces = Collections.unmodifiableList(loose);
         this.cellPieces = Collections.unmodifiableList(inCells);
         this.flowerPieces = Collections.unmodifiableList(inFlowers);
+        List<Piece> moved = new ArrayList<>(loose);
+        moved.addAll(inCells);
+        moved.addAll(inFlowers);
+        this.movedPieces = Collections.unmodifiableList(moved);
+        JsonArray movedJson = new JsonArray();
+        for (Piece piece : moved) {
+            movedJson.add(pieceJson.get(piece));
+        }
+        json.add("moved", movedJson);
         List<Obstacle> obstacles = new ArrayList<>();
         JsonArray array = json.getAsJsonArray("obstacles");
         for (int i = 0; i < array.size(); i++) {

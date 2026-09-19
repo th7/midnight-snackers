@@ -438,11 +438,7 @@ public class SimRobot {
         int held = inCells + FIELD.flowerPieces.size();
         balls = new Ball[held + PRELOAD];
         for (int i = 0; i < balls.length; i++) {
-            SimField.Piece piece = i < loose
-                    ? FIELD.loosePieces.get(i)
-                    : i < inCells
-                            ? FIELD.cellPieces.get(i - loose)
-                            : i < held ? FIELD.flowerPieces.get(i - inCells) : FIELD.loosePieces.get(0);
+            SimField.Piece piece = i < held ? FIELD.movedPieces.get(i) : FIELD.loosePieces.get(0);
             balls[i] = new Ball(piece.radius, piece.kind, ballBody(piece.radius));
             ballBodies.add(balls[i].body);
             if (i < loose) {
