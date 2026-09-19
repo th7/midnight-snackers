@@ -1,0 +1,11 @@
+{
+  "name": "field-page-check",
+  "private": true,
+  "description": "Opens the simulator's field page in a real browser and checks that it draws. Run with: node tools/browser/check.mjs (npm ci here first).",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

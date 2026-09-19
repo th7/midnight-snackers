@@ -18,6 +18,15 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The tool tests open the field page in a browser, which has to be here to be opened.
+      # `--with-deps` installs the shared libraries Chromium needs, which the runner lacks.
+      - name: Browser for the page tests
+        run: |
+          npm ci --prefix tools/browser
+          npx --prefix tools/browser playwright install --with-deps chromium
       - name: Java formatting (same command as local; fix with ./gradlew :TeamCode:spotlessApply)
         run: ./gradlew :TeamCode:spotlessCheck
       - name: Tool tests (same command as local)
@@ -32,3 +41,4 @@ jobs:
           path: |
             TeamCode/build/test-results/testDebugUnitTest/*.xml
             TeamCode/build/sim/*.html
+            tools/browser/field-as-drawn.png

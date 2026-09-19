@@ -89,6 +89,9 @@ lint/tmp/
 # The editor bundle build (tools/codemirror); its output is committed
 node_modules/
 
+# What the browser saw when a page test failed.
+tools/browser/field-as-drawn.png
+
 # Python bytecode, from running tools/field/step_to_field.py
 __pycache__/
 *.pyc

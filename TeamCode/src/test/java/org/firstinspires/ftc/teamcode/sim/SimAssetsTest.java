@@ -96,11 +96,6 @@ public class SimAssetsTest {
     }
 
     /**
-     * Only the kinds of file the page actually loads are served. Everything the simulator keeps on
-     * that classpath sits in the same place -- the collision model, the page templates -- and a
-     * route that served whatever it was asked for would hand out all of it.
-     */
-    /**
      * Every asset the field page names is one the bench will actually serve. A page that asks for
      * a file nobody has does not say so: it draws an empty canvas, or a field with a part missing,
      * and the only clue is in a console nobody has open. The names are in the page's import map
@@ -110,8 +105,9 @@ public class SimAssetsTest {
     @Test
     public void everyAssetTheFieldPageAsksForIsOneTheBenchServes() {
         String page = SimAssets.page("field.html");
-        Matcher named =
-                Pattern.compile("[\"']" + "(assets/[A-Za-z0-9._/-]+)" + "[\"']").matcher(page);
+        // An import map target has to begin with ./ ; a plain fetch need not. Both are asked for.
+        Matcher named = Pattern.compile("[\"']" + "(?:\\./)?" + "(assets/[A-Za-z0-9._/-]+)" + "[\"']")
+                .matcher(page);
         Set<String> asked = new TreeSet<>();
         while (named.find()) {
             asked.add(named.group(1));
@@ -144,6 +140,11 @@ public class SimAssetsTest {
         }
     }
 
+    /**
+     * Only the kinds of file the page actually loads are served. Everything the simulator keeps on
+     * that classpath sits in the same place -- the collision model, the page templates -- and a
+     * route that served whatever it was asked for would hand out all of it.
+     */
     @Test
     public void onlyTheKindsOfFileThePageLoadsAreServed() {
         assertEquals(
