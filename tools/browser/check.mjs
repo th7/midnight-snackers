@@ -47,7 +47,11 @@ function cannedRun(model) {
       .concat(model.pieces.filter((p) => p.cell))
       .concat(model.pieces.filter((p) => p.flower));
   const blue = model.hives.find((h) => h.alliance === 'Blue');
-  const places = (n) => moved.map((piece, i) => i === 0 ? [n * 6, n * 3, piece.radius] : piece.centre);
+  // The field's own movable pieces, and then one the robot brought: held at first (null), and
+  // in the air once it has been launched. A tick lists the robot's preload past the end of the
+  // field's, which is exactly where a ball with no mesh made for it goes missing.
+  const places = (n) => moved.map((piece, i) => i === 0 ? [n * 6, n * 3, piece.radius] : piece.centre)
+      .concat([n < 2 ? null : [18, -9, 26]]);
   return {
     outcome: 'done',
     ticks: [0, 1, 2].map((n) => ({
@@ -284,6 +288,11 @@ try {
       await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const last = await replay.evaluate(() => ({
         run: window.fieldPage.run,
+        launched: (() => {
+          const page = window.fieldPage;
+          const ball = page.launchedBall;
+          return ball ? { visible: ball.visible, at: ball.position.toArray() } : null;
+        })(),
         drawn: window.fieldPage.drawnTriangles,
         hiveTurned: (() => {
           let turned = false;
@@ -317,6 +326,15 @@ try {
     check(Math.abs(played.last.run.robot.heading - 0.8) < 0.01,
         `the robot ended facing ${played.last.run.robot.heading}, not the tick's 0.8`);
     check(played.last.hiveTurned, 'the blue hive did not lean, though the last tick says it did');
+    // The robot's own pollen: listed past the field's pieces, held at first and launched later.
+    check(played.first.run ? played.first.run.launchable > 0 : played.first.launchable > 0,
+        'no ball is drawn for what the robot brought with it, so a launched pollen would vanish');
+    check(played.last.launched && played.last.launched.visible,
+        'the launched pollen is not drawn where the tick puts it');
+    if (played.last.launched && played.last.launched.at) {
+      check(Math.abs(played.last.launched.at[2] - 26) < 0.01,
+          `the launched pollen is at z=${played.last.launched.at[2]}, not the tick's 26`);
+    }
     check(played.last.drawn > 1000, `a run frame drew only ${played.last.drawn} triangles`);
   }
 
@@ -371,6 +389,10 @@ try {
         });
         return out;
       });
+      // The page keeps its heads-up display and controls, because it is watched as well as
+      // captured, and frames.mjs hides them for a capture. Here they would be most of what is
+      // lit, and the point of counting lit pixels is to see the tags.
+      await view.addStyleTag({ content: '#hud, #run { display: none !important; }' });
       const shot = await view.screenshot();
       return { seen, shot, wrong };
     } catch (stuck) {

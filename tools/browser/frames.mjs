@@ -66,6 +66,10 @@ try {
     throw new Error('run ' + run + ' has no loops to capture');
   }
   await page.setViewportSize({ width: lens.width, height: lens.height });
+  // The page keeps its heads-up display and its play controls, because it is watched as well as
+  // captured. A frame is meant to be what the webcam would have seen, and neither is part of
+  // that, so they go for the capture and only for the capture.
+  await page.addStyleTag({ content: '#hud, #run { display: none !important; }' });
   fs.mkdirSync(into, { recursive: true });
 
   const width = String(loops).length;
