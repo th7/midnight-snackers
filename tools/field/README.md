@@ -48,6 +48,16 @@ and raises on anything else rather than skipping it: a part silently
 dropped, or one read at the wrong stride, would reach the simulator as
 geometry that looks plausible and is wrong.
 
+`assets.py` fetches the document's images -- the panel artwork and the four
+goal April Tags -- which is the part of the field STEP cannot carry, and
+needs no keys:
+
+    python3 tools/field/assets.py --fetch
+
+Nothing is written until every image has arrived and been checked, so a
+rename upstream stops the run rather than quietly fetching less than it
+used to.
+
 We take whatever the document holds at the time we refresh the assets:
 nothing here pins an Onshape version, and small changes between refreshes
 are expected.
