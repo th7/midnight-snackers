@@ -27,6 +27,19 @@ public class RouterTest {
     }
 
     @Test
+    public void aRedirectSendsTheBrowserToThePathTheHandlerNames() {
+        Router router = new Router()
+                .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")
+                .route("GET", "/runs/{id}/", say("the page"));
+
+        Response moved = router.handle(get("/runs/7"));
+
+        assertEquals(308, moved.status);
+        assertEquals("/runs/7/", moved.headers.get("Location"));
+        assertEquals(200, router.handle(get("/runs/7/")).status);
+    }
+
+    @Test
     public void routesByMethodAndPathAndSaysNotFoundOtherwise() {
         Router router = new Router().route("GET", "/status", say("status")).route("POST", "/run", say("ran"));
 

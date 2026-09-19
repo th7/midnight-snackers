@@ -599,6 +599,23 @@ public class SimBenchTest {
     }
 
     @Test
+    public void theLiveViewIsOnlyEverServedWhereItsOwnRelativeFetchesResolve() throws Exception {
+        bench = new SimBench(
+                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        SimBench.Run run =
+                await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
+
+        Response slashless = routes().handle(get("/runs/" + run.id));
+        Response mounted = routes().handle(get("/runs/" + run.id + "/"));
+        Response ticks = routes().handle(get("/runs/" + run.id + "/ticks?from=0"));
+
+        assertEquals(308, slashless.status);
+        assertEquals("/runs/" + run.id + "/", slashless.headers.get("Location"));
+        assertEquals(200, mounted.status);
+        assertEquals(200, ticks.status);
+    }
+
+    @Test
     public void aBenchWithoutSourcesHasNothingToCheck() {
         bench = new SimBench(
                 SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);

@@ -372,6 +372,8 @@ public final class TinyHttpServer {
         switch (status) {
             case 200:
                 return "OK";
+            case 308:
+                return "Permanent Redirect";
             case 400:
                 return "Bad Request";
             case 403:
