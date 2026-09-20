@@ -28,6 +28,7 @@ public final class Onshape {
     public static final String ACCESS_KEY_VARIABLE = "ONSHAPE_ACCESS_KEY";
     public static final String SECRET_KEY_VARIABLE = "ONSHAPE_SECRET_KEY";
     public static final String JSON = "application/json";
+    public static final double INCH_IN_METRES = 0.0254;
 
     private static final int NONCE_LENGTH = 25;
     private static final String ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
