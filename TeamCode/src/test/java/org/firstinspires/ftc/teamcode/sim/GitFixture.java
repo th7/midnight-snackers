@@ -51,6 +51,12 @@ final class GitFixture {
     }
 
     static String git(Path cwd, String... args) throws IOException {
+        try (Cost.Spent spent = Cost.start(Cost.Kind.GIT)) {
+            return running(cwd, args);
+        }
+    }
+
+    private static String running(Path cwd, String... args) throws IOException {
         List<String> command = new ArrayList<>();
         command.add("git");
         command.addAll(List.of(args));

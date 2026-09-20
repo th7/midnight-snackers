@@ -31,6 +31,7 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
+import org.firstinspires.ftc.teamcode.sim.Cost;
 import org.firstinspires.ftc.teamcode.sim.SimBuild;
 
 final class MainSources {
@@ -71,7 +72,7 @@ final class MainSources {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         StandardJavaFileManager files = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8);
         List<String> errors = new ArrayList<>();
-        try {
+        try (Cost.Spent spent = Cost.start(Cost.Kind.COMPILE)) {
             List<File> sourceFiles = sources.stream().map(Path::toFile).collect(Collectors.toList());
             Iterable<? extends JavaFileObject> inputs = files.getJavaFileObjectsFromFiles(sourceFiles);
             List<String> options = List.of(

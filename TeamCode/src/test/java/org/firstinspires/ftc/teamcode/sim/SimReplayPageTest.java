@@ -171,11 +171,14 @@ public class SimReplayPageTest {
                                 + rule.group() + "\n"
                                 + "console.log(JSON.stringify(ticks.map((_, i) => tiltAt(hive, i))));\n")
                         .getBytes(StandardCharsets.UTF_8));
-        Process node = new ProcessBuilder("node", script.toString())
-                .redirectErrorStream(true)
-                .start();
-        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals("node ran the page's rule: " + out, 0, node.waitFor());
+        String out;
+        try (Cost.Spent spent = Cost.start(Cost.Kind.NODE)) {
+            Process node = new ProcessBuilder("node", script.toString())
+                    .redirectErrorStream(true)
+                    .start();
+            out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals("node ran the page's rule: " + out, 0, node.waitFor());
+        }
         return new Gson().fromJson(out.trim(), double[].class);
     }
 

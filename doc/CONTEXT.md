@@ -818,6 +818,25 @@ than passing for want of anything to compare, a regenerating run fails because
 a run that wrote the answer down has not checked it, and an intended change is
 read and then regenerated with `--regenerate`.
 
+**What the suite costs** — What a run of the unit tests spends on the few
+things that are dear: a **child JVM** started, a **compile** of a project's
+sources, a **git** process, a session secret put through **scrypt**, a file
+**formatted**, a **node** process, and a **project copied** onto disk. Each is
+counted where it is spent, inside the one adapter that reaches it, so the
+ledger is complete for the same reason nothing else may reach any of them at
+all: `CostIsCountedWhereItIsSpentTest` pins who may reach each one and holds
+each of them to counting it, off the bytecode, where a fully qualified name
+cannot dodge either half. `./gradlew :TeamCode:testDebugUnitTest` prints the
+ledger and the slowest test classes every run.
+
+The counts are pinned in a **suite budget** and the times are only ever
+printed: a count is the suite's and a time is the machine's. The same deal as
+the scene **budget** above — a change detector, not a ceiling, so fewer misses
+it as surely as more, a missing budget fails rather than passing for want of
+anything to compare, a regenerating run fails because a run that wrote the
+answer down has not checked it, and a run of part of the suite says it **could
+not judge** rather than passing. Files: `Cost`; `suite-budget.json`.
+
 **Refresh assets** — The admin page's button, and what a coding server does
 for itself at startup when it has fetched none: ask Onshape for the field
 assembly, build the field as it looks, fetch the five images the CAD cannot

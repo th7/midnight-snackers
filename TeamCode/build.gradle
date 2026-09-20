@@ -87,6 +87,61 @@ tasks.withType(Test).configureEach {
     // undeclared, a run with it set and a run without are up to date with respect to each other,
     // and the suite reports a verdict it reached under other conditions than the ones asked for.
     inputs.property('SIM_LIVE', System.getenv('SIM_LIVE')).optional(true)
+
+    // What the suite costs. The test JVM keeps a ledger of the dear things -- child JVMs, compiles,
+    // git, password hashes, formatting, node, project copies -- and writes it, a report and a
+    // verdict as it goes. This task prints the report every run and fails on the verdict, so the
+    // same one command checks the budget locally and in CI.
+    def costDir = layout.buildDirectory.dir('sim/cost').get().asFile
+    systemProperty 'suiteCost.ledger', costDir.absolutePath
+    // Gradle's own -D reaches this JVM and not the forked one, as with simTrace.regenerate above.
+    if (System.getProperty('suiteCost.regenerate') != null) {
+        systemProperty 'suiteCost.regenerate', System.getProperty('suiteCost.regenerate')
+    }
+    inputs.property('suiteCost.regenerate', System.getProperty('suiteCost.regenerate')).optional(true)
+
+    doFirst {
+        costDir.deleteDir()
+        costDir.mkdirs()
+        // A filtered run spends less than the whole suite, so it may not judge the budget. The
+        // test JVM is told which it is rather than working it out: only Gradle knows.
+        def whole = filter.commandLineIncludePatterns.isEmpty()
+                && filter.includePatterns.isEmpty()
+                && filter.excludePatterns.isEmpty()
+        systemProperty 'suiteCost.whole', whole.toString()
+    }
+
+    doLast {
+        def slowest = new File(project.buildDir, "test-results/${name}").listFiles({ f -> f.name.endsWith('.xml') } as FileFilter)
+        if (slowest) {
+            def classes = slowest.collect { new groovy.xml.XmlSlurper().parse(it) }
+                    .collect { [name: it.@name.text().tokenize('.').last(), seconds: it.@time.text() as double] }
+                    .sort { -it.seconds }
+            println()
+            println("the slowest test classes (${String.format('%.1f', classes.sum { it.seconds })}s over ${classes.size()})")
+            classes.take(8).each { println(String.format('  %-40s %6.1fs', it.name, it.seconds)) }
+        }
+
+        def verdict = new File(costDir, 'verdict.txt')
+        def report = new File(costDir, 'report.txt')
+        if (!verdict.exists()) {
+            throw new GradleException("the test JVM wrote no cost verdict to ${costDir}. It is told where to " +
+                    "write one by suiteCost.ledger, and writes it as it goes; a run that wrote none has not " +
+                    "checked what it cost, which is not the same as costing what it should.")
+        }
+        if (report.exists()) {
+            println()
+            println(report.text.trim())
+        }
+        def lines = verdict.text.split('\n', 2)
+        def outcome = lines[0].trim()
+        def said = lines.length > 1 ? lines[1].trim() : ''
+        if (outcome == 'MISSED') {
+            throw new GradleException(said)
+        }
+        println()
+        println(said)
+    }
 }
 
 dependencies {

@@ -21,7 +21,7 @@ public final class JavaFormatter {
             JavaFormatterOptions.builder().style(STYLE).build());
 
     public static String format(String source) throws Unparseable {
-        try {
+        try (Cost.Spent spent = Cost.start(Cost.Kind.FORMAT)) {
             return FORMATTER.formatSource(
                     RemoveUnusedImports.removeUnusedImports(ImportOrderer.reorderImports(source, STYLE)));
         } catch (FormatterException e) {

@@ -147,7 +147,9 @@ public final class CodingServer {
         }
 
         private static byte[] derive(String secret, byte[] salt, int n, int r, int p, int length) {
-            return SCrypt.generate(secret.getBytes(StandardCharsets.UTF_8), salt, n, r, p, length);
+            try (Cost.Spent spent = Cost.start(Cost.Kind.PASSWORD_HASH)) {
+                return SCrypt.generate(secret.getBytes(StandardCharsets.UTF_8), salt, n, r, p, length);
+            }
         }
 
         JsonObject toJson() {
