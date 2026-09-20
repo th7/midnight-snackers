@@ -787,11 +787,15 @@
     });
     var want = '#' + name + (tabOptions ? '?' + tabOptions : '');
     if (location.hash !== want) { history.replaceState(null, '', want); }
-    if (name === 'simulate' && simulate) { simulate.enter(); }
+    if (name === 'simulate' && simulate) { simulate.enter(); simulate.again(); }
   }
 
   function withTabOptions(url) {
     return tabOptions ? url + (url.indexOf('?') < 0 ? '?' : '&') + tabOptions : url;
+  }
+
+  function stageNeedsOpening(shownId, shownOptions, id, options) {
+    return shownId !== id || shownOptions !== options;
   }
 
   function wireTabs() {
@@ -812,6 +816,7 @@
     var history = document.querySelector('#history tbody');
     var catalog = [];
     var shownRunId = null;
+    var shownOptions = null;
 
     var placingName = null;
     var running = false;
@@ -910,8 +915,9 @@
     }
 
     function show(id, name) {
-      if (shownRunId === id) { return; }
+      if (!stageNeedsOpening(shownRunId, shownOptions, id, tabOptions)) { return; }
       shownRunId = id;
+      shownOptions = tabOptions;
       placingName = null;
       stageTitle.textContent = 'Run ' + id + ': ' + name;
       stageEmpty.hidden = true;
@@ -919,8 +925,16 @@
       stage.src = withTabOptions('/sim/runs/' + id + '/');
     }
 
+    function again() {
+      if (shownRunId !== null && stageNeedsOpening(shownRunId, shownOptions, shownRunId, tabOptions)) {
+        shownOptions = tabOptions;
+        stage.src = withTabOptions('/sim/runs/' + shownRunId + '/');
+      }
+    }
+
     function showPlacement(entry) {
       shownRunId = null;
+      shownOptions = null;
       placingName = entry.name;
       stageTitle.textContent = 'Place ' + entry.name;
       stageState.innerHTML = '';
@@ -1001,7 +1015,7 @@
       poll();
     }
 
-    return { enter: enter };
+    return { enter: enter, again: again };
   }
 
   var git = null;

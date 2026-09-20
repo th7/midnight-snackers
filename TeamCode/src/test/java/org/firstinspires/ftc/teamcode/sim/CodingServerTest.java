@@ -1154,6 +1154,49 @@ public class CodingServerTest {
     }
 
     @Test
+    public void theViewIsOpenedAgainWhenWhatWasAskedOfItChanges() throws Exception {
+        String[][] asked = {
+            {"null", "null", "1", ""},
+            {"1", "", "1", ""},
+            {"1", "", "1", "detail=full"},
+            {"1", "detail=full", "1", "detail=full"},
+            {"1", "detail=full", "2", "detail=full"},
+            {"1", "detail=full", "1", ""}
+        };
+
+        boolean[] opens = stageOpenings(asked);
+
+        assertTrue("nothing shown yet", opens[0]);
+        assertFalse("the same run, asked the same way, is already open", opens[1]);
+        assertTrue("the same run asked a different way is opened again", opens[2]);
+        assertFalse(opens[3]);
+        assertTrue("another run", opens[4]);
+        assertTrue("and dropping an option is a change too", opens[5]);
+    }
+
+    private boolean[] stageOpenings(String[][] asked) throws Exception {
+        String page = SimAssets.page("dashboard.html");
+        Matcher rule = Pattern.compile(
+                        "\n  function stageNeedsOpening\\(shownId, shownOptions, id, options\\) \\{.*?\n  \\}",
+                        Pattern.DOTALL)
+                .matcher(page);
+        assertTrue("the dashboard decides in stageNeedsOpening(...)", rule.find());
+        Path script = folder.newFile("stageNeedsOpening.js").toPath();
+        StringBuilder source = new StringBuilder(rule.group()).append("\n");
+        source.append("const asked = ").append(new Gson().toJson(asked)).append(";\n");
+        source.append("console.log(JSON.stringify(asked.map(a => stageNeedsOpening(")
+                .append("a[0] === 'null' ? null : Number(a[0]), a[1] === 'null' ? null : a[1], ")
+                .append("Number(a[2]), a[3]))));\n");
+        Files.write(script, source.toString().getBytes(StandardCharsets.UTF_8));
+        Process node = new ProcessBuilder("node", script.toString())
+                .redirectErrorStream(true)
+                .start();
+        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals("node ran the dashboard's rule: " + out, 0, node.waitFor());
+        return new Gson().fromJson(out.trim(), boolean[].class);
+    }
+
+    @Test
     public void theSimulateTabPassesWhatWasAskedOfItToTheLiveView() {
         String page = SimAssets.page("dashboard.html");
 
