@@ -22,14 +22,13 @@ public class Plan implements PlanPart {
     @Override
     public boolean tick() {
         PlanPart currentPlanPart = currentPlanPart();
-        if (currentPlanPart != null) {
-            if (currentPlanPart.tick()) {
-                currentPlanPartIndex += 1;
-            }
-            return false;
-        } else {
+        if (currentPlanPart == null) {
             return true;
         }
+        if (currentPlanPart.tick()) {
+            currentPlanPartIndex += 1;
+        }
+        return currentPlanPart() == null;
     }
 
     private PlanPart currentPlanPart() {
