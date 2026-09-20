@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
@@ -22,7 +23,9 @@ def main():
         for error in loader.errors:
             print(error, file=sys.stderr)
         return 2
+    began = time.monotonic()
     result = unittest.TextTestRunner(verbosity=2).run(suite)
+    took = [('python', time.monotonic() - began)]
     if result.testsRun == 0:
         print('No tests were discovered under tools/. That is a broken runner, not a pass.',
               file=sys.stderr)
@@ -30,10 +33,23 @@ def main():
     if not result.wasSuccessful():
         return 1
     for check in (renderer_check, browser_check, dashboard_check, replay_check, cost_check):
+        began = time.monotonic()
         wrong = check()
+        took.append((check.__name__.replace('_check', ''), time.monotonic() - began))
         if wrong:
+            report(took)
             return wrong
+    report(took)
     return 0
+
+def report(took):
+    """What each check cost. A time is the machine's, so it is printed and never judged; what is
+    pinned about the scene is its draws and its triangles, in tools/browser/scene-budget.json."""
+    print()
+    print('what the tool tests cost')
+    for what, seconds in took:
+        print('  %-12s %6.1fs' % (what, seconds))
+    print('  %-12s %6.1fs' % ('all of it', sum(seconds for _, seconds in took)))
 
 def node_at(*where):
     check = os.path.join(TOOLS, *where)

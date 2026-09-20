@@ -68,6 +68,36 @@ else.
 A failing run writes `tools/browser/field-as-drawn.png`, which CI keeps with the test
 results, because the first question about a page that did not draw is what it did draw.
 
+## What the checks cost
+
+Building the field scene in software is the dear thing here: a four megabyte model, three
+hundred parts, eleven materials merged, and a frame that takes a tenth of a second to
+rasterise. Everything else these checks do is free beside it, so the number that matters
+is how many times a page builds one, and `python3 tools/run_tests.py` prints what each
+check took so that number is not guessed at:
+
+```
+what the tool tests cost
+  python          0.0s
+  renderer        0.2s
+  browser        11.9s
+  dashboard       2.5s
+  replay         12.7s
+  cost            9.5s
+  all of it      36.9s
+```
+
+A time is the machine's, so it is printed and never judged; what is pinned about the
+scene is its draws and its triangles, in the **budget**.
+
+Two builds went that way. `check.mjs` opened a second page at the same URL to play the
+run in, which meant loading the model and building its scene twice over: the checks
+before it leave the page as they found it, and only the playing moves it off its first
+tick, so it plays in the page already open. And the probe in `cost.mjs` that holds the
+measurement to what it says it measures -- a renderer and a triangle of its own -- asked
+for the page that draws the field, which it then never looked at; it asks for
+`?view=flat` instead, the same page and the same modules with no scene built.
+
 ## The other page a browser is the only witness to
 
 `tools/browser/dashboard.mjs` opens the **coding server's dashboard** -- the page

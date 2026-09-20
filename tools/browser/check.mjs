@@ -169,23 +169,23 @@ try {
     check(clear < 0.5, `the tape stands ${clear} in off the floor, which is tape that is floating`);
   }
 
+  // The same page, played rather than read. It was a second one at another size, which meant
+  // loading the field and building its scene twice over -- the dearest thing this check does, for
+  // nothing: the reads above leave the page as they found it, and only these move it off tick 0.
   const played = await (async () => {
-    const replay = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    const wrong = [];
-    replay.on('pageerror', (e) => wrong.push(String(e && e.message ? e.message : e)));
+    const before = thrown.length;
     try {
-      await replay.goto(`${base}/runs/1/`, { waitUntil: 'load', timeout: 60_000 });
-      await replay.waitForFunction(
+      await page.waitForFunction(
           () => window.replayPage && window.replayPage.settled && window.replayPage.run
               && window.replayPage.run.hives, null, { timeout: 90_000 });
-      const first = await replay.evaluate(() => window.replayPage.run);
-      await replay.evaluate(() => window.replayPage.goTo(2));
-      await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-      const last = await replay.evaluate(() => ({
+      const first = await page.evaluate(() => window.replayPage.run);
+      await page.evaluate(() => window.replayPage.goTo(2));
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      const last = await page.evaluate(() => ({
         run: window.replayPage.run,
         launched: (() => {
-          const page = window.replayPage;
-          const ball = page.launchedBall;
+          const shown = window.replayPage;
+          const ball = shown.launchedBall;
           return ball ? { visible: ball.visible, at: ball.position.toArray() } : null;
         })(),
         drawn: window.replayPage.drawnTriangles,
@@ -200,9 +200,9 @@ try {
           return turned;
         })()
       }));
-      await replay.evaluate(() => window.replayPage.goTo(3));
-      await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-      const rested = await replay.evaluate(() => {
+      await page.evaluate(() => window.replayPage.goTo(3));
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      const rested = await page.evaluate(() => {
         let turned = false;
         window.replayPage.scene.traverse((o) => {
           if (!o.isMesh && /blue[\s_-]*hive/i.test(o.name || '')
@@ -212,11 +212,9 @@ try {
         });
         return { turned };
       });
-      return { first, last, rested, wrong };
+      return { first, last, rested, wrong: thrown.slice(before) };
     } catch (stuck) {
-      return { first: null, last: null, wrong: wrong.concat(String(stuck && stuck.message)) };
-    } finally {
-      await replay.close();
+      return { first: null, last: null, wrong: thrown.slice(before).concat(String(stuck && stuck.message)) };
     }
   })();
 

@@ -36,7 +36,10 @@ function say(name, reading) {
 async function theProbeTimesWhatItSaysItTimes(browser, base) {
   const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
   try {
-    await page.goto(`${base}/runs/1/`, { waitUntil: 'load', timeout: 60_000 });
+    // The flat drawing: this holds the probe to what it times, over a renderer and a triangle of
+    // its own, so the field scene the page would otherwise build is a few seconds spent on a
+    // picture nothing here looks at. ?view=flat serves the same page and the same modules.
+    await page.goto(`${base}/runs/1/?view=flat`, { waitUntil: 'load', timeout: 60_000 });
     const measured = await page.evaluate(async () => {
       const THREE = await import('../../assets/vendor/three.module.min.js');
       const { measure } = await import('../../assets/framecost.js');
