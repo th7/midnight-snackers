@@ -103,11 +103,15 @@ tasks.withType(Test).configureEach {
     doFirst {
         costDir.deleteDir()
         costDir.mkdirs()
-        // A filtered run spends less than the whole suite, so it may not judge the budget. The
-        // test JVM is told which it is rather than working it out: only Gradle knows.
+        // A filtered run spends less than the whole suite, and a run split across JVMs leaves each
+        // of them with a share of it, so neither may judge the budget: the ledger is one JVM's.
+        // The test JVM is told which kind of run it is rather than working it out; only Gradle
+        // knows. Silence about that would read exactly like a suite that cost what it should.
         def whole = filter.commandLineIncludePatterns.isEmpty()
                 && filter.includePatterns.isEmpty()
                 && filter.excludePatterns.isEmpty()
+                && maxParallelForks == 1
+                && forkEvery == 0
         systemProperty 'suiteCost.whole', whole.toString()
     }
 

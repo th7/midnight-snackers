@@ -167,8 +167,10 @@ public final class Cost {
         if (!whole) {
             return new Verdict(
                     Verdict.Outcome.COULD_NOT_JUDGE,
-                    "part of the suite ran, so what it cost could not judge the budget in " + BUDGET
-                            + ". Run the whole suite to check it.");
+                    "this was part of the suite, or the suite split across JVMs, so what it cost could not"
+                            + " judge the budget in " + BUDGET + ": a ledger is one JVM's, and only the whole"
+                            + " suite in one JVM spends the whole of what is pinned. Run"
+                            + " ./gradlew :TeamCode:testDebugUnitTest to check it.");
         }
         if (budget == null) {
             return new Verdict(
