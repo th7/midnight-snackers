@@ -98,8 +98,30 @@ public class CodingServerTest {
     }
 
     private CodingServer serverWith(SimBench.Factory benches, int scryptN) {
-        server = CodingServer.start(root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN);
+        return serverWith(benches, scryptN, refusingToReachOnshape());
+    }
+
+    private CodingServer serverWith(SimBench.Factory benches, int scryptN, CodingServer.Assets assets) {
+        server = CodingServer.start(root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets);
         return server;
+    }
+
+    private static CodingServer.Assets refusingToReachOnshape() {
+        return (store, into) -> {
+            throw new AssertionError("a test reached for Onshape; no test may");
+        };
+    }
+
+    private static CodingServer.Assets writing(String... names) {
+        return (store, into) -> {
+            java.util.Map<String, Integer> written = new java.util.LinkedHashMap<>();
+            for (String name : names) {
+                byte[] body = ("fetched " + name).getBytes(StandardCharsets.UTF_8);
+                store.writeWhole(into.resolve(name), body);
+                written.put(name, body.length);
+            }
+            return new FieldAssets.Refreshed(written);
+        };
     }
 
     private CodingServer serverThatHashesAsItWouldInEarnest() {
@@ -988,6 +1010,74 @@ public class CodingServerTest {
         }) {
             assertEquals(path + " needs an approved session", 403, user("GET", path, null).status);
         }
+    }
+
+    @Test
+    public void aServerThatHasFetchedNothingDrawsTheModelCommittedForTests() throws IOException {
+        String cookie = approvedUser("mia");
+
+        Reply model = user("GET", "/sim/assets/field.glb", cookie);
+        Reply said = admin("GET", "/admin/assets");
+
+        assertEquals("the committed model still draws", 200, model.status);
+        assertTrue(said.body, said.body.contains("\"complete\":false"));
+        assertTrue(said.body, said.body.contains("the model committed for tests"));
+    }
+
+    @Test
+    public void aRefreshFetchesTheAssetsAndTheyAreWhatTheBenchThenServes() throws IOException {
+        serverWith(
+                worktree -> bench(),
+                CHEAP_SCRYPT,
+                writing(FieldAssets.everyAsset().toArray(new String[0])));
+        String cookie = approvedUser("mia");
+
+        Reply refreshed = admin("POST", "/admin/assets/refresh");
+        Reply model = user("GET", "/sim/assets/field.glb", cookie);
+
+        assertEquals(refreshed.body, 200, refreshed.status);
+        assertTrue(refreshed.body, refreshed.body.contains("\"complete\":true"));
+        assertTrue(refreshed.body, refreshed.body.contains("the model this server fetched"));
+        assertEquals(200, model.status);
+        assertEquals("the fetched model, not the committed one", "fetched field.glb", model.body);
+    }
+
+    @Test
+    public void anAssetTheRefreshDidNotWriteStillComesFromWhatIsCommitted() throws IOException {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing(FieldAssets.FIELD_GLB));
+        String cookie = approvedUser("mia");
+
+        admin("POST", "/admin/assets/refresh");
+
+        assertEquals("fetched field.glb", user("GET", "/sim/assets/field.glb", cookie).body);
+        assertEquals(
+                "the tag artwork falls back rather than going missing",
+                200,
+                user("GET", "/sim/assets/textures/GoalAprilTag_bluescoring.png", cookie).status);
+    }
+
+    @Test
+    public void aRefreshOnshapeWillNotAnswerSaysSoAndLeavesThePagesDrawing() throws IOException {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, (store, into) -> {
+            throw new Onshape.NoCredentials("no key pair and no proxy");
+        });
+        String cookie = approvedUser("mia");
+
+        Reply refused = admin("POST", "/admin/assets/refresh");
+
+        assertEquals(502, refused.status);
+        assertTrue(refused.body, refused.body.contains("no key pair"));
+        assertEquals("and the page still draws", 200, user("GET", "/sim/assets/field.glb", cookie).status);
+    }
+
+    @Test
+    public void theAdminPageOffersTheRefresh() throws IOException {
+        server();
+
+        Reply page = admin("GET", "/admin");
+
+        assertTrue(page.body, page.body.contains("Refresh assets"));
+        assertTrue(page.body, page.body.contains("/admin/assets/refresh"));
     }
 
     @Test
