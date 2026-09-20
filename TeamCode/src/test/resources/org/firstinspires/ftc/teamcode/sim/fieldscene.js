@@ -7,6 +7,7 @@ export const FIELD_IN = 141.17;
 export const FLOOR_Z = 0;
 export const TAPE_Z = 0.01;
 export const OVERLAY_Z = 0.05;
+const SAME_PLACE_IN = 0.01;
 
 const SEE_THROUGH = /skin|side[\s_]glass/i;
 const GAME_PIECE = /pollen|nectar/i;
@@ -104,10 +105,22 @@ export class FieldScene {
           }
         });
 
+        gltf.scene.updateMatrixWorld(true);
+        const reached = new THREE.Box3().setFromObject(gltf.scene);
+
         const batched = this.#batchByMaterial(gltf.scene);
         if (batched.triangles !== triangles) {
           reject(new Error('batching the field by material left ' + batched.triangles
               + ' triangles of ' + triangles + '; it may only draw them in fewer meshes, never lose any'));
+          return;
+        }
+        const moved = movedBy(reached, new THREE.Box3().setFromObject(gltf.scene));
+        if (moved > SAME_PLACE_IN) {
+          reject(new Error('batching the field by material moved it: the model reached '
+              + said(reached) + ' and now reaches ' + said(new THREE.Box3().setFromObject(gltf.scene))
+              + ', ' + moved.toFixed(3) + ' in out. Every part is merged in the frame of whatever it '
+              + 'is merged under, so a part put in the wrong one lands somewhere else on the field '
+              + 'while the triangles still add up'));
           return;
         }
 
@@ -385,6 +398,18 @@ export class FieldScene {
     geometry.setAttribute('position', new THREE.BufferAttribute(line, 3));
     return new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: colour }));
   }
+}
+
+function movedBy(was, now) {
+  return Math.max(
+      was.min.distanceTo(now.min),
+      was.max.distanceTo(now.max));
+}
+
+function said(box) {
+  const round = (v) => v.toFixed(1);
+  return round(box.min.x) + '..' + round(box.max.x) + ', ' + round(box.min.y) + '..' + round(box.max.y)
+      + ', ' + round(box.min.z) + '..' + round(box.max.z) + ' in';
 }
 
 function trianglesIn(geometry) {
