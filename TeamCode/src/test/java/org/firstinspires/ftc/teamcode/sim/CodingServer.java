@@ -53,7 +53,7 @@ public final class CodingServer {
     private static final String SESSIONS_FILE = "sessions.json";
     private static final String EDITABLE_FILE = "editable.json";
 
-    private static final int SCRYPT_N = 1 << 14;
+    static final int SCRYPT_N = 1 << 14;
 
     private static final int SCRYPT_R = 8;
     private static final int SCRYPT_P = 1;
@@ -135,11 +135,10 @@ public final class CodingServer {
             this.hash = hash;
         }
 
-        static Secret of(String secret, SecureRandom random) {
+        static Secret of(String secret, SecureRandom random, int n) {
             byte[] salt = new byte[SALT_BYTES];
             random.nextBytes(salt);
-            return new Secret(
-                    SCRYPT_N, SCRYPT_R, SCRYPT_P, salt, derive(secret, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, HASH_BYTES));
+            return new Secret(n, SCRYPT_R, SCRYPT_P, salt, derive(secret, salt, n, SCRYPT_R, SCRYPT_P, HASH_BYTES));
         }
 
         boolean matches(String secret) {
@@ -176,6 +175,7 @@ public final class CodingServer {
 
     private final Path root;
     private final Path stateDir;
+    private final int scryptN;
     private final Worktrees worktrees;
     private final SimBench.Factory benches;
 
@@ -199,7 +199,14 @@ public final class CodingServer {
     private final EditableSet editable;
 
     private CodingServer(
-            Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+            Path root,
+            SimBench.Factory benches,
+            InetAddress adminBind,
+            int adminPort,
+            int userPort,
+            Path stateDir,
+            int scryptN) {
+        this.scryptN = scryptN;
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
         this.worktrees = new Worktrees(this.root, this.stateDir, "git");
@@ -212,8 +219,19 @@ public final class CodingServer {
 
     public static CodingServer start(
             Path root, SimBench.Factory benches, InetAddress adminBind, int adminPort, int userPort, Path stateDir) {
+        return start(root, benches, adminBind, adminPort, userPort, stateDir, SCRYPT_N);
+    }
+
+    static CodingServer start(
+            Path root,
+            SimBench.Factory benches,
+            InetAddress adminBind,
+            int adminPort,
+            int userPort,
+            Path stateDir,
+            int scryptN) {
         JavaFormatter.check();
-        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir);
+        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN);
     }
 
     static Path stateDir(Map<String, String> env) {
@@ -537,7 +555,7 @@ public final class CodingServer {
                     username,
                     request.remoteAddress,
                     System.currentTimeMillis(),
-                    Secret.of(secret, random),
+                    Secret.of(secret, random, scryptN),
                     State.PENDING);
             session.token = id + "." + secret;
             sessions.put(id, session);
