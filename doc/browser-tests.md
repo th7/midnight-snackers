@@ -68,6 +68,41 @@ else.
 A failing run writes `tools/browser/field-as-drawn.png`, which CI keeps with the test
 results, because the first question about a page that did not draw is what it did draw.
 
+## The other page a browser is the only witness to
+
+`tools/browser/dashboard.mjs` opens the **coding server's dashboard** -- the page
+teammates edit and simulate on -- the same way, over a throwaway server that answers
+`/me`, `/files`, `/git/status`, `/build` and `/sim/*` as the user listener does, with the
+real `dashboard.html` and the real editor bundle.
+
+The page had been checked only by asserting that its source *contains* `new
+CM.EditorView(`, which says the page was written, never that it runs. It did not run on
+an iPad: the page asked its dark-mode media query for `addEventListener`, which an
+iPadOS 13 WebKit has not got, and the `TypeError` stopped the page's one script before it
+listed a file or wired a tab. What that looked like was an empty file list and tabs that
+did not move -- which is also what a server with nothing to show looks like.
+
+So the check opens the page three times:
+
+- **on this engine**, where the files list, a file opens in the editor, and the
+  Simulate tab opens and lists its op modes;
+- **on an engine shaped like an older iPad's**, where `MediaQueryList` carries
+  `addListener` and nothing else, and `ResizeObserver`, `requestIdleCallback`,
+  `structuredClone`, `Intl.Segmenter` and `replaceChildren` are missing -- every one of
+  which CodeMirror itself feature-tests, so a page that needs one is a page of ours that
+  forgot to. All of the above must still hold;
+- **with no editor bundle at all**, where the page has to *say so*: the file list and the
+  Simulate tab go on working, and the banner names the editor.
+
+That last one is the class of the bug rather than the instance. A page that cannot start
+a piece of itself must not be indistinguishable from a page with nothing to say. The page
+keeps `window.codingPage` -- `started`, and `broke` as a list of part and message -- for
+the check to read, and shows the same thing to whoever is looking at it.
+
+Chromium with an API deleted is not WebKit, and this cannot prove the page runs on a real
+iPad; no engine we can run here can. It proves the page needs nothing that engine has not
+got, which is the part that was wrong.
+
 ## Two browsers, and why
 
 In the image, Chromium comes from apt and `CHROME_BIN` points at it; Playwright's own
@@ -217,4 +252,6 @@ checked it. An intended change is read and then regenerated.
   produces only the background colour is a field off screen, and no other gate
   we have can tell that from a field drawn correctly.
 - The controls orbit, and the page survives a resize.
+- The dashboard starts: on this engine, on one missing what an older tablet's is missing,
+  and, when a piece of it cannot start, loudly.
 
