@@ -42,7 +42,7 @@ public class SimRobotNoiseTest {
 
     @Test
     public void theBatteryReadsFreshThenSagsUnderLoadAndDrainsWithTime() {
-        SimRobot sim = new SimRobot(SimNoise.NONE.withBattery(13.8, 0.2, 0.004));
+        SimRobot sim = new SimRobot(SimNoise.NONE.withBattery(new SimNoise.Battery(13.8, 0.2, 0.004)));
         robotDrive(sim, robotLocalizer(sim));
 
         assertEquals(13.8, sim.voltageSensor.getVoltage(), 1e-9);
@@ -58,7 +58,7 @@ public class SimRobotNoiseTest {
 
     @Test
     public void aFresherBatteryDrivesFaster() {
-        SimRobot fresh = new SimRobot(SimNoise.NONE.withBattery(13.8, 0, 0));
+        SimRobot fresh = new SimRobot(SimNoise.NONE.withBattery(new SimNoise.Battery(13.8, 0, 0)));
 
         double expected = (13.8 - MecanumDrive.PARAMS.kSVolts)
                 / MecanumDrive.PARAMS.kVVoltSecondsPerTick

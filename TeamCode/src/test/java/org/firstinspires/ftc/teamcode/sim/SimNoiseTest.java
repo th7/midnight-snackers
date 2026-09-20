@@ -40,7 +40,7 @@ public class SimNoiseTest {
             assertEquals(
                     first.motor(wheel).kAVoltSecondsSquaredPerTick, second.motor(wheel).kAVoltSecondsSquaredPerTick, 0);
         }
-        assertEquals(first.freshVolts, second.freshVolts, 0);
+        assertEquals(first.battery.freshVolts, second.battery.freshVolts, 0);
         assertEquals(first.tractionInPerS2, second.tractionInPerS2, 0);
         assertEquals(first.placed(POSE), second.placed(POSE));
         for (int i = 0; i < 100; i++) {
@@ -54,7 +54,7 @@ public class SimNoiseTest {
         SimNoise second = SimNoise.seeded(2);
 
         assertNotEquals(first.motor(0).kVVoltSecondsPerTick, second.motor(0).kVVoltSecondsPerTick, 0);
-        assertNotEquals(first.freshVolts, second.freshVolts, 0);
+        assertNotEquals(first.battery.freshVolts, second.battery.freshVolts, 0);
         assertNotEquals(first.tractionInPerS2, second.tractionInPerS2, 0);
     }
 
@@ -90,12 +90,12 @@ public class SimNoiseTest {
     @Test
     public void theBatteryStartsSomewhereBetweenFlatAndFreshAndSagsUnderLoadAndDrainsWithTime() {
         for (long seed = 0; seed < 200; seed++) {
-            double fresh = SimNoise.seeded(seed).freshVolts;
+            double fresh = SimNoise.seeded(seed).battery.freshVolts;
             assertTrue(
                     "seed " + seed + ": " + fresh,
                     fresh >= SimNoise.FLATTEST_VOLTS && fresh <= SimNoise.FRESHEST_VOLTS);
         }
-        SimNoise noise = SimNoise.NONE.withBattery(13.8, 0.2, 0.004);
+        SimNoise noise = SimNoise.NONE.withBattery(new SimNoise.Battery(13.8, 0.2, 0.004));
 
         assertEquals(13.8, noise.batteryVolts(0, 0), 1e-9);
         assertEquals("all four motors at full power", 13.8 - 0.8, noise.batteryVolts(0, 4), 1e-9);
@@ -152,7 +152,9 @@ public class SimNoiseTest {
 
     @Test
     public void namesTheRobotInALineForAFailureToQuote() {
-        String line = SimNoise.NONE.withBattery(13.8, 0.2, 0.004).toString();
+        String line = SimNoise.NONE
+                .withBattery(new SimNoise.Battery(13.8, 0.2, 0.004))
+                .toString();
 
         assertTrue(line, line.startsWith("seed 0:"));
         assertTrue(
@@ -177,7 +179,7 @@ public class SimNoiseTest {
                 noise.motor(SimNoise.LEFT_FRONT).kVVoltSecondsPerTick,
                 weaker.motor(SimNoise.LEFT_FRONT).kVVoltSecondsPerTick,
                 0);
-        assertEquals(noise.freshVolts, weaker.freshVolts, 0);
+        assertEquals(noise.battery.freshVolts, weaker.battery.freshVolts, 0);
         assertEquals(noise.tractionInPerS2, weaker.tractionInPerS2, 0);
         assertEquals(
                 "the original is unchanged",
