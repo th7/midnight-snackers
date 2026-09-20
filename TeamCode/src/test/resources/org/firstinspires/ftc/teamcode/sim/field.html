@@ -145,10 +145,19 @@ async function whatAFrameCosts() {
   await new Promise((go) => requestAnimationFrame(go));
 
   const draw = () => view.drawnFrom(cameraView);
-  const withShadows = await measure(renderer, draw);
-  shadowPass(false);
-  const withoutShadows = await measure(renderer, draw);
-  shadowPass(true);
+  let withShadows = null;
+  let withoutShadows = null;
+  try {
+    withShadows = await measure(renderer, draw);
+    shadowPass(false);
+    withoutShadows = await measure(renderer, draw);
+  } finally {
+    shadowPass(true);
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      view.drawnFrom(cameraView);
+    });
+  }
 
   cost = {
     at: { width: renderer.domElement.width, height: renderer.domElement.height },
@@ -159,10 +168,6 @@ async function whatAFrameCosts() {
   said.textContent = reads('With shadows:', withShadows) + '. '
       + reads('Without:', withoutShadows) + '. '
       + cost.at.width + '\u00d7' + cost.at.height + ' on ' + cost.gpu + '.';
-  renderer.setAnimationLoop(() => {
-    controls.update();
-    view.drawnFrom(cameraView);
-  });
 }
 
 let model = null;
