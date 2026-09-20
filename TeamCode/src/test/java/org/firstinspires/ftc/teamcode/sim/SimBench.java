@@ -25,6 +25,7 @@ public final class SimBench {
 
     private static final double STARTUP_SECONDS = 60;
     private final double startupSeconds;
+    private final Clock clock;
     private static final double SILENCE_SECONDS = 5;
     private static final double CATALOG_SECONDS = 60;
     private static final long SILENCE_POLL_MILLIS = 100;
@@ -46,7 +47,7 @@ public final class SimBench {
     public final class Run implements SimReplayPage.Source {
         public final int id;
         public final SimCatalog.Entry entry;
-        public final long startedAtMillis = System.currentTimeMillis();
+        public final long startedAtMillis = clock.millisSinceEpoch();
 
         public final String startedBy;
 
@@ -268,6 +269,28 @@ public final class SimBench {
             double killGraceSeconds,
             Child children,
             double startupSeconds) {
+        this(
+                fixedCatalog,
+                project,
+                outputDir,
+                runTimeoutSeconds,
+                teleOpSeconds,
+                killGraceSeconds,
+                children,
+                startupSeconds,
+                new SystemClock());
+    }
+
+    public SimBench(
+            SimCatalog fixedCatalog,
+            Path project,
+            Path outputDir,
+            double runTimeoutSeconds,
+            double teleOpSeconds,
+            double killGraceSeconds,
+            Child children,
+            double startupSeconds,
+            Clock clock) {
         if ((fixedCatalog == null) == (project == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
@@ -279,6 +302,7 @@ public final class SimBench {
         this.killGraceSeconds = killGraceSeconds;
         this.children = children;
         this.startupSeconds = startupSeconds;
+        this.clock = clock;
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
     }
 
@@ -609,7 +633,7 @@ public final class SimBench {
         }
         run.launched(child);
         CountDownLatch started = new CountDownLatch(1);
-        AtomicLong lastHeardNanos = new AtomicLong(System.nanoTime());
+        AtomicLong lastHeardNanos = new AtomicLong(clock.nanos());
         Thread watchdog = new Thread(
                 () -> {
                     try {
@@ -623,7 +647,7 @@ public final class SimBench {
                             return;
                         }
                         while (child.alive() && run.outcome() == null) {
-                            double silentSeconds = (System.nanoTime() - lastHeardNanos.get()) / 1e9;
+                            double silentSeconds = (clock.nanos() - lastHeardNanos.get()) / 1e9;
                             if (silentSeconds > SILENCE_SECONDS) {
                                 run.finish(
                                         SimRunStream.Outcome.killed(SILENCE_SECONDS, "the op mode did not return"),
@@ -631,7 +655,7 @@ public final class SimBench {
                                 child.kill();
                                 return;
                             }
-                            Thread.sleep(SILENCE_POLL_MILLIS);
+                            clock.sleep(SILENCE_POLL_MILLIS / 1000.0);
                         }
                     } catch (InterruptedException ignored) {
                     }
@@ -660,7 +684,7 @@ public final class SimBench {
         try (Child.Running talking = child) {
             boolean first = true;
             for (String line = talking.hear(); line != null; line = talking.hear()) {
-                lastHeardNanos.set(System.nanoTime());
+                lastHeardNanos.set(clock.nanos());
                 if (line.isBlank()) {
                     continue;
                 }

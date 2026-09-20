@@ -588,6 +588,27 @@ public class SimBenchTest {
     }
 
     @Test
+    public void aChildThatGoesSilentWhileItsRunIsUnfinishedIsKilledForNotReturning() throws Exception {
+        FakeChild child =
+                FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started()).thatStaysAliveSayingNothingMore();
+        bench = new SimBench(
+                SimCatalog.of(TestTeleOps.StickTeleOp.class),
+                null,
+                outputDir(),
+                TIMEOUT_SECONDS,
+                TELEOP_SECONDS,
+                GRACE_SECONDS,
+                child,
+                60,
+                new FakeClock());
+
+        SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
+
+        assertTrue(run.outcome(), run.outcome().startsWith("killed"));
+        assertTrue(run.outcome(), run.outcome().contains("the op mode did not return"));
+    }
+
+    @Test
     public void aChildThatCannotBeStartedEndsTheRunSayingSo() throws Exception {
         bench = benchWith(new FakeChild().thatWillNotStart("no java on this machine"), GRACE_SECONDS);
 
