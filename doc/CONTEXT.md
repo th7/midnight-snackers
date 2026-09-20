@@ -849,7 +849,9 @@ ledger is complete for the same reason nothing else may reach any of them at
 all: `CostIsCountedWhereItIsSpentTest` pins who may reach each one and holds
 each of them to counting it, off the bytecode, where a fully qualified name
 cannot dodge either half. `./gradlew :TeamCode:testDebugUnitTest` prints the
-ledger and the slowest test classes every run.
+ledger and the slowest test classes every run, and a run of one class prints
+the ledger too, so what any one test class costs is one command:
+`./gradlew :TeamCode:testDebugUnitTest --tests '*SimBenchTest*'`.
 
 The counts are pinned in a **suite budget** and the times are only ever
 printed: a count is the suite's and a time is the machine's. The same deal as
