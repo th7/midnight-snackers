@@ -122,7 +122,11 @@ public final class SimRunner {
     }
 
     private static Integer livePortFromEnvironment() {
-        String value = System.getenv(LIVE_PORT_ENV);
+        return livePortIn(System.getenv());
+    }
+
+    static Integer livePortIn(java.util.Map<String, String> env) {
+        String value = env.get(LIVE_PORT_ENV);
         if (value == null || value.isBlank()) {
             return null;
         }
