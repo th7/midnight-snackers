@@ -214,6 +214,8 @@ public final class Cost {
             out.append(String.format(
                     Locale.ROOT, "  %-14s %5d  %7.1fs   %s%n", kind.key, tally.count, tally.seconds, kind.what));
         }
+        out.append("  (the count is pinned; the time is what was spent inside the call that does it,\n");
+        out.append("   so a child JVM's own loading is in its run's time and not in the line above)\n");
         return out.toString();
     }
 

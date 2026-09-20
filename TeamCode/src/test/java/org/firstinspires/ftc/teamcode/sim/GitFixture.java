@@ -6,17 +6,49 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
 final class GitFixture {
     private GitFixture() {}
 
+    /**
+     * Where the repository every test starts from is made, once. Making one costs four git
+     * processes and two hundred tests want the same one, so it is made here and copied after: a
+     * copy of a fresh repository is a fresh repository, and copying forty small files is not worth
+     * forking for.
+     */
+    private static final Path TEMPLATE = Paths.get("build", "sim", "git-template");
+
+    private static boolean made;
+
     static void init(Path root) throws IOException {
-        Files.createDirectories(root);
-        git(root, "init", "-q", "-b", Worktrees.DEVELOP);
-        Files.write(root.resolve("README"), "hello\n".getBytes(StandardCharsets.UTF_8));
-        commitAll(root, "first");
+        SimProject.copyTree(template(), root);
+    }
+
+    private static synchronized Path template() throws IOException {
+        if (made) {
+            return TEMPLATE;
+        }
+        deleteTree(TEMPLATE);
+        Files.createDirectories(TEMPLATE);
+        git(TEMPLATE, "init", "-q", "-b", Worktrees.DEVELOP);
+        Files.write(TEMPLATE.resolve("README"), "hello\n".getBytes(StandardCharsets.UTF_8));
+        commitAll(TEMPLATE, "first");
+        made = true;
+        return TEMPLATE;
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> walk = Files.walk(root)) {
+            for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        }
     }
 
     static void withOrigin(Path root, Path bare) throws IOException {

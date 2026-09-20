@@ -580,6 +580,28 @@ every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
 runs on the current classpath. Class: `SimBench`.
 
+**Waits** — How long a bench waits for each thing it waits for, said once by
+name: a run's **timeout** and a TeleOp's **period**, both in simulated seconds;
+the **kill grace** a child has after Stop; the **startup** the op mode's time
+has to begin, which a child JVM's loading is inside; and the **silence** the
+child may say nothing at all for mid-run before it is killed for hanging. It is
+made from what the bench waits for a person watching a run — a match's periods,
+and room to load — and said differently where a test means something different.
+Five bare seconds in a row at a call site was five chances to hand the wrong one
+to the wrong wait, and the silence was the one nobody could say at all, so a
+test of a hung op mode sat through the real five. Class: `SimBench.Waits`.
+
+**What builds and starts** — `SimSources`: the classpath this JVM runs on, a
+project on disk, or, in a test of the bench itself, `FakeSources`, which is
+neither and need not be. The bench is handed one rather than picking it, so
+everything the bench does with a build and with a child runs without a project
+copied onto disk, a compile, or a JVM. What a real build reports is
+`SimBuildTest`'s, what a real child prints is `SimChildTest`'s, and what the
+handshake decides is `SimRunStreamTest`'s; the bench's own tests hold what the
+bench does with each. A `FakeChild` is handed the lines a child would print,
+written by `SimRunStream`'s own writers, so the fake speaks the protocol by
+construction rather than by a string somebody typed.
+
 **Status** — What the bench is doing, as one moment: the runs newest
 first, each taken in one hold of that run's own lock, and **running**
 read from the newest of those same snapshots — it is running exactly
