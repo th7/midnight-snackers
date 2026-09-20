@@ -218,8 +218,7 @@ public final class SimBench {
         SimBench create(Path worktree);
     }
 
-    private final SimCatalog fixedCatalog;
-    private final SimBuild build;
+    private final SimSources sources;
     private final Path outputDir;
     private final double runTimeoutSeconds;
     private final double teleOpSeconds;
@@ -227,8 +226,6 @@ public final class SimBench {
     private final Child children;
     private final StartPoses startPoses;
     private final List<Run> runs = new ArrayList<>();
-    private SimCatalog listed;
-    private Path listedFrom;
     private SimBuild.Result lastCheck;
 
     public SimBench(
@@ -294,8 +291,9 @@ public final class SimBench {
         if ((fixedCatalog == null) == (project == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
-        this.fixedCatalog = fixedCatalog;
-        this.build = project == null ? null : buildOf(project, outputDir);
+        this.sources = fixedCatalog != null
+                ? SimSources.ofThisClasspath(fixedCatalog)
+                : SimSources.ofTheProjectAt(project, outputDir);
         this.outputDir = outputDir;
         this.runTimeoutSeconds = runTimeoutSeconds;
         this.teleOpSeconds = teleOpSeconds;
@@ -317,46 +315,30 @@ public final class SimBench {
     }
 
     public SimCatalog catalog() {
-        if (fixedCatalog != null) {
-            return fixedCatalog;
-        }
         synchronized (this) {
-            if (current() != null && listed != null) {
-                return listed;
+            if (current() != null) {
+                Optional<SimCatalog> already = sources.known();
+                if (already.isPresent()) {
+                    return already.get();
+                }
             }
-            SimBuild.Result result = build.build();
-            if (result.classes == null) {
-                throw new BuildFailed(result.diagnostics);
-            }
-            if (listed != null && result.classes.equals(listedFrom)) {
-                return listed;
-            }
-            listed = list(result.classes);
-            listedFrom = result.classes;
-            return listed;
+            return sources.catalog(children);
         }
     }
 
     public synchronized SimBuild.Result check() {
-        if (build == null) {
-            return null;
-        }
         if (current() != null && lastCheck != null) {
             return lastCheck;
         }
-        lastCheck = build.build();
+        lastCheck = sources.check().orElse(null);
         return lastCheck;
     }
 
     public Path sourceRoot() {
-        return build == null ? null : build.sourceRoot();
+        return sources.sourceRoot().orElse(null);
     }
 
-    private List<String> sources() {
-        return fixedCatalog == null ? List.of() : fixedCatalog.sources();
-    }
-
-    private SimCatalog list(Path classes) {
+    static SimCatalog listOn(Child children, Path classes) {
         StringBuilder said = new StringBuilder();
         try (Child.Running child =
                 children.onTheClassesAt(classes, line -> said.append(line).append('\n'), "--list")) {
@@ -496,10 +478,10 @@ public final class SimBench {
     }
 
     private synchronized String kindOf(String opMode) {
-        SimCatalog known = fixedCatalog != null ? fixedCatalog : listed;
-        return known == null
-                ? SimCatalog.AUTO
-                : known.find(opMode).map(entry -> entry.kind).orElse(SimCatalog.AUTO);
+        return sources.known()
+                .flatMap(known -> known.find(opMode))
+                .map(entry -> entry.kind)
+                .orElse(SimCatalog.AUTO);
     }
 
     private Response withRun(java.util.Map<String, String> params, Request request, RunRoute route) {
@@ -540,7 +522,7 @@ public final class SimBench {
             try {
                 entry = catalog().find(opMode);
             } catch (BuildFailed | SimRunStream.WrongProtocol e) {
-                entry = listed == null ? Optional.empty() : listed.find(opMode);
+                entry = sources.known().flatMap(known -> known.find(opMode));
                 if (entry.isEmpty()) {
                     entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null));
                 }
@@ -598,35 +580,21 @@ public final class SimBench {
     }
 
     private void perform(Run run) {
-        Path classes = null;
-        if (build != null) {
-            SimBuild.Result result;
-            try {
-                result = build.build();
-            } catch (RuntimeException e) {
-                run.finish(SimRunStream.Outcome.buildFailed(), e.getMessage());
-                return;
-            }
-            if (result.classes == null) {
-                run.finish(SimRunStream.Outcome.buildFailed(), result.diagnostics);
-                return;
-            }
-            classes = result.classes;
-        }
         if (!run.running()) {
             return;
         }
         Child.Running child;
+        List<String> args = new ArrayList<>(List.of(
+                "--run",
+                run.entry.name,
+                String.valueOf(run.budgetSeconds()),
+                outputDir.toAbsolutePath().toString()));
+        args.addAll(sources.classNames());
         try {
-            List<String> args = new ArrayList<>(List.of(
-                    "--run",
-                    run.entry.name,
-                    String.valueOf(run.budgetSeconds()),
-                    outputDir.toAbsolutePath().toString()));
-            args.addAll(sources());
-            child = classes == null
-                    ? children.onThisClasspath(run::addLog, args.toArray(new String[0]))
-                    : children.onTheClassesAt(classes, run::addLog, args.toArray(new String[0]));
+            child = sources.start(children, run::addLog, args.toArray(new String[0]));
+        } catch (BuildFailed e) {
+            run.finish(SimRunStream.Outcome.buildFailed(), e.getMessage());
+            return;
         } catch (RuntimeException e) {
             run.finish(SimRunStream.Outcome.couldNotStartChild(), e.getMessage());
             return;
