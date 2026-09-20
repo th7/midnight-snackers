@@ -10,6 +10,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -142,6 +143,45 @@ public class SimReplayPageTest {
         String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertEquals("node ran the page's rule: " + out, 0, node.waitFor());
         return new Gson().fromJson(out.trim(), double[].class);
+    }
+
+    @Test
+    public void everyPlaceholderTheTemplateHoldsIsOneSomethingFillsIn() throws IOException {
+        String template;
+        try (InputStream in = SimReplayPage.class.getResourceAsStream("replay.html")) {
+            template = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        Set<String> holes = new java.util.TreeSet<>();
+        Matcher found = Pattern.compile("__[A-Z_]+__").matcher(template);
+        while (found.find()) {
+            holes.add(found.group());
+        }
+
+        assertEquals(
+                "a placeholder nothing fills reaches a reader as itself",
+                Set.of("__TITLE__", "__FIELD_IN__", "__ROBOT_IN__", "__WALL_IN__", "__FIELD__", "__DATA__"),
+                holes);
+
+        String harness =
+                new String(Files.readAllBytes(Path.of("..", "tools", "browser", "replay.mjs")), StandardCharsets.UTF_8);
+        for (String hole : holes) {
+            assertTrue(
+                    "the browser check fills " + hole + " too, or it opens a page the bench would not serve",
+                    harness.contains("'" + hole + "'"));
+        }
+    }
+
+    @Test
+    public void aFilledPageKeepsNoPlaceholder() {
+        SimRecording recording = new SimRecording("PlaceholderAuto");
+        recording.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "1. go", new double[] {0, 0, 0, 0}, List.of())
+                .tick());
+        recording.finish("done");
+
+        String html = SimReplayPage.page(recording, false);
+
+        Matcher left = Pattern.compile("__[A-Z_]+__").matcher(html);
+        assertFalse("the page still holds " + (left.find() ? left.group() : ""), left.find(0));
     }
 
     @Test

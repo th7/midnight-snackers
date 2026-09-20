@@ -29,7 +29,7 @@ def main():
         return 2
     if not result.wasSuccessful():
         return 1
-    for check in (renderer_check, browser_check):
+    for check in (renderer_check, browser_check, replay_check):
         wrong = check()
         if wrong:
             return wrong
@@ -55,13 +55,21 @@ def renderer_check():
     return subprocess.call(list(run))
 
 def browser_check():
-    run, wrong = node_at('browser', 'check.mjs')
+    return in_a_browser('check.mjs')
+
+
+def replay_check():
+    return in_a_browser('replay.mjs')
+
+
+def in_a_browser(script):
+    run, wrong = node_at('browser', script)
     if wrong:
         print(wrong, file=sys.stderr)
         return 2
     if not os.path.isdir(os.path.join(TOOLS, 'browser', 'node_modules')):
-        print('tools/browser has no node_modules, so the page was never opened. Run `npm ci` in '
-              'tools/browser. Not skipped: a page nobody opened is a page nobody tested.',
+        print('tools/browser has no node_modules, so ' + script + ' never opened a page. Run '
+              '`npm ci` in tools/browser. Not skipped: a page nobody opened is a page nobody tested.',
               file=sys.stderr)
         return 2
     print()

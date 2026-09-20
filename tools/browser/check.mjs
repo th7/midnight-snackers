@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { movedPieces } from './model.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const sim = path.join(here, '..', '..', 'TeamCode', 'src', 'test', 'resources',
@@ -33,18 +34,6 @@ function cannedRun(model) {
   };
 }
 
-function movedPieces(model) {
-  const loose = [];
-  const inCells = [];
-  const inFlowers = [];
-  for (const piece of model.pieces) {
-    if (!piece.loose && piece.cell === undefined && piece.flower === undefined) {
-      continue;
-    }
-    (piece.cell !== undefined ? inCells : piece.flower !== undefined ? inFlowers : loose).push(piece);
-  }
-  return loose.concat(inCells).concat(inFlowers);
-}
 
 function serve() {
   const model = JSON.parse(fs.readFileSync(path.join(sim, 'field.json'), 'utf8'));
