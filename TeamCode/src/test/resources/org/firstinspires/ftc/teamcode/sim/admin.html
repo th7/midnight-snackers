@@ -123,9 +123,56 @@
       </div>
     </div>
   </section>
+  <section>
+    <div>
+      <p class="section-label">The field the pages draw</p>
+      <div class="panel">
+        <p id="assets-state">&hellip;</p>
+        <button id="refresh-assets" type="button">Refresh assets</button>
+        <p id="assets-said" class="mono"></p>
+      </div>
+    </div>
+  </section>
 </main>
 <script>
 (function () {
+  var assetsState = document.getElementById('assets-state');
+  var assetsSaid = document.getElementById('assets-said');
+  var refreshAssets = document.getElementById('refresh-assets');
+
+  function showAssets(json) {
+    assetsState.textContent = json.complete
+      ? 'Drawing ' + json.drawing + '.'
+      : 'Drawing ' + json.drawing + '; this server has not fetched them from Onshape yet.';
+    var names = Object.keys(json.fetched || {});
+    assetsSaid.textContent = names.length
+      ? names.length + ' fetched, in ' + json.under
+      : 'nothing fetched, so ' + json.under + ' is empty';
+  }
+
+  function loadAssets() {
+    return fetch('/admin/assets').then(function (r) { return r.json(); }).then(showAssets)
+      .catch(function () { assetsState.textContent = 'The admin server did not answer about the assets.'; });
+  }
+
+  refreshAssets.addEventListener('click', function () {
+    refreshAssets.disabled = true;
+    assetsSaid.textContent = 'Fetching from Onshape\u2026 the model is a few megabytes.';
+    fetch('/admin/assets/refresh', { method: 'POST' }).then(function (r) {
+      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
+    }).then(function (answer) {
+      if (!answer.ok) {
+        assetsSaid.textContent = answer.text;
+        return;
+      }
+      showAssets(JSON.parse(answer.text));
+    }).catch(function (wrong) {
+      assetsSaid.textContent = 'The refresh did not finish: ' + wrong;
+    }).then(function () { refreshAssets.disabled = false; });
+  });
+
+  loadAssets();
+
   var usersEl = document.getElementById('users');
   var editableEl = document.getElementById('editable');
   var treeEl = document.getElementById('tree');

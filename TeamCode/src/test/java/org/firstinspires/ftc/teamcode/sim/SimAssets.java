@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.sim;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
@@ -19,16 +20,24 @@ public final class SimAssets {
 
     private SimAssets() {}
 
+    public static Response serveUnder(Path under, Store store, String name) {
+        if (name == null || !NAME.matcher(name).matches()) {
+            return Response.error(404, "no such asset");
+        }
+        String type = typeOf(name);
+        if (type == null) {
+            return Response.error(404, "no such asset");
+        }
+        return store.readIfThere(under.resolve(name))
+                .map(body -> Response.bytes(type, body))
+                .orElseGet(() -> Response.error(404, "no such asset"));
+    }
+
     public static Response serve(String name) {
         if (name == null || !NAME.matcher(name).matches()) {
             return Response.error(404, "no such asset");
         }
-        String type = null;
-        for (Map.Entry<String, String> kind : TYPES.entrySet()) {
-            if (name.endsWith(kind.getKey())) {
-                type = kind.getValue();
-            }
-        }
+        String type = typeOf(name);
         if (type == null) {
             return Response.error(404, "no such asset");
         }
@@ -49,6 +58,16 @@ public final class SimAssets {
             throw new IllegalStateException("missing page " + name + " next to " + SimField.class.getName());
         }
         return new String(body, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static String typeOf(String name) {
+        String type = null;
+        for (Map.Entry<String, String> kind : TYPES.entrySet()) {
+            if (name.endsWith(kind.getKey())) {
+                type = kind.getValue();
+            }
+        }
+        return type;
     }
 
     private static byte[] read(String name) {

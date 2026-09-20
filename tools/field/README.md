@@ -24,7 +24,7 @@ panel artwork and the four goal April Tag images, as blobs.
 
 <https://cad.onshape.com/documents/a355e772e3d24813de7852ee/w/f106353168f1f92100b81259/e/95d1e1e442b4138cccaf2d73>
 
-`onshape.py` is the client. Most of that document is public and needs no
+`Onshape` is the client. Most of that document is public and needs no
 credentials -- its metadata, its element listing, its BOM and its blobs.
 Only geometry is authenticated, and there are two ways that happens.
 
@@ -43,15 +43,14 @@ repository:
 
 Either way:
 
-    python3 tools/field/onshape.py --check
+**Refresh assets** on the admin page makes the call and says whether Onshape
+answered it. `OnshapeTest` pins the signing algorithm so it cannot drift
+silently, but only Onshape can say a signature is right, which is what that
+button is for. A geometry call nothing authenticated is refused naming both
+things it could be, so a refresh that fetched nothing cannot look like one
+that worked.
 
-`--check` makes one call and says whether Onshape answered it. The unit
-tests pin the signing algorithm so it cannot drift silently, but only
-Onshape can say a signature is right, which is what that call is for. A
-geometry call nothing authenticated raises, naming both things it could be,
-so a run that regenerates nothing cannot look like a run that worked.
-
-`gltf.py` reads what the export answers with -- a `.glb`, or the JSON with
+`Gltf` reads what the export answers with -- a `.glb`, or the JSON with
 its buffer inline -- into a flat list of parts, each with its node's name,
 the names of the nodes above it, its triangles already placed in the
 assembly's frame, and its colour. It reads only what the pipeline needs,
@@ -59,11 +58,9 @@ and raises on anything else rather than skipping it: a part silently
 dropped, or one read at the wrong stride, would reach the simulator as
 geometry that looks plausible and is wrong.
 
-`assets.py` fetches the document's images -- the panel artwork and the four
+`FieldAssets` fetches the document's images -- the panel artwork and the four
 goal April Tags -- which is the part of the field STEP cannot carry, and
-needs no keys:
-
-    python3 tools/field/assets.py --fetch
+needs no keys.
 
 Nothing is written until every image has arrived and been checked, so a
 rename upstream stops the run rather than quietly fetching less than it
@@ -75,10 +72,15 @@ used to.
 shape, built from FIRST's published STEP by `step_to_field.py`.
 
 `field.glb` is the field as it **looks**: the Onshape assembly's real
-tessellation, fillets and all, built by `field_glb.py`.
+tessellation, fillets and all, built by the coding server rather than kept in
+the repository. Press **Refresh assets** on the admin page, or start the server
+without having fetched them and it fetches in the background. Classes:
+`Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
-    python3 tools/field/field_glb.py                    # fetch and build
-    python3 tools/field/field_glb.py --export f.gltf    # from an export in hand
+The one in the repository is a **stand-in**: the model the tests draw, frozen,
+so the browser checks and the scene budget come out the same on any machine
+with no network. A server that has fetched draws what it fetched; one that has
+not draws the stand-in and says so on the admin page.
 
 They are not the same model and are not meant to be. A physics engine wants
 convex shapes and a renderer wants the detail, and one model cannot be good

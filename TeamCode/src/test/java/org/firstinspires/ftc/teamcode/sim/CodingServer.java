@@ -52,6 +52,7 @@ public final class CodingServer {
 
     private static final String SESSIONS_FILE = "sessions.json";
     private static final String EDITABLE_FILE = "editable.json";
+    private static final String ASSETS_DIR = "assets";
 
     static final int SCRYPT_N = 1 << 14;
 
@@ -198,6 +199,18 @@ public final class CodingServer {
 
     private final EditableSet editable;
 
+    private final Path assetsDir;
+    private final Store assetStore = new OnDiskStore();
+    private final Assets assets;
+
+    public interface Assets {
+        FieldAssets.Refreshed refresh(Store store, Path into);
+    }
+
+    public static Assets fromOnshape() {
+        return (store, into) -> FieldAssets.refresh(Onshape.configured(), store, into);
+    }
+
     private CodingServer(
             Path root,
             SimBench.Factory benches,
@@ -205,14 +218,17 @@ public final class CodingServer {
             int adminPort,
             int userPort,
             Path stateDir,
-            int scryptN) {
+            int scryptN,
+            Assets assets) {
         this.scryptN = scryptN;
+        this.assets = assets;
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
         this.worktrees = new Worktrees(this.root, this.stateDir, "git");
         this.benches = benches;
         loadSessions();
         this.editable = new EditableSet(this.root, stateDir.resolve(EDITABLE_FILE));
+        this.assetsDir = this.stateDir.resolve(ASSETS_DIR);
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
         this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
     }
@@ -230,8 +246,20 @@ public final class CodingServer {
             int userPort,
             Path stateDir,
             int scryptN) {
+        return start(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, fromOnshape());
+    }
+
+    static CodingServer start(
+            Path root,
+            SimBench.Factory benches,
+            InetAddress adminBind,
+            int adminPort,
+            int userPort,
+            Path stateDir,
+            int scryptN,
+            Assets assets) {
         JavaFormatter.check();
-        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN);
+        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets);
     }
 
     static Path stateDir(Map<String, String> env) {
@@ -272,6 +300,11 @@ public final class CodingServer {
                 "  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
         System.out.println("  state  " + server.stateDir);
         System.out.println("  trees  " + server.worktrees.directory());
+        if (server.hasFetchedAssets()) {
+            System.out.println("  assets " + server.assetsDir);
+        } else {
+            server.refreshAssetsInTheBackground();
+        }
         Thread.currentThread().join();
     }
 
@@ -354,6 +387,7 @@ public final class CodingServer {
                         "PUT",
                         "/files/{key*}",
                         (request, params) -> file(sessionOf(request), params.get("key"), request.body))
+                .route("GET", "/sim/assets/{name*}", (request, params) -> asset(params.get("name")))
                 .mount("/sim", request -> benchRoutesOf(sessionOf(request)))
                 .route("GET", "/nav/{op}", (request, params) -> navigate(sessionOf(request), params.get("op"), request))
                 .route("GET", "/source/{key*}", (request, params) -> source(sessionOf(request), params.get("key")))
@@ -961,6 +995,8 @@ public final class CodingServer {
                         (request, params) ->
                                 deleteUser(request.query("username"), "true".equals(request.query("force"))))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
+                .route("GET", "/admin/assets", (request, params) -> Response.json(GSON.toJson(assetsFetched())))
+                .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets())
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
                         "POST",
@@ -970,6 +1006,60 @@ public final class CodingServer {
                 .route("GET", "/admin/files", (request, params) -> Response.json(GSON.toJson(fileList(false))))
                 .route("POST", "/admin/files/add", (request, params) -> addEditable(request.query("path")))
                 .route("POST", "/admin/files/remove", (request, params) -> removeEditable(request.query("path")));
+    }
+
+    private Response asset(String name) {
+        Response fetched = SimAssets.serveUnder(assetsDir, assetStore, name);
+        return fetched.status == 200 ? fetched : SimAssets.serve(name);
+    }
+
+    private JsonObject assetsFetched() {
+        JsonObject out = new JsonObject();
+        out.addProperty("under", assetsDir.toString());
+        JsonObject held = new JsonObject();
+        for (String name : FieldAssets.everyAsset()) {
+            assetStore.readIfThere(assetsDir.resolve(name)).ifPresent(bytes -> held.addProperty(name, bytes.length));
+        }
+        out.add("fetched", held);
+        out.addProperty("complete", held.size() == FieldAssets.everyAsset().size());
+        out.addProperty(
+                "drawing",
+                held.has(FieldAssets.FIELD_GLB) ? "the model this server fetched" : "the model committed for tests");
+        return out;
+    }
+
+    private Response refreshAssets() {
+        try {
+            FieldAssets.Refreshed refreshed = assets.refresh(assetStore, assetsDir);
+            JsonObject out = assetsFetched();
+            out.addProperty("refreshed", refreshed.written.size());
+            out.addProperty("bytes", refreshed.bytes());
+            return Response.json(GSON.toJson(out));
+        } catch (Onshape.NoCredentials refused) {
+            return Response.error(502, "Onshape would not answer: " + refused.getMessage());
+        } catch (RuntimeException wrong) {
+            return Response.error(502, "the assets could not be refreshed: " + wrong.getMessage());
+        }
+    }
+
+    boolean hasFetchedAssets() {
+        return assetStore.isFile(assetsDir.resolve(FieldAssets.FIELD_GLB));
+    }
+
+    void refreshAssetsInTheBackground() {
+        Thread fetching = new Thread(
+                () -> {
+                    try {
+                        System.out.println("  assets fetching from Onshape into " + assetsDir);
+                        System.out.println("  assets " + assets.refresh(assetStore, assetsDir));
+                    } catch (RuntimeException wrong) {
+                        System.out.println("  assets not fetched (" + wrong.getMessage()
+                                + "); the pages draw the model committed for tests");
+                    }
+                },
+                "assets-refresh");
+        fetching.setDaemon(true);
+        fetching.start();
     }
 
     private Path underRoot(String relative) {

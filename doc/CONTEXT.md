@@ -804,6 +804,27 @@ than passing for want of anything to compare, a regenerating run fails because
 a run that wrote the answer down has not checked it, and an intended change is
 read and then regenerated with `--regenerate`.
 
+**Refresh assets** — The admin page's button, and what a coding server does
+for itself at startup when it has fetched none: ask Onshape for the field
+assembly, build the field as it looks, fetch the five images the CAD cannot
+carry, and write them under the server's state directory. Nothing is written
+until every one has arrived and been checked, so a rename upstream stops a
+refresh rather than leaving half of one behind. The coding server serves what
+it fetched and falls back, asset by asset, to the **stand-in** committed for
+the tests — so a server that has never fetched still draws, and the admin page
+says which of the two it is drawing. The fetch is `main`'s to start rather than
+the server's, so no test that builds a coding server reaches the network.
+Classes: `Onshape`; `Gltf`; `FieldGlb`; `FieldAssets`; `CodingServer.Assets`.
+
+**Stand-in** — The `field.glb` in the repository: the model the tests draw,
+frozen, so the browser checks and the **budget** come out the same on any
+machine with no network. It is not what a refreshed server draws, and it is
+not regenerated — a revision of FIRST's CAD reaches a page by being fetched,
+not by being committed. The collision model `field.json` is different again
+and stays committed and pinned: it is an input to deterministic physics, which
+a **golden trace** is taken against, so it may not change under a running
+season without somebody meaning it.
+
 **Where the assets are** — What a served page is told, and a written one is
 not: the base its `field.glb`, its `fieldscene.js` and its three.js resolve
 against, relative to where that page is served (`assets/` from the live

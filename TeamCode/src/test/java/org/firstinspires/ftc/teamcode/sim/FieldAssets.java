@@ -28,6 +28,15 @@ public final class FieldAssets {
 
     private FieldAssets() {}
 
+    public static List<String> everyAsset() {
+        List<String> out = new ArrayList<>();
+        out.add(FIELD_GLB);
+        for (String texture : TEXTURES) {
+            out.add(TEXTURES_UNDER + "/" + texture);
+        }
+        return out;
+    }
+
     public static final class NotAnAsset extends RuntimeException {
         public NotAnAsset(String message) {
             super(message);
