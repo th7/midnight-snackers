@@ -37,13 +37,14 @@ public class SimBenchTest {
 
     /**
      * What a bench waits in a test: a run's budget and a match's period cut to something a test can
-     * sit through, and a silence short enough that a hung op mode is caught while the test watches.
+     * sit through. The silence stays what the bench waits in earnest, because a child that is
+     * talking never reaches it and a child that is not is only ever one test's business -- cut
+     * here, it would be a busy machine's chance to have a healthy run killed for pausing.
      */
     private static final SimBench.Waits WAITS = SimBench.Waits.ofTheBench()
             .runTimeout(TIMEOUT_SECONDS)
             .teleOpPeriod(TELEOP_SECONDS)
-            .killGrace(GRACE_SECONDS)
-            .silence(0.5);
+            .killGrace(GRACE_SECONDS);
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -184,7 +185,13 @@ public class SimBenchTest {
 
     @Test
     public void anOpModeWhoseLoopNeverReturnsIsKilled() throws Exception {
-        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), WAITS.runTimeout(0.3));
+        // The one test that waits out a silence, so the one that shortens it: the op mode never
+        // comes back, so there is nothing here for a short wait to kill early.
+        bench = new SimBench(
+                SimCatalog.of(HangingAuto.class),
+                null,
+                outputDir(),
+                WAITS.runTimeout(0.3).silence(0.5));
         long startedAt = System.nanoTime();
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Hangs").get(), "ada"));

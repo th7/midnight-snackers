@@ -48,12 +48,15 @@ public class CodingServerTest {
 
     private static final double RUN_TIMEOUT_SECONDS = 0.3;
 
-    /** What the server's benches wait in a test: a run's budget in a moment, and no long silences. */
+    /**
+     * What the server's benches wait in a test: a run's budget in a moment. The silence stays what
+     * the bench waits in earnest, since no run here goes quiet and a shorter one would only be a
+     * busy machine's chance to kill a healthy child for pausing.
+     */
     private static final SimBench.Waits WAITS = SimBench.Waits.ofTheBench()
             .runTimeout(RUN_TIMEOUT_SECONDS)
             .teleOpPeriod(30)
-            .killGrace(1)
-            .silence(2);
+            .killGrace(1);
 
     private CodingServer server;
 

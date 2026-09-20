@@ -108,7 +108,7 @@ public final class SimTrace {
         for (Line line : lines) {
             out.append(format(line)).append('\n');
         }
-        STORE.writeWhole(path, out.toString().getBytes(StandardCharsets.UTF_8));
+        RepoFile.write(path, out.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static List<Line> read(Path path) {
