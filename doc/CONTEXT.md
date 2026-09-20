@@ -512,6 +512,19 @@ listener at `/static/codemirror.js`. It is the one **static asset**: the
 `/static` route serves only names on its allowlist. The page reaches the
 bundle only through `window.CM`.
 
+**Part** — One piece of the dashboard page that starts on its own: the
+editor, the branch panel, the simulator, the header, the file list, the
+tabs. A part that throws is caught, named in a banner at the top of the
+page and recorded in `window.codingPage.broke`, and the others still
+start — so a browser that cannot run one part of the page still gives the
+rest, and never leaves the shell it was served as, which is what "nothing
+to show you" looks like too. The page asks for nothing an **older
+tablet's** browser has not got: an iPadOS 13 `MediaQueryList` carries
+`addListener` and not `addEventListener`, and the page feature-tests it
+the way CodeMirror feature-tests its own. Held by
+`tools/browser/dashboard.mjs`, which opens the page on an engine with
+those APIs taken away; see `doc/browser-tests.md`.
+
 **Diagnostic** — A build problem shown in the editor itself, in the lint
 gutter and under the text of the open file. The problems list under the
 editor shows the same problems for every file.

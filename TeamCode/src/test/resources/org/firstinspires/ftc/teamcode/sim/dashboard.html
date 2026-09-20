@@ -129,6 +129,7 @@
   #editor .cm-editor.cm-focused { outline: 2px solid var(--focus); outline-offset: -2px; }
   #editor.idle .cm-content { color: var(--muted); }
   .placeholder { display: grid; place-items: center; color: var(--muted); }
+  header .broke { flex-basis: 100%; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 6px; background: var(--bad-soft); color: var(--bad); }
 </style>
 </head>
 <body>
@@ -140,6 +141,7 @@
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
   </nav>
   <p class="who">Signed in as <strong id="who">…</strong> on <span id="branch" class="mono">…</span></p>
+  <p class="broke" id="broke" role="alert" hidden></p>
 </header>
 <main id="edit" class="panel" role="tabpanel">
   <aside>
@@ -201,6 +203,34 @@
 </main>
 <script>
 (function () {
+  // The page starts in parts, and a part that cannot start says so. An engine that has not got
+  // something the page reaches for used to leave the shell it was served as -- ellipses in the
+  // header, an empty file list, tabs that do not move -- which is also what "nothing to show you"
+  // looks like, so the failure read as a verdict. Now it is named, here and on the page.
+  window.codingPage = { started: false, broke: [] };
+
+  function broke(what, wrong) {
+    var message = wrong && wrong.message ? wrong.message : String(wrong);
+    var already = window.codingPage.broke.some(function (b) { return b.part === what && b.message === message; });
+    if (already) { return; }
+    window.codingPage.broke.push({ part: what, message: message });
+    var said = document.getElementById('broke');
+    said.textContent = 'This browser could not start ' + what + ': ' + message
+        + '. Whatever else works still works. Tell whoever runs the coding server.';
+    said.hidden = false;
+  }
+
+  // Named `part` and not `stage`: the live view under the Simulate tab is the stage.
+  function part(what, start) {
+    try {
+      start();
+    } catch (wrong) {
+      broke(what, wrong);
+    }
+  }
+
+  window.addEventListener('error', function (event) { broke('the page', event.error || event.message); });
+
   var SAVE_DELAY_MS = 300;
   var filesEl = document.getElementById('files');
   var nofiles = document.getElementById('nofiles');
@@ -218,9 +248,10 @@
   var dirtyWhileSaving = false;
   var pendingSave = false;
 
-  var editable = new CM.Compartment();
-  var theme = new CM.Compartment();
-  var dark = matchMedia('(prefers-color-scheme: dark)');
+  var editable = null;
+  var theme = null;
+  var dark = null;
+  var view = null;
   var lastProblems = [];
   var settingDoc = false;
 
@@ -261,10 +292,20 @@
     });
   }
 
-  var view = new CM.EditorView({ parent: editorHost, state: editorState('', false) });
-  dark.addEventListener('change', function () { view.dispatch({ effects: theme.reconfigure(themeFor()) }); });
+  function startEditor() {
+    editable = new CM.Compartment();
+    theme = new CM.Compartment();
+    dark = matchMedia('(prefers-color-scheme: dark)');
+    view = new CM.EditorView({ parent: editorHost, state: editorState('', false) });
+    // An iPad on iPadOS 13 or older carries a MediaQueryList that is not an EventTarget: it has
+    // addListener and nothing else. CodeMirror asks the same question of its own print query.
+    var follow = function () { view.dispatch({ effects: theme.reconfigure(themeFor()) }); };
+    if (dark.addEventListener) { dark.addEventListener('change', follow); }
+    else { dark.addListener(follow); }
+  }
 
   function setDoc(text, canEdit) {
+    if (!view) { return; }
     settingDoc = true;
     view.setState(editorState(text, canEdit !== false));
     settingDoc = false;
@@ -272,7 +313,7 @@
   }
 
   function docText() {
-    return view.state.doc.toString();
+    return view ? view.state.doc.toString() : '';
   }
 
   function setStatus(text, kind) {
@@ -318,6 +359,7 @@
   }
 
   function load(path, line, column) {
+    if (!withoutTheEditor(path)) { return; }
     fetch(fileUrl(path)).then(function (r) {
       if (r.status === 403) { location.reload(); return; }
       if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
@@ -337,6 +379,7 @@
   }
 
   function viewSource(path, line, column) {
+    if (!withoutTheEditor(path)) { return; }
     fetch('/source/' + path.split('/').map(encodeURIComponent).join('/')).then(function (r) {
       if (r.status === 403) { location.reload(); return; }
       if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
@@ -352,6 +395,15 @@
         refreshNow();
       });
     });
+  }
+
+  // A file cannot be opened with no editor to open it in, and saying which file was asked for is
+  // better than an editor pane that stays empty for no stated reason.
+  function withoutTheEditor(path) {
+    if (view) { return true; }
+    title.textContent = path;
+    setStatus('the editor did not start on this browser', 'bad');
+    return false;
   }
 
   function openAt(path, line, column) {
@@ -415,7 +467,7 @@
           setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
         }
         scheduleCheck();
-        git.refresh();
+        if (git) { git.refresh(); }
       });
     }).catch(function () {
       setStatus('could not reach the host', 'bad');
@@ -486,7 +538,7 @@
   }
 
   function showDiagnostics(problems) {
-    if (!open) { return; }
+    if (!open || !view) { return; }
     var doc = view.state.doc;
     var diagnostics = [];
     problems.forEach(function (problem) {
@@ -502,6 +554,7 @@
   }
 
   function goTo(line, column) {
+    if (!view) { return; }
     var doc = view.state.doc;
     var l = doc.line(Math.max(1, Math.min(line, doc.lines)));
     var pos = l.from + Math.max(0, Math.min((column || 1) - 1, l.length));
@@ -511,7 +564,7 @@
 
   var navigate = (function () {
     function where() {
-      if (!open) { return null; }
+      if (!open || !view) { return null; }
       var head = view.state.selection.main.head;
       var line = view.state.doc.lineAt(head);
       return { file: open.path, line: line.number, column: head - line.from + 1 };
@@ -572,7 +625,7 @@
     return { definition: definition, usages: usages };
   })();
 
-  var git = (function () {
+  function theBranchPanel() {
     var changedEl = document.getElementById('changed');
     var commitButton = document.getElementById('commit');
     var pullButton = document.getElementById('pull');
@@ -701,16 +754,17 @@
     refresh();
     setInterval(refresh, 2000);
     return { refresh: refresh, say: say };
-  })();
+  }
 
-  fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
-    if (me.state !== 'approved') { location.reload(); return; }
-    document.getElementById('who').textContent = me.username;
-    document.getElementById('branch').textContent = me.branch || '';
-  });
-  refreshFiles();
+  function whoIsSignedIn() {
+    fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
+      if (me.state !== 'approved') { location.reload(); return; }
+      document.getElementById('who').textContent = me.username;
+      document.getElementById('branch').textContent = me.branch || '';
+    });
+  }
 
-  var tabs = Array.prototype.slice.call(document.querySelectorAll('nav [data-tab]'));
+  var tabs = [];
   function showTab(name) {
     if (name !== 'simulate') { name = 'edit'; }
     tabs.forEach(function (tab) {
@@ -719,12 +773,17 @@
       document.getElementById(tab.dataset.tab).hidden = !on;
     });
     if (location.hash !== '#' + name) { history.replaceState(null, '', '#' + name); }
-    if (name === 'simulate') { simulate.enter(); }
+    if (name === 'simulate' && simulate) { simulate.enter(); }
   }
-  tabs.forEach(function (tab) { tab.addEventListener('click', function () { showTab(tab.dataset.tab); }); });
-  window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });
 
-  var simulate = (function () {
+  function wireTabs() {
+    tabs = Array.prototype.slice.call(document.querySelectorAll('nav [data-tab]'));
+    tabs.forEach(function (tab) { tab.addEventListener('click', function () { showTab(tab.dataset.tab); }); });
+    window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });
+    showTab(location.hash.slice(1));
+  }
+
+  function theSimulateTab() {
     var list = document.getElementById('opmodes');
     var msg = document.getElementById('msg');
     var stage = document.getElementById('stage');
@@ -925,9 +984,17 @@
     }
 
     return { enter: enter };
-  })();
+  }
 
-  showTab(location.hash.slice(1));
+  var git = null;
+  var simulate = null;
+  part('the editor', startEditor);
+  part('the branch panel', function () { git = theBranchPanel(); });
+  part('the simulator', function () { simulate = theSimulateTab(); });
+  part('the header', whoIsSignedIn);
+  part('the file list', refreshFiles);
+  part('the tabs', wireTabs);
+  window.codingPage.started = true;
 })();
 </script>
 </body>

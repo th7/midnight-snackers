@@ -29,7 +29,7 @@ def main():
         return 2
     if not result.wasSuccessful():
         return 1
-    for check in (renderer_check, browser_check, replay_check, cost_check):
+    for check in (renderer_check, browser_check, dashboard_check, replay_check, cost_check):
         wrong = check()
         if wrong:
             return wrong
@@ -56,6 +56,10 @@ def renderer_check():
 
 def browser_check():
     return in_a_browser('check.mjs')
+
+
+def dashboard_check():
+    return in_a_browser('dashboard.mjs')
 
 
 def replay_check():
