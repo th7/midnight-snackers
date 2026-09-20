@@ -1,9 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -11,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 
 public final class SimTrace {
+    private static final Store STORE = new OnDiskStore();
     public static final int TICKS = 100;
 
     public static final double TOLERANCE = 2e-6;
@@ -44,7 +42,7 @@ public final class SimTrace {
                     path.toAbsolutePath(), actual.size(), REGENERATE));
         }
 
-        if (!Files.isRegularFile(path)) {
+        if (!STORE.isFile(path)) {
             throw new AssertionError(String.format(
                     "no golden trace at %s. Nothing is being checked. Generate it with:%n"
                             + "  ./gradlew :TeamCode:testDebugUnitTest --rerun -D%s=true --tests '*WheelPowerTraceTest*'",
@@ -110,21 +108,12 @@ public final class SimTrace {
         for (Line line : lines) {
             out.append(format(line)).append('\n');
         }
-        try {
-            Files.createDirectories(path.getParent());
-            Files.write(path, out.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not write " + path.toAbsolutePath(), e);
-        }
+        STORE.writeWhole(path, out.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private static List<Line> read(Path path) {
-        List<String> raw;
-        try {
-            raw = Files.readAllLines(path, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not read " + path.toAbsolutePath(), e);
-        }
+        List<String> raw =
+                List.of(new String(STORE.readIfThere(path).orElseThrow(), StandardCharsets.UTF_8).split("\n", -1));
         List<Line> lines = new ArrayList<>();
         for (String text : raw) {
             if (text.isBlank() || text.startsWith("#")) {

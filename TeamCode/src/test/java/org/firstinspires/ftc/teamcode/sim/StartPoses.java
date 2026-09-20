@@ -7,12 +7,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -29,16 +25,22 @@ final class StartPoses {
     }
 
     private final Path file;
+    private final Store store;
     private final Map<String, Start> byOpMode = new LinkedHashMap<>();
 
     StartPoses(Path file) {
+        this(file, new OnDiskStore());
+    }
+
+    StartPoses(Path file, Store store) {
         this.file = file;
-        if (!Files.exists(file)) {
+        this.store = store;
+        byte[] bytes = store.readIfThere(file).orElse(null);
+        if (bytes == null) {
             return;
         }
         try {
-            JsonObject stored =
-                    GSON.fromJson(new String(Files.readAllBytes(file), StandardCharsets.UTF_8), JsonObject.class);
+            JsonObject stored = GSON.fromJson(new String(bytes, StandardCharsets.UTF_8), JsonObject.class);
             if (stored == null) {
                 throw new IllegalStateException("empty");
             }
@@ -52,7 +54,7 @@ final class StartPoses {
                 }
                 byOpMode.put(entry.getKey(), start);
             }
-        } catch (IOException | RuntimeException e) {
+        } catch (RuntimeException e) {
             throw new IllegalStateException("could not read the start poses in " + file + ": " + e, e);
         }
     }
@@ -89,18 +91,7 @@ final class StartPoses {
             record.add("seed", seedToJson(entry.getValue().seed));
             body.add(entry.getKey(), record);
         }
-        try {
-            Files.createDirectories(file.toAbsolutePath().getParent());
-            Path temp = Files.createTempFile(file.toAbsolutePath().getParent(), "." + file.getFileName(), ".saving");
-            try {
-                Files.write(temp, GSON.toJson(body).getBytes(StandardCharsets.UTF_8));
-                Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not save the start poses to " + file + ": " + e.getMessage(), e);
-        }
+        store.writeWhole(file, GSON.toJson(body).getBytes(StandardCharsets.UTF_8));
     }
 
     static JsonObject toJson(Pose2d pose) {
