@@ -43,55 +43,55 @@ public class IntakeSimTest {
     @Test
     public void theIntakeTakesInAPollenTheRobotDrivesInto() {
         emptyTheRobot();
-        int pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
+        SimRobot.Piece pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
 
         driveDownTheLane();
 
         assertEquals("the pollen went into the hopper", 1, sim.held());
-        assertNull("so it is nowhere on the field", sim.pieces()[pollen]);
+        assertNull("so it is nowhere on the field", sim.placeOf(pollen));
     }
 
     @Test
     public void aNectarCollidesAndStaysOnTheFloor() {
         emptyTheRobot();
-        int nectar = placeInTheLane(aCellNectar(), FIRST_PIECE_X);
+        SimRobot.Piece nectar = placeInTheLane(aCellNectar(), FIRST_PIECE_X);
 
         driveDownTheLane();
 
         assertEquals("nothing went in", 0, sim.held());
-        assertNotNull("the nectar is still on the floor", sim.pieces()[nectar]);
+        assertNotNull("the nectar is still on the floor", sim.placeOf(nectar));
         assertPushedAlong(nectar, FIRST_PIECE_X);
     }
 
     @Test
     public void theIntakeOffLeavesAPollenOnTheFloor() {
         emptyTheRobot();
-        int pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
+        SimRobot.Piece pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
         robot.intake.off();
 
         driveDownTheLane();
 
         assertEquals("nothing went in", 0, sim.held());
-        assertNotNull("the pollen is still on the floor", sim.pieces()[pollen]);
+        assertNotNull("the pollen is still on the floor", sim.placeOf(pollen));
         assertPushedAlong(pollen, FIRST_PIECE_X);
     }
 
     @Test
     public void aFullRobotTakesNothingIn() {
         assertEquals("the preload fills it", SimRobot.HOLDS, sim.held());
-        int pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
+        SimRobot.Piece pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
 
         driveDownTheLane();
 
         assertEquals(SimRobot.HOLDS, sim.held());
-        assertNotNull("the pollen is still on the floor", sim.pieces()[pollen]);
+        assertNotNull("the pollen is still on the floor", sim.placeOf(pollen));
         assertPushedAlong(pollen, FIRST_PIECE_X);
     }
 
     @Test
     public void theIntakeTakesInNoMoreThanTheRobotHolds() {
         emptyTheRobot();
-        List<Integer> pollen = new ArrayList<>();
+        List<SimRobot.Piece> pollen = new ArrayList<>();
         for (int i = 0; i < SimRobot.HOLDS + 1; i++) {
             pollen.add(placeInTheLane(loosePollen().get(i), FIRST_PIECE_X + i * PIECE_SPACING_IN));
         }
@@ -110,55 +110,55 @@ public class IntakeSimTest {
         }
     }
 
-    private int placeInTheLane(int piece, double x) {
-        sim.placePiece(piece, x, LANE_Y);
+    private SimRobot.Piece placeInTheLane(SimRobot.Piece piece, double x) {
+        sim.place(piece, x, LANE_Y);
         return piece;
     }
 
     private void emptyTheRobot() {
-        double[][] pieces = sim.pieces();
         int parked = 0;
-        for (int piece = 0; piece < pieces.length; piece++) {
-            if (pieces[piece] == null) {
-                sim.placePiece(piece, PARKED_X + parked++ * PIECE_SPACING_IN, PARKED_Y);
-            }
+        for (SimRobot.Piece held : sim.holding()) {
+            sim.place(held, PARKED_X + parked++ * PIECE_SPACING_IN, PARKED_Y);
         }
         assertEquals("the robot holds nothing now", 0, sim.held());
     }
 
-    private List<Integer> loosePollen() {
-        List<Integer> pollen = new ArrayList<>();
-        for (int piece = 0; piece < SimRobot.FIELD.loosePieces.size(); piece++) {
-            if (SimField.POLLEN.equals(SimRobot.FIELD.loosePieces.get(piece).kind)) {
-                pollen.add(piece);
+    private List<SimRobot.Piece> loosePollen() {
+        List<SimRobot.Piece> pollen = new ArrayList<>();
+        for (SimRobot.Piece ball : sim.balls()) {
+            if (SimField.POLLEN.equals(ball.kind())
+                    && ball.setUpFrom()
+                            .map(piece -> piece.cell == null && piece.flower == null)
+                            .orElse(false)) {
+                pollen.add(ball);
             }
         }
         assertTrue("the field has loose pollen to drive into", pollen.size() > SimRobot.HOLDS);
         return pollen;
     }
 
-    private int aCellNectar() {
-        int loose = SimRobot.FIELD.loosePieces.size();
-        for (int piece = 0; piece < SimRobot.FIELD.cellPieces.size(); piece++) {
-            if (SimField.NECTAR.equals(SimRobot.FIELD.cellPieces.get(piece).kind)) {
-                return loose + piece;
+    private SimRobot.Piece aCellNectar() {
+        for (SimRobot.Piece ball : sim.balls()) {
+            if (SimField.NECTAR.equals(ball.kind())
+                    && ball.setUpFrom().map(piece -> piece.cell != null).orElse(false)) {
+                return ball;
             }
         }
         throw new AssertionError("the field has no nectar to put on the floor");
     }
 
-    private int stillOnTheFloor(List<Integer> pieces) {
+    private int stillOnTheFloor(List<SimRobot.Piece> pieces) {
         int onTheFloor = 0;
-        for (int piece : pieces) {
-            if (sim.pieces()[piece] != null) {
+        for (SimRobot.Piece piece : pieces) {
+            if (sim.placeOf(piece) != null) {
                 onTheFloor++;
             }
         }
         return onTheFloor;
     }
 
-    private void assertPushedAlong(int piece, double placedAt) {
-        double[] where = sim.pieces()[piece];
+    private void assertPushedAlong(SimRobot.Piece piece, double placedAt) {
+        double[] where = sim.placeOf(piece);
         assertTrue("the robot pushed it along rather than passing through it", where[0] > placedAt + 1);
         assertTrue("and it is still ahead of the robot", where[0] > sim.pose().position.x);
     }

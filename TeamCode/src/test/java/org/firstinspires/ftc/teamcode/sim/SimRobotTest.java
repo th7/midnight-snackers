@@ -10,7 +10,9 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import org.firstinspires.ftc.teamcode.Localizer;
 import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.base.Prints;
@@ -531,22 +533,17 @@ public class SimRobotTest {
 
     private static final double BALL = SimRobot.FIELD.loosePieces.get(0).radius;
     private static final double BALL_NECTAR = SimRobot.FIELD.cellPieces.get(0).radius;
-    private static final int LOOSE = SimRobot.FIELD.loosePieces.size();
-
-    private static final int IN_FLOWERS = LOOSE + SimRobot.FIELD.cellPieces.size();
-
-    private static final int PRELOADED = IN_FLOWERS + SimRobot.FIELD.flowerPieces.size();
 
     @Test
     public void theRobotPushesALooseBallAheadOfIt() {
         robotDrive();
-        sim.placePiece(0, 10, -40);
+        sim.place(sim.balls().get(0), 10, -40);
         sim.setPose(new Pose2d(-8, -40, 0));
         setPowers(1, 1, 1, 1);
 
         sim.step(0.6);
 
-        double[] ball = sim.pieces()[0];
+        double[] ball = sim.placeOf(sim.balls().get(0));
         double front = sim.pose().position.x + SimPlacement.ROBOT_SIZE_IN / 2;
         assertTrue("the robot drove; x=" + sim.pose().position.x, sim.pose().position.x > 0);
         assertTrue(
@@ -559,22 +556,22 @@ public class SimRobotTest {
     @Test
     public void aPushedBallRollsOnThenComesToRestInsideTheWalls() {
         robotDrive();
-        sim.placePiece(0, 10, -40);
+        sim.place(sim.balls().get(0), 10, -40);
         sim.setPose(new Pose2d(-8, -40, 0));
         setPowers(1, 1, 1, 1);
         sim.step(0.6);
-        double pushedTo = sim.pieces()[0][0];
+        double pushedTo = sim.placeOf(sim.balls().get(0))[0];
         setPowers(0, 0, 0, 0);
 
         sim.step(0.05);
-        double rollingTo = sim.pieces()[0][0];
+        double rollingTo = sim.placeOf(sim.balls().get(0))[0];
         sim.step(4.0);
-        double restingAt = sim.pieces()[0][0];
+        double restingAt = sim.placeOf(sim.balls().get(0))[0];
         sim.step(1.0);
 
         assertTrue("rolled on after the push: " + rollingTo + " vs " + pushedTo, rollingTo > pushedTo + 0.5);
         assertTrue("came to rest: " + restingAt + " vs " + rollingTo, restingAt > rollingTo);
-        assertEquals("stays at rest", restingAt, sim.pieces()[0][0], DELTA);
+        assertEquals("stays at rest", restingAt, sim.placeOf(sim.balls().get(0))[0], DELTA);
         assertTrue("inside the walls", restingAt < SimPlacement.FIELD_SIZE_IN / 2 - BALL);
     }
 
@@ -582,7 +579,7 @@ public class SimRobotTest {
     public void aBallPinnedAgainstTheWallStopsTheRobotShortOfIt() {
         robotDrive();
         double wall = SimPlacement.FIELD_SIZE_IN / 2;
-        sim.placePiece(0, 60, -40);
+        sim.place(sim.balls().get(0), 60, -40);
         sim.setPose(new Pose2d(42, -40, 0));
         setPowers(1, 1, 1, 1);
 
@@ -590,7 +587,7 @@ public class SimRobotTest {
         double stoppedAt = sim.pose().position.x;
         sim.step(0.5);
 
-        double[] ball = sim.pieces()[0];
+        double[] ball = sim.placeOf(sim.balls().get(0));
         double front = sim.pose().position.x + SimPlacement.ROBOT_SIZE_IN / 2;
         assertEquals("the ball is at the wall", wall - BALL, ball[0], CONTACT);
         assertEquals(-40, ball[1], 0.1);
@@ -606,13 +603,13 @@ public class SimRobotTest {
         assertNotNull(bar);
         double face = minY(bar.footprint);
         double x = 0;
-        sim.placePiece(0, x, face - BALL - 4);
+        sim.place(sim.balls().get(0), x, face - BALL - 4);
         sim.setPose(new Pose2d(x, face - BALL - 4 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 6, Math.PI / 2));
         setPowers(1, 1, 1, 1);
 
         sim.step(1.5);
 
-        double[] ball = sim.pieces()[0];
+        double[] ball = sim.placeOf(sim.balls().get(0));
         double front = sim.pose().position.y + SimPlacement.ROBOT_SIZE_IN / 2;
         assertEquals("the ball is at the bar", face - BALL, ball[1], CONTACT);
         assertEquals("the robot is stopped by the ball", face - 2 * BALL, front, CONTACT);
@@ -621,14 +618,15 @@ public class SimRobotTest {
     @Test
     public void aBallPushesTheBallInFrontOfIt() {
         robotDrive();
-        sim.placePiece(0, 10, -40);
-        sim.placePiece(1, 10 + 2 * BALL + 0.5, -40);
+        sim.place(sim.balls().get(0), 10, -40);
+        sim.place(sim.balls().get(1), 10 + 2 * BALL + 0.5, -40);
         sim.setPose(new Pose2d(-8, -40, 0));
         setPowers(1, 1, 1, 1);
 
         sim.step(0.6);
 
-        double[] first = sim.pieces()[0], second = sim.pieces()[1];
+        double[] first = sim.placeOf(sim.balls().get(0)),
+                second = sim.placeOf(sim.balls().get(1));
         double front = sim.pose().position.x + SimPlacement.ROBOT_SIZE_IN / 2;
         assertTrue(
                 "both ahead of the robot", first[0] - BALL >= front - CONTACT && second[0] - BALL >= front - CONTACT);
@@ -643,7 +641,7 @@ public class SimRobotTest {
         SimField.Obstacle bar = SimRobot.FIELD.obstacle("Frame <1> / Sheet Metal Foot Bar <1>");
         double face = minX(bar.footprint);
         double y = (minY(bar.footprint) + maxY(bar.footprint)) / 2;
-        sim.placePiece(0, -44, y);
+        sim.place(sim.balls().get(0), -44, y);
         sim.setPose(new Pose2d(-58, y, 0));
         setPowers(1, 1, 1, 1);
         sim.step(0.7);
@@ -651,35 +649,39 @@ public class SimRobotTest {
 
         sim.step(4.0);
 
-        double[] ball = sim.pieces()[0];
+        double[] ball = sim.placeOf(sim.balls().get(0));
         assertTrue("it rolled: x=" + ball[0], ball[0] > -35);
         assertTrue("and not into the foot bar: x=" + ball[0], ball[0] <= face - BALL + CONTACT);
     }
 
     @Test
     public void theBallsStartWhereTheFieldIsSetUpAndTheRobotsPreloadInTheRobot() {
-        double[][] pieces = sim.pieces();
-        assertEquals(PRELOADED + SimRobot.PRELOAD, pieces.length);
-        for (int i = 0; i < LOOSE; i++) {
-            assertEquals(SimRobot.FIELD.loosePieces.get(i).x, pieces[i][0], 0.1);
-            assertEquals(SimRobot.FIELD.loosePieces.get(i).y, pieces[i][1], 0.1);
-            assertEquals(BALL, pieces[i][2], 0.1);
+        assertEquals(
+                SimRobot.FIELD.movedPieces.size() + SimRobot.PRELOAD,
+                sim.balls().size());
+
+        for (SimRobot.Piece ball : sim.balls()) {
+            double[] at = sim.placeOf(ball);
+            if (ball.setUpFrom().isEmpty()) {
+                assertNull("the robot brought it, so it is nowhere on the field", at);
+                continue;
+            }
+            SimField.Piece piece = ball.setUpFrom().get();
+            if (piece.cell != null) {
+                assertTrue(
+                        "the nectar rests in the cell the field is set up with it in",
+                        within(sim, SimRobot.FIELD.cell(piece.cell), at));
+            } else if (piece.flower != null) {
+                assertTrue(
+                        "the pollen stands in the bore of the flower the field is set up with it in",
+                        SimRobot.FIELD.flower(piece.flower).standsIn(at[0], at[1]));
+            } else {
+                assertEquals(piece.x, at[0], 0.1);
+                assertEquals(piece.y, at[1], 0.1);
+                assertEquals(BALL, at[2], 0.1);
+            }
         }
-        for (int i = LOOSE; i < IN_FLOWERS; i++) {
-            SimField.Piece nectar = SimRobot.FIELD.cellPieces.get(i - LOOSE);
-            assertTrue(
-                    "the nectar rests in the cell the field is set up with it in",
-                    within(sim, SimRobot.FIELD.cell(nectar.cell), pieces[i]));
-        }
-        for (int i = IN_FLOWERS; i < PRELOADED; i++) {
-            SimField.Flower flower = SimRobot.FIELD.flower(SimRobot.FIELD.flowerPieces.get(i - IN_FLOWERS).flower);
-            assertTrue(
-                    "the pollen stands in the bore of the flower the field is set up with it in",
-                    flower.standsIn(pieces[i][0], pieces[i][1]));
-        }
-        for (int i = PRELOADED; i < pieces.length; i++) {
-            assertNull("held in the robot, so nowhere on the field", pieces[i]);
-        }
+
         assertEquals(SimRobot.PRELOAD, sim.held());
         assertEquals("the nectar each hive is set up with", 3, sim.scored("Blue"));
         assertEquals(3, sim.scored("Red"));
@@ -691,70 +693,73 @@ public class SimRobotTest {
         for (SimField.Flower flower : SimRobot.FIELD.flowers) {
             assertStandingIn(flower, 4);
         }
-        double[][] setUp = sim.pieces();
+        Map<SimRobot.Piece, double[]> setUp = whereEverythingIs();
 
         sim.step(2.0);
 
-        double[][] now = sim.pieces();
-        for (int piece = IN_FLOWERS; piece < PRELOADED; piece++) {
-            assertArrayEquals("the flowers' pollen have not moved", setUp[piece], now[piece], 0);
+        Map<SimRobot.Piece, double[]> now = whereEverythingIs();
+        for (SimField.Flower flower : SimRobot.FIELD.flowers) {
+            for (SimRobot.Piece piece : pollenOf(flower)) {
+                assertArrayEquals("the flowers' pollen have not moved", setUp.get(piece), now.get(piece), 0);
+            }
         }
     }
 
     @Test
     public void onlyTheBottomPollenOfAFlowerStandsBelowTheLip() {
         SimField.Flower flower = SimRobot.FIELD.flowers.get(0);
-        double[][] pieces = sim.pieces();
-        List<Integer> stack = pollenOf(flower);
-        stack.sort((a, b) -> Double.compare(pieces[a][2], pieces[b][2]));
+        Map<SimRobot.Piece, double[]> pieces = whereEverythingIs();
+        List<SimRobot.Piece> stack = pollenOf(flower);
+        stack.sort((a, b) -> Double.compare(pieces.get(a)[2], pieces.get(b)[2]));
 
-        assertEquals("the bottom one rests on the floor", BALL, pieces[stack.get(0)][2], DELTA);
+        assertEquals("the bottom one rests on the floor", BALL, pieces.get(stack.get(0))[2], DELTA);
         assertTrue(
-                "and stands wholly below the lip: " + pieces[stack.get(0)][2],
-                pieces[stack.get(0)][2] + BALL <= flower.lip);
+                "and stands wholly below the lip: " + pieces.get(stack.get(0))[2],
+                pieces.get(stack.get(0))[2] + BALL <= flower.lip);
         for (int above = 1; above < stack.size(); above++) {
             assertTrue(
-                    "the rest reach the lip, so the bore holds them: " + pieces[stack.get(above)][2],
-                    pieces[stack.get(above)][2] + BALL > flower.lip);
+                    "the rest reach the lip, so the bore holds them: " + pieces.get(stack.get(above))[2],
+                    pieces.get(stack.get(above))[2] + BALL > flower.lip);
         }
     }
 
     @Test
     public void takingTheBottomPollenOutOfAFlowerDropsTheStackOnePlaceAndItStandsAgain() {
         SimField.Flower flower = SimRobot.FIELD.flowers.get(0);
-        int bottom = bottomOf(flower);
+        SimRobot.Piece bottom = bottomOf(flower);
 
-        sim.placePiece(bottom, 0, 0);
+        sim.place(bottom, 0, 0);
         sim.step(1.0);
 
         assertStandingIn(flower, 3);
-        assertEquals("the one knocked out is where it was put", 0, sim.pieces()[bottom][0], CONTACT);
-        double[][] settled = sim.pieces();
+        assertEquals("the one knocked out is where it was put", 0, sim.placeOf(bottom)[0], CONTACT);
+        Map<SimRobot.Piece, double[]> settled = whereEverythingIs();
         sim.step(2.0);
-        double[][] now = sim.pieces();
-        for (int piece : pollenOf(flower)) {
-            assertArrayEquals("the stack that is left stands still", settled[piece], now[piece], 0);
+        Map<SimRobot.Piece, double[]> now = whereEverythingIs();
+        for (SimRobot.Piece piece : pollenOf(flower)) {
+            assertArrayEquals("the stack that is left stands still", settled.get(piece), now.get(piece), 0);
         }
     }
 
     @Test
     public void aPollenTheRobotHasLetGoOfCannotKnockTheBottomPollenOut() {
         SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
-        int bottom = bottomOf(flower);
+        SimRobot.Piece bottom = bottomOf(flower);
         double lane = flower.axis[1] + 0.8;
         robotDrive();
-        sim.placePiece(0, flower.axis[0] - 50, lane);
+        sim.place(sim.balls().get(0), flower.axis[0] - 50, lane);
         sim.setPose(new Pose2d(flower.axis[0] - 50 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 1, lane, 0));
         setPowers(1, 1, 1, 1);
         sim.step(1.0);
-        double[][] before = sim.pieces();
+        Map<SimRobot.Piece, double[]> before = whereEverythingIs();
         setPowers(0, 0, 0, 0);
 
         double closest = Double.MAX_VALUE;
         double knockedTo = 0;
         for (int loop = 0; loop < 250; loop++) {
             sim.step(0.02);
-            double[] nested = sim.pieces()[bottom], loose = sim.pieces()[0];
+            double[] nested = sim.placeOf(bottom),
+                    loose = sim.placeOf(sim.balls().get(0));
             closest = Math.min(closest, Math.hypot(loose[0] - nested[0], loose[1] - nested[1]));
             knockedTo = Math.max(knockedTo, fromTheAxis(flower, nested));
         }
@@ -763,10 +768,10 @@ public class SimRobotTest {
                 "the loose pollen rolled into the bore and reached the nested one: " + closest,
                 closest <= 2 * BALL + CONTACT);
         assertTrue("but never rolled it out of the bore: " + knockedTo, knockedTo <= flower.bore);
-        assertEquals("it is still in its nest", 0, fromTheAxis(flower, sim.pieces()[bottom]), CONTACT);
-        for (int piece : pollenOf(flower)) {
+        assertEquals("it is still in its nest", 0, fromTheAxis(flower, sim.placeOf(bottom)), CONTACT);
+        for (SimRobot.Piece piece : pollenOf(flower)) {
             if (piece != bottom) {
-                assertArrayEquals("the stack above it never moved", before[piece], sim.pieces()[piece], 0);
+                assertArrayEquals("the stack above it never moved", before.get(piece), sim.placeOf(piece), 0);
             }
         }
     }
@@ -774,38 +779,53 @@ public class SimRobotTest {
     @Test
     public void aPollenTheRobotIsStillPushingKnocksTheBottomPollenOutAndTheStackComesDown() {
         SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
-        int bottom = bottomOf(flower);
+        SimRobot.Piece bottom = bottomOf(flower);
 
         double lane = flower.axis[1] + 0.8;
         robotDrive();
-        sim.placePiece(0, flower.axis[0] - 10, lane);
+        sim.place(sim.balls().get(0), flower.axis[0] - 10, lane);
         sim.setPose(new Pose2d(flower.axis[0] - 10 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 2, lane, 0));
         setPowers(1, 1, 1, 1);
 
         sim.step(2.0);
 
-        double[] knocked = sim.pieces()[bottom];
+        double[] knocked = sim.placeOf(bottom);
         assertTrue(
                 "the flower's bottom pollen is out of the bore: " + knocked[0] + ", " + knocked[1],
                 !flower.standsIn(knocked[0], knocked[1]));
         assertEquals("and loose on the floor", BALL, knocked[2], DELTA);
         assertStandingIn(flower, 3);
-        double[][] settled = sim.pieces();
+        Map<SimRobot.Piece, double[]> settled = whereEverythingIs();
         sim.step(1.0);
         assertStandingIn(flower, 3);
-        for (int piece : pollenOf(flower)) {
-            if (flower.standsIn(settled[piece][0], settled[piece][1])) {
-                assertArrayEquals("the stack that is left stands still", settled[piece], sim.pieces()[piece], 0);
+        for (SimRobot.Piece piece : pollenOf(flower)) {
+            if (flower.standsIn(settled.get(piece)[0], settled.get(piece)[1])) {
+                assertArrayEquals("the stack that is left stands still", settled.get(piece), sim.placeOf(piece), 0);
             }
         }
     }
 
-    private static List<Integer> pollenOf(SimField.Flower flower) {
-        List<Integer> pollen = new ArrayList<>();
-        for (int piece = 0; piece < SimRobot.FIELD.flowerPieces.size(); piece++) {
-            if (flower.name.equals(SimRobot.FIELD.flowerPieces.get(piece).flower)) {
-                pollen.add(IN_FLOWERS + piece);
+    private static SimRobot.Piece thePreloadOf(SimRobot sim) {
+        for (SimRobot.Piece ball : sim.balls()) {
+            if (ball.setUpFrom().isEmpty()) {
+                return ball;
             }
+        }
+        throw new AssertionError("the robot brought nothing");
+    }
+
+    private Map<SimRobot.Piece, double[]> whereEverythingIs() {
+        Map<SimRobot.Piece, double[]> out = new IdentityHashMap<>();
+        for (SimRobot.Piece ball : sim.balls()) {
+            out.put(ball, sim.placeOf(ball));
+        }
+        return out;
+    }
+
+    private List<SimRobot.Piece> pollenOf(SimField.Flower flower) {
+        List<SimRobot.Piece> pollen = new ArrayList<>();
+        for (SimRobot.Piece ball : sim.balls()) {
+            ball.setUpFrom().filter(piece -> flower.name.equals(piece.flower)).ifPresent(piece -> pollen.add(ball));
         }
         return pollen;
     }
@@ -814,15 +834,15 @@ public class SimRobotTest {
         return Math.hypot(at[0] - flower.axis[0], at[1] - flower.axis[1]);
     }
 
-    private int bottomOf(SimField.Flower flower) {
-        int bottom = -1;
-        for (int piece : pollenOf(flower)) {
-            double[] at = sim.pieces()[piece];
-            if (at != null && (bottom < 0 || at[2] < sim.pieces()[bottom][2])) {
+    private SimRobot.Piece bottomOf(SimField.Flower flower) {
+        SimRobot.Piece bottom = null;
+        for (SimRobot.Piece piece : pollenOf(flower)) {
+            double[] at = sim.placeOf(piece);
+            if (at != null && (bottom == null || at[2] < sim.placeOf(bottom)[2])) {
                 bottom = piece;
             }
         }
-        assertTrue(flower.name + " holds nothing", bottom >= 0);
+        assertNotNull(flower.name + " holds nothing", bottom);
         return bottom;
     }
 
@@ -861,7 +881,7 @@ public class SimRobotTest {
         sim.step(0.2);
 
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
-        double[] ball = sim.pieces()[PRELOADED];
+        double[] ball = sim.placeOf(thePreloadOf(sim));
         assertNotNull("the first preloaded ball is on its way", ball);
         assertTrue("ahead of the robot: x=" + ball[0], ball[0] > -60 + SimPlacement.ROBOT_SIZE_IN / 2);
         assertTrue("in the air: z=" + ball[2], ball[2] > SimRobot.LAUNCH_HEIGHT_IN);
@@ -875,13 +895,13 @@ public class SimRobotTest {
 
         sim.bottomGate.position = BOTTOM_GATE_OPEN;
         sim.step(0.3);
-        double[] flying = sim.pieces()[PRELOADED];
+        double[] flying = sim.placeOf(thePreloadOf(sim));
         sim.step(1.7);
-        double[] landed = sim.pieces()[PRELOADED];
+        double[] landed = sim.placeOf(thePreloadOf(sim));
         sim.step(6.0);
-        double[] resting = sim.pieces()[PRELOADED];
+        double[] resting = sim.placeOf(thePreloadOf(sim));
         sim.step(1.0);
-        double[] still = sim.pieces()[PRELOADED];
+        double[] still = sim.placeOf(thePreloadOf(sim));
 
         assertTrue("flying: z=" + flying[2], flying[2] > SimRobot.LAUNCH_HEIGHT_IN + 5);
         assertEquals("on the floor", BALL, landed[2], DELTA);
@@ -901,7 +921,7 @@ public class SimRobotTest {
         sim.bottomGate.position = BOTTOM_GATE_OPEN;
         sim.step(2.0);
 
-        double[] ball = sim.pieces()[PRELOADED];
+        double[] ball = sim.placeOf(thePreloadOf(sim));
         assertEquals(SimRobot.PRELOAD - 1, sim.held());
         assertEquals("on the floor", BALL, ball[2], DELTA);
         assertTrue(
@@ -917,7 +937,7 @@ public class SimRobotTest {
         sim.bottomGate.position = BOTTOM_GATE_OPEN;
         sim.step(0.3);
 
-        double[] ball = sim.pieces()[PRELOADED];
+        double[] ball = sim.placeOf(thePreloadOf(sim));
         assertTrue("launched to the robot's left (+y): y=" + ball[1], ball[1] > -40 + 10);
         assertEquals(0, ball[0], 0.5);
     }
@@ -974,26 +994,31 @@ public class SimRobotTest {
     }
 
     private static void emptyTheHive(SimRobot sim, String alliance) {
-        for (int i = 0; i < SimRobot.FIELD.cellPieces.size(); i++) {
-            if (SimRobot.FIELD.cellPieces.get(i).alliance.equals(alliance)) {
-                sim.placePiece(LOOSE + i, -60, -60 + 4 * i);
-            }
+        int away = 0;
+        for (SimRobot.Piece ball : setUpInACell(sim, alliance)) {
+            sim.place(ball, -60, -60 + 4 * away++);
         }
     }
 
-    private static int[] ballsOf(String kind) {
-        List<Integer> out = new ArrayList<>();
-        for (int i = 0; i < LOOSE; i++) {
-            if (SimRobot.FIELD.loosePieces.get(i).kind.equals(kind)) {
-                out.add(i);
+    private static List<SimRobot.Piece> setUpInACell(SimRobot sim, String alliance) {
+        List<SimRobot.Piece> out = new ArrayList<>();
+        for (SimRobot.Piece ball : sim.balls()) {
+            ball.setUpFrom()
+                    .filter(piece -> piece.cell != null && alliance.equals(piece.alliance))
+                    .ifPresent(piece -> out.add(ball));
+        }
+        return out;
+    }
+
+    private static List<SimRobot.Piece> ballsOf(SimRobot sim, String kind) {
+        List<SimRobot.Piece> out = new ArrayList<>();
+        for (SimRobot.Piece ball : sim.balls()) {
+            if (ball.kind().equals(kind)
+                    && ball.setUpFrom().map(piece -> piece.flower == null).orElse(false)) {
+                out.add(ball);
             }
         }
-        for (int i = 0; i < SimRobot.FIELD.cellPieces.size(); i++) {
-            if (SimRobot.FIELD.cellPieces.get(i).kind.equals(kind)) {
-                out.add(LOOSE + i);
-            }
-        }
-        return out.stream().mapToInt(Integer::intValue).toArray();
+        return out;
     }
 
     @Test
@@ -1015,12 +1040,12 @@ public class SimRobotTest {
 
             assertEquals(alliance + " scored", already + 1, sim.scored(alliance));
             assertEquals(SimRobot.PRELOAD - 1, sim.held());
-            double[] ball = sim.pieces()[PRELOADED];
+            double[] ball = sim.placeOf(thePreloadOf(sim));
             assertTrue(
                     alliance + "'s ball rests in the cell: " + ball[0] + ", " + ball[1] + ", " + ball[2],
                     within(sim, cell, ball));
             sim.step(1.0);
-            assertEquals("and stays there", ball[0], sim.pieces()[PRELOADED][0], DELTA);
+            assertEquals("and stays there", ball[0], sim.placeOf(thePreloadOf(sim))[0], DELTA);
         }
     }
 
@@ -1038,20 +1063,20 @@ public class SimRobotTest {
 
         assertEquals(already, sim.scored("Blue"));
         assertEquals(3, sim.scored("Red"));
-        double[] ball = sim.pieces()[PRELOADED];
+        double[] ball = sim.placeOf(thePreloadOf(sim));
         assertEquals("the ball fell to the floor", BALL, ball[2], DELTA);
     }
 
     @Test
     public void aBallInADownturnedCellRollsOutAndFallsToTheFloor() {
         SimField.Cell down = downturnedCell("Blue");
-        sim.placePiece(PRELOADED, down);
+        sim.place(thePreloadOf(sim), down);
         assertEquals("in the cell for now", 4, sim.scored("Blue"));
 
         sim.step(2.0);
 
         assertEquals("but not for long", 3, sim.scored("Blue"));
-        double[] ball = sim.pieces()[PRELOADED];
+        double[] ball = sim.placeOf(thePreloadOf(sim));
         assertEquals("it rolled out and fell to the floor", BALL, ball[2], DELTA);
         assertTrue("under the hive it fell out of: " + ball[0], ball[0] < down.mouthCentreAt(sim.tilt("Blue"))[0]);
     }
@@ -1069,17 +1094,17 @@ public class SimRobotTest {
     public void fiveNectarTipAHive() {
         emptyTheHive(sim, "Blue");
         double leaning = sim.tilt("Blue");
-        int[] nectar = ballsOf(SimField.NECTAR);
-        assertTrue("there is nectar enough to fill a hive", nectar.length >= 5);
+        List<SimRobot.Piece> nectar = ballsOf(sim, SimField.NECTAR);
+        assertTrue("there is nectar enough to fill a hive", nectar.size() >= 5);
 
         for (int i = 0; i < 4; i++) {
-            sim.placePiece(nectar[i], sim.upturnedCell("Blue"));
+            sim.place(nectar.get(i), sim.upturnedCell("Blue"));
         }
         sim.step(0.5);
         assertEquals("four fifths full is not full", leaning, sim.tilt("Blue"), DELTA);
         assertEquals(0.8, sim.load("Blue"), 0.001);
 
-        sim.placePiece(nectar[4], sim.upturnedCell("Blue"));
+        sim.place(nectar.get(4), sim.upturnedCell("Blue"));
         sim.step(0.5);
 
         assertEquals("the fifth fills it and it tips", -leaning, sim.tilt("Blue"), DELTA);
@@ -1089,16 +1114,16 @@ public class SimRobotTest {
     public void eightPollenTipAHive() {
         emptyTheHive(sim, "Blue");
         double leaning = sim.tilt("Blue");
-        int[] pollen = ballsOf(SimField.POLLEN);
+        List<SimRobot.Piece> pollen = ballsOf(sim, SimField.POLLEN);
 
         for (int i = 0; i < 7; i++) {
-            sim.placePiece(pollen[i], sim.upturnedCell("Blue"));
+            sim.place(pollen.get(i), sim.upturnedCell("Blue"));
         }
         sim.step(0.5);
         assertEquals("seven eighths full is not full", leaning, sim.tilt("Blue"), DELTA);
         assertEquals(0.875, sim.load("Blue"), 0.001);
 
-        sim.placePiece(pollen[7], sim.upturnedCell("Blue"));
+        sim.place(pollen.get(7), sim.upturnedCell("Blue"));
         sim.step(0.5);
 
         assertEquals("the eighth fills it and it tips", -leaning, sim.tilt("Blue"), DELTA);
@@ -1107,16 +1132,16 @@ public class SimRobotTest {
     @Test
     public void nectarAndPollenTogetherFillAHive() {
         double leaning = sim.tilt("Blue");
-        int[] pollen = ballsOf(SimField.POLLEN);
+        List<SimRobot.Piece> pollen = ballsOf(sim, SimField.POLLEN);
 
         for (int i = 0; i < 3; i++) {
-            sim.placePiece(pollen[i], sim.upturnedCell("Blue"));
+            sim.place(pollen.get(i), sim.upturnedCell("Blue"));
         }
         sim.step(0.5);
         assertEquals("three nectar and three pollen leave it just short", leaning, sim.tilt("Blue"), DELTA);
         assertEquals(0.975, sim.load("Blue"), 0.001);
 
-        sim.placePiece(pollen[3], sim.upturnedCell("Blue"));
+        sim.place(pollen.get(3), sim.upturnedCell("Blue"));
         sim.step(0.5);
 
         assertEquals("the fourth pollen fills it", -leaning, sim.tilt("Blue"), DELTA);
@@ -1126,12 +1151,12 @@ public class SimRobotTest {
     public void aHiveTipsBackWhenTheCellThatCameUpIsFilled() {
         emptyTheHive(sim, "Blue");
         double leaning = sim.tilt("Blue");
-        int[] pollen = ballsOf(SimField.POLLEN);
-        assertTrue("there is pollen enough to fill a hive", pollen.length >= 8);
+        List<SimRobot.Piece> pollen = ballsOf(sim, SimField.POLLEN);
+        assertTrue("there is pollen enough to fill a hive", pollen.size() >= 8);
 
         SimField.Cell first = sim.upturnedCell("Blue");
         for (int i = 0; i < 8; i++) {
-            sim.placePiece(pollen[i], first);
+            sim.place(pollen.get(i), first);
         }
         sim.step(3.0);
         assertEquals("the first eight tip it", -leaning, sim.tilt("Blue"), DELTA);
@@ -1139,25 +1164,25 @@ public class SimRobotTest {
         SimField.Cell second = sim.upturnedCell("Blue");
         assertTrue("the other cell is up now", second != first);
         for (int i = 0; i < 8; i++) {
-            sim.placePiece(pollen[i], second);
+            sim.place(pollen.get(i), second);
         }
         sim.step(3.0);
 
         assertEquals("the next eight tip it back", leaning, sim.tilt("Blue"), DELTA);
         assertTrue("the cell that was up first is up again", first == sim.upturnedCell("Blue"));
         assertEquals("nothing is left in the hive", 0, sim.scored("Blue"));
-        double[][] pieces = sim.pieces();
+        Map<SimRobot.Piece, double[]> pieces = whereEverythingIs();
         for (int i = 0; i < 8; i++) {
-            assertEquals("the pollen it held fell to the floor", BALL, pieces[pollen[i]][2], DELTA);
+            assertEquals("the pollen it held fell to the floor", BALL, pieces.get(pollen.get(i))[2], DELTA);
         }
     }
 
     @Test
     public void aHiveThatTipsDropsWhatWasInItAndHoldsUpItsOtherCell() {
         SimField.Cell was = sim.upturnedCell("Blue");
-        int[] pollen = ballsOf(SimField.POLLEN);
+        List<SimRobot.Piece> pollen = ballsOf(sim, SimField.POLLEN);
         for (int i = 0; i < 4; i++) {
-            sim.placePiece(pollen[i], was);
+            sim.place(pollen.get(i), was);
         }
 
         sim.step(3.0);
@@ -1167,14 +1192,12 @@ public class SimRobotTest {
         SimField.Cell now = sim.upturnedCell("Blue");
         assertTrue("the other cell is up now", now != was);
         assertEquals("the hive's cells swapped ends", was.hive, now.hive);
-        double[][] pieces = sim.pieces();
+        Map<SimRobot.Piece, double[]> pieces = whereEverythingIs();
         for (int i = 0; i < 4; i++) {
-            assertEquals("a pollen that was in it is on the floor", BALL, pieces[pollen[i]][2], DELTA);
+            assertEquals("a pollen that was in it is on the floor", BALL, pieces.get(pollen.get(i))[2], DELTA);
         }
-        for (int i = 0; i < SimRobot.FIELD.cellPieces.size(); i++) {
-            if (SimRobot.FIELD.cellPieces.get(i).alliance.equals("Blue")) {
-                assertEquals("so is the nectar it held", BALL_NECTAR, pieces[LOOSE + i][2], DELTA);
-            }
+        for (SimRobot.Piece nectarItHeld : setUpInACell(sim, "Blue")) {
+            assertEquals("so is the nectar it held", BALL_NECTAR, pieces.get(nectarItHeld)[2], DELTA);
         }
 
         SimRobot after = sim;
@@ -1189,7 +1212,7 @@ public class SimRobotTest {
         after.step(2.0);
 
         assertEquals("and the cell that came up takes a ball", 1, after.scored("Blue"));
-        assertTrue(within(after, now, after.pieces()[PRELOADED]));
+        assertTrue(within(after, now, after.placeOf(thePreloadOf(after))));
     }
 
     private static double rollOutAfterTheCut(SimRobot sim, DcMotor.ZeroPowerBehavior behavior) {
