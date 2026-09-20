@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chrome, serve, sim } from './bench.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 async function litPixels(png) {
   const page = await browser.newPage();
@@ -110,14 +113,16 @@ try {
   check(drawn > 1000, `only ${drawn} triangles were drawn in a frame; the field is loaded but not on screen`);
 
   const drawn2 = await page.evaluate(() => {
-    const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.fieldPage.floorZ };
+    const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.fieldPage.floorZ,
+                  fieldMeshes: 0, inScene: 0 };
     window.fieldPage.scene.traverse((o) => {
       if (!o.isMesh) {
         return;
       }
-      if (/field[\s_]panel|ftc[\s_]rail|side[\s_]glass/i.test(o.name)) {
-        out.walls++;
-      }
+      out.inScene++;
+
+      const names = [o.name].concat(o.userData.from || []);
+      out.walls += names.filter((name) => /field[\s_]panel|ftc[\s_]rail|side[\s_]glass/i.test(name)).length;
       if (/skin|side[\s_]glass/i.test(o.name)) {
         (o.material.transparent ? out.seeThrough : out.solidSeeThrough).push(o.name);
       }
@@ -128,10 +133,22 @@ try {
         out.tapeTop = out.tapeTop === null ? box.max.z : Math.max(out.tapeTop, box.max.z);
       }
     });
+    window.fieldPage.field.traverse((o) => {
+      if (o.isMesh) {
+        out.fieldMeshes++;
+      }
+    });
     return out;
   });
 
   check(drawn2.walls > 50, `only ${drawn2.walls} wall parts are in the scene; the field has no perimeter`);
+
+  check(drawn2.fieldMeshes * 4 < state.loaded.parts,
+      `the field model has ${state.loaded.parts} parts and the scene draws them as ${drawn2.fieldMeshes} `
+      + 'meshes; parts that share a material are not being batched, so a frame makes a draw call for each');
+  check(state.loaded.triangles === state.loaded.batchedTriangles,
+      `the model loaded ${state.loaded.triangles} triangles and the scene holds `
+      + `${state.loaded.batchedTriangles}; batching must lose none of them`);
 
   check(drawn2.seeThrough.length > 0, 'nothing in the scene is see-through');
   check(drawn2.solidSeeThrough.length === 0,

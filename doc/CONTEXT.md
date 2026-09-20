@@ -747,6 +747,16 @@ is the one renderer of it: the field page and the live view both build
 their picture from it and add their own. It needs the assets, so a page
 gets it only when it is served somewhere they resolve.
 
+**Batched by material** — The field's 305 parts share 11 materials, so the
+scene merges the geometry of the ones that share into a mesh apiece rather
+than drawing a part at a time. What cannot be merged says so by what is asked
+of it: a goal tag is read back by name to work out where it hangs, and
+anything that moves or hides on its own — a hive's parts, the tape, the game
+pieces — merges only within the group that moves it. A merged mesh keeps what
+it was made of in `userData.from`, so the scene can still be asked whether the
+perimeter is in it, and a merge that lost a triangle fails the load rather
+than drawing a field quietly missing parts.
+
 **What a frame costs** — What the field scene costs to draw, measured rather
 than guessed: `/sim/field?run=<id>&cost` takes the reading in whatever browser
 opens it, which is how a tablet is measured, and `node tools/browser/cost.mjs`

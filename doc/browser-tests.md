@@ -123,9 +123,42 @@ was.
 the colour pass only: five shadow-casting meshes report five calls whether the
 shadow pass runs or not, though the GPU drew them ten times. So the probe wraps
 the context's `drawElements` and `drawArrays` for one frame and counts what
-actually happens. The field scene makes **620 draws a frame with shadows and
-338 without** -- the shadow pass is nearly half the draw calls, which no number
-three.js reports would have said.
+actually happens. The shadow pass turned out to be nearly half of them, which
+no number three.js reports would have said.
+
+## Batching, and what it did and did not buy
+
+The field model has 305 parts and 11 materials, and it was drawn as 305
+meshes: a draw call for each, and another for each shadow caster. `fieldscene.js`
+now merges the geometry of every part that shares a material into one mesh,
+which took a frame from **620 draws to 164 with shadows, and 338 to 89
+without**, and the geometries on the GPU from 370 to 89. Not everything can
+merge: the goal tags are read back by name to work out where a tag hangs, and
+anything that has to move or be hidden by itself -- each hive's parts, the
+tape, the game pieces -- is merged only within the group that moves it. What a
+merged mesh was made of is kept in its `userData.from`, so the scene can still
+be asked whether the perimeter is in it.
+
+The triangles are unchanged, and a merge that lost any fails the load rather
+than drawing a field that is quietly missing parts.
+
+**It bought nothing measurable here, and that is the expected result.** Frame
+time on SwiftShader did not move: 161 ms before and 165 ms after with shadows,
+which is inside the noise. Software rasterising 266,539 triangles is what this
+machine spends a frame on, and issuing the draw calls was never the cost. What
+did move is the half of the reading that measures the CPU: submitting a frame
+went from 1.5 ms to 0.7 ms with shadows, and 0.9 ms to 0.5 ms without.
+
+That is the whole case for the change, and it is a case about a machine we
+cannot test on. A tablet's GPU rasterises this scene without noticing; what
+costs it is per-draw driver work, which is the number that fell. So the change
+is justified by the draw count and the submit time, not by a frame time -- and
+the frame time on a real device is still an open question that only a device
+can close.
+
+One trade-off comes with it: a merged mesh is culled as a whole, so a camera
+that used to cull individual parts may now draw them. At the field's size, with
+the whole field usually in view, nothing measurable changed.
 
 ## The budget
 

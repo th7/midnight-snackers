@@ -515,6 +515,7 @@ window.fieldPage = {
   camera: camera,
   controls: controls,
   floorZ: view.floor.position.z,
+  get field() { return view.field; },
   get loaded() { return loaded; },
   get drawnTriangles() { return renderer.info.render.triangles; },
   get problem() { return problem.textContent; },
