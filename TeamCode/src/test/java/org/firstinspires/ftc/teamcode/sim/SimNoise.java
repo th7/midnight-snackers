@@ -52,60 +52,66 @@ public final class SimNoise {
     public static final SimNoise NONE = new SimNoise(
             0,
             new Motor[] {TUNED, TUNED, TUNED, TUNED},
-            SimRobot.BATTERY_VOLTS,
-            0,
-            0,
+            new Battery(SimRobot.BATTERY_VOLTS, 0, 0),
             Double.POSITIVE_INFINITY,
-            0,
-            0,
-            SimRunner.LOOP_SECONDS,
-            0,
-            0);
+            new Placement(0, 0),
+            new Loop(SimRunner.LOOP_SECONDS, 0, 0));
+
+    public static final class Battery {
+        public final double freshVolts;
+        public final double sagVoltsPerPower;
+        public final double drainVoltsPerSecond;
+
+        public Battery(double freshVolts, double sagVoltsPerPower, double drainVoltsPerSecond) {
+            this.freshVolts = freshVolts;
+            this.sagVoltsPerPower = sagVoltsPerPower;
+            this.drainVoltsPerSecond = drainVoltsPerSecond;
+        }
+    }
+
+    public static final class Placement {
+        public final double inches;
+        public final double radians;
+
+        public Placement(double inches, double radians) {
+            this.inches = inches;
+            this.radians = radians;
+        }
+    }
+
+    public static final class Loop {
+        public final double seconds;
+        public final double spread;
+        public final double hiccupChance;
+
+        public Loop(double seconds, double spread, double hiccupChance) {
+            this.seconds = seconds;
+            this.spread = spread;
+            this.hiccupChance = hiccupChance;
+        }
+    }
 
     public final long seed;
     private final Motor[] motors;
 
-    public final double freshVolts;
-
-    public final double sagVoltsPerPower;
-    public final double drainVoltsPerSecond;
+    public final Battery battery;
 
     public final double tractionInPerS2;
 
-    public final double placementInches;
+    public final Placement placement;
 
-    public final double placementRadians;
-
-    public final double loopSeconds;
-
-    public final double loopSpread;
-    public final double hiccupChance;
+    public final Loop loop;
 
     private final Random draws;
 
     private SimNoise(
-            long seed,
-            Motor[] motors,
-            double freshVolts,
-            double sagVoltsPerPower,
-            double drainVoltsPerSecond,
-            double tractionInPerS2,
-            double placementInches,
-            double placementRadians,
-            double loopSeconds,
-            double loopSpread,
-            double hiccupChance) {
+            long seed, Motor[] motors, Battery battery, double tractionInPerS2, Placement placement, Loop loop) {
         this.seed = seed;
         this.motors = motors.clone();
-        this.freshVolts = freshVolts;
-        this.sagVoltsPerPower = sagVoltsPerPower;
-        this.drainVoltsPerSecond = drainVoltsPerSecond;
+        this.battery = battery;
         this.tractionInPerS2 = tractionInPerS2;
-        this.placementInches = placementInches;
-        this.placementRadians = placementRadians;
-        this.loopSeconds = loopSeconds;
-        this.loopSpread = loopSpread;
-        this.hiccupChance = hiccupChance;
+        this.placement = placement;
+        this.loop = loop;
         this.draws = new Random(seed);
     }
 
@@ -121,15 +127,10 @@ public final class SimNoise {
         return new SimNoise(
                 seed,
                 motors,
-                freshVolts,
-                SAG_VOLTS_PER_POWER,
-                DRAIN_VOLTS_PER_SECOND,
+                new Battery(freshVolts, SAG_VOLTS_PER_POWER, DRAIN_VOLTS_PER_SECOND),
                 traction,
-                PLACEMENT_INCHES,
-                PLACEMENT_RADIANS,
-                LOOP_SECONDS,
-                LOOP_SPREAD,
-                HICCUP_CHANCE);
+                new Placement(PLACEMENT_INCHES, PLACEMENT_RADIANS),
+                new Loop(LOOP_SECONDS, LOOP_SPREAD, HICCUP_CHANCE));
     }
 
     private static double spread(Random random) {
@@ -143,107 +144,41 @@ public final class SimNoise {
     public SimNoise withMotor(int wheel, Motor motor) {
         Motor[] replaced = motors.clone();
         replaced[wheel] = motor;
-        return new SimNoise(
-                seed,
-                replaced,
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
-                tractionInPerS2,
-                placementInches,
-                placementRadians,
-                loopSeconds,
-                loopSpread,
-                hiccupChance);
+        return new SimNoise(seed, replaced, battery, tractionInPerS2, placement, loop);
     }
 
     public SimNoise withMotors(Motor motor) {
-        return new SimNoise(
-                seed,
-                new Motor[] {motor, motor, motor, motor},
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
-                tractionInPerS2,
-                placementInches,
-                placementRadians,
-                loopSeconds,
-                loopSpread,
-                hiccupChance);
+        return new SimNoise(seed, new Motor[] {motor, motor, motor, motor}, battery, tractionInPerS2, placement, loop);
     }
 
-    public SimNoise withBattery(double freshVolts, double sagVoltsPerPower, double drainVoltsPerSecond) {
-        return new SimNoise(
-                seed,
-                motors,
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
-                tractionInPerS2,
-                placementInches,
-                placementRadians,
-                loopSeconds,
-                loopSpread,
-                hiccupChance);
+    public SimNoise withBattery(Battery battery) {
+        return new SimNoise(seed, motors, battery, tractionInPerS2, placement, loop);
     }
 
     public SimNoise withTraction(double inPerS2) {
-        return new SimNoise(
-                seed,
-                motors,
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
-                inPerS2,
-                placementInches,
-                placementRadians,
-                loopSeconds,
-                loopSpread,
-                hiccupChance);
+        return new SimNoise(seed, motors, battery, inPerS2, placement, loop);
     }
 
-    public SimNoise withPlacement(double inches, double radians) {
-        return new SimNoise(
-                seed,
-                motors,
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
-                tractionInPerS2,
-                inches,
-                radians,
-                loopSeconds,
-                loopSpread,
-                hiccupChance);
+    public SimNoise withPlacement(Placement placement) {
+        return new SimNoise(seed, motors, battery, tractionInPerS2, placement, loop);
     }
 
-    public SimNoise withLoop(double seconds, double spread, double hiccupChance) {
-        return new SimNoise(
-                seed,
-                motors,
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
-                tractionInPerS2,
-                placementInches,
-                placementRadians,
-                seconds,
-                spread,
-                hiccupChance);
+    public SimNoise withLoop(Loop loop) {
+        return new SimNoise(seed, motors, battery, tractionInPerS2, placement, loop);
     }
 
     public double batteryVolts(double seconds, double totalPower) {
-        return freshVolts - drainVoltsPerSecond * seconds - sagVoltsPerPower * totalPower;
+        return battery.freshVolts - battery.drainVoltsPerSecond * seconds - battery.sagVoltsPerPower * totalPower;
     }
 
     public Pose2d placed(Pose2d pose) {
-        if (placementInches == 0 && placementRadians == 0) {
+        if (placement.inches == 0 && placement.radians == 0) {
             return pose;
         }
         return new Pose2d(
-                pose.position.x + draws.nextGaussian() * placementInches,
-                pose.position.y + draws.nextGaussian() * placementInches,
-                pose.heading.toDouble() + draws.nextGaussian() * placementRadians);
+                pose.position.x + draws.nextGaussian() * placement.inches,
+                pose.position.y + draws.nextGaussian() * placement.inches,
+                pose.heading.toDouble() + draws.nextGaussian() * placement.radians);
     }
 
     @Override
@@ -261,25 +196,25 @@ public final class SimNoise {
                         + " placement +-%.2f in +-%.1f deg; loop %.0f ms spread %.2f hiccups %.0f%%",
                 seed,
                 motors,
-                freshVolts,
-                sagVoltsPerPower,
-                drainVoltsPerSecond,
+                battery.freshVolts,
+                battery.sagVoltsPerPower,
+                battery.drainVoltsPerSecond,
                 tractionInPerS2 / GRAVITY_IN_PER_S2,
-                placementInches,
-                Math.toDegrees(placementRadians),
-                loopSeconds * 1000,
-                loopSpread,
-                hiccupChance * 100);
+                placement.inches,
+                Math.toDegrees(placement.radians),
+                loop.seconds * 1000,
+                loop.spread,
+                loop.hiccupChance * 100);
     }
 
     public double nextLoopSeconds() {
-        if (loopSpread == 0 && hiccupChance == 0) {
-            return loopSeconds;
+        if (loop.spread == 0 && loop.hiccupChance == 0) {
+            return loop.seconds;
         }
-        if (draws.nextDouble() < hiccupChance) {
+        if (draws.nextDouble() < loop.hiccupChance) {
             return SHORTEST_HICCUP_SECONDS + draws.nextDouble() * (LONGEST_HICCUP_SECONDS - SHORTEST_HICCUP_SECONDS);
         }
-        double period = loopSeconds * Math.exp(draws.nextGaussian() * loopSpread);
+        double period = loop.seconds * Math.exp(draws.nextGaussian() * loop.spread);
         return Math.max(LEAST_LOOP_SECONDS, Math.min(SHORTEST_HICCUP_SECONDS, period));
     }
 }
