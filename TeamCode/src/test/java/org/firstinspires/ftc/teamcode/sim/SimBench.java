@@ -24,18 +24,63 @@ public final class SimBench {
     private static final String ASSETS_FROM_A_RUN = "../../assets/";
     private static final int LOG_LINES = 200;
 
-    private static final double STARTUP_SECONDS = 60;
-    private final double startupSeconds;
     private final Clock clock;
-    private static final double SILENCE_SECONDS = 5;
     private static final double CATALOG_SECONDS = 60;
     private static final long SILENCE_POLL_MILLIS = 100;
 
-    public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
+    /**
+     * How long a bench waits for each thing it waits for. Said once, by name, because five bare
+     * seconds in a row at a call site is five chances to give the wrong one to the wrong wait.
+     */
+    public static final class Waits {
+        /** An auto's budget, in simulated seconds. */
+        public final double runTimeout;
 
-    public static final double DEFAULT_TELEOP_SECONDS = 120;
+        /** A TeleOp's, which on the bench is a match's driver-controlled period. */
+        public final double teleOpPeriod;
 
-    public static final double DEFAULT_KILL_GRACE_SECONDS = 5;
+        /** How long after Stop the child has to end before it is killed. */
+        public final double killGrace;
+
+        /** How long the op mode's time has to begin, which a child JVM's loading is inside. */
+        public final double startup;
+
+        /** How long the child may say nothing at all mid-run before it is killed for hanging. */
+        public final double silence;
+
+        private Waits(double runTimeout, double teleOpPeriod, double killGrace, double startup, double silence) {
+            this.runTimeout = runTimeout;
+            this.teleOpPeriod = teleOpPeriod;
+            this.killGrace = killGrace;
+            this.startup = startup;
+            this.silence = silence;
+        }
+
+        /** What the bench waits for a person watching a run: a match's periods, and room to load. */
+        public static Waits ofTheBench() {
+            return new Waits(60, 120, 5, 60, 5);
+        }
+
+        public Waits runTimeout(double seconds) {
+            return new Waits(seconds, teleOpPeriod, killGrace, startup, silence);
+        }
+
+        public Waits teleOpPeriod(double seconds) {
+            return new Waits(runTimeout, seconds, killGrace, startup, silence);
+        }
+
+        public Waits killGrace(double seconds) {
+            return new Waits(runTimeout, teleOpPeriod, seconds, startup, silence);
+        }
+
+        public Waits startup(double seconds) {
+            return new Waits(runTimeout, teleOpPeriod, killGrace, seconds, silence);
+        }
+
+        public Waits silence(double seconds) {
+            return new Waits(runTimeout, teleOpPeriod, killGrace, startup, seconds);
+        }
+    }
 
     static final String START_POSES_FILE = "start-poses.json";
 
@@ -161,7 +206,7 @@ public final class SimBench {
         }
 
         double budgetSeconds() {
-            return entry.kind.equals(SimCatalog.TELEOP) ? teleOpSeconds : runTimeoutSeconds;
+            return entry.kind.equals(SimCatalog.TELEOP) ? waits.teleOpPeriod : waits.runTimeout;
         }
 
         synchronized boolean send(JsonObject line) {
@@ -192,9 +237,9 @@ public final class SimBench {
             }
             Thread grace = new Thread(
                     () -> {
-                        if (!process.endedWithin(killGraceSeconds)) {
+                        if (!process.endedWithin(waits.killGrace)) {
                             finish(
-                                    SimRunStream.Outcome.killedAfterStop(killGraceSeconds),
+                                    SimRunStream.Outcome.killedAfterStop(waits.killGrace),
                                     "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
                             process.kill();
                         }
@@ -221,86 +266,38 @@ public final class SimBench {
 
     private final SimSources sources;
     private final Path outputDir;
-    private final double runTimeoutSeconds;
-    private final double teleOpSeconds;
-    private final double killGraceSeconds;
+    private final Waits waits;
     private final Child children;
     private final StartPoses startPoses;
     private final List<Run> runs = new ArrayList<>();
     private SimBuild.Result lastCheck;
 
-    public SimBench(
-            SimCatalog fixedCatalog,
-            Path project,
-            Path outputDir,
-            double runTimeoutSeconds,
-            double teleOpSeconds,
-            double killGraceSeconds) {
-        this(fixedCatalog, project, outputDir, runTimeoutSeconds, teleOpSeconds, killGraceSeconds, new JvmChild());
+    public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits) {
+        this(fixedCatalog, project, outputDir, waits, new JvmChild());
     }
 
-    public SimBench(
-            SimCatalog fixedCatalog,
-            Path project,
-            Path outputDir,
-            double runTimeoutSeconds,
-            double teleOpSeconds,
-            double killGraceSeconds,
-            Child children) {
-        this(
-                fixedCatalog,
-                project,
-                outputDir,
-                runTimeoutSeconds,
-                teleOpSeconds,
-                killGraceSeconds,
-                children,
-                STARTUP_SECONDS);
+    public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits, Child children) {
+        this(sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock());
     }
 
-    public SimBench(
-            SimCatalog fixedCatalog,
-            Path project,
-            Path outputDir,
-            double runTimeoutSeconds,
-            double teleOpSeconds,
-            double killGraceSeconds,
-            Child children,
-            double startupSeconds) {
-        this(
-                fixedCatalog,
-                project,
-                outputDir,
-                runTimeoutSeconds,
-                teleOpSeconds,
-                killGraceSeconds,
-                children,
-                startupSeconds,
-                new SystemClock());
-    }
-
-    public SimBench(
-            SimCatalog fixedCatalog,
-            Path project,
-            Path outputDir,
-            double runTimeoutSeconds,
-            double teleOpSeconds,
-            double killGraceSeconds,
-            Child children,
-            double startupSeconds,
-            Clock clock) {
+    private static SimSources sourcesOf(SimCatalog fixedCatalog, Path project, Path outputDir) {
         if ((fixedCatalog == null) == (project == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
-        this.sources = fixedCatalog != null
+        return fixedCatalog != null
                 ? SimSources.ofThisClasspath(fixedCatalog)
                 : SimSources.ofTheProjectAt(project, outputDir);
+    }
+
+    /**
+     * A bench over whatever it is that builds and starts: the classpath this JVM runs on, a project
+     * on disk, or -- in a test of the bench itself -- something that need do neither.
+     */
+    public SimBench(SimSources sources, Path outputDir, Waits waits, Child children, Clock clock) {
+        this.sources = sources;
         this.outputDir = outputDir;
-        this.runTimeoutSeconds = runTimeoutSeconds;
-        this.teleOpSeconds = teleOpSeconds;
-        this.killGraceSeconds = killGraceSeconds;
+        this.waits = waits;
         this.children = children;
-        this.startupSeconds = startupSeconds;
         this.clock = clock;
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
     }
@@ -598,10 +595,10 @@ public final class SimBench {
         Thread watchdog = new Thread(
                 () -> {
                     try {
-                        if (!started.await((long) (startupSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                        if (!started.await((long) (waits.startup * 1000), TimeUnit.MILLISECONDS)) {
                             if (child.alive()) {
                                 run.finish(
-                                        SimRunStream.Outcome.killed(startupSeconds, "the op mode never started"),
+                                        SimRunStream.Outcome.killed(waits.startup, "the op mode never started"),
                                         "the child JVM never said the op mode had started; it was killed");
                                 child.kill();
                             }
@@ -609,9 +606,9 @@ public final class SimBench {
                         }
                         while (child.alive() && run.outcome() == null) {
                             double silentSeconds = (clock.nanos() - lastHeardNanos.get()) / 1e9;
-                            if (silentSeconds > SILENCE_SECONDS) {
+                            if (silentSeconds > waits.silence) {
                                 run.finish(
-                                        SimRunStream.Outcome.killed(SILENCE_SECONDS, "the op mode did not return"),
+                                        SimRunStream.Outcome.killed(waits.silence, "the op mode did not return"),
                                         "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
                                 child.kill();
                                 return;

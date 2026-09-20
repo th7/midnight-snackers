@@ -10,7 +10,6 @@ import static org.junit.Assert.fail;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
-import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +34,16 @@ public class SimBenchTest {
     private static final double TIMEOUT_SECONDS = 2;
     private static final double TELEOP_SECONDS = 30;
     private static final double GRACE_SECONDS = 1;
+
+    /**
+     * What a bench waits in a test: a run's budget and a match's period cut to something a test can
+     * sit through, and a silence short enough that a hung op mode is caught while the test watches.
+     */
+    private static final SimBench.Waits WAITS = SimBench.Waits.ofTheBench()
+            .runTimeout(TIMEOUT_SECONDS)
+            .teleOpPeriod(TELEOP_SECONDS)
+            .killGrace(GRACE_SECONDS)
+            .silence(0.5);
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -129,8 +138,7 @@ public class SimBenchTest {
 
     @Test
     public void aRunsLineWaitsForWhoeverIsChangingTheRun() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         SimBench.Run run =
                 bench.new Run(1, bench.catalog().find("Count to three").get(), "ada", null, null);
         CountDownLatch asking = new CountDownLatch(1);
@@ -161,8 +169,7 @@ public class SimBenchTest {
 
     @Test
     public void aRunThroughTheChildEndsDoneWithItsTicksAndReplay() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
@@ -177,7 +184,7 @@ public class SimBenchTest {
 
     @Test
     public void anOpModeWhoseLoopNeverReturnsIsKilled() throws Exception {
-        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), WAITS.runTimeout(0.3));
         long startedAt = System.nanoTime();
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Hangs").get(), "ada"));
@@ -189,8 +196,9 @@ public class SimBenchTest {
         assertNull(bench.current());
     }
 
+    /** An op mode that takes longer to register than the run it registers is given to finish. */
     public static class SlowRegistrar {
-        public static final double SECONDS = 1.5;
+        public static final double SECONDS = 0.6;
 
         @OpModeRegistrar
         public static void register(OpModeManager manager) {
@@ -211,31 +219,17 @@ public class SimBenchTest {
 
     @Test
     public void theRunsTimeStartsWhenTheOpModeDoesNotWhenTheChildJvmDoes() throws Exception {
-        bench = new SimBench(SimCatalog.of(SlowRegistrar.class), null, outputDir(), 0.3, TELEOP_SECONDS, GRACE_SECONDS);
+        double budget = 0.3;
+        assertTrue(
+                "the registrar must take longer than the run is given, or a run whose clock started at"
+                        + " the child JVM would time out for the right answer by accident",
+                SlowRegistrar.SECONDS > budget);
+        bench = new SimBench(SimCatalog.of(SlowRegistrar.class), null, outputDir(), WAITS.runTimeout(budget));
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Slow to start").get(), "ada"));
 
-        assertTrue(run.outcome(), run.outcome().startsWith("timed out after 0.3s"));
-    }
-
-    @Test
-    public void aCompileErrorIsTheRunsOutcomeAndTheCatalogsToo() throws Exception {
-        Path project = projectWith(
-                folder.getRoot().toPath(), tempPlans(2).replace("private int loops = 0;", "private int loops = ;"));
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
-
-        try {
-            bench.catalog();
-            fail("a catalog cannot be listed from sources that do not compile");
-        } catch (SimBench.BuildFailed e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Plans.java:" + TEMP_LOOPS_LINE));
-        }
-        SimBench.Run run =
-                await(bench.start(new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null), "ada"));
-        assertEquals("build failed", run.outcome());
-        assertTrue(run.message(), run.message().contains("Plans.java:" + TEMP_LOOPS_LINE));
-        assertEquals(0, run.ticks().size());
+        assertTrue(run.outcome(), run.outcome().startsWith("timed out after " + budget + "s"));
     }
 
     @Test
@@ -243,7 +237,7 @@ public class SimBenchTest {
         Path project = folder.getRoot().toPath();
         sourceRootWith(project, tempPlans(2));
         try {
-            bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+            bench = new SimBench(null, project, outputDir(), WAITS);
             fail("without a simulator of its own the child would run this server's, built for other robot sources");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("simulator"));
@@ -263,7 +257,7 @@ public class SimBenchTest {
                 SIM_CHILD,
                 "System.setOut(System.err);",
                 "System.setOut(System.err);\n        System.err.println(\"this project's simulator\");");
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
+        bench = new SimBench(null, project, outputDir(), WAITS.teleOpPeriod(0.3));
 
         assertTrue(bench.catalog().find("BlueTeleOp").isPresent());
         SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
@@ -273,50 +267,10 @@ public class SimBenchTest {
     }
 
     @Test
-    public void aProjectWhoseSimulatorDoesNotFitItsRobotFailsTheBuildNamingTheSeam() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-
-        edit(project, HARDWARE, "public static Builder builder()", "private static Builder builder()");
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
-
-        try {
-            bench.catalog();
-            fail("a catalog cannot be listed for a simulator that does not fit the sources");
-        } catch (SimBench.BuildFailed e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("does not fit"));
-            assertTrue(e.getMessage(), e.getMessage().contains("sim/SimDevices.java"));
-        }
-        SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
-        assertEquals(run.message(), "build failed", run.outcome());
-        assertTrue(run.message(), run.message().contains("sim/SimDevices.java"));
-        assertEquals(0, run.ticks().size());
-    }
-
-    @Test
-    public void aChildThatCannotListTheOpModesSaysWhatItPrinted() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        edit(
-                project,
-                SIM_CHILD,
-                "            protocol.println(GSON.toJson(catalog(args, 1).toJson()));",
-                "            if (args.length > 0) throw new IllegalStateException(\"no catalog today\");");
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
-
-        try {
-            bench.catalog();
-            fail("a catalog cannot be listed by a child that dies first");
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("did not list the op modes"));
-            assertTrue(e.getMessage(), e.getMessage().contains("no catalog today"));
-            assertTrue(e.getMessage(), e.getMessage().contains("exit"));
-        }
-    }
-
-    @Test
     public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
         Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/BlueTeleOp.java"));
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(null, project, outputDir(), WAITS);
 
         SimCatalog catalog = bench.catalog();
 
@@ -326,58 +280,9 @@ public class SimBenchTest {
                 catalog.find("BlueTeleOp").isPresent());
     }
 
-    static void placesItself(Path project) throws IOException {
-        edit(
-                project,
-                SIM_CHILD,
-                "driverStation.awaitPlacement()",
-                "java.util.Optional.of(new com.acmerobotics.roadrunner.Pose2d(0, 0, 0))");
-    }
-
-    @Test
-    public void aChildThatPrintsNoHelloIsAVersionOneChildAndStillRuns() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        edit(project, SIM_CHILD, "protocol.println(SimRunStream.hello());", "");
-        placesItself(project);
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-        exactRobot("BlueTeleOp");
-
-        assertTrue(bench.catalog().find("BlueTeleOp").isPresent());
-        SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
-
-        assertEquals(run.message() + "\n" + run.log(), "done", run.outcome());
-        assertTrue(run.ticks().size() > 0);
-        assertEquals(0, run.ticks().get(0).getAsJsonObject().get("x").getAsDouble(), 0.001);
-    }
-
-    @Test
-    public void aChildFromBeforePlacementRunsFromTheOriginAndIsRefusedAnywhereElse() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        int before = SimRunStream.PLACED_PROTOCOL - 1;
-        edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + before + ";");
-        placesItself(project);
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-        exactRobot("BlueTeleOp");
-
-        SimBench.Run atTheOrigin = await(bench.start(BLUE_TELEOP, "ada"));
-        assertEquals(atTheOrigin.message() + "\n" + atTheOrigin.log(), "done", atTheOrigin.outcome());
-        assertTrue(atTheOrigin.ticks().size() > 0);
-
-        assertEquals(
-                200, routes().handle(put("/start?opmode=BlueTeleOp", "{\"x\": 24, \"y\": 0, \"heading\": 0}")).status);
-        SimBench.Run elsewhere = await(bench.start(BLUE_TELEOP, "ada"));
-
-        assertEquals(SimRunStream.Outcome.cannotPlace(before), elsewhere.outcome());
-        assertTrue(elsewhere.message(), elsewhere.message().toLowerCase().contains("pull"));
-        assertTrue(elsewhere.message(), elsewhere.message().contains("protocol " + before));
-        assertEquals(0, elsewhere.ticks().size());
-        assertNull(bench.current());
-    }
-
     @Test
     public void eachOpModeHasASeedTheCatalogShowsAndARouteSets() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         String opMode = "opmode=" + encode("Count to three");
 
         assertEquals("{\"seed\":1}", routes().handle(get("/seed?" + opMode)).body);
@@ -404,71 +309,33 @@ public class SimBenchTest {
 
     @Test
     public void aRunIsMadeOnTheOpModesSeedAndSaysSo() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
+        bench = benchOverAChild(child);
         SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
         assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": 5}")).status);
 
         SimBench.Run seeded = await(bench.start(entry, "ada"));
         assertEquals(Long.valueOf(5), seeded.seed);
         assertEquals("done", seeded.outcome());
-        assertTrue(seeded.log(), seeded.log().contains(SimNoise.seeded(5).toString()));
+        assertEquals(
+                "the seed is on the start line",
+                5,
+                theStartLineIn(child).get("seed").getAsLong());
         assertTrue(bench.status(), bench.status().contains("\"seed\":5"));
 
         assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": null}")).status);
         SimBench.Run exact = await(bench.start(entry, "ada"));
         assertNull(exact.seed);
-        assertTrue(exact.log(), exact.log().contains(SimNoise.NONE.toString()));
+        assertFalse(
+                "the exact robot is a start line with no seed at all",
+                theStartLineIn(child).has("seed"));
         assertTrue(bench.status(), bench.status().contains("\"seed\":null"));
-    }
-
-    @Test
-    public void aChildFromBeforeTheSeedRunsTheExactRobotAndIsRefusedASeed() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        int before = SimRunStream.SEEDED_PROTOCOL - 1;
-        edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + before + ";");
-        edit(project, SIM_CHILD, "driverStation.seed()", "null");
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-        assertEquals(200, routes().handle(put("/seed?opmode=BlueTeleOp", "{\"seed\": null}")).status);
-
-        SimBench.Run exact = await(bench.start(BLUE_TELEOP, "ada"));
-        assertEquals(exact.message() + "\n" + exact.log(), "done", exact.outcome());
-        assertTrue(exact.ticks().size() > 0);
-
-        assertEquals(200, routes().handle(put("/seed?opmode=BlueTeleOp", "{\"seed\": 3}")).status);
-        SimBench.Run seeded = await(bench.start(BLUE_TELEOP, "ada"));
-
-        assertEquals(SimRunStream.Outcome.cannotSeed(before), seeded.outcome());
-        assertTrue(seeded.message(), seeded.message().toLowerCase().contains("pull"));
-        assertTrue(seeded.message(), seeded.message().contains("protocol " + before));
-        assertEquals(0, seeded.ticks().size());
-        assertNull(bench.current());
-    }
-
-    @Test
-    public void aChildOfAnotherProtocolIsRefusedByNameNotMisread() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        int newer = SimRunStream.PROTOCOL + 1;
-        edit(project, SIM_RUN_STREAM, "PROTOCOL = " + SimRunStream.PROTOCOL + ";", "PROTOCOL = " + newer + ";");
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-
-        try {
-            bench.catalog();
-            fail("a catalog printed in a protocol this server cannot read must not be listed");
-        } catch (SimRunStream.WrongProtocol e) {
-            assertEquals(newer, e.childProtocol);
-        }
-        SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
-        assertEquals(run.message(), SimRunStream.Outcome.wrongProtocol(newer), run.outcome());
-        assertTrue(run.message(), run.message().contains("protocol " + newer));
-        assertTrue(run.message(), run.message().contains("server"));
-        assertEquals(0, run.ticks().size());
     }
 
     @Test
     public void savedEditsTakeEffectOnTheNextRunWithoutARestart() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempPlans(2));
-        bench = new SimBench(null, project, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(null, project, outputDir(), WAITS);
         SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
         assertEquals("Test", temp.group);
         assertEquals("Plans.temp()", temp.where);
@@ -485,7 +352,7 @@ public class SimBenchTest {
     @Test
     public void checkCompilesWithoutRunningAndNeverUnderARun() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempPlans(100000));
-        bench = new SimBench(null, project, outputDir(), 1.0, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(null, project, outputDir(), WAITS.runTimeout(1.0));
         assertTrue(bench.check().problems.isEmpty());
         assertNull("nothing ran", bench.current());
         SimBench.Run run = bench.start(new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null), "ada");
@@ -506,8 +373,7 @@ public class SimBenchTest {
 
     @Test
     public void theLiveViewIsOnlyEverServedWhereItsOwnRelativeFetchesResolve() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = benchOverAChild(aChildSpeaking(SimRunStream.PROTOCOL));
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
 
@@ -529,20 +395,8 @@ public class SimBenchTest {
         }
     }
 
-    private SimBench benchWith(FakeChild child, double graceSeconds) {
-        return benchWith(child, graceSeconds, 60);
-    }
-
-    private SimBench benchWith(FakeChild child, double graceSeconds, double startupSeconds) {
-        return new SimBench(
-                SimCatalog.of(TestTeleOps.StickTeleOp.class),
-                null,
-                outputDir(),
-                TIMEOUT_SECONDS,
-                TELEOP_SECONDS,
-                graceSeconds,
-                child,
-                startupSeconds);
+    private SimBench benchWith(FakeChild child, SimBench.Waits waits) {
+        return new SimBench(SimCatalog.of(TestTeleOps.StickTeleOp.class), null, outputDir(), waits, child);
     }
 
     @Test
@@ -550,14 +404,10 @@ public class SimBenchTest {
         FakeChild child =
                 FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started()).thatStaysAliveSayingNothingMore();
         bench = new SimBench(
-                SimCatalog.of(TestTeleOps.StickTeleOp.class),
-                null,
+                SimSources.ofThisClasspath(SimCatalog.of(TestTeleOps.StickTeleOp.class)),
                 outputDir(),
-                TIMEOUT_SECONDS,
-                TELEOP_SECONDS,
-                GRACE_SECONDS,
+                WAITS,
                 child,
-                60,
                 new FakeClock());
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
@@ -568,7 +418,7 @@ public class SimBenchTest {
 
     @Test
     public void aChildThatCannotBeStartedEndsTheRunSayingSo() throws Exception {
-        bench = benchWith(new FakeChild().thatWillNotStart("no java on this machine"), GRACE_SECONDS);
+        bench = benchWith(new FakeChild().thatWillNotStart("no java on this machine"), WAITS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
 
@@ -579,7 +429,7 @@ public class SimBenchTest {
     @Test
     public void aChildThatNeverSaysTheOpModeStartedIsKilledForNeverStarting() throws Exception {
         bench = benchWith(
-                FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore(), GRACE_SECONDS, 0.3);
+                FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore(), WAITS.startup(0.3));
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
 
@@ -592,7 +442,7 @@ public class SimBenchTest {
         FakeChild child = FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started())
                 .thatStaysAliveSayingNothingMore()
                 .thatIgnoresStop();
-        bench = benchWith(child, 0.2);
+        bench = benchWith(child, WAITS.killGrace(0.2));
         SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada");
         awaitRunning(run);
 
@@ -604,18 +454,205 @@ public class SimBenchTest {
                 child.whatItWasTold().toString(), child.whatItWasTold().stream().anyMatch(t -> t.contains("stop")));
     }
 
+    /**
+     * A bench over sources that need neither a project on disk nor a compile, and a child that need
+     * not be a JVM. What a real build does with real sources is SimBuildTest's and what a real child
+     * prints is SimChildTest's; what this holds is what the bench does with either.
+     */
+    private SimBench benchOver(SimSources sources, Child child) {
+        return new SimBench(sources, outputDir(), WAITS, child, new SystemClock());
+    }
+
+    private SimBench benchOverAChild(FakeChild child) {
+        return benchOver(FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)), child);
+    }
+
+    /** A child of that protocol, printing its hello and then a whole run: started, a tick, done. */
+    private static FakeChild aChildSpeaking(int protocol) {
+        return FakeChild.thatSays(
+                SimRunStream.helloOf(protocol),
+                SimRunStream.started(),
+                aTickLine(),
+                SimRunStream.finished(SimRunStream.Outcome.done()));
+    }
+
+    /** A tick as a child writes one, through the same writer a child writes it with. */
+    private static String aTickLine() {
+        return SimRunStream.tick(SimRecording.Tick.at(0.02, StartPoses.ORIGIN, "", new double[] {0, 0, 0, 0}, List.of())
+                .tick());
+    }
+
+    private static boolean aStartLineIsIn(FakeChild child) {
+        return child.whatItWasTold().stream().anyMatch(told -> told.contains("\"start\""));
+    }
+
+    /** The newest line placing the child, which is how the bench starts every run. */
+    private static com.google.gson.JsonObject theStartLineIn(FakeChild child) {
+        com.google.gson.JsonObject newest = null;
+        for (String told : child.whatItWasTold()) {
+            com.google.gson.JsonObject line = json(told);
+            if (line.has("start")) {
+                newest = line;
+            }
+        }
+        if (newest == null) {
+            throw new AssertionError("the child was never placed; it was told " + child.whatItWasTold());
+        }
+        return newest;
+    }
+
+    @Test
+    public void aBuildThatFailsIsTheRunsOutcomeAndTheCatalogsToo() throws Exception {
+        for (String diagnostics : List.of(
+                "Plans.java:" + TEMP_LOOPS_LINE + ": illegal start of expression",
+                SimBuild.SIMULATOR_DOES_NOT_FIT + "\nsimulator sim/SimDevices.java:41: builder() is not public")) {
+            FakeChild child = new FakeChild();
+            bench = benchOver(
+                    FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)).thatWillNotBuild(diagnostics), child);
+
+            try {
+                bench.catalog();
+                fail("a catalog cannot be listed from sources that do not build");
+            } catch (SimBench.BuildFailed e) {
+                assertEquals(diagnostics, e.getMessage());
+            }
+            SimBench.Run run =
+                    await(bench.start(new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null), "ada"));
+
+            assertEquals("build failed", run.outcome());
+            assertEquals(diagnostics, run.message());
+            assertEquals(0, run.ticks().size());
+            assertEquals(
+                    "no child is started for sources that will not build", List.of(), child.whatItWasStartedWith());
+            bench.stop();
+        }
+    }
+
+    @Test
+    public void aChildThatCannotListTheOpModesSaysWhatItPrinted() {
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello())
+                .thatPrints("no catalog today")
+                .thatExitsWith(1);
+        bench = benchOver(FakeSources.askingTheChild(), child);
+
+        try {
+            bench.catalog();
+            fail("a catalog cannot be listed by a child that dies first");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("did not list the op modes"));
+            assertTrue(e.getMessage(), e.getMessage().contains("no catalog today"));
+            assertTrue(e.getMessage(), e.getMessage().contains("exit"));
+        }
+    }
+
+    @Test
+    public void aChildThatPrintsNoHelloIsAVersionOneChildAndStillRuns() throws Exception {
+        FakeChild child = FakeChild.thatSays(aTickLine(), SimRunStream.finished(SimRunStream.Outcome.done()));
+        bench = benchOverAChild(child);
+        exactRobot("Count to three");
+
+        SimBench.Run run =
+                await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
+
+        assertEquals(run.message(), "done", run.outcome());
+        assertEquals("its first line was content, not a hello", 1, run.ticks().size());
+        assertFalse("a version-one child places itself, so it is told nothing", aStartLineIsIn(child));
+    }
+
+    @Test
+    public void aChildFromBeforePlacementRunsFromTheOriginAndIsRefusedAnywhereElse() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.PLACED_PROTOCOL - 1);
+        bench = benchOverAChild(child);
+        exactRobot("Count to three");
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+
+        SimBench.Run atTheOrigin = await(bench.start(entry, "ada"));
+        assertEquals(atTheOrigin.message(), "done", atTheOrigin.outcome());
+        assertTrue(atTheOrigin.ticks().size() > 0);
+        assertFalse("it places itself, so it is told nothing", aStartLineIsIn(child));
+
+        assertEquals(
+                200,
+                routes().handle(put(
+                                "/start?opmode=" + encode("Count to three"), "{\"x\": 24, \"y\": 0, \"heading\": 0}"))
+                        .status);
+        SimBench.Run elsewhere = await(bench.start(entry, "ada"));
+
+        assertEquals(SimRunStream.Outcome.cannotPlace(SimRunStream.PLACED_PROTOCOL - 1), elsewhere.outcome());
+        assertTrue(elsewhere.message(), elsewhere.message().toLowerCase().contains("pull"));
+        assertTrue(elsewhere.message(), elsewhere.message().contains("protocol " + (SimRunStream.PLACED_PROTOCOL - 1)));
+        assertEquals(0, elsewhere.ticks().size());
+        assertNull(bench.current());
+    }
+
+    @Test
+    public void aChildFromBeforeTheSeedRunsTheExactRobotAndIsRefusedASeed() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.SEEDED_PROTOCOL - 1);
+        bench = benchOverAChild(child);
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+        exactRobot("Count to three");
+
+        SimBench.Run exact = await(bench.start(entry, "ada"));
+        assertEquals(exact.message(), "done", exact.outcome());
+        assertTrue(exact.ticks().size() > 0);
+
+        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": 3}")).status);
+        SimBench.Run seeded = await(bench.start(entry, "ada"));
+
+        assertEquals(SimRunStream.Outcome.cannotSeed(SimRunStream.SEEDED_PROTOCOL - 1), seeded.outcome());
+        assertTrue(seeded.message(), seeded.message().toLowerCase().contains("pull"));
+        assertTrue(seeded.message(), seeded.message().contains("protocol " + (SimRunStream.SEEDED_PROTOCOL - 1)));
+        assertEquals(0, seeded.ticks().size());
+        assertNull(bench.current());
+    }
+
+    @Test
+    public void aChildOfANewerProtocolIsRefusedByNameNotMisread() throws Exception {
+        int newer = SimRunStream.PROTOCOL + 1;
+        bench = benchOver(FakeSources.askingTheChild(), aChildSpeaking(newer));
+
+        try {
+            bench.catalog();
+            fail("a catalog printed in a protocol this server cannot read must not be listed");
+        } catch (SimRunStream.WrongProtocol e) {
+            assertEquals(newer, e.childProtocol);
+        }
+        SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada"));
+
+        assertEquals(run.message(), SimRunStream.Outcome.wrongProtocol(newer), run.outcome());
+        assertTrue(run.message(), run.message().contains("protocol " + newer));
+        assertTrue(run.message(), run.message().contains("server"));
+        assertEquals(0, run.ticks().size());
+    }
+
+    @Test
+    public void aRunIsGivenTheBudgetOfSimulatedTimeItsKindHas() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
+        bench = benchOver(FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class, StickTeleOp.class)), child);
+
+        await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
+        assertEquals(
+                "an auto is given the run timeout",
+                List.of("--run", "Count to three", String.valueOf(TIMEOUT_SECONDS)),
+                child.theLastStart().subList(0, 3));
+
+        await(bench.start(bench.catalog().find("Stick").get(), "ada"));
+        assertEquals(
+                "a TeleOp is given a match's driver-controlled period",
+                List.of("--run", "Stick", String.valueOf(TELEOP_SECONDS)),
+                child.theLastStart().subList(0, 3));
+    }
+
     @Test
     public void aBenchWithoutSourcesHasNothingToCheck() {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
 
         assertNull(bench.check());
     }
 
     @Test
     public void aTeleOpRunDrivesFromGamepadPostsAndStopEndsIt() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(StickTeleOp.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), WAITS);
         SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada");
         awaitRunning(run);
 
@@ -652,24 +689,9 @@ public class SimBenchTest {
     }
 
     @Test
-    public void aTeleOpRunEndsDoneWhenItsPeriodIsOver() throws Exception {
-        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), TIMEOUT_SECONDS, 0.3, GRACE_SECONDS);
-
-        SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
-
-        assertEquals("done", run.outcome());
-        assertTrue(run.ticks().size() > 1);
-    }
-
-    @Test
     public void aRunIsNotKilledForTakingLongerInRealTimeThanItsPeriodLastsInSimulatedTime() throws Exception {
         bench = new SimBench(
-                SimCatalog.of(TestTeleOps.SlowMachineTeleOp.class),
-                null,
-                outputDir(),
-                TIMEOUT_SECONDS,
-                0.3,
-                GRACE_SECONDS);
+                SimCatalog.of(TestTeleOps.SlowMachineTeleOp.class), null, outputDir(), WAITS.teleOpPeriod(0.3));
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Slow machine").get(), "ada"));
@@ -680,8 +702,7 @@ public class SimBenchTest {
 
     @Test
     public void stopEndsAnAutoRunToo() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(TestAutos.NeverDoneAuto.class), null, outputDir(), 30, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(TestAutos.NeverDoneAuto.class), null, outputDir(), WAITS.runTimeout(30));
         SimBench.Run run = bench.start(bench.catalog().find("Never done").get(), "ada");
         awaitRunning(run);
         long startedAt = System.nanoTime();
@@ -724,8 +745,7 @@ public class SimBenchTest {
 
     @Test
     public void anOpModeNobodyHasAndAMethodTheRouteDoesNotTakeAreRefused() {
-        bench = new SimBench(
-                SimCatalog.of(HangingAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), WAITS);
 
         assertEquals(404, routes().handle(post("/run?opmode=org.example.Nope", "")).status);
         assertEquals(405, routes().handle(get("/run?opmode=" + TEMP_NAME)).status);
@@ -768,14 +788,10 @@ public class SimBenchTest {
     }
 
     @Test
-    public void theStartPoseIsRememberedPerOpModeAndTheRunStartsThere() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class, TestAutos.NeverDoneAuto.class),
-                null,
-                outputDir(),
-                TIMEOUT_SECONDS,
-                TELEOP_SECONDS,
-                GRACE_SECONDS);
+    public void theStartPoseIsRememberedPerOpModeAndTheRunIsPlacedThere() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
+        bench = benchOver(
+                FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class, TestAutos.NeverDoneAuto.class)), child);
         Response before = routes().handle(get("/start?opmode=" + encode("Count to three")));
         assertEquals(before.body, 200, before.status);
         assertEquals(ORIGIN, before.body);
@@ -794,25 +810,22 @@ public class SimBenchTest {
                 ORIGIN,
                 routes().handle(get("/start?opmode=" + encode("Never done"))).body);
 
-        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Count to three"), "{\"seed\": null}")).status);
-        assertEquals(200, routes().handle(put("/seed?opmode=" + encode("Never done"), "{\"seed\": null}")).status);
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Count to three").get(), "ada"));
         assertEquals(run.message(), "done", run.outcome());
-        com.google.gson.JsonObject first = run.ticks().get(0).getAsJsonObject();
-        assertEquals(-60, first.get("x").getAsDouble(), 0.001);
-        assertEquals(limitAt(1.5), first.get("y").getAsDouble(), 0.001);
-        assertEquals(1.5, first.get("heading").getAsDouble(), 0.001);
-        com.google.gson.JsonObject origin = await(
-                        bench.start(bench.catalog().find("Never done").get(), "ada"))
-                .ticks()
-                .get(0)
-                .getAsJsonObject();
-        assertEquals(0, origin.get("x").getAsDouble(), 0.001);
+        com.google.gson.JsonObject start = theStartLineIn(child).getAsJsonObject("start");
+        assertEquals(
+                "the child is placed where the op mode was", -60, start.get("x").getAsDouble(), 0.001);
+        assertEquals(limitAt(1.5), start.get("y").getAsDouble(), 0.001);
+        assertEquals(1.5, start.get("heading").getAsDouble(), 0.001);
+
+        await(bench.start(bench.catalog().find("Never done").get(), "ada"));
+        com.google.gson.JsonObject elsewhere = theStartLineIn(child).getAsJsonObject("start");
+        assertEquals(
+                "another op mode starts at its own pose", 0, elsewhere.get("x").getAsDouble(), 0.001);
 
         bench.stop();
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = benchOverAChild(aChildSpeaking(SimRunStream.PROTOCOL));
         assertEquals(
                 "remembered across a restart",
                 placed.body,
@@ -821,8 +834,7 @@ public class SimBenchTest {
 
     @Test
     public void aStartThatIsNotAPoseIsRefusedAndNothingIsRemembered() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         String start = "/start?opmode=" + encode("Count to three");
 
         assertEquals(400, routes().handle(put("/start", ORIGIN)).status);
@@ -839,8 +851,7 @@ public class SimBenchTest {
 
     @Test
     public void thePlacementPageShowsTheRobotWhereTheRunWillStart() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), TIMEOUT_SECONDS, TELEOP_SECONDS, GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         routes().handle(put("/start?opmode=" + encode("Count to three"), "{\"x\": 12, \"y\": -6, \"heading\": 0.5}"));
 
         Response page = routes().handle(get("/place?opmode=" + encode("Count to three")));
@@ -854,13 +865,7 @@ public class SimBenchTest {
 
     @Test
     public void theLogKeepsWhatTheChildWroteToStderr() throws Exception {
-        bench = new SimBench(
-                SimCatalog.of(TestAutos.ChattyAuto.class),
-                null,
-                outputDir(),
-                TIMEOUT_SECONDS,
-                TELEOP_SECONDS,
-                GRACE_SECONDS);
+        bench = new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, outputDir(), WAITS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Chatty").get(), "ada"));
 

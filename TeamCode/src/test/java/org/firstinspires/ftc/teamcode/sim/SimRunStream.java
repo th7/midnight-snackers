@@ -110,8 +110,16 @@ public final class SimRunStream {
     private SimRunStream() {}
 
     public static String hello() {
+        return helloOf(PROTOCOL);
+    }
+
+    /**
+     * What a child speaking that protocol says first. A test of what a bench does with an older
+     * child writes its hello with this, so the line it is handed is the line one would print.
+     */
+    public static String helloOf(int protocol) {
         JsonObject line = new JsonObject();
-        line.addProperty("protocol", PROTOCOL);
+        line.addProperty("protocol", protocol);
         return GSON.toJson(line);
     }
 

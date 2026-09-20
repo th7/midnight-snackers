@@ -248,7 +248,7 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforeTheSeedRunsWhenNoSeedIsAskedFor() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(3), new Pose2d(12, 0, 0), null);
+        SimRunStream.Handshake handshake = SimRunStream.handshake(SimRunStream.helloOf(3), new Pose2d(12, 0, 0), null);
 
         assertFalse(handshake.message, handshake.refused());
         assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), null), handshake.startLine);
@@ -256,7 +256,7 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforeTheSeedIsRefusedOneByNameAndToldTheFix() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(3), StartPoses.ORIGIN, 1L);
+        SimRunStream.Handshake handshake = SimRunStream.handshake(SimRunStream.helloOf(3), StartPoses.ORIGIN, 1L);
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotSeed(3), handshake.outcome);
@@ -267,7 +267,7 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforePlacementRunsFromTheOriginAndPlacesItself() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(2), StartPoses.ORIGIN, null);
+        SimRunStream.Handshake handshake = SimRunStream.handshake(SimRunStream.helloOf(2), StartPoses.ORIGIN, null);
 
         assertFalse(handshake.message, handshake.refused());
         assertNull("it is not told where to start, because it cannot be", handshake.startLine);
@@ -275,7 +275,7 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforePlacementIsRefusedAnywhereElseByNameAndToldTheFix() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(helloOf(2), new Pose2d(12, 0, 0), null);
+        SimRunStream.Handshake handshake = SimRunStream.handshake(SimRunStream.helloOf(2), new Pose2d(12, 0, 0), null);
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotPlace(2), handshake.outcome);
@@ -297,14 +297,8 @@ public class SimRunStreamTest {
     public void aChildThisBenchCannotReadIsRefusedBeforeItIsPlaced() {
         SimRunStream.WrongProtocol wrong = org.junit.Assert.assertThrows(
                 SimRunStream.WrongProtocol.class,
-                () -> SimRunStream.handshake(helloOf(SimRunStream.PROTOCOL + 1), StartPoses.ORIGIN, null));
+                () -> SimRunStream.handshake(SimRunStream.helloOf(SimRunStream.PROTOCOL + 1), StartPoses.ORIGIN, null));
 
         assertEquals(SimRunStream.PROTOCOL + 1, wrong.childProtocol);
-    }
-
-    private static String helloOf(int protocol) {
-        JsonObject line = new JsonObject();
-        line.addProperty("protocol", protocol);
-        return line.toString();
     }
 }

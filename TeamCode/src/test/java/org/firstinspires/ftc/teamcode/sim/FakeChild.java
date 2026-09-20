@@ -19,6 +19,8 @@ public final class FakeChild implements Child {
     private int exit;
 
     private final List<String> heard = new ArrayList<>();
+    private final List<List<String>> startedWith = new ArrayList<>();
+    private final List<String> prints = new ArrayList<>();
     private Running running;
 
     public static FakeChild thatSays(String... lines) {
@@ -42,6 +44,12 @@ public final class FakeChild implements Child {
         return this;
     }
 
+    /** What it writes to its stderr as it starts, which is what the bench keeps as the run's log. */
+    public FakeChild thatPrints(String... stderr) {
+        prints.addAll(List.of(stderr));
+        return this;
+    }
+
     public FakeChild thatExitsWith(int code) {
         exit = code;
         return this;
@@ -49,6 +57,18 @@ public final class FakeChild implements Child {
 
     public List<String> whatItWasTold() {
         return List.copyOf(heard);
+    }
+
+    /** The arguments of each start, so a test can hold the bench to what it asks the child for. */
+    public List<List<String>> whatItWasStartedWith() {
+        return List.copyOf(startedWith);
+    }
+
+    public List<String> theLastStart() {
+        if (startedWith.isEmpty()) {
+            throw new IllegalStateException("nothing was started");
+        }
+        return startedWith.get(startedWith.size() - 1);
     }
 
     public Running running() {
@@ -126,21 +146,23 @@ public final class FakeChild implements Child {
         }
     }
 
-    private Running started() {
+    private Running started(Consumer<String> log, String... args) {
+        startedWith.add(List.of(args));
         if (whyItWillNotStart != null) {
             throw new CouldNotStart(whyItWillNotStart, new IllegalStateException(whyItWillNotStart));
         }
+        prints.forEach(log);
         running = new Scripted();
         return running;
     }
 
     @Override
     public Running onTheClassesAt(Path classes, Consumer<String> log, String... args) {
-        return started();
+        return started(log, args);
     }
 
     @Override
     public Running onThisClasspath(Consumer<String> log, String... args) {
-        return started();
+        return started(log, args);
     }
 }
