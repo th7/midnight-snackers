@@ -18,21 +18,27 @@ export const TYPES = {
   '.png': 'image/png'
 };
 
-export const FLAGS = [
+const ANYWHERE = [
 
   '--no-sandbox',
 
-  '--disable-dev-shm-usage',
+  '--disable-dev-shm-usage'
+];
+
+const IN_SOFTWARE = [
 
   '--enable-unsafe-swiftshader',
   '--use-gl=angle',
   '--use-angle=swiftshader'
 ];
 
-export function chrome() {
+export const FLAGS = ANYWHERE.concat(IN_SOFTWARE);
+
+export function chrome(asked = {}) {
   return chromium.launch({
     ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : { channel: 'chromium' }),
-    args: FLAGS
+    ...(asked.headed ? { headless: false } : {}),
+    args: asked.gpu ? ANYWHERE : FLAGS
   });
 }
 

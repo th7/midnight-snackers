@@ -773,6 +773,17 @@ Counts are pinned in a **budget** and times are only ever printed: a count is
 the scene's and a time is the machine's. Files: `framecost.js`;
 `tools/browser/cost.mjs`; `tools/browser/scene-budget.json`.
 
+**Drawn in software** — What this container and CI always do, having no GPU
+between them, and what every time they report is a time of. A reading says
+which it was, and the two are never allowed to be confused: the page marks
+itself when it is drawn in software, `cost.mjs --gpu` fails rather than hand
+back SwiftShader's times as a GPU's, and a run without `--gpu` that finds
+itself on hardware fails too, since the correctness checks were promised a
+software rasteriser to come out the same on two machines. One rule tells them
+apart — `inSoftware` — and a table of real renderer names holds it to it. The
+counts do not care, so a budget is checked on whatever ran; only the times need
+a GPU to mean anything, which is a laptop's job or the tablet's own.
+
 **Budget** — `tools/browser/scene-budget.json`: the draws, colour-pass calls
 and triangles one frame of the field scene makes. The same deal as a **golden
 trace** — a change detector, not a judgement — so a missing budget fails rather
