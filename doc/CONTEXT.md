@@ -854,7 +854,18 @@ the ledger too, so what any one test class costs is one command:
 `./gradlew :TeamCode:testDebugUnitTest --tests '*SimBenchTest*'`.
 
 The counts are pinned in a **suite budget** and the times are only ever
-printed: a count is the suite's and a time is the machine's. The same deal as
+printed: a count is the suite's and a time is the machine's. A count that is
+the size of the codebase rather than what the tests do with it is printed and
+not pinned — every Java file in the project goes through the formatter once, so
+that one would move on any commit that adds a file, and a gate that fires on
+every such commit is one people turn off. The report stars the ones it only
+prints, and a budget line for one of them is refused, since it judges nothing.
+
+Nothing written to the repository — a budget, a **golden trace** — goes through
+the **state directory**'s store, which makes the directory it writes into
+owner-only because session secrets live there. That is right there and wrong on
+a source tree, where it leaves a checked-out directory only the person who last
+regenerated something can read. Class: `RepoFile`. The same deal as
 the scene **budget** above — a change detector, not a ceiling, so fewer misses
 it as surely as more, a missing budget fails rather than passing for want of
 anything to compare, a regenerating run fails because a run that wrote the

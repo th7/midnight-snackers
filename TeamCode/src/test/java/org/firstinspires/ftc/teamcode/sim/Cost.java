@@ -14,13 +14,15 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * What the suite spends on the few things that are dear: a child JVM, a compile, a git process, a
- * password hash, a project tree copied onto disk. Each is counted where it is spent -- inside the
- * one adapter that reaches it -- so the ledger is complete for the same reason nothing else may
- * reach any of them at all, which CostIsCountedWhereItIsSpentTest holds rather than a comment.
+ * What the suite spends on the few things that are dear: a child JVM started, a project's sources
+ * compiled, a git process run, a secret put through scrypt, a file formatted, node run, a project
+ * tree copied onto disk. Each is counted where it is spent -- inside the one adapter that reaches
+ * it -- so the ledger is complete for the same reason nothing else may reach any of them at all,
+ * which CostIsCountedWhereItIsSpentTest holds rather than a comment.
  *
  * <p>Counts are pinned in a budget and times are only ever printed: a count is the suite's and a
- * time is the machine's.
+ * time is the machine's. A count that is the size of the codebase rather than what the tests do
+ * with it is printed and not pinned; {@link Kind#pinned} says which.
  */
 public final class Cost {
 
@@ -38,21 +40,31 @@ public final class Cost {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    private static final boolean PINNED = true;
+    private static final boolean PRINTED = false;
+
     public enum Kind {
-        CHILD_JVM("child-jvm", "a child JVM started"),
-        COMPILE("compile", "a project's sources compiled"),
-        GIT("git", "a git process run"),
-        PASSWORD_HASH("password-hash", "a session secret put through scrypt"),
-        FORMAT("format", "a Java file put through the formatter"),
-        NODE("node", "a node process run"),
-        PROJECT_COPY("project-copy", "a project tree copied onto disk");
+        CHILD_JVM("child-jvm", "a child JVM started", PINNED),
+        COMPILE("compile", "a project's sources compiled", PINNED),
+        GIT("git", "a git process run", PINNED),
+        PASSWORD_HASH("password-hash", "a session secret put through scrypt", PINNED),
+        // One gate puts every Java file in the project through the formatter, so this count is the
+        // size of the codebase rather than what the tests do with it: adding one source file would
+        // move it, and a gate that fires on every commit that adds a file is one people turn off.
+        FORMAT("format", "a Java file put through the formatter", PRINTED),
+        NODE("node", "a node process run", PINNED),
+        PROJECT_COPY("project-copy", "a project tree copied onto disk", PINNED);
 
         public final String key;
         public final String what;
 
-        Kind(String key, String what) {
+        /** Whether the budget judges this count, or the report only prints it. */
+        public final boolean pinned;
+
+        Kind(String key, String what, boolean pinned) {
             this.key = key;
             this.what = what;
+            this.pinned = pinned;
         }
 
         static Kind named(String key) {
@@ -180,6 +192,9 @@ public final class Cost {
         }
         List<String> missed = new ArrayList<>();
         for (Kind kind : Kind.values()) {
+            if (!kind.pinned) {
+                continue;
+            }
             Integer pinned = budget.get(kind);
             int spent = taken.get(kind).count;
             if (pinned == null) {
@@ -214,17 +229,25 @@ public final class Cost {
         for (Kind kind : Kind.values()) {
             Tally tally = taken.get(kind);
             out.append(String.format(
-                    Locale.ROOT, "  %-14s %5d  %7.1fs   %s%n", kind.key, tally.count, tally.seconds, kind.what));
+                    Locale.ROOT,
+                    "  %-14s %5d %s %7.1fs   %s%n",
+                    kind.key,
+                    tally.count,
+                    kind.pinned ? " " : "*",
+                    tally.seconds,
+                    kind.what));
         }
-        out.append("  (the count is pinned; the time is what was spent inside the call that does it,\n");
-        out.append("   so a child JVM's own loading is in its run's time and not in the line above)\n");
+        out.append("  (a count is pinned in the budget unless it is starred; the time is what was spent\n");
+        out.append("   inside the call, so a child JVM's own loading is in its run's time, not here)\n");
         return out.toString();
     }
 
     public static String budgetJson(Map<Kind, Tally> taken) {
         JsonObject budget = new JsonObject();
         for (Kind kind : Kind.values()) {
-            budget.addProperty(kind.key, taken.get(kind).count);
+            if (kind.pinned) {
+                budget.addProperty(kind.key, taken.get(kind).count);
+            }
         }
         return GSON.toJson(budget) + "\n";
     }
@@ -233,7 +256,13 @@ public final class Cost {
         JsonObject read = GSON.fromJson(json, JsonObject.class);
         Map<Kind, Integer> budget = new EnumMap<>(Kind.class);
         for (Map.Entry<String, com.google.gson.JsonElement> entry : read.entrySet()) {
-            budget.put(Kind.named(entry.getKey()), entry.getValue().getAsInt());
+            Kind kind = Kind.named(entry.getKey());
+            if (!kind.pinned) {
+                throw new IllegalStateException(kind.key
+                        + " is counted and printed, not pinned, so a budget line for it judges nothing."
+                        + " Take the line out of " + BUDGET + ".");
+            }
+            budget.put(kind, entry.getValue().getAsInt());
         }
         return budget;
     }
@@ -243,31 +272,33 @@ public final class Cost {
      * person reads, and the verdict the build fails on. Written once, as the JVM goes.
      */
     static void writeUp(Path into) {
-        Store store = new OnDiskStore();
+        writeUp(into, BUDGET, Boolean.parseBoolean(System.getProperty(WHOLE, "false")), Boolean.getBoolean(REGENERATE));
+    }
+
+    static void writeUp(Path into, Path budgetFile, boolean whole, boolean regenerate) {
         Map<Kind, Tally> taken = taken();
-        boolean whole = Boolean.parseBoolean(System.getProperty(WHOLE, "false"));
-        store.writeWhole(into.resolve("ledger.json"), budgetJson(taken).getBytes(StandardCharsets.UTF_8));
-        store.writeWhole(into.resolve("report.txt"), report(taken).getBytes(StandardCharsets.UTF_8));
-        if (whole && Boolean.getBoolean(REGENERATE)) {
-            store.writeWhole(BUDGET, budgetJson(taken).getBytes(StandardCharsets.UTF_8));
+        RepoFile.write(into.resolve("ledger.json"), budgetJson(taken).getBytes(StandardCharsets.UTF_8));
+        RepoFile.write(into.resolve("report.txt"), report(taken).getBytes(StandardCharsets.UTF_8));
+        if (whole && regenerate) {
+            RepoFile.write(budgetFile, budgetJson(taken).getBytes(StandardCharsets.UTF_8));
             write(
-                    store,
                     into,
                     Verdict.Outcome.MISSED,
-                    "pinned what the suite spent in " + BUDGET.toAbsolutePath()
+                    "pinned what the suite spent in " + budgetFile.toAbsolutePath()
                             + ". A run that wrote the answer down has not checked it: read the diff, then re-run"
                             + " without -D" + REGENERATE + " to check it.");
             return;
         }
-        Map<Kind, Integer> budget = store.readIfThere(BUDGET)
+        Map<Kind, Integer> budget = new OnDiskStore()
+                .readIfThere(budgetFile)
                 .map(bytes -> budgetFrom(new String(bytes, StandardCharsets.UTF_8)))
                 .orElse(null);
         Verdict verdict = verdictOn(taken, budget, whole);
-        write(store, into, verdict.outcome, verdict.said);
+        write(into, verdict.outcome, verdict.said);
     }
 
-    private static void write(Store store, Path into, Verdict.Outcome outcome, String said) {
-        store.writeWhole(
+    private static void write(Path into, Verdict.Outcome outcome, String said) {
+        RepoFile.write(
                 into.resolve("verdict.txt"), (outcome.name() + "\n" + said + "\n").getBytes(StandardCharsets.UTF_8));
     }
 }

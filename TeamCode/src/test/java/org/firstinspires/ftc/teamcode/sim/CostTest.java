@@ -5,19 +5,33 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class CostTest {
+
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
 
     private final Cost.Ledger ledger = new Cost.Ledger();
 
     private static Map<Cost.Kind, Integer> budgetOf(Object... pairs) {
         Map<Cost.Kind, Integer> budget = new LinkedHashMap<>();
         for (Cost.Kind kind : Cost.Kind.values()) {
-            budget.put(kind, 0);
+            if (kind.pinned) {
+                budget.put(kind, 0);
+            }
         }
         for (int i = 0; i < pairs.length; i += 2) {
             budget.put((Cost.Kind) pairs[i], (Integer) pairs[i + 1]);
@@ -192,6 +206,29 @@ public class CostTest {
     }
 
     @Test
+    public void aCountThatIsTheSizeOfTheCodebaseIsPrintedAndNotPinned() {
+        assertFalse("a Java file formatted is one per file in the project, not one per test", Cost.Kind.FORMAT.pinned);
+        Map<Cost.Kind, Cost.Tally> taken = new LinkedHashMap<>(ledger.taken());
+        taken.put(Cost.Kind.FORMAT, new Cost.Tally(9999, 0));
+
+        assertEquals(
+                "adding one source file would otherwise fail a gate about what the tests cost",
+                Cost.Verdict.Outcome.MET,
+                Cost.verdictOn(taken, budgetOf(), true).outcome);
+        assertTrue("it is still counted and still read", Cost.report(taken).contains("9999"));
+    }
+
+    @Test
+    public void aBudgetHoldsThePinnedKindsAndNoOthers() {
+        Map<Cost.Kind, Integer> read = Cost.budgetFrom(Cost.budgetJson(ledger.taken()));
+
+        for (Cost.Kind kind : Cost.Kind.values()) {
+            assertEquals(kind + " is pinned: " + kind.pinned, kind.pinned, read.containsKey(kind));
+        }
+        assertTrue("and something is pinned, or this rule judges nothing", read.size() > 1);
+    }
+
+    @Test
     public void aBudgetSurvivesBeingWrittenAndReadBack() {
         spend(Cost.Kind.GIT, 3);
         spend(Cost.Kind.COMPILE, 7);
@@ -201,9 +238,21 @@ public class CostTest {
         assertEquals(Integer.valueOf(3), read.get(Cost.Kind.GIT));
         assertEquals(Integer.valueOf(7), read.get(Cost.Kind.COMPILE));
         assertEquals(
-                "what is written is every kind, so a new kind is never silently unpinned",
-                Cost.Kind.values().length,
+                "what is written is every pinned kind, so a new one is never silently unpinned",
+                java.util.Arrays.stream(Cost.Kind.values())
+                        .filter(kind -> kind.pinned)
+                        .count(),
                 read.size());
+    }
+
+    @Test
+    public void aBudgetPinningAKindOnlyPrintedIsNotReadPastInSilence() {
+        String json = "{\"child-jvm\": 1, \"" + Cost.Kind.FORMAT.key + "\": 358}";
+
+        IllegalStateException wrong = assertThrows(IllegalStateException.class, () -> Cost.budgetFrom(json));
+
+        assertTrue(wrong.getMessage(), wrong.getMessage().contains(Cost.Kind.FORMAT.key));
+        assertTrue("it says the line does nothing", wrong.getMessage().contains("printed"));
     }
 
     @Test
@@ -225,6 +274,53 @@ public class CostTest {
                 "a count is the suite's and a time is the machine's, so only the count is a verdict",
                 Cost.Verdict.Outcome.MET,
                 Cost.verdictOn(slow, budgetOf(Cost.Kind.GIT, 1), true).outcome);
+    }
+
+    private String verdictIn(Path into) throws IOException {
+        return new String(Files.readAllBytes(into.resolve("verdict.txt")), StandardCharsets.UTF_8);
+    }
+
+    @Test
+    public void pinningWhatTheSuiteSpentLeavesTheSourceTreeAsItFoundIt() throws IOException {
+        assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
+        Path sources = folder.newFolder("resources").toPath();
+        Files.setPosixFilePermissions(sources, PosixFilePermissions.fromString("rwxr-xr-x"));
+        Path budget = sources.resolve("suite-budget.json");
+        Path into = folder.newFolder("pinning").toPath();
+
+        Cost.writeUp(into, budget, true, true);
+
+        assertEquals(
+                "a budget is a file of the repository, so pinning one must not shut its directory",
+                "rwxr-xr-x",
+                PosixFilePermissions.toString(Files.getPosixFilePermissions(sources)));
+        assertTrue(Files.isRegularFile(budget));
+        assertTrue(verdictIn(into), verdictIn(into).startsWith("MISSED"));
+        assertTrue(verdictIn(into), verdictIn(into).contains("has not checked it"));
+    }
+
+    @Test
+    public void whatIsWrittenUpIsTheLedgerTheReportAndTheVerdict() throws IOException {
+        Path into = folder.newFolder("nothing-pinned").toPath();
+
+        Cost.writeUp(into, folder.getRoot().toPath().resolve("no-budget-here.json"), true, false);
+
+        assertEquals(
+                Cost.budgetJson(Cost.taken()),
+                new String(Files.readAllBytes(into.resolve("ledger.json")), StandardCharsets.UTF_8));
+        assertTrue(Files.isRegularFile(into.resolve("report.txt")));
+        assertTrue(verdictIn(into), verdictIn(into).startsWith("MISSED"));
+        assertTrue(verdictIn(into), verdictIn(into).contains("nothing is being checked"));
+    }
+
+    @Test
+    public void aRunThatIsNotTheWholeSuiteWritesUpThatItCouldNotJudge() throws IOException {
+        Path into = folder.newFolder("part-of-it").toPath();
+
+        Cost.writeUp(into, folder.getRoot().toPath().resolve("no-budget-here.json"), false, false);
+
+        assertTrue(verdictIn(into), verdictIn(into).startsWith("COULD_NOT_JUDGE"));
+        assertTrue("and it is still readable", Files.isRegularFile(into.resolve("report.txt")));
     }
 
     private void spend(Cost.Kind kind, int times) {
