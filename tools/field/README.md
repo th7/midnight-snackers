@@ -77,6 +77,15 @@ the repository. Press **Refresh assets** on the admin page, or start the server
 without having fetched them and it fetches in the background. Classes:
 `Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
+The admin page also chooses the **detail**: normal snaps to a twentieth of an
+inch (316,000 triangles, 4 MB), full keeps the CAD's own tessellation
+(1,020,000 triangles, 13 MB), and both builds the pair from a single export.
+They sit side by side, and a page asks for one with `?detail=full`; a page
+that asks for a model nobody fetched draws the normal one and says so rather
+than failing. Full detail costs roughly three times the triangles, the bytes
+and the GPU buffers; it costs almost no extra draw calls, because the scene is
+batched by material rather than by part.
+
 The one in the repository is a **stand-in**: the model the tests draw, frozen,
 so the browser checks and the scene budget come out the same on any machine
 with no network. A server that has fetched draws what it fetched; one that has

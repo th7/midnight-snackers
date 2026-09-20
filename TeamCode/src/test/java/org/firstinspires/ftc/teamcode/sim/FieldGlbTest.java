@@ -60,6 +60,24 @@ public class FieldGlbTest {
     }
 
     @Test
+    public void noGridMeansTheCadsOwnPointsAreKept() {
+        double[] fine = {0.111, 0.222, 0.333, 10, 0, 0, 0, 10, 0};
+
+        double[] kept = FieldGlb.snap(fine, FieldGlb.NO_GRID);
+
+        assertEquals(0.111, kept[0], 1e-12);
+        assertEquals(0.222, kept[1], 1e-12);
+        assertEquals(0.333, kept[2], 1e-12);
+    }
+
+    @Test
+    public void noGridStillDropsATriangleWithNoAreaAtAll() {
+        double[] doubled = {1, 1, 1, 1, 1, 1, 2, 2, 2};
+
+        assertEquals(0, FieldGlb.snap(doubled, FieldGlb.NO_GRID).length);
+    }
+
+    @Test
     public void theHardwareTheRulesDropIsDropped() {
         List<Gltf.Part> kept = FieldGlb.visualParts(
                 List.of(

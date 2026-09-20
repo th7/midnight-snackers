@@ -107,14 +107,19 @@ public class CodingServerTest {
     }
 
     private static CodingServer.Assets refusingToReachOnshape() {
-        return (store, into) -> {
+        return (store, into, details) -> {
             throw new AssertionError("a test reached for Onshape; no test may");
         };
     }
 
     private static CodingServer.Assets writing(String... names) {
-        return (store, into) -> {
+        return (store, into, details) -> {
             java.util.Map<String, Integer> written = new java.util.LinkedHashMap<>();
+            for (FieldAssets.Detail detail : details) {
+                byte[] model = ("fetched " + detail.file).getBytes(StandardCharsets.UTF_8);
+                store.writeWhole(into.resolve(detail.file), model);
+                written.put(detail.file, model.length);
+            }
             for (String name : names) {
                 byte[] body = ("fetched " + name).getBytes(StandardCharsets.UTF_8);
                 store.writeWhole(into.resolve(name), body);
@@ -1044,7 +1049,7 @@ public class CodingServerTest {
 
     @Test
     public void anAssetTheRefreshDidNotWriteStillComesFromWhatIsCommitted() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing(FieldAssets.FIELD_GLB));
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
 
         admin("POST", "/admin/assets/refresh");
@@ -1058,7 +1063,7 @@ public class CodingServerTest {
 
     @Test
     public void aRefreshOnshapeWillNotAnswerSaysSoAndLeavesThePagesDrawing() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, (store, into) -> {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, (store, into, details) -> {
             throw new Onshape.NoCredentials("no key pair and no proxy");
         });
         String cookie = approvedUser("mia");
@@ -1068,6 +1073,38 @@ public class CodingServerTest {
         assertEquals(502, refused.status);
         assertTrue(refused.body, refused.body.contains("no key pair"));
         assertEquals("and the page still draws", 200, user("GET", "/sim/assets/field.glb", cookie).status);
+    }
+
+    @Test
+    public void theFullModelIsFetchedOnlyWhenItIsAskedFor() throws IOException {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        String cookie = approvedUser("mia");
+
+        Reply normal = admin("POST", "/admin/assets/refresh?detail=normal");
+
+        assertEquals(normal.body, 200, normal.status);
+        assertTrue(normal.body, normal.body.contains("\"normal\":true"));
+        assertTrue(normal.body, normal.body.contains("\"full\":false"));
+        assertEquals(
+                "a page asking for the full model is told it is not there",
+                404,
+                user("GET", "/sim/assets/field-full.glb", cookie).status);
+
+        Reply both = admin("POST", "/admin/assets/refresh?detail=both");
+
+        assertTrue(both.body, both.body.contains("\"full\":true"));
+        assertEquals(200, user("GET", "/sim/assets/field-full.glb", cookie).status);
+        assertEquals("fetched field-full.glb", user("GET", "/sim/assets/field-full.glb", cookie).body);
+    }
+
+    @Test
+    public void aDetailNobodyBuildsIsRefusedRatherThanFetched() throws IOException {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+
+        Reply refused = admin("POST", "/admin/assets/refresh?detail=finest");
+
+        assertEquals(400, refused.status);
+        assertTrue(refused.body, refused.body.contains("normal, full or both"));
     }
 
     @Test

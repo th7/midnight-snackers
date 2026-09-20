@@ -67,7 +67,7 @@
 </div>
 <script type="module">
 import * as THREE from 'three';
-import { FieldScene } from './assets/fieldscene.js';
+import { FieldScene, NORMAL_MODEL, FULL_MODEL } from './assets/fieldscene.js';
 
 const said = document.getElementById('said');
 const problem = document.getElementById('problem');
@@ -93,11 +93,25 @@ window.addEventListener('resize', fit);
 fit();
 
 let loaded = null;
+const wantsFull = new URLSearchParams(location.search).get('detail') === 'full';
+let fellBackFromFull = false;
 
-view.load().then((what) => {
+view.load(wantsFull ? FULL_MODEL : NORMAL_MODEL)
+    .catch((wrong) => {
+      if (!wantsFull) {
+        throw wrong;
+      }
+      fellBackFromFull = true;
+      return view.load(NORMAL_MODEL);
+    })
+    .then((what) => {
   loaded = what;
-  said.textContent = what.parts + ' parts, ' + what.triangles.toLocaleString() + ' triangles. '
-      + 'Drag to orbit, scroll to zoom.';
+  said.textContent = what.parts + ' parts, ' + what.triangles.toLocaleString() + ' triangles'
+      + (what.model === FULL_MODEL ? ', at full detail' : '') + '. Drag to orbit, scroll to zoom.';
+  if (fellBackFromFull) {
+    problem.textContent = 'The full-detail model has not been fetched, so this is the normal one. '
+        + 'Refresh the assets at full detail on the admin page.';
+  }
   return showRun();
 }).catch((wrong) => {
   said.textContent = 'The field did not load.';
@@ -520,6 +534,7 @@ window.fieldPage = {
   floorZ: view.floor.position.z,
   get field() { return view.field; },
   get loaded() { return loaded; },
+  get fellBackFromFull() { return fellBackFromFull; },
   get drawnTriangles() { return renderer.info.render.triangles; },
   get problem() { return problem.textContent; },
   get run() {

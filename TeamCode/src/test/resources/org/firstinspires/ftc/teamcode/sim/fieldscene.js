@@ -7,6 +7,8 @@ export const FIELD_IN = 141.17;
 export const FLOOR_Z = 0;
 export const TAPE_Z = 0.01;
 export const OVERLAY_Z = 0.05;
+export const NORMAL_MODEL = 'field.glb';
+export const FULL_MODEL = 'field-full.glb';
 const SAME_PLACE_IN = 0.01;
 
 const SEE_THROUGH = /skin|side[\s_]glass/i;
@@ -74,9 +76,10 @@ export class FieldScene {
     this.scene.add(this.overlay);
   }
 
-  load() {
+  load(model) {
+    const file = model || NORMAL_MODEL;
     return new Promise((resolve, reject) => {
-      new GLTFLoader().load(this.assets + 'field.glb', (gltf) => {
+      new GLTFLoader().load(this.assets + file, (gltf) => {
         let meshes = 0;
         let triangles = 0;
         const seeThroughTwins = new Map();
@@ -127,6 +130,7 @@ export class FieldScene {
         this.scene.add(gltf.scene);
         this.field = gltf.scene;
         this.loaded = {
+          model: file,
           parts: meshes,
           triangles: triangles,
           meshes: batched.meshes,

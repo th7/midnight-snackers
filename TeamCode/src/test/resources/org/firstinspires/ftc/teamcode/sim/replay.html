@@ -1057,16 +1057,24 @@ __IMPORTMAP__
   if (!placing) renderController(driving() ? sent[selected] : recordedState(index));
 
   async function drawTheFieldModel() {
-    const { FieldScene } = await import(ASSETS + 'fieldscene.js');
+    const { FieldScene, NORMAL_MODEL, FULL_MODEL } = await import(ASSETS + 'fieldscene.js');
     const view = new FieldScene({ canvas: solidCanvas, assets: ASSETS, background: token('--bg') });
     view.fit(solidCanvas.width, solidCanvas.height);
-    await view.load();
+    const wantsFull = wanted === 'full' || new URLSearchParams(location.search).get('detail') === 'full';
+    let fellBack = false;
+    await view.load(wantsFull ? FULL_MODEL : NORMAL_MODEL).catch(wrong => {
+      if (!wantsFull) throw wrong;
+      fellBack = true;
+      return view.load(NORMAL_MODEL);
+    });
     view.place(Object.assign({}, FIELD, { robotIn: ROBOT_IN }));
     solid = view;
     drawing = 'solid';
     canvas.hidden = true;
     solidCanvas.hidden = false;
-    fieldMsg.innerHTML = 'The field as it looks, from the season CAD. '
+    fieldMsg.innerHTML = (view.loaded.model === FULL_MODEL ? 'The field at full detail. ' : '')
+      + (fellBack ? 'The full-detail model has not been fetched, so this is the normal one. ' : '')
+      + 'The field as it looks, from the season CAD. '
       + '<a href="?view=flat">Draw what the simulator collides</a> instead.';
     view.renderer.setAnimationLoop(() => { view.controls.update(); view.drawnFrom(); });
     render();

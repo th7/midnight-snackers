@@ -168,6 +168,62 @@ public class FieldAssetsTest {
     }
 
     @Test
+    public void bothDetailsAreBuiltFromOneExport() {
+        Asked asked = new Asked();
+        InMemoryStore store = new InMemoryStore();
+
+        FieldAssets.Refreshed refreshed = FieldAssets.refresh(
+                onshapeOf(asked), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+
+        assertEquals(
+                "the export is fetched once however many models are built",
+                1,
+                asked.urls.stream().filter(url -> url.endsWith("/gltf")).count());
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
+        assertEquals(2 + FieldAssets.TEXTURES.size(), refreshed.written.size());
+    }
+
+    @Test
+    public void theFullModelKeepsMoreOfTheCadThanTheNormalOne() {
+        InMemoryStore store = new InMemoryStore();
+
+        FieldAssets.refresh(
+                onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+
+        assertTrue(
+                "the same parts either way",
+                Gltf.read(store.readIfThere(INTO.resolve(FieldAssets.Detail.FULL.file))
+                                        .orElseThrow())
+                                .size()
+                        == Gltf.read(store.readIfThere(INTO.resolve(FieldAssets.Detail.NORMAL.file))
+                                        .orElseThrow())
+                                .size());
+    }
+
+    @Test
+    public void onlyTheDetailAskedForIsBuilt() {
+        InMemoryStore store = new InMemoryStore();
+
+        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.FULL));
+
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
+        assertFalse(store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
+    }
+
+    @Test
+    public void theDetailsAreNamedNormalFullOrBoth() {
+        assertEquals(List.of(FieldAssets.Detail.NORMAL), FieldAssets.detailsNamed(null));
+        assertEquals(List.of(FieldAssets.Detail.NORMAL), FieldAssets.detailsNamed("normal"));
+        assertEquals(List.of(FieldAssets.Detail.FULL), FieldAssets.detailsNamed("full"));
+        assertEquals(List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL), FieldAssets.detailsNamed("both"));
+
+        FieldAssets.NotAnAsset refused =
+                assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.detailsNamed("finest"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("normal, full or both"));
+    }
+
+    @Test
     public void anElementNamedLikeAPathIsRefused() {
         assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.safeName("../../etc/passwd"));
         assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.safeName(" padded.png"));

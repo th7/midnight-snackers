@@ -816,6 +816,17 @@ says which of the two it is drawing. The fetch is `main`'s to start rather than
 the server's, so no test that builds a coding server reaches the network.
 Classes: `Onshape`; `Gltf`; `FieldGlb`; `FieldAssets`; `CodingServer.Assets`.
 
+**Detail** — Which field a page draws: **normal**, snapped to a twentieth of
+an inch at 316,000 triangles and four megabytes, or **full**, the CAD's own
+tessellation at 1,020,000 and thirteen. The refresh builds either or both from
+one export — the download is the dear part and the builds are under a second
+each — and keeps them side by side, so comparing the two on a tablet is a
+query string rather than another fetch. A page asks with `?detail=full`, and
+one that asks for a model nobody fetched draws the normal one **and says on
+the page that it fell back**. Full detail costs about three times the
+triangles, the bytes and the GPU buffers, and almost no draw calls, since
+**batching** is by material rather than by triangle.
+
 **Stand-in** — The `field.glb` in the repository: the model the tests draw,
 frozen, so the browser checks and the **budget** come out the same on any
 machine with no network. It is not what a refreshed server draws, and it is
