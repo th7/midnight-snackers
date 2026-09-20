@@ -6,11 +6,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -29,7 +24,9 @@ public final class SimBench {
     private static final int LOG_LINES = 200;
 
     private static final double STARTUP_SECONDS = 60;
+    private final double startupSeconds;
     private static final double SILENCE_SECONDS = 5;
+    private static final double CATALOG_SECONDS = 60;
     private static final long SILENCE_POLL_MILLIS = 100;
 
     public static final double DEFAULT_RUN_TIMEOUT_SECONDS = 60;
@@ -62,7 +59,7 @@ public final class SimBench {
         private String phase = "building";
         private String outcome;
         private String message;
-        private Process child;
+        private Child.Running child;
 
         Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed) {
             this.id = id;
@@ -123,7 +120,7 @@ public final class SimBench {
             log.addLast(line);
         }
 
-        synchronized void launched(Process process) {
+        synchronized void launched(Child.Running process) {
             child = process;
             phase = "starting";
         }
@@ -157,7 +154,7 @@ public final class SimBench {
             return item;
         }
 
-        synchronized Process child() {
+        synchronized Child.Running child() {
             return child;
         }
 
@@ -169,14 +166,7 @@ public final class SimBench {
             if (child == null || outcome != null) {
                 return false;
             }
-            try {
-                OutputStream in = child.getOutputStream();
-                in.write((GSON.toJson(line) + "\n").getBytes(StandardCharsets.UTF_8));
-                in.flush();
-                return true;
-            } catch (IOException e) {
-                return false;
-            }
+            return child.say(GSON.toJson(line));
         }
 
         void stop() {
@@ -193,21 +183,18 @@ public final class SimBench {
                 line.addProperty("stop", true);
                 told = send(line);
             }
-            Process process = child();
+            Child.Running process = child();
             if (!told) {
-                process.destroyForcibly();
+                process.kill();
                 return;
             }
             Thread grace = new Thread(
                     () -> {
-                        try {
-                            if (!process.waitFor((long) (killGraceSeconds * 1000), TimeUnit.MILLISECONDS)) {
-                                finish(
-                                        SimRunStream.Outcome.killedAfterStop(killGraceSeconds),
-                                        "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
-                                process.destroyForcibly();
-                            }
-                        } catch (InterruptedException ignored) {
+                        if (!process.endedWithin(killGraceSeconds)) {
+                            finish(
+                                    SimRunStream.Outcome.killedAfterStop(killGraceSeconds),
+                                    "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
+                            process.kill();
                         }
                     },
                     "sim-run-" + id + "-stop");
@@ -236,6 +223,7 @@ public final class SimBench {
     private final double runTimeoutSeconds;
     private final double teleOpSeconds;
     private final double killGraceSeconds;
+    private final Child children;
     private final StartPoses startPoses;
     private final List<Run> runs = new ArrayList<>();
     private SimCatalog listed;
@@ -249,6 +237,37 @@ public final class SimBench {
             double runTimeoutSeconds,
             double teleOpSeconds,
             double killGraceSeconds) {
+        this(fixedCatalog, project, outputDir, runTimeoutSeconds, teleOpSeconds, killGraceSeconds, new JvmChild());
+    }
+
+    public SimBench(
+            SimCatalog fixedCatalog,
+            Path project,
+            Path outputDir,
+            double runTimeoutSeconds,
+            double teleOpSeconds,
+            double killGraceSeconds,
+            Child children) {
+        this(
+                fixedCatalog,
+                project,
+                outputDir,
+                runTimeoutSeconds,
+                teleOpSeconds,
+                killGraceSeconds,
+                children,
+                STARTUP_SECONDS);
+    }
+
+    public SimBench(
+            SimCatalog fixedCatalog,
+            Path project,
+            Path outputDir,
+            double runTimeoutSeconds,
+            double teleOpSeconds,
+            double killGraceSeconds,
+            Child children,
+            double startupSeconds) {
         if ((fixedCatalog == null) == (project == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
@@ -258,6 +277,8 @@ public final class SimBench {
         this.runTimeoutSeconds = runTimeoutSeconds;
         this.teleOpSeconds = teleOpSeconds;
         this.killGraceSeconds = killGraceSeconds;
+        this.children = children;
+        this.startupSeconds = startupSeconds;
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
     }
 
@@ -311,34 +332,32 @@ public final class SimBench {
         return fixedCatalog == null ? List.of() : fixedCatalog.sources();
     }
 
-    private static SimCatalog list(Path classes) {
-        Process child = SimChild.launch(classes, "--list");
-        try (BufferedReader out =
-                new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
-            String first = out.readLine();
+    private SimCatalog list(Path classes) {
+        StringBuilder said = new StringBuilder();
+        try (Child.Running child =
+                children.onTheClassesAt(classes, line -> said.append(line).append('\n'), "--list")) {
+            String first = child.hear();
             String line;
             try {
                 line = first == null ? null : SimRunStream.afterHello(first);
             } catch (SimRunStream.WrongProtocol e) {
-                child.destroyForcibly();
+                child.kill();
                 throw e;
             }
             if (line == null && first != null) {
-                line = out.readLine();
+                line = child.hear();
             }
-            String said = new String(child.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (!child.waitFor(60, TimeUnit.SECONDS) || line == null) {
-                child.destroyForcibly();
+            if (!child.endedWithin(CATALOG_SECONDS) || line == null) {
+                child.kill();
                 throw new IllegalStateException("the simulation child did not list the op modes"
-                        + (child.isAlive() ? " within 60s" : " (exit " + child.exitValue() + ")")
-                        + (said.isBlank() ? " and printed nothing" : "; it printed:\n" + said.strip()));
+                        + (child.alive()
+                                ? " within " + CATALOG_SECONDS + "s"
+                                : " (exit " + child.exitCode().orElse(-1) + ")")
+                        + (said.toString().isBlank()
+                                ? " and printed nothing"
+                                : "; it printed:\n" + said.toString().strip()));
             }
             return SimCatalog.fromJson(GSON.fromJson(line, JsonArray.class));
-        } catch (IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
         }
     }
 
@@ -573,7 +592,7 @@ public final class SimBench {
         if (!run.running()) {
             return;
         }
-        Process child;
+        Child.Running child;
         try {
             List<String> args = new ArrayList<>(List.of(
                     "--run",
@@ -582,47 +601,34 @@ public final class SimBench {
                     outputDir.toAbsolutePath().toString()));
             args.addAll(sources());
             child = classes == null
-                    ? SimChild.launchOnThisClasspath(args.toArray(new String[0]))
-                    : SimChild.launch(classes, args.toArray(new String[0]));
+                    ? children.onThisClasspath(run::addLog, args.toArray(new String[0]))
+                    : children.onTheClassesAt(classes, run::addLog, args.toArray(new String[0]));
         } catch (RuntimeException e) {
             run.finish(SimRunStream.Outcome.couldNotStartChild(), e.getMessage());
             return;
         }
         run.launched(child);
-        Thread stderr = new Thread(
-                () -> {
-                    try (BufferedReader err =
-                            new BufferedReader(new InputStreamReader(child.getErrorStream(), StandardCharsets.UTF_8))) {
-                        for (String line = err.readLine(); line != null; line = err.readLine()) {
-                            run.addLog(line);
-                        }
-                    } catch (IOException ignored) {
-                    }
-                },
-                "sim-run-" + run.id + "-log");
-        stderr.setDaemon(true);
-        stderr.start();
         CountDownLatch started = new CountDownLatch(1);
         AtomicLong lastHeardNanos = new AtomicLong(System.nanoTime());
         Thread watchdog = new Thread(
                 () -> {
                     try {
-                        if (!started.await((long) (STARTUP_SECONDS * 1000), TimeUnit.MILLISECONDS)) {
-                            if (child.isAlive()) {
+                        if (!started.await((long) (startupSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                            if (child.alive()) {
                                 run.finish(
-                                        SimRunStream.Outcome.killed(STARTUP_SECONDS, "the op mode never started"),
+                                        SimRunStream.Outcome.killed(startupSeconds, "the op mode never started"),
                                         "the child JVM never said the op mode had started; it was killed");
-                                child.destroyForcibly();
+                                child.kill();
                             }
                             return;
                         }
-                        while (child.isAlive() && run.outcome() == null) {
+                        while (child.alive() && run.outcome() == null) {
                             double silentSeconds = (System.nanoTime() - lastHeardNanos.get()) / 1e9;
                             if (silentSeconds > SILENCE_SECONDS) {
                                 run.finish(
                                         SimRunStream.Outcome.killed(SILENCE_SECONDS, "the op mode did not return"),
                                         "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
-                                child.destroyForcibly();
+                                child.kill();
                                 return;
                             }
                             Thread.sleep(SILENCE_POLL_MILLIS);
@@ -651,10 +657,9 @@ public final class SimBench {
                 outcome[0] = how;
             }
         };
-        try (BufferedReader out =
-                new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
+        try (Child.Running talking = child) {
             boolean first = true;
-            for (String line = out.readLine(); line != null; line = out.readLine()) {
+            for (String line = talking.hear(); line != null; line = talking.hear()) {
                 lastHeardNanos.set(System.nanoTime());
                 if (line.isBlank()) {
                     continue;
@@ -666,12 +671,12 @@ public final class SimBench {
                         handshake = SimRunStream.handshake(line, run.start, run.seed);
                     } catch (SimRunStream.WrongProtocol e) {
                         run.finish(SimRunStream.Outcome.wrongProtocol(e.childProtocol), e.getMessage());
-                        child.destroyForcibly();
+                        child.kill();
                         break;
                     }
                     if (handshake.refused()) {
                         run.finish(handshake.outcome, handshake.message);
-                        child.destroyForcibly();
+                        child.kill();
                         break;
                     }
                     if (handshake.startLine != null) {
@@ -688,19 +693,13 @@ public final class SimBench {
                     run.addLog("unreadable line from the child: " + line);
                 }
             }
-        } catch (IOException ignored) {
         }
-        try {
-            child.waitFor();
-            stderr.join(2000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        child.endedWithin(CATALOG_SECONDS);
         watchdog.interrupt();
         if (outcome[0] != null) {
             run.finish(outcome[0], null);
         } else {
-            run.finish(SimRunStream.Outcome.childExited(child.exitValue()), run.log());
+            run.finish(SimRunStream.Outcome.childExited(child.exitCode().orElse(-1)), run.log());
         }
     }
 
@@ -722,9 +721,9 @@ public final class SimBench {
         Run current = current();
         if (current != null) {
             current.finish(SimRunStream.Outcome.stopped(), "the bench was stopped");
-            Process child = current.child();
+            Child.Running child = current.child();
             if (child != null) {
-                child.destroyForcibly();
+                child.kill();
             }
         }
     }

@@ -571,6 +571,60 @@ public class SimBenchTest {
         assertEquals(200, ticks.status);
     }
 
+    private SimBench benchWith(FakeChild child, double graceSeconds) {
+        return benchWith(child, graceSeconds, 60);
+    }
+
+    private SimBench benchWith(FakeChild child, double graceSeconds, double startupSeconds) {
+        return new SimBench(
+                SimCatalog.of(TestTeleOps.StickTeleOp.class),
+                null,
+                outputDir(),
+                TIMEOUT_SECONDS,
+                TELEOP_SECONDS,
+                graceSeconds,
+                child,
+                startupSeconds);
+    }
+
+    @Test
+    public void aChildThatCannotBeStartedEndsTheRunSayingSo() throws Exception {
+        bench = benchWith(new FakeChild().thatWillNotStart("no java on this machine"), GRACE_SECONDS);
+
+        SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
+
+        assertEquals(SimRunStream.Outcome.couldNotStartChild(), run.outcome());
+        assertTrue(run.message(), run.message().contains("no java on this machine"));
+    }
+
+    @Test
+    public void aChildThatNeverSaysTheOpModeStartedIsKilledForNeverStarting() throws Exception {
+        bench = benchWith(
+                FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore(), GRACE_SECONDS, 0.3);
+
+        SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada"));
+
+        assertTrue(run.outcome(), run.outcome().startsWith("killed"));
+        assertTrue(run.outcome(), run.outcome().contains("never started"));
+    }
+
+    @Test
+    public void aChildThatIgnoresStopIsKilledAfterItsGrace() throws Exception {
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started())
+                .thatStaysAliveSayingNothingMore()
+                .thatIgnoresStop();
+        bench = benchWith(child, 0.2);
+        SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada");
+        awaitRunning(run);
+
+        run.stop();
+        await(run);
+
+        assertEquals(SimRunStream.Outcome.killedAfterStop(0.2), run.outcome());
+        assertTrue(
+                child.whatItWasTold().toString(), child.whatItWasTold().stream().anyMatch(t -> t.contains("stop")));
+    }
+
     @Test
     public void aBenchWithoutSourcesHasNothingToCheck() {
         bench = new SimBench(
