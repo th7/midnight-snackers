@@ -27,6 +27,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class SimReplayPageTest {
+    private static final String ASSETS = "../../assets/";
+
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
@@ -70,11 +72,43 @@ public class SimReplayPageTest {
         assertTrue("carries the outcome", html.contains("done"));
         assertTrue("says what kind of run it was", html.contains("\"kind\":\"auto\""));
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
+        assertTrue("and is told of no assets, so it draws the flat field", html.contains("const ASSETS = null"));
+        assertFalse("a page that fetches nothing resolves no modules", html.contains("importmap"));
+    }
+
+    @Test
+    public void aServedPageIsToldWhereTheFieldModelAndTheLibraryThatDrawsItAre() {
+        String html = SimReplayPage.live(new SimRecording("SquareAuto"), ASSETS);
+
+        assertTrue(html, html.contains("const ASSETS = \"" + ASSETS + "\""));
+        assertTrue("the scene it draws with", html.contains("\"" + ASSETS + "vendor/three.module.min.js\""));
+        assertTrue("and the addons that scene loads the model with", html.contains("\"" + ASSETS + "vendor/jsm/\""));
+    }
+
+    @Test
+    public void aServedPageDrawsTheSolidFieldAndKeepsTheFlatDrawingToFallBackOn() throws IOException {
+        String html = SimReplayPage.live(new SimRecording("SquareAuto"), ASSETS);
+
+        assertTrue(
+                "draws through the scene both pages draw the field with, under the assets it was told of",
+                html.contains("ASSETS + 'fieldscene.js'"));
+        assertTrue(
+                "which is what fetches the field as it looks",
+                resource("fieldscene.js").contains("'field.glb'"));
+        assertTrue("and still carries the flat drawing", html.contains("<canvas") && html.contains("drawFlat"));
+        assertTrue("which ?view=flat asks for", html.contains("'flat'"));
+    }
+
+    private static String resource(String name) throws IOException {
+        try (InputStream in = SimReplayPage.class.getResourceAsStream(name)) {
+            assertTrue(name + " is served next to the page", in != null);
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     @Test
     public void thePageDrawsTheFieldAndTheRobotAtTheSimulatorsSizes() {
-        String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
+        String html = SimReplayPage.written(new SimRecording("SquareAuto"));
 
         assertTrue(html, html.contains("FIELD_IN = " + SimPlacement.FIELD_SIZE_IN));
         assertTrue(html, html.contains("ROBOT_IN = " + SimPlacement.ROBOT_SIZE_IN));
@@ -86,7 +120,7 @@ public class SimReplayPageTest {
 
     @Test
     public void thePageCarriesTheFieldModelTheSimulatorCollides() {
-        String html = SimReplayPage.page(new SimRecording("SquareAuto"), false);
+        String html = SimReplayPage.written(new SimRecording("SquareAuto"));
 
         assertTrue(html, html.contains("FIELD = " + new Gson().toJson(SimRobot.FIELD.json())));
         assertTrue(html, html.contains("Flower Assembly"));
@@ -103,7 +137,7 @@ public class SimReplayPageTest {
                         .tick());
         recording.finish("done");
 
-        String html = SimReplayPage.page(recording, false);
+        String html = SimReplayPage.written(recording);
 
         assertTrue("the hive's tilt reaches the page", html.contains("\"tilt\":{\"Blue\":" + -blue.tilt));
         assertTrue("and the page draws the hives with it", html.contains("hiveFaces(hive,"));
@@ -124,7 +158,7 @@ public class SimReplayPageTest {
     }
 
     private double[] tiltOnThePage(String ticks, SimField.Hive hive) throws Exception {
-        String html = SimReplayPage.page(new SimRecording("TiltRule"), false);
+        String html = SimReplayPage.written(new SimRecording("TiltRule"));
         Matcher rule = Pattern.compile("\n  function tiltAt\\(hive, upTo\\) \\{.*?\n  \\}", Pattern.DOTALL)
                 .matcher(html);
         assertTrue("the page works each hive's tilt out in tiltAt(hive, upTo)", rule.find());
@@ -159,7 +193,15 @@ public class SimReplayPageTest {
 
         assertEquals(
                 "a placeholder nothing fills reaches a reader as itself",
-                Set.of("__TITLE__", "__FIELD_IN__", "__ROBOT_IN__", "__WALL_IN__", "__FIELD__", "__DATA__"),
+                Set.of(
+                        "__TITLE__",
+                        "__FIELD_IN__",
+                        "__ROBOT_IN__",
+                        "__WALL_IN__",
+                        "__FIELD__",
+                        "__DATA__",
+                        "__ASSETS__",
+                        "__IMPORTMAP__"),
                 holes);
 
         String harness =
@@ -178,7 +220,7 @@ public class SimReplayPageTest {
                 .tick());
         recording.finish("done");
 
-        String html = SimReplayPage.page(recording, false);
+        String html = SimReplayPage.written(recording);
 
         Matcher left = Pattern.compile("__[A-Z_]+__").matcher(html);
         assertFalse("the page still holds " + (left.find() ? left.group() : ""), left.find(0));
@@ -195,7 +237,7 @@ public class SimReplayPageTest {
                 .tick());
         recording.finish("done");
 
-        String html = SimReplayPage.page(recording, false);
+        String html = SimReplayPage.written(recording);
 
         assertTrue(html, html.contains("\"pieces\":[[69.27,-60.6,1.39],[10.5,-40.123,20.0],null]"));
         assertTrue(
@@ -223,7 +265,7 @@ public class SimReplayPageTest {
         assertFalse("loads nothing from the network", html.matches("(?s).*(src|href)=\"http.*"));
         assertFalse(
                 "a replay is not a placement",
-                SimReplayPage.page(new SimRecording("SquareAuto"), false).contains("\"placing\":{"));
+                SimReplayPage.written(new SimRecording("SquareAuto")).contains("\"placing\":{"));
     }
 
     @Test
@@ -239,7 +281,7 @@ public class SimReplayPageTest {
                 .tick());
         recording.finish("stopped");
 
-        String html = SimReplayPage.page(recording, false);
+        String html = SimReplayPage.written(recording);
 
         assertTrue(html, html.contains("\"kind\":\"teleop\""));
         assertTrue(html, html.contains("\"gamepads\":{\"1\":{\"cross\":true,\"left_stick_y\":-1.0}}"));
@@ -252,7 +294,7 @@ public class SimReplayPageTest {
 
     @Test
     public void theControllerOffersEveryGamepadInputWithItsOwnKeyboardShortcut() {
-        String html = SimReplayPage.page(new SimRecording("StickTeleOp", "teleop"), true);
+        String html = SimReplayPage.live(new SimRecording("StickTeleOp", "teleop"), ASSETS);
 
         assertTrue(html, html.contains("id=\"controller\""));
         Set<String> keys = new HashSet<>();
@@ -338,13 +380,13 @@ public class SimReplayPageTest {
             }
         };
 
-        assertEquals(SimReplayPage.page(recording, false), SimReplayPage.page(fromTheChild, false));
-        assertEquals(SimReplayPage.page(recording, true), SimReplayPage.page(fromTheChild, true));
+        assertEquals(SimReplayPage.written(recording), SimReplayPage.written(fromTheChild));
+        assertEquals(SimReplayPage.live(recording, ASSETS), SimReplayPage.live(fromTheChild, ASSETS));
         assertEquals(SimReplayPage.update(recording, 1), SimReplayPage.update(fromTheChild, 1));
     }
 
     private static int templateMentions(String text) {
-        String empty = SimReplayPage.page(new SimRecording("Empty", "teleop"), false);
+        String empty = SimReplayPage.written(new SimRecording("Empty", "teleop"));
         return empty.split(Pattern.quote(text), -1).length - 1;
     }
 }

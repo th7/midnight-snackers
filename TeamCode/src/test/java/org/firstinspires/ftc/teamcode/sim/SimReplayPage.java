@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 public final class SimReplayPage {
     public interface Source {
@@ -30,7 +31,7 @@ public final class SimReplayPage {
     private SimReplayPage() {}
 
     public static void write(Source run, Path page) {
-        String html = page(run, false);
+        String html = written(run);
         try {
             Files.createDirectories(page.toAbsolutePath().getParent());
             Files.write(page, html.getBytes(StandardCharsets.UTF_8));
@@ -39,35 +40,53 @@ public final class SimReplayPage {
         }
     }
 
-    public static String page(Source run, boolean live) {
-        JsonObject root = new JsonObject();
-        root.addProperty("name", run.name());
-        root.addProperty("kind", run.kind());
-        root.addProperty("live", live);
-        root.addProperty("outcome", live ? null : run.outcome());
-        root.add("ticks", live ? new JsonArray() : run.ticksJson(0));
-        return fill(run.name(), root);
+    public static String written(Source run) {
+        JsonObject root = root(run.name(), run.kind(), false);
+        root.addProperty("outcome", run.outcome());
+        root.add("ticks", run.ticksJson(0));
+        return fill(run.name(), root, Optional.empty());
+    }
+
+    public static String live(Source run, String assetsUnder) {
+        JsonObject root = root(run.name(), run.kind(), true);
+        root.addProperty("outcome", (String) null);
+        root.add("ticks", new JsonArray());
+        return fill(run.name(), root, Optional.of(assetsUnder));
     }
 
     public static String placement(String opMode, String kind, Pose2d start) {
-        JsonObject root = new JsonObject();
-        root.addProperty("name", opMode);
-        root.addProperty("kind", kind);
-        root.addProperty("live", false);
+        JsonObject root = root(opMode, kind, false);
         root.addProperty("outcome", (String) null);
         root.add("ticks", new JsonArray());
         root.add("placing", StartPoses.toJson(start));
-        return fill(opMode, root);
+        return fill(opMode, root, Optional.empty());
     }
 
-    private static String fill(String title, JsonObject root) {
+    private static JsonObject root(String name, String kind, boolean live) {
+        JsonObject root = new JsonObject();
+        root.addProperty("name", name);
+        root.addProperty("kind", kind);
+        root.addProperty("live", live);
+        return root;
+    }
+
+    private static String fill(String title, JsonObject root, Optional<String> assetsUnder) {
         return template()
+                .replace(
+                        "__IMPORTMAP__",
+                        assetsUnder.map(SimReplayPage::importMap).orElse(""))
+                .replace("__ASSETS__", assetsUnder.map(GSON::toJson).orElse("null"))
                 .replace("__TITLE__", title)
                 .replace("__FIELD_IN__", String.valueOf(SimPlacement.FIELD_SIZE_IN))
                 .replace("__ROBOT_IN__", String.valueOf(SimPlacement.ROBOT_SIZE_IN))
                 .replace("__WALL_IN__", String.valueOf(SimPlacement.WALL_HEIGHT_IN))
                 .replace("__FIELD__", GSON.toJson(SimPlacement.FIELD.json()))
                 .replace("__DATA__", GSON.toJson(root));
+    }
+
+    private static String importMap(String assetsUnder) {
+        return "<script type=\"importmap\">\n{\"imports\": {\"three\": \"" + assetsUnder
+                + "vendor/three.module.min.js\", \"three/addons/\": \"" + assetsUnder + "vendor/jsm/\"}}\n</script>";
     }
 
     public static String update(Source run, int from) {

@@ -998,7 +998,13 @@ public class CodingServerTest {
         assertEquals(200, page.status);
         assertTrue(page.body, page.body.contains("importmap"));
         assertTrue(
-                "the page reaches its assets by relative link: " + page.body, page.body.contains("./assets/field.glb"));
+                "the page reaches its assets by relative link: " + page.body,
+                page.body.contains("./assets/fieldscene.js"));
+
+        Reply scene = user("GET", "/sim/assets/fieldscene.js", cookie);
+        assertEquals("the scene both pages draw the field with is served there", 200, scene.status);
+        assertTrue("and it is what fetches the model: " + scene.body, scene.body.contains("'field.glb'"));
+        assertEquals("which is served there too", 200, user("GET", "/sim/assets/field.glb", cookie).status);
 
         Reply model = user("GET", "/sim/model", cookie);
         assertEquals(200, model.status);

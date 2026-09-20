@@ -11,6 +11,7 @@ import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -569,6 +570,14 @@ public class SimBenchTest {
         assertEquals("/runs/" + run.id + "/", slashless.headers.get("Location"));
         assertEquals(200, mounted.status);
         assertEquals(200, ticks.status);
+
+        String base = SimLiveServerTest.assetsBaseIn(mounted.body);
+        for (String asset : List.of(
+                "field.glb", "fieldscene.js", "vendor/three.module.min.js", "vendor/jsm/loaders/GLTFLoader.js")) {
+            String where =
+                    URI.create("/runs/" + run.id + "/").resolve(base + asset).getPath();
+            assertEquals(where + ", which the live view will ask for", 200, routes().handle(get(where)).status);
+        }
     }
 
     private SimBench benchWith(FakeChild child, double graceSeconds) {

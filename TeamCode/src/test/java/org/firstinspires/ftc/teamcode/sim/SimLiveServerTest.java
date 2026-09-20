@@ -8,9 +8,12 @@ import com.acmerobotics.roadrunner.Pose2d;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.After;
 import org.junit.Test;
 
@@ -30,6 +33,17 @@ public class SimLiveServerTest {
         assertTrue(html.contains("<canvas"));
         assertTrue(html.contains("<title>LiveAuto"));
         assertTrue(html.contains("\"live\":true"));
+    }
+
+    @Test
+    public void theAssetsTheLivePageIsToldOfAreWhereThisServerServesThem() throws IOException {
+        String base = assetsBaseIn(get("/"));
+
+        for (String asset : List.of(
+                "field.glb", "fieldscene.js", "vendor/three.module.min.js", "vendor/jsm/loaders/GLTFLoader.js")) {
+            URI asked = URI.create(server.url()).resolve(base + asset);
+            assertEquals(asked + ", which the live page will ask for", 200, statusOf(asked));
+        }
     }
 
     @Test
@@ -68,6 +82,21 @@ public class SimLiveServerTest {
     private SimRecording.Tick tick(double seconds, String step) {
         return SimRecording.Tick.at(seconds, new Pose2d(0, 0, 0), step, new double[] {0, 0, 0, 0}, List.of())
                 .tick();
+    }
+
+    static String assetsBaseIn(String html) {
+        Matcher told = Pattern.compile("const ASSETS = \"([^\"]*)\"").matcher(html);
+        assertTrue("the page is told where its assets are", told.find());
+        return told.group(1);
+    }
+
+    private int statusOf(URI asked) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) asked.toURL().openConnection();
+        try {
+            return connection.getResponseCode();
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private String get(String path) throws IOException {
