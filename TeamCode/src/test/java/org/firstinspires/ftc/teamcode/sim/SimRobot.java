@@ -143,15 +143,11 @@ public class SimRobot {
 
     private Ball chambered = null;
 
-    private final Map<SimField.Cell, List<Ball>> inCell = new LinkedHashMap<>();
-
     private final Map<SimField.Flower, List<Ball>> inFlower = new LinkedHashMap<>();
 
     private final Map<SimField.Flower, Ball> offTheSeat = new LinkedHashMap<>();
 
-    private final Map<SimField.Hive, Double> tilts = new LinkedHashMap<>();
-
-    private final Map<SimField.Cell, Turned> turned = new LinkedHashMap<>();
+    private final SimHives hives;
 
     private enum Where {
         ROLLING,
@@ -212,60 +208,6 @@ public class SimRobot {
         }
     }
 
-    private static final class Turned {
-        final double[][] mouth;
-        final double[] mouthNormal;
-        final List<double[][]> panels;
-        final boolean upturned;
-
-        final double[] floorAtTheBack;
-
-        final double[] towardTheMouth;
-
-        final double[] acrossTheFloor;
-        final double[] offTheFloor;
-
-        final double floorWidth;
-
-        Turned(SimField.Cell cell, double tilt) {
-            this.mouth = cell.mouthAt(tilt);
-            this.mouthNormal = cell.mouthNormalAt(tilt);
-            this.panels = cell.panelsAt(tilt);
-            this.upturned = cell.upturnedAt(tilt);
-            double[][] floor = floorOf(cell.back);
-            this.floorAtTheBack = cell.hive.at(tilt, mean(floor));
-            this.floorWidth = floor[floor.length - 1][1] - floor[0][1];
-            this.towardTheMouth = cell.hive.direction(tilt, new double[] {Math.signum(cell.mouthNormal[0]), 0, 0});
-            this.acrossTheFloor = cell.hive.direction(tilt, new double[] {0, 1, 0});
-            this.offTheFloor = cell.hive.direction(tilt, new double[] {0, 0, 1});
-        }
-
-        private static double[][] floorOf(double[][] ring) {
-            double lowest = Double.MAX_VALUE;
-            for (double[] corner : ring) {
-                lowest = Math.min(lowest, corner[2]);
-            }
-            List<double[]> floor = new ArrayList<>();
-            for (double[] corner : ring) {
-                if (corner[2] <= lowest + 0.2) {
-                    floor.add(corner);
-                }
-            }
-            floor.sort((a, b) -> Double.compare(a[1], b[1]));
-            return floor.toArray(new double[0][]);
-        }
-
-        private static double[] mean(double[][] points) {
-            double[] sum = new double[3];
-            for (double[] p : points) {
-                for (int axis = 0; axis < 3; axis++) {
-                    sum[axis] += p[axis] / points.length;
-                }
-            }
-            return sum;
-        }
-    }
-
     public SimRobot() {
         this(SimNoise.NONE);
     }
@@ -305,13 +247,7 @@ public class SimRobot {
         robot.setAngularDamping(0);
         world.addBody(robot);
 
-        for (SimField.Hive hive : FIELD.hives) {
-            tilts.put(hive, hive.tilt);
-        }
-        for (SimField.Cell cell : FIELD.cells) {
-            inCell.put(cell, new ArrayList<>());
-            turned.put(cell, new Turned(cell, tilts.get(cell.hive)));
-        }
+        hives = new SimHives(FIELD, BOUNCE, ROLL_OUT_IN_PER_S);
         for (SimField.Flower flower : FIELD.flowers) {
             inFlower.put(flower, new ArrayList<>());
         }
@@ -473,7 +409,7 @@ public class SimRobot {
             world.removeBody(ball.body);
         }
         if (ball.where == Where.IN_CELL) {
-            inCell.get(ball.cell).remove(ball);
+            hives.takeOut(ball);
             ball.cell = null;
         }
         if (ball.where == Where.IN_FLOWER) {
@@ -487,23 +423,11 @@ public class SimRobot {
         ball.where = Where.IN_CELL;
         ball.cell = cell;
         ball.vx = ball.vy = ball.vz = 0;
-        inCell.get(cell).add(ball);
+        hives.put(ball, ball.kind, ball.radius, cell);
     }
 
     private double[] restingPlace(Ball ball) {
-        Turned turn = turned.get(ball.cell);
-        int slot = inCell.get(ball.cell).indexOf(ball);
-        int perRow = Math.max(1, (int) (turn.floorWidth / (2 * ball.radius)));
-        double across = (slot % perRow - (perRow - 1) / 2.0) * 2 * ball.radius;
-        double along = ball.radius + slot / perRow * 2 * ball.radius;
-        double[] out = new double[3];
-        for (int axis = 0; axis < 3; axis++) {
-            out[axis] = turn.floorAtTheBack[axis]
-                    + turn.towardTheMouth[axis] * along
-                    + turn.acrossTheFloor[axis] * across
-                    + turn.offTheFloor[axis] * ball.radius;
-        }
-        return out;
+        return hives.restingPlace(ball);
     }
 
     private void putInFlower(Ball ball, SimField.Flower flower, double z) {
@@ -660,55 +584,31 @@ public class SimRobot {
     }
 
     public int scored(String alliance) {
-        int total = 0;
-        for (Map.Entry<SimField.Cell, List<Ball>> entry : inCell.entrySet()) {
-            if (entry.getKey().alliance.equals(alliance)) {
-                total += entry.getValue().size();
-            }
-        }
-        return total;
+        return hives.scored(alliance);
     }
 
     public Map<String, Integer> scored() {
-        Map<String, Integer> out = new LinkedHashMap<>();
-        for (SimField.Cell cell : inCell.keySet()) {
-            out.merge(cell.alliance, inCell.get(cell).size(), Integer::sum);
-        }
-        return out;
+        return hives.scored();
     }
 
     public double load(String alliance) {
-        return fill(hiveOf(alliance)) / (double) FULL;
+        return hives.load(alliance);
     }
 
     public double tilt(String alliance) {
-        return tilts.get(hiveOf(alliance));
+        return hives.tilt(alliance);
     }
 
     public Map<String, Double> tilt() {
-        Map<String, Double> out = new LinkedHashMap<>();
-        for (SimField.Hive hive : FIELD.hives) {
-            out.put(hive.alliance, tilts.get(hive));
-        }
-        return out;
+        return hives.tilts();
     }
 
     public SimField.Cell upturnedCell(String alliance) {
-        for (SimField.Cell cell : hiveOf(alliance).cells) {
-            if (turned.get(cell).upturned) {
-                return cell;
-            }
-        }
-        throw new IllegalStateException(alliance + "'s hive has no upturned cell");
+        return hives.upturnedCell(alliance);
     }
 
     public SimField.Hive hiveOf(String alliance) {
-        for (SimField.Hive hive : FIELD.hives) {
-            if (hive.alliance.equals(alliance)) {
-                return hive;
-            }
-        }
-        throw new IllegalArgumentException("no hive for " + alliance);
+        return hives.hiveOf(alliance);
     }
 
     public void step(double dtSeconds) {
@@ -917,76 +817,32 @@ public class SimRobot {
 
     private boolean meetsAHive(Ball ball, double[] from) {
         double[] to = {ball.x, ball.y, ball.z};
-        for (SimField.Cell cell : FIELD.cells) {
-            Turned turn = turned.get(cell);
-            double[] hit = crossing(turn.mouth, turn.mouthNormal, from, to);
-            if (hit != null) {
-                if (side(turn.mouthNormal, turn.mouth[0], from) > 0) {
-                    putInCell(ball, cell);
-                }
-                return true;
-            }
-            for (double[][] panel : turn.panels) {
-                double[] normal = SimField.normal(panel);
-                hit = crossing(panel, normal, from, to);
-                if (hit == null) {
-                    continue;
-                }
-                boolean fromTheFront = side(normal, panel[0], from) > 0;
-                double along = ball.vx * normal[0] + ball.vy * normal[1] + ball.vz * normal[2];
-                ball.vx -= (1 + BOUNCE) * along * normal[0];
-                ball.vy -= (1 + BOUNCE) * along * normal[1];
-                ball.vz -= (1 + BOUNCE) * along * normal[2];
-                double back = fromTheFront ? CONTACT_TOLERANCE_IN : -CONTACT_TOLERANCE_IN;
-                ball.x = hit[0] + back * normal[0];
-                ball.y = hit[1] + back * normal[1];
-                ball.z = hit[2] + back * normal[2];
-                return true;
-            }
+        SimHives.Met met = hives.met(from, to, new double[] {ball.vx, ball.vy, ball.vz});
+        if (met.scored()) {
+            putInCell(ball, met.scoredIn);
+        } else if (met.bounced()) {
+            ball.x = met.at[0];
+            ball.y = met.at[1];
+            ball.z = met.at[2];
+            ball.vx = met.velocity[0];
+            ball.vy = met.velocity[1];
+            ball.vz = met.velocity[2];
         }
-        return false;
+        return met.met();
     }
 
     private void turnTheHives() {
-        for (SimField.Hive hive : FIELD.hives) {
-            if (fill(hive) >= FULL) {
-                tilts.put(hive, -tilts.get(hive));
-                for (SimField.Cell cell : hive.cells) {
-                    turned.put(cell, new Turned(cell, tilts.get(hive)));
-                }
-            }
-            for (SimField.Cell cell : hive.cells) {
-                if (turned.get(cell).upturned) {
-                    continue;
-                }
-                for (Ball ball : new ArrayList<>(inCell.get(cell))) {
-                    rollOut(ball, cell);
-                }
-            }
+        for (SimHives.LeftACell left : hives.turn()) {
+            Ball ball = (Ball) left.ball;
+            take(ball);
+            ball.where = Where.FLYING;
+            ball.x = left.at[0];
+            ball.y = left.at[1];
+            ball.z = left.at[2];
+            ball.vx = left.velocity[0];
+            ball.vy = left.velocity[1];
+            ball.vz = left.velocity[2];
         }
-    }
-
-    private int fill(SimField.Hive hive) {
-        int fill = 0;
-        for (SimField.Cell cell : hive.cells) {
-            for (Ball ball : inCell.get(cell)) {
-                fill += SimField.NECTAR.equals(ball.kind) ? NECTAR_FILLS : POLLEN_FILLS;
-            }
-        }
-        return fill;
-    }
-
-    private void rollOut(Ball ball, SimField.Cell cell) {
-        Turned turn = turned.get(cell);
-        double[] out = restingPlace(ball);
-        take(ball);
-        ball.where = Where.FLYING;
-        ball.x = out[0] + turn.mouthNormal[0] * CONTACT_TOLERANCE_IN;
-        ball.y = out[1] + turn.mouthNormal[1] * CONTACT_TOLERANCE_IN;
-        ball.z = out[2] + turn.mouthNormal[2] * CONTACT_TOLERANCE_IN;
-        ball.vx = turn.mouthNormal[0] * ROLL_OUT_IN_PER_S;
-        ball.vy = turn.mouthNormal[1] * ROLL_OUT_IN_PER_S;
-        ball.vz = turn.mouthNormal[2] * ROLL_OUT_IN_PER_S;
     }
 
     private void land(Ball ball) {
