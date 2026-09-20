@@ -91,9 +91,25 @@ public class CodingServerTest {
         return serverWith(worktree -> bench);
     }
 
+    private static final int CHEAP_SCRYPT = 1 << 4;
+
     private CodingServer serverWith(SimBench.Factory benches) {
-        server = CodingServer.start(root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+        return serverWith(benches, CHEAP_SCRYPT);
+    }
+
+    private CodingServer serverWith(SimBench.Factory benches, int scryptN) {
+        server = CodingServer.start(root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN);
         return server;
+    }
+
+    private CodingServer serverThatHashesAsItWouldInEarnest() {
+        return serverWith(
+                worktree -> {
+                    SimBench bench = bench();
+                    benches.add(bench);
+                    return bench;
+                },
+                CodingServer.SCRYPT_N);
     }
 
     private Path stateDir() {
@@ -1106,6 +1122,7 @@ public class CodingServerTest {
 
     @Test
     public void theSessionStoreHoldsASaltedScryptHashOfEachSecretAndNeverTheSecret() throws IOException {
+        serverThatHashesAsItWouldInEarnest();
         String ada = login("ada");
         String bob = login("bob");
 
