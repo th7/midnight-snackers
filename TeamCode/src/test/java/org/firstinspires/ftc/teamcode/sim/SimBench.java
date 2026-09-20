@@ -289,12 +289,40 @@ public final class SimBench {
             Child children,
             double startupSeconds,
             Clock clock) {
+        this(
+                sourcesOf(fixedCatalog, project, outputDir),
+                outputDir,
+                runTimeoutSeconds,
+                teleOpSeconds,
+                killGraceSeconds,
+                children,
+                startupSeconds,
+                clock);
+    }
+
+    private static SimSources sourcesOf(SimCatalog fixedCatalog, Path project, Path outputDir) {
         if ((fixedCatalog == null) == (project == null)) {
             throw new IllegalArgumentException("give either a fixed catalog or a project");
         }
-        this.sources = fixedCatalog != null
+        return fixedCatalog != null
                 ? SimSources.ofThisClasspath(fixedCatalog)
                 : SimSources.ofTheProjectAt(project, outputDir);
+    }
+
+    /**
+     * A bench over whatever it is that builds and starts: the classpath this JVM runs on, a project
+     * on disk, or -- in a test of the bench itself -- something that need do neither.
+     */
+    public SimBench(
+            SimSources sources,
+            Path outputDir,
+            double runTimeoutSeconds,
+            double teleOpSeconds,
+            double killGraceSeconds,
+            Child children,
+            double startupSeconds,
+            Clock clock) {
+        this.sources = sources;
         this.outputDir = outputDir;
         this.runTimeoutSeconds = runTimeoutSeconds;
         this.teleOpSeconds = teleOpSeconds;
