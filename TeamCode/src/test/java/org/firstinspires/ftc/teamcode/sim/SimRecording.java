@@ -32,70 +32,72 @@ public final class SimRecording implements SimReplayPage.Source {
 
         public final Map<String, Double> tilt;
 
-        public Tick(double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
-            this(seconds, truePose, step, wheelPowers, packets, null, null);
+        private Tick(Builder building) {
+            this.seconds = building.seconds;
+            this.truePose = building.truePose;
+            this.step = building.step;
+            this.wheelPowers = building.wheelPowers;
+            this.packets = building.packets;
+            this.gamepad1 = building.gamepad1;
+            this.gamepad2 = building.gamepad2;
+            this.pieces = building.pieces;
+            this.held = building.held;
+            this.scored = building.scored;
+            this.tilt = building.tilt;
         }
 
-        public Tick(
-                double seconds,
-                Pose2d truePose,
-                String step,
-                double[] wheelPowers,
-                List<TelemetryPacket> packets,
-                State gamepad1,
-                State gamepad2) {
-            this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, null);
+        public static Builder at(
+                double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
+            return new Builder(seconds, truePose, step, wheelPowers, packets);
         }
 
-        public Tick(
-                double seconds,
-                Pose2d truePose,
-                String step,
-                double[] wheelPowers,
-                List<TelemetryPacket> packets,
-                State gamepad1,
-                State gamepad2,
-                double[][] pieces) {
-            this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, pieces, 0, Map.of());
-        }
+        public static final class Builder {
+            private final double seconds;
+            private final Pose2d truePose;
+            private final String step;
+            private final double[] wheelPowers;
+            private final List<TelemetryPacket> packets;
+            private State gamepad1;
+            private State gamepad2;
+            private double[][] pieces;
+            private int held;
+            private Map<String, Integer> scored = Map.of();
+            private Map<String, Double> tilt = Map.of();
 
-        public Tick(
-                double seconds,
-                Pose2d truePose,
-                String step,
-                double[] wheelPowers,
-                List<TelemetryPacket> packets,
-                State gamepad1,
-                State gamepad2,
-                double[][] pieces,
-                int held,
-                Map<String, Integer> scored) {
-            this(seconds, truePose, step, wheelPowers, packets, gamepad1, gamepad2, pieces, held, scored, Map.of());
-        }
+            private Builder(
+                    double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
+                this.seconds = seconds;
+                this.truePose = truePose;
+                this.step = step;
+                this.wheelPowers = wheelPowers;
+                this.packets = packets;
+            }
 
-        public Tick(
-                double seconds,
-                Pose2d truePose,
-                String step,
-                double[] wheelPowers,
-                List<TelemetryPacket> packets,
-                State gamepad1,
-                State gamepad2,
-                double[][] pieces,
-                int held,
-                Map<String, Integer> scored,
-                Map<String, Double> tilt) {
-            this.seconds = seconds;
-            this.truePose = truePose;
-            this.step = step;
-            this.wheelPowers = wheelPowers;
-            this.packets = packets;
-            this.gamepad1 = gamepad1;
-            this.gamepad2 = gamepad2;
-            this.pieces = pieces;
-            this.held = held;
-            this.scored = scored;
-            this.tilt = tilt;
+            public Builder drivenBy(State gamepad1, State gamepad2) {
+                this.gamepad1 = gamepad1;
+                this.gamepad2 = gamepad2;
+                return this;
+            }
+
+            public Builder withBalls(double[][] pieces, int held) {
+                this.pieces = pieces;
+                this.held = held;
+                return this;
+            }
+
+            public Builder scoring(Map<String, Integer> scored) {
+                this.scored = scored;
+                return this;
+            }
+
+            public Builder tilted(Map<String, Double> tilt) {
+                this.tilt = tilt;
+                return this;
+            }
+
+            public Tick tick() {
+                return new Tick(this);
+            }
         }
     }
 

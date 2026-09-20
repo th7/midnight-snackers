@@ -185,18 +185,21 @@ public final class SimRunner {
                 lastDrawingAt = elapsed;
             }
             packetsSeen = allPackets.size();
-            recording.add(new SimRecording.Tick(
-                    elapsed,
-                    sim.pose(),
-                    auto != null ? auto.currentStep() : "",
-                    new double[] {sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power},
-                    thisLoop,
-                    auto == null ? applied.gamepad1 : null,
-                    auto == null ? applied.gamepad2 : null,
-                    sim.pieces(),
-                    sim.held(),
-                    sim.scored(),
-                    sim.tilt()));
+            SimRecording.Tick.Builder tick = SimRecording.Tick.at(
+                            elapsed,
+                            sim.pose(),
+                            auto != null ? auto.currentStep() : "",
+                            new double[] {
+                                sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power
+                            },
+                            thisLoop)
+                    .withBalls(sim.pieces(), sim.held())
+                    .scoring(sim.scored())
+                    .tilted(sim.tilt());
+            if (auto == null) {
+                tick.drivenBy(applied.gamepad1, applied.gamepad2);
+            }
+            recording.add(tick.tick());
 
             sim.step(sim.noise().nextLoopSeconds());
             if (pace == Pace.REAL_TIME) {
