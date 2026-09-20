@@ -86,6 +86,59 @@ Chromium, both render through SwiftShader, and the checks are about whether a pa
 rather than about exact pixels -- but it is a difference, and if a page test ever
 disagrees between the two, this is the first place to look.
 
+## What a frame costs
+
+`tools/browser/cost.mjs` is the same browser put to a different question: not
+whether the page draws, but what drawing it costs.
+
+    node tools/browser/cost.mjs                 # measure, and check the budget
+    node tools/browser/cost.mjs --regenerate    # record a new budget
+
+The probe is `framecost.js`, served with the page's other assets, and the page
+itself runs it: **<http://localhost:21986/sim/field?run=1&cost>** measures and
+prints the reading into the HUD. That is how a frame is measured on a tablet,
+where no harness runs -- open the bench's address on the device and read it.
+
+Three things make the number mean something.
+
+**It renders as fast as it can, not once a frame.** A page held to the
+display's refresh reports 60 fps whether a frame takes 2 ms or 16, so the probe
+renders in a tight loop instead, outside `requestAnimationFrame`.
+
+**It waits for the GPU.** `render()` returns when the commands are queued, not
+when they are drawn, so a block of renders is followed by a one-pixel
+`readPixels`, which cannot answer until the queue has drained. The reading
+carries both: the time to *submit* a frame, which is the CPU's share, and the
+time for one to *finish*. A frame that is cheap to submit and dear to finish is
+GPU-bound; the other way round is draw calls.
+
+**It renders enough of them to out-measure the clock.** `performance.now()` is
+deliberately coarse, so the probe doubles the number of renders in a block
+until the block takes 50 ms, and divides. On a machine where even the cap is
+too quick, it reports that it could not judge rather than a number that is the
+clock's resolution. A measurement nobody could take must not read like one that
+was.
+
+**Draw calls are counted, not asked for.** `renderer.info.render.calls` counts
+the colour pass only: five shadow-casting meshes report five calls whether the
+shadow pass runs or not, though the GPU drew them ten times. So the probe wraps
+the context's `drawElements` and `drawArrays` for one frame and counts what
+actually happens. The field scene makes **620 draws a frame with shadows and
+338 without** -- the shadow pass is nearly half the draw calls, which no number
+three.js reports would have said.
+
+## The budget
+
+`tools/browser/scene-budget.json` records the counts that do not vary with the
+machine -- draws, colour-pass calls and triangles -- and the check fails when
+they move. Timings are printed and never asserted: they are a property of
+whatever ran them, and SwiftShader's are a hundred times a real GPU's.
+
+It is a change detector, not a judgement, and the same deal as a golden trace:
+a missing budget fails rather than passing for want of anything to compare, and
+a regenerating run fails too, because a run that wrote the answer down has not
+checked it. An intended change is read and then regenerated.
+
 ## What a test can then say that nothing else can
 
 - The page loads with no uncaught error and no failed request.

@@ -1,7 +1,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { chromium } from 'playwright';
+import { chrome } from './bench.mjs';
 
 function argument(name, fallback) {
   const at = process.argv.indexOf('--' + name);
@@ -20,12 +20,7 @@ if (!bench || !run) {
   process.exit(2);
 }
 
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME_BIN || undefined,
-  ...(process.env.CHROME_BIN ? {} : { channel: 'chromium' }),
-  args: ['--no-sandbox', '--disable-dev-shm-usage', '--enable-unsafe-swiftshader',
-         '--use-gl=angle', '--use-angle=swiftshader']
-});
+const browser = await chrome();
 
 let written = 0;
 try {

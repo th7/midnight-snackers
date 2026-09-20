@@ -747,6 +747,29 @@ is the one renderer of it: the field page and the live view both build
 their picture from it and add their own. It needs the assets, so a page
 gets it only when it is served somewhere they resolve.
 
+**What a frame costs** — What the field scene costs to draw, measured rather
+than guessed: `/sim/field?run=<id>&cost` takes the reading in whatever browser
+opens it, which is how a tablet is measured, and `node tools/browser/cost.mjs`
+takes the same one here. A reading says how long one frame takes to **submit**
+— the CPU's share — and how long to **finish**, which is the GPU's, with and
+without the shadow pass; and how many **draws** the frame really made, counted
+at the context rather than asked of three.js, whose own count is the colour
+pass and so misses that the shadow pass is nearly half of them. The probe
+renders flat out rather than once a refresh, waits for the GPU with a one-pixel
+read, and doubles the renders in a block until the block outlasts the clock's
+resolution — and when even the cap is too quick it says it could not judge,
+because a measurement nobody could take must not read like one that was.
+Counts are pinned in a **budget** and times are only ever printed: a count is
+the scene's and a time is the machine's. Files: `framecost.js`;
+`tools/browser/cost.mjs`; `tools/browser/scene-budget.json`.
+
+**Budget** — `tools/browser/scene-budget.json`: the draws, colour-pass calls
+and triangles one frame of the field scene makes. The same deal as a **golden
+trace** — a change detector, not a judgement — so a missing budget fails rather
+than passing for want of anything to compare, a regenerating run fails because
+a run that wrote the answer down has not checked it, and an intended change is
+read and then regenerated with `--regenerate`.
+
 **Where the assets are** — What a served page is told, and a written one is
 not: the base its `field.glb`, its `fieldscene.js` and its three.js resolve
 against, relative to where that page is served (`assets/` from the live
