@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chrome } from './bench.mjs';
 import { asTheBenchServesIt } from './model.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -328,11 +328,7 @@ async function main() {
   const following = { name: NAME, kind: 'auto', live: true, outcome: null, ticks: [] };
   const server = await served(page, filled(template, model, following, ASSETS), run.ticks);
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch({
-    ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : { channel: 'chromium' }),
-    args: ['--no-sandbox', '--disable-dev-shm-usage',
-           '--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader']
-  });
+  const browser = await chrome();
 
   let solid = false;
   try {

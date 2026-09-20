@@ -102,7 +102,73 @@ view.load().then((what) => {
 }).catch((wrong) => {
   said.textContent = 'The field did not load.';
   problem.textContent = String(wrong && wrong.message ? wrong.message : wrong);
+}).then(() => {
+  if (new URLSearchParams(location.search).has('cost')) {
+    return whatAFrameCosts().catch((wrong) => {
+      problem.textContent = 'The frame cost could not be measured: '
+          + String(wrong && wrong.message ? wrong.message : wrong);
+    });
+  }
+  return null;
 });
+
+let cost = null;
+
+function shadowPass(on) {
+  renderer.shadowMap.enabled = on;
+  scene.traverse((o) => {
+    if (o.isMesh && o.material) {
+      for (const one of [].concat(o.material)) {
+        one.needsUpdate = true;
+      }
+    }
+  });
+}
+
+function fps(reading) {
+  return reading.judged ? ' (' + Math.round(1000 / reading.best) + ' fps)' : '';
+}
+
+function reads(name, reading) {
+  return reading.judged
+      ? name + ' ' + reading.best.toFixed(2) + ' ms' + fps(reading) + ', '
+          + reading.calls.toLocaleString() + ' draw calls, ' + reading.triangles.toLocaleString() + ' triangles'
+      : name + ' could not be judged: ' + reading.why;
+}
+
+async function whatAFrameCosts() {
+  const { measure, drawnBy } = await import('./assets/framecost.js');
+  document.querySelector('#hud h1').textContent = 'What a frame costs';
+  said.textContent = 'Measuring\u2026 the page holds still while it does.';
+  runBar.hidden = true;
+  renderer.setAnimationLoop(null);
+  await new Promise((go) => requestAnimationFrame(go));
+
+  const draw = () => view.drawnFrom(cameraView);
+  let withShadows = null;
+  let withoutShadows = null;
+  try {
+    withShadows = await measure(renderer, draw);
+    shadowPass(false);
+    withoutShadows = await measure(renderer, draw);
+  } finally {
+    shadowPass(true);
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      view.drawnFrom(cameraView);
+    });
+  }
+
+  cost = {
+    at: { width: renderer.domElement.width, height: renderer.domElement.height },
+    gpu: drawnBy(renderer),
+    withShadows: withShadows,
+    withoutShadows: withoutShadows
+  };
+  said.textContent = reads('With shadows:', withShadows) + '. '
+      + reads('Without:', withoutShadows) + '. '
+      + cost.at.width + '\u00d7' + cost.at.height + ' on ' + cost.gpu + '.';
+}
 
 let model = null;
 let ticks = [];
@@ -463,6 +529,7 @@ window.fieldPage = {
         : null;
   },
   goTo: (i) => goTo(i),
+  get cost() { return cost; },
 
   get launchedBall() { return view.movingBalls.length > moved.length ? view.movingBalls[moved.length] : null; },
   get camera3() { return cameraView; },
