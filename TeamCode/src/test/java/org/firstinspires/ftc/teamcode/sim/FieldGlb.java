@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 public final class FieldGlb {
     public static final double GRID_IN = 0.05;
+    public static final double NO_GRID = 0;
     public static final int LEAST_COMPARED = 10;
 
     private static final Pattern SKIP = Pattern.compile(
@@ -78,7 +79,7 @@ public final class FieldGlb {
         for (int i = 0; i < triangles.length; i += 9) {
             double[] corner = new double[9];
             for (int c = 0; c < 9; c++) {
-                corner[c] = Math.rint(triangles[i + c] / grid) * grid;
+                corner[c] = grid > 0 ? Math.rint(triangles[i + c] / grid) * grid : triangles[i + c];
             }
             if (same(corner, 0, 3) || same(corner, 3, 6) || same(corner, 0, 6)) {
                 continue;

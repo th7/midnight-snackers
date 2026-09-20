@@ -16,6 +16,34 @@ public final class FieldAssets {
     public static final String FIELD_GLB = "field.glb";
     public static final String TEXTURES_UNDER = "textures";
 
+    public enum Detail {
+        NORMAL("normal", FIELD_GLB, FieldGlb.GRID_IN),
+        FULL("full", "field-full.glb", FieldGlb.NO_GRID);
+
+        public final String asked;
+        public final String file;
+        public final double grid;
+
+        Detail(String asked, String file, double grid) {
+            this.asked = asked;
+            this.file = file;
+            this.grid = grid;
+        }
+    }
+
+    public static List<Detail> detailsNamed(String asked) {
+        if (asked == null || asked.isBlank() || Detail.NORMAL.asked.equals(asked)) {
+            return List.of(Detail.NORMAL);
+        }
+        if (Detail.FULL.asked.equals(asked)) {
+            return List.of(Detail.FULL);
+        }
+        if ("both".equals(asked)) {
+            return List.of(Detail.NORMAL, Detail.FULL);
+        }
+        throw new NotAnAsset("no such detail: " + asked + ". It is normal, full or both.");
+    }
+
     public static final List<String> TEXTURES = List.of(
             "BIOBUZZ_Panel_Resized.png",
             "GoalAprilTag_blueaudience.png",
@@ -61,8 +89,15 @@ public final class FieldAssets {
     }
 
     public static Refreshed refresh(Onshape onshape, Store store, Path into) {
+        return refresh(onshape, store, into, List.of(Detail.NORMAL));
+    }
+
+    public static Refreshed refresh(Onshape onshape, Store store, Path into, List<Detail> details) {
+        byte[] export = export(onshape);
         Map<String, byte[]> fetched = new LinkedHashMap<>();
-        fetched.put(FIELD_GLB, model(onshape));
+        for (Detail detail : details) {
+            fetched.put(detail.file, FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, detail.grid));
+        }
         fetched.putAll(textures(onshape));
 
         Map<String, Integer> written = new LinkedHashMap<>();
@@ -73,11 +108,10 @@ public final class FieldAssets {
         return new Refreshed(written);
     }
 
-    static byte[] model(Onshape onshape) {
+    static byte[] export(Onshape onshape) {
         String url = "/api/v10/assemblies/d/" + Onshape.FIELD_DOCUMENT + "/w/" + Onshape.FIELD_WORKSPACE + "/e/"
                 + Onshape.FIELD_ASSEMBLY + "/gltf";
-        byte[] export = onshape.get(url, "model/gltf+json");
-        return FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, FieldGlb.GRID_IN);
+        return onshape.get(url, "model/gltf+json");
     }
 
     static Map<String, byte[]> textures(Onshape onshape) {

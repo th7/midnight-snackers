@@ -128,6 +128,13 @@
       <p class="section-label">The field the pages draw</p>
       <div class="panel">
         <p id="assets-state">&hellip;</p>
+        <label>Detail
+          <select id="assets-detail">
+            <option value="normal" selected>normal (4 MB)</option>
+            <option value="full">full (13 MB)</option>
+            <option value="both">both</option>
+          </select>
+        </label>
         <button id="refresh-assets" type="button">Refresh assets</button>
         <p id="assets-said" class="mono"></p>
       </div>
@@ -139,15 +146,20 @@
   var assetsState = document.getElementById('assets-state');
   var assetsSaid = document.getElementById('assets-said');
   var refreshAssets = document.getElementById('refresh-assets');
+  var assetsDetail = document.getElementById('assets-detail');
 
   function showAssets(json) {
     assetsState.textContent = json.complete
       ? 'Drawing ' + json.drawing + '.'
       : 'Drawing ' + json.drawing + '; this server has not fetched them from Onshape yet.';
     var names = Object.keys(json.fetched || {});
-    assetsSaid.textContent = names.length
+    var detail = json.detail || {};
+    var held = Object.keys(detail).filter(function (name) { return detail[name]; });
+    assetsSaid.textContent = (names.length
       ? names.length + ' fetched, in ' + json.under
-      : 'nothing fetched, so ' + json.under + ' is empty';
+      : 'nothing fetched, so ' + json.under + ' is empty')
+      + (held.length ? '. Models held: ' + held.join(', ') + '.' : '')
+      + (detail.full ? ' A page can ask for it with ?detail=full.' : '');
   }
 
   function loadAssets() {
@@ -158,7 +170,8 @@
   refreshAssets.addEventListener('click', function () {
     refreshAssets.disabled = true;
     assetsSaid.textContent = 'Fetching from Onshape\u2026 the model is a few megabytes.';
-    fetch('/admin/assets/refresh', { method: 'POST' }).then(function (r) {
+    fetch('/admin/assets/refresh?detail=' + encodeURIComponent(assetsDetail.value), { method: 'POST' })
+      .then(function (r) {
       return r.text().then(function (text) { return { ok: r.ok, text: text }; });
     }).then(function (answer) {
       if (!answer.ok) {

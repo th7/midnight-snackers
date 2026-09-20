@@ -204,11 +204,11 @@ public final class CodingServer {
     private final Assets assets;
 
     public interface Assets {
-        FieldAssets.Refreshed refresh(Store store, Path into);
+        FieldAssets.Refreshed refresh(Store store, Path into, List<FieldAssets.Detail> details);
     }
 
     public static Assets fromOnshape() {
-        return (store, into) -> FieldAssets.refresh(Onshape.configured(), store, into);
+        return (store, into, details) -> FieldAssets.refresh(Onshape.configured(), store, into, details);
     }
 
     private CodingServer(
@@ -996,7 +996,7 @@ public final class CodingServer {
                                 deleteUser(request.query("username"), "true".equals(request.query("force"))))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("GET", "/admin/assets", (request, params) -> Response.json(GSON.toJson(assetsFetched())))
-                .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets())
+                .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets(request.query("detail")))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
                         "POST",
@@ -1025,12 +1025,23 @@ public final class CodingServer {
         out.addProperty(
                 "drawing",
                 held.has(FieldAssets.FIELD_GLB) ? "the model this server fetched" : "the model committed for tests");
+        JsonObject details = new JsonObject();
+        for (FieldAssets.Detail one : FieldAssets.Detail.values()) {
+            details.addProperty(one.asked, assetStore.isFile(assetsDir.resolve(one.file)));
+        }
+        out.add("detail", details);
         return out;
     }
 
-    private Response refreshAssets() {
+    private Response refreshAssets(String detail) {
+        List<FieldAssets.Detail> details;
         try {
-            FieldAssets.Refreshed refreshed = assets.refresh(assetStore, assetsDir);
+            details = FieldAssets.detailsNamed(detail);
+        } catch (FieldAssets.NotAnAsset wrong) {
+            return Response.error(400, wrong.getMessage());
+        }
+        try {
+            FieldAssets.Refreshed refreshed = assets.refresh(assetStore, assetsDir, details);
             JsonObject out = assetsFetched();
             out.addProperty("refreshed", refreshed.written.size());
             out.addProperty("bytes", refreshed.bytes());
@@ -1051,7 +1062,8 @@ public final class CodingServer {
                 () -> {
                     try {
                         System.out.println("  assets fetching from Onshape into " + assetsDir);
-                        System.out.println("  assets " + assets.refresh(assetStore, assetsDir));
+                        System.out.println("  assets "
+                                + assets.refresh(assetStore, assetsDir, List.of(FieldAssets.Detail.NORMAL)));
                     } catch (RuntimeException wrong) {
                         System.out.println("  assets not fetched (" + wrong.getMessage()
                                 + "); the pages draw the model committed for tests");

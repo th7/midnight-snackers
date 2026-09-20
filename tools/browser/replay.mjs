@@ -259,6 +259,23 @@ async function aRunStillAddingTicksIsFollowedInTheModel(browser, base, ticks) {
   }
 }
 
+async function fullDetailNobodyFetchedSaysSoRatherThanFailing(browser, base) {
+  const { open, threw } = await opened(browser, `${base}/runs/1/?detail=full`);
+  try {
+    const panels = await readPanels(open);
+    const unexpected = threw.filter((said) => !/field-full\.glb|404/.test(said));
+    check(unexpected.length === 0, `asking for full detail threw: ${unexpected.join('; ')}`);
+    check(threw.some((said) => /field-full\.glb/.test(said)),
+          'the page never asked for the full model, so falling back proves nothing');
+    check(panels.drawing === 'solid',
+          `a page asked for a detail nobody fetched drew the ${panels.drawing} field instead of falling back`);
+    check(/full-detail model has not been fetched/.test(panels.problem),
+          `the page fell back from full detail and said "${panels.problem}", which does not say it fell back`);
+  } finally {
+    await open.close();
+  }
+}
+
 async function theFlatDrawingIsStillThereToAskFor(browser, base) {
   const { open, threw } = await opened(browser, `${base}/runs/1/?view=flat`);
   try {
@@ -334,6 +351,7 @@ async function main() {
   try {
     solid = await theLiveViewDrawsTheFieldModel(browser, base, run);
     await aRunStillAddingTicksIsFollowedInTheModel(browser, base, run.ticks);
+    await fullDetailNobodyFetchedSaysSoRatherThanFailing(browser, base);
     await theFlatDrawingIsStillThereToAskFor(browser, base);
     await aModelItCannotFetchFallsBackAndSaysSo(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
