@@ -35,20 +35,23 @@ public class SimReplayPageTest {
         TelemetryPacket packet = new TelemetryPacket();
         packet.fieldOverlay().setStroke("#4CAF50").strokePolyline(new double[] {0, 24}, new double[] {0, 24});
         packet.put("xError", 0.25);
-        recording.add(new SimRecording.Tick(
-                0.0, new Pose2d(0, 0, 0), "1. waitFor 5.0", new double[] {0, 0, 0, 0}, List.of()));
-        recording.add(new SimRecording.Tick(
-                0.5,
-                new Pose2d(12.5, -3, Math.PI / 2),
-                "2. driveTo 24, 0, 0",
-                new double[] {1, 0.75, -0.5, 0.25},
-                List.of(packet)));
-        recording.add(new SimRecording.Tick(
-                1.0 / 3,
-                new Pose2d(1.0 / 3, 0, 0),
-                "3. rounding",
-                new double[] {1, 0.75, -0.5, 0.25},
-                List.of(packet)));
+        recording.add(
+                SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "1. waitFor 5.0", new double[] {0, 0, 0, 0}, List.of())
+                        .tick());
+        recording.add(SimRecording.Tick.at(
+                        0.5,
+                        new Pose2d(12.5, -3, Math.PI / 2),
+                        "2. driveTo 24, 0, 0",
+                        new double[] {1, 0.75, -0.5, 0.25},
+                        List.of(packet))
+                .tick());
+        recording.add(SimRecording.Tick.at(
+                        1.0 / 3,
+                        new Pose2d(1.0 / 3, 0, 0),
+                        "3. rounding",
+                        new double[] {1, 0.75, -0.5, 0.25},
+                        List.of(packet))
+                .tick());
         recording.finish("done");
         Path page = folder.getRoot().toPath().resolve("SquareAuto.html");
 
@@ -93,18 +96,10 @@ public class SimReplayPageTest {
     public void thePageDrawsEachHiveWhereItLeans() {
         SimRecording recording = new SimRecording("TipAuto");
         SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
-        recording.add(new SimRecording.Tick(
-                0.0,
-                new Pose2d(0, 0, 0),
-                "1. fill the hive",
-                new double[] {0, 0, 0, 0},
-                List.of(),
-                null,
-                null,
-                null,
-                0,
-                Map.of(),
-                Map.of(blue.alliance, -blue.tilt)));
+        recording.add(
+                SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "1. fill the hive", new double[] {0, 0, 0, 0}, List.of())
+                        .tilted(Map.of(blue.alliance, -blue.tilt))
+                        .tick());
         recording.finish("done");
 
         String html = SimReplayPage.page(recording, false);
@@ -152,18 +147,12 @@ public class SimReplayPageTest {
     @Test
     public void aTickCarriesWhereTheLoosePiecesAre() {
         SimRecording recording = new SimRecording("PushAuto");
-        recording.add(new SimRecording.Tick(
-                0.0,
-                new Pose2d(0, 0, 0),
-                "1. push",
-                new double[] {1, 1, 1, 1},
-                List.of(),
-                null,
-                null,
-                new double[][] {{69.27, -60.6, 1.39}, {10.5, -40.1234, 20}, null},
-                2,
-                java.util.Map.of("Blue", 1)));
-        recording.add(new SimRecording.Tick(0.5, new Pose2d(1, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of()));
+        recording.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of())
+                .withBalls(new double[][] {{69.27, -60.6, 1.39}, {10.5, -40.1234, 20}, null}, 2)
+                .scoring(java.util.Map.of("Blue", 1))
+                .tick());
+        recording.add(SimRecording.Tick.at(0.5, new Pose2d(1, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of())
+                .tick());
         recording.finish("done");
 
         String html = SimReplayPage.page(recording, false);
@@ -202,10 +191,12 @@ public class SimReplayPageTest {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");
         State driving =
                 State.fromJson(new Gson().fromJson("{\"cross\": true, \"left_stick_y\": -1}", JsonObject.class));
-        recording.add(new SimRecording.Tick(
-                0.0, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
-        recording.add(new SimRecording.Tick(
-                0.5, new Pose2d(3, 0, 0), "", new double[] {1, 1, 1, 1}, List.of(), driving, State.NEUTRAL));
+        recording.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
+                .drivenBy(State.NEUTRAL, State.NEUTRAL)
+                .tick());
+        recording.add(SimRecording.Tick.at(0.5, new Pose2d(3, 0, 0), "", new double[] {1, 1, 1, 1}, List.of())
+                .drivenBy(driving, State.NEUTRAL)
+                .tick());
         recording.finish("stopped");
 
         String html = SimReplayPage.page(recording, false);
@@ -254,16 +245,12 @@ public class SimReplayPageTest {
     @Test
     public void aRunKnownOnlyByItsChildsLinesIsTheSamePageAsTheRecordingItCameFrom() {
         SimRecording recording = new SimRecording("StickTeleOp", "teleop");
-        recording.add(new SimRecording.Tick(
-                0.0, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of(), State.NEUTRAL, State.NEUTRAL));
-        recording.add(new SimRecording.Tick(
-                0.5,
-                new Pose2d(1.0 / 3, 0, 0),
-                "",
-                new double[] {1, 1, 1, 1},
-                List.of(),
-                State.NEUTRAL,
-                State.NEUTRAL));
+        recording.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
+                .drivenBy(State.NEUTRAL, State.NEUTRAL)
+                .tick());
+        recording.add(SimRecording.Tick.at(0.5, new Pose2d(1.0 / 3, 0, 0), "", new double[] {1, 1, 1, 1}, List.of())
+                .drivenBy(State.NEUTRAL, State.NEUTRAL)
+                .tick());
         recording.finish("stopped");
         JsonArray streamed = new JsonArray();
         String[] outcome = {null};

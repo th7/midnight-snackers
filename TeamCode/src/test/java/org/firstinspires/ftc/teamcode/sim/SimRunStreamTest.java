@@ -41,8 +41,13 @@ public class SimRunStreamTest {
     private static SimRecording.Tick tick(double seconds, String step) {
         TelemetryPacket packet = new TelemetryPacket();
         packet.put("xError", 0.25);
-        return new SimRecording.Tick(
-                seconds, new Pose2d(12.5, -3, Math.PI / 2), step, new double[] {1, 0.75, -0.5, 0.25}, List.of(packet));
+        return SimRecording.Tick.at(
+                        seconds,
+                        new Pose2d(12.5, -3, Math.PI / 2),
+                        step,
+                        new double[] {1, 0.75, -0.5, 0.25},
+                        List.of(packet))
+                .tick();
     }
 
     @Test
@@ -78,17 +83,10 @@ public class SimRunStreamTest {
     @Test
     public void aTickCarriesTheBallsWhatTheRobotHoldsAndTheScore() {
         Heard heard = new Heard();
-        SimRecording.Tick balls = new SimRecording.Tick(
-                1,
-                new Pose2d(0, 0, 0),
-                "",
-                new double[] {0, 0, 0, 0},
-                List.of(),
-                null,
-                null,
-                new double[][] {{1, 2, 1.39}, null, {3, 4, 30.5}},
-                1,
-                java.util.Map.of("Red", 2));
+        SimRecording.Tick balls = SimRecording.Tick.at(1, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
+                .withBalls(new double[][] {{1, 2, 1.39}, null, {3, 4, 30.5}}, 1)
+                .scoring(java.util.Map.of("Red", 2))
+                .tick();
 
         SimRunStream.accept(SimRunStream.tick(balls), heard);
         SimRunStream.accept(SimRunStream.tick(tick(2, "quiet")), heard);
@@ -126,18 +124,9 @@ public class SimRunStreamTest {
     }
 
     private static SimRecording.Tick tilted(double seconds, java.util.Map<String, Double> tilt) {
-        return new SimRecording.Tick(
-                seconds,
-                new Pose2d(0, 0, 0),
-                "",
-                new double[] {0, 0, 0, 0},
-                List.of(),
-                null,
-                null,
-                null,
-                0,
-                java.util.Map.of(),
-                tilt);
+        return SimRecording.Tick.at(seconds, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
+                .tilted(tilt)
+                .tick();
     }
 
     @Test

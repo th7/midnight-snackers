@@ -66,7 +66,8 @@ public class SimLiveServerTest {
     }
 
     private SimRecording.Tick tick(double seconds, String step) {
-        return new SimRecording.Tick(seconds, new Pose2d(0, 0, 0), step, new double[] {0, 0, 0, 0}, List.of());
+        return SimRecording.Tick.at(seconds, new Pose2d(0, 0, 0), step, new double[] {0, 0, 0, 0}, List.of())
+                .tick();
     }
 
     private String get(String path) throws IOException {
