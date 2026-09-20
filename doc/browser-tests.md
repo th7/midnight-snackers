@@ -160,6 +160,42 @@ One trade-off comes with it: a merged mesh is culled as a whole, so a camera
 that used to cull individual parts may now draw them. At the field's size, with
 the whole field usually in view, nothing measurable changed.
 
+## Getting a reading off a GPU
+
+Everything above draws in software, and every number of time it produces is
+SwiftShader's rather than a GPU's. Nothing here can change that: this container
+has no `/dev/dri` and GitHub's standard runners have no GPU either, so neither
+the image nor CI can ever answer what a frame costs on hardware.
+
+Two places can.
+
+**A machine with a GPU.** The harness runs anywhere node and Chromium do, and
+`--gpu` drops the three flags that force SwiftShader:
+
+    node tools/browser/cost.mjs --gpu
+    node tools/browser/cost.mjs --gpu --headed
+
+The second is worth trying when the first still reports software: headless
+Chromium does not always reach the GPU. Only the cost check takes `--gpu`. The
+correctness checks stay on SwiftShader deliberately, because coming out the
+same on two machines is the whole point of them.
+
+**The device itself**, which is the reading that actually settles a question
+about a tablet: open `/sim/field?run=<id>&cost` on it.
+
+Either way the reading says what drew it, and **a software reading can never be
+passed off as a hardware one**. The page marks itself when it is drawn in
+software, `--gpu` fails rather than reporting SwiftShader's times as a GPU's,
+and a run *without* `--gpu` that finds itself on hardware fails too, because
+the correctness checks were promised determinism. One rule decides all three,
+`inSoftware` in `framecost.js`, and a table of real renderer strings -- Apple,
+NVIDIA, Adreno, Mali, Intel against SwiftShader, llvmpipe, a software
+rasteriser -- holds it to telling them apart.
+
+The counts do not care: draws, calls and triangles are three.js and our own
+bookkeeping, identical on either. So the budget is checked on whatever ran, and
+only the times need a GPU to mean anything.
+
 ## The budget
 
 `tools/browser/scene-budget.json` records the counts that do not vary with the

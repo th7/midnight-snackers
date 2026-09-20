@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, serve } from './bench.mjs';
+import { chrome, serve, sim } from './bench.mjs';
+import { inSoftware } from '../../TeamCode/src/test/resources/org/firstinspires/ftc/teamcode/sim/framecost.js';
 
 const budgetFile = fileURLToPath(new URL('./scene-budget.json', import.meta.url));
 const regenerating = process.argv.includes('--regenerate');
+const onAGpu = process.argv.includes('--gpu');
+const headed = process.argv.includes('--headed');
 
 const PINNED = ['withShadows.draws', 'withShadows.calls', 'withShadows.triangles',
                 'withoutShadows.draws', 'withoutShadows.triangles'];
@@ -139,10 +142,36 @@ function theSceneIsStillWithinItsBudget(reading) {
   }
 }
 
+function softwareIsToldFromHardware() {
+  const software = [
+    'SwiftShader driver',
+    'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 16.0.0) (0x0000C0DE)), SwiftShader driver)',
+    'llvmpipe (LLVM 15.0.7, 256 bits)',
+    'Mesa/X.org, llvmpipe',
+    'Software Rasterizer'
+  ];
+  const hardware = [
+    'Apple M2',
+    'ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)',
+    'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)',
+    'Adreno (TM) 650',
+    'Mali-G78 MP14',
+    'Intel(R) Iris(R) Xe Graphics'
+  ];
+  for (const name of software) {
+    check(inSoftware(name) === true, `"${name}" is software rendering and was not read as it`);
+  }
+  for (const name of hardware) {
+    check(inSoftware(name) === false, `"${name}" is a GPU and was read as software rendering`);
+  }
+}
+
 async function main() {
+  softwareIsToldFromHardware();
+
   const server = await serve();
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chrome();
+  const browser = await chrome({ gpu: onAGpu, headed: headed });
   let reading = null;
   try {
     await theProbeTimesWhatItSaysItTimes(browser, base);
@@ -155,9 +184,24 @@ async function main() {
   }
 
   if (reading) {
-    console.log(`the field scene costs, at ${reading.at.width}x${reading.at.height} on ${reading.gpu}:`);
+    const software = inSoftware(reading.gpu);
+    console.log(`the field scene costs, at ${reading.at.width}x${reading.at.height} on ${reading.gpu}`
+        + `${software ? ' (software, so the times are this machine\'s and not a GPU\'s)' : ''}:`);
     say('with shadows', reading.withShadows);
     say('without shadows', reading.withoutShadows);
+
+    if (onAGpu && software) {
+      wrong.push(`--gpu asked for a hardware reading and the browser drew it in software (${reading.gpu}). `
+          + 'Times from a software rasteriser are not a GPU\'s and must not be read as one. There may be no '
+          + 'GPU here -- a container without /dev/dri and a CI runner both lack one -- or headless Chromium '
+          + 'may not be reaching it, which `--gpu --headed` is worth trying against.');
+    }
+    if (!onAGpu && !software) {
+      wrong.push(`without --gpu the browser is asked for SwiftShader and drew with ${reading.gpu} instead. `
+          + 'The correctness checks need software rendering to come out the same on two machines; see '
+          + 'doc/browser-tests.md.');
+    }
+
     theSceneIsStillWithinItsBudget(reading);
   } else {
     wrong.push('no reading was taken, so nothing is known about what a frame costs');

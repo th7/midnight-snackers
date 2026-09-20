@@ -137,7 +137,7 @@ function reads(name, reading) {
 }
 
 async function whatAFrameCosts() {
-  const { measure, drawnBy } = await import('./assets/framecost.js');
+  const { measure, drawnBy, inSoftware } = await import('./assets/framecost.js');
   document.querySelector('#hud h1').textContent = 'What a frame costs';
   said.textContent = 'Measuring\u2026 the page holds still while it does.';
   runBar.hidden = true;
@@ -167,7 +167,10 @@ async function whatAFrameCosts() {
   };
   said.textContent = reads('With shadows:', withShadows) + '. '
       + reads('Without:', withoutShadows) + '. '
-      + cost.at.width + '\u00d7' + cost.at.height + ' on ' + cost.gpu + '.';
+      + cost.at.width + '\u00d7' + cost.at.height + ' on ' + cost.gpu + '.'
+      + (inSoftware(cost.gpu)
+          ? ' Drawn in software, so these are this machine\u2019s times and not a GPU\u2019s.'
+          : '');
 }
 
 let model = null;

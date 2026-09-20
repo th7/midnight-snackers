@@ -4,6 +4,12 @@ const LEAST_MS = 50;
 const BLOCKS = 9;
 const MOST_RENDERS = 4096;
 
+const SOFTWARE = /swiftshader|llvmpipe|lavapipe|softpipe|software\s*rasteriz|basic\s*render/i;
+
+export function inSoftware(gpu) {
+  return SOFTWARE.test(String(gpu || ''));
+}
+
 export function drawnBy(renderer) {
   const gl = renderer.getContext();
   if (!gl) {
