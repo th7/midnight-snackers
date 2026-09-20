@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.sim;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 public final class SimLiveServer {
+    static final String ASSETS_UNDER = "assets/";
+
     private final TinyHttpServer http;
     private final SimReplayPage.Source recording;
     private volatile boolean viewerSawOutcome = false;
@@ -10,7 +12,8 @@ public final class SimLiveServer {
     private SimLiveServer(SimReplayPage.Source recording, int port) {
         this.recording = recording;
         Router routes = new Router()
-                .route("GET", "/", (request, params) -> Response.html(SimReplayPage.page(recording, true)))
+                .route("GET", "/", (request, params) -> Response.html(SimReplayPage.live(recording, ASSETS_UNDER)))
+                .route("GET", "/assets/{name*}", (request, params) -> SimAssets.serve(params.get("name")))
                 .route("GET", "/ticks", (request, params) -> {
                     String body = SimReplayPage.update(recording, request.queryInt("from", 0));
                     if (recording.outcome() != null) {

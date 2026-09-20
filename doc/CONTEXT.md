@@ -722,19 +722,41 @@ intent reaches the wheels is traced. Class:
 
 **Replay** — A run's ticks written as a single self-contained HTML page
 with the field, the true pose, and play/pause/scrub controls, named after
-the op mode under `TeamCode/build/sim`. The field is drawn in three
-dimensions from a camera that orbits it (drag to turn, scroll to zoom,
-double-click for the audience's view): the walls at their height, the
-field elements, tape and game pieces of the field model, the hives where
-each tick says they lean, the balls the simulator moves where each tick
-puts them, the robot as a cube turned to its
-heading, and the dashboard's field overlay projected onto the floor. The
-obstacles are outlined on the floor. The model and the sizes are the
-simulated robot's, so the page draws what the simulator collides. Class:
-`SimReplayPage`.
+the op mode under `TeamCode/build/sim`. The field is the **flat drawing**.
+Class: `SimReplayPage`.
+
+**Flat drawing** — The field drawn into a 2D canvas by the page itself, in
+three dimensions from a camera that orbits it (drag to turn, scroll to
+zoom, double-click for the audience's view): the walls at their height, the
+field elements, tape and game pieces of the collision model, the hives
+where each tick says they lean, the balls the simulator moves where each
+tick puts them, the robot as a cube turned to its heading, and the
+dashboard's field overlay projected onto the floor. The obstacles are
+outlined on the floor. The model and the sizes are the simulated robot's,
+so it draws what the simulator collides — and it draws it out of what the
+page already carries, which is why it is what a page with nowhere to fetch
+from draws.
 
 **Live view** — The same page in live mode, following a run while it is
-still adding ticks. Class: `SimLiveServer`.
+still adding ticks, and drawing the **field scene** rather than the flat
+drawing. Classes: `SimLiveServer`; `SimBench` serves the same page per run.
+
+**Field scene** — The field as it looks — `field.glb`, the Onshape
+assembly's own tessellation — drawn with three.js by `fieldscene.js`, which
+is the one renderer of it: the field page and the live view both build
+their picture from it and add their own. It needs the assets, so a page
+gets it only when it is served somewhere they resolve.
+
+**Where the assets are** — What a served page is told, and a written one is
+not: the base its `field.glb`, its `fieldscene.js` and its three.js resolve
+against, relative to where that page is served (`assets/` from the live
+server's root, `../../assets/` from the bench's `/runs/<id>/`). Being told
+is what makes a page draw the field scene; being told nothing is what makes
+the replay file self-contained. A page told of assets it then cannot fetch
+falls back to the flat drawing and says on the page why, rather than
+showing an empty field. `?view=flat` asks for the flat drawing outright.
+Each server's base is checked against its own routes rather than asserted
+in prose: `SimLiveServerTest`, `SimBenchTest`.
 
 **Devices** — A robot's devices as fakes, and a clock: everything the robot
 code can reach through its **Hardware**, and nothing that moves on its own.

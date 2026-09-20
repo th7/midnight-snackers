@@ -54,6 +54,7 @@
 </script>
 </head>
 <body>
+<canvas id="view"></canvas>
 <div id="hud">
   <h1>The field</h1>
   <p id="said">Loading the model&hellip;</p>
@@ -66,126 +67,46 @@
 </div>
 <script type="module">
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { FieldScene } from './assets/fieldscene.js';
 
 const said = document.getElementById('said');
 const problem = document.getElementById('problem');
 
-THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
-
-const FIELD_IN = 141.17;
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
 const styles = getComputedStyle(document.documentElement);
-scene.background = new THREE.Color(styles.getPropertyValue('--bg').trim() || '#11161c');
+const view = new FieldScene({
+  canvas: document.getElementById('view'),
+  assets: './assets/',
+  background: styles.getPropertyValue('--bg').trim() || '#11161c'
+});
 
-const camera = new THREE.PerspectiveCamera(38, 1, 1, 4000);
-camera.position.set(-170, -190, 130);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 18);
-controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI / 2 - 0.02;
-controls.minDistance = 30;
-controls.maxDistance = 900;
-
-const key = new THREE.DirectionalLight(0xffffff, 2.1);
-key.position.set(-120, -160, 260);
-key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
-key.shadow.camera.near = 40;
-key.shadow.camera.far = 700;
-const reach = FIELD_IN * 1.1;
-Object.assign(key.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach });
-key.shadow.bias = -0.0015;
-scene.add(key);
-scene.add(new THREE.HemisphereLight(0xbfd4e8, 0x2a2f36, 1.0));
-
-const FLOOR_Z = 0;
-const TAPE_Z = 0.01;
-
-const SEE_THROUGH = /skin|side[\s_]glass/i;
-const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(FIELD_IN, FIELD_IN),
-    new THREE.MeshStandardMaterial({ color: 0x20262e, roughness: 0.95, metalness: 0 }));
-floor.position.z = FLOOR_Z;
-floor.receiveShadow = true;
-scene.add(floor);
-
-const tiles = new THREE.GridHelper(FIELD_IN, 6, 0x4a5a68, 0x33414d);
-tiles.rotation.x = Math.PI / 2;
-tiles.position.z = FLOOR_Z + 0.02;
-scene.add(tiles);
+const renderer = view.renderer;
+const scene = view.scene;
+const camera = view.camera;
+const controls = view.controls;
+const floor = view.floor;
+const tiles = view.tiles;
 
 function fit() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  renderer.setSize(width, height);
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
+  view.fit(window.innerWidth, window.innerHeight);
 }
 window.addEventListener('resize', fit);
 fit();
 
 let loaded = null;
 
-new GLTFLoader().load('./assets/field.glb', (gltf) => {
-  let meshes = 0;
-  let triangles = 0;
-  gltf.scene.traverse((object) => {
-    if (!object.isMesh) {
-      return;
-    }
-    meshes++;
-    triangles += object.geometry.index ? object.geometry.index.count / 3
-                                       : object.geometry.attributes.position.count / 3;
-    object.castShadow = true;
-    object.receiveShadow = true;
-
-    if (!object.geometry.attributes.normal) {
-      object.geometry.computeVertexNormals();
-    }
-    object.material.roughness = 0.62;
-    object.material.metalness = 0.05;
-
-    if (/tape/i.test(object.name)) {
-      object.position.z += TAPE_Z;
-    }
-
-    if (SEE_THROUGH.test(object.name)) {
-      object.material = object.material.clone();
-      object.material.transparent = true;
-      object.material.opacity = 0.22;
-      object.material.side = THREE.DoubleSide;
-      object.material.depthWrite = false;
-      object.castShadow = false;
-    }
-  });
-  scene.add(gltf.scene);
-  field = gltf.scene;
-  loaded = { parts: meshes, triangles: triangles };
-  said.textContent = meshes + ' parts, ' + triangles.toLocaleString() + ' triangles. '
+view.load().then((what) => {
+  loaded = what;
+  said.textContent = what.parts + ' parts, ' + what.triangles.toLocaleString() + ' triangles. '
       + 'Drag to orbit, scroll to zoom.';
-  showRun();
-}, undefined, (wrong) => {
+  return showRun();
+}).catch((wrong) => {
   said.textContent = 'The field did not load.';
   problem.textContent = String(wrong && wrong.message ? wrong.message : wrong);
 });
 
-let field = null;
 let model = null;
 let ticks = [];
 let moved = [];
-let movingBalls = [];
-let staticBalls = [];
-let hives = [];
-let robot = null;
 let at = 0;
 let playing = false;
 let playingFrom = 0;
@@ -200,55 +121,11 @@ function secondsOf(i) {
   return ticks.length ? ticks[Math.max(0, Math.min(i, ticks.length - 1))].t : 0;
 }
 
-function makeBall(piece) {
-  const ball = new THREE.Mesh(
-      new THREE.SphereGeometry(piece.radius, 20, 14),
-      new THREE.MeshStandardMaterial({ color: new THREE.Color(piece.colour), roughness: 0.55 }));
-  ball.castShadow = true;
-  ball.userData.radius = piece.radius;
-  scene.add(ball);
-  return ball;
-}
-
-function makeRobot(size) {
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(
-      new THREE.BoxGeometry(size, size, size),
-      new THREE.MeshStandardMaterial({ color: 0x2f6fb5, roughness: 0.45, metalness: 0.1 }));
-  body.position.z = size / 2;
-  body.castShadow = true;
-  group.add(body);
-
-  const arrow = new THREE.Group();
-  const paint = new THREE.MeshStandardMaterial({ color: 0xffc24a, roughness: 0.5 });
-  const shaft = new THREE.Mesh(new THREE.BoxGeometry(size * 0.42, size * 0.12, 0.2), paint);
-  shaft.position.set(-size * 0.08, 0, 0);
-  const head = new THREE.Mesh(new THREE.ConeGeometry(size * 0.16, size * 0.26, 3), paint);
-  head.rotation.z = -Math.PI / 2;
-  head.position.set(size * 0.26, 0, 0);
-  arrow.add(shaft);
-  arrow.add(head);
-  arrow.position.z = size + 0.1;
-  group.add(arrow);
-  return group;
-}
-
-function leanHive(hive, degrees) {
-  const turn = THREE.MathUtils.degToRad(hive.rest - degrees);
-  const [px, py, pz] = hive.pivot;
-  hive.group.matrixAutoUpdate = false;
-  hive.group.matrix
-      .makeTranslation(px, py, pz)
-      .multiply(new THREE.Matrix4().makeRotationY(turn))
-      .multiply(new THREE.Matrix4().makeTranslation(-px, -py, -pz));
-  hive.group.updateMatrixWorld(true);
-}
-
 async function showRun() {
   const asked = new URLSearchParams(location.search);
   const id = asked.get('run');
   const wantsCamera = asked.get('view') === 'camera';
-  if (!field || (!id && !wantsCamera)) {
+  if (!view.field || (!id && !wantsCamera)) {
     return;
   }
   try {
@@ -267,45 +144,8 @@ async function showRun() {
   }
 
   moved = model.moved;
+  view.place(model);
 
-  field.traverse((o) => {
-    if (o.isMesh && /pollen|nectar/i.test(o.name)) {
-      o.visible = false;
-    }
-  });
-
-  const listed = ticks.reduce(
-      (most, tick) => Math.max(most, tick.pieces ? tick.pieces.length : 0), moved.length);
-  const spare = moved[0] || { colour: '#ffef3f', radius: 1.4 };
-  movingBalls = [];
-  for (let i = 0; i < listed; i++) {
-    const piece = i < moved.length ? moved[i] : spare;
-    const ball = makeBall(piece);
-    if (i < moved.length) {
-      ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
-    } else {
-      ball.visible = false;
-    }
-    movingBalls.push(ball);
-  }
-
-  staticBalls = model.pieces
-      .filter((piece) => !piece.loose && !piece.cell && !piece.flower)
-      .map((piece) => {
-        const ball = makeBall(piece);
-        ball.position.set(piece.centre[0], piece.centre[1], piece.centre[2]);
-        return ball;
-      });
-
-  hives = model.hives.map((hive) => ({
-    group: field.getObjectByName(nodeNameFor(hive.alliance)),
-    pivot: hive.pivot,
-    rest: hive.tilt,
-    alliance: hive.alliance
-  })).filter((h) => h.group);
-
-  robot = makeRobot(model.robotIn || 18);
-  scene.add(robot);
   makeTags(new THREE.TextureLoader());
   if (tagsPending === 0) {
     tagsDrawable();
@@ -324,17 +164,6 @@ async function showRun() {
   }
 }
 
-function nodeNameFor(alliance) {
-  let found = null;
-  field.traverse((o) => {
-    if (!found && !o.isMesh && o.name
-        && new RegExp(alliance + '[\\s_-]*Hive', 'i').test(o.name)) {
-      found = o.name;
-    }
-  });
-  return found;
-}
-
 function piecesAt(upTo) {
   for (let i = upTo; i >= 0; i--) {
     if (ticks[i].pieces) {
@@ -344,9 +173,8 @@ function piecesAt(upTo) {
   return null;
 }
 
-function tiltAt(upTo, alliance) {
-  const said = ticks[upTo].tilt;
-  return said && said[alliance] !== undefined ? said[alliance] : null;
+function tiltsAt(upTo) {
+  return ticks[upTo].tilt || null;
 }
 
 function goTo(index) {
@@ -356,32 +184,17 @@ function goTo(index) {
   at = Math.max(0, Math.min(index, ticks.length - 1));
   const tick = ticks[at];
 
-  robot.position.set(tick.x, tick.y, 0);
-  robot.rotation.z = tick.heading;
-
-  const where = piecesAt(at);
-  if (where) {
-    for (let i = 0; i < movingBalls.length; i++) {
-      const ball = movingBalls[i];
-      const to = where[i];
-      if (to) {
-        ball.visible = !cameraView;
-        ball.position.set(to[0], to[1], to.length > 2 ? to[2] : ball.userData.radius);
-      } else {
-        ball.visible = false;
-      }
-    }
-  }
-
-  for (const hive of hives) {
-    const leaning = tiltAt(at, hive.alliance);
-    leanHive(hive, leaning === null ? hive.rest : leaning);
+  view.showRobot(tick);
+  view.showPieces(piecesAt(at));
+  view.showTilts(tiltsAt(at));
+  if (cameraView) {
+    hideAllButTheTags();
   }
 
   aimCamera();
   scrub.value = String(at);
   const held = tick.held ? ', holding ' + tick.held : '';
-  clock.textContent = tick.t.toFixed(2) + ' s  ·  loop ' + (at + 1) + ' of ' + ticks.length + held;
+  clock.textContent = tick.t.toFixed(2) + ' s  \u00b7  loop ' + (at + 1) + ' of ' + ticks.length + held;
 }
 
 playButton.addEventListener('click', () => {
@@ -439,7 +252,7 @@ function advance() {
 renderer.setAnimationLoop(() => {
   advance();
   controls.update();
-  renderer.render(scene, cameraView || camera);
+  view.drawnFrom(cameraView);
 });
 
 const CAMERA = {
@@ -491,7 +304,7 @@ function toHive(hive, point) {
 
 function plateBottom(hive, group, side) {
   let found = null;
-  (group || field).traverse((o) => {
+  (group || view.field).traverse((o) => {
     if (o.isMesh && /april[\s_-]*tag/i.test(o.name) && new RegExp(side, 'i').test(o.name)) {
       found = o;
     }
@@ -521,7 +334,7 @@ function fromHive(hive, point) {
 
 function makeTags(loader) {
   for (const hive of model.hives) {
-    const group = hives.find((h) => h.alliance === hive.alliance);
+    const group = view.hives.find((h) => h.alliance === hive.alliance);
     for (const part of hive.parts) {
       if (!/april[\s_-]*tag/i.test(part.name)) {
         continue;
@@ -576,9 +389,23 @@ function makeTags(loader) {
       quad.userData.tag = true;
       quad.userData.plate = drawn;
       quad.renderOrder = 2;
-      (group ? group.group : scene).add(quad);
+      (group ? group.group : view.scene).add(quad);
       tagQuads.push(quad);
     }
+  }
+}
+
+function hideAllButTheTags() {
+  view.field.traverse((o) => {
+    if (o.isMesh && !o.userData.tag) {
+      o.visible = false;
+    }
+  });
+  for (const ball of view.movingBalls.concat(view.staticBalls)) {
+    ball.visible = false;
+  }
+  if (view.robot) {
+    view.robot.visible = false;
   }
 }
 
@@ -586,22 +413,10 @@ function showCameraView() {
   cameraView = new THREE.PerspectiveCamera();
   cameraView.projectionMatrix.copy(lensProjection(CAMERA, 1, 4000));
   cameraView.projectionMatrixInverse.copy(cameraView.projectionMatrix).invert();
-  scene.background = new THREE.Color(0x000000);
+  view.background(0x000000);
   floor.visible = false;
   tiles.visible = false;
-  if (field) {
-    field.traverse((o) => {
-      if (o.isMesh && !o.userData.tag) {
-        o.visible = false;
-      }
-    });
-  }
-  for (const ball of movingBalls.concat(staticBalls)) {
-    ball.visible = false;
-  }
-  if (robot) {
-    robot.visible = false;
-  }
+  hideAllButTheTags();
 
   document.querySelector('#hud h1').textContent = "The webcam's view";
   said.textContent = 'The goal tags as the robot\u2019s camera would see them. Play and scrub '
@@ -633,22 +448,23 @@ window.fieldPage = {
   scene: scene,
   camera: camera,
   controls: controls,
-  floorZ: FLOOR_Z,
+  floorZ: view.floor.position.z,
   get loaded() { return loaded; },
   get drawnTriangles() { return renderer.info.render.triangles; },
   get problem() { return problem.textContent; },
   get run() {
+    const robot = view.robot;
     return ticks.length
         ? { loops: ticks.length, at: at, seconds: secondsOf(at), playing: playing,
             robot: robot && { x: robot.position.x, y: robot.position.y, heading: robot.rotation.z },
-            balls: movingBalls.length + staticBalls.length,
-            launchable: Math.max(0, movingBalls.length - moved.length),
-            hives: hives.length }
+            balls: view.movingBalls.length + view.staticBalls.length,
+            launchable: Math.max(0, view.movingBalls.length - moved.length),
+            hives: view.hives.length }
         : null;
   },
   goTo: (i) => goTo(i),
 
-  get launchedBall() { return movingBalls.length > moved.length ? movingBalls[moved.length] : null; },
+  get launchedBall() { return view.movingBalls.length > moved.length ? view.movingBalls[moved.length] : null; },
   get camera3() { return cameraView; },
   get tags() { return tagQuads.map((q) => q.name); },
   lens: CAMERA,

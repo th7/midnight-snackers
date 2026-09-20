@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__ replay</title>
+__IMPORTMAP__
 <style>
   :root {
     color-scheme: light;
@@ -71,6 +72,9 @@
   .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; }
   kbd { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink); }
   canvas.moving, canvas.turning { cursor: grabbing; }
+  canvas[hidden] { display: none; }
+  .field-msg { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .field-msg a { color: var(--accent); }
 
   #placement { display: grid; gap: 10px; }
   #placement label { display: grid; grid-template-columns: 6ch 1fr 3ch; gap: 8px; align-items: center; color: var(--muted); }
@@ -115,6 +119,8 @@
     <h1 id="title"></h1>
     <p class="sub" id="outcome"></p>
     <canvas id="field" width="720" height="500"></canvas>
+    <canvas id="solid" width="720" height="500" hidden></canvas>
+    <p class="field-msg" id="field-msg"></p>
     <div class="legend">
       <span><i style="background: var(--true)"></i>true pose (only the simulator knows this)</span>
       <span><i style="border: 2px solid #3F51B5"></i>localizer estimate</span>
@@ -208,6 +214,9 @@
 <script id="recording" type="application/json">__DATA__</script>
 <script>
 (function () {
+  const ASSETS = __ASSETS__;
+  const wanted = new URLSearchParams(location.search).get('view');
+  let drawing = 'flat', solid = null, settled = false;
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
@@ -220,6 +229,8 @@
   const HALF = FIELD_IN / 2, TILE_IN = FIELD_IN / 6;
   const canvas = document.getElementById('field');
   const ctx = canvas.getContext('2d');
+  const solidCanvas = document.getElementById('solid');
+  const fieldMsg = document.getElementById('field-msg');
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -597,12 +608,9 @@
     return [];
   }
 
-  function render() {
+  function drawFlat(tick, packets) {
     aimCamera();
     drawFloor();
-    if (!driving() && !placing) renderController(recordedState(index));
-    const tick = placing ? start : ticks.length ? ticks[index] : null;
-    const packets = tick && !placing ? latestPackets(index) : [];
     if (tick && !placing) {
       drawTrail(index);
       for (const p of packets) drawOps(p.ops);
@@ -613,6 +621,22 @@
     if (placing) drawHandle(start);
     drawScene(tick);
     for (const w of walls) if (wallInFront(w)) drawWall(w);
+  }
+
+  function drawSolid(tick, packets) {
+    if (!tick) return;
+    solid.showRobot(tick);
+    solid.showPieces(latestPieces(index));
+    solid.showTilts(ticks[index].tilt || null);
+    solid.showTrail(ticks.slice(0, index + 1).map(t => [t.x, t.y]));
+    solid.showOverlay(packets.flatMap(p => p.ops));
+  }
+
+  function render() {
+    if (!driving() && !placing) renderController(recordedState(index));
+    const tick = placing ? start : ticks.length ? ticks[index] : null;
+    const packets = tick && !placing ? latestPackets(index) : [];
+    if (drawing === 'solid') drawSolid(tick, packets); else drawFlat(tick, packets);
     if (placing) { renderPlacement(); return; }
     if (!tick) return;
 
@@ -1022,11 +1046,65 @@
     poll();
   }
 
-  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
-  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  function themeChanged() {
+    if (solid) solid.background(token('--bg'));
+    render();
+  }
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
+  new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   updateOutcome();
   setIndex(0);
   if (!placing) renderController(driving() ? sent[selected] : recordedState(index));
+
+  async function drawTheFieldModel() {
+    const { FieldScene } = await import(ASSETS + 'fieldscene.js');
+    const view = new FieldScene({ canvas: solidCanvas, assets: ASSETS, background: token('--bg') });
+    view.fit(solidCanvas.width, solidCanvas.height);
+    await view.load();
+    view.place(Object.assign({}, FIELD, { robotIn: ROBOT_IN }));
+    solid = view;
+    drawing = 'solid';
+    canvas.hidden = true;
+    solidCanvas.hidden = false;
+    fieldMsg.innerHTML = 'The field as it looks, from the season CAD. '
+      + '<a href="?view=flat">Draw what the simulator collides</a> instead.';
+    view.renderer.setAnimationLoop(() => { view.controls.update(); view.drawnFrom(); });
+    render();
+  }
+
+  if (ASSETS === null || placing || wanted === 'flat') {
+    settled = true;
+  } else {
+    drawTheFieldModel()
+      .catch(why => {
+        drawing = 'flat';
+        fieldMsg.textContent = 'The field model did not load, so this is the drawing the simulator '
+          + 'collides: ' + (why && why.message ? why.message : why);
+        render();
+      })
+      .finally(() => { settled = true; });
+  }
+
+  window.replayPage = {
+    get settled() { return settled; },
+    get drawing() { return drawing; },
+    get problem() { return fieldMsg.textContent; },
+    get loaded() { return solid && solid.loaded; },
+    get drawnTriangles() { return solid ? solid.renderer.info.render.triangles : 0; },
+    get scene() { return solid && solid.scene; },
+    get robot() {
+      const r = solid && solid.robot;
+      return r ? { x: r.position.x, y: r.position.y, heading: r.rotation.z } : null;
+    },
+    get balls() { return solid ? solid.movingBalls.length + solid.staticBalls.length : 0; },
+    get hives() { return solid ? solid.hives.length : 0; },
+    get trailPoints() { return solid && solid.trail ? solid.trail.geometry.attributes.position.count : 0; },
+    get overlayLines() { return solid ? solid.overlay.children.length : 0; },
+    get leaning() {
+      return solid ? Object.fromEntries(solid.hives.map(h => [h.alliance, h.group.matrix.elements[8]])) : null;
+    },
+    goTo: i => setIndex(i)
+  };
 })();
 </script>
 </body>

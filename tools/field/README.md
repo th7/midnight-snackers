@@ -89,11 +89,13 @@ that otherwise looks entirely reasonable, and a reach that matches the
 walls, which a frame read in metres does not. A check that has too little to
 go on says so rather than passing.
 
-The export is a million and a half triangles, most of them spent on fillets
-nobody can see at the size of a field -- the two goal ribs alone are nearly
-half of them. Points are snapped to a twentieth of an inch and the triangles
-that collapse are dropped, which leaves about a fifth of them, four
-megabytes, and moves nothing further than a twenty-third of an inch.
+The export is 1,474,544 triangles over 1,029 parts, most of them spent on
+fillets nobody can see at the size of a field -- the eight goal ribs alone
+are 413,072 of them, 28% of the export, at 51,634 triangles each. The name
+rules drop 724 parts and leave 1,020,128 triangles; points are then snapped
+to a twentieth of an inch and the triangles that collapse are dropped, which
+leaves 315,988 -- 21% of the export, 305 parts, four megabytes -- and moves
+nothing further than a twenty-third of an inch.
 
 The perimeter is kept here and dropped by the collision model, which models
 the walls itself: a field drawn without it is a floor with things standing
@@ -121,6 +123,13 @@ left it. The geometry is all in `field.glb`; what a tick carries is where
 things had moved to. What the geometry cannot say -- which pieces move and in
 what order a tick lists them, where each hive hangs, how big the robot is --
 comes from `/model`, which is the collision model with the robot's size added.
+
+`fieldscene.js`, served beside it, is the one renderer of that model: it
+builds the scene -- the glb, the lights, the floor, the balls, the hives and
+the robot -- and both `field.html` and the simulator's live view draw
+through it and add their own. The live view is `replay.html`, which keeps
+its own flat 2D drawing of the collision model for the replay file it
+writes, for `?view=flat`, and for when the assets cannot be fetched.
 
 `tools/renderer/check.mjs` loads the model with that same three.js, in node.
 The writer is already checked by reading back what it writes, which says the

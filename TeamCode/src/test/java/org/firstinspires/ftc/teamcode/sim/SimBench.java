@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 
 public final class SimBench {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+    private static final String ASSETS_FROM_A_RUN = "../../assets/";
     private static final int LOG_LINES = 200;
 
     private static final double STARTUP_SECONDS = 60;
@@ -513,7 +514,7 @@ public final class SimBench {
     }
 
     private Response page(Run run, Request request) {
-        return Response.html(SimReplayPage.page(run, true));
+        return Response.html(SimReplayPage.live(run, ASSETS_FROM_A_RUN));
     }
 
     private Response run(String opMode, String startedBy) {
