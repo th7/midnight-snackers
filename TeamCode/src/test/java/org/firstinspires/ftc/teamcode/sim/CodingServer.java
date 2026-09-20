@@ -240,13 +240,14 @@ public final class CodingServer {
                 SimBench.DEFAULT_RUN_TIMEOUT_SECONDS,
                 SimBench.DEFAULT_TELEOP_SECONDS,
                 SimBench.DEFAULT_KILL_GRACE_SECONDS);
+        Map<String, String> env = System.getenv();
         CodingServer server = start(
                 root,
                 benches,
                 InetAddress.getLoopbackAddress(),
-                port(ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT),
-                port(USER_PORT_ENV, DEFAULT_USER_PORT),
-                stateDir(System.getenv()));
+                port(env, ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT),
+                port(env, USER_PORT_ENV, DEFAULT_USER_PORT),
+                stateDir(env));
         System.out.println("Coding server");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
         System.out.println(
@@ -256,9 +257,20 @@ public final class CodingServer {
         Thread.currentThread().join();
     }
 
-    private static int port(String env, int fallback) {
-        String value = System.getenv(env);
-        return value == null || value.isBlank() ? fallback : Integer.parseInt(value.trim());
+    static int port(Map<String, String> env, String name, int fallback) {
+        String value = env.get(name);
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            int port = Integer.parseInt(value.trim());
+            if (port < 0 || port > 65535) {
+                throw new NumberFormatException("out of range");
+            }
+            return port;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(name + " must be a port number, not '" + value + "'", e);
+        }
     }
 
     public String adminUrl() {
