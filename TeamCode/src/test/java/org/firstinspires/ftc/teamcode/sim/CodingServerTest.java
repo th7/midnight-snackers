@@ -48,6 +48,13 @@ public class CodingServerTest {
 
     private static final double RUN_TIMEOUT_SECONDS = 0.3;
 
+    /** What the server's benches wait in a test: a run's budget in a moment, and no long silences. */
+    private static final SimBench.Waits WAITS = SimBench.Waits.ofTheBench()
+            .runTimeout(RUN_TIMEOUT_SECONDS)
+            .teleOpPeriod(30)
+            .killGrace(1)
+            .silence(2);
+
     private CodingServer server;
 
     private Path root;
@@ -72,7 +79,7 @@ public class CodingServerTest {
     }
 
     private static SimBench.Factory sourcesBench() {
-        return worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), 2, 30, 1);
+        return worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), WAITS.runTimeout(2));
     }
 
     private static String encode(String name) throws java.io.UnsupportedEncodingException {
@@ -84,9 +91,7 @@ public class CodingServerTest {
                 SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class),
                 null,
                 folder.getRoot().toPath().resolve("sim"),
-                RUN_TIMEOUT_SECONDS,
-                30,
-                1);
+                WAITS);
     }
 
     private CodingServer serverWith(SimBench bench) {
@@ -771,13 +776,8 @@ public class CodingServerTest {
 
     @Test
     public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
-        serverWith(worktree -> new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class),
-                null,
-                worktree.resolve("TeamCode/build/sim"),
-                RUN_TIMEOUT_SECONDS,
-                30,
-                1));
+        serverWith(worktree ->
+                new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, worktree.resolve("TeamCode/build/sim"), WAITS));
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String start = "/sim/start?opmode=" + encode("Count to three");
@@ -802,13 +802,8 @@ public class CodingServerTest {
 
     @Test
     public void eachUserSeedsTheRobotOnTheirOwnBench() throws Exception {
-        serverWith(worktree -> new SimBench(
-                SimCatalog.of(ThreeLoopAuto.class),
-                null,
-                worktree.resolve("TeamCode/build/sim"),
-                RUN_TIMEOUT_SECONDS,
-                30,
-                1));
+        serverWith(worktree ->
+                new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, worktree.resolve("TeamCode/build/sim"), WAITS));
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String seed = "/sim/seed?opmode=" + encode("Count to three");
@@ -879,9 +874,7 @@ public class CodingServerTest {
                 SimCatalog.of(TestAutos.ChattyAuto.class),
                 null,
                 folder.getRoot().toPath().resolve("sim"),
-                2,
-                30,
-                1));
+                WAITS.runTimeout(2)));
         String cookie = approvedUser("ada");
         String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body)
                 .get("id")
