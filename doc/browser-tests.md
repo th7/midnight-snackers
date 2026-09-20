@@ -52,8 +52,8 @@ verdict and a coin toss.
 
 `tools/browser/check.mjs`, driven by Playwright, run by `python3 tools/run_tests.py` with
 everything else. It serves the simulator's resource directory over a throwaway HTTP
-server -- the page at `/field`, its assets under `/assets`, exactly as the bench lays
-them out -- opens the page, and asks what nothing else can ask:
+server -- the live view at `/runs/1/`, its assets under `/assets`, exactly as the
+bench lays them out -- opens the page, and asks what nothing else can ask:
 
 - the page threw nothing and no request it made failed;
 - the model reached the page, with its parts and its triangles;
@@ -62,7 +62,7 @@ them out -- opens the page, and asks what nothing else can ask:
 That last one is the point. `renderer.info.render.triangles` after a frame is how a field
 that loaded and was not drawn is told from one that was: a camera pointed away, or a
 frustum that culls everything, leaves a page that has fetched every byte it asked for and
-shows the background colour. The page exposes `window.fieldPage` for this and nothing
+shows the background colour. The page exposes `window.replayPage` for this and nothing
 else.
 
 A failing run writes `tools/browser/field-as-drawn.png`, which CI keeps with the test
@@ -130,7 +130,7 @@ whether the page draws, but what drawing it costs.
     node tools/browser/cost.mjs --regenerate    # record a new budget
 
 The probe is `framecost.js`, served with the page's other assets, and the page
-itself runs it: **<http://localhost:21986/sim/field?run=1&cost>** measures and
+itself runs it: **<http://localhost:21986/sim/runs/1/?cost>** measures and
 prints the reading into the HUD. That is how a frame is measured on a tablet,
 where no harness runs -- open the bench's address on the device and read it.
 
@@ -216,7 +216,7 @@ correctness checks stay on SwiftShader deliberately, because coming out the
 same on two machines is the whole point of them.
 
 **The device itself**, which is the reading that actually settles a question
-about a tablet: open `/sim/field?run=<id>&cost` on it.
+about a tablet: open `/sim/runs/<id>/?cost` on it.
 
 Either way the reading says what drew it, and **a software reading can never be
 passed off as a hardware one**. The page marks itself when it is drawn in

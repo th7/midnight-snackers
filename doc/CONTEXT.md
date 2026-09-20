@@ -750,9 +750,23 @@ so it draws what the simulator collides — and it draws it out of what the
 page already carries, which is why it is what a page with nowhere to fetch
 from draws.
 
-**Live view** — The same page in live mode, following a run while it is
-still adding ticks, and drawing the **field scene** rather than the flat
-drawing. Classes: `SimLiveServer`; `SimBench` serves the same page per run.
+**Live view** — The same page in live mode, following a run while it is still
+adding ticks, and drawing the **field scene** rather than the flat drawing. It
+is the *only* page that draws the field: what used to be a second page at
+`/sim/field` is retired, and what it could do the live view is asked for in
+its query string — `?view=camera` for the **webcam's view**, `?view=flat` for
+the flat drawing, `?cost` for **what a frame costs**, `?detail=full` for the
+full **detail**. The dashboard passes them through, so `#simulate?detail=full`
+reaches the view it embeds. Classes: `SimLiveServer`; `SimBench` serves the
+same page per run. Files: `webcam.js`; `framecost.js`.
+
+**Webcam's view** — The goal tags as the robot's camera would see them: the
+tags where they are, in the perspective the lens gives, and nothing else. The
+tag artwork is drawn on the field whatever the view, since it is printed on
+the goal; asking for the webcam is what swaps the camera for the lens and
+hides everything that is not a tag. What the lens is and how big the printed
+tag is are assumptions written at the top of `webcam.js`, and must be measured
+before a pose read off these frames means anything.
 
 **Field scene** — The field as it looks — `field.glb`, the Onshape
 assembly's own tessellation — drawn with three.js by `fieldscene.js`, which
@@ -771,7 +785,7 @@ perimeter is in it, and a merge that lost a triangle fails the load rather
 than drawing a field quietly missing parts.
 
 **What a frame costs** — What the field scene costs to draw, measured rather
-than guessed: `/sim/field?run=<id>&cost` takes the reading in whatever browser
+than guessed: `/sim/runs/<id>/?cost` takes the reading in whatever browser
 opens it, which is how a tablet is measured, and `node tools/browser/cost.mjs`
 takes the same one here. A reading says how long one frame takes to **submit**
 — the CPU's share — and how long to **finish**, which is the GPU's, with and

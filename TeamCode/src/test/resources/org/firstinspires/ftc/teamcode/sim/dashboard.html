@@ -765,15 +765,33 @@
   }
 
   var tabs = [];
-  function showTab(name) {
-    if (name !== 'simulate') { name = 'edit'; }
+  var tabOptions = '';
+
+  function tabOf(hash) {
+    var text = hash.charAt(0) === '#' ? hash.slice(1) : hash;
+    var mark = text.indexOf('?');
+    var name = mark < 0 ? text : text.slice(0, mark);
+    var simulating = name === 'simulate';
+    return { name: simulating ? 'simulate' : 'edit',
+             options: simulating && mark >= 0 ? text.slice(mark + 1) : '' };
+  }
+
+  function showTab(hash) {
+    var asked = tabOf(hash);
+    var name = asked.name;
+    tabOptions = asked.options;
     tabs.forEach(function (tab) {
       var on = tab.dataset.tab === name;
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
       document.getElementById(tab.dataset.tab).hidden = !on;
     });
-    if (location.hash !== '#' + name) { history.replaceState(null, '', '#' + name); }
+    var want = '#' + name + (tabOptions ? '?' + tabOptions : '');
+    if (location.hash !== want) { history.replaceState(null, '', want); }
     if (name === 'simulate' && simulate) { simulate.enter(); }
+  }
+
+  function withTabOptions(url) {
+    return tabOptions ? url + (url.indexOf('?') < 0 ? '?' : '&') + tabOptions : url;
   }
 
   function wireTabs() {
@@ -898,7 +916,7 @@
       stageTitle.textContent = 'Run ' + id + ': ' + name;
       stageEmpty.hidden = true;
       stage.hidden = false;
-      stage.src = '/sim/runs/' + id + '/';
+      stage.src = withTabOptions('/sim/runs/' + id + '/');
     }
 
     function showPlacement(entry) {

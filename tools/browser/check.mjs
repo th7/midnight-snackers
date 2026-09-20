@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, serve, sim } from './bench.mjs';
+import { ASSETS, benchModel, cannedRun, chrome, servingTheLiveView, sim, theLiveView } from './bench.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,9 +33,15 @@ async function litPixels(png) {
 const problems = [];
 const check = (ok, said) => { if (!ok) problems.push(said); };
 
-const server = await serve();
+const model = benchModel();
+const canned = cannedRun(model);
+const livePage = theLiveView(
+    { name: 'FieldCheckAuto', kind: 'auto', live: false, outcome: 'done', ticks: canned.ticks },
+    ASSETS,
+    'FieldCheckAuto');
+const server = await servingTheLiveView(livePage);
 const base = `http://127.0.0.1:${server.address().port}`;
-const url = `${base}/field`;
+const url = `${base}/runs/1/`;
 
 let browser = null;
 try {
@@ -89,16 +95,16 @@ try {
 
   try {
     await page.waitForFunction(
-        () => window.fieldPage && (window.fieldPage.loaded || window.fieldPage.problem),
+        () => window.replayPage && window.replayPage.settled,
         null, { timeout: 90_000 });
   } catch (timedOut) {
     throw new Error(whyItNeverReported());
   }
 
   const state = await page.evaluate(() => ({
-    loaded: window.fieldPage.loaded,
-    problem: window.fieldPage.problem,
-    said: document.getElementById('said').textContent
+    loaded: window.replayPage.loaded,
+    problem: window.replayPage.problem,
+    said: document.getElementById('field-msg').textContent
   }));
 
   check(!state.problem, `the page reported a problem: ${state.problem}`);
@@ -109,13 +115,13 @@ try {
   }
 
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const drawn = await page.evaluate(() => window.fieldPage.drawnTriangles);
+  const drawn = await page.evaluate(() => window.replayPage.drawnTriangles);
   check(drawn > 1000, `only ${drawn} triangles were drawn in a frame; the field is loaded but not on screen`);
 
   const drawn2 = await page.evaluate(() => {
-    const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.fieldPage.floorZ,
+    const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.replayPage.floorZ,
                   fieldMeshes: 0, inScene: 0 };
-    window.fieldPage.scene.traverse((o) => {
+    window.replayPage.scene.traverse((o) => {
       if (!o.isMesh) {
         return;
       }
@@ -133,7 +139,7 @@ try {
         out.tapeTop = out.tapeTop === null ? box.max.z : Math.max(out.tapeTop, box.max.z);
       }
     });
-    window.fieldPage.field.traverse((o) => {
+    window.replayPage.field.traverse((o) => {
       if (o.isMesh) {
         out.fieldMeshes++;
       }
@@ -168,23 +174,24 @@ try {
     const wrong = [];
     replay.on('pageerror', (e) => wrong.push(String(e && e.message ? e.message : e)));
     try {
-      await replay.goto(`${base}/field?run=1`, { waitUntil: 'load', timeout: 60_000 });
-      await replay.waitForFunction(() => window.fieldPage && window.fieldPage.run,
-          null, { timeout: 90_000 });
-      const first = await replay.evaluate(() => window.fieldPage.run);
-      await replay.evaluate(() => window.fieldPage.goTo(2));
+      await replay.goto(`${base}/runs/1/`, { waitUntil: 'load', timeout: 60_000 });
+      await replay.waitForFunction(
+          () => window.replayPage && window.replayPage.settled && window.replayPage.run
+              && window.replayPage.run.hives, null, { timeout: 90_000 });
+      const first = await replay.evaluate(() => window.replayPage.run);
+      await replay.evaluate(() => window.replayPage.goTo(2));
       await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const last = await replay.evaluate(() => ({
-        run: window.fieldPage.run,
+        run: window.replayPage.run,
         launched: (() => {
-          const page = window.fieldPage;
+          const page = window.replayPage;
           const ball = page.launchedBall;
           return ball ? { visible: ball.visible, at: ball.position.toArray() } : null;
         })(),
-        drawn: window.fieldPage.drawnTriangles,
+        drawn: window.replayPage.drawnTriangles,
         hiveTurned: (() => {
           let turned = false;
-          window.fieldPage.scene.traverse((o) => {
+          window.replayPage.scene.traverse((o) => {
             if (!o.isMesh && /blue[\s_-]*hive/i.test(o.name || '')
                 && Math.abs(o.matrix.elements[8]) > 0.01) {
               turned = true;
@@ -193,11 +200,11 @@ try {
           return turned;
         })()
       }));
-      await replay.evaluate(() => window.fieldPage.goTo(3));
+      await replay.evaluate(() => window.replayPage.goTo(3));
       await replay.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const rested = await replay.evaluate(() => {
         let turned = false;
-        window.fieldPage.scene.traverse((o) => {
+        window.replayPage.scene.traverse((o) => {
           if (!o.isMesh && /blue[\s_-]*hive/i.test(o.name || '')
               && Math.abs(o.matrix.elements[8]) > 0.01) {
             turned = true;
@@ -247,14 +254,15 @@ try {
     const wrong = [];
     view.on('pageerror', (e) => wrong.push(String(e && e.message ? e.message : e)));
     try {
-      await view.goto(`${base}/field?run=1&view=camera`, { waitUntil: 'load', timeout: 60_000 });
-      await view.waitForFunction(() => window.fieldPage && window.fieldPage.camera3,
+      await view.goto(`${base}/runs/1/?view=camera`, { waitUntil: 'load', timeout: 60_000 });
+      await view.waitForFunction(
+          () => window.replayPage && window.replayPage.settled && window.replayPage.camera3,
           null, { timeout: 90_000 });
-      await view.evaluate(() => window.fieldPage.tagsReady);
+      await view.evaluate(() => window.replayPage.tagsReady);
       await view.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
       seenClearance = await view.evaluate(() => {
-        const page = window.fieldPage;
+        const page = window.replayPage;
         const out = [];
         page.scene.traverse((quad) => {
           if (!/^tag /.test(quad.name || '')) {
@@ -288,7 +296,7 @@ try {
       });
       let placedAgainstGeometry = null;
       const seen = await view.evaluate(() => {
-        const page = window.fieldPage;
+        const page = window.replayPage;
         const out = { tags: page.tags, lens: page.lens, at: [] };
         page.scene.traverse((o) => {
           if (!/^tag /.test(o.name || '')) {
@@ -309,7 +317,7 @@ try {
 
       seen.strays = await view.evaluate(() => {
         const out = [];
-        window.fieldPage.scene.traverse((o) => {
+        window.replayPage.scene.traverse((o) => {
           if (o.isMesh && o.visible && !o.userData.tag && !/^tag /.test(o.name || '')) {
             let hidden = false;
             for (let up = o.parent; up; up = up.parent) {
@@ -326,7 +334,7 @@ try {
       });
 
       await view.addStyleTag({ content: '#hud, #run { display: none !important; }' });
-      placedAgainstGeometry = await view.evaluate(() => window.fieldPage.tagPlacedAgainstGeometry);
+      placedAgainstGeometry = await view.evaluate(() => window.replayPage.tagPlacedAgainstGeometry);
       const shot = await view.screenshot();
       return { seen, shot, wrong, placedAgainstGeometry };
     } catch (stuck) {

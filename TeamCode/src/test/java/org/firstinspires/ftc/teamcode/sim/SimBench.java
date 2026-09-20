@@ -368,19 +368,11 @@ public final class SimBench {
         }
     }
 
-    private static JsonObject model() {
-        JsonObject model = GSON.fromJson(GSON.toJson(SimPlacement.FIELD.json()), JsonObject.class);
-        model.addProperty("robotIn", SimPlacement.ROBOT_SIZE_IN);
-        return model;
-    }
-
     public Router routes(String startedBy) {
         return new Router()
                 .route("GET", "/catalog", (request, params) -> catalogJson())
                 .route("GET", "/status", (request, params) -> Response.json(status()))
                 .route("GET", "/assets/{name*}", (request, params) -> SimAssets.serve(params.get("name")))
-                .route("GET", "/field", (request, params) -> Response.html(SimAssets.page("field.html")))
-                .route("GET", "/model", (request, params) -> Response.json(GSON.toJson(model())))
                 .route(
                         "GET",
                         "/start",

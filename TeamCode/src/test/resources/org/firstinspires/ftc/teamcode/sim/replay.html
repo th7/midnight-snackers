@@ -216,7 +216,9 @@ __IMPORTMAP__
 (function () {
   const ASSETS = __ASSETS__;
   const wanted = new URLSearchParams(location.search).get('view');
-  let drawing = 'flat', solid = null, settled = false;
+  let drawing = 'flat', solid = null, settled = false, webcam = null, tags = null, cost = null;
+  let fieldProblem = '';
+  const asked = new URLSearchParams(location.search);
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
   const teleop = rec.kind === 'teleop';
@@ -637,6 +639,7 @@ __IMPORTMAP__
     const tick = placing ? start : ticks.length ? ticks[index] : null;
     const packets = tick && !placing ? latestPackets(index) : [];
     if (drawing === 'solid') drawSolid(tick, packets); else drawFlat(tick, packets);
+    if (webcam && tick) { webcam.aim(tick); webcam.hideEverythingElse(); }
     if (placing) { renderPlacement(); return; }
     if (!tick) return;
 
@@ -1072,12 +1075,85 @@ __IMPORTMAP__
     drawing = 'solid';
     canvas.hidden = true;
     solidCanvas.hidden = false;
+    if (fellBack) {
+      fieldProblem = 'The full-detail model has not been fetched, so this is the normal one.';
+    }
     fieldMsg.innerHTML = (view.loaded.model === FULL_MODEL ? 'The field at full detail. ' : '')
       + (fellBack ? 'The full-detail model has not been fetched, so this is the normal one. ' : '')
       + 'The field as it looks, from the season CAD. '
       + '<a href="?view=flat">Draw what the simulator collides</a> instead.';
-    view.renderer.setAnimationLoop(() => { view.controls.update(); view.drawnFrom(); });
+    const { theGoalTags, theWebcamsView } = await import(ASSETS + 'webcam.js');
+    tags = theGoalTags(view, Object.assign({}, FIELD, { robotIn: ROBOT_IN }), ASSETS,
+                       why => { fieldProblem = why; fieldMsg.textContent = why; });
+    if (wanted === 'camera') {
+      webcam = theWebcamsView(view, tags);
+      fieldMsg.textContent = 'The goal tags as the robot\u2019s camera would see them, at '
+        + webcam.lens.width + '\u00d7' + webcam.lens.height + '. '
+        + 'Play and scrub the run; the view follows the robot.';
+    }
+    view.renderer.setAnimationLoop(() => {
+      view.controls.update();
+      view.drawnFrom(webcam && webcam.camera);
+    });
     render();
+    if (asked.has('cost')) {
+      whatAFrameCosts().catch(why => {
+        fieldProblem = 'The frame cost could not be measured: ' + (why && why.message ? why.message : why);
+        fieldMsg.textContent = fieldProblem;
+      });
+    }
+  }
+
+  async function whatAFrameCosts() {
+    const { measure, drawnBy, inSoftware } = await import(ASSETS + 'framecost.js');
+    fieldMsg.textContent = 'Measuring\u2026 the view holds still while it does.';
+    solid.renderer.setAnimationLoop(null);
+    await new Promise(go => requestAnimationFrame(go));
+
+    const draw = () => solid.drawnFrom(webcam && webcam.camera);
+    let withShadows = null;
+    let withoutShadows = null;
+    try {
+      withShadows = await measure(solid.renderer, draw);
+      shadowPass(false);
+      withoutShadows = await measure(solid.renderer, draw);
+    } finally {
+      shadowPass(true);
+      solid.renderer.setAnimationLoop(() => {
+        solid.controls.update();
+        solid.drawnFrom(webcam && webcam.camera);
+      });
+    }
+
+    cost = {
+      at: { width: solid.renderer.domElement.width, height: solid.renderer.domElement.height },
+      gpu: drawnBy(solid.renderer),
+      parts: solid.loaded && solid.loaded.parts,
+      model: solid.loaded && solid.loaded.model,
+      withShadows: withShadows,
+      withoutShadows: withoutShadows
+    };
+    fieldMsg.textContent = reads('With shadows:', withShadows) + '. ' + reads('Without:', withoutShadows) + '. '
+      + cost.at.width + '\u00d7' + cost.at.height + ' on ' + cost.gpu + '.'
+      + (inSoftware(cost.gpu) ? ' Drawn in software, so these are this machine\u2019s times and not a GPU\u2019s.' : '');
+  }
+
+  function shadowPass(on) {
+    solid.renderer.shadowMap.enabled = on;
+    solid.scene.traverse(o => {
+      if (o.isMesh && o.material) {
+        for (const one of [].concat(o.material)) {
+          one.needsUpdate = true;
+        }
+      }
+    });
+  }
+
+  function reads(name, reading) {
+    return reading.judged
+      ? name + ' ' + reading.best.toFixed(2) + ' ms (' + Math.round(1000 / reading.best) + ' fps), '
+          + reading.draws.toLocaleString() + ' draws, ' + reading.triangles.toLocaleString() + ' triangles'
+      : name + ' could not be judged: ' + reading.why;
   }
 
   if (ASSETS === null || placing || wanted === 'flat') {
@@ -1086,8 +1162,9 @@ __IMPORTMAP__
     drawTheFieldModel()
       .catch(why => {
         drawing = 'flat';
-        fieldMsg.textContent = 'The field model did not load, so this is the drawing the simulator '
-          + 'collides: ' + (why && why.message ? why.message : why);
+        fieldProblem = 'The field model did not load, so this is the drawing the simulator collides: '
+          + (why && why.message ? why.message : why);
+        fieldMsg.textContent = fieldProblem;
         render();
       })
       .finally(() => { settled = true; });
@@ -1096,7 +1173,8 @@ __IMPORTMAP__
   window.replayPage = {
     get settled() { return settled; },
     get drawing() { return drawing; },
-    get problem() { return fieldMsg.textContent; },
+    get problem() { return fieldProblem; },
+    get said() { return fieldMsg.textContent; },
     get loaded() { return solid && solid.loaded; },
     get drawnTriangles() { return solid ? solid.renderer.info.render.triangles : 0; },
     get scene() { return solid && solid.scene; },
@@ -1111,7 +1189,29 @@ __IMPORTMAP__
     get leaning() {
       return solid ? Object.fromEntries(solid.hives.map(h => [h.alliance, h.group.matrix.elements[8]])) : null;
     },
-    goTo: i => setIndex(i)
+    goTo: i => setIndex(i),
+    get cost() { return cost; },
+    get loaded() { return solid && solid.loaded; },
+    get field() { return solid && solid.field; },
+    get floorZ() { return solid ? solid.floor.position.z : null; },
+    get camera3() { return webcam && webcam.camera; },
+    get tags() { return tags ? tags.tags : []; },
+    get lens() { return webcam && webcam.lens; },
+    get tagsReady() { return tags && tags.ready; },
+    get tagPlacedAgainstGeometry() { return tags ? tags.placedAgainstGeometry : []; },
+    get run() {
+      const r = solid && solid.robot;
+      return ticks.length
+        ? { loops: ticks.length, at: index,
+            robot: r && { x: r.position.x, y: r.position.y, heading: r.rotation.z },
+            balls: solid ? solid.movingBalls.length + solid.staticBalls.length : 0,
+            launchable: solid ? Math.max(0, solid.movingBalls.length - MOVED.length) : 0,
+            hives: solid ? solid.hives.length : 0 }
+        : null;
+    },
+    get launchedBall() {
+      return solid && solid.movingBalls.length > MOVED.length ? solid.movingBalls[MOVED.length] : null;
+    }
   };
 })();
 </script>

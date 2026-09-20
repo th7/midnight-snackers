@@ -33,14 +33,14 @@ try {
     }));
   }
   const page = await context.newPage();
-  const at = bench.replace(/\/$/, '') + '/field?run=' + encodeURIComponent(run) + '&view=camera';
+  const at = bench.replace(/\/$/, '') + '/runs/' + encodeURIComponent(run) + '/?view=camera';
   await page.goto(at, { waitUntil: 'load', timeout: 120_000 });
-  await page.waitForFunction(() => window.fieldPage && window.fieldPage.camera3,
+  await page.waitForFunction(() => window.replayPage && window.replayPage.camera3,
       null, { timeout: 180_000 });
-  await page.evaluate(() => window.fieldPage.tagsReady);
+  await page.evaluate(() => window.replayPage.tagsReady);
 
-  const lens = await page.evaluate(() => window.fieldPage.lens);
-  const loops = await page.evaluate(() => window.fieldPage.run && window.fieldPage.run.loops);
+  const lens = await page.evaluate(() => window.replayPage.lens);
+  const loops = await page.evaluate(() => window.replayPage.run && window.replayPage.run.loops);
   if (!loops) {
     throw new Error('run ' + run + ' has no loops to capture');
   }
@@ -51,7 +51,7 @@ try {
 
   const width = String(loops).length;
   for (let loop = 0; loop < loops; loop += Math.max(1, every)) {
-    await page.evaluate((i) => window.fieldPage.goTo(i), loop);
+    await page.evaluate((i) => window.replayPage.goTo(i), loop);
 
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const name = 'loop-' + String(loop).padStart(width, '0') + '.png';
@@ -59,7 +59,7 @@ try {
     written++;
   }
   console.log(`${written} frames of ${lens.width}x${lens.height} in ${into}`);
-  console.log('  the lens and the tag artwork\'s fit are assumptions; see field.html before '
+  console.log('  the lens and the tag artwork\'s fit are assumptions; see webcam.js before '
       + 'trusting a pose read off these');
 } catch (wrong) {
   console.error('no frames: ' + (wrong && wrong.message ? wrong.message : wrong));
