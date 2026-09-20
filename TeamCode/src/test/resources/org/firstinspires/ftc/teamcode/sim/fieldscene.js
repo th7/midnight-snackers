@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const FIELD_IN = 141.17;
 export const FLOOR_Z = 0;
@@ -9,6 +10,9 @@ export const OVERLAY_Z = 0.05;
 
 const SEE_THROUGH = /skin|side[\s_]glass/i;
 const GAME_PIECE = /pollen|nectar/i;
+const TAPE = /tape/i;
+const GOAL_TAG = /april[\s_-]*tag/i;
+const HIVE = /(blue|red)[\s_-]*hive/i;
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -74,13 +78,13 @@ export class FieldScene {
       new GLTFLoader().load(this.assets + 'field.glb', (gltf) => {
         let meshes = 0;
         let triangles = 0;
+        const seeThroughTwins = new Map();
         gltf.scene.traverse((object) => {
           if (!object.isMesh) {
             return;
           }
           meshes++;
-          triangles += object.geometry.index ? object.geometry.index.count / 3
-                                             : object.geometry.attributes.position.count / 3;
+          triangles += trianglesIn(object.geometry);
           object.castShadow = true;
           object.receiveShadow = true;
 
@@ -90,22 +94,31 @@ export class FieldScene {
           object.material.roughness = 0.62;
           object.material.metalness = 0.05;
 
-          if (/tape/i.test(object.name)) {
+          if (TAPE.test(object.name)) {
             object.position.z += TAPE_Z;
           }
 
           if (SEE_THROUGH.test(object.name)) {
-            object.material = object.material.clone();
-            object.material.transparent = true;
-            object.material.opacity = 0.22;
-            object.material.side = THREE.DoubleSide;
-            object.material.depthWrite = false;
+            object.material = seeThrough(object.material, seeThroughTwins);
             object.castShadow = false;
           }
         });
+
+        const batched = this.#batchByMaterial(gltf.scene);
+        if (batched.triangles !== triangles) {
+          reject(new Error('batching the field by material left ' + batched.triangles
+              + ' triangles of ' + triangles + '; it may only draw them in fewer meshes, never lose any'));
+          return;
+        }
+
         this.scene.add(gltf.scene);
         this.field = gltf.scene;
-        this.loaded = { parts: meshes, triangles: triangles };
+        this.loaded = {
+          parts: meshes,
+          triangles: triangles,
+          meshes: batched.meshes,
+          batchedTriangles: batched.triangles
+        };
         resolve(this.loaded);
       }, undefined, (wrong) => reject(
           wrong instanceof Error ? wrong : new Error(String(wrong && wrong.message ? wrong.message : wrong))));
@@ -272,6 +285,73 @@ export class FieldScene {
     return group;
   }
 
+  #batchByMaterial(root) {
+    root.updateMatrixWorld(true);
+
+    const buckets = new Map();
+    const all = [];
+    root.traverse((o) => {
+      if (o.isMesh) {
+        all.push(o);
+      }
+    });
+
+    for (const mesh of all) {
+      if (GOAL_TAG.test(mesh.name)) {
+        continue;
+      }
+      const under = hiveAbove(mesh) || root;
+      const kind = kindOf(mesh.name);
+      const key = under.uuid + ' ' + kind + ' ' + mesh.material.uuid;
+      const bucket = buckets.get(key) || { under: under, kind: kind, material: mesh.material, meshes: [] };
+      bucket.meshes.push(mesh);
+      buckets.set(key, bucket);
+    }
+
+    for (const bucket of buckets.values()) {
+      if (bucket.meshes.length < 2) {
+        continue;
+      }
+      const into = new THREE.Matrix4();
+      const parts = bucket.meshes.map((mesh) => {
+        const geometry = mesh.geometry.clone();
+        for (const name of Object.keys(geometry.attributes)) {
+          if (name !== 'position' && name !== 'normal') {
+            geometry.deleteAttribute(name);
+          }
+        }
+        into.copy(bucket.under.matrixWorld).invert().multiply(mesh.matrixWorld);
+        geometry.applyMatrix4(into);
+        return geometry;
+      });
+
+      const one = new THREE.Mesh(mergeGeometries(parts, false), bucket.material);
+      one.name = bucket.kind + ' ' + colourOf(bucket.material) + ' (' + bucket.meshes.length + ' parts)';
+      one.userData.from = bucket.meshes.map((mesh) => mesh.name);
+      one.castShadow = bucket.meshes[0].castShadow;
+      one.receiveShadow = true;
+      bucket.under.add(one);
+
+      for (const geometry of parts) {
+        geometry.dispose();
+      }
+      for (const mesh of bucket.meshes) {
+        mesh.removeFromParent();
+        mesh.geometry.dispose();
+      }
+    }
+
+    let meshes = 0;
+    let triangles = 0;
+    root.traverse((o) => {
+      if (o.isMesh) {
+        meshes++;
+        triangles += trianglesIn(o.geometry);
+      }
+    });
+    return { meshes: meshes, triangles: triangles };
+  }
+
   #groupNamedFor(alliance) {
     let found = null;
     this.field.traverse((o) => {
@@ -305,6 +385,44 @@ export class FieldScene {
     geometry.setAttribute('position', new THREE.BufferAttribute(line, 3));
     return new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: colour }));
   }
+}
+
+function trianglesIn(geometry) {
+  return geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3;
+}
+
+function colourOf(material) {
+  return material.name || '#' + material.color.getHexString();
+}
+
+function kindOf(name) {
+  const seen = SEE_THROUGH.exec(name) || GAME_PIECE.exec(name) || TAPE.exec(name);
+  return seen ? seen[0].toLowerCase().replace(/[\s_]+/g, ' ') : 'part';
+}
+
+function hiveAbove(mesh) {
+  let above = mesh.parent;
+  while (above) {
+    if (!above.isMesh && above.name && HIVE.test(above.name)) {
+      return above;
+    }
+    above = above.parent;
+  }
+  return null;
+}
+
+function seeThrough(material, twins) {
+  const had = twins.get(material.uuid);
+  if (had) {
+    return had;
+  }
+  const twin = material.clone();
+  twin.transparent = true;
+  twin.opacity = 0.22;
+  twin.side = THREE.DoubleSide;
+  twin.depthWrite = false;
+  twins.set(material.uuid, twin);
+  return twin;
 }
 
 export function ringsOf(op) {

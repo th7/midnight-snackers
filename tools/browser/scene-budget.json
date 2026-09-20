@@ -1,7 +1,7 @@
 {
-  "withShadows.draws": 620,
-  "withShadows.calls": 338,
+  "withShadows.draws": 164,
+  "withShadows.calls": 89,
   "withShadows.triangles": 266539,
-  "withoutShadows.draws": 338,
+  "withoutShadows.draws": 89,
   "withoutShadows.triangles": 266539
 }
