@@ -1145,12 +1145,20 @@ public class CodingServerTest {
         source.append("console.log(JSON.stringify(asked.map(h => { const t = tabOf(h); ")
                 .append("return t.name + ' ' + t.options; })));\n");
         Files.write(script, source.toString().getBytes(StandardCharsets.UTF_8));
-        Process node = new ProcessBuilder("node", script.toString())
-                .redirectErrorStream(true)
-                .start();
-        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals("node ran the dashboard's rule: " + out, 0, node.waitFor());
-        return new Gson().fromJson(out.trim(), String[].class);
+        return new Gson().fromJson(inNode(script), String[].class);
+    }
+
+    /** The one place a rule off the dashboard page is run in node, so the one place it is counted. */
+    private static String inNode(Path script) throws Exception {
+        String out;
+        try (Cost.Spent spent = Cost.start(Cost.Kind.NODE)) {
+            Process node = new ProcessBuilder("node", script.toString())
+                    .redirectErrorStream(true)
+                    .start();
+            out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals("node ran the dashboard's rule: " + out, 0, node.waitFor());
+        }
+        return out.trim();
     }
 
     @Test
@@ -1188,12 +1196,7 @@ public class CodingServerTest {
                 .append("a[0] === 'null' ? null : Number(a[0]), a[1] === 'null' ? null : a[1], ")
                 .append("Number(a[2]), a[3]))));\n");
         Files.write(script, source.toString().getBytes(StandardCharsets.UTF_8));
-        Process node = new ProcessBuilder("node", script.toString())
-                .redirectErrorStream(true)
-                .start();
-        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals("node ran the dashboard's rule: " + out, 0, node.waitFor());
-        return new Gson().fromJson(out.trim(), boolean[].class);
+        return new Gson().fromJson(inNode(script), boolean[].class);
     }
 
     @Test
@@ -1362,15 +1365,17 @@ public class CodingServerTest {
         byte[] hash = Base64.getDecoder().decode(kdf.get("hash").getAsString());
         assertTrue("salt of " + salt.length + " bytes", salt.length >= 16);
         assertTrue("hash of " + hash.length + " bytes", hash.length >= 32);
-        assertArrayEquals(
-                SCrypt.generate(
-                        secretOf(ada).getBytes(StandardCharsets.UTF_8),
-                        salt,
-                        kdf.get("n").getAsInt(),
-                        kdf.get("r").getAsInt(),
-                        kdf.get("p").getAsInt(),
-                        hash.length),
-                hash);
+        byte[] again;
+        try (Cost.Spent spent = Cost.start(Cost.Kind.PASSWORD_HASH)) {
+            again = SCrypt.generate(
+                    secretOf(ada).getBytes(StandardCharsets.UTF_8),
+                    salt,
+                    kdf.get("n").getAsInt(),
+                    kdf.get("r").getAsInt(),
+                    kdf.get("p").getAsInt(),
+                    hash.length);
+        }
+        assertArrayEquals(again, hash);
         assertFalse(
                 "every session gets its own salt",
                 kdf.get("salt")

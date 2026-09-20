@@ -12,17 +12,12 @@ import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.opmode.PlanOp;
@@ -57,94 +52,48 @@ public class SimBenchTest {
         return folder.getRoot().toPath().resolve("sim");
     }
 
-    private static Path real(String relative) {
-        Path path = Paths.get(relative).toAbsolutePath();
-        assertTrue("tests run from the TeamCode module directory: " + path, Files.isDirectory(path));
-        return path;
+    static void copyTree(Path from, Path to) {
+        SimProject.copyTree(from, to);
     }
 
-    static void copyTree(Path from, Path to) throws IOException {
-        try (Stream<Path> files = Files.walk(from)) {
-            for (Path file : (Iterable<Path>) files::iterator) {
-                Path target = to.resolve(from.relativize(file).toString());
-                if (Files.isDirectory(file)) {
-                    Files.createDirectories(target);
-                } else {
-                    Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
-                }
-            }
-        }
+    static Path simulatorInto(Path project) {
+        return SimProject.simulatorOnlyIn(project).root();
     }
 
-    static Path simulatorInto(Path project) throws IOException {
-        copyTree(real("src/test/java"), project.resolve("TeamCode/src/test/java"));
-        copyTree(real("src/test/resources"), project.resolve("TeamCode/src/test/resources"));
-        return project;
+    static Path projectWith(Path project, String plans) {
+        return SimProject.copiedTo(project).withPlans(plans).root();
     }
 
-    static Path projectWith(Path project, String plans) throws IOException {
-        realProjectCopiedUnder(project);
-        sourceRootWith(project, plans);
-        return project;
+    static Path realProjectCopiedUnder(Path project) {
+        return SimProject.copiedTo(project).root();
     }
 
-    static Path realProjectCopiedUnder(Path project) throws IOException {
-        copyTree(real("src/main/java"), project.resolve("TeamCode/src/main/java"));
-        return simulatorInto(project);
+    static void edit(Path project, String relative, String from, String to) {
+        SimProject.at(project).edited(relative, from, to);
     }
 
-    static void edit(Path project, String relative, String from, String to) throws IOException {
-        Path file = project.resolve(relative);
-        String source = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-        assertTrue(relative + " has no " + from, source.contains(from));
-        Files.write(file, source.replace(from, to).getBytes(StandardCharsets.UTF_8));
-    }
-
-    static final String HARDWARE = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/hardware/Hardware.java";
-    static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
-    static final String SIM_DEVICES = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimDevices.java";
-    static final String SIM_CHILD = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimChild.java";
-    static final String SIM_RUN_STREAM = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRunStream.java";
+    static final String HARDWARE = SimProject.HARDWARE;
+    static final String SIM_ROBOT = SimProject.SIM_ROBOT;
+    static final String SIM_DEVICES = SimProject.SIM_DEVICES;
+    static final String SIM_CHILD = SimProject.SIM_CHILD;
+    static final String SIM_RUN_STREAM = SimProject.SIM_RUN_STREAM;
     static final SimCatalog.Entry BLUE_TELEOP =
             new SimCatalog.Entry("BlueTeleOp", "TeleOp", SimCatalog.TELEOP, "", null);
 
-    static final String TEMP_NAME = "Temp";
+    static final String TEMP_NAME = SimProject.TEMP_NAME;
 
-    static final int TEMP_LOOPS_LINE = 8;
+    static final int TEMP_LOOPS_LINE = SimProject.TEMP_LOOPS_LINE;
 
     static String tempPlans(int loops, String group) {
-        return "package org.firstinspires.ftc.teamcode;\n"
-                + "import org.firstinspires.ftc.teamcode.opmode.Auto;\n"
-                + "import org.firstinspires.ftc.teamcode.base.Loopable;\n"
-                + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
-                + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
-                + "\n"
-                + "public class Plans implements Loopable {\n"
-                + "    private int loops = 0;\n"
-                + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
-                + " org.firstinspires.ftc.teamcode.Nav nav,"
-                + " org.firstinspires.ftc.teamcode.Launcher launcher,"
-                + " java.util.function.LongSupplier nanoClock) { }\n"
-                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group
-                + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"
-                + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
-                + "); }\n"
-                + "    public void loop() { }\n"
-                + "}\n";
+        return SimProject.tempPlans(loops, group);
     }
 
     static String tempPlans(int loops) {
-        return tempPlans(loops, "Test");
+        return SimProject.tempPlans(loops);
     }
 
-    static Path sourceRootWith(Path project, String source) throws IOException {
-        Path sourceRoot = project.resolve("TeamCode/src/main/java");
-        Path file = sourceRoot.resolve("org/firstinspires/ftc/teamcode/Plans.java");
-        Files.createDirectories(file.getParent());
-        Files.write(file, source.getBytes(StandardCharsets.UTF_8));
-
-        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 2000));
-        return sourceRoot;
+    static Path sourceRootWith(Path project, String source) {
+        return SimProject.at(project).withPlans(source).sourceRoot();
     }
 
     private static SimBench.Run await(SimBench.Run run) throws InterruptedException {

@@ -144,8 +144,9 @@ public final class SimBuild {
         }
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         boolean ok;
-        try (StandardJavaFileManager files =
-                compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
+        try (Cost.Spent spent = Cost.start(Cost.Kind.COMPILE);
+                StandardJavaFileManager files =
+                        compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
             List<String> options = List.of(
                     "-d",
                     output.toString(),

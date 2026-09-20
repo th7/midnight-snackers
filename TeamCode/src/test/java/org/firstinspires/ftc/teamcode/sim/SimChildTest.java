@@ -84,7 +84,7 @@ public class SimChildTest {
         Path empty = folder.getRoot().toPath().resolve("empty");
         Files.createDirectories(empty);
 
-        Output output = run(SimChild.launch(empty, "--list"));
+        Output output = run(JvmChild.launch(empty, "--list"));
 
         assertNotEquals("this server's own SimChild must not stand in for the project's", 0, output.exitCode);
         assertTrue(output.stderr, output.stderr.contains(SimChild.class.getName()));
@@ -92,7 +92,7 @@ public class SimChildTest {
 
     @Test
     public void listPrintsTheRealAutosAsOneJsonLine() throws Exception {
-        Output output = run(SimChild.launchOnThisClasspath("--list"));
+        Output output = run(JvmChild.launchOnThisClasspath("--list"));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertEquals(output.stdout.toString(), 2, output.stdout.size());
@@ -108,7 +108,7 @@ public class SimChildTest {
 
     @Test
     public void aTeleOpRunTakesTheDriverStationFromStdinAndStopEndsIt() throws Exception {
-        Process child = SimChild.launchOnThisClasspath(
+        Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName());
         Thread drain = new Thread(() -> {
             try {
@@ -165,7 +165,7 @@ public class SimChildTest {
     @Test
     public void aLineTheChildCannotReadEndsTheRunWithThatAsItsOutcome() throws Exception {
         Process child = placed(
-                SimChild.launchOnThisClasspath(
+                JvmChild.launchOnThisClasspath(
                         "--run", "Stick", "30", folder.getRoot().toString(), StickTeleOp.class.getName()),
                 ORIGIN);
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
@@ -181,7 +181,7 @@ public class SimChildTest {
     @Test
     public void runStreamsATickPerLoopAndThenTheOutcome() throws Exception {
         Output output = run(placed(
-                SimChild.launchOnThisClasspath(
+                JvmChild.launchOnThisClasspath(
                         "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()),
                 ORIGIN));
 
@@ -206,7 +206,7 @@ public class SimChildTest {
     @Test
     public void whatTheOpModePrintsGoesToStderrNotTheStream() throws Exception {
         Output output = run(placed(
-                SimChild.launchOnThisClasspath(
+                JvmChild.launchOnThisClasspath(
                         "--run", "Chatty", "2", folder.getRoot().toString(), ChattyAuto.class.getName()),
                 ORIGIN));
 
@@ -227,7 +227,7 @@ public class SimChildTest {
     @Test
     public void aTimedOutRunStillReportsItsOutcome() throws Exception {
         Output output = run(placed(
-                SimChild.launchOnThisClasspath(
+                JvmChild.launchOnThisClasspath(
                         "--run",
                         "Never done",
                         "0.3",
@@ -244,7 +244,7 @@ public class SimChildTest {
         Pose2d start = new Pose2d(-60, 1000, Math.PI / 2);
 
         Output output = run(placed(
-                SimChild.launchOnThisClasspath(
+                JvmChild.launchOnThisClasspath(
                         "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName()),
                 start));
 
@@ -262,7 +262,7 @@ public class SimChildTest {
     @Test
     public void aSeedOnTheStartLineRunsTheRobotDrawnFromIt() throws Exception {
         Pose2d start = new Pose2d(-60, 12, 0);
-        Process child = SimChild.launchOnThisClasspath(
+        Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
         in.write(new Gson().toJson(SimDriverStation.startLine(start, 7L)) + "\n");
@@ -279,7 +279,7 @@ public class SimChildTest {
 
     @Test
     public void stopBeforePlacementEndsTheRunStopped() throws Exception {
-        Process child = SimChild.launchOnThisClasspath(
+        Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
         in.write("{\"stop\": true}\n");
@@ -300,7 +300,7 @@ public class SimChildTest {
 
     @Test
     public void anUnknownOpModeIsAnOutcomeToo() throws Exception {
-        Output output = run(SimChild.launchOnThisClasspath(
+        Output output = run(JvmChild.launchOnThisClasspath(
                 "--run", "org.example.Nope", "1", folder.getRoot().toString()));
 
         JsonObject last = new Gson().fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class);

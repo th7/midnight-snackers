@@ -45,6 +45,12 @@ public final class RealGit implements Git {
     }
 
     private Ran ran(Path cwd, long timeoutSeconds, String... args) {
+        try (Cost.Spent spent = Cost.start(Cost.Kind.GIT)) {
+            return running(cwd, timeoutSeconds, args);
+        }
+    }
+
+    private Ran running(Path cwd, long timeoutSeconds, String... args) {
         List<String> command = new ArrayList<>();
         command.add(executable);
         command.addAll(List.of(args));

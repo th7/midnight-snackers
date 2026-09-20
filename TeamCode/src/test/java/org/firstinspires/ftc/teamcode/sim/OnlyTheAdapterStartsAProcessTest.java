@@ -3,58 +3,39 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Stream;
 import org.junit.Test;
 
 public class OnlyTheAdapterStartsAProcessTest {
-    private static final String PACKAGE = "org/firstinspires/ftc/teamcode/sim/";
+    private static final String PACKAGE = "org/firstinspires/ftc/teamcode/sim";
 
-    private static final Set<String> MAY_START_ONE =
-            Set.of("RealGit", "SimChild", "GitFixture", "SimReplayPageTest", "CodingServerTest");
+    static final Set<String> MAY_START_ONE = CostIsCountedWhereItIsSpentTest.mayReach("java/lang/ProcessBuilder");
 
-    private static final String THIS_RULE = OnlyTheAdapterStartsAProcessTest.class.getSimpleName();
+    /**
+     * A rule about what a class may name has to name it too, so these read as reaching everything
+     * they forbid. They are left out of every such rule, here and in the one about counting.
+     */
+    static final Set<String> HOLD_THE_RULES =
+            Set.of("Cost", "CostTest", "OnlyTheAdapterStartsAProcessTest", "CostIsCountedWhereItIsSpentTest");
 
-    private static final List<String> STARTS_A_PROCESS = List.of("java/lang/ProcessBuilder", "java/lang/Runtime");
+    private static final List<String> STARTS_A_PROCESS = List.of("java/lang/ProcessBuilder");
 
-    private static List<Path> compiledClasses() throws IOException {
-        List<Path> found = new ArrayList<>();
-        for (String entry : System.getProperty("java.class.path").split(File.pathSeparator)) {
-            Path root = Path.of(entry);
-            Path here = root.resolve(PACKAGE);
-            if (!Files.isDirectory(here)) {
-                continue;
-            }
-            try (Stream<Path> files = Files.walk(here)) {
-                files.filter(Files::isRegularFile)
-                        .filter(file -> file.toString().endsWith(".class"))
-                        .forEach(found::add);
-            }
-        }
-        return found;
+    /**
+     * {@code Runtime} is also how a JVM is told about a shutdown hook, so reaching it is not on its
+     * own reaching for a process: it is {@code exec} on it that is.
+     */
+    private static final List<String> RUNTIME_EXEC = List.of("java/lang/Runtime", "exec");
+
+    private static List<Path> compiledClasses() {
+        return Bytecode.classesUnder(PACKAGE);
     }
 
-    private static String outermost(Path classFile) {
-        String name = classFile.getFileName().toString().replace(".class", "");
-        int nested = name.indexOf('$');
-        return nested < 0 ? name : name.substring(0, nested);
-    }
-
-    private static boolean mentions(Path classFile, String reference) throws IOException {
-        String bytes = new String(Files.readAllBytes(classFile), StandardCharsets.ISO_8859_1);
-        return bytes.contains(lengthPrefixed(reference));
-    }
-
-    private static String lengthPrefixed(String reference) {
-        return "" + (char) 1 + (char) (reference.length() >> 8) + (char) (reference.length() & 0xff) + reference;
+    private static boolean mentionsAll(Path classFile, List<String> references) {
+        return references.stream().allMatch(reference -> Bytecode.mentions(classFile, reference));
     }
 
     @Test
@@ -62,25 +43,22 @@ public class OnlyTheAdapterStartsAProcessTest {
         List<Path> classes = compiledClasses();
         assertTrue("no compiled classes were found, so this rule judged nothing", classes.size() > 20);
 
-        Set<String> starters = new TreeSet<>();
+        Set<String> starters = new TreeSet<>(Bytecode.thatMentionAny(classes, STARTS_A_PROCESS));
         for (Path classFile : classes) {
-            for (String reference : STARTS_A_PROCESS) {
-                if (mentions(classFile, reference)) {
-                    starters.add(outermost(classFile));
-                }
+            if (mentionsAll(classFile, RUNTIME_EXEC)) {
+                starters.add(Bytecode.outermost(classFile));
             }
         }
 
         starters.removeAll(MAY_START_ONE);
-        starters.remove(THIS_RULE);
+        starters.removeAll(HOLD_THE_RULES);
         assertEquals("these reach a process without going through an adapter", Set.of(), starters);
     }
 
     @Test
     public void theModulesThatTalkToSomethingOutsideThisProcessDoItThroughAnInterface() throws IOException {
-        List<Path> classes = compiledClasses();
-        List<Path> through = classes.stream()
-                .filter(file -> Set.of("Worktrees", "SimBench").contains(outermost(file)))
+        List<Path> through = compiledClasses().stream()
+                .filter(file -> Set.of("Worktrees", "SimBench").contains(Bytecode.outermost(file)))
                 .toList();
 
         assertTrue("neither was compiled, so this rule judged nothing", through.size() > 1);
@@ -88,7 +66,7 @@ public class OnlyTheAdapterStartsAProcessTest {
             for (String reference : STARTS_A_PROCESS) {
                 assertTrue(
                         classFile.getFileName() + " reaches " + reference + " rather than the Git interface",
-                        !mentions(classFile, reference));
+                        !Bytecode.mentions(classFile, reference));
             }
         }
     }
@@ -96,18 +74,46 @@ public class OnlyTheAdapterStartsAProcessTest {
     @Test
     public void theRuleWouldNoticeAClassThatStartedOne() throws IOException {
         List<Path> realGit = compiledClasses().stream()
-                .filter(file -> outermost(file).equals("RealGit"))
+                .filter(file -> Bytecode.outermost(file).equals("RealGit"))
                 .toList();
 
         assertTrue(!realGit.isEmpty());
         assertTrue(
                 "RealGit is the adapter, so it must be what this rule would catch if it were not allowed",
-                realGit.stream().anyMatch(file -> {
-                    try {
-                        return mentions(file, "java/lang/ProcessBuilder");
-                    } catch (IOException e) {
-                        return false;
-                    }
-                }));
+                realGit.stream().anyMatch(file -> Bytecode.mentions(file, "java/lang/ProcessBuilder")));
+    }
+
+    @Test
+    public void theRuleWouldNoticeAClassThatWentRoundProcessBuilderToRuntime() throws IOException {
+        String here = OnlyTheAdapterStartsAProcessTest.class.getSimpleName();
+        List<Path> thisRule = compiledClasses().stream()
+                .filter(file -> Bytecode.outermost(file).equals(here))
+                .toList();
+
+        assertTrue(here + " was not compiled, so this rule judged nothing", !thisRule.isEmpty());
+        assertTrue(
+                "the other way to start one is Runtime.exec, and this rule is only as good as its eye for it",
+                thisRule.stream().anyMatch(file -> mentionsAll(file, RUNTIME_EXEC)));
+    }
+
+    /** Never called: it is here so the rule above has a class reaching {@code Runtime.exec} to see. */
+    @SuppressWarnings("unused")
+    private static Process theOtherWayRound(String command) throws IOException {
+        return Runtime.getRuntime().exec(new String[] {command});
+    }
+
+    @Test
+    public void reachingRuntimeForAShutdownHookIsNotReachingForAProcess() throws IOException {
+        List<Path> cost = compiledClasses().stream()
+                .filter(file -> Bytecode.outermost(file).equals("Cost"))
+                .toList();
+
+        assertTrue("Cost was not compiled, so this rule judged nothing", !cost.isEmpty());
+        assertTrue(
+                "Cost asks Runtime for a shutdown hook, and this rule must not read that as starting a process",
+                cost.stream().anyMatch(file -> Bytecode.mentions(file, "java/lang/Runtime")));
+        assertTrue(
+                "and it must not be caught by the rule",
+                cost.stream().noneMatch(file -> mentionsAll(file, RUNTIME_EXEC)));
     }
 }

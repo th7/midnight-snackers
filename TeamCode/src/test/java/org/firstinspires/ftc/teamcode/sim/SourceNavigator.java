@@ -379,7 +379,7 @@ public final class SourceNavigator {
         }
         StandardJavaFileManager files = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8);
         Analysis made;
-        try {
+        try (Cost.Spent spent = Cost.start(Cost.Kind.COMPILE)) {
             List<String> options = List.of(
                     "-cp",
                     String.join(File.pathSeparator, SimBuild.libraries()),

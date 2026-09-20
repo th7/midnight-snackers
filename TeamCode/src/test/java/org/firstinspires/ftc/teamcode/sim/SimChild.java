@@ -4,18 +4,14 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
@@ -138,31 +134,6 @@ public final class SimChild {
         for (SimRecording.Tick tick : recording.ticksFrom(streamed)) {
             protocol.println(SimRunStream.tick(tick));
             streamed++;
-        }
-    }
-
-    public static Process launch(Path classes, String... args) {
-        List<String> classpath = new ArrayList<>();
-        classpath.add(classes.toAbsolutePath().toString());
-        classpath.addAll(SimBuild.libraries());
-        return launchWith(classpath, args);
-    }
-
-    public static Process launchOnThisClasspath(String... args) {
-        return launchWith(List.of(System.getProperty("java.class.path")), args);
-    }
-
-    private static Process launchWith(List<String> classpath, String... args) {
-        List<String> command = new ArrayList<>();
-        command.add(Paths.get(System.getProperty("java.home"), "bin", "java").toString());
-        command.add("-cp");
-        command.add(String.join(File.pathSeparator, classpath));
-        command.add(SimChild.class.getName());
-        command.addAll(List.of(args));
-        try {
-            return new ProcessBuilder(command).start();
-        } catch (IOException e) {
-            throw new UncheckedIOException("could not start the simulation child: " + command.get(0), e);
         }
     }
 }
