@@ -75,15 +75,27 @@ function filled(template, model, run, assets) {
       .replace('__DATA__', JSON.stringify(run));
 }
 
-function served(page) {
+function served(page, live, ticks) {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    if (asked === '/live/runs/1/ticks') {
+      const from = Number(new URL(request.url, 'http://x').searchParams.get('from') || 0);
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ outcome: from >= ticks.length ? 'done' : null, ticks: ticks.slice(from) }));
+      return;
+    }
+    if (asked === '/live/runs/1/') {
+      response.writeHead(200, { 'Content-Type': TYPES['.html'] });
+      response.end(live);
+      return;
+    }
     if (asked === '/favicon.ico') {
       response.writeHead(204).end();
       return;
     }
     const withoutModel = asked.startsWith('/nomodel/');
-    const relative = withoutModel ? asked.slice('/nomodel'.length) : asked;
+    const relative = withoutModel ? asked.slice('/nomodel'.length)
+        : asked.startsWith('/live/') ? asked.slice('/live'.length) : asked;
     if (relative === '/runs/1/') {
       response.writeHead(200, { 'Content-Type': TYPES['.html'] });
       response.end(page);
@@ -227,6 +239,26 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
   }
 }
 
+async function aRunStillAddingTicksIsFollowedInTheModel(browser, base, ticks) {
+  const { open, threw } = await opened(browser, `${base}/live/runs/1/`);
+  try {
+    await open.waitForFunction(
+        (many) => Number(document.getElementById('scrub').max) === many - 1, ticks.length, { timeout: 30_000 });
+    await twoFrames(open);
+    const panels = await readPanels(open);
+    const followed = await open.evaluate(() => window.replayPage.robot);
+    const last = ticks[ticks.length - 1];
+    check(threw.length === 0, `the live run threw: ${threw.join('; ')}`);
+    check(panels.drawing === 'solid', `a run still running drew the ${panels.drawing} field: ${panels.problem}`);
+    check(followed && Math.abs(followed.x - last.x) < 0.01,
+          `the live view followed to x=${followed && followed.x}, not the newest tick's ${last.x}; `
+          + 'ticks that arrive after the model loaded do not reach the scene');
+    check(/running|done/.test(panels.outcome), `a run being followed says "${panels.outcome}"`);
+  } finally {
+    await open.close();
+  }
+}
+
 async function theFlatDrawingIsStillThereToAskFor(browser, base) {
   const { open, threw } = await opened(browser, `${base}/runs/1/?view=flat`);
   try {
@@ -293,7 +325,8 @@ async function main() {
     check(left === null, `the page still holds ${left && [...new Set(left)].join(', ')}, so it was never filled in`);
   }
 
-  const server = await served(page);
+  const following = { name: NAME, kind: 'auto', live: true, outcome: null, ticks: [] };
+  const server = await served(page, filled(template, model, following, ASSETS), run.ticks);
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({
     ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : { channel: 'chromium' }),
@@ -304,6 +337,7 @@ async function main() {
   let solid = false;
   try {
     solid = await theLiveViewDrawsTheFieldModel(browser, base, run);
+    await aRunStillAddingTicksIsFollowedInTheModel(browser, base, run.ticks);
     await theFlatDrawingIsStillThereToAskFor(browser, base);
     await aModelItCannotFetchFallsBackAndSaysSo(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
@@ -321,8 +355,9 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log(`the live view plays ${run.ticks.length} ticks of the field model, and keeps the flat `
-      + 'drawing for ?view=flat, for a model it cannot fetch, and for the page it writes to a file.');
+  console.log(`the live view plays ${run.ticks.length} ticks of the field model and follows a run still `
+      + 'adding them, and keeps the flat drawing for ?view=flat, for a model it cannot fetch, and for the '
+      + 'page it writes to a file.');
   if (!solid) {
     console.error('the live view never reported itself drawn');
     process.exit(1);
