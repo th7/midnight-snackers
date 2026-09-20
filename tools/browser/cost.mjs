@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, serve, sim } from './bench.mjs';
+import { ASSETS, benchModel, cannedRun, chrome, servingTheLiveView, theLiveView } from './bench.mjs';
 import { inSoftware } from '../../TeamCode/src/test/resources/org/firstinspires/ftc/teamcode/sim/framecost.js';
 
 const budgetFile = fileURLToPath(new URL('./scene-budget.json', import.meta.url));
@@ -36,10 +36,10 @@ function say(name, reading) {
 async function theProbeTimesWhatItSaysItTimes(browser, base) {
   const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
   try {
-    await page.goto(`${base}/field`, { waitUntil: 'load', timeout: 60_000 });
+    await page.goto(`${base}/runs/1/`, { waitUntil: 'load', timeout: 60_000 });
     const measured = await page.evaluate(async () => {
-      const THREE = await import('./assets/vendor/three.module.min.js');
-      const { measure } = await import('./assets/framecost.js');
+      const THREE = await import('../../assets/vendor/three.module.min.js');
+      const { measure } = await import('../../assets/framecost.js');
 
       const canvas = document.createElement('canvas');
       canvas.width = 64;
@@ -89,17 +89,22 @@ async function theFieldPageTakesTheReading(browser, base) {
   const threw = [];
   page.on('pageerror', (e) => threw.push(String(e && e.message ? e.message : e)));
   try {
-    await page.goto(`${base}/field?run=1&cost`, { waitUntil: 'load', timeout: 60_000 });
-    await page.waitForFunction(() => window.fieldPage && window.fieldPage.cost, null, { timeout: 180_000 });
-    const reading = await page.evaluate(() => window.fieldPage.cost);
-    const said = await page.evaluate(() => document.getElementById('said').textContent);
+    await page.goto(`${base}/runs/1/?cost`, { waitUntil: 'load', timeout: 60_000 });
+    await page.waitForFunction(() => window.replayPage && window.replayPage.cost, null, { timeout: 180_000 });
+    const reading = await page.evaluate(() => window.replayPage.cost);
+    const said = await page.evaluate(() => document.getElementById('field-msg').textContent);
 
     check(threw.length === 0, `the cost page threw: ${threw.join('; ')}`);
     check(reading.withShadows && reading.withoutShadows,
           'the reading does not say what the frame costs with and without the shadow pass');
     check(/ms/.test(said), `the page shows "${said}", which a reader on a tablet cannot read a cost off`);
-    check(reading.at && reading.at.width === 1200 && reading.at.height === 800,
-          `the reading does not say it was taken at 1200x800: ${JSON.stringify(reading.at)}`);
+    const canvas = await page.evaluate(() => {
+      const solid = document.getElementById('solid');
+      return { width: solid.width, height: solid.height };
+    });
+    check(reading.at && reading.at.width === canvas.width && reading.at.height === canvas.height,
+          `the reading says ${JSON.stringify(reading.at)} and the view is ${JSON.stringify(canvas)}; a time `
+          + 'is a time at a size, so the two must be the same');
     check(/\S/.test(reading.gpu || ''), 'the reading does not say what drew it, so two are not comparable');
     check(reading.withShadows.draws > reading.withShadows.calls,
           `the reading says the frame makes ${reading.withShadows.draws} draws and three.js counts `
@@ -169,7 +174,13 @@ function softwareIsToldFromHardware() {
 async function main() {
   softwareIsToldFromHardware();
 
-  const server = await serve();
+  const model = benchModel();
+  const run = cannedRun(model);
+  const page = theLiveView(
+      { name: 'CostCheckAuto', kind: 'auto', live: false, outcome: 'done', ticks: run.ticks },
+      ASSETS,
+      'CostCheckAuto');
+  const server = await servingTheLiveView(page);
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chrome({ gpu: onAGpu, headed: headed });
   let reading = null;

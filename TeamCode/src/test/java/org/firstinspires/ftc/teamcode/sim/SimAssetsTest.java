@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -82,28 +83,33 @@ public class SimAssetsTest {
     }
 
     @Test
-    public void everyAssetTheFieldPageAsksForIsOneTheBenchServes() {
-        String page = SimAssets.page("field.html");
-
-        Matcher named = Pattern.compile("[\"']" + "(?:\\./)?" + "(assets/[A-Za-z0-9._/-]+)" + "[\"']")
-                .matcher(page);
+    public void everyAssetTheLiveViewAsksForIsOneTheBenchServes() throws IOException {
         Set<String> asked = new TreeSet<>();
-        while (named.find()) {
-            asked.add(named.group(1));
+        for (String module : List.of("fieldscene.js", "framecost.js", "webcam.js")) {
+            assertEquals(module + " is what the live view loads", 200, SimAssets.serve(module).status);
+            Matcher named = Pattern.compile("['\"]([A-Za-z0-9_./-]+\\.(?:glb|png|js))['\"]")
+                    .matcher(SimAssets.page(module));
+            while (named.find()) {
+                asked.add(named.group(1));
+            }
         }
 
-        assertTrue("the page names no assets at all: " + page.length() + " bytes", asked.size() >= 3);
-        for (String url : asked) {
-            String name = url.substring("assets/".length());
-
-            if (name.endsWith("/")) {
-                assertNotNull(
-                        name + " is a directory the page imports from, and nothing is under it",
-                        SimField.class.getResource(name.substring(0, name.length() - 1)));
+        assertTrue("the modules name no assets at all: " + asked, asked.size() >= 5);
+        Set<String> fetched = Set.of(FieldAssets.Detail.FULL.file);
+        for (String name : asked) {
+            if (name.startsWith("three") || name.contains("vendor")) {
                 continue;
             }
-            assertEquals(url + " is asked for by the page and not served", 200, SimAssets.serve(name).status);
+            if (fetched.contains(name)) {
+                assertTrue(
+                        name + " is asked for by the live view and is neither committed nor fetched",
+                        FieldAssets.Detail.FULL.file.equals(name));
+                continue;
+            }
+            assertEquals(name + " is asked for by the live view and not served", 200, SimAssets.serve(name).status);
         }
+        assertTrue("the field model is among them", asked.contains(FieldAssets.FIELD_GLB));
+        assertTrue("and the tag artwork", asked.stream().anyMatch(name -> name.startsWith("textures/")));
     }
 
     @Test

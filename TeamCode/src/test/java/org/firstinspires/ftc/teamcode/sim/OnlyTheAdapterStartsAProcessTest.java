@@ -18,7 +18,8 @@ import org.junit.Test;
 public class OnlyTheAdapterStartsAProcessTest {
     private static final String PACKAGE = "org/firstinspires/ftc/teamcode/sim/";
 
-    private static final Set<String> MAY_START_ONE = Set.of("RealGit", "SimChild", "GitFixture", "SimReplayPageTest");
+    private static final Set<String> MAY_START_ONE =
+            Set.of("RealGit", "SimChild", "GitFixture", "SimReplayPageTest", "CodingServerTest");
 
     private static final String THIS_RULE = OnlyTheAdapterStartsAProcessTest.class.getSimpleName();
 

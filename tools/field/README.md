@@ -121,26 +121,31 @@ are expected.
 
 The bench draws `field.glb` with three.js, vendored under the simulator's
 resources (`vendor/`, MIT, in `doc/legal`) so the page loads nothing from the
-network -- the robot's wifi has none. The page is `field.html`, served by the
-bench at `/field`, which under the coding server means
-**<http://localhost:21986/sim/field>** -- the bench is mounted at `/sim`
-there. It reaches its own assets, its model and its runs by links relative to
-wherever it was served from, so it works under either, and a trailing slash
-is not routed because it would move what those links resolve against.
+network -- the robot's wifi has none.
 
-`/sim/field?run=<id>` plays a run back: the robot where the simulator had it, the
-game pieces where they had rolled to, and each hive leaning the way the run
-left it. The geometry is all in `field.glb`; what a tick carries is where
-things had moved to. What the geometry cannot say -- which pieces move and in
-what order a tick lists them, where each hive hangs, how big the robot is --
-comes from `/model`, which is the collision model with the robot's size added.
+**One page draws the field**: the live view, at `/runs/<id>/`, which under the
+coding server means **<http://localhost:21986/sim/runs/7/>**. It plays a run
+back -- the robot where the simulator had it, the game pieces where they had
+rolled to, each hive leaning the way the run left it -- and it takes what is
+asked of it in the query string:
+
+    ?view=camera   what the robot's webcam would have seen
+    ?view=flat     the flat drawing of what the simulator collides
+    ?cost          what a frame costs to draw
+    ?detail=full   the full-detail model, if it has been fetched
+
+The dashboard passes these through, so `#simulate?detail=full` reaches the
+view it embeds. The geometry is all in `field.glb`; what a tick carries is
+where things had moved to. What the geometry cannot say -- which pieces move,
+where each hive hangs, how big the robot is -- the page already carries, from
+the collision model.
 
 `fieldscene.js`, served beside it, is the one renderer of that model: it
 builds the scene -- the glb, the lights, the floor, the balls, the hives and
-the robot -- and both `field.html` and the simulator's live view draw
-through it and add their own. The live view is `replay.html`, which keeps
-its own flat 2D drawing of the collision model for the replay file it
-writes, for `?view=flat`, and for when the assets cannot be fetched.
+the robot. `webcam.js` adds the goal tags and the lens, `framecost.js`
+measures. The page is `replay.html`, which keeps its own flat 2D drawing of
+the collision model for the replay file it writes, for `?view=flat`, and for
+when the assets cannot be fetched.
 
 `tools/renderer/check.mjs` loads the model with that same three.js, in node.
 The writer is already checked by reading back what it writes, which says the
@@ -150,7 +155,7 @@ node fails the run rather than skipping the check.
 
 ## The camera's view
 
-`/sim/field?run=<id>&view=camera` shows what the robot's webcam would have seen of
+`/sim/runs/<id>/?view=camera` shows what the robot's webcam would have seen of
 the goal tags: the tags where they are, in the perspective the lens gives, and
 nothing else. The field is hidden rather than absent, so a tag still leans with
 the hive it hangs on as the run plays.
@@ -161,7 +166,7 @@ writes one PNG per loop at the camera's own resolution. The coding server wants
 an approved session, which `--cookie` carries.
 
 Two things in it are assumed and must be measured before a pose read off these
-frames means anything. Both are written at the top of `field.html`:
+frames means anything. Both are written at the top of `webcam.js`:
 
 * **The lens.** `teamwebcamcalibrations.xml` is still the SDK's stock file --
   every `<Camera>` block in it is commented out -- so the focal length and

@@ -28,6 +28,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
@@ -1108,6 +1110,101 @@ public class CodingServerTest {
     }
 
     @Test
+    public void aTabRemembersWhatWasAskedOfItRatherThanBouncingToTheOtherOne() throws Exception {
+        String[] asked = {
+            "#simulate",
+            "#simulate?detail=full",
+            "#simulate?view=camera&cost",
+            "#edit",
+            "#",
+            "",
+            "#nonsense",
+            "#edit?detail=full"
+        };
+
+        String[] got = tabsOnTheDashboard(asked);
+
+        assertEquals("simulate ", got[0]);
+        assertEquals("a tab keeps the options asked of it", "simulate detail=full", got[1]);
+        assertEquals("simulate view=camera&cost", got[2]);
+        assertEquals("edit ", got[3]);
+        assertEquals("edit ", got[4]);
+        assertEquals("edit ", got[5]);
+        assertEquals("a tab nobody has is the editor", "edit ", got[6]);
+        assertEquals("and options only mean something to the tab that reads them", "edit ", got[7]);
+    }
+
+    private String[] tabsOnTheDashboard(String[] asked) throws Exception {
+        String page = SimAssets.page("dashboard.html");
+        Matcher rule = Pattern.compile("\n  function tabOf\\(hash\\) \\{.*?\n  \\}", Pattern.DOTALL)
+                .matcher(page);
+        assertTrue("the dashboard works a tab out in tabOf(hash)", rule.find());
+        Path script = folder.newFile("tabOf.js").toPath();
+        StringBuilder source = new StringBuilder(rule.group()).append("\n");
+        source.append("const asked = ").append(new Gson().toJson(asked)).append(";\n");
+        source.append("console.log(JSON.stringify(asked.map(h => { const t = tabOf(h); ")
+                .append("return t.name + ' ' + t.options; })));\n");
+        Files.write(script, source.toString().getBytes(StandardCharsets.UTF_8));
+        Process node = new ProcessBuilder("node", script.toString())
+                .redirectErrorStream(true)
+                .start();
+        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals("node ran the dashboard's rule: " + out, 0, node.waitFor());
+        return new Gson().fromJson(out.trim(), String[].class);
+    }
+
+    @Test
+    public void theViewIsOpenedAgainWhenWhatWasAskedOfItChanges() throws Exception {
+        String[][] asked = {
+            {"null", "null", "1", ""},
+            {"1", "", "1", ""},
+            {"1", "", "1", "detail=full"},
+            {"1", "detail=full", "1", "detail=full"},
+            {"1", "detail=full", "2", "detail=full"},
+            {"1", "detail=full", "1", ""}
+        };
+
+        boolean[] opens = stageOpenings(asked);
+
+        assertTrue("nothing shown yet", opens[0]);
+        assertFalse("the same run, asked the same way, is already open", opens[1]);
+        assertTrue("the same run asked a different way is opened again", opens[2]);
+        assertFalse(opens[3]);
+        assertTrue("another run", opens[4]);
+        assertTrue("and dropping an option is a change too", opens[5]);
+    }
+
+    private boolean[] stageOpenings(String[][] asked) throws Exception {
+        String page = SimAssets.page("dashboard.html");
+        Matcher rule = Pattern.compile(
+                        "\n  function stageNeedsOpening\\(shownId, shownOptions, id, options\\) \\{.*?\n  \\}",
+                        Pattern.DOTALL)
+                .matcher(page);
+        assertTrue("the dashboard decides in stageNeedsOpening(...)", rule.find());
+        Path script = folder.newFile("stageNeedsOpening.js").toPath();
+        StringBuilder source = new StringBuilder(rule.group()).append("\n");
+        source.append("const asked = ").append(new Gson().toJson(asked)).append(";\n");
+        source.append("console.log(JSON.stringify(asked.map(a => stageNeedsOpening(")
+                .append("a[0] === 'null' ? null : Number(a[0]), a[1] === 'null' ? null : a[1], ")
+                .append("Number(a[2]), a[3]))));\n");
+        Files.write(script, source.toString().getBytes(StandardCharsets.UTF_8));
+        Process node = new ProcessBuilder("node", script.toString())
+                .redirectErrorStream(true)
+                .start();
+        String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals("node ran the dashboard's rule: " + out, 0, node.waitFor());
+        return new Gson().fromJson(out.trim(), boolean[].class);
+    }
+
+    @Test
+    public void theSimulateTabPassesWhatWasAskedOfItToTheLiveView() {
+        String page = SimAssets.page("dashboard.html");
+
+        assertTrue("the live view is opened with them", page.contains("withTabOptions('/sim/runs/'"));
+        assertTrue(page.contains("function withTabOptions(url)"));
+    }
+
+    @Test
     public void theAdminPageOffersTheRefresh() throws IOException {
         server();
 
@@ -1118,25 +1215,18 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theFieldPageAndItsModelAreServedUnderTheBenchsPrefix() throws IOException {
+    public void theLiveViewsAssetsAreServedUnderTheBenchsPrefix() throws IOException {
         String cookie = approvedUser("mia");
 
-        Reply page = user("GET", "/sim/field", cookie);
-        assertEquals(200, page.status);
-        assertTrue(page.body, page.body.contains("importmap"));
-        assertTrue(
-                "the page reaches its assets by relative link: " + page.body,
-                page.body.contains("./assets/fieldscene.js"));
-
         Reply scene = user("GET", "/sim/assets/fieldscene.js", cookie);
-        assertEquals("the scene both pages draw the field with is served there", 200, scene.status);
+        assertEquals("the scene the live view draws the field with", 200, scene.status);
         assertTrue("and it is what fetches the model: " + scene.body, scene.body.contains("'field.glb'"));
         assertEquals("which is served there too", 200, user("GET", "/sim/assets/field.glb", cookie).status);
+        assertEquals("with the probe", 200, user("GET", "/sim/assets/framecost.js", cookie).status);
+        assertEquals("and the webcam's view", 200, user("GET", "/sim/assets/webcam.js", cookie).status);
 
-        Reply model = user("GET", "/sim/model", cookie);
-        assertEquals(200, model.status);
-        assertTrue(model.body, model.body.contains("\"hives\"") && model.body.contains("\"robotIn\""));
-
+        assertEquals(
+                "the field page is retired; the live view draws it", 404, user("GET", "/sim/field", cookie).status);
         assertEquals(
                 "and not at the root, which is the coding server's own", 404, user("GET", "/field", cookie).status);
     }
