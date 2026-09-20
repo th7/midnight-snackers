@@ -16,6 +16,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import org.dyn4j.collision.Filter;
 import org.dyn4j.dynamics.Body;
@@ -163,12 +164,38 @@ public class SimRobot {
         OUT
     }
 
-    private static final class Ball {
+    public interface Piece {
+        String kind();
+
+        double radius();
+
+        Optional<SimField.Piece> setUpFrom();
+    }
+
+    private static final class Ball implements Piece {
         final double radius;
 
         final String kind;
 
+        SimField.Piece setUpFrom;
+
         final Body body;
+
+        @Override
+        public String kind() {
+            return kind;
+        }
+
+        @Override
+        public double radius() {
+            return radius;
+        }
+
+        @Override
+        public Optional<SimField.Piece> setUpFrom() {
+            return Optional.ofNullable(setUpFrom);
+        }
+
         Where where;
 
         SimField.Cell cell;
@@ -258,9 +285,10 @@ public class SimRobot {
         for (int i = 0; i < balls.length; i++) {
             SimField.Piece piece = i < held ? FIELD.movedPieces.get(i) : FIELD.loosePieces.get(0);
             balls[i] = new Ball(piece.radius, piece.kind, ballBody(piece.radius));
+            balls[i].setUpFrom = i < held ? piece : null;
             ballBodies.add(balls[i].body);
             if (i < loose) {
-                placePiece(i, piece.x, piece.y);
+                setDown(balls[i], piece.x, piece.y);
             } else if (i < inCells) {
                 putInCell(balls[i], FIELD.cell(piece.cell));
             } else if (i < held) {
@@ -380,8 +408,39 @@ public class SimRobot {
         return out;
     }
 
-    public void placePiece(int index, double x, double y) {
-        setDown(balls[index], x, y);
+    public List<Piece> balls() {
+        return List.of(balls);
+    }
+
+    public List<Piece> holding() {
+        List<Piece> out = new ArrayList<>();
+        for (Ball ball : balls) {
+            if (ball.where == Where.HELD) {
+                out.add(ball);
+            }
+        }
+        return out;
+    }
+
+    public double[] placeOf(Piece piece) {
+        return pieces()[indexOf(piece)];
+    }
+
+    private int indexOf(Piece piece) {
+        for (int i = 0; i < balls.length; i++) {
+            if (balls[i] == piece) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("that is not one of this robot's balls");
+    }
+
+    public void place(Piece piece, double x, double y) {
+        setDown((Ball) piece, x, y);
+    }
+
+    public void place(Piece piece, SimField.Cell cell) {
+        putInCell((Ball) piece, cell);
     }
 
     private void setDown(Ball ball, double x, double y) {
@@ -392,10 +451,6 @@ public class SimRobot {
         ball.body.setAngularVelocity(0);
         ball.body.setAtRest(false);
         world.addBody(ball.body);
-    }
-
-    public void placePiece(int index, SimField.Cell cell) {
-        putInCell(balls[index], cell);
     }
 
     private void take(Ball ball) {
