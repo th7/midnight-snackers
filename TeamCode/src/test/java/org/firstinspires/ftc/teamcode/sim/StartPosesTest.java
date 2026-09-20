@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import java.nio.file.Path;
@@ -15,6 +17,30 @@ public class StartPosesTest {
 
     private Path file() {
         return folder.getRoot().toPath().resolve("start-poses.json");
+    }
+
+    @Test
+    public void aStoreThatCannotBeReadStopsTheBenchRatherThanStartingOver() {
+        Path file = folder.getRoot().toPath().resolve("start-poses.json");
+        InMemoryStore store = new InMemoryStore()
+                .with(file, "{}".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                .thatCannotRead(file);
+
+        try {
+            new StartPoses(file, store);
+            fail("a start-poses file that cannot be read must not be silently started over");
+        } catch (Store.Failed expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("start-poses.json"));
+        }
+    }
+
+    @Test
+    public void aStoreWithNothingInItStartsFresh() {
+        Path file = folder.getRoot().toPath().resolve("start-poses.json");
+
+        StartPoses poses = new StartPoses(file, new InMemoryStore());
+
+        assertEquals(Long.valueOf(1), poses.seed("anything"));
     }
 
     @Test
