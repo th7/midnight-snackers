@@ -43,9 +43,7 @@ public class PlanRunnerTest {
 
         assertFalse(planRunner.done());
         planRunner.loop();
-        assertFalse(planRunner.done());
-        planRunner.loop();
-        assertTrue(planRunner.done());
+        assertTrue("one step, one loop", planRunner.done());
     }
 
     @Test

@@ -15,12 +15,38 @@ public class PlanTest {
     }
 
     @Test
-    public void advancesOnePartPerTickAndOnlyThenReportsFinished() {
+    public void aPlanOfInstantStepsIsFinishedOnTheTickItsLastStepIs() {
         Plan plan = new Plan(instantStep("first"), instantStep("second"));
 
         assertFalse(plan.tick());
-        assertFalse(plan.tick());
-        assertTrue(plan.tick());
+        assertTrue("two steps, two ticks", plan.tick());
+    }
+
+    @Test
+    public void nestingAPlanInsideAPlanCostsNoTicksOfItsOwn() {
+        Plan flat = new Plan(instantStep("a"), instantStep("b"), instantStep("c"));
+        Plan nested = new Plan(new Plan(instantStep("a"), instantStep("b")), instantStep("c"));
+
+        assertEquals("three steps, three ticks", 3, ticksToFinish(flat));
+        assertEquals("however they are grouped", 3, ticksToFinish(nested));
+    }
+
+    @Test
+    public void aPlanOfPlansOfPlansStillCostsOneTickPerStep() {
+        Plan deep = new Plan(new Plan(new Plan(instantStep("a"))), instantStep("b"));
+
+        assertEquals(2, ticksToFinish(deep));
+    }
+
+    private static int ticksToFinish(Plan plan) {
+        int ticks = 0;
+        while (!plan.tick()) {
+            ticks++;
+            if (ticks > 100) {
+                throw new AssertionError("the plan never finished");
+            }
+        }
+        return ticks + 1;
     }
 
     @Test
@@ -43,11 +69,11 @@ public class PlanTest {
 
         assertFalse(plan.tick());
         assertFalse(plan.tick());
-        assertEquals(1, started.size());
+        assertEquals("the blocking step is the only one started", 1, started.size());
 
         finished[0] = true;
-        assertFalse(plan.tick());
-        assertFalse(plan.tick());
+        assertFalse("the blocking step finishes and the next one starts", plan.tick());
+        assertTrue("and that one finishes the plan", plan.tick());
         assertEquals(2, started.size());
     }
 
