@@ -343,6 +343,18 @@ starts from, pushes to, and pulls from. The server requires it to exist
 and never deletes or rewrites it: it only adds merge commits to it.
 Getting `develop` to `main` is the coach's job, by pull request.
 
+**Which git** — The coding server is handed the git it works the repository
+with, rather than making one. What a real git does is `RealGitTest`'s, over a
+contract `FakeGit` passes too, and what worktrees do over a real one is
+`WorktreesTest`'s; a test of the server itself takes the fake and forks nothing,
+except where its question is one only git can answer. Whether a directory is
+still a worktree is on that interface for the same reason: asked of the
+filesystem, by looking for the `.git` marker git leaves, it was a question only
+one of the two could be right about, and the other quietly remade the worktree
+under whoever was saving into it. The fake keeps a file as text and refuses by
+name one it cannot, since a model mangled in a worktree is a test passing for a
+reason nobody meant.
+
 **Worktree** — A git worktree of the project root's repository, one per
 **username**, on its own **user branch**. All of that user's edits are
 written there and every run they start is compiled from there. Owned by
