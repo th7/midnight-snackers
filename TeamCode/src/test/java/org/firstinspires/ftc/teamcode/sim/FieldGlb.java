@@ -21,6 +21,16 @@ public final class FieldGlb {
         EVERY_PART
     }
 
+    /**
+     * How much of the CAD's own surface a model carries. Normals roughly double it -- there is one to
+     * a vertex, the same size as the point it belongs to -- so the cheap model goes without them and
+     * with a colour apiece, as it always has, and the expensive one carries what the CAD drew.
+     */
+    public enum Shading {
+        A_COLOUR_APIECE,
+        AS_THE_CAD_DREW_IT
+    }
+
     private static final Pattern SKIP = Pattern.compile(
             "screw|fhts|nut\\b|washer|rivet|rivnut|bolt|spacer|bearing|cable tie|plug|\\bpin\\b|"
                     + "damper|hinge|panel link|strap|clip|under tile|peanut|"
@@ -32,10 +42,13 @@ public final class FieldGlb {
     private static final Pattern BLUE = Pattern.compile("blue", Pattern.CASE_INSENSITIVE);
     private static final Pattern RED = Pattern.compile("red", Pattern.CASE_INSENSITIVE);
 
+    /** Points and the way they face, kept together because snapping may drop a triangle from both. */
+    public record Mesh(double[] triangles, double[] normals) {}
+
     private FieldGlb() {}
 
-    public static byte[] build(byte[] export, double fieldSizeIn, double grid, Keep keep) {
-        List<Gltf.Part> parts = visualParts(Gltf.read(export), grid, keep);
+    public static byte[] build(byte[] export, double fieldSizeIn, double grid, Keep keep, Shading shading) {
+        List<Gltf.Part> parts = visualParts(Gltf.read(export), grid, keep, shading);
         if (parts.isEmpty()) {
             throw new IllegalStateException("nothing was kept; the export named none of the parts we draw");
         }
@@ -48,15 +61,22 @@ public final class FieldGlb {
         return Gltf.write(parts);
     }
 
-    public static List<Gltf.Part> visualParts(List<Gltf.Part> parts, double grid, Keep keep) {
+    public static List<Gltf.Part> visualParts(List<Gltf.Part> parts, double grid, Keep keep, Shading shading) {
+        boolean asDrawn = shading == Shading.AS_THE_CAD_DREW_IT;
         List<Gltf.Part> out = new ArrayList<>();
         for (Gltf.Part part : parts) {
             if (keep == Keep.WHAT_WE_DRAW && !KEEP.matcher(part.name).find() && droppedByName(part)) {
                 continue;
             }
-            double[] snapped = snap(toField(part.triangles), grid);
-            if (snapped.length > 0) {
-                out.add(new Gltf.Part(part.name, part.path, snapped, part.colour));
+            double[] facing = asDrawn && part.normals != null ? toFacing(part.normals) : null;
+            Mesh kept = snap(toField(part.triangles), facing, grid);
+            if (kept.triangles().length > 0) {
+                out.add(new Gltf.Part(
+                        part.name,
+                        part.path,
+                        kept.triangles(),
+                        kept.normals(),
+                        asDrawn || part.colour == null ? part.material : Gltf.colouredMaterial(part.colour)));
             }
         }
         return out;
@@ -74,6 +94,20 @@ public final class FieldGlb {
         return false;
     }
 
+    /**
+     * The frame change as a normal feels it: the same quarter turn, and none of the inch. A normal
+     * says which way a face points, so turning it is right and scaling it is not.
+     */
+    public static double[] toFacing(double[] normals) {
+        double[] out = new double[normals.length];
+        for (int i = 0; i < normals.length; i += 3) {
+            out[i] = normals[i + 1];
+            out[i + 1] = -normals[i];
+            out[i + 2] = normals[i + 2];
+        }
+        return out;
+    }
+
     public static double[] toField(double[] points) {
         double[] out = new double[points.length];
         for (int i = 0; i < points.length; i += 3) {
@@ -84,8 +118,9 @@ public final class FieldGlb {
         return out;
     }
 
-    public static double[] snap(double[] triangles, double grid) {
+    public static Mesh snap(double[] triangles, double[] normals, double grid) {
         double[] kept = new double[triangles.length];
+        double[] keptFacing = normals == null ? null : new double[normals.length];
         int at = 0;
         for (int i = 0; i < triangles.length; i += 9) {
             double[] corner = new double[9];
@@ -96,11 +131,19 @@ public final class FieldGlb {
                 continue;
             }
             System.arraycopy(corner, 0, kept, at, 9);
+            if (keptFacing != null) {
+                System.arraycopy(normals, i, keptFacing, at, 9);
+            }
             at += 9;
         }
         double[] out = new double[at];
         System.arraycopy(kept, 0, out, 0, at);
-        return out;
+        double[] facing = null;
+        if (keptFacing != null) {
+            facing = new double[at];
+            System.arraycopy(keptFacing, 0, facing, 0, at);
+        }
+        return new Mesh(out, facing);
     }
 
     private static boolean same(double[] corner, int a, int b) {

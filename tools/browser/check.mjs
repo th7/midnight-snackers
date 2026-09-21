@@ -121,12 +121,16 @@ try {
   const drawn2 = await page.evaluate(() => {
     const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.replayPage.floorZ,
                   fieldPlaneZ: window.replayPage.fieldPlaneZ, orbit: window.replayPage.orbit,
-                  fieldMeshes: 0, inScene: 0 };
+                  guessedNormals: window.replayPage.guessedNormals, pieces: window.replayPage.pieces,
+                  normalsFromTheModel: 0, fieldMeshes: 0, inScene: 0 };
     window.replayPage.scene.traverse((o) => {
       if (!o.isMesh) {
         return;
       }
       out.inScene++;
+      if (o.geometry.attributes.normal) {
+        out.normalsFromTheModel++;
+      }
 
       const names = [o.name].concat(o.userData.from || []);
       out.walls += names.filter((name) => /field[\s_]panel|ftc[\s_]rail|side[\s_]glass/i.test(name)).length;
@@ -149,6 +153,27 @@ try {
   });
 
   check(drawn2.walls > 50, `only ${drawn2.walls} wall parts are in the scene; the field has no perimeter`);
+
+  // This is the cheap model -- the stand-in is the normal detail, and a fetched full one is what CI
+  // has not got. What can be held here is that a model carrying neither normals nor the CAD's
+  // materials still draws: the page computes the one, paints the other, and says it had to. The full
+  // model's own normals and its own pieces are held in the Java tests, where the pipeline is, and by
+  // eye against a real build. Every mesh still has to end up with a normal from somewhere, or it
+  // shades as a silhouette.
+  check(drawn2.guessedNormals === true,
+      'the stand-in carries the CAD\'s normals now; this check was written for the model that does not, '
+      + 'so what it holds has moved and it should be rewritten rather than flipped');
+  check(drawn2.normalsFromTheModel === drawn2.inScene,
+      `${drawn2.normalsFromTheModel} of ${drawn2.inScene} meshes have a normal; batching must not lose them`);
+
+  // The simulator says where each piece is, so pieces are drawn as objects rather than batched into
+  // the field. Out of the cheap model they are spheres, which is what it can afford.
+  check(drawn2.pieces && drawn2.pieces.drawn > 0, 'no game piece is drawn at all');
+  if (drawn2.pieces && drawn2.pieces.drawn > 0) {
+    check(drawn2.pieces.fromTheModel === 0,
+        `${drawn2.pieces.fromTheModel} pieces came out of the cheap model, whose pollen is snapped and `
+        + 'flat-shaded; a sphere draws that better and cheaper');
+  }
 
   check(drawn2.fieldMeshes * 4 < state.loaded.parts,
       `the field model has ${state.loaded.parts} parts and the scene draws them as ${drawn2.fieldMeshes} `

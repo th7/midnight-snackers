@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -29,15 +31,20 @@ public class FieldAssetsTest {
         };
     }
 
+    private static final double[] FACING_UP = {0, 0, 1, 0, 0, 1, 0, 0, 1};
+
+    private static Gltf.Part part(String name, double[] triangles, String colour) {
+        return new Gltf.Part(name, List.of(name), triangles, FACING_UP, Gltf.colouredMaterial(colour));
+    }
+
     private static byte[] anExportOfAField() {
         List<Gltf.Part> parts = new ArrayList<>();
         for (int i = 0; i < 12; i++) {
-            parts.add(new Gltf.Part("Blue Hive " + i, List.of("Blue Hive " + i), wedge(0, -60), "#0000ff"));
-            parts.add(new Gltf.Part("Red Hive " + i, List.of("Red Hive " + i), wedge(0, 60), "#ff0000"));
+            parts.add(part("Blue Hive " + i, wedge(0, -60), "#0000ff"));
+            parts.add(part("Red Hive " + i, wedge(0, 60), "#ff0000"));
         }
-        parts.add(new Gltf.Part("Field Panel", List.of("Field Panel"), wedge(-70, 0), "#b3b3b3"));
-        parts.add(new Gltf.Part(
-                "am-1611 Socket Head Screw", List.of("am-1611 Socket Head Screw"), wedge(10, 10), "#666666"));
+        parts.add(part("Field Panel", wedge(-70, 0), "#b3b3b3"));
+        parts.add(part("am-1611 Socket Head Screw", wedge(10, 10), "#666666"));
         return Gltf.write(parts);
     }
 
@@ -209,6 +216,28 @@ public class FieldAssetsTest {
     private static int partsOf(InMemoryStore store, FieldAssets.Detail detail) {
         return Gltf.read(store.readIfThere(INTO.resolve(detail.file)).orElseThrow())
                 .size();
+    }
+
+    // Detail decides two things: which parts are in a model, and how much of their surface comes
+    // with them. Normals are a normal to a vertex -- the model over again -- so only the model that
+    // is already the expensive one pays for them.
+    @Test
+    public void onlyFullDetailCarriesTheCadsOwnNormals() {
+        InMemoryStore store = new InMemoryStore();
+
+        FieldAssets.refresh(
+                onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+
+        for (Gltf.Part part : partsIn(store, FieldAssets.Detail.FULL)) {
+            assertNotNull(part.name, part.normals);
+        }
+        for (Gltf.Part part : partsIn(store, FieldAssets.Detail.NORMAL)) {
+            assertNull("the cheap model is the cheap model: " + part.name, part.normals);
+        }
+    }
+
+    private static List<Gltf.Part> partsIn(InMemoryStore store, FieldAssets.Detail detail) {
+        return Gltf.read(store.readIfThere(INTO.resolve(detail.file)).orElseThrow());
     }
 
     @Test

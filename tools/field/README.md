@@ -90,6 +90,23 @@ and says so rather than failing. Full detail costs roughly five times the
 triangles and the bytes; it costs almost no extra draw calls, because the scene
 is batched by material rather than by part.
 
+### What comes across, and what is not there to come
+
+Points always; **normals** and whole **materials** at full detail only. Normals
+matter as much as points: without them a page computes its own, averaging across
+every face a vertex touches, which rounds off every edge the CAD meant to be
+sharp. They also roughly double a model — full detail went from 20.0 MB to 41.7
+MB — which is why the cheap model goes without them and keeps a colour to a
+part, exactly as it always has, at 4.0 MB. Detail decides two things now: which
+parts are in the model, and how much of their surface comes with them.
+
+**There are no UVs and no textures in the export.** Not dropped: absent. The
+assembly's glTF carries `POSITION` and `NORMAL` and nothing else per vertex,
+and no `images`, `textures` or `samplers` at all. So the panel and tag artwork
+cannot be applied from the CAD's own mapping, and the goal tags are drawn on
+quads the page builds for itself. A material that named a texture would be
+written as a dangling reference, so the writer refuses one instead.
+
 ### How fine the tessellation is, and why we do not choose
 
 The export is `GET /api/v10/assemblies/d/{did}/w/{wid}/e/{eid}/gltf`, and it

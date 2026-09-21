@@ -808,6 +808,39 @@ is the one renderer of it: the field page and the live view both build
 their picture from it and add their own. It needs the assets, so a page
 gets it only when it is served somewhere they resolve.
 
+**Shading** — What of the CAD's own surface a model carries, and the second
+thing **detail** decides. *A colour apiece* is the cheap model, as it always
+was: no normals, and one flat colour to a part. *As the CAD drew it* is the
+full one, and carries **normals** and whole materials. A normal says which
+way a face points, and which edges are sharp and which are smooth is the
+CAD's to say: a page that computes its own averages across every face a
+vertex belongs to and rounds the sharp ones off. Normals are turned by the
+frame change and scaled by none of it, and two triangles meeting at a hard
+edge share the point but not the normal, so the fold survives being written
+out. Whole means the export's material as it came — name, base colour,
+metallic and rough factors, alpha mode, double-sidedness — rather than a
+colour a part is painted with. They roughly double a model, which is why
+only the model that is already the expensive one carries them: 20 MB became
+42, and the cheap one is 4 MB either way. The export carries **no UVs and no
+images**, so there is nothing of that kind to keep; the goal tag artwork is
+drawn on quads of the page's own, by `webcam.js`.
+
+**What the page supplies** — Whatever the model did not. A model with no
+normals gets computed ones and the page's own roughness and metalness, which
+is what the cheap model has always been drawn with; a model that brought its
+own gets nothing painted over it. The page reads which by asking the
+geometry, never by asking which file it loaded.
+
+**Game pieces** — Drawn from the full model where there is one. The
+simulator says where every piece is each tick, so a piece has to be an
+object the page can move, which the **batched** field is not; so one of each
+kind is kept as it came from the CAD and cloned for each piece the simulator
+reports. The shape is the CAD's, the size is scaled to the radius the
+simulator gives, and the colour is the simulator's — which alliance a nectar
+belongs to is not something the one CAD nectar can say. Out of the cheap
+model they stay spheres: its pollen is snapped and flat-shaded, which a
+sphere draws better and cheaper.
+
 **Drawn floor** — The dark plane the field scene puts under everything, and
 scenery rather than geometry: the field's own floor plane is z = 0, where the
 tape lies and the game pieces rest. The drawn floor sits `FLOOR_DROP_IN`
