@@ -77,7 +77,8 @@ the repository. *Its* tessellation, and not one we choose -- see below. Press **
 without having fetched them and it fetches in the background. Classes:
 `Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
-The admin page chooses the **resolution**, in three steps:
+The admin page chooses the **resolution**, in three steps -- both which one to
+build, and which one the pages draw when they ask for none:
 
 | | parts | triangles | bytes |
 |---|---|---|---|
@@ -93,8 +94,12 @@ and in the CAD's own materials. High adds the hardware back.
 
 A page draws at **high** unless it asks for less with `?resolution=low` or
 `medium` — or unless somebody picks another from the selector under the field,
-which is the same choice made while looking at it. A page that asks for a
-resolution nobody built draws the low one and says so rather than failing. `all` builds the three. They sit side by side, so
+which is the same choice made while looking at it. Which one it draws when it
+asks for none is **Pages draw** on the admin page, kept with the rest of the
+server's state and read by every page as one served line, `field-default.js`;
+high is what a server says until an admin sets another, and what every server
+with no admin says. A page that asks for a resolution nobody built draws the
+low one and says so rather than failing. `all` builds the three. They sit side by side, so
 changing resolution is a query string rather than another fetch. None of it
 costs many more draw calls, because the scene is batched by material rather
 than by part.
@@ -150,7 +155,9 @@ different things. *Download* fetches the assembly and the textures from Onshape
 the state directory. *Build* makes the models from that export with no network
 at all, in under a second, so changing the resolution or rebuilding after a change
 to the pipeline costs nothing but the arithmetic. *Refresh assets* is the two in
-one, and is what a server with nothing fetched runs at startup. A build with
+one, and is what a server with nothing fetched runs at startup — nothing
+fetched meaning the field its pages draw, so a server set to draw the cheap
+model does not fetch the dear one to sit unlooked at. A build with
 nothing downloaded is refused and says to download first, rather than quietly
 reaching for the network: `FieldAssets.build` is handed no Onshape, so it could
 not fetch if it wanted to.
@@ -201,7 +208,7 @@ asked of it in the query string:
     ?view=camera   what the robot's webcam would have seen
     ?view=flat     the flat drawing of what the simulator collides
     ?cost          what a frame costs to draw (the box under the field)
-    ?resolution=   low or medium, for less than the high it draws at by default
+    ?resolution=   low, medium or high, for another than the one it draws by default
 
 The dashboard passes these through, so `#simulate?resolution=low` reaches the
 view it embeds. The geometry is all in `field.glb`; what a tick carries is

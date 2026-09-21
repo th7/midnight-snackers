@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { DEFAULT_RESOLUTION } from './field-default.js';
 
 export const FIELD_IN = 141.17;
 export const FLOOR_Z = 0;
@@ -17,11 +18,13 @@ export const FLOOR_DROP_IN = 0.2;
 
 export const TAPE_Z = 0.01;
 export const OVERLAY_Z = 0.05;
-// The three the pipeline builds, and what a page draws when it asks for none of them by name.
-// Each is one step more of the CAD than the one before: low snaps and drops the hardware and paints
-// a colour a part, medium is those parts as the CAD drew them, high is every part as the CAD drew it.
+// The three the pipeline builds. Each is one step more of the CAD than the one before: low snaps
+// and drops the hardware and paints a colour a part, medium is those parts as the CAD drew them,
+// high is every part as the CAD drew it.
 export const MODELS = { low: 'field.glb', medium: 'field-medium.glb', high: 'field-high.glb' };
-export const DEFAULT_RESOLUTION = 'high';
+// Which of them a page draws when it asks for none of them by name is the server's to say -- an
+// admin sets it on the admin page -- so it is fetched with everything else rather than written here.
+export { DEFAULT_RESOLUTION };
 export const LOWEST_RESOLUTION = 'low';
 const SAME_PLACE_IN = 0.01;
 

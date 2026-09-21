@@ -20,6 +20,10 @@ import org.junit.Test;
 
 public class FieldAssetsTest {
     private static final Path INTO = Path.of("assets");
+
+    /** What a test that is not about which resolution is built asks for: the one a page draws. */
+    private static final List<FieldAssets.Resolution> ONE_TO_DRAW = List.of(FieldAssets.Resolution.DEFAULT);
+
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 'p', 'i', 'x'};
 
     private static double[] wedge(double x, double y) {
@@ -95,7 +99,7 @@ public class FieldAssetsTest {
         Asked asked = new Asked();
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.Refreshed refreshed = FieldAssets.refresh(onshapeOf(asked), store, INTO);
+        FieldAssets.Refreshed refreshed = FieldAssets.refresh(onshapeOf(asked), store, INTO, ONE_TO_DRAW);
 
         assertEquals(
                 "the model, the textures, and the export they were built from",
@@ -113,7 +117,7 @@ public class FieldAssetsTest {
     public void theModelItWritesIsOneTheRendererCanRead() {
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO);
+        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, ONE_TO_DRAW);
 
         List<Gltf.Part> parts = partsIn(store, FieldAssets.Resolution.DEFAULT);
         assertEquals(26, parts.size());
@@ -123,7 +127,7 @@ public class FieldAssetsTest {
     public void theExportIsAskedForAsGltfAndTheBlobsByTheirOwnIds() {
         Asked asked = new Asked();
 
-        FieldAssets.refresh(onshapeOf(asked), new InMemoryStore(), INTO);
+        FieldAssets.refresh(onshapeOf(asked), new InMemoryStore(), INTO, ONE_TO_DRAW);
 
         assertTrue(asked.urls.toString(), asked.urls.get(0).endsWith("/gltf"));
         assertTrue(asked.urls.toString(), asked.urls.stream().anyMatch(url -> url.endsWith("/elements")));
@@ -138,7 +142,8 @@ public class FieldAssetsTest {
         asked.blobs.remove("GoalAprilTag_bluescoring.png");
 
         FieldAssets.NotAnAsset refused = assertThrows(
-                FieldAssets.NotAnAsset.class, () -> FieldAssets.refresh(onshapeOf(asked), new InMemoryStore(), INTO));
+                FieldAssets.NotAnAsset.class,
+                () -> FieldAssets.refresh(onshapeOf(asked), new InMemoryStore(), INTO, ONE_TO_DRAW));
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("GoalAprilTag_bluescoring.png"));
         assertTrue("and says what it does hold", refused.getMessage().contains("BIOBUZZ_Panel_Resized.png"));
@@ -150,7 +155,8 @@ public class FieldAssetsTest {
         asked.image = "<html>signed out</html>".getBytes(StandardCharsets.UTF_8);
 
         FieldAssets.NotAnAsset refused = assertThrows(
-                FieldAssets.NotAnAsset.class, () -> FieldAssets.refresh(onshapeOf(asked), new InMemoryStore(), INTO));
+                FieldAssets.NotAnAsset.class,
+                () -> FieldAssets.refresh(onshapeOf(asked), new InMemoryStore(), INTO, ONE_TO_DRAW));
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("not a PNG"));
     }
@@ -161,7 +167,8 @@ public class FieldAssetsTest {
         asked.blobs.remove("GoalAprilTag_redscoring.png");
         InMemoryStore store = new InMemoryStore();
 
-        assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.refresh(onshapeOf(asked), store, INTO));
+        assertThrows(
+                FieldAssets.NotAnAsset.class, () -> FieldAssets.refresh(onshapeOf(asked), store, INTO, ONE_TO_DRAW));
 
         assertFalse(
                 "a rename upstream must stop the run rather than leave half a refresh behind",
@@ -174,7 +181,8 @@ public class FieldAssetsTest {
         asked.export = Gltf.write(List.of(new Gltf.Part("Blue Hive", List.of("Blue Hive"), wedge(0, -60), null)));
         InMemoryStore store = new InMemoryStore();
 
-        assertThrows(IllegalStateException.class, () -> FieldAssets.refresh(onshapeOf(asked), store, INTO));
+        assertThrows(
+                IllegalStateException.class, () -> FieldAssets.refresh(onshapeOf(asked), store, INTO, ONE_TO_DRAW));
 
         assertFalse(store.isFile(INTO.resolve(FieldAssets.FIELD_GLB)));
     }
@@ -203,7 +211,11 @@ public class FieldAssetsTest {
     public void eachResolutionIsOneStepMoreOfTheCadThanTheOneBelow() {
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, FieldAssets.resolutionsNamed("all"));
+        FieldAssets.refresh(
+                onshapeOf(new Asked()),
+                store,
+                INTO,
+                FieldAssets.resolutionsNamed("all", FieldAssets.Resolution.DEFAULT));
 
         assertEquals("low draws the field as it plays", 25, partsOf(store, FieldAssets.Resolution.LOW));
         assertEquals("and so does medium, at the CAD's own points", 25, partsOf(store, FieldAssets.Resolution.MEDIUM));
@@ -225,7 +237,11 @@ public class FieldAssetsTest {
     public void lowGoesWithoutTheCadsNormalsAndTheOthersCarryThem() {
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, FieldAssets.resolutionsNamed("all"));
+        FieldAssets.refresh(
+                onshapeOf(new Asked()),
+                store,
+                INTO,
+                FieldAssets.resolutionsNamed("all", FieldAssets.Resolution.DEFAULT));
 
         for (FieldAssets.Resolution carries : List.of(FieldAssets.Resolution.MEDIUM, FieldAssets.Resolution.HIGH)) {
             for (Gltf.Part part : partsIn(store, carries)) {
@@ -310,23 +326,65 @@ public class FieldAssetsTest {
 
     @Test
     public void theResolutionsAreNamedLowMediumHighOrAll() {
-        assertEquals(List.of(FieldAssets.Resolution.LOW), FieldAssets.resolutionsNamed("low"));
-        assertEquals(List.of(FieldAssets.Resolution.MEDIUM), FieldAssets.resolutionsNamed("medium"));
-        assertEquals(List.of(FieldAssets.Resolution.HIGH), FieldAssets.resolutionsNamed("high"));
+        FieldAssets.Resolution drawn = FieldAssets.Resolution.MEDIUM;
+        assertEquals(List.of(FieldAssets.Resolution.LOW), FieldAssets.resolutionsNamed("low", drawn));
+        assertEquals(List.of(FieldAssets.Resolution.MEDIUM), FieldAssets.resolutionsNamed("medium", drawn));
+        assertEquals(List.of(FieldAssets.Resolution.HIGH), FieldAssets.resolutionsNamed("high", drawn));
         assertEquals(
                 List.of(FieldAssets.Resolution.LOW, FieldAssets.Resolution.MEDIUM, FieldAssets.Resolution.HIGH),
-                FieldAssets.resolutionsNamed("all"));
+                FieldAssets.resolutionsNamed("all", drawn));
 
         FieldAssets.NotAnAsset refused =
-                assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.resolutionsNamed("finest"));
+                assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.resolutionsNamed("finest", drawn));
         assertTrue(refused.getMessage(), refused.getMessage().contains("low, medium, high or all"));
     }
 
+    /**
+     * A build nobody gave a resolution builds the one the pages of whoever asked draw, which is a
+     * setting on their admin page rather than anything this knows: it is named at the call, and the
+     * built-in answer is what a server holds until an admin sets another.
+     */
     @Test
-    public void askingForNoResolutionInParticularBuildsTheOneAPageDraws() {
+    public void askingForNoResolutionInParticularBuildsTheOneThePagesDraw() {
         assertEquals(FieldAssets.Resolution.HIGH, FieldAssets.Resolution.DEFAULT);
-        assertEquals(List.of(FieldAssets.Resolution.DEFAULT), FieldAssets.resolutionsNamed(null));
-        assertEquals(List.of(FieldAssets.Resolution.DEFAULT), FieldAssets.resolutionsNamed(""));
+        assertEquals(
+                List.of(FieldAssets.Resolution.LOW), FieldAssets.resolutionsNamed(null, FieldAssets.Resolution.LOW));
+        assertEquals(
+                List.of(FieldAssets.Resolution.MEDIUM),
+                FieldAssets.resolutionsNamed("", FieldAssets.Resolution.MEDIUM));
+    }
+
+    /** A page draws one field, so the name an admin sets is one of the three and never all of them. */
+    @Test
+    public void theResolutionAPageDrawsIsOneOfThemRatherThanAllOfThem() {
+        assertEquals(FieldAssets.Resolution.LOW, FieldAssets.theOneNamed("low"));
+        assertEquals(FieldAssets.Resolution.MEDIUM, FieldAssets.theOneNamed("medium"));
+        assertEquals(FieldAssets.Resolution.HIGH, FieldAssets.theOneNamed("high"));
+
+        for (String notOne : new String[] {"all", "finest", "", null}) {
+            FieldAssets.NotAnAsset refused =
+                    assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.theOneNamed(notOne));
+            assertTrue(refused.getMessage(), refused.getMessage().contains("low, medium or high"));
+        }
+    }
+
+    /**
+     * Which field a page draws when it names none is said in one place and read in another -- a
+     * server's setting, a line of JavaScript a page imports -- so the line is this server's to
+     * write, and the copy committed beside the models is what it writes for the built-in answer.
+     * Said twice by hand, the page and the server would drift apart without either saying so.
+     */
+    @Test
+    public void theLineAPageReadsForTheDefaultIsTheServersToWrite() {
+        assertTrue(
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.LOW),
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.LOW)
+                        .endsWith("export const DEFAULT_RESOLUTION = 'low';\n"));
+        assertEquals(
+                "the committed " + FieldAssets.DEFAULT_RESOLUTION_FILE + " is not what this server writes for "
+                        + FieldAssets.Resolution.DEFAULT.asked + "; write what this expects into it",
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.DEFAULT),
+                SimAssets.page(FieldAssets.DEFAULT_RESOLUTION_FILE));
     }
 
     @Test

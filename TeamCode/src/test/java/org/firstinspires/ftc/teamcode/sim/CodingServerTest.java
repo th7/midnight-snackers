@@ -1138,7 +1138,7 @@ public class CodingServerTest {
         serverWith(
                 worktree -> bench(),
                 CHEAP_SCRYPT,
-                writing(FieldAssets.everyAsset().toArray(new String[0])));
+                writing(FieldAssets.everyAsset(FieldAssets.Resolution.DEFAULT).toArray(new String[0])));
         String cookie = approvedUser("mia");
 
         Reply refreshed = admin("POST", "/admin/assets/refresh");
@@ -1211,7 +1211,8 @@ public class CodingServerTest {
 
     @Test
     public void aDownloadAndABuildAreAskedForSeparately() throws IOException {
-        Writing assets = new Writing(FieldAssets.everyAsset().toArray(new String[0]));
+        Writing assets = new Writing(
+                FieldAssets.everyAsset(FieldAssets.Resolution.DEFAULT).toArray(new String[0]));
         serverWith(worktree -> bench(), CHEAP_SCRYPT, assets);
         String cookie = approvedUser("mia");
 
@@ -1261,6 +1262,99 @@ public class CodingServerTest {
 
         assertEquals(400, refused.status);
         assertTrue(refused.body, refused.body.contains("low, medium, high or all"));
+    }
+
+    /**
+     * Which field a page draws when its query string names none is the admin's, not the page's: it
+     * is set here and read by every page this server serves, as the one line they import for it.
+     */
+    @Test
+    public void whichFieldThePagesDrawIsTheAdminsToSet() throws IOException {
+        String cookie = approvedUser("mia");
+
+        Reply before = admin("GET", "/admin/assets");
+        assertTrue(before.body, before.body.contains("\"defaultResolution\":\"high\""));
+        assertEquals(
+                "until an admin says otherwise, the pages read the built-in answer",
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.HIGH),
+                user("GET", "/sim/assets/field-default.js", cookie).body);
+
+        Reply set = admin("POST", "/admin/assets/default?resolution=low");
+
+        assertEquals(set.body, 200, set.status);
+        assertTrue(set.body, set.body.contains("\"defaultResolution\":\"low\""));
+        assertEquals(
+                "and then they read what was set",
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.LOW),
+                user("GET", "/sim/assets/field-default.js", cookie).body);
+    }
+
+    @Test
+    public void whatThePagesDrawSurvivesARestart() throws IOException {
+        String cookie = approvedUser("mia");
+        admin("POST", "/admin/assets/default?resolution=medium");
+
+        restart();
+
+        assertTrue(admin("GET", "/admin/assets").body.contains("\"defaultResolution\":\"medium\""));
+        assertEquals(
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.MEDIUM),
+                user("GET", "/sim/assets/field-default.js", cookie).body);
+    }
+
+    @Test
+    public void aDefaultNoPageCouldDrawIsRefusedAndLeavesTheOneThatWorks() throws IOException {
+        String cookie = approvedUser("mia");
+
+        Reply notAResolution = admin("POST", "/admin/assets/default?resolution=finest");
+        Reply allThree = admin("POST", "/admin/assets/default?resolution=all");
+        Reply unsaid = admin("POST", "/admin/assets/default");
+
+        assertEquals(400, notAResolution.status);
+        assertTrue(notAResolution.body, notAResolution.body.contains("low, medium or high"));
+        assertEquals("a page draws one field, so all three is not an answer", 400, allThree.status);
+        assertTrue(allThree.body, allThree.body.contains("low, medium or high"));
+        assertEquals("and neither is saying nothing", 400, unsaid.status);
+        assertEquals(
+                "what the pages draw is what it was",
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.DEFAULT),
+                user("GET", "/sim/assets/field-default.js", cookie).body);
+    }
+
+    /**
+     * The setting is what the server builds and reports against too, rather than only what the pages
+     * read: a build nobody gave a resolution makes the one the pages draw, and the server says it is
+     * drawing what it fetched when that one is the one it has.
+     */
+    @Test
+    public void theServerFetchesAndReportsTheFieldItsPagesDraw() throws IOException {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        String cookie = approvedUser("mia");
+        admin("POST", "/admin/assets/default?resolution=low");
+
+        Reply refreshed = admin("POST", "/admin/assets/refresh");
+
+        assertEquals(refreshed.body, 200, refreshed.status);
+        assertTrue("a refresh that names nothing fetches what the pages draw", refreshed.body.contains("\"low\":true"));
+        assertTrue(refreshed.body, refreshed.body.contains("\"high\":false"));
+        assertTrue(refreshed.body, refreshed.body.contains("the model this server fetched"));
+        assertEquals("fetched field.glb", user("GET", "/sim/assets/field.glb", cookie).body);
+    }
+
+    @Test
+    public void aServerWhosePagesDrawLowHasWhatItNeedsWithoutTheRest() throws IOException {
+        CodingServer running = serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        admin("POST", "/admin/assets/default?resolution=low");
+
+        admin("POST", "/admin/assets/refresh?resolution=low");
+
+        assertTrue(
+                "what a server fetches for itself at startup is the field its pages draw", running.hasFetchedAssets());
+
+        admin("POST", "/admin/assets/default?resolution=high");
+
+        assertFalse(
+                "and an admin who sets the full model has not fetched it by setting it", running.hasFetchedAssets());
     }
 
     @Test
@@ -1372,6 +1466,10 @@ public class CodingServerTest {
         assertTrue(
                 "a download that is kept is worth a button of its own", page.body.contains("/admin/assets/download"));
         assertTrue("and rebuilding from it is the cheap half", page.body.contains("/admin/assets/build"));
+        assertTrue(
+                "and which of them the pages draw is a setting rather than a query string somebody knows",
+                page.body.contains("/admin/assets/default"));
+        assertTrue(page.body, page.body.contains("id=\"default-resolution\""));
     }
 
     @Test

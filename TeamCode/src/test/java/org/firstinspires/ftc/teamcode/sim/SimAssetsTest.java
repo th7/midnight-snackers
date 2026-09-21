@@ -90,7 +90,8 @@ public class SimAssetsTest {
             Matcher named = Pattern.compile("['\"]([A-Za-z0-9_./-]+\\.(?:glb|png|js))['\"]")
                     .matcher(SimAssets.page(module));
             while (named.find()) {
-                asked.add(named.group(1));
+                // A module beside this one is asked for as "./name.js", and is the same asset.
+                asked.add(named.group(1).replaceFirst("^\\./", ""));
             }
         }
 

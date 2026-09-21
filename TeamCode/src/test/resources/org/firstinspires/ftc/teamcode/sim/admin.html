@@ -128,7 +128,14 @@
       <p class="section-label">The field the pages draw</p>
       <div class="panel">
         <p id="assets-state">&hellip;</p>
-        <label>Resolution
+        <label title="Which field a page draws when its query string asks for none by name.">Pages draw
+          <select id="default-resolution">
+            <option value="low">low (4 MB)</option>
+            <option value="medium">medium (28 MB)</option>
+            <option value="high">high (42 MB)</option>
+          </select>
+        </label>
+        <label title="Which one the buttons below build. A page can still ask for any that is built.">Build
           <select id="assets-resolution">
             <option value="low">low (4 MB)</option>
             <option value="medium">medium (28 MB)</option>
@@ -152,7 +159,12 @@
   var downloadAssets = document.getElementById('download-assets');
   var buildAssets = document.getElementById('build-assets');
   var assetsResolution = document.getElementById('assets-resolution');
+  var defaultResolution = document.getElementById('default-resolution');
   var buttons = [downloadAssets, buildAssets, refreshAssets];
+  // What to build follows what the pages draw until somebody says otherwise, so that setting the
+  // pages to the cheap model and pressing Refresh does not fetch the dear one nobody will look at.
+  var pickedWhatToBuild = false;
+  assetsResolution.addEventListener('change', function () { pickedWhatToBuild = true; });
 
   function showAssets(json) {
     assetsState.textContent = json.complete
@@ -162,6 +174,10 @@
     var resolution = json.resolution || {};
     var held = Object.keys(resolution).filter(function (name) { return resolution[name]; });
     var fallsBack = !resolution[json.defaultResolution];
+    defaultResolution.value = json.defaultResolution;
+    if (!pickedWhatToBuild) {
+      assetsResolution.value = json.defaultResolution;
+    }
     assetsSaid.textContent = (names.length
       ? names.length + ' fetched, in ' + json.under
       : 'nothing fetched, so ' + json.under + ' is empty')
@@ -202,6 +218,14 @@
   function resolution() {
     return '?resolution=' + encodeURIComponent(assetsResolution.value);
   }
+
+  // What the pages draw is a setting rather than a query string somebody passes around, so choosing
+  // one says so at once: the server keeps it, every page reads it, and what comes back says whether
+  // it is built yet -- because a resolution nobody built is one every page falls back from.
+  defaultResolution.addEventListener('change', function () {
+    ask('/admin/assets/default?resolution=' + encodeURIComponent(defaultResolution.value),
+        'The pages will draw ' + defaultResolution.value + '\u2026', 'That could not be set');
+  });
 
   downloadAssets.addEventListener('click', function () {
     ask('/admin/assets/download', 'Fetching from Onshape\u2026 the export is about eleven megabytes.',

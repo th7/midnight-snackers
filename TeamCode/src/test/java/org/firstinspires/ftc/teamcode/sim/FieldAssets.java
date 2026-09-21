@@ -20,12 +20,20 @@ public final class FieldAssets {
     public static final String EXPORT_FILE = "export.gltf";
 
     /**
+     * The one line a page reads to learn which field to draw when its query string names none. It is
+     * an asset like the models it names, so a coding server serves it from the setting on its admin
+     * page and every other server serves the copy committed beside them.
+     */
+    public static final String DEFAULT_RESOLUTION_FILE = "field-default.js";
+
+    /**
      * How much of the CAD a model is, in three steps, each adding one thing to the one below it.
      * <b>Low</b> is the field as it plays: the hardware dropped, snapped to a twentieth of an inch,
      * a colour to a part. <b>Medium</b> is those same parts at the points and in the materials the
      * CAD gave them. <b>High</b> adds back every part the export holds, hardware and all. High is
-     * what a page draws unless it asks for less: a field that does not look like the field is the
-     * thing worth avoiding, and whoever cannot afford it is the one who knows that.
+     * what a page draws unless it asks for less or an admin set another: a field that does not look
+     * like the field is the thing worth avoiding, and whoever cannot afford it is the one who knows
+     * that -- which is why which one the pages draw is a setting on the admin page.
      */
     public enum Resolution {
         LOW("low", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.A_COLOUR_APIECE),
@@ -37,7 +45,11 @@ public final class FieldAssets {
                 FieldGlb.Shading.AS_THE_CAD_DREW_IT),
         HIGH("high", "field-high.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART, FieldGlb.Shading.AS_THE_CAD_DREW_IT);
 
-        /** What a page draws, what the admin page offers first, and what a server builds at startup. */
+        /**
+         * What a page draws, what a server builds for itself, and what the admin page offers first,
+         * until an admin sets another on the admin page. A server holds what was set; this is the
+         * answer it holds until then, and the one every server with no admin to ask gives.
+         */
         public static final Resolution DEFAULT = HIGH;
 
         public final String asked;
@@ -64,9 +76,26 @@ public final class FieldAssets {
         }
     }
 
-    public static List<Resolution> resolutionsNamed(String asked) {
+    /**
+     * What a page imports to learn which field it draws by default, written here rather than kept in
+     * the page's own source, so that the resolution a server serves and the one a page draws are the
+     * same sentence rather than two that have to be kept saying the same thing.
+     */
+    public static String defaultResolutionModule(Resolution drawn) {
+        return "// Which field a page draws when its query string names no resolution. A coding server writes this\n"
+                + "// line from the setting on its admin page; the copy committed here is what every other server\n"
+                + "// serves, and what a coding server serves until an admin says otherwise.\n"
+                + "export const DEFAULT_RESOLUTION = '" + drawn.asked + "';\n";
+    }
+
+    /**
+     * The resolutions a build was asked for, which is one of them, or all three, or -- asked for
+     * nothing in particular -- the one the pages of whoever is asking draw. What that is is the
+     * server's to say rather than this class's, so it is named at the call.
+     */
+    public static List<Resolution> resolutionsNamed(String asked, Resolution whenUnsaid) {
         if (asked == null || asked.isBlank()) {
-            return List.of(Resolution.DEFAULT);
+            return List.of(whenUnsaid);
         }
         if ("all".equals(asked)) {
             return List.of(Resolution.values());
@@ -76,6 +105,18 @@ public final class FieldAssets {
             throw new NotAnAsset("no such resolution: " + asked + ". It is low, medium, high or all.");
         }
         return List.of(one);
+    }
+
+    /**
+     * The one a page draws, by the name an admin sets it under. A page draws one field, so `all` is
+     * not one of them here: it is a thing to ask a build for, not a thing to draw.
+     */
+    public static Resolution theOneNamed(String asked) {
+        Resolution one = asked == null ? null : Resolution.named(asked);
+        if (one == null) {
+            throw new NotAnAsset("no such resolution: " + asked + ". A page draws low, medium or high.");
+        }
+        return one;
     }
 
     public static final List<String> TEXTURES = List.of(
@@ -90,10 +131,10 @@ public final class FieldAssets {
 
     private FieldAssets() {}
 
-    /** What a server needs before a page draws what it asks for: the model it asks for, and the art. */
-    public static List<String> everyAsset() {
+    /** What a server needs before a page draws what it asks for: the model it draws, and the art. */
+    public static List<String> everyAsset(Resolution drawn) {
         List<String> out = new ArrayList<>();
-        out.add(Resolution.DEFAULT.file);
+        out.add(drawn.file);
         for (String texture : TEXTURES) {
             out.add(TEXTURES_UNDER + "/" + texture);
         }
@@ -128,10 +169,6 @@ public final class FieldAssets {
         public String toString() {
             return written.size() + " assets, " + bytes() + " bytes";
         }
-    }
-
-    public static Refreshed refresh(Onshape onshape, Store store, Path into) {
-        return refresh(onshape, store, into, List.of(Resolution.DEFAULT));
     }
 
     /** The dear half and then the cheap one. What the admin page does as two asks, in one. */
