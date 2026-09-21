@@ -36,6 +36,8 @@ public class FieldAssetsTest {
             parts.add(new Gltf.Part("Red Hive " + i, List.of("Red Hive " + i), wedge(0, 60), "#ff0000"));
         }
         parts.add(new Gltf.Part("Field Panel", List.of("Field Panel"), wedge(-70, 0), "#b3b3b3"));
+        parts.add(new Gltf.Part(
+                "am-1611 Socket Head Screw", List.of("am-1611 Socket Head Screw"), wedge(10, 10), "#666666"));
         return Gltf.write(parts);
     }
 
@@ -88,7 +90,11 @@ public class FieldAssetsTest {
 
         FieldAssets.Refreshed refreshed = FieldAssets.refresh(onshapeOf(asked), store, INTO);
 
-        assertEquals(1 + FieldAssets.TEXTURES.size(), refreshed.written.size());
+        assertEquals(
+                "the model, the textures, and the export they were built from",
+                2 + FieldAssets.TEXTURES.size(),
+                refreshed.written.size());
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.EXPORT_FILE)));
         assertTrue(store.isFile(INTO.resolve(FieldAssets.FIELD_GLB)));
         for (String name : FieldAssets.TEXTURES) {
             assertTrue(
@@ -181,7 +187,10 @@ public class FieldAssetsTest {
                 asked.urls.stream().filter(url -> url.endsWith("/gltf")).count());
         assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
         assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
-        assertEquals(2 + FieldAssets.TEXTURES.size(), refreshed.written.size());
+        assertEquals(
+                "both models, the textures, and the one export they were both built from",
+                3 + FieldAssets.TEXTURES.size(),
+                refreshed.written.size());
     }
 
     @Test
@@ -191,14 +200,72 @@ public class FieldAssetsTest {
         FieldAssets.refresh(
                 onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
 
+        int full = partsOf(store, FieldAssets.Detail.FULL);
+        int normal = partsOf(store, FieldAssets.Detail.NORMAL);
+        assertEquals("the normal model draws the field as it plays", 25, normal);
+        assertEquals("full detail is every part the export holds, hardware and all", 26, full);
+    }
+
+    private static int partsOf(InMemoryStore store, FieldAssets.Detail detail) {
+        return Gltf.read(store.readIfThere(INTO.resolve(detail.file)).orElseThrow())
+                .size();
+    }
+
+    @Test
+    public void aDownloadKeepsTheExportItFetched() {
+        Asked asked = new Asked();
+        InMemoryStore store = new InMemoryStore();
+
+        FieldAssets.download(onshapeOf(asked), store, INTO);
+
         assertTrue(
-                "the same parts either way",
-                Gltf.read(store.readIfThere(INTO.resolve(FieldAssets.Detail.FULL.file))
-                                        .orElseThrow())
-                                .size()
-                        == Gltf.read(store.readIfThere(INTO.resolve(FieldAssets.Detail.NORMAL.file))
-                                        .orElseThrow())
-                                .size());
+                "the dear half is the download; keeping it is what lets a build be cheap",
+                store.isFile(INTO.resolve(FieldAssets.EXPORT_FILE)));
+        for (String name : FieldAssets.TEXTURES) {
+            assertTrue(
+                    name, store.isFile(INTO.resolve(FieldAssets.TEXTURES_UNDER).resolve(name)));
+        }
+        assertFalse(
+                "a download is not a build: no model is made until one is asked for",
+                store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
+    }
+
+    @Test
+    public void aBuildMakesEveryDetailFromTheExportOnDisk() {
+        Asked asked = new Asked();
+        InMemoryStore store = new InMemoryStore();
+        FieldAssets.download(onshapeOf(asked), store, INTO);
+        int fetches = asked.urls.size();
+
+        FieldAssets.build(store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+
+        assertEquals("a build fetches nothing; it cannot, it is given no Onshape", fetches, asked.urls.size());
+        assertEquals(25, partsOf(store, FieldAssets.Detail.NORMAL));
+        assertEquals(26, partsOf(store, FieldAssets.Detail.FULL));
+    }
+
+    @Test
+    public void aBuildWithNothingDownloadedSaysSoRatherThanFetching() {
+        FieldAssets.NotAnAsset refused = assertThrows(
+                FieldAssets.NotAnAsset.class,
+                () -> FieldAssets.build(new InMemoryStore(), INTO, List.of(FieldAssets.Detail.NORMAL)));
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains("nothing has been downloaded"));
+    }
+
+    @Test
+    public void aRefreshIsADownloadAndThenABuild() {
+        Asked asked = new Asked();
+        InMemoryStore store = new InMemoryStore();
+
+        FieldAssets.refresh(onshapeOf(asked), store, INTO, List.of(FieldAssets.Detail.FULL));
+
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.EXPORT_FILE)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
+        assertEquals(
+                "the export is fetched once",
+                1,
+                asked.urls.stream().filter(url -> url.endsWith("/gltf")).count());
     }
 
     @Test

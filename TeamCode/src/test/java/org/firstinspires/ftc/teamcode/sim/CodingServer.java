@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
@@ -205,12 +206,29 @@ public final class CodingServer {
     private final Store assetStore = new OnDiskStore();
     private final Assets assets;
 
+    /**
+     * The two halves of getting a field model, kept apart because they cost such different things: the
+     * download is tens of seconds of Onshape, the build is under a second of arithmetic on what the
+     * download left behind. Only the first half is given an Onshape to reach.
+     */
     public interface Assets {
-        FieldAssets.Refreshed refresh(Store store, Path into, List<FieldAssets.Detail> details);
+        FieldAssets.Refreshed download(Store store, Path into);
+
+        FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details);
     }
 
     public static Assets fromOnshape() {
-        return (store, into, details) -> FieldAssets.refresh(Onshape.configured(), store, into, details);
+        return new Assets() {
+            @Override
+            public FieldAssets.Refreshed download(Store store, Path into) {
+                return FieldAssets.download(Onshape.configured(), store, into);
+            }
+
+            @Override
+            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+                return FieldAssets.build(store, into, details);
+            }
+        };
     }
 
     private CodingServer(
@@ -1025,6 +1043,8 @@ public final class CodingServer {
                                 deleteUser(request.query("username"), "true".equals(request.query("force"))))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("GET", "/admin/assets", (request, params) -> Response.json(GSON.toJson(assetsFetched())))
+                .route("POST", "/admin/assets/download", (request, params) -> downloadAssets())
+                .route("POST", "/admin/assets/build", (request, params) -> buildAssets(request.query("detail")))
                 .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets(request.query("detail")))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
@@ -1059,7 +1079,22 @@ public final class CodingServer {
             details.addProperty(one.asked, assetStore.isFile(assetsDir.resolve(one.file)));
         }
         out.add("detail", details);
+        out.addProperty("downloaded", assetStore.isFile(assetsDir.resolve(FieldAssets.EXPORT_FILE)));
         return out;
+    }
+
+    private Response downloadAssets() {
+        return whatItWrote(() -> assets.download(assetStore, assetsDir));
+    }
+
+    private Response buildAssets(String detail) {
+        List<FieldAssets.Detail> details;
+        try {
+            details = FieldAssets.detailsNamed(detail);
+        } catch (FieldAssets.NotAnAsset wrong) {
+            return Response.error(400, wrong.getMessage());
+        }
+        return whatItWrote(() -> assets.build(assetStore, assetsDir, details));
     }
 
     private Response refreshAssets(String detail) {
@@ -1069,12 +1104,24 @@ public final class CodingServer {
         } catch (FieldAssets.NotAnAsset wrong) {
             return Response.error(400, wrong.getMessage());
         }
+        return whatItWrote(() -> {
+            FieldAssets.Refreshed downloaded = assets.download(assetStore, assetsDir);
+            FieldAssets.Refreshed built = assets.build(assetStore, assetsDir, details);
+            Map<String, Integer> written = new LinkedHashMap<>(downloaded.written);
+            written.putAll(built.written);
+            return new FieldAssets.Refreshed(written);
+        });
+    }
+
+    private Response whatItWrote(Supplier<FieldAssets.Refreshed> work) {
         try {
-            FieldAssets.Refreshed refreshed = assets.refresh(assetStore, assetsDir, details);
+            FieldAssets.Refreshed refreshed = work.get();
             JsonObject out = assetsFetched();
             out.addProperty("refreshed", refreshed.written.size());
             out.addProperty("bytes", refreshed.bytes());
             return Response.json(GSON.toJson(out));
+        } catch (FieldAssets.NothingDownloaded first) {
+            return Response.error(409, first.getMessage());
         } catch (Onshape.NoCredentials refused) {
             return Response.error(502, "Onshape would not answer: " + refused.getMessage());
         } catch (RuntimeException wrong) {
@@ -1091,8 +1138,9 @@ public final class CodingServer {
                 () -> {
                     try {
                         System.out.println("  assets fetching from Onshape into " + assetsDir);
-                        System.out.println("  assets "
-                                + assets.refresh(assetStore, assetsDir, List.of(FieldAssets.Detail.NORMAL)));
+                        assets.download(assetStore, assetsDir);
+                        System.out.println(
+                                "  assets " + assets.build(assetStore, assetsDir, List.of(FieldAssets.Detail.NORMAL)));
                     } catch (RuntimeException wrong) {
                         System.out.println("  assets not fetched (" + wrong.getMessage()
                                 + "); the pages draw the model committed for tests");

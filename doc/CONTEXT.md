@@ -900,16 +900,37 @@ says which of the two it is drawing. The fetch is `main`'s to start rather than
 the server's, so no test that builds a coding server reaches the network.
 Classes: `Onshape`; `Gltf`; `FieldGlb`; `FieldAssets`; `CodingServer.Assets`.
 
-**Detail** — Which field a page draws: **normal**, snapped to a twentieth of
-an inch at 316,000 triangles and four megabytes, or **full**, the CAD's own
-tessellation at 1,020,000 and thirteen. The refresh builds either or both from
-one export — the download is the dear part and the builds are under a second
-each — and keeps them side by side, so comparing the two on a tablet is a
-query string rather than another fetch. A page asks with `?detail=full`, and
-one that asks for a model nobody fetched draws the normal one **and says on
-the page that it fell back**. Full detail costs about three times the
-triangles, the bytes and the GPU buffers, and almost no draw calls, since
-**batching** is by material rather than by triangle.
+**Download** and **build** — The two halves of getting a field model, asked
+for separately because they cost such different things. A download is tens of
+seconds and eleven megabytes of Onshape; it fetches the assembly and the
+textures and **keeps the export** at `export.gltf` in the state directory. A
+build is arithmetic on what the download left behind, under a second, and is
+handed no Onshape at all — so a build that finds nothing downloaded says so
+rather than quietly fetching, and javac holds that rather than a comment.
+Changing the detail, or rebuilding after the pipeline changes, is a build and
+not another download. **Refresh** is still there and is the two in one, which
+is what a server with nothing fetched runs at startup. At
+`POST /admin/assets/download`, `POST /admin/assets/build?detail=…` and
+`POST /admin/assets/refresh?detail=…`, with a button apiece on the admin
+page.
+
+**Detail** — Which field a page draws, and it differs in two ways rather
+than one. **Normal** is the field as it plays: 305 parts, snapped to a
+twentieth of an inch, 316,000 triangles and four megabytes. **Full** is every
+part the export holds at the points the export holds them: 1,029 parts,
+1,474,000 triangles and twenty megabytes. The difference in parts is the
+larger of the two — two thirds of the assembly is the hardware that holds the
+field together, dropped by name for normal because nothing draws a washer once
+the field is up, and kept for full because *full* has to mean what it says.
+The **build** makes either or both from one **export**, and keeps them side by
+side, so comparing the two on a tablet is a query string rather than another
+fetch. A page asks with `?detail=full`, and one that asks for a model nobody
+built draws the normal one **and says on the page that it fell back**. Full
+detail costs about five times the triangles and the bytes, and almost no draw
+calls, since **batching** is by material rather than by part. Which parts a
+model is made of is `FieldGlb.Keep`, named at every call rather than defaulted,
+so a model that quietly drops two thirds of the CAD cannot be built by
+forgetting to say.
 
 **Stand-in** — The `field.glb` in the repository: the model the tests draw,
 frozen, so the browser checks and the **budget** come out the same on any

@@ -27,6 +27,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -148,26 +149,61 @@ public class CodingServerTest {
     }
 
     private static CodingServer.Assets refusingToReachOnshape() {
-        return (store, into, details) -> {
-            throw new AssertionError("a test reached for Onshape; no test may");
+        return new CodingServer.Assets() {
+            @Override
+            public FieldAssets.Refreshed download(Store store, Path into) {
+                throw new AssertionError("a test reached for Onshape; no test may");
+            }
+
+            @Override
+            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+                throw new AssertionError("a test built a model it never downloaded an export for");
+            }
         };
     }
 
-    private static CodingServer.Assets writing(String... names) {
-        return (store, into, details) -> {
+    private static final class Writing implements CodingServer.Assets {
+        final List<String> names;
+        int downloads;
+        int builds;
+
+        Writing(String... names) {
+            this.names = List.of(names);
+        }
+
+        @Override
+        public FieldAssets.Refreshed download(Store store, Path into) {
+            downloads++;
             java.util.Map<String, Integer> written = new java.util.LinkedHashMap<>();
-            for (FieldAssets.Detail detail : details) {
-                byte[] model = ("fetched " + detail.file).getBytes(StandardCharsets.UTF_8);
-                store.writeWhole(into.resolve(detail.file), model);
-                written.put(detail.file, model.length);
-            }
+            written.putAll(wrote(store, into, FieldAssets.EXPORT_FILE));
             for (String name : names) {
-                byte[] body = ("fetched " + name).getBytes(StandardCharsets.UTF_8);
-                store.writeWhole(into.resolve(name), body);
-                written.put(name, body.length);
+                written.putAll(wrote(store, into, name));
             }
             return new FieldAssets.Refreshed(written);
-        };
+        }
+
+        @Override
+        public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+            builds++;
+            if (!store.isFile(into.resolve(FieldAssets.EXPORT_FILE))) {
+                throw new FieldAssets.NothingDownloaded("nothing has been downloaded yet, download first");
+            }
+            java.util.Map<String, Integer> written = new java.util.LinkedHashMap<>();
+            for (FieldAssets.Detail detail : details) {
+                written.putAll(wrote(store, into, detail.file));
+            }
+            return new FieldAssets.Refreshed(written);
+        }
+
+        private static java.util.Map<String, Integer> wrote(Store store, Path into, String name) {
+            byte[] body = ("fetched " + name).getBytes(StandardCharsets.UTF_8);
+            store.writeWhole(into.resolve(name), body);
+            return java.util.Map.of(name, body.length);
+        }
+    }
+
+    private static CodingServer.Assets writing(String... names) {
+        return new Writing(names);
     }
 
     private CodingServer serverThatHashesAsItWouldInEarnest() {
@@ -1109,8 +1145,16 @@ public class CodingServerTest {
 
     @Test
     public void aRefreshOnshapeWillNotAnswerSaysSoAndLeavesThePagesDrawing() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, (store, into, details) -> {
-            throw new Onshape.NoCredentials("no key pair and no proxy");
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, new CodingServer.Assets() {
+            @Override
+            public FieldAssets.Refreshed download(Store store, Path into) {
+                throw new Onshape.NoCredentials("no key pair and no proxy");
+            }
+
+            @Override
+            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+                throw new AssertionError("a download that never happened must not reach a build");
+            }
         });
         String cookie = approvedUser("mia");
 
@@ -1141,6 +1185,50 @@ public class CodingServerTest {
         assertTrue(both.body, both.body.contains("\"full\":true"));
         assertEquals(200, user("GET", "/sim/assets/field-full.glb", cookie).status);
         assertEquals("fetched field-full.glb", user("GET", "/sim/assets/field-full.glb", cookie).body);
+    }
+
+    @Test
+    public void aDownloadAndABuildAreAskedForSeparately() throws IOException {
+        Writing assets = new Writing(FieldAssets.everyAsset().toArray(new String[0]));
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, assets);
+        String cookie = approvedUser("mia");
+
+        Reply downloaded = admin("POST", "/admin/assets/download");
+
+        assertEquals(downloaded.body, 200, downloaded.status);
+        assertEquals(1, assets.downloads);
+        assertEquals("a download is the dear half, and it builds nothing", 0, assets.builds);
+        assertTrue(downloaded.body, downloaded.body.contains("\"downloaded\":true"));
+
+        Reply built = admin("POST", "/admin/assets/build?detail=both");
+
+        assertEquals(built.body, 200, built.status);
+        assertEquals("and a build reuses what was downloaded rather than fetching again", 1, assets.downloads);
+        assertEquals(1, assets.builds);
+        assertTrue(built.body, built.body.contains("\"full\":true"));
+        assertEquals(200, user("GET", "/sim/assets/field-full.glb", cookie).status);
+    }
+
+    @Test
+    public void aBuildWithNothingDownloadedIsRefusedAndSaysWhatToDo() throws IOException {
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+
+        Reply refused = admin("POST", "/admin/assets/build?detail=normal");
+
+        assertEquals(refused.body, 409, refused.status);
+        assertTrue(refused.body, refused.body.contains("nothing has been downloaded"));
+    }
+
+    @Test
+    public void aDetailNobodyBuildsIsRefusedBeforeAnythingIsBuilt() throws IOException {
+        Writing assets = new Writing();
+        serverWith(worktree -> bench(), CHEAP_SCRYPT, assets);
+
+        Reply refused = admin("POST", "/admin/assets/build?detail=finest");
+
+        assertEquals(400, refused.status);
+        assertTrue(refused.body, refused.body.contains("normal, full or both"));
+        assertEquals(0, assets.builds);
     }
 
     @Test
@@ -1259,6 +1347,9 @@ public class CodingServerTest {
 
         assertTrue(page.body, page.body.contains("Refresh assets"));
         assertTrue(page.body, page.body.contains("/admin/assets/refresh"));
+        assertTrue(
+                "a download that is kept is worth a button of its own", page.body.contains("/admin/assets/download"));
+        assertTrue("and rebuilding from it is the cheap half", page.body.contains("/admin/assets/build"));
     }
 
     @Test

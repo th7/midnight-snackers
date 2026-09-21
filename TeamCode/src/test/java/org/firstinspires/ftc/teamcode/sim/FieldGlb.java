@@ -10,6 +10,17 @@ public final class FieldGlb {
     public static final double NO_GRID = 0;
     public static final int LEAST_COMPARED = 10;
 
+    /**
+     * Which of the export's parts a model is made of. The field as it plays is not every part of the
+     * assembly: two thirds of what the CAD holds is the hardware that holds the field together, which
+     * is drawn nowhere and seen by nobody once the field is up. Full detail is the whole export, so
+     * that "full" means what it says.
+     */
+    public enum Keep {
+        WHAT_WE_DRAW,
+        EVERY_PART
+    }
+
     private static final Pattern SKIP = Pattern.compile(
             "screw|fhts|nut\\b|washer|rivet|rivnut|bolt|spacer|bearing|cable tie|plug|\\bpin\\b|"
                     + "damper|hinge|panel link|strap|clip|under tile|peanut|"
@@ -23,8 +34,8 @@ public final class FieldGlb {
 
     private FieldGlb() {}
 
-    public static byte[] build(byte[] export, double fieldSizeIn, double grid) {
-        List<Gltf.Part> parts = visualParts(Gltf.read(export), grid);
+    public static byte[] build(byte[] export, double fieldSizeIn, double grid, Keep keep) {
+        List<Gltf.Part> parts = visualParts(Gltf.read(export), grid, keep);
         if (parts.isEmpty()) {
             throw new IllegalStateException("nothing was kept; the export named none of the parts we draw");
         }
@@ -37,10 +48,10 @@ public final class FieldGlb {
         return Gltf.write(parts);
     }
 
-    public static List<Gltf.Part> visualParts(List<Gltf.Part> parts, double grid) {
+    public static List<Gltf.Part> visualParts(List<Gltf.Part> parts, double grid, Keep keep) {
         List<Gltf.Part> out = new ArrayList<>();
         for (Gltf.Part part : parts) {
-            if (!KEEP.matcher(part.name).find() && droppedByName(part)) {
+            if (keep == Keep.WHAT_WE_DRAW && !KEEP.matcher(part.name).find() && droppedByName(part)) {
                 continue;
             }
             double[] snapped = snap(toField(part.triangles), grid);

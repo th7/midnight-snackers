@@ -77,14 +77,29 @@ the repository. Press **Refresh assets** on the admin page, or start the server
 without having fetched them and it fetches in the background. Classes:
 `Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
-The admin page also chooses the **detail**: normal snaps to a twentieth of an
-inch (316,000 triangles, 4 MB), full keeps the CAD's own tessellation
-(1,020,000 triangles, 13 MB), and both builds the pair from a single export.
-They sit side by side, and a page asks for one with `?detail=full`; a page
-that asks for a model nobody fetched draws the normal one and says so rather
-than failing. Full detail costs roughly three times the triangles, the bytes
-and the GPU buffers; it costs almost no extra draw calls, because the scene is
-batched by material rather than by part.
+The admin page also chooses the **detail**. Normal is the field as it plays:
+305 parts, snapped to a twentieth of an inch, 316,000 triangles and 4 MB. Full
+is every part the export holds, at the points it holds them: 1,029 parts,
+1,474,000 triangles and 20 MB. Two thirds of the assembly is the hardware that
+holds the field together — screws, nuts, rivets, cable ties, the soft tiles and
+what is under them — dropped by name for normal because nothing draws a washer
+once the field is up, and kept for full, because *full* has to mean what it
+says. Both builds the pair. They sit side by side, and a page asks for one with
+`?detail=full`; a page that asks for a model nobody built draws the normal one
+and says so rather than failing. Full detail costs roughly five times the
+triangles and the bytes; it costs almost no extra draw calls, because the scene
+is batched by material rather than by part.
+
+**Downloading and building are separate asks**, because they cost such
+different things. *Download* fetches the assembly and the textures from Onshape
+— tens of seconds, eleven megabytes — and keeps the export at `export.gltf` in
+the state directory. *Build* makes the models from that export with no network
+at all, in under a second, so changing the detail or rebuilding after a change
+to the pipeline costs nothing but the arithmetic. *Refresh assets* is the two in
+one, and is what a server with nothing fetched runs at startup. A build with
+nothing downloaded is refused and says to download first, rather than quietly
+reaching for the network: `FieldAssets.build` is handed no Onshape, so it could
+not fetch if it wanted to.
 
 The one in the repository is a **stand-in**: the model the tests draw, frozen,
 so the browser checks and the scene budget come out the same on any machine

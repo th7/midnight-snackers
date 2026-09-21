@@ -83,10 +83,48 @@ public class FieldGlbTest {
                 List.of(
                         part("am-1611 Socket Head Screw", triangleAt(0, 0, 0, 1)),
                         part("Blue Hive", triangleAt(0, 0, 0, 1))),
-                FieldGlb.GRID_IN);
+                FieldGlb.GRID_IN,
+                FieldGlb.Keep.WHAT_WE_DRAW);
 
         assertEquals(1, kept.size());
         assertEquals("Blue Hive", kept.get(0).name);
+    }
+
+    @Test
+    public void fullDetailKeepsTheHardwareTheFieldIsHeldTogetherWith() {
+        List<Gltf.Part> both = List.of(
+                part("am-1611 Socket Head Screw", triangleAt(0, 0, 0, 1)), part("Blue Hive", triangleAt(0, 0, 0, 1)));
+
+        assertEquals(
+                "the normal model is the field as it plays",
+                1,
+                FieldGlb.visualParts(both, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW)
+                        .size());
+        assertEquals(
+                "full detail is the whole export, screws and all",
+                2,
+                FieldGlb.visualParts(both, FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART)
+                        .size());
+    }
+
+    @Test
+    public void fullDetailKeepsAPartTheNamesAboveItWouldHaveDropped() {
+        List<Gltf.Part> kept = FieldGlb.visualParts(
+                List.of(new Gltf.Part("Bracket", List.of("Fastener Kit", "Bracket"), triangleAt(0, 0, 0, 1), null)),
+                FieldGlb.NO_GRID,
+                FieldGlb.Keep.EVERY_PART);
+
+        assertEquals(1, kept.size());
+    }
+
+    @Test
+    public void fullDetailStillKeepsNoTriangleWithNoArea() {
+        List<Gltf.Part> kept = FieldGlb.visualParts(
+                List.of(part("Screw", new double[] {1, 1, 1, 1, 1, 1, 2, 2, 2})),
+                FieldGlb.NO_GRID,
+                FieldGlb.Keep.EVERY_PART);
+
+        assertTrue("a part the export drew as nothing is not a part", kept.isEmpty());
     }
 
     @Test
@@ -96,7 +134,8 @@ public class FieldGlbTest {
                         part("FTC Rail with Rivet Holes", triangleAt(0, 0, 0, 1)),
                         part("Field Panel", triangleAt(0, 0, 0, 1)),
                         part("Side Glass", triangleAt(0, 0, 0, 1))),
-                FieldGlb.GRID_IN);
+                FieldGlb.GRID_IN,
+                FieldGlb.Keep.WHAT_WE_DRAW);
 
         assertEquals("rail, rivet and side glass are all words the skip rule holds", 3, kept.size());
     }
@@ -105,15 +144,16 @@ public class FieldGlbTest {
     public void aPartIsDroppedByTheNamesAboveItAsWellAsItsOwn() {
         List<Gltf.Part> kept = FieldGlb.visualParts(
                 List.of(new Gltf.Part("Bracket", List.of("Fastener Kit", "Bracket"), triangleAt(0, 0, 0, 1), null)),
-                FieldGlb.GRID_IN);
+                FieldGlb.GRID_IN,
+                FieldGlb.Keep.WHAT_WE_DRAW);
 
         assertTrue(kept.toString(), kept.isEmpty());
     }
 
     @Test
     public void aPartThatSnapsAwayEntirelyIsNotKeptAsAnEmptyOne() {
-        List<Gltf.Part> kept =
-                FieldGlb.visualParts(List.of(part("Tiny Thing", triangleAt(0, 0, 0, 0.0001))), FieldGlb.GRID_IN);
+        List<Gltf.Part> kept = FieldGlb.visualParts(
+                List.of(part("Tiny Thing", triangleAt(0, 0, 0, 0.0001))), FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW);
 
         assertTrue(kept.toString(), kept.isEmpty());
     }
@@ -170,8 +210,9 @@ public class FieldGlbTest {
     public void buildingRefusesAnExportThatKeepsNothing() {
         byte[] export = Gltf.write(List.of(part("am-1611 Socket Head Screw", triangleAt(0, 0, 0, 10))));
 
-        IllegalStateException refused =
-                assertThrows(IllegalStateException.class, () -> FieldGlb.build(export, 141.17, FieldGlb.GRID_IN));
+        IllegalStateException refused = assertThrows(
+                IllegalStateException.class,
+                () -> FieldGlb.build(export, 141.17, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW));
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("nothing was kept"));
     }
@@ -185,7 +226,8 @@ public class FieldGlbTest {
         }
 
         IllegalStateException refused = assertThrows(
-                IllegalStateException.class, () -> FieldGlb.build(Gltf.write(parts), 141.17, FieldGlb.GRID_IN));
+                IllegalStateException.class,
+                () -> FieldGlb.build(Gltf.write(parts), 141.17, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW));
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("disagree"));
     }
