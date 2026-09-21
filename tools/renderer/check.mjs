@@ -55,20 +55,29 @@ if (scene) {
   let meshes = 0;
   let triangles = 0;
   const materials = new Set();
+  let normalsFrom = 0;
   const named = [];
   scene.traverse((object) => {
     if (object.name) named.push(object.name);
     if (object.isMesh) {
       meshes++;
       triangles += object.geometry.index.count / 3;
-      materials.add(object.material.name);
+      if (object.geometry.attributes.normal) normalsFrom++;
+      // By colour rather than by name: the CAD names most of its materials "NONE", so counting
+      // names measured nothing once the export's own materials started coming through.
+      materials.add(object.material.color.getHexString());
     }
   });
   const box = new THREE.Box3().setFromObject(scene);
 
   check(meshes > 100, `only ${meshes} meshes; the field has a part for each`);
   check(triangles > 100000, `only ${triangles} triangles; the detail is the point of this model`);
-  check(materials.size > 1, `only ${materials.size} material; parts carry the CAD's colours`);
+  check(materials.size > 4, `only ${materials.size} colours; parts carry the CAD's own`);
+  // Reported, not demanded: which of the two models this is decides whether it has them, and both
+  // are things this may be pointed at. What must hold either way is all or none -- a model half of
+  // whose meshes carry a normal shades half of itself one way and half the other.
+  check(normalsFrom === 0 || normalsFrom === meshes,
+      `${normalsFrom} of ${meshes} meshes carry a normal; a model has them throughout or not at all`);
   check(named.some((name) => /Flower/i.test(name)), 'no flower is named; the assembly names are gone');
   check(named.some((name) => /Hive/i.test(name)), 'no hive is named; the assembly names are gone');
 
@@ -87,7 +96,8 @@ if (scene) {
   check(blue !== null, 'no blue part to say which way round the field is');
   check(blue === null || blue < 0, `a blue part sits at y = ${blue}, and blue belongs at negative y`);
 
-  console.log(`${path.basename(model)}: ${meshes} meshes, ${triangles} triangles, ${materials.size} materials`);
+  console.log(`${path.basename(model)}: ${meshes} meshes, ${triangles} triangles, ${materials.size} colours, `
+      + `${normalsFrom} of them with the CAD's own normals`);
   console.log(`  bbox  x ${box.min.x.toFixed(1)}..${box.max.x.toFixed(1)}`
       + `  y ${box.min.y.toFixed(1)}..${box.max.y.toFixed(1)}`
       + `  z ${box.min.z.toFixed(1)}..${box.max.z.toFixed(1)}  (inches)`);

@@ -50,13 +50,31 @@ public final class Gltf {
         public final String name;
         public final List<String> path;
         public final double[] triangles;
+
+        /** One per point of {@link #triangles}, or null when the export carried none. */
+        public final double[] normals;
+
+        /** The export's own material, kept whole rather than boiled down. Null when it had none. */
+        public final JsonObject material;
+
         public final String colour;
 
+        /** A part with a flat colour and no normals: what a test means, and not what an export gives. */
         public Part(String name, List<String> path, double[] triangles, String colour) {
+            this(name, path, triangles, null, colour == null ? null : colouredMaterial(colour));
+        }
+
+        public Part(String name, List<String> path, double[] triangles, double[] normals, JsonObject material) {
+            if (normals != null && normals.length != triangles.length) {
+                throw new NotGltf("a part with " + triangles.length / 3 + " points has " + normals.length / 3
+                        + " normals; there is one normal to a point or none at all");
+            }
             this.name = name;
             this.path = List.copyOf(path);
             this.triangles = triangles;
-            this.colour = colour;
+            this.normals = normals;
+            this.material = material;
+            this.colour = colourOf(material);
         }
 
         public int count() {
@@ -175,7 +193,36 @@ public final class Gltf {
             throw new NotGltf(
                     "primitive of " + called + " has " + order.length + " vertices, which is not whole triangles");
         }
+        // A normal says which way a surface faces, never where it is or how big it is: the node's
+        // rotation turns it, its translation does not move it, and its scale leaves it unit length.
+        double[] facing = null;
+        if (attributes.has("NORMAL")) {
+            facing = vectors(document, attributes.get("NORMAL").getAsInt(), 3);
+            if (facing.length != points.length) {
+                throw new NotGltf(
+                        "primitive of " + called + " has " + facing.length / 3 + " normals for " + howMany + " points");
+            }
+            for (int i = 0; i < howMany; i++) {
+                double x = facing[i * 3];
+                double y = facing[i * 3 + 1];
+                double z = facing[i * 3 + 2];
+                double nx = matrix[0] * x + matrix[4] * y + matrix[8] * z;
+                double ny = matrix[1] * x + matrix[5] * y + matrix[9] * z;
+                double nz = matrix[2] * x + matrix[6] * y + matrix[10] * z;
+                double length = Math.sqrt(nx * nx + ny * ny + nz * nz);
+                if (length > 0) {
+                    nx /= length;
+                    ny /= length;
+                    nz /= length;
+                }
+                facing[i * 3] = nx;
+                facing[i * 3 + 1] = ny;
+                facing[i * 3 + 2] = nz;
+            }
+        }
+
         double[] triangles = new double[order.length * 3];
+        double[] normals = facing == null ? null : new double[order.length * 3];
         for (int i = 0; i < order.length; i++) {
             int at = order[i];
             if (at < 0 || at >= howMany) {
@@ -184,11 +231,16 @@ public final class Gltf {
             triangles[i * 3] = points[at * 3];
             triangles[i * 3 + 1] = points[at * 3 + 1];
             triangles[i * 3 + 2] = points[at * 3 + 2];
+            if (normals != null) {
+                normals[i * 3] = facing[at * 3];
+                normals[i * 3 + 1] = facing[at * 3 + 1];
+                normals[i * 3 + 2] = facing[at * 3 + 2];
+            }
         }
-        return new Part(name, path, triangles, colourOf(document.json, primitive));
+        return new Part(name, path, triangles, normals, materialOf(document.json, primitive));
     }
 
-    private static String colourOf(JsonObject json, JsonObject primitive) {
+    private static JsonObject materialOf(JsonObject json, JsonObject primitive) {
         if (!primitive.has("material")) {
             return null;
         }
@@ -197,8 +249,12 @@ public final class Gltf {
         if (index < 0 || index >= materials.size()) {
             throw new NotGltf("a primitive names material " + index + ", which does not exist");
         }
-        JsonObject material = materials.get(index).getAsJsonObject();
-        if (!material.has("pbrMetallicRoughness")) {
+        return materials.get(index).getAsJsonObject();
+    }
+
+    /** The colour a material paints with, for anything that wants one number rather than the whole. */
+    static String colourOf(JsonObject material) {
+        if (material == null || !material.has("pbrMetallicRoughness")) {
             return null;
         }
         JsonObject pbr = material.getAsJsonObject("pbrMetallicRoughness");
@@ -212,6 +268,23 @@ public final class Gltf {
             out.append(String.format(Locale.ROOT, "%02x", Math.max(0, Math.min(255, channel))));
         }
         return out.toString();
+    }
+
+    /** A material that is nothing but a colour, which is what a test or a stand-in part wants. */
+    public static JsonObject colouredMaterial(String colour) {
+        JsonArray factor = new JsonArray();
+        for (int i = 1; i < 7; i += 2) {
+            factor.add(Integer.parseInt(colour.substring(i, i + 2), 16) / 255.0);
+        }
+        factor.add(1.0);
+        JsonObject pbr = new JsonObject();
+        pbr.add("baseColorFactor", factor);
+        pbr.addProperty("metallicFactor", 0.0);
+        pbr.addProperty("roughnessFactor", 0.7);
+        JsonObject material = new JsonObject();
+        material.addProperty("name", colour);
+        material.add("pbrMetallicRoughness", pbr);
+        return material;
     }
 
     private static double[] vectors(Document document, int index, int expected) {
@@ -515,18 +588,29 @@ public final class Gltf {
                 continue;
             }
             List<double[]> points = new ArrayList<>();
+            List<double[]> facing = part.normals == null ? null : new ArrayList<>();
             int[] order = new int[part.count() * 3];
             Map<String, Integer> byPoint = new LinkedHashMap<>();
             for (int i = 0; i < order.length; i++) {
                 double x = part.triangles[i * 3];
                 double y = part.triangles[i * 3 + 1];
                 double z = part.triangles[i * 3 + 2];
+                // Two triangles meeting at a hard edge share the point and not the normal, so the
+                // normal is part of what makes a vertex: sharing it would average the fold away.
                 String key = x + "," + y + "," + z;
+                if (part.normals != null) {
+                    key = key + ";" + part.normals[i * 3] + "," + part.normals[i * 3 + 1] + ","
+                            + part.normals[i * 3 + 2];
+                }
                 Integer at = byPoint.get(key);
                 if (at == null) {
                     at = points.size();
                     byPoint.put(key, at);
                     points.add(new double[] {x, y, z});
+                    if (facing != null) {
+                        facing.add(
+                                new double[] {part.normals[i * 3], part.normals[i * 3 + 1], part.normals[i * 3 + 2]});
+                    }
                 }
                 order[i] = at;
             }
@@ -567,15 +651,37 @@ public final class Gltf {
             index.addProperty("count", order.length);
             index.addProperty("type", "SCALAR");
             accessors.add(index);
+            // Named rather than reached for as the last one: the normals go in after this.
+            int indexIndex = accessors.size() - 1;
+
+            Integer normalIndex = null;
+            if (facing != null) {
+                ByteBuffer normals = ByteBuffer.allocate(facing.size() * 12).order(ByteOrder.LITTLE_ENDIAN);
+                for (double[] one : facing) {
+                    for (int axis = 0; axis < 3; axis++) {
+                        normals.putFloat((float) one[axis]);
+                    }
+                }
+                JsonObject normal = new JsonObject();
+                normal.addProperty("bufferView", view(views, blob, normals.array(), ARRAY_BUFFER));
+                normal.addProperty("componentType", FLOAT);
+                normal.addProperty("count", facing.size());
+                normal.addProperty("type", "VEC3");
+                accessors.add(normal);
+                normalIndex = accessors.size() - 1;
+            }
 
             JsonObject attributes = new JsonObject();
             attributes.addProperty("POSITION", positionIndex);
+            if (normalIndex != null) {
+                attributes.addProperty("NORMAL", normalIndex);
+            }
             JsonObject primitive = new JsonObject();
             primitive.add("attributes", attributes);
-            primitive.addProperty("indices", accessors.size() - 1);
+            primitive.addProperty("indices", indexIndex);
             primitive.addProperty("mode", TRIANGLES);
-            if (part.colour != null) {
-                primitive.addProperty("material", materialIndex(materials, materialFor, part.colour));
+            if (part.material != null) {
+                primitive.addProperty("material", materialIndex(materials, materialFor, part.material));
             }
             JsonObject mesh = new JsonObject();
             mesh.addProperty("name", part.name);
@@ -663,26 +769,33 @@ public final class Gltf {
         return views.size() - 1;
     }
 
-    private static int materialIndex(JsonArray materials, Map<String, Integer> known, String colour) {
-        Integer had = known.get(colour);
+    private static int materialIndex(JsonArray materials, Map<String, Integer> known, JsonObject material) {
+        // We carry no images, so a material that paints with one would name a texture that is not
+        // there. Better to refuse than to write a model that draws untextured and says nothing.
+        for (String named : TEXTURE_FIELDS) {
+            if (names(material, named)) {
+                throw new NotGltf("material " + material + " names a " + named + ", and this carries no textures");
+            }
+        }
+        String key = material.toString();
+        Integer had = known.get(key);
         if (had != null) {
             return had;
         }
-        JsonArray factor = new JsonArray();
-        for (int i = 1; i < 7; i += 2) {
-            factor.add(Integer.parseInt(colour.substring(i, i + 2), 16) / 255.0);
-        }
-        factor.add(1.0);
-        JsonObject pbr = new JsonObject();
-        pbr.add("baseColorFactor", factor);
-        pbr.addProperty("metallicFactor", 0.0);
-        pbr.addProperty("roughnessFactor", 0.7);
-        JsonObject material = new JsonObject();
-        material.addProperty("name", colour);
-        material.add("pbrMetallicRoughness", pbr);
         materials.add(material);
-        known.put(colour, materials.size() - 1);
+        known.put(key, materials.size() - 1);
         return materials.size() - 1;
+    }
+
+    private static final List<String> TEXTURE_FIELDS = List.of(
+            "baseColorTexture", "metallicRoughnessTexture", "normalTexture", "occlusionTexture", "emissiveTexture");
+
+    private static boolean names(JsonObject material, String field) {
+        if (material.has(field)) {
+            return true;
+        }
+        JsonObject pbr = material.has("pbrMetallicRoughness") ? material.getAsJsonObject("pbrMetallicRoughness") : null;
+        return pbr != null && pbr.has(field);
     }
 
     private static Integer branch(

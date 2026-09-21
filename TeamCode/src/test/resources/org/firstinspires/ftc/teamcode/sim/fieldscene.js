@@ -76,6 +76,8 @@ export class FieldScene {
     this.scene.add(this.tiles);
 
     this.field = null;
+    this.pieceModels = null;
+    this.guessedNormals = false;
     this.loaded = null;
     this.model = null;
     this.movingBalls = [];
@@ -89,6 +91,7 @@ export class FieldScene {
 
   load(model) {
     const file = model || NORMAL_MODEL;
+    this.guessedNormals = false;
     return new Promise((resolve, reject) => {
       new GLTFLoader().load(this.assets + file, (gltf) => {
         let meshes = 0;
@@ -103,11 +106,16 @@ export class FieldScene {
           object.castShadow = true;
           object.receiveShadow = true;
 
+          // The cheap model carries neither normals nor the CAD's materials, so the page supplies
+          // both -- a computed normal averages across every face a vertex touches, which rounds off
+          // the sharp edges, and these two numbers are what it has always painted the field with.
+          // The full one carries what the CAD drew, and nothing here paints over it.
           if (!object.geometry.attributes.normal) {
             object.geometry.computeVertexNormals();
+            object.material.roughness = 0.62;
+            object.material.metalness = 0.05;
+            this.guessedNormals = true;
           }
-          object.material.roughness = 0.62;
-          object.material.metalness = 0.05;
 
           if (TAPE.test(object.name)) {
             object.position.z += TAPE_Z;
@@ -120,6 +128,12 @@ export class FieldScene {
         });
 
         gltf.scene.updateMatrixWorld(true);
+        // The simulator says where every piece is each tick, so pieces have to be objects the page
+        // can move -- which the batched field is not. Out of the full model, keep one of each kind
+        // as it came from the CAD and clone that rather than drawing a sphere where a pollen ball
+        // should be; out of the cheap one, whose pollen is snapped and flat-shaded, a sphere draws
+        // it better and cheaper.
+        this.pieceModels = this.guessedNormals ? new Map() : pieceModelsIn(gltf.scene);
         const reached = new THREE.Box3().setFromObject(gltf.scene);
 
         const batched = this.#batchByMaterial(gltf.scene);
@@ -280,10 +294,21 @@ export class FieldScene {
     this.scene.background = new THREE.Color(colour);
   }
 
+  // The CAD's own piece where there is one, and a sphere only where there is not -- a model with no
+  // pieces in it still has to draw them. The shape is the CAD's; the colour is the simulator's,
+  // because which alliance a nectar belongs to is not something the one CAD nectar can say.
   #ball(piece) {
-    const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(piece.radius, 20, 14),
-        new THREE.MeshStandardMaterial({ color: new THREE.Color(piece.colour), roughness: 0.55 }));
+    const model = this.pieceModels && this.pieceModels.get(kindOfPiece(piece));
+    const ball = model
+        ? new THREE.Mesh(model.geometry, new THREE.MeshStandardMaterial({
+          color: new THREE.Color(piece.colour), roughness: model.roughness, metalness: model.metalness }))
+        : new THREE.Mesh(
+            new THREE.SphereGeometry(piece.radius, 20, 14),
+            new THREE.MeshStandardMaterial({ color: new THREE.Color(piece.colour), roughness: 0.55 }));
+    if (model) {
+      ball.scale.setScalar(piece.radius / model.radius);
+    }
+    ball.userData.fromTheModel = !!model;
     ball.castShadow = true;
     ball.userData.radius = piece.radius;
     this.scene.add(ball);
@@ -433,6 +458,37 @@ function trianglesIn(geometry) {
 
 function colourOf(material) {
   return material.name || '#' + material.color.getHexString();
+}
+
+// A piece of the model, centred on itself so the page can put it where the simulator says.
+function pieceModelsIn(root) {
+  const models = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh || !GAME_PIECE.test(o.name)) {
+      return;
+    }
+    const kind = kindOf(o.name);
+    if (models.has(kind)) {
+      return;
+    }
+    const geometry = o.geometry.clone();
+    geometry.computeBoundingSphere();
+    const middle = geometry.boundingSphere.center.clone();
+    geometry.translate(-middle.x, -middle.y, -middle.z);
+    geometry.computeBoundingSphere();
+    models.set(kind, {
+      geometry: geometry,
+      radius: geometry.boundingSphere.radius,
+      roughness: o.material.roughness,
+      metalness: o.material.metalness
+    });
+  });
+  return models;
+}
+
+function kindOfPiece(piece) {
+  const seen = GAME_PIECE.exec(piece.kind || '');
+  return seen ? seen[0].toLowerCase() : '';
 }
 
 function kindOf(name) {

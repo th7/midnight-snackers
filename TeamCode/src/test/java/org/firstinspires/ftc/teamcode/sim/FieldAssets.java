@@ -20,19 +20,21 @@ public final class FieldAssets {
     public static final String EXPORT_FILE = "export.gltf";
 
     public enum Detail {
-        NORMAL("normal", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW),
-        FULL("full", "field-full.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART);
+        NORMAL("normal", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.A_COLOUR_APIECE),
+        FULL("full", "field-full.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART, FieldGlb.Shading.AS_THE_CAD_DREW_IT);
 
         public final String asked;
         public final String file;
         public final double grid;
         public final FieldGlb.Keep keep;
+        public final FieldGlb.Shading shading;
 
-        Detail(String asked, String file, double grid, FieldGlb.Keep keep) {
+        Detail(String asked, String file, double grid, FieldGlb.Keep keep, FieldGlb.Shading shading) {
             this.asked = asked;
             this.file = file;
             this.grid = grid;
             this.keep = keep;
+            this.shading = shading;
         }
     }
 
@@ -135,7 +137,9 @@ public final class FieldAssets {
                                 + "Onshape first; the build is then under a second."));
         Map<String, byte[]> built = new LinkedHashMap<>();
         for (Detail detail : details) {
-            built.put(detail.file, FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, detail.grid, detail.keep));
+            built.put(
+                    detail.file,
+                    FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, detail.grid, detail.keep, detail.shading));
         }
         return writeAll(store, into, built);
     }

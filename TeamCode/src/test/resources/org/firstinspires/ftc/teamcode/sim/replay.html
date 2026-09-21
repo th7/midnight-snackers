@@ -1195,6 +1195,13 @@ __IMPORTMAP__
     get field() { return solid && solid.field; },
     get floorZ() { return solid ? solid.floor.position.z : null; },
     get fieldPlaneZ() { return solid ? solid.fieldPlaneZ : null; },
+    get guessedNormals() { return solid ? solid.guessedNormals : null; },
+    get pieces() {
+      return solid
+        ? { drawn: solid.movingBalls.length,
+            fromTheModel: solid.movingBalls.filter((b) => b.userData.fromTheModel).length }
+        : null;
+    },
     get orbit() {
       return solid ? { near: solid.camera.near, maxDistance: solid.controls.maxDistance, fieldIn: FIELD_IN } : null;
     },

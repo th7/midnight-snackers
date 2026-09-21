@@ -176,6 +176,141 @@ public class GltfTest {
         assertEquals(2.0, placed[1], 1e-9);
     }
 
+    // A flat-shaded field is not what the CAD looks like. The export carries a normal for every
+    // vertex -- which edges are sharp and which are smooth is the CAD's to say, not ours to guess --
+    // so the pipeline has to carry them through rather than leave the page to compute its own.
+    @Test
+    public void normalsSurviveAWriteAndARead() {
+        double[] up = {0, 0, 1, 0, 0, 1, 0, 0, 1};
+        Gltf.Part part = new Gltf.Part("Lid", List.of("Lid"), ONE_TRIANGLE, up, null);
+
+        List<Gltf.Part> back = Gltf.read(Gltf.write(List.of(part)));
+
+        assertArrayAlmostEquals(up, back.get(0).normals);
+    }
+
+    @Test
+    public void aPartWithNoNormalsStillReadsAndWrites() {
+        List<Gltf.Part> back = Gltf.read(Gltf.write(List.of(part(ONE_TRIANGLE))));
+
+        assertNull("nothing invents a normal the export did not carry", back.get(0).normals);
+    }
+
+    @Test
+    public void aNodesRotationTurnsItsNormalsWithIt() {
+        JsonObject node = new JsonObject();
+        JsonArray rotation = new JsonArray();
+        // a quarter turn about z: x becomes y
+        for (double value : new double[] {0, 0, Math.sin(Math.PI / 4), Math.cos(Math.PI / 4)}) {
+            rotation.add(value);
+        }
+        node.add("rotation", rotation);
+
+        double[] normals = readBackUnder(node, new double[] {1, 0, 0, 1, 0, 0, 1, 0, 0}).normals;
+
+        assertEquals("x turns into y", 0.0, normals[0], 1e-6);
+        assertEquals(1.0, normals[1], 1e-6);
+        assertEquals(0.0, normals[2], 1e-6);
+    }
+
+    @Test
+    public void aNodesScaleLeavesItsNormalsUnitLength() {
+        JsonObject node = new JsonObject();
+        JsonArray scale = new JsonArray();
+        for (double value : new double[] {4, 4, 4}) {
+            scale.add(value);
+        }
+        node.add("scale", scale);
+
+        double[] normals = readBackUnder(node, new double[] {0, 0, 1, 0, 0, 1, 0, 0, 1}).normals;
+
+        assertEquals("a normal says which way, never how big", 1.0, normals[2], 1e-6);
+    }
+
+    @Test
+    public void twoTrianglesMeetingAtAHardEdgeKeepTheirOwnNormals() {
+        // The same three points twice, facing two ways: a fold. Sharing the vertices would average
+        // the fold away, which is exactly the rounding-off the page used to do for itself.
+        double[] twice = new double[18];
+        System.arraycopy(ONE_TRIANGLE, 0, twice, 0, 9);
+        System.arraycopy(ONE_TRIANGLE, 0, twice, 9, 9);
+        double[] facingTwoWays = {0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0};
+
+        List<Gltf.Part> back =
+                Gltf.read(Gltf.write(List.of(new Gltf.Part("Fold", List.of("Fold"), twice, facingTwoWays, null))));
+
+        assertArrayAlmostEquals(facingTwoWays, back.get(0).normals);
+    }
+
+    @Test
+    public void theWholeMaterialSurvivesRatherThanItsColourAlone() {
+        JsonObject pbr = new JsonObject();
+        JsonArray factor = new JsonArray();
+        for (double value : new double[] {1, 0, 0, 0.5}) {
+            factor.add(value);
+        }
+        pbr.add("baseColorFactor", factor);
+        pbr.addProperty("metallicFactor", 0.9);
+        pbr.addProperty("roughnessFactor", 0.2);
+        JsonObject material = new JsonObject();
+        material.addProperty("name", "Anodised red");
+        material.add("pbrMetallicRoughness", pbr);
+        material.addProperty("alphaMode", "BLEND");
+        material.addProperty("doubleSided", true);
+
+        List<Gltf.Part> back =
+                Gltf.read(Gltf.write(List.of(new Gltf.Part("Bar", List.of("Bar"), ONE_TRIANGLE, null, material))));
+
+        assertEquals("the CAD's own material, not a colour we boiled it down to", material, back.get(0).material);
+        assertEquals("#ff0000", back.get(0).colour);
+    }
+
+    @Test
+    public void twoPartsOfOneMaterialStillShareIt() {
+        JsonObject material = Gltf.colouredMaterial("#0000ff");
+        byte[] glb = Gltf.write(List.of(
+                new Gltf.Part("A", List.of("A"), ONE_TRIANGLE, null, material),
+                new Gltf.Part("B", List.of("B"), ONE_TRIANGLE, null, material)));
+
+        JsonObject document = new Gson().fromJson(jsonChunkOf(glb), JsonObject.class);
+
+        assertEquals(1, document.getAsJsonArray("materials").size());
+    }
+
+    @Test
+    public void aMaterialThatNamesATextureIsRefused() {
+        JsonObject pbr = new JsonObject();
+        JsonObject texture = new JsonObject();
+        texture.addProperty("index", 0);
+        pbr.add("baseColorTexture", texture);
+        JsonObject material = new JsonObject();
+        material.add("pbrMetallicRoughness", pbr);
+
+        Gltf.NotGltf refused = assertThrows(
+                Gltf.NotGltf.class,
+                () -> Gltf.write(List.of(new Gltf.Part("Skin", List.of("Skin"), ONE_TRIANGLE, null, material))));
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains("texture"));
+    }
+
+    private static Gltf.Part readBackUnder(JsonObject node, double[] normals) {
+        byte[] glb = Gltf.write(List.of(new Gltf.Part("Part", List.of("Part"), ONE_TRIANGLE, normals, null)));
+        JsonObject document = new Gson().fromJson(jsonChunkOf(glb), JsonObject.class);
+        JsonObject leaf = document.getAsJsonArray("nodes").get(0).getAsJsonObject();
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> one : node.entrySet()) {
+            leaf.add(one.getKey(), one.getValue());
+        }
+        document.getAsJsonArray("buffers")
+                .get(0)
+                .getAsJsonObject()
+                .addProperty(
+                        "uri",
+                        "data:application/octet-stream;base64,"
+                                + java.util.Base64.getEncoder().encodeToString(binaryChunkOf(glb)));
+        return Gltf.read(new Gson().toJson(document).getBytes(StandardCharsets.UTF_8))
+                .get(0);
+    }
+
     @Test
     public void aBaseColourBecomesAHexString() {
         Gltf.Part red = new Gltf.Part("Red", List.of("Red"), ONE_TRIANGLE, "#ff0000");
