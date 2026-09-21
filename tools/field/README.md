@@ -200,7 +200,7 @@ asked of it in the query string:
 
     ?view=camera   what the robot's webcam would have seen
     ?view=flat     the flat drawing of what the simulator collides
-    ?cost          what a frame costs to draw
+    ?cost          what a frame costs to draw (the box under the field)
     ?resolution=   low or medium, for less than the high it draws at by default
 
 The dashboard passes these through, so `#simulate?resolution=low` reaches the

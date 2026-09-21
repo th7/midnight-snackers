@@ -75,6 +75,9 @@ __IMPORTMAP__
   canvas[hidden] { display: none; }
   .field-msg { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
   .field-msg a { color: var(--accent); }
+  .field-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .field-controls label { display: flex; align-items: center; gap: 6px; }
+  .field-controls select { padding: 4px 10px; }
 
   #placement { display: grid; gap: 10px; }
   #placement label { display: grid; grid-template-columns: 6ch 1fr 3ch; gap: 8px; align-items: center; color: var(--muted); }
@@ -120,6 +123,7 @@ __IMPORTMAP__
     <p class="sub" id="outcome"></p>
     <canvas id="field" width="720" height="500"></canvas>
     <canvas id="solid" width="720" height="500" hidden></canvas>
+    <p class="field-controls" id="field-controls"></p>
     <p class="field-msg" id="field-msg"></p>
     <div class="legend">
       <span><i style="background: var(--true)"></i>true pose (only the simulator knows this)</span>
@@ -234,39 +238,66 @@ __IMPORTMAP__
   const solidCanvas = document.getElementById('solid');
   const fieldMsg = document.getElementById('field-msg');
 
-  // Which field you are looking at is a thing to change while looking at it, rather than a sentence
-  // about what somebody put in a query string. The choice is the query string, so choosing is a
-  // navigation like the flat drawing beside it; what else was asked of the page -- the view it is in,
-  // the cost probe -- goes along, since picking a resolution is not a reason to lose them.
-  function showTheResolutionChoice(chosen, fellBackSaying) {
-    fieldMsg.textContent = '';
+  // What you are looking at is a thing to change while looking at it, rather than a sentence about
+  // what somebody put in a query string. One control for all of it: the colliders the simulator
+  // works in, and then the three resolutions of the field as it looks, cheapest first. Choosing is a
+  // navigation, and what else was asked of the page goes along, since picking one of these is not a
+  // reason to lose the rest. The controls sit apart from the messages because a cost reading, or a
+  // model that would not load, writes over the message and must not write over the controls.
+  const fieldControls = document.getElementById('field-controls');
+  const COLLIDERS = 'colliders';
+
+  function goTo(change) {
+    const going = new URLSearchParams(location.search);
+    change(going);
+    location.search = going.toString();
+  }
+
+  function showTheFieldControls(showing) {
+    fieldControls.textContent = '';
     const label = document.createElement('label');
-    label.append('Resolution ');
+    label.append('Drawn as ');
     const select = document.createElement('select');
     select.id = 'resolution';
-    for (const one of ['low', 'medium', 'high']) {
+    for (const one of [COLLIDERS, 'low', 'medium', 'high']) {
       const option = document.createElement('option');
       option.value = one;
       option.textContent = one;
-      option.selected = one === chosen;
+      option.selected = one === showing;
       select.append(option);
     }
-    select.addEventListener('change', () => {
-      const going = new URLSearchParams(location.search);
+    select.addEventListener('change', () => goTo(going => {
+      if (select.value === COLLIDERS) {
+        going.set('view', 'flat');
+        return;
+      }
       going.set('resolution', select.value);
-      location.search = going.toString();
-    });
+      if (going.get('view') === 'flat') {
+        going.delete('view');
+      }
+    }));
     label.append(select);
-    fieldMsg.append(label);
-    if (fellBackSaying) {
-      fieldMsg.append(' ' + fellBackSaying + ' ');
-    } else {
-      fieldMsg.append(' ');
-    }
-    const flat = document.createElement('a');
-    flat.href = '?view=flat';
-    flat.textContent = 'Draw what the simulator collides';
-    fieldMsg.append(flat, ' instead.');
+    fieldControls.append(label);
+
+    // Nothing to measure in the colliders: they are drawn on a 2D canvas, with no renderer to ask.
+    const measuring = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.id = 'measure-cost';
+    box.checked = asked.has('cost');
+    box.disabled = showing === COLLIDERS;
+    box.addEventListener('change', () => goTo(going => {
+      if (box.checked) {
+        going.set('cost', '');
+      } else {
+        going.delete('cost');
+      }
+    }));
+    measuring.append(box, 'measure rendering cost');
+    measuring.title = showing === COLLIDERS
+      ? 'The colliders are drawn without a renderer, so there is no frame to measure.'
+      : 'Time a frame of this model, and count what it draws.';
+    fieldControls.append(measuring);
   }
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -1116,7 +1147,8 @@ __IMPORTMAP__
     if (fellBack) {
       fieldProblem = 'The field at ' + askedFor + ' resolution has not been built, so this is the low one.';
     }
-    showTheResolutionChoice(askedFor, fellBack ? fieldProblem : '');
+    showTheFieldControls(askedFor);
+    fieldMsg.textContent = fellBack ? fieldProblem : '';
     const { theGoalTags, theWebcamsView } = await import(ASSETS + 'webcam.js');
     tags = theGoalTags(view, Object.assign({}, FIELD, { robotIn: ROBOT_IN }), ASSETS,
                        why => { fieldProblem = why; fieldMsg.textContent = why; });
@@ -1192,6 +1224,11 @@ __IMPORTMAP__
   }
 
   if (ASSETS === null || placing || wanted === 'flat') {
+    // The colliders, either because they were asked for or because this page carries no model at
+    // all. Only the first of those is a choice, so only the first offers the control to change it.
+    if (wanted === 'flat' && ASSETS !== null && !placing) {
+      showTheFieldControls(COLLIDERS);
+    }
     settled = true;
   } else {
     drawTheFieldModel()
