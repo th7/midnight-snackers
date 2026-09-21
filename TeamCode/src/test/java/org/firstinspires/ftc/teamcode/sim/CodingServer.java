@@ -221,12 +221,13 @@ public final class CodingServer {
             int userPort,
             Path stateDir,
             int scryptN,
-            Assets assets) {
+            Assets assets,
+            Git git) {
         this.scryptN = scryptN;
         this.assets = assets;
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
-        this.worktrees = new Worktrees(this.root, this.stateDir, "git");
+        this.worktrees = new Worktrees(this.root, this.stateDir, git);
         this.benches = benches;
         loadSessions();
         this.editable = new EditableSet(this.root, stateDir.resolve(EDITABLE_FILE));
@@ -260,8 +261,36 @@ public final class CodingServer {
             Path stateDir,
             int scryptN,
             Assets assets) {
+        return start(
+                root,
+                benches,
+                adminBind,
+                adminPort,
+                userPort,
+                stateDir,
+                scryptN,
+                assets,
+                new RealGit("git", root.toAbsolutePath().normalize()));
+    }
+
+    /**
+     * The whole of it, including which git it works the repository with. What a real git does is
+     * RealGitTest's, over the contract FakeGit passes too, and what worktrees do over a real one is
+     * WorktreesTest's; a test of the server itself need not fork one to ask a question about a
+     * session, a route or a page.
+     */
+    static CodingServer start(
+            Path root,
+            SimBench.Factory benches,
+            InetAddress adminBind,
+            int adminPort,
+            int userPort,
+            Path stateDir,
+            int scryptN,
+            Assets assets,
+            Git git) {
         JavaFormatter.check();
-        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets);
+        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets, git);
     }
 
     static Path stateDir(Map<String, String> env) {

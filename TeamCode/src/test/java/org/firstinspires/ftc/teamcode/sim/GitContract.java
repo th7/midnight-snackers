@@ -53,6 +53,32 @@ public abstract class GitContract {
     }
 
     @Test
+    public void gitSaysWhetherItStillHasAWorktreeSomewhere() throws IOException {
+        started();
+        Path never = folder.newFolder("never-a-worktree").toPath();
+
+        assertFalse("a directory git never made is not a worktree", git.stillAWorktree(never));
+        assertFalse("nor is one that is not there at all", git.stillAWorktree(never.resolve("gone")));
+
+        Path made = worktreeFor("ada");
+
+        assertTrue("one git made is", git.stillAWorktree(made));
+        assertFalse("and the root of the repository is not one of them", git.stillAWorktree(root.resolve("nope")));
+    }
+
+    @Test
+    public void aWorktreeWhoseDirectoryHasGoneIsNoLongerOne() throws IOException {
+        Path made = worktreeFor("bob");
+        assertTrue(git.stillAWorktree(made));
+
+        deleteTree(made);
+
+        assertFalse(
+                "a directory somebody deleted is a worktree to be remade, not one to go on saving into",
+                git.stillAWorktree(made));
+    }
+
+    @Test
     public void aNameGitWouldReadAsAnOptionIsNotABranch() {
         for (String refused : List.of("-q", "--force", "", "a b", "a..b", "a~1", "head:ref")) {
             try {
@@ -203,6 +229,24 @@ public abstract class GitContract {
 
         assertTrue(merged.said, merged.ok);
         assertEquals(List.of("ada.txt"), git.filesChangedBetween(was, git.head(bob)));
+    }
+
+    @Test
+    public void filesChangedBetweenTakesTheTreeAMergeWouldMakeAsWellAsACommit() throws IOException {
+        Path ada = worktreeFor("ada");
+        Path bob = worktreeFor("bob");
+        write(ada, "ada.txt", "ada's file");
+        git.stageEverything(ada);
+        git.commitStaged(ada, ADA, "ada");
+
+        Git.MergeTree would = git.mergeTree(git.head(bob), git.head(ada));
+
+        assertFalse(would.conflicted());
+        assertEquals(
+                "a pull asks what a merge would bring before it makes it, and what it has to ask"
+                        + " about is the tree the merge would have, which is not a commit yet",
+                List.of("ada.txt"),
+                git.filesChangedBetween(git.head(bob), would.tree));
     }
 
     @Test

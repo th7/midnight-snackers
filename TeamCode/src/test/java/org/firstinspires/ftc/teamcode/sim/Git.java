@@ -197,6 +197,13 @@ public interface Git {
 
     Outcome moveBranch(Branch branch, Revision to, Revision from);
 
+    /**
+     * Whether git still has a worktree at that path. Whoever keeps worktrees has to know when one
+     * has gone, and that is git's answer rather than a guess at what git leaves on disk: asked of
+     * the filesystem, it is a question only one implementation can be right about.
+     */
+    boolean stillAWorktree(Path at);
+
     void pruneWorktrees();
 
     void addWorktree(Path at, Branch existing);

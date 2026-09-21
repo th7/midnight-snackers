@@ -246,7 +246,7 @@ public final class Worktrees {
     public synchronized Worktree ensure(String username) {
         Worktree existing = byUsername.get(username);
         if (existing != null) {
-            if (Files.isDirectory(existing.path) && Files.exists(existing.path.resolve(".git"))) {
+            if (git.stillAWorktree(existing.path)) {
                 return existing;
             }
             git.pruneWorktrees();

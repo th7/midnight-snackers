@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -154,6 +155,13 @@ public final class RealGit implements Git {
     public Outcome moveBranch(Branch branch, Revision to, Revision from) {
         Ran ran = ran(root, SECONDS, "update-ref", branch.tip().text(), to.text(), from.text());
         return ran.exit == 0 ? Outcome.done() : Outcome.refused(ran.said());
+    }
+
+    @Override
+    public boolean stillAWorktree(Path at) {
+        // git's own marker for one, which is what it leaves in a worktree directory and nowhere
+        // else. Reading it is this adapter's business, which is why the question lives here.
+        return Files.isDirectory(at) && Files.exists(at.resolve(".git"));
     }
 
     @Override
