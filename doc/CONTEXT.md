@@ -510,7 +510,9 @@ on the host.
 
 **State directory** — Where the coding server keeps what outlives the
 process: `sessions.json`, `editable.json`, `worktrees.json` (username to
-slug, path, and branch, per project root), and the worktrees themselves.
+slug, path, and branch, per project root), `settings.json` (what the admin
+set, which so far is the **resolution** the pages draw), the assets it
+fetched, and the worktrees themselves.
 It follows the XDG Base Directory convention:
 `$XDG_STATE_HOME/midnight-snackers/coding-server`, else
 `~/.local/state/midnight-snackers/coding-server`. Owner-only. Session
@@ -789,8 +791,8 @@ adding ticks, and drawing the **field scene** rather than the flat drawing. It
 is the *only* page that draws the field: what used to be a second page at
 `/sim/field` is retired, and what it could do the live view is asked for in
 its query string — `?view=camera` for the **webcam's view**, `?view=flat` for
-the flat drawing, `?cost` for **what a frame costs**, `?resolution=low|medium`
-for less than the **resolution** it draws at by default. The dashboard passes
+the flat drawing, `?cost` for **what a frame costs**, `?resolution=low|medium|high`
+for another than the **resolution** it draws by default. The dashboard passes
 them through, so `#simulate?resolution=low` reaches the view it embeds. All of
 it is also **under the field**, because what you are looking at is a thing to
 change while looking at it rather than a sentence about what somebody put in a
@@ -970,7 +972,10 @@ and not another download. **Refresh** is still there and is the two in one,
 which is what a server with nothing fetched runs at startup. At
 `POST /admin/assets/download`, `POST /admin/assets/build?resolution=…` and
 `POST /admin/assets/refresh?resolution=…`, with a button apiece on the admin
-page.
+page, and `POST /admin/assets/default?resolution=…` for the **resolution the
+pages draw**. A build asked for no resolution in particular builds that one,
+and so does the startup fetch: a server set to draw the cheap model does not
+fetch the dear one for nobody to look at.
 
 **Resolution** — Which field a page draws, in three steps, each adding one
 thing to the one below it:
@@ -988,10 +993,17 @@ let go of, and the jump in bytes is **normals**. **High** adds back every part
 the export holds, which is the two thirds of the assembly that holds the field
 together and that nothing draws once the field is up.
 
-**High is what a page draws** unless its query string says `?resolution=low`
-or `medium`: a field that does not look like the field is the thing worth
-avoiding, and whoever cannot afford it is the one who knows that. A page that
-asks for one nobody built draws the low one **and says on the page that it
+**Which one a page draws when it asks for none is the admin's**: *Pages draw*
+on the admin page, kept with the rest of the server's state so a restart draws
+what was set. It is **high** until somebody sets another — a field that does
+not look like the field is the thing worth avoiding, and whoever cannot afford
+it is the one who knows that — and a query string still says otherwise for one
+page with `?resolution=low`, `medium` or `high`. The setting reaches the pages
+as the one line they import for it, `field-default.js`: a coding server writes
+that line from the setting, every other server serves the copy committed beside
+the models, and the line is `FieldAssets`' to write either way, so what a page
+draws and what a server builds cannot drift apart by being said twice. A page
+that asks for one nobody built draws the low one **and says on the page that it
 fell back** — which, on a server that has built nothing, is every page, said
 out loud rather than quietly. The **build** makes any of them, or `all`, from
 one **export**, and keeps them side by side, so changing resolution on a

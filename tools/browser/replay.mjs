@@ -23,6 +23,9 @@ const ROBOT_IN = 18;
 const WALL_IN = 12.2;
 const NAME = 'ReplayCheckAuto';
 const ASSETS = '../../assets/';
+// The one line a server gets to say about what a page draws when nobody asks for a resolution by
+// name: the admin page's setting, served as an asset like the models it names.
+const DEFAULT_ASSET = 'field-default.js';
 
 const wrong = [];
 function check(ok, saying) {
@@ -94,7 +97,11 @@ function served(page, live, ticks) {
       return;
     }
     const withoutModel = asked.startsWith('/nomodel/');
+    // A coding server whose admin set the default to low serves that one line; everything else it
+    // serves is the same. Which is all the page has to go on, and all this has to stand in for.
+    const toldToDrawLow = asked.startsWith('/default-low/');
     const relative = withoutModel ? asked.slice('/nomodel'.length)
+        : toldToDrawLow ? asked.slice('/default-low'.length)
         : asked.startsWith('/live/') ? asked.slice('/live'.length) : asked;
     if (relative === '/runs/1/') {
       response.writeHead(200, { 'Content-Type': TYPES['.html'] });
@@ -102,6 +109,11 @@ function served(page, live, ticks) {
       return;
     }
     const asset = relative.startsWith('/assets/') ? relative.slice('/assets/'.length) : null;
+    if (toldToDrawLow && asset === DEFAULT_ASSET) {
+      response.writeHead(200, { 'Content-Type': TYPES['.js'] });
+      response.end("export const DEFAULT_RESOLUTION = 'low';\n");
+      return;
+    }
     const file = asset && path.resolve(sim, asset);
     if (!file || !file.startsWith(path.resolve(sim)) || !fs.existsSync(file)
         || (withoutModel && asset === 'field.glb')) {
@@ -357,6 +369,25 @@ async function theCostIsMeasuredWhenTheBoxIsTicked(browser, base) {
   }
 }
 
+// What a page draws when its query string names no resolution is the admin page's setting, and it
+// reaches the page as one served line rather than as something the page decided for itself. So a
+// page served by a server whose admin set low draws low: no query string, nothing to fall back from
+// -- low being the committed model -- and the selector saying the same thing the server did.
+async function thePageDrawsTheResolutionTheServerSetsAsDefault(browser, base) {
+  const { open, threw } = await opened(browser, `${base}/default-low/runs/1/`);
+  try {
+    const panels = await readPanels(open);
+    const drawn = await open.locator('#resolution').inputValue();
+    check(faults(threw).length === 0, `a page told to draw low threw: ${faults(threw).join('; ')}`);
+    check(panels.drawing === 'solid', `the page drew the ${panels.drawing} field: ${panels.problem}`);
+    check(!/has not been built/.test(panels.problem || ''),
+          `low is the committed model, so a page told to draw it fell back from nothing: "${panels.problem}"`);
+    check(drawn === 'low', `the server said low and the page drew ${drawn}`);
+  } finally {
+    await open.close();
+  }
+}
+
 // High is what a page asks for when it asks for nothing, and CI has fetched nothing -- so this is
 // also the check that the default is high, and that a server which has not built it still draws.
 async function theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, asked, file) {
@@ -455,6 +486,7 @@ async function main() {
     await theResolutionIsChosenOnThePage(browser, base);
     await theCollidersAreTheFirstThingTheSameControlOffers(browser, base);
     await theCostIsMeasuredWhenTheBoxIsTicked(browser, base);
+    await thePageDrawsTheResolutionTheServerSetsAsDefault(browser, base);
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '', 'field-high.glb');
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '?resolution=medium', 'field-medium.glb');
     await theFlatDrawingIsStillThereToAskFor(browser, base);

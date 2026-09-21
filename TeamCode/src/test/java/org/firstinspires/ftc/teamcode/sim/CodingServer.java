@@ -53,6 +53,7 @@ public final class CodingServer {
 
     private static final String SESSIONS_FILE = "sessions.json";
     private static final String EDITABLE_FILE = "editable.json";
+    private static final String SETTINGS_FILE = "settings.json";
     private static final String ASSETS_DIR = "assets";
 
     static final int SCRYPT_N = 1 << 14;
@@ -203,6 +204,14 @@ public final class CodingServer {
     private final EditableSet editable;
 
     private final Path assetsDir;
+
+    /**
+     * Which field this server's pages draw when their query string names none: the admin's to set,
+     * kept with the rest of the state so that a restart draws what was set rather than the built-in
+     * answer, and read by the pages as the one line they import for it.
+     */
+    private volatile FieldAssets.Resolution drawnByDefault = FieldAssets.Resolution.DEFAULT;
+
     private final Store assetStore = new OnDiskStore();
     private final Assets assets;
 
@@ -248,6 +257,7 @@ public final class CodingServer {
         this.worktrees = new Worktrees(this.root, this.stateDir, git);
         this.benches = benches;
         loadSessions();
+        loadSettings();
         this.editable = new EditableSet(this.root, stateDir.resolve(EDITABLE_FILE));
         this.assetsDir = this.stateDir.resolve(ASSETS_DIR);
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
@@ -1046,6 +1056,7 @@ public final class CodingServer {
                 .route("POST", "/admin/assets/download", (request, params) -> downloadAssets())
                 .route("POST", "/admin/assets/build", (request, params) -> buildAssets(request.query("resolution")))
                 .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets(request.query("resolution")))
+                .route("POST", "/admin/assets/default", (request, params) -> drawByDefault(request.query("resolution")))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
                         "POST",
@@ -1058,6 +1069,14 @@ public final class CodingServer {
     }
 
     private Response asset(String name) {
+        // What a page draws by default is this server's answer rather than a file anybody fetched,
+        // so it is written here from the setting rather than served from the assets or the committed
+        // copy -- which are what every server without an admin to ask serves.
+        if (FieldAssets.DEFAULT_RESOLUTION_FILE.equals(name)) {
+            return Response.bytes(
+                    "text/javascript; charset=utf-8",
+                    FieldAssets.defaultResolutionModule(drawnByDefault).getBytes(StandardCharsets.UTF_8));
+        }
         Response fetched = SimAssets.serveUnder(assetsDir, assetStore, name);
         return fetched.status == 200 ? fetched : SimAssets.serve(name);
     }
@@ -1066,22 +1085,22 @@ public final class CodingServer {
         JsonObject out = new JsonObject();
         out.addProperty("under", assetsDir.toString());
         JsonObject held = new JsonObject();
-        for (String name : FieldAssets.everyAsset()) {
+        for (String name : FieldAssets.everyAsset(drawnByDefault)) {
             assetStore.readIfThere(assetsDir.resolve(name)).ifPresent(bytes -> held.addProperty(name, bytes.length));
         }
         out.add("fetched", held);
-        out.addProperty("complete", held.size() == FieldAssets.everyAsset().size());
+        out.addProperty(
+                "complete",
+                held.size() == FieldAssets.everyAsset(drawnByDefault).size());
         out.addProperty(
                 "drawing",
-                held.has(FieldAssets.Resolution.DEFAULT.file)
-                        ? "the model this server fetched"
-                        : "the model committed for tests");
+                held.has(drawnByDefault.file) ? "the model this server fetched" : "the model committed for tests");
         JsonObject resolutions = new JsonObject();
         for (FieldAssets.Resolution one : FieldAssets.Resolution.values()) {
             resolutions.addProperty(one.asked, assetStore.isFile(assetsDir.resolve(one.file)));
         }
         out.add("resolution", resolutions);
-        out.addProperty("defaultResolution", FieldAssets.Resolution.DEFAULT.asked);
+        out.addProperty("defaultResolution", drawnByDefault.asked);
         out.addProperty("downloaded", assetStore.isFile(assetsDir.resolve(FieldAssets.EXPORT_FILE)));
         return out;
     }
@@ -1093,7 +1112,7 @@ public final class CodingServer {
     private Response buildAssets(String resolution) {
         List<FieldAssets.Resolution> resolutions;
         try {
-            resolutions = FieldAssets.resolutionsNamed(resolution);
+            resolutions = FieldAssets.resolutionsNamed(resolution, drawnByDefault);
         } catch (FieldAssets.NotAnAsset wrong) {
             return Response.error(400, wrong.getMessage());
         }
@@ -1103,7 +1122,7 @@ public final class CodingServer {
     private Response refreshAssets(String resolution) {
         List<FieldAssets.Resolution> resolutions;
         try {
-            resolutions = FieldAssets.resolutionsNamed(resolution);
+            resolutions = FieldAssets.resolutionsNamed(resolution, drawnByDefault);
         } catch (FieldAssets.NotAnAsset wrong) {
             return Response.error(400, wrong.getMessage());
         }
@@ -1133,7 +1152,7 @@ public final class CodingServer {
     }
 
     boolean hasFetchedAssets() {
-        return assetStore.isFile(assetsDir.resolve(FieldAssets.Resolution.DEFAULT.file));
+        return assetStore.isFile(assetsDir.resolve(drawnByDefault.file));
     }
 
     void refreshAssetsInTheBackground() {
@@ -1142,8 +1161,7 @@ public final class CodingServer {
                     try {
                         System.out.println("  assets fetching from Onshape into " + assetsDir);
                         assets.download(assetStore, assetsDir);
-                        System.out.println("  assets "
-                                + assets.build(assetStore, assetsDir, List.of(FieldAssets.Resolution.DEFAULT)));
+                        System.out.println("  assets " + assets.build(assetStore, assetsDir, List.of(drawnByDefault)));
                     } catch (RuntimeException wrong) {
                         System.out.println("  assets not fetched (" + wrong.getMessage()
                                 + "); the pages draw the model committed for tests");
@@ -1412,6 +1430,43 @@ public final class CodingServer {
 
     private static String plural(int count, String one) {
         return count + " " + (count == 1 ? one : one + "s");
+    }
+
+    /**
+     * The resolution the pages draw, set on the admin page. A page that has not built it falls back
+     * and says so, which is the admin page's to say too, so setting one nobody has built yet is
+     * allowed: what it costs is said on the page rather than refused here.
+     */
+    private Response drawByDefault(String resolution) {
+        FieldAssets.Resolution one;
+        try {
+            one = FieldAssets.theOneNamed(resolution);
+        } catch (FieldAssets.NotAnAsset wrong) {
+            return Response.error(400, wrong.getMessage());
+        }
+        drawnByDefault = one;
+        saveSettings();
+        return Response.json(GSON.toJson(assetsFetched()));
+    }
+
+    private void loadSettings() {
+        JsonObject stored = StateStore.load(stateDir.resolve(SETTINGS_FILE));
+        if (stored == null || !stored.has("defaultResolution")) {
+            return;
+        }
+        try {
+            drawnByDefault =
+                    FieldAssets.theOneNamed(stored.get("defaultResolution").getAsString());
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    "could not read the settings in " + stateDir.resolve(SETTINGS_FILE) + ": " + e, e);
+        }
+    }
+
+    private void saveSettings() {
+        JsonObject body = new JsonObject();
+        body.addProperty("defaultResolution", drawnByDefault.asked);
+        StateStore.save(stateDir.resolve(SETTINGS_FILE), body);
     }
 
     private void loadSessions() {

@@ -59,9 +59,10 @@ const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 const thrown = [];
 const failed = [];
 page.on('pageerror', (wrong) => thrown.push(String(wrong && wrong.message ? wrong.message : wrong)));
-// A page asks for the resolution it draws at, which is high, and nothing is built here: so the 404
-// that sends it back down to the committed model is the working case. What must hold is that it drew
-// and that it said which model it drew -- both checked below, not waved through.
+// A page draws the resolution it is told to, which here is what the committed field-default.js
+// says -- high -- and nothing is built here: so the 404 that sends it back down to the committed
+// model is the working case. What must hold is that it drew and that it said which model it drew
+// -- both checked below, not waved through.
 const UNBUILT = /field-(high|medium)\.glb/;
 const faults = () => failed.filter((said) => !UNBUILT.test(said));
 page.on('requestfailed', (request) => failed.push(`${request.url()} (${request.failure()?.errorText})`));
