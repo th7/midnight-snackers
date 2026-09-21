@@ -53,9 +53,15 @@ public class SimBenchTest {
 
     @After
     public void stopBench() {
+        SimBench.Run left = bench == null ? null : bench.current();
         if (bench != null) {
             bench.stop();
         }
+        // See CodingServerTest: a run still going when a test ends leaves the suite spending into the
+        // shutdown that takes its ledger, and the count wobbles by whatever did or did not get away.
+        assertNull(
+                "this test ended with a simulation still running",
+                left == null ? null : left.entry.name + " (" + left.phase() + ")");
     }
 
     private Path outputDir() {

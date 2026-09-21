@@ -25,6 +25,7 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -103,11 +104,7 @@ public class CodingServerTest {
 
     private CodingServer server() {
         if (server == null) {
-            serverWith(worktree -> {
-                SimBench bench = bench();
-                benches.add(bench);
-                return bench;
-            });
+            serverWith(worktree -> bench());
         }
         return server;
     }
@@ -142,9 +139,16 @@ public class CodingServerTest {
         return serverWith(benches, scryptN, refusingToReachOnshape());
     }
 
-    private CodingServer serverWith(SimBench.Factory benches, int scryptN, CodingServer.Assets assets) {
+    private CodingServer serverWith(SimBench.Factory factory, int scryptN, CodingServer.Assets assets) {
+        // Every bench the server makes, however the test asked for it, so the teardown can say whether
+        // any of them was left running.
+        SimBench.Factory recorded = worktree -> {
+            SimBench made = factory.create(worktree);
+            benches.add(made);
+            return made;
+        };
         server = CodingServer.start(
-                root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets, git());
+                root, recorded, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets, git());
         return server;
     }
 
@@ -228,9 +232,27 @@ public class CodingServerTest {
 
     @After
     public void stopServer() {
+        List<String> left = runsStillInFlight();
         if (server != null) {
             server.stop();
         }
+        // The suite writes what it cost from a shutdown hook, and a run performs on a daemon thread.
+        // A test that ends with one still going leaves the suite spending after it: whether that run's
+        // child JVM is started at all, and whether it lands before the ledger is taken, is a race with
+        // the JVM winding down. So the count comes out one short now and then, on the machine that is
+        // slowest that day. A test sees its runs to an outcome, or it is not done.
+        assertEquals("this test ended with a simulation still running", List.of(), left);
+    }
+
+    private List<String> runsStillInFlight() {
+        List<String> left = new ArrayList<>();
+        for (SimBench bench : benches) {
+            SimBench.Run run = bench.current();
+            if (run != null) {
+                left.add(run.entry.name + " (" + run.phase() + ")");
+            }
+        }
+        return left;
     }
 
     @Test
@@ -2976,6 +2998,8 @@ public class CodingServerTest {
         String again = approvedUser("ada");
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Count to three"), again).status);
         assertEquals("she comes back to a bench of her own", 3, benches.size());
+        awaitSimStatus(bob, "\"outcome\":\"timed out");
+        awaitSimStatus(again, "\"outcome\":\"done");
     }
 
     @Test
@@ -2990,6 +3014,7 @@ public class CodingServerTest {
         assertEquals(refused.body, 409, refused.status);
         assertNotNull(benches.get(0).current());
         assertTrue(user("GET", "/sim/status", ada).body.contains("\"running\":true"));
+        awaitSimStatus(ada, "\"outcome\":\"timed out");
     }
 
     @Test
