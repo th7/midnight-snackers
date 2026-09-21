@@ -160,7 +160,7 @@ public class CodingServerTest {
             }
 
             @Override
-            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Resolution> resolutions) {
                 throw new AssertionError("a test built a model it never downloaded an export for");
             }
         };
@@ -187,14 +187,14 @@ public class CodingServerTest {
         }
 
         @Override
-        public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+        public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Resolution> resolutions) {
             builds++;
             if (!store.isFile(into.resolve(FieldAssets.EXPORT_FILE))) {
                 throw new FieldAssets.NothingDownloaded("nothing has been downloaded yet, download first");
             }
             java.util.Map<String, Integer> written = new java.util.LinkedHashMap<>();
-            for (FieldAssets.Detail detail : details) {
-                written.putAll(wrote(store, into, detail.file));
+            for (FieldAssets.Resolution resolution : resolutions) {
+                written.putAll(wrote(store, into, resolution.file));
             }
             return new FieldAssets.Refreshed(written);
         }
@@ -1142,13 +1142,13 @@ public class CodingServerTest {
         String cookie = approvedUser("mia");
 
         Reply refreshed = admin("POST", "/admin/assets/refresh");
-        Reply model = user("GET", "/sim/assets/field.glb", cookie);
+        Reply model = user("GET", "/sim/assets/field-high.glb", cookie);
 
         assertEquals(refreshed.body, 200, refreshed.status);
         assertTrue(refreshed.body, refreshed.body.contains("\"complete\":true"));
         assertTrue(refreshed.body, refreshed.body.contains("the model this server fetched"));
         assertEquals(200, model.status);
-        assertEquals("the fetched model, not the committed one", "fetched field.glb", model.body);
+        assertEquals("the fetched model, not the committed one", "fetched field-high.glb", model.body);
     }
 
     @Test
@@ -1158,7 +1158,7 @@ public class CodingServerTest {
 
         admin("POST", "/admin/assets/refresh");
 
-        assertEquals("fetched field.glb", user("GET", "/sim/assets/field.glb", cookie).body);
+        assertEquals("fetched field-high.glb", user("GET", "/sim/assets/field-high.glb", cookie).body);
         assertEquals(
                 "the tag artwork falls back rather than going missing",
                 200,
@@ -1174,7 +1174,7 @@ public class CodingServerTest {
             }
 
             @Override
-            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
+            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Resolution> resolutions) {
                 throw new AssertionError("a download that never happened must not reach a build");
             }
         });
@@ -1188,25 +1188,25 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theFullModelIsFetchedOnlyWhenItIsAskedFor() throws IOException {
+    public void onlyTheResolutionAskedForIsFetched() throws IOException {
         serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
 
-        Reply normal = admin("POST", "/admin/assets/refresh?detail=normal");
+        Reply normal = admin("POST", "/admin/assets/refresh?resolution=low");
 
         assertEquals(normal.body, 200, normal.status);
-        assertTrue(normal.body, normal.body.contains("\"normal\":true"));
-        assertTrue(normal.body, normal.body.contains("\"full\":false"));
+        assertTrue(normal.body, normal.body.contains("\"low\":true"));
+        assertTrue(normal.body, normal.body.contains("\"high\":false"));
         assertEquals(
                 "a page asking for the full model is told it is not there",
                 404,
-                user("GET", "/sim/assets/field-full.glb", cookie).status);
+                user("GET", "/sim/assets/field-high.glb", cookie).status);
 
-        Reply both = admin("POST", "/admin/assets/refresh?detail=both");
+        Reply both = admin("POST", "/admin/assets/refresh?resolution=all");
 
-        assertTrue(both.body, both.body.contains("\"full\":true"));
-        assertEquals(200, user("GET", "/sim/assets/field-full.glb", cookie).status);
-        assertEquals("fetched field-full.glb", user("GET", "/sim/assets/field-full.glb", cookie).body);
+        assertTrue(both.body, both.body.contains("\"high\":true"));
+        assertEquals(200, user("GET", "/sim/assets/field-high.glb", cookie).status);
+        assertEquals("fetched field-high.glb", user("GET", "/sim/assets/field-high.glb", cookie).body);
     }
 
     @Test
@@ -1222,64 +1222,64 @@ public class CodingServerTest {
         assertEquals("a download is the dear half, and it builds nothing", 0, assets.builds);
         assertTrue(downloaded.body, downloaded.body.contains("\"downloaded\":true"));
 
-        Reply built = admin("POST", "/admin/assets/build?detail=both");
+        Reply built = admin("POST", "/admin/assets/build?resolution=all");
 
         assertEquals(built.body, 200, built.status);
         assertEquals("and a build reuses what was downloaded rather than fetching again", 1, assets.downloads);
         assertEquals(1, assets.builds);
-        assertTrue(built.body, built.body.contains("\"full\":true"));
-        assertEquals(200, user("GET", "/sim/assets/field-full.glb", cookie).status);
+        assertTrue(built.body, built.body.contains("\"high\":true"));
+        assertEquals(200, user("GET", "/sim/assets/field-high.glb", cookie).status);
     }
 
     @Test
     public void aBuildWithNothingDownloadedIsRefusedAndSaysWhatToDo() throws IOException {
         serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
 
-        Reply refused = admin("POST", "/admin/assets/build?detail=normal");
+        Reply refused = admin("POST", "/admin/assets/build?resolution=low");
 
         assertEquals(refused.body, 409, refused.status);
         assertTrue(refused.body, refused.body.contains("nothing has been downloaded"));
     }
 
     @Test
-    public void aDetailNobodyBuildsIsRefusedBeforeAnythingIsBuilt() throws IOException {
+    public void aResolutionNobodyBuildsIsRefusedBeforeAnythingIsBuilt() throws IOException {
         Writing assets = new Writing();
         serverWith(worktree -> bench(), CHEAP_SCRYPT, assets);
 
-        Reply refused = admin("POST", "/admin/assets/build?detail=finest");
+        Reply refused = admin("POST", "/admin/assets/build?resolution=finest");
 
         assertEquals(400, refused.status);
-        assertTrue(refused.body, refused.body.contains("normal, full or both"));
+        assertTrue(refused.body, refused.body.contains("low, medium, high or all"));
         assertEquals(0, assets.builds);
     }
 
     @Test
-    public void aDetailNobodyBuildsIsRefusedRatherThanFetched() throws IOException {
+    public void aResolutionNobodyBuildsIsRefusedRatherThanFetched() throws IOException {
         serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
 
-        Reply refused = admin("POST", "/admin/assets/refresh?detail=finest");
+        Reply refused = admin("POST", "/admin/assets/refresh?resolution=finest");
 
         assertEquals(400, refused.status);
-        assertTrue(refused.body, refused.body.contains("normal, full or both"));
+        assertTrue(refused.body, refused.body.contains("low, medium, high or all"));
     }
 
     @Test
     public void aTabRemembersWhatWasAskedOfItRatherThanBouncingToTheOtherOne() throws Exception {
         String[] asked = {
             "#simulate",
-            "#simulate?detail=full",
+            "#simulate?resolution=low",
             "#simulate?view=camera&cost",
             "#edit",
             "#",
             "",
             "#nonsense",
-            "#edit?detail=full"
+            "#edit?resolution=low"
         };
 
         String[] got = tabsOnTheDashboard(asked);
 
         assertEquals("simulate ", got[0]);
-        assertEquals("a tab keeps the options asked of it", "simulate detail=full", got[1]);
+        assertEquals("a tab keeps the options asked of it", "simulate resolution=low", got[1]);
         assertEquals("simulate view=camera&cost", got[2]);
         assertEquals("edit ", got[3]);
         assertEquals("edit ", got[4]);
@@ -1320,10 +1320,10 @@ public class CodingServerTest {
         String[][] asked = {
             {"null", "null", "1", ""},
             {"1", "", "1", ""},
-            {"1", "", "1", "detail=full"},
-            {"1", "detail=full", "1", "detail=full"},
-            {"1", "detail=full", "2", "detail=full"},
-            {"1", "detail=full", "1", ""}
+            {"1", "", "1", "resolution=low"},
+            {"1", "resolution=low", "1", "resolution=low"},
+            {"1", "resolution=low", "2", "resolution=low"},
+            {"1", "resolution=low", "1", ""}
         };
 
         boolean[] opens = stageOpenings(asked);

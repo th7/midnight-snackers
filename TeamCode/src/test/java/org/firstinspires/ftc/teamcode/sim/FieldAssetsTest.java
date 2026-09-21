@@ -102,7 +102,7 @@ public class FieldAssetsTest {
                 2 + FieldAssets.TEXTURES.size(),
                 refreshed.written.size());
         assertTrue(store.isFile(INTO.resolve(FieldAssets.EXPORT_FILE)));
-        assertTrue(store.isFile(INTO.resolve(FieldAssets.FIELD_GLB)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Resolution.DEFAULT.file)));
         for (String name : FieldAssets.TEXTURES) {
             assertTrue(
                     name, store.isFile(INTO.resolve(FieldAssets.TEXTURES_UNDER).resolve(name)));
@@ -115,9 +115,8 @@ public class FieldAssetsTest {
 
         FieldAssets.refresh(onshapeOf(new Asked()), store, INTO);
 
-        List<Gltf.Part> parts =
-                Gltf.read(store.readIfThere(INTO.resolve(FieldAssets.FIELD_GLB)).orElseThrow());
-        assertEquals(25, parts.size());
+        List<Gltf.Part> parts = partsIn(store, FieldAssets.Resolution.DEFAULT);
+        assertEquals(26, parts.size());
     }
 
     @Test
@@ -181,19 +180,19 @@ public class FieldAssetsTest {
     }
 
     @Test
-    public void bothDetailsAreBuiltFromOneExport() {
+    public void everyResolutionIsBuiltFromOneExport() {
         Asked asked = new Asked();
         InMemoryStore store = new InMemoryStore();
 
         FieldAssets.Refreshed refreshed = FieldAssets.refresh(
-                onshapeOf(asked), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+                onshapeOf(asked), store, INTO, List.of(FieldAssets.Resolution.LOW, FieldAssets.Resolution.HIGH));
 
         assertEquals(
                 "the export is fetched once however many models are built",
                 1,
                 asked.urls.stream().filter(url -> url.endsWith("/gltf")).count());
-        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
-        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Resolution.LOW.file)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Resolution.HIGH.file)));
         assertEquals(
                 "both models, the textures, and the one export they were both built from",
                 3 + FieldAssets.TEXTURES.size(),
@@ -201,43 +200,45 @@ public class FieldAssetsTest {
     }
 
     @Test
-    public void theFullModelKeepsMoreOfTheCadThanTheNormalOne() {
+    public void eachResolutionIsOneStepMoreOfTheCadThanTheOneBelow() {
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(
-                onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, FieldAssets.resolutionsNamed("all"));
 
-        int full = partsOf(store, FieldAssets.Detail.FULL);
-        int normal = partsOf(store, FieldAssets.Detail.NORMAL);
-        assertEquals("the normal model draws the field as it plays", 25, normal);
-        assertEquals("full detail is every part the export holds, hardware and all", 26, full);
+        assertEquals("low draws the field as it plays", 25, partsOf(store, FieldAssets.Resolution.LOW));
+        assertEquals("and so does medium, at the CAD's own points", 25, partsOf(store, FieldAssets.Resolution.MEDIUM));
+        assertEquals(
+                "high is every part the export holds, hardware and all",
+                26,
+                partsOf(store, FieldAssets.Resolution.HIGH));
     }
 
-    private static int partsOf(InMemoryStore store, FieldAssets.Detail detail) {
-        return Gltf.read(store.readIfThere(INTO.resolve(detail.file)).orElseThrow())
+    private static int partsOf(InMemoryStore store, FieldAssets.Resolution resolution) {
+        return Gltf.read(store.readIfThere(INTO.resolve(resolution.file)).orElseThrow())
                 .size();
     }
 
-    // Detail decides two things: which parts are in a model, and how much of their surface comes
-    // with them. Normals are a normal to a vertex -- the model over again -- so only the model that
-    // is already the expensive one pays for them.
+    // Resolution decides two things: which parts are in a model, and how much of their surface comes
+    // with them. Normals are a normal to a vertex -- the model over again -- so the cheapest model
+    // goes without them and the two above it pay.
     @Test
-    public void onlyFullDetailCarriesTheCadsOwnNormals() {
+    public void lowGoesWithoutTheCadsNormalsAndTheOthersCarryThem() {
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(
-                onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, FieldAssets.resolutionsNamed("all"));
 
-        for (Gltf.Part part : partsIn(store, FieldAssets.Detail.FULL)) {
-            assertNotNull(part.name, part.normals);
+        for (FieldAssets.Resolution carries : List.of(FieldAssets.Resolution.MEDIUM, FieldAssets.Resolution.HIGH)) {
+            for (Gltf.Part part : partsIn(store, carries)) {
+                assertNotNull(carries.asked + ": " + part.name, part.normals);
+            }
         }
-        for (Gltf.Part part : partsIn(store, FieldAssets.Detail.NORMAL)) {
-            assertNull("the cheap model is the cheap model: " + part.name, part.normals);
+        for (Gltf.Part part : partsIn(store, FieldAssets.Resolution.LOW)) {
+            assertNull("the cheapest model is the cheapest model: " + part.name, part.normals);
         }
     }
 
-    private static List<Gltf.Part> partsIn(InMemoryStore store, FieldAssets.Detail detail) {
-        return Gltf.read(store.readIfThere(INTO.resolve(detail.file)).orElseThrow());
+    private static List<Gltf.Part> partsIn(InMemoryStore store, FieldAssets.Resolution resolution) {
+        return Gltf.read(store.readIfThere(INTO.resolve(resolution.file)).orElseThrow());
     }
 
     @Test
@@ -256,7 +257,7 @@ public class FieldAssetsTest {
         }
         assertFalse(
                 "a download is not a build: no model is made until one is asked for",
-                store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
+                store.isFile(INTO.resolve(FieldAssets.Resolution.LOW.file)));
     }
 
     @Test
@@ -266,18 +267,18 @@ public class FieldAssetsTest {
         FieldAssets.download(onshapeOf(asked), store, INTO);
         int fetches = asked.urls.size();
 
-        FieldAssets.build(store, INTO, List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL));
+        FieldAssets.build(store, INTO, List.of(FieldAssets.Resolution.LOW, FieldAssets.Resolution.HIGH));
 
         assertEquals("a build fetches nothing; it cannot, it is given no Onshape", fetches, asked.urls.size());
-        assertEquals(25, partsOf(store, FieldAssets.Detail.NORMAL));
-        assertEquals(26, partsOf(store, FieldAssets.Detail.FULL));
+        assertEquals(25, partsOf(store, FieldAssets.Resolution.LOW));
+        assertEquals(26, partsOf(store, FieldAssets.Resolution.HIGH));
     }
 
     @Test
     public void aBuildWithNothingDownloadedSaysSoRatherThanFetching() {
         FieldAssets.NotAnAsset refused = assertThrows(
                 FieldAssets.NotAnAsset.class,
-                () -> FieldAssets.build(new InMemoryStore(), INTO, List.of(FieldAssets.Detail.NORMAL)));
+                () -> FieldAssets.build(new InMemoryStore(), INTO, List.of(FieldAssets.Resolution.LOW)));
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("nothing has been downloaded"));
     }
@@ -287,10 +288,10 @@ public class FieldAssetsTest {
         Asked asked = new Asked();
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(onshapeOf(asked), store, INTO, List.of(FieldAssets.Detail.FULL));
+        FieldAssets.refresh(onshapeOf(asked), store, INTO, List.of(FieldAssets.Resolution.HIGH));
 
         assertTrue(store.isFile(INTO.resolve(FieldAssets.EXPORT_FILE)));
-        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Resolution.HIGH.file)));
         assertEquals(
                 "the export is fetched once",
                 1,
@@ -298,25 +299,34 @@ public class FieldAssetsTest {
     }
 
     @Test
-    public void onlyTheDetailAskedForIsBuilt() {
+    public void onlyTheResolutionAskedForIsBuilt() {
         InMemoryStore store = new InMemoryStore();
 
-        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Detail.FULL));
+        FieldAssets.refresh(onshapeOf(new Asked()), store, INTO, List.of(FieldAssets.Resolution.HIGH));
 
-        assertTrue(store.isFile(INTO.resolve(FieldAssets.Detail.FULL.file)));
-        assertFalse(store.isFile(INTO.resolve(FieldAssets.Detail.NORMAL.file)));
+        assertTrue(store.isFile(INTO.resolve(FieldAssets.Resolution.HIGH.file)));
+        assertFalse(store.isFile(INTO.resolve(FieldAssets.Resolution.LOW.file)));
     }
 
     @Test
-    public void theDetailsAreNamedNormalFullOrBoth() {
-        assertEquals(List.of(FieldAssets.Detail.NORMAL), FieldAssets.detailsNamed(null));
-        assertEquals(List.of(FieldAssets.Detail.NORMAL), FieldAssets.detailsNamed("normal"));
-        assertEquals(List.of(FieldAssets.Detail.FULL), FieldAssets.detailsNamed("full"));
-        assertEquals(List.of(FieldAssets.Detail.NORMAL, FieldAssets.Detail.FULL), FieldAssets.detailsNamed("both"));
+    public void theResolutionsAreNamedLowMediumHighOrAll() {
+        assertEquals(List.of(FieldAssets.Resolution.LOW), FieldAssets.resolutionsNamed("low"));
+        assertEquals(List.of(FieldAssets.Resolution.MEDIUM), FieldAssets.resolutionsNamed("medium"));
+        assertEquals(List.of(FieldAssets.Resolution.HIGH), FieldAssets.resolutionsNamed("high"));
+        assertEquals(
+                List.of(FieldAssets.Resolution.LOW, FieldAssets.Resolution.MEDIUM, FieldAssets.Resolution.HIGH),
+                FieldAssets.resolutionsNamed("all"));
 
         FieldAssets.NotAnAsset refused =
-                assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.detailsNamed("finest"));
-        assertTrue(refused.getMessage(), refused.getMessage().contains("normal, full or both"));
+                assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.resolutionsNamed("finest"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("low, medium, high or all"));
+    }
+
+    @Test
+    public void askingForNoResolutionInParticularBuildsTheOneAPageDraws() {
+        assertEquals(FieldAssets.Resolution.HIGH, FieldAssets.Resolution.DEFAULT);
+        assertEquals(List.of(FieldAssets.Resolution.DEFAULT), FieldAssets.resolutionsNamed(null));
+        assertEquals(List.of(FieldAssets.Resolution.DEFAULT), FieldAssets.resolutionsNamed(""));
     }
 
     @Test

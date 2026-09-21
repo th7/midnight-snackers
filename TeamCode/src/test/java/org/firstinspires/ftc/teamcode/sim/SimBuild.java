@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -246,13 +247,26 @@ public final class SimBuild {
         }
     }
 
+    /**
+     * What the tree is, rather than when it was last touched. Size and modification time cannot tell
+     * an edit of the same length in the same millisecond from no edit at all -- which is what a save
+     * from the Edit tab looks like when a sign is flipped or a digit changed -- and the cost of
+     * getting that wrong is a user running the code they had before with nothing saying so. Reading
+     * the bytes costs a few milliseconds against a compile that costs hundreds.
+     */
     static String fingerprintOf(Path sourceRoot, List<Path> sources) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             for (Path source : sources) {
-                String line = sourceRoot.relativize(source) + "|" + Files.size(source) + "|"
-                        + Files.getLastModifiedTime(source).toMillis() + "\n";
-                digest.update(line.getBytes(StandardCharsets.UTF_8));
+                digest.update((sourceRoot.relativize(source) + "|").getBytes(StandardCharsets.UTF_8));
+                try (InputStream bytes = Files.newInputStream(source)) {
+                    byte[] block = new byte[1 << 16];
+                    int read;
+                    while ((read = bytes.read(block)) > 0) {
+                        digest.update(block, 0, read);
+                    }
+                }
+                digest.update((byte) '\n');
             }
             StringBuilder hex = new StringBuilder();
             for (byte b : digest.digest()) {

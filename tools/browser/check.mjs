@@ -59,6 +59,11 @@ const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 const thrown = [];
 const failed = [];
 page.on('pageerror', (wrong) => thrown.push(String(wrong && wrong.message ? wrong.message : wrong)));
+// A page asks for the resolution it draws at, which is high, and nothing is built here: so the 404
+// that sends it back down to the committed model is the working case. What must hold is that it drew
+// and that it said which model it drew -- both checked below, not waved through.
+const UNBUILT = /field-(high|medium)\.glb/;
+const faults = () => failed.filter((said) => !UNBUILT.test(said));
 page.on('requestfailed', (request) => failed.push(`${request.url()} (${request.failure()?.errorText})`));
 page.on('response', (response) => {
   if (response.status() >= 400) {
@@ -70,8 +75,8 @@ function whyItNeverReported() {
   if (thrown.length) {
     return `the page threw before it could report: ${thrown.join('; ')}`;
   }
-  if (failed.length) {
-    return `a request the page made failed: ${failed.join('; ')}`;
+  if (faults().length) {
+    return `a request the page made failed: ${faults().join('; ')}`;
   }
   return 'the page never reported itself loaded, and threw nothing to say why';
 }
@@ -107,7 +112,10 @@ try {
     said: document.getElementById('field-msg').textContent
   }));
 
-  check(!state.problem, `the page reported a problem: ${state.problem}`);
+  const fellBack = /has not been built, so this is the low one/.test(state.problem || '');
+  check(!state.problem || fellBack, `the page reported a problem: ${state.problem}`);
+  check(fellBack, 'nothing here has built the resolution a page asks for, so the page has to say it '
+      + `fell back, and it said "${state.problem}"`);
   check(state.loaded !== null, 'the page never loaded the model');
   if (state.loaded) {
     check(state.loaded.parts > 100, `only ${state.loaded.parts} parts reached the page`);
@@ -422,7 +430,7 @@ try {
   }
 
   check(thrown.length === 0, `the page threw: ${thrown.join('; ')}`);
-  check(failed.length === 0, `a request the page made failed: ${failed.join('; ')}`);
+  check(faults().length === 0, `a request the page made failed: ${faults().join('; ')}`);
 
   if (!problems.length) {
     console.log(state.said);

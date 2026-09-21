@@ -128,11 +128,12 @@
       <p class="section-label">The field the pages draw</p>
       <div class="panel">
         <p id="assets-state">&hellip;</p>
-        <label>Detail
-          <select id="assets-detail">
-            <option value="normal" selected>normal (4 MB)</option>
-            <option value="full">full (20 MB)</option>
-            <option value="both">both</option>
+        <label>Resolution
+          <select id="assets-resolution">
+            <option value="low">low (4 MB)</option>
+            <option value="medium">medium (28 MB)</option>
+            <option value="high" selected>high (42 MB)</option>
+            <option value="all">all three</option>
           </select>
         </label>
         <button id="download-assets" type="button" title="Fetch the assembly and the textures from Onshape and keep them">Download</button>
@@ -150,7 +151,7 @@
   var refreshAssets = document.getElementById('refresh-assets');
   var downloadAssets = document.getElementById('download-assets');
   var buildAssets = document.getElementById('build-assets');
-  var assetsDetail = document.getElementById('assets-detail');
+  var assetsResolution = document.getElementById('assets-resolution');
   var buttons = [downloadAssets, buildAssets, refreshAssets];
 
   function showAssets(json) {
@@ -158,14 +159,17 @@
       ? 'Drawing ' + json.drawing + '.'
       : 'Drawing ' + json.drawing + '; this server has not fetched them from Onshape yet.';
     var names = Object.keys(json.fetched || {});
-    var detail = json.detail || {};
-    var held = Object.keys(detail).filter(function (name) { return detail[name]; });
+    var resolution = json.resolution || {};
+    var held = Object.keys(resolution).filter(function (name) { return resolution[name]; });
+    var fallsBack = !resolution[json.defaultResolution];
     assetsSaid.textContent = (names.length
       ? names.length + ' fetched, in ' + json.under
       : 'nothing fetched, so ' + json.under + ' is empty')
       + (held.length ? '. Models held: ' + held.join(', ') + '.' : '')
       + (json.downloaded ? ' The export is here, so Build needs no Onshape.' : ' Nothing downloaded to build from.')
-      + (detail.full ? ' A page can ask for it with ?detail=full.' : '');
+      + (fallsBack
+        ? ' A page asks for ' + json.defaultResolution + ' and falls back to low until that is built.'
+        : ' A page can ask for any of them with ?resolution=low|medium|high.');
     buildAssets.disabled = !json.downloaded;
   }
 
@@ -175,7 +179,7 @@
   }
 
   // The dear half and the cheap one, asked for separately: a download is tens of seconds of Onshape,
-  // and a build is arithmetic on what it left behind, so changing the detail need not fetch again.
+  // and a build is arithmetic on what it left behind, so changing the resolution need not fetch again.
   function ask(where, saying, failed) {
     buttons.forEach(function (button) { button.disabled = true; });
     assetsSaid.textContent = saying;
@@ -195,8 +199,8 @@
     });
   }
 
-  function detail() {
-    return '?detail=' + encodeURIComponent(assetsDetail.value);
+  function resolution() {
+    return '?resolution=' + encodeURIComponent(assetsResolution.value);
   }
 
   downloadAssets.addEventListener('click', function () {
@@ -205,12 +209,12 @@
   });
 
   buildAssets.addEventListener('click', function () {
-    ask('/admin/assets/build' + detail(), 'Building from the export already here\u2026',
+    ask('/admin/assets/build' + resolution(), 'Building from the export already here\u2026',
         'The build did not finish');
   });
 
   refreshAssets.addEventListener('click', function () {
-    ask('/admin/assets/refresh' + detail(), 'Fetching from Onshape\u2026 the model is a few megabytes.',
+    ask('/admin/assets/refresh' + resolution(), 'Fetching from Onshape\u2026 the model is a few megabytes.',
         'The refresh did not finish');
   });
 

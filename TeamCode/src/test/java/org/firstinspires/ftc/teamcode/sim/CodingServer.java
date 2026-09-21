@@ -214,7 +214,7 @@ public final class CodingServer {
     public interface Assets {
         FieldAssets.Refreshed download(Store store, Path into);
 
-        FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details);
+        FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Resolution> resolutions);
     }
 
     public static Assets fromOnshape() {
@@ -225,8 +225,8 @@ public final class CodingServer {
             }
 
             @Override
-            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Detail> details) {
-                return FieldAssets.build(store, into, details);
+            public FieldAssets.Refreshed build(Store store, Path into, List<FieldAssets.Resolution> resolutions) {
+                return FieldAssets.build(store, into, resolutions);
             }
         };
     }
@@ -1044,8 +1044,8 @@ public final class CodingServer {
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("GET", "/admin/assets", (request, params) -> Response.json(GSON.toJson(assetsFetched())))
                 .route("POST", "/admin/assets/download", (request, params) -> downloadAssets())
-                .route("POST", "/admin/assets/build", (request, params) -> buildAssets(request.query("detail")))
-                .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets(request.query("detail")))
+                .route("POST", "/admin/assets/build", (request, params) -> buildAssets(request.query("resolution")))
+                .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets(request.query("resolution")))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
                         "POST",
@@ -1073,12 +1073,15 @@ public final class CodingServer {
         out.addProperty("complete", held.size() == FieldAssets.everyAsset().size());
         out.addProperty(
                 "drawing",
-                held.has(FieldAssets.FIELD_GLB) ? "the model this server fetched" : "the model committed for tests");
-        JsonObject details = new JsonObject();
-        for (FieldAssets.Detail one : FieldAssets.Detail.values()) {
-            details.addProperty(one.asked, assetStore.isFile(assetsDir.resolve(one.file)));
+                held.has(FieldAssets.Resolution.DEFAULT.file)
+                        ? "the model this server fetched"
+                        : "the model committed for tests");
+        JsonObject resolutions = new JsonObject();
+        for (FieldAssets.Resolution one : FieldAssets.Resolution.values()) {
+            resolutions.addProperty(one.asked, assetStore.isFile(assetsDir.resolve(one.file)));
         }
-        out.add("detail", details);
+        out.add("resolution", resolutions);
+        out.addProperty("defaultResolution", FieldAssets.Resolution.DEFAULT.asked);
         out.addProperty("downloaded", assetStore.isFile(assetsDir.resolve(FieldAssets.EXPORT_FILE)));
         return out;
     }
@@ -1087,26 +1090,26 @@ public final class CodingServer {
         return whatItWrote(() -> assets.download(assetStore, assetsDir));
     }
 
-    private Response buildAssets(String detail) {
-        List<FieldAssets.Detail> details;
+    private Response buildAssets(String resolution) {
+        List<FieldAssets.Resolution> resolutions;
         try {
-            details = FieldAssets.detailsNamed(detail);
+            resolutions = FieldAssets.resolutionsNamed(resolution);
         } catch (FieldAssets.NotAnAsset wrong) {
             return Response.error(400, wrong.getMessage());
         }
-        return whatItWrote(() -> assets.build(assetStore, assetsDir, details));
+        return whatItWrote(() -> assets.build(assetStore, assetsDir, resolutions));
     }
 
-    private Response refreshAssets(String detail) {
-        List<FieldAssets.Detail> details;
+    private Response refreshAssets(String resolution) {
+        List<FieldAssets.Resolution> resolutions;
         try {
-            details = FieldAssets.detailsNamed(detail);
+            resolutions = FieldAssets.resolutionsNamed(resolution);
         } catch (FieldAssets.NotAnAsset wrong) {
             return Response.error(400, wrong.getMessage());
         }
         return whatItWrote(() -> {
             FieldAssets.Refreshed downloaded = assets.download(assetStore, assetsDir);
-            FieldAssets.Refreshed built = assets.build(assetStore, assetsDir, details);
+            FieldAssets.Refreshed built = assets.build(assetStore, assetsDir, resolutions);
             Map<String, Integer> written = new LinkedHashMap<>(downloaded.written);
             written.putAll(built.written);
             return new FieldAssets.Refreshed(written);
@@ -1130,7 +1133,7 @@ public final class CodingServer {
     }
 
     boolean hasFetchedAssets() {
-        return assetStore.isFile(assetsDir.resolve(FieldAssets.FIELD_GLB));
+        return assetStore.isFile(assetsDir.resolve(FieldAssets.Resolution.DEFAULT.file));
     }
 
     void refreshAssetsInTheBackground() {
@@ -1139,8 +1142,8 @@ public final class CodingServer {
                     try {
                         System.out.println("  assets fetching from Onshape into " + assetsDir);
                         assets.download(assetStore, assetsDir);
-                        System.out.println(
-                                "  assets " + assets.build(assetStore, assetsDir, List.of(FieldAssets.Detail.NORMAL)));
+                        System.out.println("  assets "
+                                + assets.build(assetStore, assetsDir, List.of(FieldAssets.Resolution.DEFAULT)));
                     } catch (RuntimeException wrong) {
                         System.out.println("  assets not fetched (" + wrong.getMessage()
                                 + "); the pages draw the model committed for tests");

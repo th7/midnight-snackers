@@ -789,9 +789,9 @@ adding ticks, and drawing the **field scene** rather than the flat drawing. It
 is the *only* page that draws the field: what used to be a second page at
 `/sim/field` is retired, and what it could do the live view is asked for in
 its query string — `?view=camera` for the **webcam's view**, `?view=flat` for
-the flat drawing, `?cost` for **what a frame costs**, `?detail=full` for the
-full **detail**. The dashboard passes them through, so `#simulate?detail=full`
-reaches the view it embeds. Classes: `SimLiveServer`; `SimBench` serves the
+the flat drawing, `?cost` for **what a frame costs**, `?resolution=low|medium`
+for less than the **resolution** it draws at by default. The dashboard passes
+them through, so `#simulate?resolution=low` reaches the view it embeds. Classes: `SimLiveServer`; `SimBench` serves the
 same page per run. Files: `webcam.js`; `framecost.js`.
 
 **Webcam's view** — The goal tags as the robot's camera would see them: the
@@ -809,9 +809,9 @@ their picture from it and add their own. It needs the assets, so a page
 gets it only when it is served somewhere they resolve.
 
 **Shading** — What of the CAD's own surface a model carries, and the second
-thing **detail** decides. *A colour apiece* is the cheap model, as it always
-was: no normals, and one flat colour to a part. *As the CAD drew it* is the
-full one, and carries **normals** and whole materials. A normal says which
+thing **resolution** decides. *A colour apiece* is the lowest model, as it
+always was: no normals, and one flat colour to a part. *As the CAD drew it* is
+what medium and high carry: **normals** and whole materials. A normal says which
 way a face points, and which edges are sharp and which are smooth is the
 CAD's to say: a page that computes its own averages across every face a
 vertex belongs to and rounds the sharp ones off. Normals are turned by the
@@ -844,7 +844,7 @@ sphere draws better and cheaper.
 **Drawn floor** — The dark plane the field scene puts under everything, and
 scenery rather than geometry: the field's own floor plane is z = 0, where the
 tape lies and the game pieces rest. The drawn floor sits `FLOOR_DROP_IN`
-below it, because **full detail** brings the CAD's soft tiles whose top
+below it, because **high resolution** brings the CAD's soft tiles whose top
 surface *is* z = 0, and two opaque surfaces in one plane fight for the same
 pixels — the floor came out in radial slivers, worse the further out the
 camera. How far below is derived rather than chosen: a 24-bit depth buffer
@@ -954,30 +954,42 @@ textures and **keeps the export** at `export.gltf` in the state directory. A
 build is arithmetic on what the download left behind, under a second, and is
 handed no Onshape at all — so a build that finds nothing downloaded says so
 rather than quietly fetching, and javac holds that rather than a comment.
-Changing the detail, or rebuilding after the pipeline changes, is a build and
-not another download. **Refresh** is still there and is the two in one, which
-is what a server with nothing fetched runs at startup. At
-`POST /admin/assets/download`, `POST /admin/assets/build?detail=…` and
-`POST /admin/assets/refresh?detail=…`, with a button apiece on the admin
+Changing the resolution, or rebuilding after the pipeline changes, is a build
+and not another download. **Refresh** is still there and is the two in one,
+which is what a server with nothing fetched runs at startup. At
+`POST /admin/assets/download`, `POST /admin/assets/build?resolution=…` and
+`POST /admin/assets/refresh?resolution=…`, with a button apiece on the admin
 page.
 
-**Detail** — Which field a page draws, and it differs in two ways rather
-than one. **Normal** is the field as it plays: 305 parts, snapped to a
-twentieth of an inch, 316,000 triangles and four megabytes. **Full** is every
-part the export holds at the points the export holds them: 1,029 parts,
-1,474,000 triangles and twenty megabytes. The difference in parts is the
-larger of the two — two thirds of the assembly is the hardware that holds the
-field together, dropped by name for normal because nothing draws a washer once
-the field is up, and kept for full because *full* has to mean what it says.
-The **build** makes either or both from one **export**, and keeps them side by
-side, so comparing the two on a tablet is a query string rather than another
-fetch. A page asks with `?detail=full`, and one that asks for a model nobody
-built draws the normal one **and says on the page that it fell back**. Full
-detail costs about five times the triangles and the bytes, and almost no draw
-calls, since **batching** is by material rather than by part. Which parts a
-model is made of is `FieldGlb.Keep`, named at every call rather than defaulted,
-so a model that quietly drops two thirds of the CAD cannot be built by
-forgetting to say.
+**Resolution** — Which field a page draws, in three steps, each adding one
+thing to the one below it:
+
+| | parts | triangles | bytes |
+|---|---|---|---|
+| **low** | 305 | 316,000 | 4.0 MB |
+| **medium** | 305 | 1,020,000 | 27.5 MB |
+| **high** | 1,029 | 1,474,500 | 41.7 MB |
+
+**Low** is the field as it plays: the hardware dropped, snapped to a twentieth
+of an inch, a colour to a part. **Medium** is those same parts at the points
+and in the materials the CAD gave them — the jump in triangles is the snapping
+let go of, and the jump in bytes is **normals**. **High** adds back every part
+the export holds, which is the two thirds of the assembly that holds the field
+together and that nothing draws once the field is up.
+
+**High is what a page draws** unless its query string says `?resolution=low`
+or `medium`: a field that does not look like the field is the thing worth
+avoiding, and whoever cannot afford it is the one who knows that. A page that
+asks for one nobody built draws the low one **and says on the page that it
+fell back** — which, on a server that has built nothing, is every page, said
+out loud rather than quietly. The **build** makes any of them, or `all`, from
+one **export**, and keeps them side by side, so changing resolution on a
+tablet is a query string rather than another fetch.
+
+The two things resolution decides are `FieldGlb.Keep` — which parts — and
+`FieldGlb.Shading` — how much of their surface. Both are named at every call
+rather than defaulted, so a model that quietly drops two thirds of the CAD, or
+its normals, cannot be built by forgetting to say.
 
 **Stand-in** — The `field.glb` in the repository: the model the tests draw,
 frozen, so the browser checks and the **budget** come out the same on any
