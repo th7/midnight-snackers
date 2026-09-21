@@ -92,8 +92,9 @@ washer once the field is up. Medium is those same parts at the CAD's own points
 and in the CAD's own materials. High adds the hardware back.
 
 A page draws at **high** unless it asks for less with `?resolution=low` or
-`medium`, and one that asks for a resolution nobody built draws the low one and
-says so rather than failing. `all` builds the three. They sit side by side, so
+`medium` — or unless somebody picks another from the selector under the field,
+which is the same choice made while looking at it. A page that asks for a
+resolution nobody built draws the low one and says so rather than failing. `all` builds the three. They sit side by side, so
 changing resolution is a query string rather than another fetch. None of it
 costs many more draw calls, because the scene is batched by material rather
 than by part.

@@ -791,7 +791,11 @@ is the *only* page that draws the field: what used to be a second page at
 its query string — `?view=camera` for the **webcam's view**, `?view=flat` for
 the flat drawing, `?cost` for **what a frame costs**, `?resolution=low|medium`
 for less than the **resolution** it draws at by default. The dashboard passes
-them through, so `#simulate?resolution=low` reaches the view it embeds. Classes: `SimLiveServer`; `SimBench` serves the
+them through, so `#simulate?resolution=low` reaches the view it embeds. The
+resolution is also a **selector under the field**, because which field you are
+looking at is a thing to change while looking at it rather than a sentence
+about what somebody put in a query string; choosing one navigates, carrying
+everything else asked of the page along with it. Classes: `SimLiveServer`; `SimBench` serves the
 same page per run. Files: `webcam.js`; `framecost.js`.
 
 **Webcam's view** — The goal tags as the robot's camera would see them: the

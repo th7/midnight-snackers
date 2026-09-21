@@ -233,6 +233,41 @@ __IMPORTMAP__
   const ctx = canvas.getContext('2d');
   const solidCanvas = document.getElementById('solid');
   const fieldMsg = document.getElementById('field-msg');
+
+  // Which field you are looking at is a thing to change while looking at it, rather than a sentence
+  // about what somebody put in a query string. The choice is the query string, so choosing is a
+  // navigation like the flat drawing beside it; what else was asked of the page -- the view it is in,
+  // the cost probe -- goes along, since picking a resolution is not a reason to lose them.
+  function showTheResolutionChoice(chosen, fellBackSaying) {
+    fieldMsg.textContent = '';
+    const label = document.createElement('label');
+    label.append('Resolution ');
+    const select = document.createElement('select');
+    select.id = 'resolution';
+    for (const one of ['low', 'medium', 'high']) {
+      const option = document.createElement('option');
+      option.value = one;
+      option.textContent = one;
+      option.selected = one === chosen;
+      select.append(option);
+    }
+    select.addEventListener('change', () => {
+      const going = new URLSearchParams(location.search);
+      going.set('resolution', select.value);
+      location.search = going.toString();
+    });
+    label.append(select);
+    fieldMsg.append(label);
+    if (fellBackSaying) {
+      fieldMsg.append(' ' + fellBackSaying + ' ');
+    } else {
+      fieldMsg.append(' ');
+    }
+    const flat = document.createElement('a');
+    flat.href = '?view=flat';
+    flat.textContent = 'Draw what the simulator collides';
+    fieldMsg.append(flat, ' instead.');
+  }
   const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -1073,7 +1108,6 @@ __IMPORTMAP__
       fellBack = true;
       return view.load(MODELS[LOWEST_RESOLUTION]);
     });
-    const drawnAt = fellBack ? LOWEST_RESOLUTION : askedFor;
     view.place(Object.assign({}, FIELD, { robotIn: ROBOT_IN }));
     solid = view;
     drawing = 'solid';
@@ -1082,9 +1116,7 @@ __IMPORTMAP__
     if (fellBack) {
       fieldProblem = 'The field at ' + askedFor + ' resolution has not been built, so this is the low one.';
     }
-    fieldMsg.innerHTML = 'The field as it looks, from the season CAD, at ' + drawnAt + ' resolution. '
-      + (fellBack ? fieldProblem + ' ' : '')
-      + '<a href="?view=flat">Draw what the simulator collides</a> instead.';
+    showTheResolutionChoice(askedFor, fellBack ? fieldProblem : '');
     const { theGoalTags, theWebcamsView } = await import(ASSETS + 'webcam.js');
     tags = theGoalTags(view, Object.assign({}, FIELD, { robotIn: ROBOT_IN }), ASSETS,
                        why => { fieldProblem = why; fieldMsg.textContent = why; });
