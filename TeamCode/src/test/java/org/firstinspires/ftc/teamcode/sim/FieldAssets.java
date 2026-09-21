@@ -16,18 +16,23 @@ public final class FieldAssets {
     public static final String FIELD_GLB = "field.glb";
     public static final String TEXTURES_UNDER = "textures";
 
+    /** The assembly as Onshape exported it, kept so a build need not fetch it again. */
+    public static final String EXPORT_FILE = "export.gltf";
+
     public enum Detail {
-        NORMAL("normal", FIELD_GLB, FieldGlb.GRID_IN),
-        FULL("full", "field-full.glb", FieldGlb.NO_GRID);
+        NORMAL("normal", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW),
+        FULL("full", "field-full.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART);
 
         public final String asked;
         public final String file;
         public final double grid;
+        public final FieldGlb.Keep keep;
 
-        Detail(String asked, String file, double grid) {
+        Detail(String asked, String file, double grid, FieldGlb.Keep keep) {
             this.asked = asked;
             this.file = file;
             this.grid = grid;
+            this.keep = keep;
         }
     }
 
@@ -65,8 +70,15 @@ public final class FieldAssets {
         return out;
     }
 
-    public static final class NotAnAsset extends RuntimeException {
+    public static class NotAnAsset extends RuntimeException {
         public NotAnAsset(String message) {
+            super(message);
+        }
+    }
+
+    /** A build asked for before anything was downloaded: the one refusal that is the asker's to fix. */
+    public static final class NothingDownloaded extends NotAnAsset {
+        public NothingDownloaded(String message) {
             super(message);
         }
     }
@@ -92,16 +104,45 @@ public final class FieldAssets {
         return refresh(onshape, store, into, List.of(Detail.NORMAL));
     }
 
+    /** The dear half and then the cheap one. What the admin page does as two asks, in one. */
     public static Refreshed refresh(Onshape onshape, Store store, Path into, List<Detail> details) {
-        byte[] export = export(onshape);
-        Map<String, byte[]> fetched = new LinkedHashMap<>();
-        for (Detail detail : details) {
-            fetched.put(detail.file, FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, detail.grid));
-        }
-        fetched.putAll(textures(onshape));
+        Map<String, Integer> written = new LinkedHashMap<>(download(onshape, store, into).written);
+        written.putAll(build(store, into, details).written);
+        return new Refreshed(written);
+    }
 
+    /**
+     * Fetches the assembly and the textures and keeps them. The export is the dear part -- tens of
+     * seconds and eleven megabytes -- so it is written whole, and every build after this one reads it
+     * from there.
+     */
+    public static Refreshed download(Onshape onshape, Store store, Path into) {
+        Map<String, byte[]> fetched = new LinkedHashMap<>();
+        fetched.put(EXPORT_FILE, export(onshape));
+        fetched.putAll(textures(onshape));
+        return writeAll(store, into, fetched);
+    }
+
+    /**
+     * Builds each detail from the export already on disk. It is handed no Onshape and so cannot fetch
+     * one: a build that found nothing downloaded has to say so rather than quietly reaching for the
+     * network, and javac is what holds that rather than a comment.
+     */
+    public static Refreshed build(Store store, Path into, List<Detail> details) {
+        byte[] export = store.readIfThere(into.resolve(EXPORT_FILE))
+                .orElseThrow(() -> new NothingDownloaded(
+                        "nothing has been downloaded yet, so there is no export to build from. Download from "
+                                + "Onshape first; the build is then under a second."));
+        Map<String, byte[]> built = new LinkedHashMap<>();
+        for (Detail detail : details) {
+            built.put(detail.file, FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, detail.grid, detail.keep));
+        }
+        return writeAll(store, into, built);
+    }
+
+    private static Refreshed writeAll(Store store, Path into, Map<String, byte[]> assets) {
         Map<String, Integer> written = new LinkedHashMap<>();
-        for (Map.Entry<String, byte[]> asset : fetched.entrySet()) {
+        for (Map.Entry<String, byte[]> asset : assets.entrySet()) {
             store.writeWhole(into.resolve(asset.getKey()), asset.getValue());
             written.put(asset.getKey(), asset.getValue().length);
         }

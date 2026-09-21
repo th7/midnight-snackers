@@ -131,11 +131,13 @@
         <label>Detail
           <select id="assets-detail">
             <option value="normal" selected>normal (4 MB)</option>
-            <option value="full">full (13 MB)</option>
+            <option value="full">full (20 MB)</option>
             <option value="both">both</option>
           </select>
         </label>
-        <button id="refresh-assets" type="button">Refresh assets</button>
+        <button id="download-assets" type="button" title="Fetch the assembly and the textures from Onshape and keep them">Download</button>
+        <button id="build-assets" type="button" title="Build the models from the export already downloaded; no Onshape, under a second">Build</button>
+        <button id="refresh-assets" type="button" title="Download and then build, in one">Refresh assets</button>
         <p id="assets-said" class="mono"></p>
       </div>
     </div>
@@ -146,7 +148,10 @@
   var assetsState = document.getElementById('assets-state');
   var assetsSaid = document.getElementById('assets-said');
   var refreshAssets = document.getElementById('refresh-assets');
+  var downloadAssets = document.getElementById('download-assets');
+  var buildAssets = document.getElementById('build-assets');
   var assetsDetail = document.getElementById('assets-detail');
+  var buttons = [downloadAssets, buildAssets, refreshAssets];
 
   function showAssets(json) {
     assetsState.textContent = json.complete
@@ -159,7 +164,9 @@
       ? names.length + ' fetched, in ' + json.under
       : 'nothing fetched, so ' + json.under + ' is empty')
       + (held.length ? '. Models held: ' + held.join(', ') + '.' : '')
+      + (json.downloaded ? ' The export is here, so Build needs no Onshape.' : ' Nothing downloaded to build from.')
       + (detail.full ? ' A page can ask for it with ?detail=full.' : '');
+    buildAssets.disabled = !json.downloaded;
   }
 
   function loadAssets() {
@@ -167,11 +174,12 @@
       .catch(function () { assetsState.textContent = 'The admin server did not answer about the assets.'; });
   }
 
-  refreshAssets.addEventListener('click', function () {
-    refreshAssets.disabled = true;
-    assetsSaid.textContent = 'Fetching from Onshape\u2026 the model is a few megabytes.';
-    fetch('/admin/assets/refresh?detail=' + encodeURIComponent(assetsDetail.value), { method: 'POST' })
-      .then(function (r) {
+  // The dear half and the cheap one, asked for separately: a download is tens of seconds of Onshape,
+  // and a build is arithmetic on what it left behind, so changing the detail need not fetch again.
+  function ask(where, saying, failed) {
+    buttons.forEach(function (button) { button.disabled = true; });
+    assetsSaid.textContent = saying;
+    fetch(where, { method: 'POST' }).then(function (r) {
       return r.text().then(function (text) { return { ok: r.ok, text: text }; });
     }).then(function (answer) {
       if (!answer.ok) {
@@ -180,8 +188,30 @@
       }
       showAssets(JSON.parse(answer.text));
     }).catch(function (wrong) {
-      assetsSaid.textContent = 'The refresh did not finish: ' + wrong;
-    }).then(function () { refreshAssets.disabled = false; });
+      assetsSaid.textContent = failed + ': ' + wrong;
+    }).then(function () {
+      buttons.forEach(function (button) { button.disabled = false; });
+      loadAssets();
+    });
+  }
+
+  function detail() {
+    return '?detail=' + encodeURIComponent(assetsDetail.value);
+  }
+
+  downloadAssets.addEventListener('click', function () {
+    ask('/admin/assets/download', 'Fetching from Onshape\u2026 the export is about eleven megabytes.',
+        'The download did not finish');
+  });
+
+  buildAssets.addEventListener('click', function () {
+    ask('/admin/assets/build' + detail(), 'Building from the export already here\u2026',
+        'The build did not finish');
+  });
+
+  refreshAssets.addEventListener('click', function () {
+    ask('/admin/assets/refresh' + detail(), 'Fetching from Onshape\u2026 the model is a few megabytes.',
+        'The refresh did not finish');
   });
 
   loadAssets();
