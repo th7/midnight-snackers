@@ -160,7 +160,8 @@ whether the page draws, but what drawing it costs.
     node tools/browser/cost.mjs --regenerate    # record a new budget
 
 The probe is `framecost.js`, served with the page's other assets, and the page
-itself runs it: **<http://localhost:21986/sim/runs/1/?cost>** measures and
+itself runs it: tick **measure rendering cost** under the field, or ask for it
+outright at **<http://localhost:21986/sim/runs/1/?cost>**, and it measures and
 prints the reading into the HUD. That is how a frame is measured on a tablet,
 where no harness runs -- open the bench's address on the device and read it.
 
@@ -246,7 +247,8 @@ correctness checks stay on SwiftShader deliberately, because coming out the
 same on two machines is the whole point of them.
 
 **The device itself**, which is the reading that actually settles a question
-about a tablet: open `/sim/runs/<id>/?cost` on it.
+about a tablet: open a run on it and tick **measure rendering cost**, at
+whichever resolution the tablet would be used at.
 
 Either way the reading says what drew it, and **a software reading can never be
 passed off as a hardware one**. The page marks itself when it is drawn in

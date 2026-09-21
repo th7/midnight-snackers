@@ -291,7 +291,10 @@ async function theResolutionIsChosenOnThePage(browser, base) {
     check(await selector.inputValue() === 'high',
           `the selector shows ${await selector.inputValue()} where the page asked for high`);
     const offered = await selector.locator('option').allTextContents();
-    check(offered.length === 3, `the selector offers ${offered.join(', ')} rather than three resolutions`);
+    check(offered.join(',') === 'colliders,low,medium,high',
+          `the selector offers ${offered.join(', ')}, cheapest first it is not`);
+    check(await open.locator('#measure-cost').isChecked() === false,
+          'the cost is being measured without anybody asking');
 
     await Promise.all([open.waitForURL(/resolution=low/, { timeout: 30_000 }), selector.selectOption('low')]);
     await open.waitForFunction(() => window.replayPage && window.replayPage.settled, null, { timeout: 90_000 });
@@ -301,6 +304,54 @@ async function theResolutionIsChosenOnThePage(browser, base) {
     check(!/has not been built/.test(panels.problem || ''),
           `low is the committed model, so nothing should have fallen back: "${panels.problem}"`);
     check(await open.locator('#resolution').inputValue() === 'low', 'the selector forgot what it was set to');
+  } finally {
+    await open.close();
+  }
+}
+
+// The colliders are the first thing the same control offers, because "what am I looking at" is one
+// question. They draw on a 2D canvas with no renderer behind them, so there is no frame to measure
+// and the box that measures one says so by being unavailable rather than by failing when pressed.
+async function theCollidersAreTheFirstThingTheSameControlOffers(browser, base) {
+  const { open } = await opened(browser, `${base}/runs/1/`);
+  try {
+    await Promise.all([open.waitForURL(/view=flat/, { timeout: 30_000 }),
+                       open.locator('#resolution').selectOption('colliders')]);
+    await open.waitForFunction(() => window.replayPage && window.replayPage.settled, null, { timeout: 90_000 });
+
+    const panels = await readPanels(open);
+    check(panels.drawing === 'flat', `choosing the colliders drew the ${panels.drawing} field`);
+    check(await open.locator('#resolution').inputValue() === 'colliders',
+          'the control does not say the colliders are what is drawn');
+    check(await open.locator('#measure-cost').isDisabled(),
+          'the colliders offer a frame to measure, and they have no renderer to measure one with');
+
+    await Promise.all([open.waitForURL(/resolution=medium/, { timeout: 30_000 }),
+                       open.locator('#resolution').selectOption('medium')]);
+    check(!/view=flat/.test(open.url()), `going back to a model kept the colliders: ${open.url()}`);
+  } finally {
+    await open.close();
+  }
+}
+
+// Whether a frame is measured is a box on the page rather than a query string somebody knows about,
+// and it measures whichever model is drawn -- so it carries the resolution with it.
+async function theCostIsMeasuredWhenTheBoxIsTicked(browser, base) {
+  const { open } = await opened(browser, `${base}/runs/1/?resolution=low`);
+  try {
+    await Promise.all([open.waitForURL(/cost/, { timeout: 30_000 }), open.locator('#measure-cost').check()]);
+    await open.waitForFunction(() => window.replayPage && window.replayPage.cost, null, { timeout: 90_000 });
+
+    check(/resolution=low/.test(open.url()), `ticking the box lost the resolution: ${open.url()}`);
+    const cost = await open.evaluate(() => window.replayPage.cost);
+    check(cost.model === 'field.glb', `it measured ${cost.model} rather than the model that is drawn`);
+    check(await open.locator('#measure-cost').isChecked(), 'the box forgot it was ticked');
+    check(await open.locator('#resolution').count() === 1, 'the reading wrote over the controls');
+    const said = await open.evaluate(() => window.replayPage.said);
+    check(/With shadows:/.test(said), `the page shows "${said}" rather than what a frame cost`);
+
+    await Promise.all([open.waitForURL((url) => !/cost/.test(url.href), { timeout: 30_000 }),
+                       open.locator('#measure-cost').uncheck()]);
   } finally {
     await open.close();
   }
@@ -402,6 +453,8 @@ async function main() {
     solid = await theLiveViewDrawsTheFieldModel(browser, base, run);
     await aRunStillAddingTicksIsFollowedInTheModel(browser, base, run.ticks);
     await theResolutionIsChosenOnThePage(browser, base);
+    await theCollidersAreTheFirstThingTheSameControlOffers(browser, base);
+    await theCostIsMeasuredWhenTheBoxIsTicked(browser, base);
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '', 'field-high.glb');
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '?resolution=medium', 'field-medium.glb');
     await theFlatDrawingIsStillThereToAskFor(browser, base);

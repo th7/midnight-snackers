@@ -791,11 +791,17 @@ is the *only* page that draws the field: what used to be a second page at
 its query string — `?view=camera` for the **webcam's view**, `?view=flat` for
 the flat drawing, `?cost` for **what a frame costs**, `?resolution=low|medium`
 for less than the **resolution** it draws at by default. The dashboard passes
-them through, so `#simulate?resolution=low` reaches the view it embeds. The
-resolution is also a **selector under the field**, because which field you are
-looking at is a thing to change while looking at it rather than a sentence
-about what somebody put in a query string; choosing one navigates, carrying
-everything else asked of the page along with it. Classes: `SimLiveServer`; `SimBench` serves the
+them through, so `#simulate?resolution=low` reaches the view it embeds. All of
+it is also **under the field**, because what you are looking at is a thing to
+change while looking at it rather than a sentence about what somebody put in a
+query string: one selector for *drawn as* — the **colliders** first, then the
+three resolutions, cheapest first — and a box for **measure rendering cost**,
+which is `?cost` by another name and measures whichever model is drawn.
+Choosing navigates, carrying everything else asked of the page along. The
+controls sit apart from the page's messages, since a cost reading or a model
+that would not load writes over a message and must not write over them. The
+box is unavailable on the colliders, which are drawn on a 2D canvas with no
+renderer to ask for a frame. Classes: `SimLiveServer`; `SimBench` serves the
 same page per run. Files: `webcam.js`; `framecost.js`.
 
 **Webcam's view** — The goal tags as the robot's camera would see them: the
@@ -870,7 +876,8 @@ perimeter is in it, and a merge that lost a triangle fails the load rather
 than drawing a field quietly missing parts.
 
 **What a frame costs** — What the field scene costs to draw, measured rather
-than guessed: `/sim/runs/<id>/?cost` takes the reading in whatever browser
+than guessed: the **measure rendering cost** box, or `/sim/runs/<id>/?cost`
+which is the same thing, takes the reading in whatever browser
 opens it, which is how a tablet is measured, and `node tools/browser/cost.mjs`
 takes the same one here. A reading says how long one frame takes to **submit**
 — the CPU's share — and how long to **finish**, which is the GPU's, with and
