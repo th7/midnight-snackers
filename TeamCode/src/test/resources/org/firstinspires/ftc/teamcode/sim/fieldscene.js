@@ -5,6 +5,16 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const FIELD_IN = 141.17;
 export const FLOOR_Z = 0;
+
+// The drawn floor is scenery, and it sits this far below the field's own plane. Full detail brings
+// the CAD's soft tiles, whose top surface *is* z = 0, and two opaque surfaces in one plane fight for
+// the same pixels: the floor came out in radial slivers, worse the further out the camera. How far
+// down is not taste. A 24-bit depth buffer resolves about z^2 / (near * 2^24) at distance z, which
+// at the far end of the orbit -- 900 in out plus half a field, near = 1 -- is about 0.06 in; this is
+// three times that, and 0.14% of the field, which no eye reads as a gap. Rendering the full model at
+// 110, 620 and 900 in agrees: 0.01 in still speckled at 620.
+export const FLOOR_DROP_IN = 0.2;
+
 export const TAPE_Z = 0.01;
 export const OVERLAY_Z = 0.05;
 export const NORMAL_MODEL = 'field.glb';
@@ -55,7 +65,8 @@ export class FieldScene {
     this.floor = new THREE.Mesh(
         new THREE.PlaneGeometry(FIELD_IN, FIELD_IN),
         new THREE.MeshStandardMaterial({ color: 0x20262e, roughness: 0.95, metalness: 0 }));
-    this.floor.position.z = FLOOR_Z;
+    this.floor.position.z = FLOOR_Z - FLOOR_DROP_IN;
+    this.fieldPlaneZ = FLOOR_Z;
     this.floor.receiveShadow = true;
     this.scene.add(this.floor);
 

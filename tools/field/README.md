@@ -73,7 +73,7 @@ shape, built from FIRST's published STEP by `step_to_field.py`.
 
 `field.glb` is the field as it **looks**: the Onshape assembly's real
 tessellation, fillets and all, built by the coding server rather than kept in
-the repository. Press **Refresh assets** on the admin page, or start the server
+the repository. *Its* tessellation, and not one we choose -- see below. Press **Refresh assets** on the admin page, or start the server
 without having fetched them and it fetches in the background. Classes:
 `Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
@@ -89,6 +89,35 @@ says. Both builds the pair. They sit side by side, and a page asks for one with
 and says so rather than failing. Full detail costs roughly five times the
 triangles and the bytes; it costs almost no extra draw calls, because the scene
 is batched by material rather than by part.
+
+### How fine the tessellation is, and why we do not choose
+
+The export is `GET /api/v10/assemblies/d/{did}/w/{wid}/e/{eid}/gltf`, and it
+takes **no tessellation parameters**. That is measured, not assumed: the same
+request with `angleTolerance` and `chordTolerance` at 0.4 and 0.01 (very
+coarse), at 0.02 and 0.00002 (very fine), with `maxFacetWidth=0.05`, and with
+`precomputedLevelOfDetail=coarse` all came back byte-for-byte identical, at
+11,258,655 bytes. Onshape's own OpenAPI spec agrees: that path is not in it.
+The documented GET that *does* take `angleTolerance`, `chordTolerance`,
+`maxFacetWidth` and `precomputedLevelOfDetail` is the **part studio** one,
+`/partstudios/.../gltf`, and it exports a part studio rather than an assembly.
+
+(An earlier attempt used `angularTolerance`, which is the wrong name for that
+endpoint family and would have been ignored whatever the endpoint did. The
+graphics endpoints spell it `angleTolerance`; the translation ones spell it
+`angularTolerance`. Both were tried.)
+
+So the only documented way to ask an *assembly* for a different tessellation is
+the translation API: `POST /assemblies/d/{did}/{wv}/{wvid}/e/{eid}/export/gltf`
+with a `BTBGltfExportParams` body carrying `meshParams`
+(`angularTolerance`, `distanceTolerance`, `maximumChordLength`, `resolution`
+of `FINE|MEDIUM|COARSE`). That is asynchronous -- it makes a translation, which
+is then downloaded -- so taking it up means a different shape of fetch, not a
+different query string. Nobody has needed it yet: what full detail was missing
+was parts, not points.
+
+Until somebody does that, **"the CAD's own tessellation" means "whatever the
+default export gave us"**, and nothing here should claim more.
 
 **Downloading and building are separate asks**, because they cost such
 different things. *Download* fetches the assembly and the textures from Onshape

@@ -1194,6 +1194,10 @@ __IMPORTMAP__
     get loaded() { return solid && solid.loaded; },
     get field() { return solid && solid.field; },
     get floorZ() { return solid ? solid.floor.position.z : null; },
+    get fieldPlaneZ() { return solid ? solid.fieldPlaneZ : null; },
+    get orbit() {
+      return solid ? { near: solid.camera.near, maxDistance: solid.controls.maxDistance, fieldIn: FIELD_IN } : null;
+    },
     get camera3() { return webcam && webcam.camera; },
     get tags() { return tags ? tags.tags : []; },
     get lens() { return webcam && webcam.lens; },
