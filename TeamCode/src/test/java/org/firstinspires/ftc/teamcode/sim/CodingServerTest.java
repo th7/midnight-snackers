@@ -63,9 +63,39 @@ public class CodingServerTest {
     private Path root;
 
     @Before
-    public void aRepositoryWithADevelopBranch() throws IOException {
+    public void aProjectRoot() throws IOException {
         root = folder.getRoot().toPath();
+        Files.createDirectories(root);
+    }
+
+    private Git git;
+
+    /**
+     * Which git the server works the repository with. A test of the server -- a login, a route, a
+     * page, a file the admin picked -- gets the fake, which passes the same contract RealGitTest
+     * holds the real one to, so it forks nothing. A test that then reads git's own answers about
+     * the repository asks for the real one first.
+     */
+    private Git git() {
+        if (git == null) {
+            git = FakeGit.ofWhatIsOnDisk(root, Worktrees.DEVELOP);
+        }
+        return git;
+    }
+
+    /** Whatever is in the project root, committed on develop, by whichever git this test has. */
+    private void committed(String message) {
+        git().stageEverything(root);
+        git().commitStaged(root, Git.Author.of("fixture", "fixture@example.invalid"), message);
+    }
+
+    /** A repository on disk, for a test whose question is one only git can answer. */
+    private void aRealRepository() throws IOException {
+        if (git != null) {
+            throw new IllegalStateException("the git was already made; ask for the real one before the server");
+        }
         GitFixture.init(root);
+        git = new RealGit("git", root.toAbsolutePath().normalize());
     }
 
     private final java.util.List<SimBench> benches = new java.util.ArrayList<>();
@@ -112,7 +142,8 @@ public class CodingServerTest {
     }
 
     private CodingServer serverWith(SimBench.Factory benches, int scryptN, CodingServer.Assets assets) {
-        server = CodingServer.start(root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets);
+        server = CodingServer.start(
+                root, benches, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets, git());
         return server;
     }
 
@@ -359,7 +390,7 @@ public class CodingServerTest {
         folder.newFile("TeamCode/Plans.java");
         folder.newFile("TeamCode/Drive.java");
         folder.newFile("TeamCode/Secret.java");
-        GitFixture.commitAll(root, "the files");
+        committed("the files");
         String cookie = login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
 
@@ -386,7 +417,7 @@ public class CodingServerTest {
             folder.newFile("TeamCode/" + file);
             assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/" + file).status);
         }
-        GitFixture.commitAll(root, "the files");
+        committed("the files");
         String cookie = login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
         return cookie;
@@ -530,6 +561,8 @@ public class CodingServerTest {
 
     @Test
     public void aFileThatIsNotUtf8IsListedButNotEditable() throws IOException {
+        // the file this is about is not text, so only a real git can hold it
+        aRealRepository();
         String cookie = approvedEditorOf("logo.bin");
         Files.write(file("logo.bin"), new byte[] {(byte) 0xff, (byte) 0xfe, 0x00, (byte) 0xc3});
 
@@ -624,6 +657,9 @@ public class CodingServerTest {
         return cookie;
     }
 
+    /** A run whose op mode's time has begun, which is to say one whose child is up. */
+    private static final String RUNNING = "\"phase\":\"running\"";
+
     private String awaitSimStatus(String cookie, String marker) throws Exception {
         long deadline = System.nanoTime() + 10_000_000_000L;
         String status = "";
@@ -717,6 +753,10 @@ public class CodingServerTest {
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), bob).status);
         assertEquals(2, benches.size());
+        // A child is what this stops, so wait until there is one: a run stopped while its bench
+        // was still starting the child proves nothing, and starts one child fewer.
+        awaitSimStatus(ada, RUNNING);
+        awaitSimStatus(bob, RUNNING);
 
         server.stop();
 
@@ -728,8 +768,10 @@ public class CodingServerTest {
 
     @Test
     public void oneUsersBrokenEditDoesNotBreakAnothers() throws Exception {
+        // the real project, whose resources are not all text: a real git carries the bytes
+        aRealRepository();
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
-        GitFixture.commitAll(root, "the auto");
+        committed("the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
         assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
@@ -836,8 +878,10 @@ public class CodingServerTest {
 
     @Test
     public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
+        // the real project, whose resources are not all text: a real git carries the bytes
+        aRealRepository();
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
-        GitFixture.commitAll(root, "the auto");
+        committed("the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
         assertEquals(200, admin("POST", "/admin/files/add?path=" + key).status);
@@ -858,8 +902,10 @@ public class CodingServerTest {
 
     @Test
     public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
+        // the real project, whose resources are not all text: a real git carries the bytes
+        aRealRepository();
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "));
-        GitFixture.commitAll(root, "the broken auto");
+        committed("the broken auto");
         serverWith(sourcesBench());
         String cookie = approvedUser("ada");
 
@@ -893,8 +939,10 @@ public class CodingServerTest {
 
     @Test
     public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
+        // the real project, whose resources are not all text: a real git carries the bytes
+        aRealRepository();
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
-        GitFixture.commitAll(root, "the auto");
+        committed("the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
         admin("POST", "/admin/files/add?path=" + key);
@@ -1461,6 +1509,7 @@ public class CodingServerTest {
 
     @Test
     public void nothingIsWrittenUnderTheProjectRootOutsideDotGit() throws IOException {
+        aRealRepository();
         String cookie = approvedEditorOf("Plans.java");
         String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                 .get("version")
@@ -1479,10 +1528,11 @@ public class CodingServerTest {
 
     @Test
     public void approvingALoginMakesAWorktreeAndASaveChangesItNotTheHostCheckout() throws IOException {
+        aRealRepository();
         folder.newFolder("TeamCode");
         Files.write(
                 root.resolve("TeamCode").resolve("Plans.java"), "class Plans {}\n".getBytes(StandardCharsets.UTF_8));
-        GitFixture.commitAll(root, "the file");
+        committed("the file");
         assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Plans.java").status);
         String cookie = approvedUser("ada");
 
@@ -1559,7 +1609,7 @@ public class CodingServerTest {
     public void aPickedFileTheUsersBranchLacksIsA404NamingIt() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
         folder.newFile("TeamCode/Later.java");
-        GitFixture.commitAll(root, "a file added after ada's branch began");
+        committed("a file added after ada's branch began");
         assertEquals(200, admin("POST", "/admin/files/add?path=TeamCode/Later.java").status);
 
         Reply missing = user("GET", "/files/TeamCode/Later.java", cookie);
@@ -1622,6 +1672,7 @@ public class CodingServerTest {
 
     @Test
     public void whenGitRefusesApprovalIsA500AndTheSessionStaysPending() throws IOException {
+        aRealRepository();
         String cookie = login("ada");
         GitFixture.git(root, "checkout", "-q", "-b", "main");
         GitFixture.git(root, "branch", "-D", "develop");
@@ -1684,6 +1735,7 @@ public class CodingServerTest {
 
     @Test
     public void commitMakesOneCommitOnTheUserBranchAuthoredByTheUsername() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(FORMATTED);
         String develop = GitFixture.commitOf(root, "develop");
 
@@ -1707,6 +1759,7 @@ public class CodingServerTest {
 
     @Test
     public void commitWithNothingChangedIsASuccessThatSaysSo() throws IOException {
+        aRealRepository();
         String cookie = approvedEditorOf("Plans.java");
 
         Reply committed = user("POST", "/git/commit", cookie, message("nothing"));
@@ -1721,6 +1774,7 @@ public class CodingServerTest {
 
     @Test
     public void commitWithoutAMessageIsRefused() throws IOException {
+        aRealRepository();
         String cookie = savedEditor("edited");
 
         assertEquals(400, user("POST", "/git/commit", cookie, "{}").status);
@@ -1741,7 +1795,7 @@ public class CodingServerTest {
         assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
         JsonObject after = json(user("GET", "/git/status", cookie).body);
         Files.write(root.resolve("README"), "on develop\n".getBytes(StandardCharsets.UTF_8));
-        GitFixture.commitAll(root, "a commit on develop");
+        committed("a commit on develop");
         JsonObject later = json(user("GET", "/git/status", cookie).body);
 
         assertEquals(
@@ -1802,6 +1856,7 @@ public class CodingServerTest {
 
     @Test
     public void commitFormatsTheJavaItCommitsAndNamesWhatItChanged() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(BADLY_INDENTED);
 
         Reply committed = user("POST", "/git/commit", cookie, message("my change"));
@@ -1836,6 +1891,7 @@ public class CodingServerTest {
 
     @Test
     public void aFileThatIsNotJavaAndJavaThatIsAlreadyFormattedAreCommittedByteForByte() throws IOException {
+        aRealRepository();
         String notJava = "class  Notes {  this file is not Java  }\n";
         String cookie = approvedEditorOf("Plans.java", "notes.txt");
         save(cookie, "Plans.java", FORMATTED);
@@ -1857,6 +1913,7 @@ public class CodingServerTest {
 
     @Test
     public void javaTheFormatterCannotParseIsCommittedAsWrittenAndNamedInAWarning() throws IOException {
+        aRealRepository();
         String broken = "class Plans { this is not java\n";
         String cookie = savedEditor(broken);
 
@@ -1914,11 +1971,12 @@ public class CodingServerTest {
 
     private void commitOnDevelop(String file, String content) throws IOException {
         Files.write(root.resolve(file), content.getBytes(StandardCharsets.UTF_8));
-        GitFixture.commitAll(root, "a commit on develop: " + file);
+        committed("a commit on develop: " + file);
     }
 
     @Test
     public void pullBringsDevelopIntoTheWorktreeAndTheOpenFile() throws IOException {
+        aRealRepository();
         String cookie = approvedEditorOf("Plans.java");
         commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         assertEquals(
@@ -1940,6 +1998,7 @@ public class CodingServerTest {
 
     @Test
     public void pullMergesWhenTheUserHasCommitsOfTheirOwn() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
         commitOnDevelop("README", "on develop\n");
@@ -1963,6 +2022,7 @@ public class CodingServerTest {
 
     @Test
     public void pullKeepsAnUncommittedEditThatDevelopDidNotTouch() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         commitOnDevelop("README", "on develop\n");
 
@@ -1997,6 +2057,7 @@ public class CodingServerTest {
 
     @Test
     public void pullWithAnUncommittedEditInAFileDevelopChangedIsRefusedNamingIt() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         commitOnDevelop("README", "on develop\n");
@@ -2024,6 +2085,7 @@ public class CodingServerTest {
 
     @Test
     public void pullWithNothingNewIsASuccessThatSaysSo() throws IOException {
+        aRealRepository();
         String cookie = approvedEditorOf("Plans.java");
         String head = GitFixture.commitOf(root, "coding/ada");
 
@@ -2037,6 +2099,7 @@ public class CodingServerTest {
 
     @Test
     public void aPullThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
         commitOnDevelop("TeamCode/Plans.java", plans("develop"));
@@ -2144,6 +2207,7 @@ public class CodingServerTest {
 
     @Test
     public void theAdminCanPullDevelopIntoAUsersWorktree() throws IOException {
+        aRealRepository();
         String cookie = approvedEditorOf("Plans.java");
         commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         String develop = GitFixture.commitOf(root, "develop");
@@ -2171,6 +2235,7 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullMovesTheTipTheUsersStatusReportsSoTheirEditorReloadsWhatIsOpen() throws IOException {
+        aRealRepository();
         String cookie = approvedEditorOf("Plans.java");
         String before =
                 json(user("GET", "/git/status", cookie).body).get("head").getAsString();
@@ -2194,6 +2259,7 @@ public class CodingServerTest {
 
     @Test
     public void theAdminListingStillAnswersWhenOneWorktreesStatusCannotBeRead() throws IOException {
+        aRealRepository();
         approvedEditorOf("Plans.java");
         approvedUser("bob");
 
@@ -2214,6 +2280,7 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullWithNothingNewIsASuccessThatSaysSo() throws IOException {
+        aRealRepository();
         approvedEditorOf("Plans.java");
         String head = GitFixture.commitOf(root, "coding/ada");
 
@@ -2227,6 +2294,7 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullWithAnUncommittedEditInAFileDevelopChangedIsRefusedNamingItAndTheUser() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         commitOnDevelop("README", "on develop\n");
@@ -2255,6 +2323,7 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullKeepsAnUncommittedEditThatDevelopDidNotTouch() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         commitOnDevelop("README", "on develop\n");
 
@@ -2281,6 +2350,7 @@ public class CodingServerTest {
 
     @Test
     public void anAdminPullThatConflictsChangesNothingAndShowsTheCoachTheRecipe() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
         commitOnDevelop("TeamCode/Plans.java", plans("develop"));
@@ -2326,6 +2396,7 @@ public class CodingServerTest {
 
     @Test
     public void pushLandsTheUsersCommitsOnDevelopAndTheHostCheckoutShowsThem() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("mine")).status);
         String oldDevelop = GitFixture.commitOf(root, "develop");
@@ -2349,6 +2420,7 @@ public class CodingServerTest {
 
     @Test
     public void pushWithUncommittedChangesIsRefusedAndWithNothingNewSaysSo() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("mine"));
         String develop = GitFixture.commitOf(root, "develop");
 
@@ -2366,6 +2438,7 @@ public class CodingServerTest {
 
     @Test
     public void aPushThatConflictsChangesNothingAndTellsTheUserToAskTheirCoach() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
         commitOnDevelop("TeamCode/Plans.java", plans("develop"));
@@ -2395,6 +2468,7 @@ public class CodingServerTest {
 
     @Test
     public void aPushIsRefusedWhenTheHostsUncommittedEditWouldBeOverwrittenAndTheEditIsIntact() throws IOException {
+        aRealRepository();
         String cookie = savedEditor(plans("ada"));
         assertEquals(200, user("POST", "/git/commit", cookie, message("ada's")).status);
         Files.write(root.resolve("TeamCode/Plans.java"), "the coach's unsaved work\n".getBytes(StandardCharsets.UTF_8));
@@ -2459,6 +2533,7 @@ public class CodingServerTest {
 
     @Test
     public void pushLandsOnOriginTooAndTheReplySaysSo() throws IOException {
+        aRealRepository();
         Path origin = state.getRoot().toPath().resolve("origin.git");
         GitFixture.withOrigin(root, origin);
         String cookie = savedEditor(plans("mine"));
@@ -2477,6 +2552,7 @@ public class CodingServerTest {
 
     @Test
     public void whenOriginIsUnreachableThePushStillLandsAndTheAdminSeesTheProblem() throws IOException {
+        aRealRepository();
         GitFixture.git(
                 root,
                 "remote",
@@ -2523,7 +2599,7 @@ public class CodingServerTest {
         Files.write(src.resolve("Plans.java"), SourceNavigatorTest.PLANS_SOURCE.getBytes(StandardCharsets.UTF_8));
         Files.write(src.resolve("Auto.java"), SourceNavigatorTest.AUTO_SOURCE.getBytes(StandardCharsets.UTF_8));
         SimBenchTest.simulatorInto(root);
-        GitFixture.commitAll(root, "two classes");
+        committed("two classes");
         serverWith(sourcesBench());
         assertEquals(200, admin("POST", "/admin/files/add?path=" + SRC + "Auto.java").status);
         return approvedUser("ada");
@@ -2536,6 +2612,8 @@ public class CodingServerTest {
 
     @Test
     public void aJumpToADefinitionLandsInAFileTheUserMayReadButNotEdit() throws IOException {
+        // the simulator's resources are not all text: a real git carries the bytes
+        aRealRepository();
         String cookie = navigatingUser();
 
         Reply definition = user(
@@ -2603,6 +2681,8 @@ public class CodingServerTest {
 
     @Test
     public void aSymbolFromOutsideTheSourcesHasNoFileAndNothingUnderTheCursorIsA404() throws IOException {
+        // the simulator's resources are not all text: a real git carries the bytes
+        aRealRepository();
         String cookie = navigatingUser();
 
         Reply list = user(
@@ -2620,6 +2700,8 @@ public class CodingServerTest {
 
     @Test
     public void usagesComeFromTheUsersOwnWorktree() throws IOException {
+        // the simulator's resources are not all text: a real git carries the bytes
+        aRealRepository();
         String ada = navigatingUser();
         String bob = approvedUser("bob");
         String version = json(user("GET", "/files/" + SRC + "Auto.java", ada).body)
@@ -2695,6 +2777,7 @@ public class CodingServerTest {
 
     @Test
     public void deletingAUserEndsEveryOneOfTheirLoginsAndTakesTheirWorktree() throws IOException {
+        aRealRepository();
         String cookie = approvedUser("ada");
         String second = login("ada");
         approvedUser("bob");
@@ -2809,6 +2892,7 @@ public class CodingServerTest {
         String ada = approvedUser("ada");
         Files.write(worktreeOf("ada").resolve("README"), "typing\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
+        awaitSimStatus(ada, RUNNING);
 
         Reply refused = admin("POST", "/admin/users/delete?username=ada");
 

@@ -67,11 +67,28 @@ public final class FakeGit implements Git {
     private int next = 1;
 
     public FakeGit(Path root, String firstBranch) {
+        this(root, firstBranch, null);
+    }
+
+    /**
+     * A git whose first commit is whatever is already in the directory -- so a fixture that lays a
+     * project out and then makes one of these has it committed, and a worktree of it carries the
+     * files. What git keeps for itself under {@code .git} is not a file of the project, so a real
+     * repository left in the same directory is neither read nor carried anywhere.
+     */
+    public static FakeGit ofWhatIsOnDisk(Path root, String firstBranch) {
+        Path at = root.toAbsolutePath().normalize();
+        return new FakeGit(root, firstBranch, onDiskUnder(at));
+    }
+
+    private FakeGit(Path root, String firstBranch, Map<String, String> start) {
         this.root = root.toAbsolutePath().normalize();
-        Commit first = commit(new Snapshot(Map.of("README", "hello\n")), List.of());
+        Commit first = commit(new Snapshot(start == null ? Map.of("README", "hello\n") : start), List.of());
         branches.put(firstBranch, first.id);
         checkouts.put(this.root, new Checkout1(this.root, firstBranch));
-        write(this.root, first.snapshot.files);
+        if (start == null) {
+            write(this.root, first.snapshot.files);
+        }
     }
 
     public void addRemote(String name) {
@@ -133,17 +150,43 @@ public final class FakeGit implements Git {
     }
 
     private Map<String, String> onDisk(Path worktree) {
+        return onDiskUnder(worktree);
+    }
+
+    private static Map<String, String> onDiskUnder(Path worktree) {
         Map<String, String> files = new TreeMap<>();
         try (var walk = Files.walk(worktree)) {
             for (Path path : walk.filter(Files::isRegularFile).toList()) {
-                files.put(
-                        worktree.relativize(path).toString().replace('\\', '/'),
-                        new String(Files.readAllBytes(path), StandardCharsets.UTF_8));
+                String name = worktree.relativize(path).toString().replace('\\', '/');
+                if (name.equals(".git") || name.startsWith(".git/")) {
+                    continue;
+                }
+                files.put(name, asText(path, name));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
         return files;
+    }
+
+    /**
+     * This git keeps a file as text, which is all a test of the server ever puts in one. A file it
+     * cannot hold is refused by name rather than carried through a decode that would change it:
+     * a model or an image mangled in a worktree is a test passing for a reason nobody meant.
+     */
+    private static String asText(Path path, String name) throws IOException {
+        try {
+            return java.nio.charset.StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(Files.readAllBytes(path)))
+                    .toString();
+        } catch (java.nio.charset.CharacterCodingException notText) {
+            throw new IllegalStateException(name
+                    + " is not text, and this git keeps a file as text. Give the test a real git"
+                    + " instead, which carries the bytes: " + path);
+        }
     }
 
     private void write(Path worktree, Map<String, String> files) {
@@ -165,6 +208,16 @@ public final class FakeGit implements Git {
 
     private Snapshot snapshotOf(String commit) {
         return commits.get(commit).snapshot;
+    }
+
+    /**
+     * What is in a revision, whether it names a commit or a tree. A pull asks what a merge would
+     * bring before it makes it, and the only name it has for that is the tree {@code mergeTree}
+     * gave it -- which is not a commit and never becomes one when the pull is refused.
+     */
+    private Map<String, String> filesAt(Revision revision) {
+        Tree tree = trees.get(revision.text());
+        return tree != null ? tree.snapshot.files : snapshotOf(must(revision)).files;
     }
 
     private Set<String> ancestry(String commit) {
@@ -261,6 +314,12 @@ public final class FakeGit implements Git {
         }
         branches.put(branch.name(), must(to));
         return Outcome.done();
+    }
+
+    @Override
+    public boolean stillAWorktree(Path at) {
+        Path where = at.toAbsolutePath().normalize();
+        return !where.equals(root) && checkouts.containsKey(where) && Files.isDirectory(where);
     }
 
     @Override
@@ -370,8 +429,8 @@ public final class FakeGit implements Git {
 
     @Override
     public List<String> filesChangedBetween(Revision from, Revision to) {
-        Map<String, String> a = snapshotOf(must(from)).files;
-        Map<String, String> b = snapshotOf(must(to)).files;
+        Map<String, String> a = filesAt(from);
+        Map<String, String> b = filesAt(to);
         List<String> changed = new ArrayList<>();
         Set<String> names = new LinkedHashSet<>(a.keySet());
         names.addAll(b.keySet());
