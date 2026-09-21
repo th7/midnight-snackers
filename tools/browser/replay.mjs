@@ -277,6 +277,35 @@ async function aRunStillAddingTicksIsFollowedInTheModel(browser, base, ticks) {
   }
 }
 
+// Which field you are looking at is a thing to change while looking at it, not a sentence about what
+// somebody chose in a query string. Low is the committed model, so choosing it is also the one path
+// here that draws a field nobody had to build.
+async function theResolutionIsChosenOnThePage(browser, base) {
+  const { open } = await opened(browser, `${base}/runs/1/`);
+  try {
+    const selector = open.locator('#resolution');
+    check(await selector.count() === 1, 'the page offers no resolution selector');
+    if (await selector.count() !== 1) {
+      return;
+    }
+    check(await selector.inputValue() === 'high',
+          `the selector shows ${await selector.inputValue()} where the page asked for high`);
+    const offered = await selector.locator('option').allTextContents();
+    check(offered.length === 3, `the selector offers ${offered.join(', ')} rather than three resolutions`);
+
+    await Promise.all([open.waitForURL(/resolution=low/, { timeout: 30_000 }), selector.selectOption('low')]);
+    await open.waitForFunction(() => window.replayPage && window.replayPage.settled, null, { timeout: 90_000 });
+
+    const panels = await readPanels(open);
+    check(panels.drawing === 'solid', `choosing low drew the ${panels.drawing} field`);
+    check(!/has not been built/.test(panels.problem || ''),
+          `low is the committed model, so nothing should have fallen back: "${panels.problem}"`);
+    check(await open.locator('#resolution').inputValue() === 'low', 'the selector forgot what it was set to');
+  } finally {
+    await open.close();
+  }
+}
+
 // High is what a page asks for when it asks for nothing, and CI has fetched nothing -- so this is
 // also the check that the default is high, and that a server which has not built it still draws.
 async function theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, asked, file) {
@@ -372,6 +401,7 @@ async function main() {
   try {
     solid = await theLiveViewDrawsTheFieldModel(browser, base, run);
     await aRunStillAddingTicksIsFollowedInTheModel(browser, base, run.ticks);
+    await theResolutionIsChosenOnThePage(browser, base);
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '', 'field-high.glb');
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '?resolution=medium', 'field-medium.glb');
     await theFlatDrawingIsStillThereToAskFor(browser, base);
