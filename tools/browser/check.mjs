@@ -120,6 +120,7 @@ try {
 
   const drawn2 = await page.evaluate(() => {
     const out = { walls: 0, seeThrough: [], solidSeeThrough: [], tapeTop: null, floorZ: window.replayPage.floorZ,
+                  fieldPlaneZ: window.replayPage.fieldPlaneZ, orbit: window.replayPage.orbit,
                   fieldMeshes: 0, inScene: 0 };
     window.replayPage.scene.traverse((o) => {
       if (!o.isMesh) {
@@ -162,12 +163,30 @@ try {
 
   check(drawn2.tapeTop !== null, 'no tape in the scene to stand clear of the floor');
   if (drawn2.tapeTop !== null) {
-    const clear = drawn2.tapeTop - drawn2.floorZ;
+    const clear = drawn2.tapeTop - drawn2.fieldPlaneZ;
     check(clear > 0.001,
-        `the tape's top is ${clear} in above the floor at z=${drawn2.floorZ}; in the same plane `
-        + 'they fight for the same pixels and the tape flickers');
+        `the tape's top is ${clear} in above the field's floor plane at z=${drawn2.fieldPlaneZ}; in the same `
+        + 'plane they fight for the same pixels and the tape flickers');
     check(clear < 0.5, `the tape stands ${clear} in off the floor, which is tape that is floating`);
   }
+
+  // The drawn floor is scenery under the field's own plane, and full detail brings the CAD's soft
+  // tiles whose top surface *is* that plane. Two opaque surfaces in one plane fight for the same
+  // pixels, which is what the floor did: radial slivers, worse the further out the camera. How far
+  // below is not taste. A 24-bit depth buffer resolves about z^2 / (near * 2^24) at distance z, so
+  // the test is against that quantum at the far end of the orbit, not against a number somebody
+  // liked. CI draws the stand-in, which has no tiles and so cannot show the fight -- what it can
+  // hold is the rule that prevents it.
+  const drop = drawn2.fieldPlaneZ - drawn2.floorZ;
+  const reach = drawn2.orbit.maxDistance + drawn2.orbit.fieldIn / 2;
+  const quantum = (reach * reach) / (drawn2.orbit.near * 2 ** 24);
+  check(drop > 0,
+      `the drawn floor is at z=${drawn2.floorZ} and the field's plane at z=${drawn2.fieldPlaneZ}; in the same `
+      + 'plane the CAD\'s tiles and the drawn floor fight for the same pixels');
+  check(drop > quantum * 2,
+      `the drawn floor is ${drop} in below the field's plane, and the depth buffer cannot resolve better than `
+      + `${quantum.toFixed(4)} in at ${reach} in out, so it will fight at full zoom`);
+  check(drop < 0.5, `the drawn floor is ${drop} in below the field's plane, which is far enough to read as a gap`);
 
   // The same page, played rather than read. It was a second one at another size, which meant
   // loading the field and building its scene twice over -- the dearest thing this check does, for

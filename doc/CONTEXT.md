@@ -808,6 +808,20 @@ is the one renderer of it: the field page and the live view both build
 their picture from it and add their own. It needs the assets, so a page
 gets it only when it is served somewhere they resolve.
 
+**Drawn floor** — The dark plane the field scene puts under everything, and
+scenery rather than geometry: the field's own floor plane is z = 0, where the
+tape lies and the game pieces rest. The drawn floor sits `FLOOR_DROP_IN`
+below it, because **full detail** brings the CAD's soft tiles whose top
+surface *is* z = 0, and two opaque surfaces in one plane fight for the same
+pixels — the floor came out in radial slivers, worse the further out the
+camera. How far below is derived rather than chosen: a 24-bit depth buffer
+resolves about `z² / (near · 2²⁴)` at distance z, which at the far end of the
+orbit is about 0.06 in, and the drop is three times that and 0.14% of the
+field. The browser check recomputes that quantum from the camera and the
+orbit rather than pinning the number, so moving the camera's near plane moves
+what the floor must clear. CI draws the **stand-in**, which has no tiles and
+cannot show the fight; what it holds is the rule that prevents it.
+
 **Batched by material** — The field's 305 parts share 11 materials, so the
 scene merges the geometry of the ones that share into a mesh apiece rather
 than drawing a part at a time. What cannot be merged says so by what is asked
