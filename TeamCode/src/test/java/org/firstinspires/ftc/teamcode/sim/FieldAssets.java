@@ -19,9 +19,26 @@ public final class FieldAssets {
     /** The assembly as Onshape exported it, kept so a build need not fetch it again. */
     public static final String EXPORT_FILE = "export.gltf";
 
-    public enum Detail {
-        NORMAL("normal", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.A_COLOUR_APIECE),
-        FULL("full", "field-full.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART, FieldGlb.Shading.AS_THE_CAD_DREW_IT);
+    /**
+     * How much of the CAD a model is, in three steps, each adding one thing to the one below it.
+     * <b>Low</b> is the field as it plays: the hardware dropped, snapped to a twentieth of an inch,
+     * a colour to a part. <b>Medium</b> is those same parts at the points and in the materials the
+     * CAD gave them. <b>High</b> adds back every part the export holds, hardware and all. High is
+     * what a page draws unless it asks for less: a field that does not look like the field is the
+     * thing worth avoiding, and whoever cannot afford it is the one who knows that.
+     */
+    public enum Resolution {
+        LOW("low", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.A_COLOUR_APIECE),
+        MEDIUM(
+                "medium",
+                "field-medium.glb",
+                FieldGlb.NO_GRID,
+                FieldGlb.Keep.WHAT_WE_DRAW,
+                FieldGlb.Shading.AS_THE_CAD_DREW_IT),
+        HIGH("high", "field-high.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART, FieldGlb.Shading.AS_THE_CAD_DREW_IT);
+
+        /** What a page draws, what the admin page offers first, and what a server builds at startup. */
+        public static final Resolution DEFAULT = HIGH;
 
         public final String asked;
         public final String file;
@@ -29,26 +46,36 @@ public final class FieldAssets {
         public final FieldGlb.Keep keep;
         public final FieldGlb.Shading shading;
 
-        Detail(String asked, String file, double grid, FieldGlb.Keep keep, FieldGlb.Shading shading) {
+        Resolution(String asked, String file, double grid, FieldGlb.Keep keep, FieldGlb.Shading shading) {
             this.asked = asked;
             this.file = file;
             this.grid = grid;
             this.keep = keep;
             this.shading = shading;
         }
+
+        static Resolution named(String asked) {
+            for (Resolution one : values()) {
+                if (one.asked.equals(asked)) {
+                    return one;
+                }
+            }
+            return null;
+        }
     }
 
-    public static List<Detail> detailsNamed(String asked) {
-        if (asked == null || asked.isBlank() || Detail.NORMAL.asked.equals(asked)) {
-            return List.of(Detail.NORMAL);
+    public static List<Resolution> resolutionsNamed(String asked) {
+        if (asked == null || asked.isBlank()) {
+            return List.of(Resolution.DEFAULT);
         }
-        if (Detail.FULL.asked.equals(asked)) {
-            return List.of(Detail.FULL);
+        if ("all".equals(asked)) {
+            return List.of(Resolution.values());
         }
-        if ("both".equals(asked)) {
-            return List.of(Detail.NORMAL, Detail.FULL);
+        Resolution one = Resolution.named(asked);
+        if (one == null) {
+            throw new NotAnAsset("no such resolution: " + asked + ". It is low, medium, high or all.");
         }
-        throw new NotAnAsset("no such detail: " + asked + ". It is normal, full or both.");
+        return List.of(one);
     }
 
     public static final List<String> TEXTURES = List.of(
@@ -63,9 +90,10 @@ public final class FieldAssets {
 
     private FieldAssets() {}
 
+    /** What a server needs before a page draws what it asks for: the model it asks for, and the art. */
     public static List<String> everyAsset() {
         List<String> out = new ArrayList<>();
-        out.add(FIELD_GLB);
+        out.add(Resolution.DEFAULT.file);
         for (String texture : TEXTURES) {
             out.add(TEXTURES_UNDER + "/" + texture);
         }
@@ -103,13 +131,13 @@ public final class FieldAssets {
     }
 
     public static Refreshed refresh(Onshape onshape, Store store, Path into) {
-        return refresh(onshape, store, into, List.of(Detail.NORMAL));
+        return refresh(onshape, store, into, List.of(Resolution.DEFAULT));
     }
 
     /** The dear half and then the cheap one. What the admin page does as two asks, in one. */
-    public static Refreshed refresh(Onshape onshape, Store store, Path into, List<Detail> details) {
+    public static Refreshed refresh(Onshape onshape, Store store, Path into, List<Resolution> resolutions) {
         Map<String, Integer> written = new LinkedHashMap<>(download(onshape, store, into).written);
-        written.putAll(build(store, into, details).written);
+        written.putAll(build(store, into, resolutions).written);
         return new Refreshed(written);
     }
 
@@ -130,16 +158,17 @@ public final class FieldAssets {
      * one: a build that found nothing downloaded has to say so rather than quietly reaching for the
      * network, and javac is what holds that rather than a comment.
      */
-    public static Refreshed build(Store store, Path into, List<Detail> details) {
+    public static Refreshed build(Store store, Path into, List<Resolution> resolutions) {
         byte[] export = store.readIfThere(into.resolve(EXPORT_FILE))
                 .orElseThrow(() -> new NothingDownloaded(
                         "nothing has been downloaded yet, so there is no export to build from. Download from "
                                 + "Onshape first; the build is then under a second."));
         Map<String, byte[]> built = new LinkedHashMap<>();
-        for (Detail detail : details) {
+        for (Resolution resolution : resolutions) {
             built.put(
-                    detail.file,
-                    FieldGlb.build(export, SimPlacement.FIELD_SIZE_IN, detail.grid, detail.keep, detail.shading));
+                    resolution.file,
+                    FieldGlb.build(
+                            export, SimPlacement.FIELD_SIZE_IN, resolution.grid, resolution.keep, resolution.shading));
         }
         return writeAll(store, into, built);
     }

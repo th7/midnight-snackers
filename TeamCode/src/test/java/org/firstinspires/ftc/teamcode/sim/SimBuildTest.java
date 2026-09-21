@@ -106,11 +106,43 @@ public class SimBuildTest {
         assertEquals(first, again.classes);
 
         Files.write(greeter, GREETER.replace("hi", "hello").getBytes(StandardCharsets.UTF_8));
-        Files.setLastModifiedTime(greeter, FileTime.fromMillis(System.currentTimeMillis() + 2000));
         SimBuild.Result edited = build.build();
         assertTrue(edited.rebuilt);
         assertNotEquals(first, edited.classes);
         assertFalse("only the latest build is kept", Files.exists(first));
+    }
+
+    // A save from the Edit tab is a save of the same file seconds apart, and one of them is sooner or
+    // later the same length as the last: a sign flipped, a digit changed, a name swapped for another
+    // of its size. A fingerprint of size and modification time cannot tell that from no edit at all,
+    // and what the user then runs is the code they had before, with nothing anywhere saying so.
+    @Test
+    public void anEditOfTheSameLengthAtTheSameMomentIsStillAnEdit() throws IOException {
+        SimBuild build = build();
+        Path greeter = write("demo/Greeter.java", GREETER);
+        build.build();
+        FileTime when = Files.getLastModifiedTime(greeter);
+
+        Files.write(greeter, GREETER.replace("\"hi\"", "\"ho\"").getBytes(StandardCharsets.UTF_8));
+        Files.setLastModifiedTime(greeter, when);
+
+        assertTrue("the bytes changed, so the tree changed", build.build().rebuilt);
+    }
+
+    @Test
+    public void aResourceEditedToTheSameSizeAtTheSameMomentIsStillRebuilt() throws IOException {
+        SimBuild build = build();
+        write("demo/Greeter.java", GREETER);
+        Path resource = harnessRoot.resolveSibling("resources").resolve("field.json");
+        Files.createDirectories(resource.getParent());
+        Files.write(resource, "{\"a\": 1}".getBytes(StandardCharsets.UTF_8));
+        build.build();
+        FileTime when = Files.getLastModifiedTime(resource);
+
+        Files.write(resource, "{\"a\": 2}".getBytes(StandardCharsets.UTF_8));
+        Files.setLastModifiedTime(resource, when);
+
+        assertTrue("a resource is part of what was built too", build.build().rebuilt);
     }
 
     @Test

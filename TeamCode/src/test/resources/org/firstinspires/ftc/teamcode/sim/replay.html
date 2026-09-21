@@ -1060,27 +1060,30 @@ __IMPORTMAP__
   if (!placing) renderController(driving() ? sent[selected] : recordedState(index));
 
   async function drawTheFieldModel() {
-    const { FieldScene, NORMAL_MODEL, FULL_MODEL } = await import(ASSETS + 'fieldscene.js');
+    const { FieldScene, MODELS, DEFAULT_RESOLUTION, LOWEST_RESOLUTION } = await import(ASSETS + 'fieldscene.js');
     const view = new FieldScene({ canvas: solidCanvas, assets: ASSETS, background: token('--bg') });
     view.fit(solidCanvas.width, solidCanvas.height);
-    const wantsFull = wanted === 'full' || new URLSearchParams(location.search).get('detail') === 'full';
+    // High unless asked for less, and down to the lowest -- which is always there, committed for the
+    // tests -- when what was asked for has not been built. Falling back is said out loud either way.
+    const named = asked.get('resolution');
+    const askedFor = MODELS[named] ? named : DEFAULT_RESOLUTION;
     let fellBack = false;
-    await view.load(wantsFull ? FULL_MODEL : NORMAL_MODEL).catch(wrong => {
-      if (!wantsFull) throw wrong;
+    await view.load(MODELS[askedFor]).catch(wrong => {
+      if (askedFor === LOWEST_RESOLUTION) throw wrong;
       fellBack = true;
-      return view.load(NORMAL_MODEL);
+      return view.load(MODELS[LOWEST_RESOLUTION]);
     });
+    const drawnAt = fellBack ? LOWEST_RESOLUTION : askedFor;
     view.place(Object.assign({}, FIELD, { robotIn: ROBOT_IN }));
     solid = view;
     drawing = 'solid';
     canvas.hidden = true;
     solidCanvas.hidden = false;
     if (fellBack) {
-      fieldProblem = 'The full-detail model has not been fetched, so this is the normal one.';
+      fieldProblem = 'The field at ' + askedFor + ' resolution has not been built, so this is the low one.';
     }
-    fieldMsg.innerHTML = (view.loaded.model === FULL_MODEL ? 'The field at full detail. ' : '')
-      + (fellBack ? 'The full-detail model has not been fetched, so this is the normal one. ' : '')
-      + 'The field as it looks, from the season CAD. '
+    fieldMsg.innerHTML = 'The field as it looks, from the season CAD, at ' + drawnAt + ' resolution. '
+      + (fellBack ? fieldProblem + ' ' : '')
       + '<a href="?view=flat">Draw what the simulator collides</a> instead.';
     const { theGoalTags, theWebcamsView } = await import(ASSETS + 'webcam.js');
     tags = theGoalTags(view, Object.assign({}, FIELD, { robotIn: ROBOT_IN }), ASSETS,

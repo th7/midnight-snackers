@@ -17,8 +17,12 @@ export const FLOOR_DROP_IN = 0.2;
 
 export const TAPE_Z = 0.01;
 export const OVERLAY_Z = 0.05;
-export const NORMAL_MODEL = 'field.glb';
-export const FULL_MODEL = 'field-full.glb';
+// The three the pipeline builds, and what a page draws when it asks for none of them by name.
+// Each is one step more of the CAD than the one before: low snaps and drops the hardware and paints
+// a colour a part, medium is those parts as the CAD drew them, high is every part as the CAD drew it.
+export const MODELS = { low: 'field.glb', medium: 'field-medium.glb', high: 'field-high.glb' };
+export const DEFAULT_RESOLUTION = 'high';
+export const LOWEST_RESOLUTION = 'low';
 const SAME_PLACE_IN = 0.01;
 
 const SEE_THROUGH = /skin|side[\s_]glass/i;
@@ -90,7 +94,7 @@ export class FieldScene {
   }
 
   load(model) {
-    const file = model || NORMAL_MODEL;
+    const file = model || MODELS[DEFAULT_RESOLUTION];
     this.guessedNormals = false;
     return new Promise((resolve, reject) => {
       new GLTFLoader().load(this.assets + file, (gltf) => {

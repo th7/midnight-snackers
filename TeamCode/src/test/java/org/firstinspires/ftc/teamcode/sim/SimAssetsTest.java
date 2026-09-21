@@ -95,20 +95,23 @@ public class SimAssetsTest {
         }
 
         assertTrue("the modules name no assets at all: " + asked, asked.size() >= 5);
-        Set<String> fetched = Set.of(FieldAssets.Detail.FULL.file);
-        for (String name : asked) {
-            if (name.startsWith("three") || name.contains("vendor")) {
-                continue;
+        // Every model above the lowest is built rather than committed, so the page names files that
+        // are not here until an admin builds them. The lowest is the stand-in and must be served.
+        Set<String> built = new java.util.HashSet<>();
+        for (FieldAssets.Resolution one : FieldAssets.Resolution.values()) {
+            if (one != FieldAssets.Resolution.LOW) {
+                built.add(one.file);
             }
-            if (fetched.contains(name)) {
-                assertTrue(
-                        name + " is asked for by the live view and is neither committed nor fetched",
-                        FieldAssets.Detail.FULL.file.equals(name));
+        }
+        for (String name : asked) {
+            if (name.startsWith("three") || name.contains("vendor") || built.contains(name)) {
                 continue;
             }
             assertEquals(name + " is asked for by the live view and not served", 200, SimAssets.serve(name).status);
         }
-        assertTrue("the field model is among them", asked.contains(FieldAssets.FIELD_GLB));
+        assertTrue(
+                "the lowest model is among them, and it is the committed one",
+                asked.contains(FieldAssets.Resolution.LOW.file));
         assertTrue("and the tag artwork", asked.stream().anyMatch(name -> name.startsWith("textures/")));
     }
 

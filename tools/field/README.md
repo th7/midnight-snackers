@@ -77,28 +77,35 @@ the repository. *Its* tessellation, and not one we choose -- see below. Press **
 without having fetched them and it fetches in the background. Classes:
 `Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
-The admin page also chooses the **detail**. Normal is the field as it plays:
-305 parts, snapped to a twentieth of an inch, 316,000 triangles and 4 MB. Full
-is every part the export holds, at the points it holds them: 1,029 parts,
-1,474,000 triangles and 20 MB. Two thirds of the assembly is the hardware that
-holds the field together — screws, nuts, rivets, cable ties, the soft tiles and
-what is under them — dropped by name for normal because nothing draws a washer
-once the field is up, and kept for full, because *full* has to mean what it
-says. Both builds the pair. They sit side by side, and a page asks for one with
-`?detail=full`; a page that asks for a model nobody built draws the normal one
-and says so rather than failing. Full detail costs roughly five times the
-triangles and the bytes; it costs almost no extra draw calls, because the scene
-is batched by material rather than by part.
+The admin page chooses the **resolution**, in three steps:
+
+| | parts | triangles | bytes |
+|---|---|---|---|
+| low | 305 | 316,000 | 4.0 MB |
+| medium | 305 | 1,020,000 | 27.5 MB |
+| high | 1,029 | 1,474,500 | 41.7 MB |
+
+Low is the field as it plays: snapped to a twentieth of an inch, a colour to a
+part, and without the hardware — two thirds of the assembly is screws, nuts,
+rivets, cable ties, the soft tiles and what is under them, and nothing draws a
+washer once the field is up. Medium is those same parts at the CAD's own points
+and in the CAD's own materials. High adds the hardware back.
+
+A page draws at **high** unless it asks for less with `?resolution=low` or
+`medium`, and one that asks for a resolution nobody built draws the low one and
+says so rather than failing. `all` builds the three. They sit side by side, so
+changing resolution is a query string rather than another fetch. None of it
+costs many more draw calls, because the scene is batched by material rather
+than by part.
 
 ### What comes across, and what is not there to come
 
-Points always; **normals** and whole **materials** at full detail only. Normals
+Points always; **normals** and whole **materials** at medium and high. Normals
 matter as much as points: without them a page computes its own, averaging across
 every face a vertex touches, which rounds off every edge the CAD meant to be
-sharp. They also roughly double a model — full detail went from 20.0 MB to 41.7
-MB — which is why the cheap model goes without them and keeps a colour to a
-part, exactly as it always has, at 4.0 MB. Detail decides two things now: which
-parts are in the model, and how much of their surface comes with them.
+sharp. They also roughly double a model, which is why the lowest goes without
+them and keeps a colour to a part, at 4.0 MB. Resolution decides two things:
+which parts are in the model, and how much of their surface comes with them.
 
 **There are no UVs and no textures in the export.** Not dropped: absent. The
 assembly's glTF carries `POSITION` and `NORMAL` and nothing else per vertex,
@@ -130,7 +137,7 @@ with a `BTBGltfExportParams` body carrying `meshParams`
 (`angularTolerance`, `distanceTolerance`, `maximumChordLength`, `resolution`
 of `FINE|MEDIUM|COARSE`). That is asynchronous -- it makes a translation, which
 is then downloaded -- so taking it up means a different shape of fetch, not a
-different query string. Nobody has needed it yet: what full detail was missing
+different query string. Nobody has needed it yet: what high resolution was missing
 was parts, not points.
 
 Until somebody does that, **"the CAD's own tessellation" means "whatever the
@@ -140,7 +147,7 @@ default export gave us"**, and nothing here should claim more.
 different things. *Download* fetches the assembly and the textures from Onshape
 — tens of seconds, eleven megabytes — and keeps the export at `export.gltf` in
 the state directory. *Build* makes the models from that export with no network
-at all, in under a second, so changing the detail or rebuilding after a change
+at all, in under a second, so changing the resolution or rebuilding after a change
 to the pipeline costs nothing but the arithmetic. *Refresh assets* is the two in
 one, and is what a server with nothing fetched runs at startup. A build with
 nothing downloaded is refused and says to download first, rather than quietly
@@ -193,9 +200,9 @@ asked of it in the query string:
     ?view=camera   what the robot's webcam would have seen
     ?view=flat     the flat drawing of what the simulator collides
     ?cost          what a frame costs to draw
-    ?detail=full   the full-detail model, if it has been fetched
+    ?resolution=   low or medium, for less than the high it draws at by default
 
-The dashboard passes these through, so `#simulate?detail=full` reaches the
+The dashboard passes these through, so `#simulate?resolution=low` reaches the
 view it embeds. The geometry is all in `field.glb`; what a tick carries is
 where things had moved to. What the geometry cannot say -- which pieces move,
 where each hive hangs, how big the robot is -- the page already carries, from

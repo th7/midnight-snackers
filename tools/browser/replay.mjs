@@ -114,6 +114,24 @@ function served(page, live, ticks) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+// A page asks for the resolution it draws at -- high, unless told otherwise -- and nothing here has
+// built one, so the 404 that sends it back down to the committed model is the working case rather
+// than a fault. What must not be quiet is the page's own account of it, which is checked separately.
+const UNBUILT = /field-(high|medium)\.glb/;
+// The console says only "Failed to load resource", without naming it; the response that goes with it
+// does name it. So a bare 404 in the console is forgiven only when a model 404 was actually seen.
+const BARE_404 = /Failed to load resource.*404/;
+
+function faults(threw) {
+  const unbuilt = threw.some((said) => UNBUILT.test(said) && said.includes('404'));
+  return threw.filter((said) => {
+    if (UNBUILT.test(said) && said.includes('404')) {
+      return false;
+    }
+    return !(unbuilt && BARE_404.test(said));
+  });
+}
+
 async function opened(browser, url) {
   const open = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   const threw = [];
@@ -177,7 +195,7 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
   const { open, threw } = await opened(browser, `${base}/runs/1/`);
   try {
     const panels = await readPanels(open);
-    check(threw.length === 0, `the live view threw: ${threw.join('; ')}`);
+    check(faults(threw).length === 0, `the live view threw: ${faults(threw).join('; ')}`);
     check(panels.drawing === 'solid',
           `the live view drew the ${panels.drawing} field, not the model: ${panels.problem}`);
     check(panels.title.includes(NAME), `the page is titled "${panels.title}", not the run's name`);
@@ -248,7 +266,7 @@ async function aRunStillAddingTicksIsFollowedInTheModel(browser, base, ticks) {
     const panels = await readPanels(open);
     const followed = await open.evaluate(() => window.replayPage.robot);
     const last = ticks[ticks.length - 1];
-    check(threw.length === 0, `the live run threw: ${threw.join('; ')}`);
+    check(faults(threw).length === 0, `the live run threw: ${faults(threw).join('; ')}`);
     check(panels.drawing === 'solid', `a run still running drew the ${panels.drawing} field: ${panels.problem}`);
     check(followed && Math.abs(followed.x - last.x) < 0.01,
           `the live view followed to x=${followed && followed.x}, not the newest tick's ${last.x}; `
@@ -259,18 +277,21 @@ async function aRunStillAddingTicksIsFollowedInTheModel(browser, base, ticks) {
   }
 }
 
-async function fullDetailNobodyFetchedSaysSoRatherThanFailing(browser, base) {
-  const { open, threw } = await opened(browser, `${base}/runs/1/?detail=full`);
+// High is what a page asks for when it asks for nothing, and CI has fetched nothing -- so this is
+// also the check that the default is high, and that a server which has not built it still draws.
+async function theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, asked, file) {
+  const { open, threw } = await opened(browser, `${base}/runs/1/${asked}`);
   try {
     const panels = await readPanels(open);
-    const unexpected = threw.filter((said) => !/field-full\.glb|404/.test(said));
-    check(unexpected.length === 0, `asking for full detail threw: ${unexpected.join('; ')}`);
-    check(threw.some((said) => /field-full\.glb/.test(said)),
-          'the page never asked for the full model, so falling back proves nothing');
+    const whole = new RegExp(`${file}|404`);
+    const unexpected = threw.filter((said) => !whole.test(said));
+    check(unexpected.length === 0, `${asked || 'the default'} threw: ${unexpected.join('; ')}`);
+    check(threw.some((said) => said.includes(file)),
+          `the page never asked for ${file}, so falling back proves nothing`);
     check(panels.drawing === 'solid',
-          `a page asked for a detail nobody fetched drew the ${panels.drawing} field instead of falling back`);
-    check(/full-detail model has not been fetched/.test(panels.problem),
-          `the page fell back from full detail and said "${panels.problem}", which does not say it fell back`);
+          `a page asked for a resolution nobody built drew the ${panels.drawing} field instead of falling back`);
+    check(/has not been built, so this is the low one/.test(panels.problem),
+          `the page fell back and said "${panels.problem}", which does not say it fell back`);
   } finally {
     await open.close();
   }
@@ -351,7 +372,8 @@ async function main() {
   try {
     solid = await theLiveViewDrawsTheFieldModel(browser, base, run);
     await aRunStillAddingTicksIsFollowedInTheModel(browser, base, run.ticks);
-    await fullDetailNobodyFetchedSaysSoRatherThanFailing(browser, base);
+    await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '', 'field-high.glb');
+    await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '?resolution=medium', 'field-medium.glb');
     await theFlatDrawingIsStillThereToAskFor(browser, base);
     await aModelItCannotFetchFallsBackAndSaysSo(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
