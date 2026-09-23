@@ -616,6 +616,22 @@ bench does with each. A `FakeChild` is handed the lines a child would print,
 written by `SimRunStream`'s own writers, so the fake speaks the protocol by
 construction rather than by a string somebody typed.
 
+**Child** — The JVM a run, or a listing of the catalog, happens in, and
+where a teammate's robot code runs; the server never runs it itself. It
+is fenced against the accidents robot code makes on a laptop, not
+against anyone trying: it stands in its own **scratch** directory, which
+is its working directory, home and temp and goes when it ends, so a file
+written by a relative path never lands in the host checkout; it is given
+none of the server's environment beyond what a JVM needs to start; its
+heap is capped, and it exits rather than limping on when that runs out;
+whatever it starts is killed with it — by the server when it is killed,
+by the child itself when it ends any other way, and by the server's own
+exit for any still running then; and no more run at once than the
+machine has processors, one `JvmChild` being shared by every user's
+bench, so a start past that is refused and said. Classes: `JvmChild`;
+`ProcessTree`, which reaches `ProcessHandle`, missing from the
+`android.jar` the tests compile against.
+
 **Status** — What the bench is doing, as one moment: the runs newest
 first, each taken in one hold of that run's own lock, and **running**
 read from the newest of those same snapshots — it is running exactly

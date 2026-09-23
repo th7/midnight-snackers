@@ -22,6 +22,10 @@ public final class SimChild {
     private SimChild() {}
 
     public static void main(String[] args) {
+        // Whatever the op mode started ends with this JVM, however it ends short of being killed:
+        // the server kills the tree then, since a killed JVM runs no hook.
+        Runtime.getRuntime()
+                .addShutdownHook(new Thread(ProcessTree::killDescendantsOfThisJvm, "sim-child-descendants"));
         PrintStream protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
         protocol.println(SimRunStream.hello());
