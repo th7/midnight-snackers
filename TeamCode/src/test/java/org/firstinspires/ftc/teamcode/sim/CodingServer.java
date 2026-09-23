@@ -338,11 +338,14 @@ public final class CodingServer {
 
     public static void main(String[] args) throws InterruptedException {
         Path root = Path.of("").toAbsolutePath();
+        // One for every user's bench, so how many children run at once is the server's to say.
+        Child children = new JvmChild();
         SimBench.Factory benches = worktree -> new SimBench(
                 null,
                 worktree,
                 worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
-                SimBench.Waits.ofTheBench());
+                SimBench.Waits.ofTheBench(),
+                children);
         Map<String, String> env = System.getenv();
         CodingServer server = start(
                 root,
