@@ -388,6 +388,41 @@ public class SimReplayPageTest {
         assertEquals(SimReplayPage.update(recording, 1), SimReplayPage.update(fromTheChild, 1));
     }
 
+    @Test
+    public void aStepNamedToCloseTheScriptElementStaysInsideTheWrittenPage() {
+        SimReplayPage.Source closing = new SimReplayPage.Source() {
+            @Override
+            public String name() {
+                return "Closing";
+            }
+
+            @Override
+            public String kind() {
+                return "auto";
+            }
+
+            @Override
+            public String ticksJson(int from) {
+                return "[{\"t\":0,\"x\":0,\"y\":0,\"heading\":0,\"step\":\"</script><b>\",\"powers\":[0,0,0,0],"
+                        + "\"packets\":[]}]";
+            }
+
+            @Override
+            public String outcome() {
+                return "done";
+            }
+
+            @Override
+            public com.google.gson.JsonElement match() {
+                return com.google.gson.JsonNull.INSTANCE;
+            }
+        };
+
+        String html = SimReplayPage.written(closing);
+
+        assertEquals(templateMentions("</script>"), html.split(Pattern.quote("</script>"), -1).length - 1);
+    }
+
     private static int templateMentions(String text) {
         String empty = SimReplayPage.written(new SimRecording("Empty", "teleop"));
         return empty.split(Pattern.quote(text), -1).length - 1;

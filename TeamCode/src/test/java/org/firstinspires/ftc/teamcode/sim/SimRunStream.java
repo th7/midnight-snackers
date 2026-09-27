@@ -96,14 +96,6 @@ public final class SimRunStream {
         }
     }
 
-    /**
-     * One tick of a run, kept as the text of it. The bench holds every tick of every run it has, in
-     * a server every user shares: as text a tick costs its length, where the tree Gson reads it into
-     * costs more than ten times that, and a live view is sent the texts joined rather than a tree
-     * written out again on every poll. So the text has to be JSON a browser reads: the line is read
-     * strictly and written out once, the way a child writes one, which for a line a child wrote is
-     * that line exactly.
-     */
     public static final class TickLine {
         private final String text;
         private final double seconds;
@@ -137,12 +129,10 @@ public final class SimRunStream {
             return seconds;
         }
 
-        /** What the tick says, read again: for a test or a page that must look inside one. */
         JsonObject json() {
             return strictly(text);
         }
 
-        /** Ticks as the text of a JSON array, joined rather than rebuilt. */
         public static String array(List<TickLine> ticks) {
             StringBuilder array = new StringBuilder("[");
             for (int i = 0; i < ticks.size(); i++) {
@@ -174,11 +164,6 @@ public final class SimRunStream {
 
     private static final Gson GSON = gson();
 
-    /**
-     * Reads and writes a tree of JSON as the reader or writer it is handed is set to, where Gson's
-     * own fromJson and toJson set theirs lenient: lenient, a line could carry a NaN that a browser
-     * then refuses to read the whole poll for.
-     */
     private static final TypeAdapter<JsonElement> ELEMENT = new Gson().getAdapter(JsonElement.class);
 
     private SimRunStream() {}
@@ -319,7 +304,6 @@ public final class SimRunStream {
         }
     }
 
-    /** A line as the JSON object it must be, read as strictly as a browser reads one. */
     private static JsonObject strictly(String line) {
         try {
             JsonReader reader = new JsonReader(new StringReader(line));

@@ -132,7 +132,6 @@ public final class SimRecording implements SimReplayPage.Source {
         return JsonNull.INSTANCE;
     }
 
-    /** The ticks as the lines a child streams them as, since the page reads either. */
     @Override
     public String ticksJson(int from) {
         StringBuilder array = new StringBuilder("[");

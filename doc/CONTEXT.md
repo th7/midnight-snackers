@@ -786,19 +786,6 @@ nothing for one held in the robot), how many balls the robot **holds**, how
 many each alliance has **scored**, and for a TeleOp what each gamepad read.
 Class: `SimRecording`.
 
-**Tick line** — A tick as the bench keeps it: the text of it, and its time.
-The bench holds every tick of every run it has, in a server every user
-shares, and a tick read into Gson's tree costs thirteen times its length — a
-two-minute game was over a hundred megabytes of one — where the text of it
-costs its length. A live view's poll is sent the texts joined rather than a
-tree written out again, which for a whole run is about fifty times quicker.
-So the text is served as it is kept and has to be JSON a browser reads: a
-line is read strictly — no NaN, no unquoted names, nothing after it — and
-written out once the way a child writes one, which for a line a child wrote
-is that line exactly. A line that cannot be kept is one the run's log calls
-unreadable, rather than one that breaks every poll after it. Class:
-`SimRunStream.TickLine`.
-
 **Golden trace** — What the robot code wrote to the four wheel motors,
 tick by tick, kept in a file under
 `TeamCode/src/test/resources/.../sim/traces` and compared against the next
