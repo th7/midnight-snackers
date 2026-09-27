@@ -195,4 +195,15 @@ afterEvaluate {
         workingDir = rootDir
         jvmArgs javacExports
     }
+
+    //   ./gradlew :TeamCode:runCost [--args='<op mode> [seconds]']
+    tasks.register('runCost', JavaExec) {
+        group = 'simulation'
+        description = 'What a run costs: each stage of simulating an op mode and carrying it to a live view'
+        def unitTest = tasks.named('testDebugUnitTest').get()
+        dependsOn unitTest.taskDependencies
+        classpath = unitTest.classpath
+        mainClass = 'org.firstinspires.ftc.teamcode.sim.RunCost'
+        workingDir = projectDir
+    }
 }
