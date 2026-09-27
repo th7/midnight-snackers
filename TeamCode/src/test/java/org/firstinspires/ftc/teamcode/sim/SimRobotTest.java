@@ -596,6 +596,62 @@ public class SimRobotTest {
     }
 
     @Test
+    public void aBallPressedAgainstTheWallRollsAlongBetweenItAndTheRobotDrivingAlongIt() {
+        robotDrive();
+        double wall = SimPlacement.FIELD_SIZE_IN / 2;
+        double side = SimPlacement.ROBOT_SIZE_IN / 2;
+        SimRobot.Piece ball = sim.balls().get(0);
+        sim.place(ball, wall - BALL, -40);
+        sim.setPose(new Pose2d(wall - 2 * BALL - side, -40, Math.PI / 2));
+        setPowers(1, 0.6, 0.6, 1);
+        sim.step(0.2);
+        double robotFrom = sim.pose().position.y, ballFrom = sim.placeOf(ball)[1];
+
+        sim.step(0.4);
+
+        Pose2d pose = sim.pose();
+        double[] at = sim.placeOf(ball);
+        double robotWent = pose.position.y - robotFrom, ballWent = at[1] - ballFrom;
+        double heading = pose.heading.toDouble();
+        double dx = at[0] - pose.position.x, dy = at[1] - pose.position.y;
+        double toTheRight = Math.sin(heading) * dx - Math.cos(heading) * dy;
+        double ahead = Math.cos(heading) * dx + Math.sin(heading) * dy;
+        assertTrue("the robot drove along the wall: " + robotWent, robotWent > 6);
+        assertEquals("the ball is at the wall", wall - BALL, at[0], CONTACT);
+        assertEquals("and against the robot's side", side + BALL, toTheRight, CONTACT);
+        assertTrue("between its ends: " + ahead, Math.abs(ahead) < side);
+        assertEquals(
+                "slipping on neither, the ball rolls along at half the robot's speed: the robot went " + robotWent,
+                robotWent / 2,
+                ballWent,
+                robotWent / 10);
+    }
+
+    @Test
+    public void aBallRolledAlongTheWallRollsOnWhenTheRobotLetsGoAndComesToRest() {
+        robotDrive();
+        double wall = SimPlacement.FIELD_SIZE_IN / 2;
+        SimRobot.Piece ball = sim.balls().get(0);
+        sim.place(ball, wall - BALL, -40);
+        sim.setPose(new Pose2d(wall - 2 * BALL - SimPlacement.ROBOT_SIZE_IN / 2, -40, Math.PI / 2));
+        setPowers(1, 0.6, 0.6, 1);
+        sim.step(0.6);
+        setPowers(-1, 1, 1, -1);
+        sim.step(0.3);
+        setPowers(0, 0, 0, 0);
+        double letGoAt = sim.placeOf(ball)[1];
+
+        sim.step(0.05);
+        double rollingTo = sim.placeOf(ball)[1];
+        sim.step(4.0);
+        double[] restingAt = sim.placeOf(ball);
+        sim.step(1.0);
+
+        assertTrue("rolled on along the wall: " + rollingTo + " vs " + letGoAt, rollingTo > letGoAt + 0.2);
+        assertArrayEquals("and came to rest", restingAt, sim.placeOf(ball), 0);
+    }
+
+    @Test
     public void aBallPinnedAgainstAnObstacleStopsTheRobotShortOfIt() {
         robotDrive();
 
@@ -739,6 +795,21 @@ public class SimRobotTest {
         for (SimRobot.Piece piece : pollenOf(flower)) {
             assertArrayEquals("the stack that is left stands still", settled.get(piece), now.get(piece), 0);
         }
+    }
+
+    @Test
+    public void aNestedPollenOffTheMiddleIsRolledBackAndComesToRestThere() {
+        SimField.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>");
+        SimRobot.Piece bottom = bottomOf(flower);
+        sim.place(bottom, flower.axis[0] + 0.3, flower.axis[1]);
+
+        sim.step(3.0);
+        double[] rolledBackTo = sim.placeOf(bottom);
+        sim.step(1.0);
+
+        assertEquals("rolled back to the middle", 0, fromTheAxis(flower, rolledBackTo), CONTACT);
+        assertArrayEquals("and at rest there", rolledBackTo, sim.placeOf(bottom), 0);
+        assertStandingIn(flower, 4);
     }
 
     @Test
