@@ -50,9 +50,10 @@ public class LauncherSimTest {
                 sim.step(0.02);
             }
         }
+        assertEquals("all four went", 0, sim.held());
+
         sim.step(3.0);
 
-        assertEquals(0, sim.held());
         assertEquals("the hive tipped", -leaning, sim.tilt("Blue"), 0.001);
         assertEquals("and the cell that went under dropped what was in it", 0, sim.scored("Blue"));
     }

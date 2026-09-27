@@ -1107,7 +1107,7 @@ public class SimRobotTest {
             sim.step(0.05);
 
             sim.bottomGate.position = BOTTOM_GATE_OPEN;
-            sim.step(2.0);
+            sim.step(5.0);
 
             assertEquals(alliance + " scored", already + 1, sim.scored(alliance));
             assertEquals(SimRobot.PRELOAD - 1, sim.held());
@@ -1176,7 +1176,7 @@ public class SimRobotTest {
         assertEquals(0.8, sim.load("Blue"), 0.001);
 
         sim.place(nectar.get(4), sim.upturnedCell("Blue"));
-        sim.step(0.5);
+        sim.step(2.0);
 
         assertEquals("the fifth fills it and it tips", -leaning, sim.tilt("Blue"), DELTA);
     }
@@ -1195,7 +1195,7 @@ public class SimRobotTest {
         assertEquals(0.875, sim.load("Blue"), 0.001);
 
         sim.place(pollen.get(7), sim.upturnedCell("Blue"));
-        sim.step(0.5);
+        sim.step(2.0);
 
         assertEquals("the eighth fills it and it tips", -leaning, sim.tilt("Blue"), DELTA);
     }
@@ -1213,7 +1213,7 @@ public class SimRobotTest {
         assertEquals(0.975, sim.load("Blue"), 0.001);
 
         sim.place(pollen.get(3), sim.upturnedCell("Blue"));
-        sim.step(0.5);
+        sim.step(2.0);
 
         assertEquals("the fourth pollen fills it", -leaning, sim.tilt("Blue"), DELTA);
     }
@@ -1284,6 +1284,131 @@ public class SimRobotTest {
 
         assertEquals("and the cell that came up takes a ball", 1, after.scored("Blue"));
         assertTrue(within(after, now, after.placeOf(thePreloadOf(after))));
+    }
+
+    @Test
+    public void aShotThatGoesInMovesIntoTheCellAndComesToRestAgainstItsBack() {
+        SimField.Cell cell = sim.upturnedCell("Blue");
+        sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
+        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
+        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+
+        double farthest = 0;
+        double[] was = null;
+        for (int i = 0; i < 600; i++) {
+            sim.step(0.005);
+            double[] now = sim.placeOf(thePreloadOf(sim));
+            if (was != null && now != null) {
+                farthest = Math.max(farthest, apart(was, now));
+            }
+            was = now;
+        }
+
+        assertEquals("it went in", 4, sim.scored("Blue"));
+        assertTrue("it moved no faster than it flies: " + farthest + " inches in 5 ms", farthest < 2);
+        double tilt = sim.tilt("Blue");
+        assertTrue("it is inside the cell", inside(cell, tilt, was));
+        double[][] back = cell.hive.at(tilt, cell.back);
+        assertEquals("and rests against its back", BALL, Math.abs(side(SimField.normal(back), back[0], was)), CONTACT);
+    }
+
+    @Test
+    public void aHiveThatFillsTurnsOverGraduallyAndComesToRestLeaningTheOtherWay() {
+        double leaning = sim.tilt("Blue");
+        List<SimRobot.Piece> pollen = ballsOf(sim, SimField.POLLEN);
+        for (int i = 0; i < 4; i++) {
+            sim.place(pollen.get(i), sim.upturnedCell("Blue"));
+        }
+
+        List<Double> tilts = new ArrayList<>();
+        for (int i = 0; i < 150; i++) {
+            sim.step(0.02);
+            tilts.add(sim.tilt("Blue"));
+        }
+
+        int between = 0;
+        double previous = leaning;
+        for (double tilt : tilts) {
+            assertTrue(
+                    "it turns one way only, and a little at a time: " + previous + " then " + tilt,
+                    Math.signum(leaning) * (previous - tilt) >= 0 && Math.abs(previous - tilt) < 5);
+            if (Math.abs(tilt) < Math.abs(leaning) - 1) {
+                between++;
+            }
+            previous = tilt;
+        }
+        assertTrue("it passes through the tilts between, for " + between + " ticks", between >= 10);
+        assertEquals("and comes to rest leaning the other way", -leaning, tilts.get(tilts.size() - 1), DELTA);
+        sim.step(1.0);
+        assertEquals("where it stays", -leaning, sim.tilt("Blue"), DELTA);
+    }
+
+    @Test
+    public void whatIsInACellThatGoesUnderStaysInItUntilTheCellTurnsItOutThroughItsMouth() {
+        SimField.Cell was = sim.upturnedCell("Blue");
+        double leaning = sim.tilt("Blue");
+        List<SimRobot.Piece> inIt = new ArrayList<>(setUpInACell(sim, "Blue"));
+        List<SimRobot.Piece> pollen = ballsOf(sim, SimField.POLLEN);
+        for (int i = 0; i < 4; i++) {
+            sim.place(pollen.get(i), was);
+            inIt.add(pollen.get(i));
+        }
+
+        sim.step(0.1);
+
+        assertTrue("the hive has begun to turn: " + sim.tilt("Blue"), Math.abs(sim.tilt("Blue") - leaning) > 0.1);
+        assertTrue("but the cell is still up", was.upturnedAt(sim.tilt("Blue")));
+        assertEquals("and what is in it is still in it", 7, sim.scored("Blue"));
+
+        Map<SimRobot.Piece, Boolean> leftBy = new IdentityHashMap<>();
+        for (int i = 0; i < 800; i++) {
+            sim.step(0.005);
+            double tilt = sim.tilt("Blue");
+            for (SimRobot.Piece ball : inIt) {
+                double[] at = sim.placeOf(ball);
+                if (!leftBy.containsKey(ball) && !inside(was, tilt, at)) {
+                    leftBy.put(ball, throughTheMouth(was, tilt, at));
+                }
+            }
+        }
+
+        assertEquals("it turned everything out", 0, sim.scored("Blue"));
+        for (SimRobot.Piece ball : inIt) {
+            assertEquals("each ball left through the mouth", Boolean.TRUE, leftBy.get(ball));
+            assertEquals("and fell to the floor", ball.radius(), sim.placeOf(ball)[2], DELTA);
+        }
+    }
+
+    private static boolean inside(SimField.Cell cell, double tilt, double[] point) {
+        double[] centre = cell.centreAt(tilt);
+        List<double[][]> faces = new ArrayList<>(cell.panelsAt(tilt));
+        faces.add(cell.mouthAt(tilt));
+        for (double[][] face : faces) {
+            double[] normal = SimField.normal(face);
+            if (side(normal, face[0], point) * side(normal, face[0], centre) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean throughTheMouth(SimField.Cell cell, double tilt, double[] point) {
+        double[] centre = cell.centreAt(tilt);
+        for (double[][] panel : cell.panelsAt(tilt)) {
+            double[] normal = SimField.normal(panel);
+            if (side(normal, panel[0], point) * side(normal, panel[0], centre) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static double side(double[] normal, double[] on, double[] point) {
+        return (point[0] - on[0]) * normal[0] + (point[1] - on[1]) * normal[1] + (point[2] - on[2]) * normal[2];
+    }
+
+    private static double apart(double[] a, double[] b) {
+        return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
     }
 
     private static double rollOutAfterTheCut(SimRobot sim, DcMotor.ZeroPowerBehavior behavior) {
