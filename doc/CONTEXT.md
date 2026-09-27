@@ -1094,6 +1094,12 @@ it, at rest. The balls are pushed ahead of the robot, roll on with the
 speed they were given, slow to a stop, and stop at the walls, the
 obstacles and each other with a little bounce; a ball pinned against a
 wall stops the robot short of it, since nothing goes through anything.
+A ball grips whatever it touches, where the robot and the field slide on
+one another: a ball the robot presses against a wall and then drives along
+it rolls along between the two, slipping on neither, so at half the
+robot's speed. Gripping sets a ball spinning, and a ball is at rest when no
+part of it, centre or surface, moves faster than the **rest speed** (half an
+inch a second), so a spinning ball stops when a rolling one would.
 The robot starts with four pollen (its **preload**) in its **hopper**,
 which with the three nectar a hive is set up with is enough to fill one.
 Four is also all it **holds**, hopper and chamber together: while the
@@ -1199,7 +1205,9 @@ Class: `SimField.Flower`.
 its bore sits in the middle of. To leave, that ball has to roll up over the
 ring carrying whatever rests on it, so the nest pushes it back toward the
 axis — hardest at the bore's rim, not at all in the middle — and the weight
-on it drags it to a stop there rather than letting it roll about. A nest
+on it drags it to a stop there rather than letting it roll about. The
+middle is the axis to within the engine's contact tolerance, so a ball
+rolled back comes to rest rather than creeping at the axis forever. A nest
 holds one ball, the one nearest its middle; another in the bore is on the
 plate around it and free. Method: `SimRobot.holdTheNests`.
 

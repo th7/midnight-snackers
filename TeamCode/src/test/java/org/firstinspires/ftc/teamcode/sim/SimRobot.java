@@ -27,6 +27,7 @@ import org.dyn4j.geometry.MassType;
 import org.dyn4j.geometry.Transform;
 import org.dyn4j.geometry.Vector2;
 import org.dyn4j.geometry.hull.GiftWrap;
+import org.dyn4j.world.ValueMixer;
 import org.dyn4j.world.World;
 import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
@@ -78,6 +79,8 @@ public class SimRobot {
     private static final double REST_SPEED_IN_PER_S = 0.5;
 
     private static final double BOUNCE = 0.3;
+
+    private static final double BALL_FRICTION = 0.4;
 
     private static final double GRAVITY_IN_PER_S2 = 386.09;
 
@@ -211,6 +214,23 @@ public class SimRobot {
         }
     }
 
+    private static final class GrippierDecides implements ValueMixer {
+        @Override
+        public double mixFriction(double one, double other) {
+            return Math.max(one, other);
+        }
+
+        @Override
+        public double mixRestitution(double one, double other) {
+            return ValueMixer.DEFAULT_MIXER.mixRestitution(one, other);
+        }
+
+        @Override
+        public double mixRestitutionVelocity(double one, double other) {
+            return ValueMixer.DEFAULT_MIXER.mixRestitutionVelocity(one, other);
+        }
+    }
+
     private static final class Reaches implements Filter {
         private final double clears;
         private final double stands;
@@ -245,10 +265,12 @@ public class SimRobot {
         Settings settings = world.getSettings();
         settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
         settings.setMaximumAtRestLinearVelocity(REST_SPEED_IN_PER_S * IN);
+        settings.setMaximumAtRestAngularVelocity(REST_SPEED_IN_PER_S / largestBallRadius());
         settings.setMinimumAtRestTime(0.25);
         settings.setVelocityConstraintSolverIterations(20);
         settings.setPositionConstraintSolverIterations(10);
         world.setGravity(World.ZERO_GRAVITY);
+        world.setValueMixer(new GrippierDecides());
 
         double half = SimPlacement.FIELD_SIZE_IN / 2 * IN;
         double reach = half + WALL_THICKNESS_M / 2;
@@ -300,6 +322,14 @@ public class SimRobot {
         restTheFlowers();
     }
 
+    private static double largestBallRadius() {
+        double largest = 0;
+        for (SimField.Piece piece : FIELD.movedPieces) {
+            largest = Math.max(largest, piece.radius);
+        }
+        return largest;
+    }
+
     private static Body wall(double x, double y, double width, double height) {
         Body wall = new Body();
         BodyFixture fixture = wall.addFixture(Geometry.createRectangle(width, height));
@@ -334,7 +364,7 @@ public class SimRobot {
         Body body = new Body();
         BodyFixture fixture = body.addFixture(Geometry.createCircle(radius * IN));
         fixture.setDensity(BALL_MASS_KG / (Math.PI * radius * IN * radius * IN));
-        fixture.setFriction(0);
+        fixture.setFriction(BALL_FRICTION);
         fixture.setRestitution(BOUNCE);
         fixture.setRestitutionVelocity(0);
         fixture.setFilter(new Reaches(0, 2 * radius));
@@ -558,7 +588,7 @@ public class SimRobot {
             double toTheAxis = flower.axis[0] - at.getTranslationX() / IN;
             double acrossToIt = flower.axis[1] - at.getTranslationY() / IN;
             double out = Math.hypot(toTheAxis, acrossToIt);
-            if (out > 0) {
+            if (out > CONTACT_TOLERANCE_IN) {
                 double hold = overTheRing(flower, nested) * Math.min(1, out / flower.bore);
                 nested.body.applyForce(new Vector2(hold * toTheAxis / out, hold * acrossToIt / out));
             }
