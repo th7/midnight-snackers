@@ -273,6 +273,58 @@ public final class SimField {
         }
     }
 
+    /**
+     * Where an alliance's drivers stand: the box its tape marks on the floor outside the walls, the
+     * tape being the colour of its hive. The tray its human player loads from is in it.
+     */
+    public static final class AllianceArea {
+        /** How high a driver's eyes are: about five feet. */
+        public static final double EYE_IN = 60;
+
+        public final String alliance;
+
+        public final double minX;
+        public final double maxX;
+        public final double minY;
+        public final double maxY;
+
+        AllianceArea(String alliance, double minX, double maxX, double minY, double maxY) {
+            this.alliance = alliance;
+            this.minX = minX;
+            this.maxX = maxX;
+            this.minY = minY;
+            this.maxY = maxY;
+        }
+
+        /** Where a driver's eyes are: over the middle of the area. */
+        public double[] eye() {
+            return new double[] {(minX + maxX) / 2, (minY + maxY) / 2, EYE_IN};
+        }
+
+        /** Where a driver looks before they look anywhere else: the middle of the field. */
+        public double[] lookingAt() {
+            return new double[] {0, 0, 0};
+        }
+
+        @Override
+        public String toString() {
+            return alliance + "'s area, x " + minX + ".." + maxX + ", y " + minY + ".." + maxY;
+        }
+    }
+
+    public AllianceArea allianceArea(String alliance) {
+        for (AllianceArea area : allianceAreas) {
+            if (area.alliance.equals(alliance)) {
+                return area;
+            }
+        }
+        List<String> known = new ArrayList<>();
+        for (AllianceArea area : allianceAreas) {
+            known.add(area.alliance);
+        }
+        throw new IllegalArgumentException("this field has nowhere for " + alliance + " to stand, only " + known);
+    }
+
     private static final String MODEL = "field.json";
 
     public final double size;
@@ -294,6 +346,8 @@ public final class SimField {
     public final List<Piece> flowerPieces;
 
     public final List<Piece> movedPieces;
+
+    public final List<AllianceArea> allianceAreas;
 
     private final JsonObject json;
 
@@ -375,6 +429,44 @@ public final class SimField {
                     o.get("stands").getAsDouble()));
         }
         this.obstacles = Collections.unmodifiableList(obstacles);
+        List<AllianceArea> areas = new ArrayList<>();
+        for (Hive hive : hives) {
+            areas.add(areaMarkedFor(hive, json.getAsJsonArray("tape"), gson));
+        }
+        this.allianceAreas = Collections.unmodifiableList(areas);
+    }
+
+    /** The box around every mark of the hive's colour that lies wholly beyond the walls. */
+    private AllianceArea areaMarkedFor(Hive hive, JsonArray tape, Gson gson) {
+        double half = size / 2;
+        double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
+        for (JsonElement element : tape) {
+            JsonObject mark = element.getAsJsonObject();
+            if (!mark.get("colour").getAsString().equalsIgnoreCase(hive.colour)) {
+                continue;
+            }
+            double[][] footprint = gson.fromJson(mark.get("footprint"), double[][].class);
+            boolean outside = true;
+            for (double[] corner : footprint) {
+                outside &= Math.max(Math.abs(corner[0]), Math.abs(corner[1])) > half;
+            }
+            if (!outside) {
+                continue;
+            }
+            for (double[] corner : footprint) {
+                minX = Math.min(minX, corner[0]);
+                maxX = Math.max(maxX, corner[0]);
+                minY = Math.min(minY, corner[1]);
+                maxY = Math.max(maxY, corner[1]);
+            }
+        }
+        if (minX > maxX) {
+            throw new IllegalStateException("the field marks no area outside the walls in " + hive.colour
+                    + ", the colour of the " + hive.alliance + " hive, so there is nowhere for " + hive.alliance
+                    + "'s drivers to stand");
+        }
+        return new AllianceArea(hive.alliance, minX, maxX, minY, maxY);
     }
 
     public static SimField load() {

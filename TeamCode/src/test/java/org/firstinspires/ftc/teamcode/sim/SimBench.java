@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,10 +34,10 @@ public final class SimBench {
      * seconds in a row at a call site is five chances to give the wrong one to the wrong wait.
      */
     public static final class Waits {
-        /** An auto's budget, in simulated seconds. */
-        public final double runTimeout;
+        /** An auto's time in a game, in simulated seconds: a match's autonomous period. */
+        public final double autonomousPeriod;
 
-        /** A TeleOp's, which on the bench is a match's driver-controlled period. */
+        /** A TeleOp's time in a game, in simulated seconds: a match's driver-controlled period. */
         public final double teleOpPeriod;
 
         /** How long after Stop the child has to end before it is killed. */
@@ -48,37 +49,76 @@ public final class SimBench {
         /** How long the child may say nothing at all mid-run before it is killed for hanging. */
         public final double silence;
 
-        private Waits(double runTimeout, double teleOpPeriod, double killGrace, double startup, double silence) {
-            this.runTimeout = runTimeout;
+        /** How long a run may go with nobody looking at it before it is stopped. */
+        public final double unwatched;
+
+        private Waits(
+                double autonomousPeriod,
+                double teleOpPeriod,
+                double killGrace,
+                double startup,
+                double silence,
+                double unwatched) {
+            this.autonomousPeriod = autonomousPeriod;
             this.teleOpPeriod = teleOpPeriod;
             this.killGrace = killGrace;
             this.startup = startup;
             this.silence = silence;
+            this.unwatched = unwatched;
         }
 
-        /** What the bench waits for a person watching a run: a match's periods, and room to load. */
+        /**
+         * What the bench waits for a person watching a run: a match's periods, room to load, and
+         * five minutes for somebody to come back to a run they left.
+         */
         public static Waits ofTheBench() {
-            return new Waits(60, 120, 5, 60, 5);
+            return new Waits(30, 120, 5, 60, 5, 300);
         }
 
-        public Waits runTimeout(double seconds) {
-            return new Waits(seconds, teleOpPeriod, killGrace, startup, silence);
+        public Waits autonomousPeriod(double seconds) {
+            return new Waits(seconds, teleOpPeriod, killGrace, startup, silence, unwatched);
         }
 
         public Waits teleOpPeriod(double seconds) {
-            return new Waits(runTimeout, seconds, killGrace, startup, silence);
+            return new Waits(autonomousPeriod, seconds, killGrace, startup, silence, unwatched);
         }
 
         public Waits killGrace(double seconds) {
-            return new Waits(runTimeout, teleOpPeriod, seconds, startup, silence);
+            return new Waits(autonomousPeriod, teleOpPeriod, seconds, startup, silence, unwatched);
         }
 
         public Waits startup(double seconds) {
-            return new Waits(runTimeout, teleOpPeriod, killGrace, seconds, silence);
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, seconds, silence, unwatched);
         }
 
         public Waits silence(double seconds) {
-            return new Waits(runTimeout, teleOpPeriod, killGrace, startup, seconds);
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, seconds, unwatched);
+        }
+
+        public Waits unwatched(double seconds) {
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, silence, seconds);
+        }
+    }
+
+    /** How a run is made: as a match is played, or for as long as whoever is driving wants. */
+    public enum Mode {
+        FREE_PLAY("free"),
+        GAME("game");
+
+        /** What the run route and the status call it. */
+        public final String word;
+
+        Mode(String word) {
+            this.word = word;
+        }
+
+        static Optional<Mode> called(String word) {
+            for (Mode mode : values()) {
+                if (mode.word.equals(word)) {
+                    return Optional.of(mode);
+                }
+            }
+            return Optional.empty();
         }
     }
 
@@ -101,6 +141,10 @@ public final class SimBench {
 
         public final Long seed;
 
+        public final Mode mode;
+
+        private final AtomicLong lookedAtNanos = new AtomicLong(clock.nanos());
+
         private final JsonArray ticks = new JsonArray();
         private final Deque<String> log = new ArrayDeque<>();
         private String phase = "building";
@@ -108,12 +152,13 @@ public final class SimBench {
         private String message;
         private Child.Running child;
 
-        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed) {
+        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed, Mode mode) {
             this.id = id;
             this.entry = entry;
             this.startedBy = startedBy;
             this.start = start;
             this.seed = seed;
+            this.mode = mode;
         }
 
         public synchronized boolean running() {
@@ -184,12 +229,22 @@ public final class SimBench {
             phase = "finished";
         }
 
+        /** Somebody asked about this run: its page, its ticks, its log, or a press of the controller. */
+        void lookedAt() {
+            lookedAtNanos.set(clock.nanos());
+        }
+
+        double secondsUnwatched() {
+            return (clock.nanos() - lookedAtNanos.get()) / 1e9;
+        }
+
         synchronized JsonObject json() {
             JsonObject item = new JsonObject();
             item.addProperty("id", id);
             item.addProperty("name", entry.name);
             item.addProperty("where", entry.where);
             item.addProperty("kind", entry.kind);
+            item.addProperty("mode", mode.word);
             item.addProperty("startedAt", startedAtMillis);
             item.addProperty("startedBy", startedBy);
             item.add("seed", StartPoses.seedToJson(seed));
@@ -205,8 +260,30 @@ public final class SimBench {
             return child;
         }
 
+        /** A game's period for the op mode's kind, and in free play no limit at all. */
         double budgetSeconds() {
-            return entry.kind.equals(SimCatalog.TELEOP) ? waits.teleOpPeriod : waits.runTimeout;
+            if (mode == Mode.FREE_PLAY) {
+                return Double.POSITIVE_INFINITY;
+            }
+            return entry.kind.equals(SimCatalog.TELEOP) ? waits.teleOpPeriod : waits.autonomousPeriod;
+        }
+
+        /**
+         * What the live view is told of the match a game is: how long it lasts, and where its drivers
+         * stand to watch it. Free play is no match, and is watched from wherever the viewer likes.
+         */
+        @Override
+        public JsonElement match() {
+            if (mode == Mode.FREE_PLAY) {
+                return JsonNull.INSTANCE;
+            }
+            SimField.AllianceArea area = SimPlacement.FIELD.allianceArea(entry.drivenFrom());
+            JsonObject match = new JsonObject();
+            match.addProperty("period", budgetSeconds());
+            match.addProperty("alliance", area.alliance);
+            match.add("eye", GSON.toJsonTree(area.eye()));
+            match.add("lookingAt", GSON.toJsonTree(area.lookingAt()));
+            return match;
         }
 
         synchronized boolean send(JsonObject line) {
@@ -389,7 +466,10 @@ public final class SimBench {
                                 request,
                                 name -> Response.html(
                                         SimReplayPage.placement(name, kindOf(name), startPoses.get(name)))))
-                .route("POST", "/run", (request, params) -> run(request.query("opmode"), startedBy))
+                .route(
+                        "POST",
+                        "/run",
+                        (request, params) -> run(request.query("opmode"), request.query("mode"), startedBy))
                 .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
                 .route(
@@ -479,6 +559,7 @@ public final class SimBench {
         if (run == null) {
             return Response.error(404, "no such run: " + request.path);
         }
+        run.lookedAt();
         return route.handle(run, request);
     }
 
@@ -506,7 +587,14 @@ public final class SimBench {
         return Response.html(SimReplayPage.live(run, ASSETS_FROM_A_RUN));
     }
 
-    private Response run(String opMode, String startedBy) {
+    private Response run(String opMode, String modeWord, String startedBy) {
+        Optional<Mode> mode = modeWord == null ? Optional.of(Mode.FREE_PLAY) : Mode.called(modeWord);
+        if (mode.isEmpty()) {
+            return Response.error(
+                    400,
+                    "a run is a game or free play: mode=" + Mode.GAME.word + " or mode=" + Mode.FREE_PLAY.word
+                            + ", not '" + modeWord + "'");
+        }
         Optional<SimCatalog.Entry> entry = Optional.empty();
         if (opMode != null) {
             try {
@@ -514,14 +602,14 @@ public final class SimBench {
             } catch (BuildFailed | SimRunStream.WrongProtocol e) {
                 entry = sources.known().flatMap(known -> known.find(opMode));
                 if (entry.isEmpty()) {
-                    entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null));
+                    entry = Optional.of(new SimCatalog.Entry(opMode, "", SimCatalog.AUTO, "", null, null));
                 }
             }
         }
         if (entry.isEmpty()) {
             return Response.error(404, "no runnable op mode named " + opMode);
         }
-        Run run = start(entry.get(), startedBy);
+        Run run = start(entry.get(), startedBy, mode.get());
         if (run == null) {
             Run current = current();
             return Response.error(
@@ -557,11 +645,12 @@ public final class SimBench {
         return Response.json("{}");
     }
 
-    public synchronized Run start(SimCatalog.Entry entry, String startedBy) {
+    public synchronized Run start(SimCatalog.Entry entry, String startedBy, Mode mode) {
         if (current() != null) {
             return null;
         }
-        Run run = new Run(runs.size() + 1, entry, startedBy, startPoses.get(entry.name), startPoses.seed(entry.name));
+        Run run = new Run(
+                runs.size() + 1, entry, startedBy, startPoses.get(entry.name), startPoses.seed(entry.name), mode);
         runs.add(run);
         Thread thread = new Thread(() -> perform(run), "sim-run-" + run.id);
         thread.setDaemon(true);
@@ -610,6 +699,19 @@ public final class SimBench {
                                 run.finish(
                                         SimRunStream.Outcome.killed(waits.silence, "the op mode did not return"),
                                         "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
+                                child.kill();
+                                return;
+                            }
+                            // Free play has no end of its own, so a run somebody walked away from
+                            // would go on holding a child and growing its ticks until the server
+                            // ran out of memory. Nobody is watching once no page is asking about it.
+                            if (run.secondsUnwatched() > waits.unwatched) {
+                                run.finish(
+                                        SimRunStream.Outcome.stopped(),
+                                        String.format(
+                                                "nobody had looked at the run for %.1fs, so the bench stopped it and"
+                                                        + " the child JVM with it",
+                                                waits.unwatched));
                                 child.kill();
                                 return;
                             }

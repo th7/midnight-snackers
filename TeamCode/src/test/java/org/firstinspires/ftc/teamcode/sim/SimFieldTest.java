@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -227,6 +228,73 @@ public class SimFieldTest {
                     mark.getAsJsonArray("footprint").size() == 4);
         }
         assertEquals("red and blue", 2, colours.size());
+    }
+
+    @Test
+    public void eachAllianceStandsOutsideTheWallOnItsOwnSideAcrossTheFieldFromTheOther() {
+        SimField.AllianceArea blue = field.allianceArea("Blue");
+        SimField.AllianceArea red = field.allianceArea("Red");
+        double wall = field.size / 2;
+
+        assertEquals("Blue", blue.alliance);
+        assertTrue("the blue drivers stand behind the -y wall, where the blue tape is: " + blue, blue.maxY < -wall);
+        assertTrue("the red drivers stand behind the +y wall, where the red tape is: " + red, red.minY > wall);
+        assertEquals("the one is the other seen in a mirror", -blue.maxY, red.minY, 0.01);
+        assertEquals(-blue.minY, red.maxY, 0.01);
+        assertEquals(blue.minX, red.minX, 0.01);
+        assertEquals(blue.maxX, red.maxX, 0.01);
+        assertTrue("an area is somewhere to stand, not a strip of tape: " + blue, blue.maxX - blue.minX > 48);
+        assertTrue(blue.toString(), blue.maxY - blue.minY > 24);
+
+        for (JsonObject piece : trayPieces()) {
+            String name = piece.get("name").getAsString();
+            JsonArray centre = piece.getAsJsonArray("centre");
+            double x = centre.get(0).getAsDouble(), y = centre.get(1).getAsDouble();
+            SimField.AllianceArea own = name.startsWith("Blue") ? blue : red;
+            assertTrue(
+                    name + " at " + x + ", " + y + " waits in its tray, which is in " + own,
+                    x > own.minX && x < own.maxX && y > own.minY && y < own.maxY);
+        }
+    }
+
+    @Test
+    public void aDriverLooksFromTheMiddleOfTheirAreaFiveFeetUpTowardTheMiddleOfTheField() {
+        SimField.AllianceArea blue = field.allianceArea("Blue");
+
+        assertArrayEquals(
+                new double[] {(blue.minX + blue.maxX) / 2, (blue.minY + blue.maxY) / 2, 60}, blue.eye(), 1e-9);
+        assertArrayEquals(new double[] {0, 0, 0}, blue.lookingAt(), 0);
+        assertArrayEquals(
+                "red's eye is blue's in the mirror",
+                new double[] {blue.eye()[0], -blue.eye()[1], blue.eye()[2]},
+                field.allianceArea("Red").eye(),
+                0.01);
+    }
+
+    @Test
+    public void anAllianceTheFieldHasNoAreaForIsRefusedByName() {
+        try {
+            field.allianceArea("Green");
+            throw new AssertionError("there is nowhere on this field for Green to stand");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("Green"));
+        }
+    }
+
+    /** The pieces that wait outside the walls for a human player: in a tray, and an alliance's own. */
+    private List<JsonObject> trayPieces() {
+        List<JsonObject> waiting = new ArrayList<>();
+        JsonArray pieces = field.json().getAsJsonArray("pieces");
+        for (int i = 0; i < pieces.size(); i++) {
+            JsonObject piece = pieces.get(i).getAsJsonObject();
+            String name = piece.get("name").getAsString();
+            boolean outside = Math.abs(piece.getAsJsonArray("centre").get(1).getAsDouble()) > field.size / 2;
+            if (outside && (name.startsWith("Blue") || name.startsWith("Red"))) {
+                waiting.add(piece);
+            }
+        }
+        assertTrue("each alliance's tray holds its nectar", waiting.size() >= 2);
+        return waiting;
     }
 
     @Test

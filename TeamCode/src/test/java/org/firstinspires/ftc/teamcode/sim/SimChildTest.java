@@ -225,6 +225,25 @@ public class SimChildTest {
     }
 
     @Test
+    public void aRunGivenNoLimitGoesOnUntilItsPlanIsDone() throws Exception {
+        Output output = run(placed(
+                JvmChild.launchOnThisClasspath(
+                        "--run",
+                        "Count to three",
+                        String.valueOf(Double.POSITIVE_INFINITY),
+                        folder.getRoot().toString(),
+                        ThreeLoopAuto.class.getName()),
+                ORIGIN));
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        JsonObject last = new Gson().fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class);
+        assertEquals(
+                "free play's no limit is read as none, not refused",
+                "done",
+                last.get("outcome").getAsString());
+    }
+
+    @Test
     public void aTimedOutRunStillReportsItsOutcome() throws Exception {
         Output output = run(placed(
                 JvmChild.launchOnThisClasspath(

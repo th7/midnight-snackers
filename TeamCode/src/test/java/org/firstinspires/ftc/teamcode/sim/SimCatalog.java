@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
 
@@ -30,6 +31,9 @@ public final class SimCatalog {
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
 
+    /** The alliances an op mode can play for, as the field names them. */
+    public static final List<String> ALLIANCES = List.of("Blue", "Red");
+
     public static final class Entry {
         public final String name;
 
@@ -39,14 +43,26 @@ public final class SimCatalog {
 
         public final String where;
 
+        /** Which of the {@link #ALLIANCES} it plays for, or null for one that plays for none. */
+        public final String alliance;
+
         private final Supplier<OpMode> opMode;
 
-        Entry(String name, String group, String kind, String where, Supplier<OpMode> opMode) {
+        Entry(String name, String group, String kind, String where, String alliance, Supplier<OpMode> opMode) {
             this.name = name;
             this.group = group;
             this.kind = kind;
             this.where = where;
+            this.alliance = alliance;
             this.opMode = opMode;
+        }
+
+        /**
+         * Whose area its drivers stand in: its own alliance's, and blue's for an op mode that plays for
+         * none, which plays the blue way round.
+         */
+        public String drivenFrom() {
+            return alliance != null ? alliance : "Blue";
         }
 
         public OpMode opMode() {
@@ -62,6 +78,7 @@ public final class SimCatalog {
             item.addProperty("group", group);
             item.addProperty("kind", kind);
             item.addProperty("where", where);
+            item.addProperty("alliance", alliance);
             return item;
         }
     }
@@ -105,9 +122,22 @@ public final class SimCatalog {
                     item.get("group").getAsString(),
                     item.get("kind").getAsString(),
                     item.get("where").getAsString(),
+                    allianceIn(item),
                     null));
         }
         return new SimCatalog(Collections.unmodifiableList(entries), List.of());
+    }
+
+    private static String allianceIn(JsonObject item) {
+        JsonElement alliance = item.get("alliance");
+        if (alliance == null || alliance.isJsonNull()) {
+            return null;
+        }
+        if (!ALLIANCES.contains(alliance.getAsString())) {
+            throw new IllegalArgumentException(item.get("name").getAsString() + " plays for " + alliance
+                    + ", and nobody does: an op mode plays for one of " + ALLIANCES + " or for none");
+        }
+        return alliance.getAsString();
     }
 
     public JsonArray toJson() {
@@ -180,6 +210,7 @@ public final class SimCatalog {
                 group,
                 kindOf(type),
                 type.getName(),
+                allianceOfA(type),
                 () -> construct(type));
     }
 
@@ -189,6 +220,31 @@ public final class SimCatalog {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("could not construct " + type.getName(), e);
         }
+    }
+
+    /**
+     * An op mode says which alliance it plays for only once it is made, so one is made to ask. One
+     * that cannot be made is listed all the same, as it always was, and says why when it is run.
+     */
+    private static String allianceOfA(Class<? extends OpMode> type) {
+        OpMode made;
+        try {
+            made = construct(type);
+        } catch (RuntimeException e) {
+            return null;
+        }
+        return allianceOf(made);
+    }
+
+    private static String allianceOf(OpMode opMode) {
+        Alliance alliance = opMode.alliance();
+        if (alliance == Alliance.BLUE) {
+            return "Blue";
+        }
+        if (alliance == Alliance.RED) {
+            return "Red";
+        }
+        return null;
     }
 
     private static List<Entry> registeredBy(Method registrar) {
@@ -215,7 +271,10 @@ public final class SimCatalog {
                     ? ((OpMode) registration.instance).where()
                     : registration.type.getName();
             String kind = registration.meta.flavor == OpModeMeta.Flavor.TELEOP ? TELEOP : AUTO;
-            entries.add(new Entry(registration.meta.name, registration.meta.group, kind, where, () ->
+            String alliance = registration.instance != null
+                    ? allianceOf((OpMode) registration.instance)
+                    : allianceOfA(registration.type.asSubclass(OpMode.class));
+            entries.add(new Entry(registration.meta.name, registration.meta.group, kind, where, alliance, () ->
                     (OpMode) registration.opMode()));
         }
         return entries;

@@ -307,6 +307,32 @@ __IMPORTMAP__
   const unit = a => { const n = Math.hypot(a[0], a[1], a[2]); return [a[0] / n, a[1] / n, a[2] / n]; };
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  // A game is watched from where its drivers stand, as the bench says: in their alliance's area
+  // behind the wall, five feet up. A driver can turn their head -- drag -- and do nothing else: no
+  // walking round the field, no flying over it, no leaning in. Double-clicking looks back at it.
+  // Free play is watched from wherever the viewer likes, orbiting as every run always was.
+  const match = rec.match || null;
+  const DRIVER_FOV = 50 * Math.PI / 180, LOOK_LIMIT = 85 * Math.PI / 180, NEAR = 1;
+  const lookToward = (from, at) => {
+    const d = sub(at, from);
+    return { yaw: Math.atan2(d[1], d[0]), pitch: Math.atan2(d[2], Math.hypot(d[0], d[1])) };
+  };
+  const standing = match ? { eye: match.eye, home: lookToward(match.eye, match.lookingAt) } : null;
+  const look = standing ? Object.assign({}, standing.home) : null;
+  const facing = () => [Math.cos(look.pitch) * Math.cos(look.yaw), Math.cos(look.pitch) * Math.sin(look.yaw),
+                        Math.sin(look.pitch)];
+  function turnHead(dx, dy) {
+    look.yaw += dx * 0.005;
+    look.pitch = clamp(look.pitch + dy * 0.005, -LOOK_LIMIT, LOOK_LIMIT);
+  }
+  const moving = standing
+    ? 'Drag the field to turn your head; double-click to look back at the middle of it.'
+    : 'Drag the field to orbit, scroll to zoom, double-click to reset the view.';
+  const timeLeft = t => {
+    const whole = Math.max(0, Math.ceil(match.period - t - 1e-9));
+    return Math.floor(whole / 60) + ':' + String(whole % 60).padStart(2, '0') + ' left';
+  };
+
   const HOME = { az: 0, el: 0.62, zoom: 1 };
   const view = Object.assign({}, HOME);
   const EYE_DIST = 2.4 * FIELD_IN;
@@ -319,6 +345,16 @@ __IMPORTMAP__
   }
 
   function aimCamera() {
+    if (standing) {
+      cam.eye = standing.eye.slice();
+      cam.f = facing();
+      cam.r = unit(cross(cam.f, [0, 0, 1]));
+      cam.u = cross(cam.r, cam.f);
+      cam.focal = canvas.height / 2 / Math.tan(DRIVER_FOV / 2);
+      cam.ox = canvas.width / 2;
+      cam.oy = canvas.height / 2;
+      return;
+    }
     const ce = Math.cos(view.el), se = Math.sin(view.el);
     cam.eye = [-EYE_DIST * ce * Math.cos(view.az), -EYE_DIST * ce * Math.sin(view.az), EYE_DIST * se];
     cam.f = unit(sub([0, 0, WALL_IN / 2], cam.eye));
@@ -354,11 +390,46 @@ __IMPORTMAP__
 
   function trace(points, close) {
     ctx.beginPath();
-    points.forEach((p, i) => { const s = project(p); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
+    for (const run of inFront(points, close)) {
+      run.forEach((p, i) => { const s = project(p); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y); });
+    }
     if (close) ctx.closePath();
   }
   const floor = (x, y) => project([x, y, 0]);
   const depthOf = p => dot(sub(p, cam.eye), cam.f);
+  const seen = p => depthOf(p) >= NEAR;
+
+  // What is behind the eye cannot be projected -- it lands on the far side of the picture, upside
+  // down -- so a shape is cut where it crosses a plane just in front of the eye, into the runs of it
+  // that are in front. From the orbit nothing ever crosses it; from a driver's area the wall they
+  // stand behind does, and so does the floor at their feet.
+  function inFront(points, close) {
+    const depth = points.map(depthOf);
+    if (depth.every(d => d >= NEAR)) return [points];
+    const cut = (i, j) => {
+      const t = (NEAR - depth[i]) / (depth[j] - depth[i]), a = points[i], b = points[j];
+      return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])];
+    };
+    if (close) {
+      const kept = [];
+      for (let i = 0; i < points.length; i++) {
+        const j = (i + 1) % points.length;
+        if (depth[i] >= NEAR) kept.push(points[i]);
+        if ((depth[i] >= NEAR) !== (depth[j] >= NEAR)) kept.push(cut(i, j));
+      }
+      return kept.length ? [kept] : [];
+    }
+    const runs = [];
+    let run = [];
+    for (let i = 0; i < points.length; i++) {
+      const was = i > 0 && depth[i - 1] >= NEAR, is = depth[i] >= NEAR;
+      if (i > 0 && was !== is) run.push(cut(i - 1, i));
+      if (is) run.push(points[i]);
+      if (was && !is) { runs.push(run); run = []; }
+    }
+    if (run.length) runs.push(run);
+    return runs;
+  }
 
   const apron = { minX: -HALF, maxX: HALF, minY: -HALF, maxY: HALF };
   for (const m of FIELD.tape) for (const [x, y] of m.footprint) {
@@ -405,13 +476,16 @@ __IMPORTMAP__
     if (rec.outcome) state = 'outcome: ' + rec.outcome;
     else if (rec.live) state = rec.disconnected ? 'live view lost the bench' : 'running';
     else state = 'outcome: unknown';
-    document.getElementById('outcome').textContent = loops + ', ' + state;
+    document.getElementById('outcome').textContent = loops + ', ' + state
+      + (match ? '; a game, watched from where ' + match.alliance + '\u2019s drivers stand' : '');
     stop.hidden = !driving();
     controller.classList.toggle('readonly', !driving());
     if (teleop) {
       hint.innerHTML = driving()
         ? 'Click a button or press the key shown on it; drag a stick or hold its keys. <kbd>1</kbd> <kbd>2</kbd> pick the gamepad, <kbd>Esc</kbd> stops the run. Click the page first if the keys do nothing.'
-        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. Drag the field to orbit, scroll to zoom, double-click to reset the view. Field in inches, Road Runner frame: +x forward, +y left. Dashed outlines on the floor are what the simulator collides.';
+        : '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop; the controller shows what the driver pressed. ' + moving + ' Field in inches, Road Runner frame: +x forward, +y left. Dashed outlines on the floor are what the simulator collides.';
+    } else if (standing) {
+      hint.innerHTML = '<kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step one loop. ' + moving + ' Field in inches, Road Runner frame: +x forward, +y left. Dashed outlines on the floor are what the simulator collides.';
     }
   }
 
@@ -437,9 +511,8 @@ __IMPORTMAP__
     ctx.fillStyle = token('--label');
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const px = floor(HALF + 9, 0), py = floor(0, HALF + 9);
-    ctx.fillText('+x', px.x, px.y);
-    ctx.fillText('+y', py.x, py.y);
+    if (seen([HALF + 9, 0, 0])) { const px = floor(HALF + 9, 0); ctx.fillText('+x', px.x, px.y); }
+    if (seen([0, HALF + 9, 0])) { const py = floor(0, HALF + 9); ctx.fillText('+y', py.x, py.y); }
     ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
 
     for (const mark of FIELD.tape) {
@@ -526,6 +599,7 @@ __IMPORTMAP__
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
+      if (depth < NEAR + piece.radius) return;
       const s = project(c), r = cam.focal * piece.radius / depth;
       ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 2 * Math.PI);
       ctx.fillStyle = piece.colour; ctx.fill();
@@ -591,6 +665,7 @@ __IMPORTMAP__
           break;
         }
         case 'TEXT': {
+          if (!seen([op.x, op.y, 0])) break;
           ctx.font = op.font || '12px sans-serif';
           const s = floor(op.x, op.y);
           op.stroke ? ctx.strokeText(op.text, s.x, s.y) : ctx.fillText(op.text, s.x, s.y);
@@ -709,7 +784,7 @@ __IMPORTMAP__
     if (placing) { renderPlacement(); return; }
     if (!tick) return;
 
-    time.textContent = tick.t.toFixed(2) + ' s';
+    time.textContent = tick.t.toFixed(2) + ' s' + (match ? ' \u00b7 ' + timeLeft(tick.t) : '');
     scrub.value = index;
     document.getElementById('step').textContent = tick.step;
     document.getElementById('pose').textContent =
@@ -866,8 +941,12 @@ __IMPORTMAP__
       canvas.classList.add('orbiting');
       let last = { x: e.clientX, y: e.clientY };
       move = ev => {
-        view.az -= (ev.clientX - last.x) * 0.008;
-        view.el = clamp(view.el + (ev.clientY - last.y) * 0.008, 0.12, 1.5);
+        if (standing) {
+          turnHead(ev.clientX - last.x, ev.clientY - last.y);
+        } else {
+          view.az -= (ev.clientX - last.x) * 0.008;
+          view.el = clamp(view.el + (ev.clientY - last.y) * 0.008, 0.12, 1.5);
+        }
         last = { x: ev.clientX, y: ev.clientY };
         render();
       };
@@ -882,11 +961,15 @@ __IMPORTMAP__
     canvas.addEventListener('pointercancel', release);
   });
   canvas.addEventListener('wheel', e => {
+    if (standing) return;
     e.preventDefault();
     view.zoom = clamp(view.zoom * Math.exp(-e.deltaY * 0.0015), 0.5, 4);
     render();
   }, { passive: false });
-  canvas.addEventListener('dblclick', () => { Object.assign(view, HOME); render(); });
+  canvas.addEventListener('dblclick', () => {
+    if (standing) Object.assign(look, standing.home); else Object.assign(view, HOME);
+    render();
+  });
 
   const panel = document.getElementById('controller-panel');
   const controller = document.getElementById('controller');
@@ -1140,6 +1223,29 @@ __IMPORTMAP__
       return view.load(MODELS[LOWEST_RESOLUTION]);
     });
     view.place(Object.assign({}, FIELD, { robotIn: ROBOT_IN }));
+    if (standing) {
+      view.standAt(standing.eye, facing(), DRIVER_FOV * 180 / Math.PI);
+      let last = null;
+      solidCanvas.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        solidCanvas.setPointerCapture(e.pointerId);
+        last = { x: e.clientX, y: e.clientY };
+      });
+      solidCanvas.addEventListener('pointermove', e => {
+        if (!last) return;
+        turnHead(e.clientX - last.x, e.clientY - last.y);
+        last = { x: e.clientX, y: e.clientY };
+        view.standAt(standing.eye, facing(), DRIVER_FOV * 180 / Math.PI);
+      });
+      const letGo = () => { last = null; };
+      solidCanvas.addEventListener('pointerup', letGo);
+      solidCanvas.addEventListener('pointercancel', letGo);
+      solidCanvas.addEventListener('dblclick', () => {
+        Object.assign(look, standing.home);
+        view.standAt(standing.eye, facing(), DRIVER_FOV * 180 / Math.PI);
+      });
+    }
     solid = view;
     drawing = 'solid';
     canvas.hidden = true;
@@ -1159,7 +1265,7 @@ __IMPORTMAP__
         + 'Play and scrub the run; the view follows the robot.';
     }
     view.renderer.setAnimationLoop(() => {
-      view.controls.update();
+      if (view.controls.enabled) view.controls.update();
       view.drawnFrom(webcam && webcam.camera);
     });
     render();
@@ -1187,7 +1293,7 @@ __IMPORTMAP__
     } finally {
       shadowPass(true);
       solid.renderer.setAnimationLoop(() => {
-        solid.controls.update();
+        if (solid.controls.enabled) solid.controls.update();
         solid.drawnFrom(webcam && webcam.camera);
       });
     }
@@ -1276,6 +1382,11 @@ __IMPORTMAP__
     },
     get orbit() {
       return solid ? { near: solid.camera.near, maxDistance: solid.controls.maxDistance, fieldIn: FIELD_IN } : null;
+    },
+    get viewpoint() {
+      if (drawing === 'solid') return solid ? solid.viewpoint : null;
+      aimCamera();
+      return { eye: cam.eye.slice(), facing: cam.f.slice(), orbiting: !standing };
     },
     get camera3() { return webcam && webcam.camera; },
     get tags() { return tags ? tags.tags : []; },

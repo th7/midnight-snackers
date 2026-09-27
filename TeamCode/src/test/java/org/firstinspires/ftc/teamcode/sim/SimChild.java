@@ -38,7 +38,8 @@ public final class SimChild {
             protocol.println(SimRunStream.finished(outcome));
             System.exit(0);
         }
-        System.err.println("usage: --list [source...] | --run <op mode name> <seconds> <replay dir> [source...]");
+        System.err.println("usage: --list [source...] | --run <op mode name> <seconds, or Infinity for no limit>"
+                + " <replay dir> [source...]");
         System.exit(2);
     }
 

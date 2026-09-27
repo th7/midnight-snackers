@@ -78,9 +78,14 @@ function filled(template, model, run, assets) {
       .replace('__DATA__', JSON.stringify(run));
 }
 
-function served(page, live, ticks) {
+function served(page, live, ticks, game) {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    if (asked === '/game/runs/1/') {
+      response.writeHead(200, { 'Content-Type': TYPES['.html'] });
+      response.end(game);
+      return;
+    }
     if (asked === '/live/runs/1/ticks') {
       const from = Number(new URL(request.url, 'http://x').searchParams.get('from') || 0);
       response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -102,7 +107,8 @@ function served(page, live, ticks) {
     const toldToDrawLow = asked.startsWith('/default-low/');
     const relative = withoutModel ? asked.slice('/nomodel'.length)
         : toldToDrawLow ? asked.slice('/default-low'.length)
-        : asked.startsWith('/live/') ? asked.slice('/live'.length) : asked;
+        : asked.startsWith('/live/') ? asked.slice('/live'.length)
+        : asked.startsWith('/game/') ? asked.slice('/game'.length) : asked;
     if (relative === '/runs/1/') {
       response.writeHead(200, { 'Content-Type': TYPES['.html'] });
       response.end(page);
@@ -438,6 +444,92 @@ async function aModelItCannotFetchFallsBackAndSaysSo(browser, base) {
   }
 }
 
+// Where a game's drivers stand, as the bench tells the page: the middle of the blue alliance's area
+// behind the -y wall, five feet up. The bench works it out from the field and SimBenchTest holds it
+// to that; what is held here is what the page does with it.
+const A_GAME = { period: 30, alliance: 'Blue', eye: [0, -98.8, 60], lookingAt: [0, 0, 0] };
+
+const apart = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const unitOf = (v) => { const n = Math.hypot(v[0], v[1], v[2]); return [v[0] / n, v[1] / n, v[2] / n]; };
+const degreesBetween = (a, b) => {
+  const u = unitOf(a), v = unitOf(b);
+  return Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1] + u[2] * v[2]))) * 180 / Math.PI;
+};
+const toward = unitOf([A_GAME.lookingAt[0] - A_GAME.eye[0], A_GAME.lookingAt[1] - A_GAME.eye[1],
+                       A_GAME.lookingAt[2] - A_GAME.eye[2]]);
+
+async function dragAcross(open, canvas, dx, dy) {
+  const box = await open.locator(canvas).boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await open.mouse.move(x, y);
+  await open.mouse.down();
+  await open.mouse.move(x + dx, y + dy, { steps: 8 });
+  await open.mouse.up();
+  await twoFrames(open);
+}
+
+// A game is watched from where its drivers stand, and a driver can turn their head and do nothing
+// else: they cannot walk round the field, fly over it or lean in. Double-clicking looks back at it.
+async function aGameIsWatchedFromTheDriversOwnArea(browser, base, query, canvas, drawn) {
+  const { open, threw } = await opened(browser, `${base}/game/runs/1/${query}`);
+  const where = query || 'the field model';
+  try {
+    const panels = await readPanels(open);
+    check(faults(threw).length === 0, `a game in ${where} threw: ${faults(threw).join('; ')}`);
+    check(panels.drawing === drawn, `a game asked for ${where} drew the ${panels.drawing} field: ${panels.problem}`);
+    await twoFrames(open);
+    const first = await open.evaluate(() => window.replayPage.viewpoint);
+    check(first && !first.orbiting, `a game in ${where} still orbits`);
+    check(first && apart(first.eye, A_GAME.eye) < 0.01,
+          `a game in ${where} is watched from ${first && first.eye}, not the driver's area at ${A_GAME.eye}`);
+    check(first && degreesBetween(first.facing, toward) < 0.5,
+          `a game in ${where} starts looking along ${first && first.facing}, not at the middle of the field`);
+    if (drawn === 'solid') {
+      const triangles = await open.evaluate(() => window.replayPage.drawnTriangles);
+      check(triangles > 1000, `from the driver's area only ${triangles} triangles are drawn; the field is not in view`);
+    } else {
+      const lit = await litPixels(browser, await open.locator(canvas).screenshot());
+      check(lit > 2000, `from the driver's area only ${lit} pixels of the colliders are drawn`);
+    }
+    const clock = await open.locator('#time').textContent();
+    check(/0:30 left/.test(clock), `a game's clock reads "${clock}", not the time left of its 30 s period`);
+
+    await dragAcross(open, canvas, -160, 60);
+    const turned = await open.evaluate(() => window.replayPage.viewpoint);
+    check(apart(turned.eye, A_GAME.eye) < 0.01, `turning to look in ${where} moved the driver to ${turned.eye}`);
+    check(degreesBetween(turned.facing, first.facing) > 10,
+          `dragging across a game in ${where} turned the view ${degreesBetween(turned.facing, first.facing)} degrees`);
+
+    const box = await open.locator(canvas).boundingBox();
+    await open.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await open.mouse.wheel(0, -800);
+    await twoFrames(open);
+    const wheeled = await open.evaluate(() => window.replayPage.viewpoint);
+    check(apart(wheeled.eye, A_GAME.eye) < 0.01, `scrolling over a game in ${where} moved the driver to ${wheeled.eye}`);
+
+    await open.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+    await twoFrames(open);
+    const back = await open.evaluate(() => window.replayPage.viewpoint);
+    check(degreesBetween(back.facing, toward) < 0.5,
+          `double-clicking a game in ${where} looks along ${back.facing}, not back at the field`);
+  } finally {
+    await open.close();
+  }
+}
+
+// Free play is watched from wherever the viewer likes, as every run was before there were games.
+async function freePlayOrbitsWithNoClock(browser, base) {
+  const { open } = await opened(browser, `${base}/runs/1/`);
+  try {
+    const seen = await open.evaluate(() => window.replayPage.viewpoint);
+    check(seen && seen.orbiting, 'free play no longer orbits');
+    const clock = await open.locator('#time').textContent();
+    check(!/left/.test(clock), `free play has no period, and its clock reads "${clock}"`);
+  } finally {
+    await open.close();
+  }
+}
+
 async function theWrittenPageIsSelfContained(browser, page) {
   const where = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'replay-')), 'replay.html');
   fs.writeFileSync(where, page);
@@ -475,7 +567,8 @@ async function main() {
   }
 
   const following = { name: NAME, kind: 'auto', live: true, outcome: null, ticks: [] };
-  const server = await served(page, filled(template, model, following, ASSETS), run.ticks);
+  const game = filled(template, model, Object.assign({}, run, { match: A_GAME }), ASSETS);
+  const server = await served(page, filled(template, model, following, ASSETS), run.ticks, game);
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chrome();
 
@@ -491,6 +584,9 @@ async function main() {
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '?resolution=medium', 'field-medium.glb');
     await theFlatDrawingIsStillThereToAskFor(browser, base);
     await aModelItCannotFetchFallsBackAndSaysSo(browser, base);
+    await aGameIsWatchedFromTheDriversOwnArea(browser, base, '', '#solid', 'solid');
+    await aGameIsWatchedFromTheDriversOwnArea(browser, base, '?view=flat', '#field', 'flat');
+    await freePlayOrbitsWithNoClock(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
   } catch (stuck) {
     wrong.push(String(stuck && stuck.message));
@@ -508,7 +604,8 @@ async function main() {
   }
   console.log(`the live view plays ${run.ticks.length} ticks of the field model and follows a run still `
       + 'adding them, and keeps the flat drawing for ?view=flat, for a model it cannot fetch, and for the '
-      + 'page it writes to a file.');
+      + 'page it writes to a file; a game is watched from its drivers\' area in either, turning and nothing '
+      + 'more, with the time it has left.');
   if (!solid) {
     console.error('the live view never reported itself drawn');
     process.exit(1);
