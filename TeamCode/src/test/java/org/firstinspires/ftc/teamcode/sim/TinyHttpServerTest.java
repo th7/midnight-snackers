@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -19,6 +20,7 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -179,6 +181,153 @@ public class TinyHttpServerTest {
 
         assertEquals("6", reply.header("Content-Length"));
         assertEquals("héllo", new String(reply.body, StandardCharsets.UTF_8));
+    }
+
+    private static final String A_BROWSER_TAKES = "gzip, deflate, br";
+
+    private static String aLongRun() {
+        StringBuilder ticks = new StringBuilder("{\"outcome\":null,\"ticks\":[");
+        for (int i = 0; i < 200; i++) {
+            ticks.append(i == 0 ? "" : ",").append("{\"t\":").append(i * 0.02).append(",\"x\":1.5,\"y\":-2.25}");
+        }
+        return ticks.append("]}").toString();
+    }
+
+    @Test
+    public void textIsSentCompressedToABrowserThatTakesIt() throws IOException {
+        String run = aLongRun();
+        server(request -> Response.json(run));
+
+        Bytes reply = getBytes("/ticks", Map.of("Accept-Encoding", A_BROWSER_TAKES));
+
+        assertEquals("gzip", reply.header("Content-Encoding"));
+        assertEquals(String.valueOf(reply.body.length), reply.header("Content-Length"));
+        assertTrue(reply.body.length + " bytes for " + run.length(), reply.body.length < run.length() / 4);
+        assertEquals(run, new String(gunzip(reply.body), StandardCharsets.UTF_8));
+        assertEquals("a cache keeps the two apart", "Accept-Encoding", reply.header("Vary"));
+    }
+
+    @Test
+    public void textIsSentAsItIsToAClientThatDoesNotTakeGzip() throws IOException {
+        String run = aLongRun();
+        server(request -> Response.json(run));
+
+        for (Map<String, String> asked : List.of(
+                Map.<String, String>of(),
+                Map.of("Accept-Encoding", "identity"),
+                Map.of("Accept-Encoding", "gzip;q=0, deflate"),
+                Map.of("Accept-Encoding", "*;q=0"))) {
+            Bytes reply = getBytes("/ticks", asked);
+
+            assertNull(asked.toString(), reply.header("Content-Encoding"));
+            assertEquals(asked.toString(), run, new String(reply.body, StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
+    public void aClientThatTakesAnythingTakesGzip() throws IOException {
+        server(request -> Response.html(aLongRun()));
+
+        assertEquals("gzip", getBytes("/", Map.of("Accept-Encoding", "*")).header("Content-Encoding"));
+        assertEquals(
+                "gzip",
+                getBytes("/", Map.of("Accept-Encoding", "br;q=1.0, GZIP;q=0.5")).header("Content-Encoding"));
+    }
+
+    @Test
+    public void whatCompressionWouldOnlyGrowIsSentAsItIs() throws IOException {
+        byte[] image = new byte[4096];
+        new java.util.Random(7).nextBytes(image);
+        server(request -> request.path.equals("/tag.png") ? Response.bytes("image/png", image) : Response.json("{}"));
+
+        Bytes tiny = getBytes("/", Map.of("Accept-Encoding", A_BROWSER_TAKES));
+        Bytes png = getBytes("/tag.png", Map.of("Accept-Encoding", A_BROWSER_TAKES));
+
+        assertNull(tiny.header("Content-Encoding"));
+        assertEquals("{}", new String(tiny.body, StandardCharsets.UTF_8));
+        assertNull(png.header("Content-Encoding"));
+        assertArrayEquals(image, png.body);
+    }
+
+    @Test
+    public void aRevalidatedResponseIsKeptByTheBrowserAndAskedAboutAgainRatherThanSentAgain() throws IOException {
+        byte[] model = new byte[2048];
+        new java.util.Random(11).nextBytes(model);
+        server(request -> Response.bytes("model/gltf-binary", model).revalidated());
+
+        Bytes first = getBytes("/field.glb", Map.of());
+        String version = first.header("ETag");
+        Bytes again = getBytes("/field.glb", Map.of("If-None-Match", version));
+
+        assertEquals(200, first.status);
+        assertNotNull(version);
+        assertEquals("no-cache", first.header("Cache-Control"));
+        assertEquals(304, again.status);
+        assertEquals("nothing is sent again", 0, again.body.length);
+        assertEquals(version, again.header("ETag"));
+        assertEquals(
+                "one of several versions the browser holds",
+                304,
+                getBytes("/field.glb", Map.of("If-None-Match", "W/\"older\", " + version)).status);
+    }
+
+    @Test
+    public void aRevalidatedResponseWhoseBytesChangedIsSentWhole() throws IOException {
+        byte[][] served = {"the model as it was".getBytes(StandardCharsets.UTF_8)};
+        server(request -> Response.bytes("model/gltf-binary", served[0]).revalidated());
+        String was = getBytes("/field.glb", Map.of()).header("ETag");
+
+        served[0] = "the model refreshed".getBytes(StandardCharsets.UTF_8);
+        Bytes now = getBytes("/field.glb", Map.of("If-None-Match", was));
+
+        assertEquals(200, now.status);
+        assertEquals("the model refreshed", new String(now.body, StandardCharsets.UTF_8));
+        assertTrue(was + " then " + now.header("ETag"), !was.equals(now.header("ETag")));
+    }
+
+    @Test
+    public void aRevalidatedScriptIsTheSameVersionCompressedOrNot() throws IOException {
+        String script = "export const one = 1;\n".repeat(200);
+        server(request -> new Response(200, "text/javascript; charset=utf-8", script).revalidated());
+
+        Bytes compressed = getBytes("/a.js", Map.of("Accept-Encoding", A_BROWSER_TAKES));
+        Bytes plain = getBytes("/a.js", Map.of());
+
+        assertEquals("gzip", compressed.header("Content-Encoding"));
+        assertEquals(compressed.header("ETag"), plain.header("ETag"));
+        assertEquals(
+                304,
+                getBytes("/a.js", Map.of("Accept-Encoding", A_BROWSER_TAKES, "If-None-Match", plain.header("ETag")))
+                        .status);
+    }
+
+    @Test
+    public void everythingElseIsNeverKept() throws IOException {
+        server(request -> Response.json(aLongRun()));
+
+        Bytes reply = getBytes("/ticks", Map.of("If-None-Match", "*"));
+
+        assertEquals(200, reply.status);
+        assertEquals("no-store", reply.header("Cache-Control"));
+        assertNull(reply.header("ETag"));
+    }
+
+    private static byte[] gunzip(byte[] body) throws IOException {
+        try (InputStream in = new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(body))) {
+            return in.readAllBytes();
+        }
+    }
+
+    private Bytes getBytes(String path, Map<String, String> headers) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(server.url() + path.substring(1)).openConnection();
+        connection.setRequestMethod("GET");
+        headers.forEach(connection::setRequestProperty);
+        int status = connection.getResponseCode();
+        try (InputStream in = status < 400 ? connection.getInputStream() : connection.getErrorStream()) {
+            return new Bytes(status, in == null ? new byte[0] : in.readAllBytes(), connection);
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private Bytes getBytes(String path) throws IOException {

@@ -12,6 +12,8 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -20,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
+import java.util.zip.Deflater;
+import java.util.zip.GZIPOutputStream;
 
 public final class TinyHttpServer {
     public static final int MAX_BODY_BYTES = 1 << 20;
@@ -98,20 +102,33 @@ public final class TinyHttpServer {
 
         public final Map<String, String> headers;
 
+        public final boolean revalidated;
+
         public Response(int status, String contentType, String body) {
-            this(status, contentType, body, null, Collections.emptyMap());
+            this(status, contentType, body, null, Collections.emptyMap(), false);
         }
 
-        private Response(int status, String contentType, String body, byte[] binary, Map<String, String> headers) {
+        private Response(
+                int status,
+                String contentType,
+                String body,
+                byte[] binary,
+                Map<String, String> headers,
+                boolean revalidated) {
             this.status = status;
             this.contentType = contentType;
             this.body = body;
             this.binary = binary;
             this.headers = headers;
+            this.revalidated = revalidated;
+        }
+
+        public Response revalidated() {
+            return new Response(status, contentType, body, binary, headers, true);
         }
 
         public static Response bytes(String contentType, byte[] body) {
-            return new Response(200, contentType, "", body.clone(), Collections.emptyMap());
+            return new Response(200, contentType, "", body.clone(), Collections.emptyMap(), false);
         }
 
         byte[] encoded() {
@@ -137,7 +154,7 @@ public final class TinyHttpServer {
         public Response withHeader(String name, String value) {
             Map<String, String> copy = new LinkedHashMap<>(headers);
             copy.put(name, value);
-            return new Response(status, contentType, body, binary, Collections.unmodifiableMap(copy));
+            return new Response(status, contentType, body, binary, Collections.unmodifiableMap(copy), revalidated);
         }
     }
 
@@ -204,6 +221,130 @@ public final class TinyHttpServer {
         }
     }
 
+    static final class Sent {
+        final int status;
+        final Map<String, String> headers;
+        final byte[] body;
+
+        private Sent(int status, Map<String, String> headers, byte[] body) {
+            this.status = status;
+            this.headers = Collections.unmodifiableMap(headers);
+            this.body = body;
+        }
+    }
+
+    static Sent sent(Response response, Map<String, String> requestHeaders) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        byte[] body = response.encoded();
+        boolean text = compressible(response.contentType);
+        if (text) {
+            headers.put("Vary", "Accept-Encoding");
+        }
+        if (response.revalidated && response.status == 200) {
+            String version = "W/\"" + version(body) + "\"";
+            headers.put("ETag", version);
+            headers.put("Cache-Control", "no-cache");
+            if (alreadyHeld(requestHeaders.get("if-none-match"), version)) {
+                headers.putAll(response.headers);
+                return new Sent(304, headers, new byte[0]);
+            }
+        } else {
+            headers.put("Cache-Control", "no-store");
+        }
+        if (text && takesGzip(requestHeaders.get("accept-encoding"))) {
+            byte[] compressed = gzip(body);
+            if (compressed.length < body.length) {
+                body = compressed;
+                headers.put("Content-Encoding", "gzip");
+            }
+        }
+        Map<String, String> ordered = new LinkedHashMap<>();
+        ordered.put("Content-Type", response.contentType);
+        ordered.put("Content-Length", String.valueOf(body.length));
+        ordered.putAll(headers);
+        ordered.putAll(response.headers);
+        return new Sent(response.status, ordered, body);
+    }
+
+    private static boolean compressible(String contentType) {
+        String type = contentType.toLowerCase(Locale.ROOT);
+        return type.startsWith("text/")
+                || type.startsWith("application/json")
+                || type.startsWith("application/javascript");
+    }
+
+    private static boolean takesGzip(String acceptEncoding) {
+        if (acceptEncoding == null) {
+            return false;
+        }
+        Double gzip = null;
+        Double anything = null;
+        for (String offered : acceptEncoding.split(",")) {
+            String[] parts = offered.split(";");
+            String coding = parts[0].trim().toLowerCase(Locale.ROOT);
+            double quality = 1;
+            for (int i = 1; i < parts.length; i++) {
+                String parameter = parts[i].trim().toLowerCase(Locale.ROOT);
+                if (parameter.startsWith("q=")) {
+                    try {
+                        quality = Double.parseDouble(parameter.substring(2).trim());
+                    } catch (NumberFormatException e) {
+                        quality = 0;
+                    }
+                }
+            }
+            if (coding.equals("gzip") || coding.equals("x-gzip")) {
+                gzip = quality;
+            } else if (coding.equals("*")) {
+                anything = quality;
+            }
+        }
+        return gzip != null ? gzip > 0 : anything != null && anything > 0;
+    }
+
+    private static boolean alreadyHeld(String ifNoneMatch, String version) {
+        if (ifNoneMatch == null) {
+            return false;
+        }
+        for (String held : ifNoneMatch.split(",")) {
+            String tag = held.trim();
+            if (tag.equals("*") || opaque(tag).equals(opaque(version))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String opaque(String tag) {
+        return tag.startsWith("W/") ? tag.substring(2) : tag;
+    }
+
+    private static String version(byte[] bytes) {
+        try {
+            StringBuilder hex = new StringBuilder();
+            for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes)) {
+                hex.append(Character.forDigit((b >> 4) & 0xf, 16)).append(Character.forDigit(b & 0xf, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static byte[] gzip(byte[] body) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(body.length / 4 + 64);
+        try (GZIPOutputStream gzip = new GZIPOutputStream(out) {
+            {
+                def.setLevel(Deflater.BEST_SPEED);
+            }
+        }) {
+            gzip.write(body);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return out.toByteArray();
+    }
+
     private void handle(Socket connection) {
         try (connection;
                 InputStream in = new BufferedInputStream(connection.getInputStream());
@@ -223,7 +364,7 @@ public final class TinyHttpServer {
             }
             long length = contentLength(headers);
             if (length > MAX_BODY_BYTES) {
-                write(out, Response.error(413, "request body over " + MAX_BODY_BYTES + " bytes"));
+                write(out, sent(Response.error(413, "request body over " + MAX_BODY_BYTES + " bytes"), headers));
                 drain(in, length);
                 return;
             }
@@ -234,7 +375,7 @@ public final class TinyHttpServer {
             } catch (RuntimeException e) {
                 response = Response.error(500, e.toString());
             }
-            write(out, response);
+            write(out, sent(response, headers));
         } catch (IOException e) {
         }
     }
@@ -311,18 +452,13 @@ public final class TinyHttpServer {
                 remoteAddress);
     }
 
-    private static void write(OutputStream out, Response response) throws IOException {
-        byte[] bytes = response.encoded();
-        StringBuilder head = new StringBuilder("HTTP/1.0 " + response.status + " " + reason(response.status) + "\r\n"
-                + "Content-Type: " + response.contentType + "\r\n"
-                + "Content-Length: " + bytes.length + "\r\n"
-                + "Cache-Control: no-store\r\n"
-                + "Connection: close\r\n");
-        response.headers.forEach(
+    private static void write(OutputStream out, Sent sent) throws IOException {
+        StringBuilder head = new StringBuilder("HTTP/1.0 " + sent.status + " " + reason(sent.status) + "\r\n");
+        sent.headers.forEach(
                 (name, value) -> head.append(name).append(": ").append(value).append("\r\n"));
-        head.append("\r\n");
+        head.append("Connection: close\r\n\r\n");
         out.write(head.toString().getBytes(StandardCharsets.US_ASCII));
-        out.write(bytes);
+        out.write(sent.body);
         out.flush();
     }
 
@@ -330,6 +466,8 @@ public final class TinyHttpServer {
         switch (status) {
             case 200:
                 return "OK";
+            case 304:
+                return "Not Modified";
             case 308:
                 return "Permanent Redirect";
             case 400:

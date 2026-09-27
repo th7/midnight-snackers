@@ -461,6 +461,7 @@ public final class CodingServer {
                         "/static/{name}",
                         (request, params) -> STATIC.contains(params.get("name"))
                                 ? new Response(200, "application/javascript; charset=utf-8", page(params.get("name")))
+                                        .revalidated()
                                 : Response.error(404, "not found: " + request.path));
         return new Router()
                 .route(
@@ -1077,8 +1078,9 @@ public final class CodingServer {
         // copy -- which are what every server without an admin to ask serves.
         if (FieldAssets.DEFAULT_RESOLUTION_FILE.equals(name)) {
             return Response.bytes(
-                    "text/javascript; charset=utf-8",
-                    FieldAssets.defaultResolutionModule(drawnByDefault).getBytes(StandardCharsets.UTF_8));
+                            "text/javascript; charset=utf-8",
+                            FieldAssets.defaultResolutionModule(drawnByDefault).getBytes(StandardCharsets.UTF_8))
+                    .revalidated();
         }
         Response fetched = SimAssets.serveUnder(assetsDir, assetStore, name);
         return fetched.status == 200 ? fetched : SimAssets.serve(name);
