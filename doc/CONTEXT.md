@@ -939,7 +939,11 @@ each of them to counting it, off the bytecode, where a fully qualified name
 cannot dodge either half. `./gradlew :TeamCode:testDebugUnitTest` prints the
 ledger and the slowest test classes every run, and a run of one class prints
 the ledger too, so what any one test class costs is one command:
-`./gradlew :TeamCode:testDebugUnitTest --tests '*SimBenchTest*'`.
+`./gradlew :TeamCode:testDebugUnitTest --tests '*SimBenchTest*'`. That holds
+for a class that spends nothing counted as surely as for one that does: the
+test JVM is started with `Cost` as its agent, which is what writes the ledger
+up on the way out, so whether it is written never waits on some test having
+touched it — and `CostTest` holds the build to starting it that way.
 
 The counts are pinned in a **suite budget** and the times are only ever
 printed: a count is the suite's and a time is the machine's. The same deal as

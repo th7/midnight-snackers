@@ -137,14 +137,26 @@ public final class Cost {
 
     private static final Ledger OF_THIS_JVM = new Ledger();
 
-    static {
-        String ledger = System.getProperty(LEDGER);
-        if (ledger != null) {
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> writeUp(Paths.get(ledger)), "suite-cost"));
-        }
+    private Cost() {}
+
+    /**
+     * The test JVM's agent: the build starts it with this class as one (TeamCode/build.gradle), so
+     * its ledger is written up on the way out whatever its tests are. Loading this class arms
+     * nothing, so a run whose tests never spend anything counted -- one class, say -- still says
+     * what it cost, which is nothing, rather than depending on some test having touched the ledger.
+     */
+    public static void premain(String ignored) {
+        Runtime.getRuntime().addShutdownHook(writingUp(System.getProperty(LEDGER)));
     }
 
-    private Cost() {}
+    static Thread writingUp(String ledger) {
+        if (ledger == null) {
+            throw new IllegalStateException("started as the suite's cost agent with nowhere to write the ledger:"
+                    + " the build sets " + LEDGER + " alongside -javaagent, so one without the other is a build"
+                    + " that has come apart.");
+        }
+        return new Thread(() -> writeUp(Paths.get(ledger)), "suite-cost");
+    }
 
     /** Count, and time, one spell of spending in this JVM's ledger. */
     public static Spent start(Kind kind) {
