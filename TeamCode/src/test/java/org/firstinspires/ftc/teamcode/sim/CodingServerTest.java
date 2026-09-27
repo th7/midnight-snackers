@@ -48,15 +48,15 @@ public class CodingServerTest {
     @Rule
     public TemporaryFolder state = new TemporaryFolder();
 
-    private static final double RUN_TIMEOUT_SECONDS = 0.3;
+    private static final double AUTONOMOUS_SECONDS = 0.3;
 
     /**
-     * What the server's benches wait in a test: a run's budget in a moment. The silence stays what
+     * What the server's benches wait in a test: a game's autonomous period in a moment. The silence stays what
      * the bench waits in earnest, since no run here goes quiet and a shorter one would only be a
      * busy machine's chance to kill a healthy child for pausing.
      */
     private static final SimBench.Waits WAITS = SimBench.Waits.ofTheBench()
-            .runTimeout(RUN_TIMEOUT_SECONDS)
+            .autonomousPeriod(AUTONOMOUS_SECONDS)
             .teleOpPeriod(30)
             .killGrace(1);
 
@@ -110,7 +110,8 @@ public class CodingServerTest {
     }
 
     private static SimBench.Factory sourcesBench() {
-        return worktree -> new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), WAITS.runTimeout(2));
+        return worktree ->
+                new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), WAITS.autonomousPeriod(2));
     }
 
     private static String encode(String name) throws java.io.UnsupportedEncodingException {
@@ -775,11 +776,11 @@ public class CodingServerTest {
     public void oneRunAtATimePerUserAndTwoUsersRunAtOnce() throws Exception {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
-        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", ada).status);
         assertTrue(user("GET", "/sim/status", ada).body.contains("\"running\":true"));
 
         Reply adaAgain = user("POST", "/sim/run?opmode=" + encode("Count to three"), ada);
-        Reply bobToo = user("POST", "/sim/run?opmode=" + encode("Never done"), bob);
+        Reply bobToo = user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", bob);
 
         assertEquals(409, adaAgain.status);
         assertTrue(adaAgain.body, adaAgain.body.contains("ada"));
@@ -981,7 +982,7 @@ public class CodingServerTest {
                 SimCatalog.of(TestAutos.ChattyAuto.class),
                 null,
                 folder.getRoot().toPath().resolve("sim"),
-                WAITS.runTimeout(2)));
+                WAITS.autonomousPeriod(2)));
         String cookie = approvedUser("ada");
         String id = json(user("POST", "/sim/run?opmode=" + encode("Chatty"), cookie).body)
                 .get("id")
@@ -3084,7 +3085,7 @@ public class CodingServerTest {
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
-        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), bob).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", bob).status);
         assertEquals(2, benches.size());
 
         assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
@@ -3104,7 +3105,7 @@ public class CodingServerTest {
     public void aRefusedDeleteLeavesTheirRunningSimulationAlone() throws Exception {
         String ada = approvedUser("ada");
         Files.write(worktreeOf("ada").resolve("README"), "typing\n".getBytes(StandardCharsets.UTF_8));
-        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", ada).status);
         awaitSimStatus(ada, RUNNING);
 
         Reply refused = admin("POST", "/admin/users/delete?username=ada");

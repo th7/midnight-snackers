@@ -52,6 +52,8 @@
   .opmode .actions .run { margin-left: auto; }
   .opmode .seed { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
   .opmode .seed input { font: inherit; width: 4em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .game { display: flex; align-items: center; gap: 8px; margin: 0 20px 6px; font-weight: 600; }
+  .game input { margin: 0; }
   .group-label { padding: 8px 14px 2px; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   .msg { color: var(--bad); min-height: 1.4em; margin: 4px 20px 0; }
   .note { color: var(--muted); margin: 0 20px 8px; font-size: 12px; }
@@ -177,6 +179,8 @@
     <div>
       <p class="section-label" style="margin-top: 12px">Op modes</p>
       <p class="note">Each run rebuilds the sources as last saved, so a saved edit is what runs next. Place first to choose where the robot starts, and set a seed to choose which robot: each seed is its own imperfect robot, the same one every run, and a blank seed is the exact tuned model. Each op mode remembers its place and its seed. A TeleOp is driven from the controller under the live view.</p>
+      <label class="game"><input type="checkbox" id="game-mode"> Game mode</label>
+      <p class="note">A game is played as a match is: an auto has the autonomous period and a TeleOp the driver-controlled period, and you watch from where the alliance&rsquo;s drivers stand. Otherwise a run goes on until its plan is done or you press Stop.</p>
       <div class="opmodes" id="opmodes"></div>
       <p class="msg" id="msg" role="status"></p>
     </div>
@@ -822,6 +826,15 @@
     var running = false;
     var pollTimer = null;
 
+    // Whether the next run is a game, remembered in this browser for whoever comes back to it. A
+    // browser that keeps nothing starts every visit with free play, which is what the page says.
+    var game = document.getElementById('game-mode');
+    var GAME_KEY = 'coding-server.game-mode';
+    try { game.checked = window.localStorage.getItem(GAME_KEY) === 'on'; } catch (e) {  }
+    game.addEventListener('change', function () {
+      try { window.localStorage.setItem(GAME_KEY, game.checked ? 'on' : 'off'); } catch (e) {  }
+    });
+
     function escapeHtml(s) {
       return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
     }
@@ -907,7 +920,8 @@
 
     function run(entry) {
       msg.textContent = '';
-      fetch('/sim/run?opmode=' + encodeURIComponent(entry.name), { method: 'POST' }).then(function (r) {
+      fetch('/sim/run?opmode=' + encodeURIComponent(entry.name) + '&mode=' + (game.checked ? 'game' : 'free'),
+            { method: 'POST' }).then(function (r) {
         if (r.status === 403) { location.reload(); return; }
         if (!r.ok) { return r.text().then(function (t) { msg.textContent = 'Could not start ' + entry.name + ': ' + t; }); }
         return r.json().then(function (started) { show(started.id, entry.name); poll(); });
@@ -963,7 +977,7 @@
       if (wasRunning && !running) { loadCatalog(); }
       Array.prototype.forEach.call(list.querySelectorAll('button.run'), function (b) { b.disabled = running; });
       history.innerHTML = status.runs.map(function (run) {
-        var title = escapeHtml(run.name) + ' · ' + run.seconds.toFixed(1) + ' s' + (run.startedBy ? ' · started by ' + escapeHtml(run.startedBy) : '');
+        var title = escapeHtml(run.name) + ' · ' + (run.mode === 'game' ? 'a game · ' : '') + run.seconds.toFixed(1) + ' s' + (run.startedBy ? ' · started by ' + escapeHtml(run.startedBy) : '');
         return '<tr class="' + (run.id === shownRunId ? 'current' : '') + '" title="' + title + '">' +
           '<td class="mono">' + run.id + '</td>' +
           '<td>' + escapeHtml(run.name) + '</td>' +
@@ -978,7 +992,7 @@
       });
       var shown = null;
       status.runs.forEach(function (r) { if (r.id === shownRunId) { shown = r; } });
-      stageState.innerHTML = shown ? pill(shown) + ' <span class="pill muted" title="Which robot the run is on">seed ' + seedLabel(shown) + '</span>' + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
+      stageState.innerHTML = shown ? pill(shown) + (shown.mode === 'game' ? ' <span class="pill muted" title="Played as a match is: the period of its kind, watched from where its drivers stand">game</span>' : '') + ' <span class="pill muted" title="Which robot the run is on">seed ' + seedLabel(shown) + '</span>' + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
       runMessage.textContent = messageOf(shown);
       runMessage.hidden = !messageOf(shown);
       if (status.runs.length && shownRunId === null && placingName === null) { show(status.runs[0].id, status.runs[0].name); }

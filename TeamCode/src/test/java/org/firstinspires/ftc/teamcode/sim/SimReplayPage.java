@@ -4,6 +4,8 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +24,12 @@ public final class SimReplayPage {
         JsonArray ticksJson(int from);
 
         String outcome();
+
+        /**
+         * The match the run is, for its page: a game's period and where its drivers stand, or JSON's
+         * null for a run that is not one.
+         */
+        JsonElement match();
     }
 
     private static final String TEMPLATE = "replay.html";
@@ -43,6 +51,7 @@ public final class SimReplayPage {
     public static String written(Source run) {
         JsonObject root = root(run.name(), run.kind(), false);
         root.addProperty("outcome", run.outcome());
+        root.add("match", run.match());
         root.add("ticks", run.ticksJson(0));
         return fill(run.name(), root, Optional.empty());
     }
@@ -50,6 +59,7 @@ public final class SimReplayPage {
     public static String live(Source run, String assetsUnder) {
         JsonObject root = root(run.name(), run.kind(), true);
         root.addProperty("outcome", (String) null);
+        root.add("match", run.match());
         root.add("ticks", new JsonArray());
         return fill(run.name(), root, Optional.of(assetsUnder));
     }
@@ -57,6 +67,7 @@ public final class SimReplayPage {
     public static String placement(String opMode, String kind, Pose2d start) {
         JsonObject root = root(opMode, kind, false);
         root.addProperty("outcome", (String) null);
+        root.add("match", JsonNull.INSTANCE);
         root.add("ticks", new JsonArray());
         root.add("placing", StartPoses.toJson(start));
         return fill(opMode, root, Optional.empty());

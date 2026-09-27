@@ -291,6 +291,24 @@ export class FieldScene {
     this.renderer.render(this.scene, camera || this.camera);
   }
 
+  // Stands the camera in one place looking one way, and takes the orbit away: no turning round the
+  // field, no zooming, no panning. Whoever stood it there turns it by standing it again.
+  standAt(eye, facing, fov) {
+    this.controls.enabled = false;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+    this.camera.position.set(eye[0], eye[1], eye[2]);
+    this.camera.lookAt(eye[0] + facing[0], eye[1] + facing[1], eye[2] + facing[2]);
+  }
+
+  get viewpoint() {
+    return {
+      eye: this.camera.position.toArray(),
+      facing: this.camera.getWorldDirection(new THREE.Vector3()).toArray(),
+      orbiting: this.controls.enabled
+    };
+  }
+
   fit(width, height) {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;

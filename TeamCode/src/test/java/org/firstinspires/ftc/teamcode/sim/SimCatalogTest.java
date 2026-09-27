@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -155,6 +156,41 @@ public class SimCatalogTest {
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage(), expected.getMessage().contains("Broken"));
             assertEquals("boom", expected.getCause().getMessage());
+        }
+    }
+
+    @Test
+    public void eachOpModeSaysWhichAllianceItPlaysForAndOneThatPlaysForNoneSaysNone() {
+        assertEquals("Blue", catalog.find("BlueTeleOp").get().alliance);
+        assertEquals("Red", catalog.find("RedTeleOp").get().alliance);
+        assertEquals("Blue", catalog.find("BlueScoreAThingFromBack").get().alliance);
+        assertEquals("Red", catalog.find("RedScoreAThingFromBack").get().alliance);
+        assertNull(
+                "a plan relative to where the robot starts plays for nobody",
+                catalog.find("driveForward").get().alliance);
+
+        SimCatalog parsed = SimCatalog.fromJson(catalog.toJson());
+
+        assertEquals("Red", parsed.find("RedTeleOp").get().alliance);
+        assertEquals("Blue", parsed.find("BlueScoreAThingFromBack").get().alliance);
+        assertNull(parsed.find("driveForward").get().alliance);
+    }
+
+    @Test
+    public void aListingFromBeforeAlliancesPlaysForNoneAndAnAllianceNobodyPlaysIsRefused() {
+        String before = "[{\"name\":\"Old\",\"group\":\"\",\"kind\":\"auto\",\"where\":\"org.example.Old\"}]";
+        assertNull(SimCatalog.fromJson(new Gson().fromJson(before, JsonArray.class))
+                .find("Old")
+                .get()
+                .alliance);
+
+        String green = "[{\"name\":\"Odd\",\"group\":\"\",\"kind\":\"auto\",\"where\":\"org.example.Odd\","
+                + "\"alliance\":\"Green\"}]";
+        try {
+            SimCatalog.fromJson(new Gson().fromJson(green, JsonArray.class));
+            fail("an alliance nobody plays for is no alliance to stand a driver for");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("Green"));
         }
     }
 

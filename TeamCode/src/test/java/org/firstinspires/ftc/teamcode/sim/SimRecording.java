@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -123,6 +125,12 @@ public final class SimRecording implements SimReplayPage.Source {
     @Override
     public String kind() {
         return kind;
+    }
+
+    /** A recording knows the run it is and nothing of whether it was played as a match. */
+    @Override
+    public JsonElement match() {
+        return JsonNull.INSTANCE;
     }
 
     @Override

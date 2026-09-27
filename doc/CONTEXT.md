@@ -595,15 +595,36 @@ child would fall through to the server's; without one (the tests) it
 runs on the current classpath. Class: `SimBench`.
 
 **Waits** — How long a bench waits for each thing it waits for, said once by
-name: a run's **timeout** and a TeleOp's **period**, both in simulated seconds;
-the **kill grace** a child has after Stop; the **startup** the op mode's time
-has to begin, which a child JVM's loading is inside; and the **silence** the
-child may say nothing at all for mid-run before it is killed for hanging. It is
-made from what the bench waits for a person watching a run — a match's periods,
-and room to load — and said differently where a test means something different.
-Five bare seconds in a row at a call site was five chances to hand the wrong one
-to the wrong wait, and the silence was the one nobody could say at all, so a
-test of a hung op mode sat through the real five. Class: `SimBench.Waits`.
+name: a game's **autonomous period** and **TeleOp period**, both in simulated
+seconds; the **kill grace** a child has after Stop; the **startup** the op
+mode's time has to begin, which a child JVM's loading is inside; the **silence**
+the child may say nothing at all for mid-run before it is killed for hanging; and
+how long a run may go **unwatched**. It is made from what the bench waits for a
+person watching a run — a match's periods, room to load, and five minutes to
+come back to a run they left — and said differently where a test means something
+different. Five bare seconds in a row at a call site was five chances to hand
+the wrong one to the wrong wait, and the silence was the one nobody could say at
+all, so a test of a hung op mode sat through the real five. Class:
+`SimBench.Waits`.
+
+**Game** and **free play** — The two ways a run is made, chosen per run: `POST
+/run?opmode=<name>&mode=game`, or `mode=free`, which is also what a run that
+says neither is. A game is played as a match is: an auto has the **autonomous
+period** (30 s) and a TeleOp the **driver-controlled period** (2:00), and its
+live view stands you where its drivers stand, in the **driver's view**. Free
+play has **no limit**: an auto goes on until its plan is done and a TeleOp until
+the driver presses Stop, and it is watched from wherever the viewer likes. The
+child is told the one number either way, the period or `Infinity`, which is how
+Java writes and reads no limit. The Simulate tab's **Game mode** box says which
+the next run is, and the status says which each run was. Class: `SimBench.Mode`.
+
+**Unwatched** — A run nobody has looked at for five minutes is stopped, and says
+so in its message. Looking is anything asked about the run — its page, its
+ticks, its log, a press of the controller — and a live view asks several times a
+second while it is open, so a run is unwatched once no page has it open. Free
+play has no end of its own, and one that somebody walked away from would
+otherwise hold a child JVM and grow its ticks in the server, which every user
+shares, until one of them ran out of memory. Method: `SimBench.Run.lookedAt`.
 
 **What builds and starts** — `SimSources`: the classpath this JVM runs on, a
 project on disk, or, in a test of the bench itself, `FakeSources`, which is
@@ -657,9 +678,14 @@ the registrar itself. The autos are registered that way: each `@Auto`
 annotation on a plan method in `Plans` is one op mode, with no class of
 its own. Entries are keyed by the op mode's **name**, which the robot
 controller requires to be unique, and carry a **kind** (*auto* or
-*teleop*) and **where** a person finds the code (a class, or the plan
-method). Nested classes are never listed, so test op modes stay out of
-the real bench, and Road Runner's vendored code is not ours to simulate.
+*teleop*), **where** a person finds the code (a class, or the plan
+method), and the **alliance** it plays for (*Blue*, *Red*, or none for a plan
+relative to wherever the robot starts). An op mode says its alliance only once
+it is made, so the catalog makes one to ask; one that cannot be made is listed
+all the same and says why when it is run. A listing from a child from before
+alliances plays for none. Nested classes are never listed, so test op modes
+stay out of the real bench, and Road Runner's vendored code is not ours to
+simulate.
 The child reports the catalog after each build, so a newly written op
 mode appears without a restart. Class: `SimCatalog`.
 
@@ -712,16 +738,18 @@ watches, such as a test, goes as fast as the machine can (`FASTEST`).
 A run has a **phase** (*building*, *starting* while the child JVM
 loads the catalog, *running* from the moment the op mode's time begins,
 *finished*), a
-**message** (compile errors, or why it was killed), and when finished an
-**outcome**: *done*, *stopped*, *timed out*, *build failed*, *wrong
+**message** (compile errors, or why it was killed or stopped), and when
+finished an **outcome**: *done*, *stopped*, *timed out*, *build failed*, *wrong
 protocol*, or *child exited with code N*. It starts from the op mode's
 **start pose**, on the op mode's **seed**, as they were when the run was
-started. An **auto run** is done when its plan is, and times
-out when the plan is not done within the **run timeout** (60 s on the
-bench, of simulated time). A **TeleOp run** has no plan: it is driven from the controller
-until the driver presses Stop, or is done when its **period** is over
-(120 s on the bench, a match's driver-controlled period). Either kind is
-*stopped* when the driver presses Stop. Class: `SimRunner`; `SimRunner.Pace`.
+started, and it is a **game** or **free play**. An **auto run** is done when
+its plan is, and in a game times out when the plan is not done within the
+autonomous period (30 s of simulated time). A **TeleOp run** has no plan: it is
+driven from the controller until the driver presses Stop, or in a game is done
+when its **period** is over (2:00, a match's driver-controlled period). In free
+play neither kind has a limit. Either kind is *stopped* when the driver presses
+Stop, and by the bench when it goes **unwatched**. Class: `SimRunner`;
+`SimRunner.Pace`.
 
 **Driver station** — What the driver does during a run: the state of the
 two **gamepads** and the **Stop** button; and before it, where the robot
@@ -821,6 +849,20 @@ that would not load writes over a message and must not write over them. The
 box is unavailable on the colliders, which are drawn on a 2D canvas with no
 renderer to ask for a frame. Classes: `SimLiveServer`; `SimBench` serves the
 same page per run. Files: `webcam.js`; `framecost.js`.
+
+**Driver's view** — How a **game** is watched: from where its drivers stand,
+the middle of their **alliance area** five feet up, looking first at the middle
+of the field. A driver turns their head — drag — and does nothing else: no
+orbiting, no zooming, no walking round. Double-clicking looks back at the field.
+An op mode that plays for no alliance is watched from blue's, since it plays the
+blue way round. The bench works out where, from the field, and tells the page
+as the run's **match**, with the period; the page stands there in the field
+scene and in the colliders alike, and its clock says how long the game has left.
+The colliders are drawn by projecting points the page works out itself, and from
+a driver's area some of them are behind the eye — the wall they stand behind,
+the floor at their feet — so the page cuts each shape where it crosses a plane
+just in front of the eye. Free play is watched from the orbit, as every run was
+before there were games. Methods: `SimBench.Run.match`; `FieldScene.standAt`.
 
 **Webcam's view** — The goal tags as the robot's camera would see them: the
 tags where they are, in the perspective the lens gives, and nothing else. The
@@ -1196,6 +1238,13 @@ the hives' to hold, the pollen in the flowers is the flowers', and the rest
 (the rows outside the walls) stay put. Everything is in
 the field frame Road Runner uses, in inches: the origin at the centre, +x
 away from the audience, +y to the audience's left. Class: `SimField`.
+
+**Alliance area** — Where an alliance's drivers stand: the box its tape marks on
+the floor outside the walls, the tape being the colour of its hive, and the tray
+its human player loads from is in it. Blue's is behind the -y wall and red's
+behind the +y wall, each the other in a mirror. It is worked out from the tape
+when the field is loaded, and a field that marks none for an alliance does not
+load. Class: `SimField.AllianceArea`.
 
 **Flower** — One of the four towers at the walls, whose four pipes make the
 **bore** a stack of pollen stands in: a circle on the floor, the **axis**

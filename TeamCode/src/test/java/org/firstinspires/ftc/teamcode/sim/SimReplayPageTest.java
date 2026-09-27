@@ -381,6 +381,11 @@ public class SimReplayPageTest {
             public String outcome() {
                 return outcome[0];
             }
+
+            @Override
+            public com.google.gson.JsonElement match() {
+                return com.google.gson.JsonNull.INSTANCE;
+            }
         };
 
         assertEquals(SimReplayPage.written(recording), SimReplayPage.written(fromTheChild));

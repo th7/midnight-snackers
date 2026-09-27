@@ -29,9 +29,19 @@ const ANSWERS = {
   '/sim/status': { running: false, runs: [] }
 };
 
+// Every run the page asked for, by how it asked: which op mode, and whether it was a game.
+const RUNS_ASKED = [];
+
 function serve() {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    if (request.method === 'POST' && asked === '/sim/run') {
+      const query = new URL(request.url, 'http://x').searchParams;
+      RUNS_ASKED.push({ opmode: query.get('opmode'), mode: query.get('mode') });
+      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ id: RUNS_ASKED.length }));
+      return;
+    }
     const answer = Object.prototype.hasOwnProperty.call(ANSWERS, asked) ? ANSWERS[asked]
         : asked.startsWith('/files/') ? { path: asked.slice('/files/'.length), version: 'v1', content: CONTENT }
         : null;
@@ -131,6 +141,32 @@ async function itWorks(page, engine) {
   check(opmodes.includes(OPMODE.name), `${engine}: the Simulate tab lists no op modes`);
 }
 
+// A run is a game when the box says so and free play when it does not, and the page says which it
+// asked for rather than leaving it to what the server does with a run that says nothing.
+async function aGameIsAskedForByTheBox(page, engine) {
+  const box = page.locator('#game-mode');
+  check(await box.count() === 1, `${engine}: the Simulate tab offers no game mode`);
+  if (await box.count() !== 1) {
+    return;
+  }
+  check(!(await box.isChecked()), `${engine}: game mode is on before anybody asked for it`);
+  const run = page.locator('#opmodes button.run').first();
+
+  const before = RUNS_ASKED.length;
+  await run.click({ timeout: 5_000 });
+  await page.waitForFunction(() => document.getElementById('stage-title').textContent.startsWith('Run '), null,
+      { timeout: 10_000 }).catch(() => {});
+  await box.check();
+  await run.click({ timeout: 5_000 });
+  await page.waitForFunction((n) => document.getElementById('stage-title').textContent.startsWith('Run ' + n),
+      before + 2, { timeout: 10_000 }).catch(() => {});
+
+  const asked = RUNS_ASKED.slice(before).map((r) => r.mode);
+  check(asked.join(',') === 'free,game',
+      `${engine}: pressing Run with the box clear and then ticked asked for ${asked.join(', ') || 'nothing'}`);
+  await box.uncheck();
+}
+
 async function nothingBroke(page, threw, started, engine) {
   check(started, `${engine}: the page never reported itself started, so it stopped before it finished`);
   const broke = started ? await page.evaluate(() => window.codingPage.broke) : [];
@@ -174,11 +210,13 @@ async function main() {
   try {
     const current = await opened(browser, base);
     await itWorks(current.page, 'this engine');
+    await aGameIsAskedForByTheBox(current.page, 'this engine');
     await theEditorFollowsTheSystemTheme(current.page, 'this engine');
     await nothingBroke(current.page, current.threw, current.started, 'this engine');
 
     const older = await opened(browser, base, { engine: asAnOlderIpad, viewport: { width: 810, height: 1080 } });
     await itWorks(older.page, 'an older iPad');
+    await aGameIsAskedForByTheBox(older.page, 'an older iPad');
     await theEditorFollowsTheSystemTheme(older.page, 'an older iPad');
     await nothingBroke(older.page, older.threw, older.started, 'an older iPad');
 
@@ -203,8 +241,9 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('the dashboard lists its files, opens one in the editor and reaches the Simulate tab, on this '
-      + 'engine and on one shaped like an older iPad\'s, and says so on the page when the editor cannot start.');
+  console.log('the dashboard lists its files, opens one in the editor and reaches the Simulate tab, where a '
+      + 'run is a game only when the box says so, on this engine and on one shaped like an older iPad\'s, and '
+      + 'says so on the page when the editor cannot start.');
 }
 
 await main();
