@@ -389,6 +389,34 @@ public class SimBenchTest {
     }
 
     @Test
+    public void aLiveViewIsSentEachTickAsTheChildPrintedIt() throws Exception {
+        String asPrinted = SimRunStream.tick(SimRecording.Tick.at(
+                        0.02, StartPoses.ORIGIN, "1. <aim> & 'launch'", new double[] {0.5, 0, 0, 0}, List.of())
+                .tick());
+        bench = benchOverAChild(FakeChild.thatSays(
+                SimRunStream.hello(),
+                SimRunStream.started(),
+                asPrinted,
+                SimRunStream.finished(SimRunStream.Outcome.done())));
+        SimBench.Run run =
+                await(bench.start(bench.catalog().find("Count to three").get(), "ada", SimBench.Mode.FREE_PLAY));
+
+        Response ticks = routes().handle(get("/runs/" + run.id + "/ticks?from=0"));
+
+        assertEquals(200, ticks.status);
+        assertEquals("{\"outcome\":\"done\",\"ticks\":[" + asPrinted + "]}", ticks.body);
+        assertEquals(
+                "a run's status counts its ticks",
+                1,
+                json(routes().handle(get("/status")).body)
+                        .getAsJsonArray("runs")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("loops")
+                        .getAsInt());
+    }
+
+    @Test
     public void theLiveViewIsOnlyEverServedWhereItsOwnRelativeFetchesResolve() throws Exception {
         bench = benchOverAChild(aChildSpeaking(SimRunStream.PROTOCOL));
         SimBench.Run run =
@@ -870,8 +898,8 @@ public class SimBenchTest {
 
     private static boolean anyTick(
             SimBench.Run run, java.util.function.Predicate<com.google.gson.JsonObject> condition) {
-        for (com.google.gson.JsonElement tick : run.ticks()) {
-            if (condition.test(tick.getAsJsonObject())) {
+        for (SimRunStream.TickLine tick : run.ticks()) {
+            if (condition.test(tick.json())) {
                 return true;
             }
         }

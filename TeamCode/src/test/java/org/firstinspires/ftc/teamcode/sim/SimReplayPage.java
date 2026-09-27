@@ -7,8 +7,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -21,7 +23,7 @@ public final class SimReplayPage {
 
         String kind();
 
-        JsonArray ticksJson(int from);
+        String ticksJson(int from);
 
         String outcome();
 
@@ -52,7 +54,7 @@ public final class SimReplayPage {
         JsonObject root = root(run.name(), run.kind(), false);
         root.addProperty("outcome", run.outcome());
         root.add("match", run.match());
-        root.add("ticks", run.ticksJson(0));
+        root.add("ticks", GSON.fromJson(run.ticksJson(0), JsonArray.class));
         return fill(run.name(), root, Optional.empty());
     }
 
@@ -101,10 +103,16 @@ public final class SimReplayPage {
     }
 
     public static String update(Source run, int from) {
-        JsonObject root = new JsonObject();
-        root.addProperty("outcome", run.outcome());
-        root.add("ticks", run.ticksJson(from));
-        return GSON.toJson(root);
+        StringWriter text = new StringWriter();
+        try (JsonWriter json = GSON.newJsonWriter(text)) {
+            json.beginObject();
+            json.name("outcome").value(run.outcome());
+            json.name("ticks").jsonValue(run.ticksJson(from));
+            json.endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return text.toString();
     }
 
     private static String template() {
