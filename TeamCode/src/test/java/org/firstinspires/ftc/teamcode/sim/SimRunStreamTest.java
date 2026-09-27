@@ -17,6 +17,7 @@ import org.junit.Test;
 public class SimRunStreamTest {
     private static final class Heard implements SimRunStream.Listener {
         final List<String> events = new ArrayList<>();
+        final List<SimRunStream.TickLine> lines = new ArrayList<>();
         final List<JsonObject> ticks = new ArrayList<>();
         String outcome;
 
@@ -26,9 +27,10 @@ public class SimRunStreamTest {
         }
 
         @Override
-        public void tick(JsonObject tick) {
+        public void tick(SimRunStream.TickLine tick) {
             events.add("tick");
-            ticks.add(tick);
+            lines.add(tick);
+            ticks.add(tick.json());
         }
 
         @Override
@@ -61,7 +63,7 @@ public class SimRunStreamTest {
 
         assertEquals(List.of("started", "tick", "tick", "finished"), heard.events);
         JsonObject first = heard.ticks.get(0);
-        assertEquals(0.5, SimRunStream.seconds(first), 0);
+        assertEquals(0.5, heard.lines.get(0).seconds(), 0);
         assertEquals(12.5, first.get("x").getAsDouble(), 0);
         assertEquals(-3, first.get("y").getAsDouble(), 0);
         assertEquals(Math.PI / 2, first.get("heading").getAsDouble(), 0.001);
@@ -76,7 +78,11 @@ public class SimRunStreamTest {
                         .get("xError")
                         .getAsDouble(),
                 0);
-        assertEquals("rounded to three decimals on the wire", 0.333, SimRunStream.seconds(heard.ticks.get(1)), 0);
+        assertEquals(
+                "rounded to three decimals on the wire",
+                0.333,
+                heard.lines.get(1).seconds(),
+                0);
         assertEquals("done", heard.outcome);
     }
 
@@ -152,6 +158,61 @@ public class SimRunStreamTest {
     }
 
     @Test
+    public void aTickAChildWroteIsKeptAsTheLineItPrinted() {
+        Heard heard = new Heard();
+        String line = SimRunStream.tick(tick(0.5, "1. <aim> & 'launch' = go"));
+
+        SimRunStream.accept(line, heard);
+
+        assertEquals(line, heard.lines.get(0).text());
+        assertEquals(0.5, heard.lines.get(0).seconds(), 0);
+    }
+
+    @Test
+    public void aTickWrittenAnyOtherWayIsKeptAsAChildWouldHaveWrittenIt() {
+        Heard heard = new Heard();
+
+        SimRunStream.accept("{\"t\": 0.5, \"x\": 1.50, \"flag\": TRUE, \"step\": \"it\\'s\"}", heard);
+
+        assertEquals(
+                "{\"t\":0.5,\"x\":1.50,\"flag\":true,\"step\":\"it\\u0027s\"}",
+                heard.lines.get(0).text());
+    }
+
+    @Test
+    public void aKeptTickIsItsTextAndItsTimeAndNoTreeOfIt() {
+        java.util.Map<String, Class<?>> fields = new java.util.TreeMap<>();
+        for (java.lang.reflect.Field field : SimRunStream.TickLine.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                fields.put(field.getName(), field.getType());
+            }
+        }
+
+        assertEquals(java.util.Map.of("seconds", double.class, "text", String.class), fields);
+    }
+
+    @Test
+    public void aTickIsStrictJsonOrItIsRefusedSinceItIsServedAsItCame() {
+        Heard heard = new Heard();
+        for (String line : List.of(
+                "{t: 0.5, x: 1}",
+                "{'t': 0.5, 'x': 1}",
+                "{\"t\": NaN, \"x\": 1}",
+                "{\"t\": 0.5, \"x\": Infinity}",
+                "{\"t\": 0.5, \"x\": 1,}",
+                "{\"t\": 0.5, \"x\": 1} // and a comment",
+                "{\"t\": \"soon\", \"x\": 1}")) {
+            try {
+                SimRunStream.accept(line, heard);
+                fail("accepted " + line);
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains(line));
+            }
+        }
+        assertTrue(heard.events.isEmpty());
+    }
+
+    @Test
     public void theChildSaysItsProtocolFirstAndABenchOfTheSameVersionConsumesIt() {
         String hello = SimRunStream.hello();
         assertEquals(1, hello.split("\n").length);
@@ -190,7 +251,7 @@ public class SimRunStreamTest {
         SimRunStream.accept(versionOne[2], heard);
         assertEquals(List.of("started", "tick", "finished"), heard.events);
         assertEquals("1. go", heard.ticks.get(0).get("step").getAsString());
-        assertEquals(0.5, SimRunStream.seconds(heard.ticks.get(0)), 0);
+        assertEquals(0.5, heard.lines.get(0).seconds(), 0);
         assertEquals("done", heard.outcome);
     }
 

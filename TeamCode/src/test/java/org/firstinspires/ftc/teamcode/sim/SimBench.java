@@ -145,7 +145,7 @@ public final class SimBench {
 
         private final AtomicLong lookedAtNanos = new AtomicLong(clock.nanos());
 
-        private final JsonArray ticks = new JsonArray();
+        private final List<SimRunStream.TickLine> ticks = new ArrayList<>();
         private final Deque<String> log = new ArrayDeque<>();
         private String phase = "building";
         private String outcome;
@@ -178,31 +178,25 @@ public final class SimBench {
             return message;
         }
 
-        public synchronized JsonArray ticks() {
-            return ticksJson(0);
+        public synchronized List<SimRunStream.TickLine> ticks() {
+            return List.copyOf(ticks);
         }
 
         @Override
-        public synchronized JsonArray ticksJson(int from) {
-            JsonArray rest = new JsonArray();
-            for (int i = Math.min(from, ticks.size()); i < ticks.size(); i++) {
-                rest.add(ticks.get(i));
-            }
-            return rest;
+        public synchronized String ticksJson(int from) {
+            return SimRunStream.TickLine.array(ticks.subList(Math.min(from, ticks.size()), ticks.size()));
         }
 
         public synchronized String log() {
             return String.join("\n", log);
         }
 
-        synchronized void addTick(JsonObject tick) {
+        synchronized void addTick(SimRunStream.TickLine tick) {
             ticks.add(tick);
         }
 
         synchronized double seconds() {
-            return ticks.size() == 0
-                    ? 0
-                    : SimRunStream.seconds(ticks.get(ticks.size() - 1).getAsJsonObject());
+            return ticks.isEmpty() ? 0 : ticks.get(ticks.size() - 1).seconds();
         }
 
         synchronized void addLog(String line) {
@@ -249,7 +243,7 @@ public final class SimBench {
             item.addProperty("startedBy", startedBy);
             item.add("seed", StartPoses.seedToJson(seed));
             item.addProperty("phase", phase);
-            item.addProperty("loops", ticks().size());
+            item.addProperty("loops", ticks.size());
             item.addProperty("seconds", seconds());
             item.addProperty("outcome", outcome);
             item.addProperty("message", message);
@@ -732,7 +726,7 @@ public final class SimBench {
             }
 
             @Override
-            public void tick(JsonObject tick) {
+            public void tick(SimRunStream.TickLine tick) {
                 run.addTick(tick);
             }
 

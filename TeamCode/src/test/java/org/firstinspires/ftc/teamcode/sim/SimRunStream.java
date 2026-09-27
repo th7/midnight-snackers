@@ -6,9 +6,17 @@ import com.acmerobotics.roadrunner.Twist2d;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -17,7 +25,7 @@ public final class SimRunStream {
     public interface Listener {
         void started();
 
-        void tick(JsonObject tick);
+        void tick(TickLine tick);
 
         void finished(String outcome);
     }
@@ -88,6 +96,65 @@ public final class SimRunStream {
         }
     }
 
+    /**
+     * One tick of a run, kept as the text of it. The bench holds every tick of every run it has, in
+     * a server every user shares: as text a tick costs its length, where the tree Gson reads it into
+     * costs more than ten times that, and a live view is sent the texts joined rather than a tree
+     * written out again on every poll. So the text has to be JSON a browser reads: the line is read
+     * strictly and written out once, the way a child writes one, which for a line a child wrote is
+     * that line exactly.
+     */
+    public static final class TickLine {
+        private final String text;
+        private final double seconds;
+
+        private TickLine(String text, double seconds) {
+            this.text = text;
+            this.seconds = seconds;
+        }
+
+        private static TickLine of(String line, JsonObject json) {
+            JsonElement t = json.get("t");
+            if (!t.isJsonPrimitive() || !t.getAsJsonPrimitive().isNumber()) {
+                throw new IllegalArgumentException("a tick's t is its time in seconds, a number: " + line);
+            }
+            StringWriter text = new StringWriter();
+            try {
+                JsonWriter writer = new JsonWriter(text);
+                writer.setHtmlSafe(true);
+                ELEMENT.write(writer, json);
+            } catch (IOException | RuntimeException e) {
+                throw new IllegalArgumentException("not a tick a browser can read: " + line, e);
+            }
+            return new TickLine(text.toString(), t.getAsDouble());
+        }
+
+        public String text() {
+            return text;
+        }
+
+        public double seconds() {
+            return seconds;
+        }
+
+        /** What the tick says, read again: for a test or a page that must look inside one. */
+        JsonObject json() {
+            return strictly(text);
+        }
+
+        /** Ticks as the text of a JSON array, joined rather than rebuilt. */
+        public static String array(List<TickLine> ticks) {
+            StringBuilder array = new StringBuilder("[");
+            for (int i = 0; i < ticks.size(); i++) {
+                if (i > 0) {
+                    array.append(',');
+                }
+                array.append(ticks.get(i).text);
+            }
+            return array.append(']').toString();
+        }
+    }
+
     public static final int PROTOCOL = 4;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
@@ -106,6 +173,13 @@ public final class SimRunStream {
     }
 
     private static final Gson GSON = gson();
+
+    /**
+     * Reads and writes a tree of JSON as the reader or writer it is handed is set to, where Gson's
+     * own fromJson and toJson set theirs lenient: lenient, a line could carry a NaN that a browser
+     * then refuses to read the whole poll for.
+     */
+    private static final TypeAdapter<JsonElement> ELEMENT = new Gson().getAdapter(JsonElement.class);
 
     private SimRunStream() {}
 
@@ -233,28 +307,30 @@ public final class SimRunStream {
     }
 
     public static void accept(String line, Listener listener) {
-        JsonObject json;
-        try {
-            json = GSON.fromJson(line, JsonObject.class);
-        } catch (RuntimeException e) {
-            throw new IllegalArgumentException("not a line of the run stream: " + line, e);
-        }
-        if (json == null) {
-            throw new IllegalArgumentException("not a line of the run stream: " + line);
-        }
+        JsonObject json = strictly(line);
         if (json.has("started")) {
             listener.started();
         } else if (json.has("outcome")) {
             listener.finished(json.get("outcome").getAsString());
         } else if (json.has("t") && json.has("x")) {
-            listener.tick(json);
+            listener.tick(TickLine.of(line, json));
         } else {
             throw new IllegalArgumentException("not a line of the run stream: " + line);
         }
     }
 
-    public static double seconds(JsonObject tick) {
-        return tick.get("t").getAsDouble();
+    /** A line as the JSON object it must be, read as strictly as a browser reads one. */
+    private static JsonObject strictly(String line) {
+        try {
+            JsonReader reader = new JsonReader(new StringReader(line));
+            JsonElement read = ELEMENT.read(reader);
+            if (reader.peek() == JsonToken.END_DOCUMENT && read != null && read.isJsonObject()) {
+                return read.getAsJsonObject();
+            }
+        } catch (IOException | RuntimeException e) {
+            throw new IllegalArgumentException("not a line of the run stream: " + line, e);
+        }
+        throw new IllegalArgumentException("not a line of the run stream: " + line);
     }
 
     public static JsonObject tickJson(SimRecording.Tick tick) {
@@ -309,14 +385,6 @@ public final class SimRunStream {
             t.add("tilt", tilt);
         }
         return t;
-    }
-
-    public static JsonArray ticksJson(List<SimRecording.Tick> ticks) {
-        JsonArray array = new JsonArray();
-        for (SimRecording.Tick tick : ticks) {
-            array.add(tickJson(tick));
-        }
-        return array;
     }
 
     private static Gson gson() {

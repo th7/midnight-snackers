@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import java.util.ArrayList;
@@ -133,9 +132,17 @@ public final class SimRecording implements SimReplayPage.Source {
         return JsonNull.INSTANCE;
     }
 
+    /** The ticks as the lines a child streams them as, since the page reads either. */
     @Override
-    public JsonArray ticksJson(int from) {
-        return SimRunStream.ticksJson(ticksFrom(from));
+    public String ticksJson(int from) {
+        StringBuilder array = new StringBuilder("[");
+        for (Tick tick : ticksFrom(from)) {
+            if (array.length() > 1) {
+                array.append(',');
+            }
+            array.append(SimRunStream.tick(tick));
+        }
+        return array.append(']').toString();
     }
 
     public synchronized void add(Tick tick) {

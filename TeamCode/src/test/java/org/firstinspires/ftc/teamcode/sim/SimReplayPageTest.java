@@ -7,7 +7,6 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -337,14 +336,14 @@ public class SimReplayPageTest {
                 .drivenBy(State.NEUTRAL, State.NEUTRAL)
                 .tick());
         recording.finish("stopped");
-        JsonArray streamed = new JsonArray();
+        List<SimRunStream.TickLine> streamed = new ArrayList<>();
         String[] outcome = {null};
         SimRunStream.Listener parent = new SimRunStream.Listener() {
             @Override
             public void started() {}
 
             @Override
-            public void tick(JsonObject tick) {
+            public void tick(SimRunStream.TickLine tick) {
                 streamed.add(tick);
             }
 
@@ -369,12 +368,8 @@ public class SimReplayPageTest {
             }
 
             @Override
-            public JsonArray ticksJson(int from) {
-                JsonArray rest = new JsonArray();
-                for (int i = from; i < streamed.size(); i++) {
-                    rest.add(streamed.get(i));
-                }
-                return rest;
+            public String ticksJson(int from) {
+                return SimRunStream.TickLine.array(streamed.subList(from, streamed.size()));
             }
 
             @Override

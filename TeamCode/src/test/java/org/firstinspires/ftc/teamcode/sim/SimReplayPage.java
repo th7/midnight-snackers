@@ -7,8 +7,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -21,7 +23,11 @@ public final class SimReplayPage {
 
         String kind();
 
-        JsonArray ticksJson(int from);
+        /**
+         * The ticks from the given one on, as the text of a JSON array of the run stream's tick
+         * lines: what a live view's poll is sent as it is, and what a written page reads.
+         */
+        String ticksJson(int from);
 
         String outcome();
 
@@ -52,7 +58,10 @@ public final class SimReplayPage {
         JsonObject root = root(run.name(), run.kind(), false);
         root.addProperty("outcome", run.outcome());
         root.add("match", run.match());
-        root.add("ticks", run.ticksJson(0));
+        // Read back and written out again, rather than set in as it came: the page carries it inside
+        // a script element, and it is the writer that keeps a "</script>" in a step's name from
+        // closing it.
+        root.add("ticks", GSON.fromJson(run.ticksJson(0), JsonArray.class));
         return fill(run.name(), root, Optional.empty());
     }
 
@@ -100,11 +109,21 @@ public final class SimReplayPage {
                 + "vendor/three.module.min.js\", \"three/addons/\": \"" + assetsUnder + "vendor/jsm/\"}}\n</script>";
     }
 
+    /**
+     * What a live view's poll is sent: the outcome, if there is one yet, and the ticks it has not
+     * had, set in as the lines they came as rather than read into a tree and written out again.
+     */
     public static String update(Source run, int from) {
-        JsonObject root = new JsonObject();
-        root.addProperty("outcome", run.outcome());
-        root.add("ticks", run.ticksJson(from));
-        return GSON.toJson(root);
+        StringWriter text = new StringWriter();
+        try (JsonWriter json = GSON.newJsonWriter(text)) {
+            json.beginObject();
+            json.name("outcome").value(run.outcome());
+            json.name("ticks").jsonValue(run.ticksJson(from));
+            json.endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return text.toString();
     }
 
     private static String template() {
