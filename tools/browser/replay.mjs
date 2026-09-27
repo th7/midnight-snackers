@@ -78,9 +78,23 @@ function filled(template, model, run, assets) {
       .replace('__DATA__', JSON.stringify(run));
 }
 
-function served(page, live, ticks, game) {
+function served(page, live, ticks, game, liveGame) {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    // A game still waiting for its first tick: the bench answers with none until the check lets the
+    // robot out, so what the page does before there is a robot to watch is a state it can be seen in.
+    if (asked === '/livegame/runs/1/ticks') {
+      const from = Number(new URL(request.url, 'http://x').searchParams.get('from') || 0);
+      const sent = liveGame.started ? ticks.slice(from) : [];
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ outcome: liveGame.started && from >= ticks.length ? 'done' : null, ticks: sent }));
+      return;
+    }
+    if (asked === '/livegame/runs/1/') {
+      response.writeHead(200, { 'Content-Type': TYPES['.html'] });
+      response.end(liveGame.page);
+      return;
+    }
     if (asked === '/game/runs/1/') {
       response.writeHead(200, { 'Content-Type': TYPES['.html'] });
       response.end(game);
@@ -108,7 +122,8 @@ function served(page, live, ticks, game) {
     const relative = withoutModel ? asked.slice('/nomodel'.length)
         : toldToDrawLow ? asked.slice('/default-low'.length)
         : asked.startsWith('/live/') ? asked.slice('/live'.length)
-        : asked.startsWith('/game/') ? asked.slice('/game'.length) : asked;
+        : asked.startsWith('/game/') ? asked.slice('/game'.length)
+        : asked.startsWith('/livegame/') ? asked.slice('/livegame'.length) : asked;
     if (relative === '/runs/1/') {
       response.writeHead(200, { 'Content-Type': TYPES['.html'] });
       response.end(page);
@@ -455,8 +470,10 @@ const degreesBetween = (a, b) => {
   const u = unitOf(a), v = unitOf(b);
   return Math.acos(Math.max(-1, Math.min(1, u[0] * v[0] + u[1] * v[1] + u[2] * v[2]))) * 180 / Math.PI;
 };
-const toward = unitOf([A_GAME.lookingAt[0] - A_GAME.eye[0], A_GAME.lookingAt[1] - A_GAME.eye[1],
-                       A_GAME.lookingAt[2] - A_GAME.eye[2]]);
+const directionFrom = (eye, at) => unitOf([at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]]);
+const towardTheMiddle = directionFrom(A_GAME.eye, A_GAME.lookingAt);
+// A driver watches the middle of their robot, which is a cube ROBOT_IN on a side standing on the floor.
+const towardTheRobot = (tick) => directionFrom(A_GAME.eye, [tick.x, tick.y, ROBOT_IN / 2]);
 
 async function dragAcross(open, canvas, dx, dy) {
   const box = await open.locator(canvas).boundingBox();
@@ -468,11 +485,16 @@ async function dragAcross(open, canvas, dx, dy) {
   await twoFrames(open);
 }
 
-// A game is watched from where its drivers stand, and a driver can turn their head and do nothing
-// else: they cannot walk round the field, fly over it or lean in. Double-clicking looks back at it.
-async function aGameIsWatchedFromTheDriversOwnArea(browser, base, query, canvas, drawn) {
+// A game is watched from where its drivers stand, and a driver watches their robot: the view turns to
+// follow it wherever it goes. A driver can turn their head to look somewhere else, and it stays there
+// until they double-click, which looks back at the robot. They can do nothing else: they cannot walk
+// round the field, fly over it or lean in.
+async function aGameIsWatchedFromTheDriversOwnArea(browser, base, query, canvas, drawn, ticks) {
   const { open, threw } = await opened(browser, `${base}/game/runs/1/${query}`);
   const where = query || 'the field model';
+  const lookingAt = async () => (await open.evaluate(() => window.replayPage.viewpoint)).facing;
+  const goTo = async (i) => { await scrubTo(open, i); await twoFrames(open); };
+  const last = ticks.length - 1;
   try {
     const panels = await readPanels(open);
     check(faults(threw).length === 0, `a game in ${where} threw: ${faults(threw).join('; ')}`);
@@ -482,8 +504,9 @@ async function aGameIsWatchedFromTheDriversOwnArea(browser, base, query, canvas,
     check(first && !first.orbiting, `a game in ${where} still orbits`);
     check(first && apart(first.eye, A_GAME.eye) < 0.01,
           `a game in ${where} is watched from ${first && first.eye}, not the driver's area at ${A_GAME.eye}`);
-    check(first && degreesBetween(first.facing, toward) < 0.5,
-          `a game in ${where} starts looking along ${first && first.facing}, not at the middle of the field`);
+    check(first && degreesBetween(first.facing, towardTheRobot(ticks[0])) < 0.5,
+          `a game in ${where} starts looking along ${first && first.facing}, not at the robot, which is `
+          + `${first && degreesBetween(first.facing, towardTheRobot(ticks[0])).toFixed(1)} degrees away`);
     if (drawn === 'solid') {
       const triangles = await open.evaluate(() => window.replayPage.drawnTriangles);
       check(triangles > 1000, `from the driver's area only ${triangles} triangles are drawn; the field is not in view`);
@@ -494,11 +517,23 @@ async function aGameIsWatchedFromTheDriversOwnArea(browser, base, query, canvas,
     const clock = await open.locator('#time').textContent();
     check(/0:30 left/.test(clock), `a game's clock reads "${clock}", not the time left of its 30 s period`);
 
+    await goTo(last);
+    const followed = await open.evaluate(() => window.replayPage.viewpoint);
+    check(apart(followed.eye, A_GAME.eye) < 0.01, `following the robot in ${where} moved the driver to ${followed.eye}`);
+    check(degreesBetween(followed.facing, towardTheRobot(ticks[last])) < 0.5,
+          `when the robot has moved, a game in ${where} looks along ${followed.facing}, which is `
+          + `${degreesBetween(followed.facing, towardTheRobot(ticks[last])).toFixed(1)} degrees off the robot`);
+
     await dragAcross(open, canvas, -160, 60);
     const turned = await open.evaluate(() => window.replayPage.viewpoint);
     check(apart(turned.eye, A_GAME.eye) < 0.01, `turning to look in ${where} moved the driver to ${turned.eye}`);
-    check(degreesBetween(turned.facing, first.facing) > 10,
-          `dragging across a game in ${where} turned the view ${degreesBetween(turned.facing, first.facing)} degrees`);
+    check(degreesBetween(turned.facing, followed.facing) > 10,
+          `dragging across a game in ${where} turned the view ${degreesBetween(turned.facing, followed.facing)} degrees`);
+    await goTo(0);
+    const kept = await lookingAt();
+    check(degreesBetween(kept, turned.facing) < 0.5,
+          `a driver in ${where} who looked away was turned back ${degreesBetween(kept, turned.facing).toFixed(1)} `
+          + 'degrees when the robot moved; they look where they turned until they double-click');
 
     const box = await open.locator(canvas).boundingBox();
     await open.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -509,9 +544,40 @@ async function aGameIsWatchedFromTheDriversOwnArea(browser, base, query, canvas,
 
     await open.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
     await twoFrames(open);
-    const back = await open.evaluate(() => window.replayPage.viewpoint);
-    check(degreesBetween(back.facing, toward) < 0.5,
-          `double-clicking a game in ${where} looks along ${back.facing}, not back at the field`);
+    const back = await lookingAt();
+    check(degreesBetween(back, towardTheRobot(ticks[0])) < 0.5,
+          `double-clicking a game in ${where} looks along ${back}, not back at the robot`);
+    await goTo(last);
+    const again = await lookingAt();
+    check(degreesBetween(again, towardTheRobot(ticks[last])) < 0.5,
+          `after double-clicking a game in ${where}, the view no longer follows the robot: it looks along ${again}`);
+  } finally {
+    await open.close();
+  }
+}
+
+// A game being played looks at the middle of the field until there is a robot to watch, and at the
+// robot from the first tick that says where it is, and after that at wherever the newest tick has it.
+async function aGameBeingPlayedFollowsItsRobotAsTheTicksArrive(browser, base, liveGame, ticks) {
+  const { open, threw } = await opened(browser, `${base}/livegame/runs/1/`);
+  try {
+    await twoFrames(open);
+    const waiting = await open.evaluate(() => window.replayPage.viewpoint);
+    check(faults(threw).length === 0, `a game being played threw: ${faults(threw).join('; ')}`);
+    check(waiting && apart(waiting.eye, A_GAME.eye) < 0.01,
+          `a game with no ticks yet is watched from ${waiting && waiting.eye}, not the driver's area`);
+    check(waiting && degreesBetween(waiting.facing, towardTheMiddle) < 0.5,
+          `a game with no robot yet to watch looks along ${waiting && waiting.facing}, not at the middle of the field`);
+
+    liveGame.started = true;
+    await open.waitForFunction(
+        (many) => Number(document.getElementById('scrub').max) === many - 1, ticks.length, { timeout: 30_000 });
+    await twoFrames(open);
+    const playing = await open.evaluate(() => window.replayPage.viewpoint);
+    const newest = ticks[ticks.length - 1];
+    check(degreesBetween(playing.facing, towardTheRobot(newest)) < 0.5,
+          `a game being played looks along ${playing.facing} once its ticks arrive, which is `
+          + `${degreesBetween(playing.facing, towardTheRobot(newest)).toFixed(1)} degrees off the robot in the newest one`);
   } finally {
     await open.close();
   }
@@ -568,7 +634,8 @@ async function main() {
 
   const following = { name: NAME, kind: 'auto', live: true, outcome: null, ticks: [] };
   const game = filled(template, model, Object.assign({}, run, { match: A_GAME }), ASSETS);
-  const server = await served(page, filled(template, model, following, ASSETS), run.ticks, game);
+  const liveGame = { started: false, page: filled(template, model, Object.assign({}, following, { match: A_GAME }), ASSETS) };
+  const server = await served(page, filled(template, model, following, ASSETS), run.ticks, game, liveGame);
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chrome();
 
@@ -584,8 +651,9 @@ async function main() {
     await theResolutionNobodyBuiltFallsBackAndSaysSo(browser, base, '?resolution=medium', 'field-medium.glb');
     await theFlatDrawingIsStillThereToAskFor(browser, base);
     await aModelItCannotFetchFallsBackAndSaysSo(browser, base);
-    await aGameIsWatchedFromTheDriversOwnArea(browser, base, '', '#solid', 'solid');
-    await aGameIsWatchedFromTheDriversOwnArea(browser, base, '?view=flat', '#field', 'flat');
+    await aGameIsWatchedFromTheDriversOwnArea(browser, base, '', '#solid', 'solid', run.ticks);
+    await aGameIsWatchedFromTheDriversOwnArea(browser, base, '?view=flat', '#field', 'flat', run.ticks);
+    await aGameBeingPlayedFollowsItsRobotAsTheTicksArrive(browser, base, liveGame, run.ticks);
     await freePlayOrbitsWithNoClock(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
   } catch (stuck) {
@@ -604,8 +672,8 @@ async function main() {
   }
   console.log(`the live view plays ${run.ticks.length} ticks of the field model and follows a run still `
       + 'adding them, and keeps the flat drawing for ?view=flat, for a model it cannot fetch, and for the '
-      + 'page it writes to a file; a game is watched from its drivers\' area in either, turning and nothing '
-      + 'more, with the time it has left.');
+      + 'page it writes to a file; a game is watched from its drivers\' area in either, following its robot '
+      + 'and turning and nothing more, with the time it has left.');
   if (!solid) {
     console.error('the live view never reported itself drawn');
     process.exit(1);

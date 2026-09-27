@@ -301,7 +301,7 @@ public final class SimField {
             return new double[] {(minX + maxX) / 2, (minY + maxY) / 2, EYE_IN};
         }
 
-        /** Where a driver looks before they look anywhere else: the middle of the field. */
+        /** Where a driver looks before there is a robot to watch: the middle of the field. */
         public double[] lookingAt() {
             return new double[] {0, 0, 0};
         }

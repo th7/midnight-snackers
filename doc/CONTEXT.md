@@ -851,18 +851,27 @@ renderer to ask for a frame. Classes: `SimLiveServer`; `SimBench` serves the
 same page per run. Files: `webcam.js`; `framecost.js`.
 
 **Driver's view** — How a **game** is watched: from where its drivers stand,
-the middle of their **alliance area** five feet up, looking first at the middle
-of the field. A driver turns their head — drag — and does nothing else: no
-orbiting, no zooming, no walking round. Double-clicking looks back at the field.
-An op mode that plays for no alliance is watched from blue's, since it plays the
-blue way round. The bench works out where, from the field, and tells the page
-as the run's **match**, with the period; the page stands there in the field
-scene and in the colliders alike, and its clock says how long the game has left.
+the middle of their **alliance area** five feet up, **watching the robot**. A
+driver turns their head — drag — to look somewhere else, and does nothing else:
+no orbiting, no zooming, no walking round. An op mode that plays for no alliance
+is watched from blue's, since it plays the blue way round. The bench works out
+where, from the field, and tells the page as the run's **match**, with the
+period; the page stands there in the field scene and in the colliders alike, and
+its clock says how long the game has left.
 The colliders are drawn by projecting points the page works out itself, and from
 a driver's area some of them are behind the eye — the wall they stand behind,
 the floor at their feet — so the page cuts each shape where it crosses a plane
 just in front of the eye. Free play is watched from the orbit, as every run was
 before there were games. Methods: `SimBench.Run.match`; `FieldScene.standAt`.
+
+**Watching the robot** — Where a driver looks until they look somewhere else:
+at the middle of their robot, wherever the tick shown has it, so the view turns
+to follow it as it drives, as it plays and as it is scrubbed. Before there is a
+tick there is no robot to watch, and the view looks at the middle of the field.
+A driver who drags to look elsewhere keeps looking there while the robot moves;
+double-clicking watches the robot again. While it watches, where the view looks
+is worked out from the tick shown and nothing else, so scrubbing back to a tick
+sees it as it was seen the first time.
 
 **Webcam's view** — The goal tags as the robot's camera would see them: the
 tags where they are, in the perspective the lens gives, and nothing else. The

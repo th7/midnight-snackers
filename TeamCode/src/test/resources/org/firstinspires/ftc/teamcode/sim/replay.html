@@ -308,8 +308,11 @@ __IMPORTMAP__
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   // A game is watched from where its drivers stand, as the bench says: in their alliance's area
-  // behind the wall, five feet up. A driver can turn their head -- drag -- and do nothing else: no
-  // walking round the field, no flying over it, no leaning in. Double-clicking looks back at it.
+  // behind the wall, five feet up. A driver watches their robot, so the view turns to follow it
+  // wherever the tick shown has it; before there is a robot to watch, it looks at the middle of the
+  // field. A driver can turn their head -- drag -- to look somewhere else, and it stays there until
+  // they double-click, which looks back at the robot. They can do nothing else: no walking round the
+  // field, no flying over it, no leaning in.
   // Free play is watched from wherever the viewer likes, orbiting as every run always was.
   const match = rec.match || null;
   const DRIVER_FOV = 50 * Math.PI / 180, LOOK_LIMIT = 85 * Math.PI / 180, NEAR = 1;
@@ -318,15 +321,25 @@ __IMPORTMAP__
     return { yaw: Math.atan2(d[1], d[0]), pitch: Math.atan2(d[2], Math.hypot(d[0], d[1])) };
   };
   const standing = match ? { eye: match.eye, home: lookToward(match.eye, match.lookingAt) } : null;
-  const look = standing ? Object.assign({}, standing.home) : null;
-  const facing = () => [Math.cos(look.pitch) * Math.cos(look.yaw), Math.cos(look.pitch) * Math.sin(look.yaw),
-                        Math.sin(look.pitch)];
+  // Where the driver is looking: WATCHING the robot, or a { yaw, pitch } they turned their head to.
+  const WATCHING = 'watching';
+  let look = WATCHING;
+  function looking() {
+    if (look !== WATCHING) return look;
+    const tick = ticks.length ? ticks[index] : null;
+    return tick ? lookToward(standing.eye, [tick.x, tick.y, ROBOT_IN / 2]) : standing.home;
+  }
+  const facing = () => {
+    const { yaw, pitch } = looking();
+    return [Math.cos(pitch) * Math.cos(yaw), Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch)];
+  };
   function turnHead(dx, dy) {
-    look.yaw += dx * 0.005;
-    look.pitch = clamp(look.pitch + dy * 0.005, -LOOK_LIMIT, LOOK_LIMIT);
+    if (!dx && !dy) return;
+    const { yaw, pitch } = looking();
+    look = { yaw: yaw + dx * 0.005, pitch: clamp(pitch + dy * 0.005, -LOOK_LIMIT, LOOK_LIMIT) };
   }
   const moving = standing
-    ? 'Drag the field to turn your head; double-click to look back at the middle of it.'
+    ? 'The view follows the robot. Drag the field to look somewhere else; double-click to look back at the robot.'
     : 'Drag the field to orbit, scroll to zoom, double-click to reset the view.';
   const timeLeft = t => {
     const whole = Math.max(0, Math.ceil(match.period - t - 1e-9));
@@ -767,6 +780,7 @@ __IMPORTMAP__
   }
 
   function drawSolid(tick, packets) {
+    if (standing) solid.standAt(standing.eye, facing(), DRIVER_FOV * 180 / Math.PI);
     if (!tick) return;
     solid.showRobot(tick);
     solid.showPieces(latestPieces(index));
@@ -967,7 +981,7 @@ __IMPORTMAP__
     render();
   }, { passive: false });
   canvas.addEventListener('dblclick', () => {
-    if (standing) Object.assign(look, standing.home); else Object.assign(view, HOME);
+    if (standing) look = WATCHING; else Object.assign(view, HOME);
     render();
   });
 
@@ -1236,14 +1250,14 @@ __IMPORTMAP__
         if (!last) return;
         turnHead(e.clientX - last.x, e.clientY - last.y);
         last = { x: e.clientX, y: e.clientY };
-        view.standAt(standing.eye, facing(), DRIVER_FOV * 180 / Math.PI);
+        render();
       });
       const letGo = () => { last = null; };
       solidCanvas.addEventListener('pointerup', letGo);
       solidCanvas.addEventListener('pointercancel', letGo);
       solidCanvas.addEventListener('dblclick', () => {
-        Object.assign(look, standing.home);
-        view.standAt(standing.eye, facing(), DRIVER_FOV * 180 / Math.PI);
+        look = WATCHING;
+        render();
       });
     }
     solid = view;
