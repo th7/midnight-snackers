@@ -94,6 +94,12 @@ tasks.withType(Test).configureEach {
     // same one command checks the budget locally and in CI.
     def costDir = layout.buildDirectory.dir('sim/cost').get().asFile
     systemProperty 'suiteCost.ledger', costDir.absolutePath
+    // What writes them is the JVM's agent, so they are written whatever the tests are: left to the
+    // first test that touched the ledger, a run of one class that spends nothing counted would
+    // write nothing, and fail below for it. The jar is only a manifest naming Cost. The JVM loads
+    // an agent's class from the classpath, which makes it the very Cost the tests count into.
+    def costAgent = layout.buildDirectory.file('sim/cost-agent.jar').get().asFile
+    jvmArgs "-javaagent:${costAgent.absolutePath}".toString()
     // Gradle's own -D reaches this JVM and not the forked one, as with simTrace.regenerate above.
     if (System.getProperty('suiteCost.regenerate') != null) {
         systemProperty 'suiteCost.regenerate', System.getProperty('suiteCost.regenerate')
@@ -103,6 +109,10 @@ tasks.withType(Test).configureEach {
     doFirst {
         costDir.deleteDir()
         costDir.mkdirs()
+        def manifest = new java.util.jar.Manifest()
+        manifest.mainAttributes.put(java.util.jar.Attributes.Name.MANIFEST_VERSION, '1.0')
+        manifest.mainAttributes.putValue('Premain-Class', 'org.firstinspires.ftc.teamcode.sim.Cost')
+        new java.util.jar.JarOutputStream(new FileOutputStream(costAgent), manifest).close()
         // A filtered run spends less than the whole suite, and a run split across JVMs leaves each
         // of them with a share of it, so neither may judge the budget: the ledger is one JVM's.
         // The test JVM is told which kind of run it is rather than working it out; only Gradle
@@ -129,9 +139,10 @@ tasks.withType(Test).configureEach {
         def verdict = new File(costDir, 'verdict.txt')
         def report = new File(costDir, 'report.txt')
         if (!verdict.exists()) {
-            throw new GradleException("the test JVM wrote no cost verdict to ${costDir}. It is told where to " +
-                    "write one by suiteCost.ledger, and writes it as it goes; a run that wrote none has not " +
-                    "checked what it cost, which is not the same as costing what it should.")
+            throw new GradleException("the test JVM wrote no cost verdict to ${costDir}. It is started with " +
+                    "Cost as its agent and told where to write one by suiteCost.ledger, and writes it on its way " +
+                    "out; a run that wrote none has not checked what it cost, which is not the same as costing " +
+                    "what it should.")
         }
         if (report.exists()) {
             println()

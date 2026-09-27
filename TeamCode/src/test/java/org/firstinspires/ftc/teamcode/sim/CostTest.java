@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -13,8 +14,12 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -321,6 +326,54 @@ public class CostTest {
 
         assertTrue(verdictIn(into), verdictIn(into).startsWith("COULD_NOT_JUDGE"));
         assertTrue("and it is still readable", Files.isRegularFile(into.resolve("report.txt")));
+    }
+
+    @Test
+    public void theLedgerIsWrittenUpWhateverTheTestsAreNotOnlyIfOneOfThemLoadsCost() throws Exception {
+        assertNotNull(
+                "no " + Cost.LEDGER
+                        + ": run the tests with ./gradlew :TeamCode:testDebugUnitTest, which is what CI runs",
+                System.getProperty(Cost.LEDGER));
+        List<String> agents = new ArrayList<>();
+        for (String argument : jvmArguments()) {
+            if (argument.startsWith("-javaagent:")) {
+                String jar = argument.substring("-javaagent:".length()).split("=", 2)[0];
+                try (JarFile file = new JarFile(jar)) {
+                    Manifest manifest = file.getManifest();
+                    agents.add(
+                            manifest == null
+                                    ? jar + ", which has no manifest"
+                                    : manifest.getMainAttributes().getValue("Premain-Class"));
+                }
+            }
+        }
+
+        assertTrue(
+                "the build asked this JVM for a ledger without starting it with Cost as its agent, so the ledger is"
+                        + " written up only if some test happens to load Cost, and a run of one class that spends"
+                        + " nothing counted writes no verdict at all. It was started with: " + agents,
+                agents.contains(Cost.class.getName()));
+    }
+
+    @Test
+    public void anAgentWithNowhereToWriteTheLedgerRefusesRatherThanWritingNothing() {
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> Cost.writingUp(null));
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains(Cost.LEDGER));
+    }
+
+    /**
+     * What this JVM was started with. The tests compile against {@code android.jar}, which has no
+     * {@code java.lang.management}, so it is reached by name, as ProcessTree reaches ProcessHandle.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<String> jvmArguments() throws ReflectiveOperationException {
+        Object runtime = Class.forName("java.lang.management.ManagementFactory")
+                .getMethod("getRuntimeMXBean")
+                .invoke(null);
+        return (List<String>) Class.forName("java.lang.management.RuntimeMXBean")
+                .getMethod("getInputArguments")
+                .invoke(runtime);
     }
 
     private void spend(Cost.Kind kind, int times) {
