@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,137 +10,213 @@ public final class SimHives {
     public static final int NECTAR_FILLS = FULL / 5;
     public static final int POLLEN_FILLS = FULL / 8;
 
+    public static final double TIP_SECONDS = 1;
+
     private static final double CONTACT_TOLERANCE_IN = 0.02;
 
-    public static final class Occupant {
-        public final Object ball;
-        public final String kind;
-        public final double radius;
+    public static final class Touch {
+        public final double[] normal;
 
-        Occupant(Object ball, String kind, double radius) {
-            this.ball = ball;
-            this.kind = kind;
-            this.radius = radius;
-        }
-    }
+        public final double depth;
 
-    public static final class Met {
-        public static final Met NOTHING = new Met(false, null, null, null);
-        static final Met MOUTH_FROM_BEHIND = new Met(true, null, null, null);
-
-        private final boolean met;
-        public final SimField.Cell scoredIn;
-        public final double[] at;
         public final double[] velocity;
 
-        private Met(boolean met, SimField.Cell scoredIn, double[] at, double[] velocity) {
-            this.met = met;
-            this.scoredIn = scoredIn;
-            this.at = at;
-            this.velocity = velocity;
-        }
-
-        static Met scored(SimField.Cell cell) {
-            return new Met(true, cell, null, null);
-        }
-
-        static Met bounced(double[] at, double[] velocity) {
-            return new Met(true, null, at, velocity);
-        }
-
-        public boolean met() {
-            return met;
-        }
-
-        public boolean scored() {
-            return scoredIn != null;
-        }
-
-        public boolean bounced() {
-            return at != null;
-        }
-    }
-
-    public static final class LeftACell {
-        public final Object ball;
-        public final double[] at;
-        public final double[] velocity;
-
-        LeftACell(Object ball, double[] at, double[] velocity) {
-            this.ball = ball;
-            this.at = at;
+        Touch(double[] normal, double depth, double[] velocity) {
+            this.normal = normal;
+            this.depth = depth;
             this.velocity = velocity;
         }
     }
 
-    private static final class Turned {
-        final double[][] mouth;
-        final double[] mouthNormal;
-        final List<double[][]> panels;
-        final boolean upturned;
-        final double[] floorAtTheBack;
-        final double[] towardTheMouth;
-        final double[] acrossTheFloor;
-        final double[] offTheFloor;
-        final double floorWidth;
+    private static final class Face {
+        final double[][] corners;
+        final double[] normal;
+        final double[] u;
+        final double[] v;
+        final double[][] flat;
 
-        Turned(SimField.Cell cell, double tilt) {
-            this.mouth = cell.mouthAt(tilt);
-            this.mouthNormal = cell.mouthNormalAt(tilt);
-            this.panels = cell.panelsAt(tilt);
-            this.upturned = cell.upturnedAt(tilt);
-            double[][] floor = floorOf(cell.back);
-            this.floorAtTheBack = cell.hive.at(tilt, mean(floor));
-            this.floorWidth = floor[floor.length - 1][1] - floor[0][1];
-            this.towardTheMouth = cell.hive.direction(tilt, new double[] {Math.signum(cell.mouthNormal[0]), 0, 0});
-            this.acrossTheFloor = cell.hive.direction(tilt, new double[] {0, 1, 0});
-            this.offTheFloor = cell.hive.direction(tilt, new double[] {0, 0, 1});
+        Face(double[][] corners) {
+            this.corners = corners;
+            this.normal = SimField.normal(corners);
+            double[] edge = sub(corners[1], corners[0]);
+            for (int i = 1; dot(edge, edge) < 1e-12 && i < corners.length; i++) {
+                edge = sub(corners[(i + 1) % corners.length], corners[i]);
+            }
+            this.u = unit(edge);
+            this.v = cross(normal, u);
+            this.flat = new double[corners.length][];
+            for (int i = 0; i < corners.length; i++) {
+                double[] from = sub(corners[i], corners[0]);
+                flat[i] = new double[] {dot(from, u), dot(from, v)};
+            }
         }
 
-        private static double[][] floorOf(double[][] ring) {
-            double lowest = Double.MAX_VALUE;
-            for (double[] corner : ring) {
-                lowest = Math.min(lowest, corner[2]);
-            }
-            List<double[]> floor = new ArrayList<>();
-            for (double[] corner : ring) {
-                if (corner[2] <= lowest + 0.2) {
-                    floor.add(corner);
+        double[] nearestTo(double[] point) {
+            double[] from = sub(point, corners[0]);
+            double s = dot(from, u), t = dot(from, v);
+            boolean inside = false;
+            for (int i = 0, j = flat.length - 1; i < flat.length; j = i++) {
+                double[] a = flat[i], b = flat[j];
+                if ((a[1] > t) != (b[1] > t) && s < (b[0] - a[0]) * (t - a[1]) / (b[1] - a[1]) + a[0]) {
+                    inside = !inside;
                 }
             }
-            floor.sort((a, b) -> Double.compare(a[1], b[1]));
-            return floor.toArray(new double[0][]);
+            if (inside) {
+                return along(point, normal, -dot(from, normal));
+            }
+            double[] nearest = null;
+            double closest = Double.MAX_VALUE;
+            for (int i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+                double[] onEdge = nearestOnSegment(corners[j], corners[i], point);
+                double[] gap = sub(point, onEdge);
+                if (dot(gap, gap) < closest) {
+                    closest = dot(gap, gap);
+                    nearest = onEdge;
+                }
+            }
+            return nearest;
+        }
+    }
+
+    private static final class Solid {
+        final List<Face> faces;
+        final boolean closed;
+        final double[] middle;
+        final double reach;
+
+        Solid(List<Face> faces, boolean closed) {
+            this.faces = faces;
+            this.closed = closed;
+            List<double[]> corners = new ArrayList<>();
+            for (Face face : faces) {
+                for (double[] corner : face.corners) {
+                    corners.add(corner);
+                }
+            }
+            this.middle = mean(corners);
+            double reach = 0;
+            for (double[] corner : corners) {
+                reach = Math.max(reach, length(sub(corner, middle)));
+            }
+            this.reach = reach;
+            if (closed) {
+                for (Face face : faces) {
+                    if (dot(sub(face.corners[0], middle), face.normal) < 0) {
+                        for (int axis = 0; axis < 3; axis++) {
+                            face.normal[axis] = -face.normal[axis];
+                        }
+                    }
+                }
+            }
         }
 
-        private static double[] mean(double[][] ring) {
-            double[] out = new double[3];
-            for (double[] corner : ring) {
-                for (int axis = 0; axis < 3; axis++) {
-                    out[axis] += corner[axis] / ring.length;
+        static Solid plate(double[][] corners) {
+            return new Solid(List.of(new Face(corners)), false);
+        }
+
+        static Solid part(SimField.Element part) {
+            List<Face> faces = new ArrayList<>();
+            for (int[] ring : part.faces) {
+                double[][] corners = new double[ring.length][];
+                for (int i = 0; i < ring.length; i++) {
+                    corners[i] = part.vertices[ring[i]];
                 }
+                faces.add(new Face(corners));
             }
-            return out;
+            return new Solid(faces, true);
+        }
+
+        double[] outOfItFrom(double[] point) {
+            if (closed) {
+                Face shallowest = null;
+                double least = Double.MAX_VALUE;
+                for (Face face : faces) {
+                    double under = -dot(sub(point, face.corners[0]), face.normal);
+                    if (under < 0) {
+                        return null;
+                    }
+                    if (under < least) {
+                        least = under;
+                        shallowest = face;
+                    }
+                }
+                return shallowest.normal.clone();
+            }
+            return null;
+        }
+    }
+
+    private static final class Bound {
+        final double[] on;
+        final double[] inward;
+
+        Bound(double[][] ring, double[] centre) {
+            this.on = ring[0];
+            double[] normal = SimField.normal(ring);
+            this.inward = dot(sub(centre, on), normal) >= 0 ? normal : scale(normal, -1);
+        }
+    }
+
+    private static final class Tip {
+        final double from;
+        final double to;
+        double elapsed;
+
+        Tip(double from, double to) {
+            this.from = from;
+            this.to = to;
+        }
+
+        double tilt() {
+            return from + (to - from) * (1 - Math.cos(Math.PI * elapsed / TIP_SECONDS)) / 2;
+        }
+
+        double degreesPerSecond() {
+            return (to - from) * Math.PI / (2 * TIP_SECONDS) * Math.sin(Math.PI * elapsed / TIP_SECONDS);
         }
     }
 
     private final SimField field;
-    private final double bounce;
-    private final double rollOutInchesPerSecond;
     private final Map<SimField.Hive, Double> tilts = new LinkedHashMap<>();
-    private final Map<SimField.Cell, Turned> turned = new LinkedHashMap<>();
-    private final Map<SimField.Cell, List<Occupant>> inCell = new LinkedHashMap<>();
-    private final Map<Object, SimField.Cell> cellOf = new IdentityHashMap<>();
+    private final Map<SimField.Hive, Tip> tipping = new LinkedHashMap<>();
+    private final Map<SimField.Hive, List<Solid>> solids = new LinkedHashMap<>();
+    private final Map<SimField.Hive, double[][]> extents = new LinkedHashMap<>();
+    private final Map<SimField.Cell, List<Bound>> bounds = new LinkedHashMap<>();
 
-    public SimHives(SimField field, double bounce, double rollOutInchesPerSecond) {
+    public SimHives(SimField field) {
         this.field = field;
-        this.bounce = bounce;
-        this.rollOutInchesPerSecond = rollOutInchesPerSecond;
         for (SimField.Hive hive : field.hives) {
             tilts.put(hive, hive.tilt);
-        }
-        for (SimField.Cell cell : field.cells) {
-            inCell.put(cell, new ArrayList<>());
-            turned.put(cell, new Turned(cell, tilts.get(cell.hive)));
+            List<Solid> of = new ArrayList<>();
+            for (SimField.Cell cell : hive.cells) {
+                for (double[][] panel : cell.panels) {
+                    of.add(Solid.plate(panel));
+                }
+                List<Bound> around = new ArrayList<>();
+                List<double[][]> faces = new ArrayList<>(cell.panels);
+                faces.add(cell.mouth);
+                for (double[][] face : faces) {
+                    around.add(new Bound(face, cell.centre));
+                }
+                bounds.put(cell, around);
+            }
+            for (SimField.Element part : hive.parts) {
+                of.add(Solid.part(part));
+            }
+            solids.put(hive, of);
+            double[] least = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+            double[] most = {-Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
+            for (Solid solid : of) {
+                for (Face face : solid.faces) {
+                    for (double[] corner : face.corners) {
+                        for (int axis = 0; axis < 3; axis++) {
+                            least[axis] = Math.min(least[axis], corner[axis]);
+                            most[axis] = Math.max(most[axis], corner[axis]);
+                        }
+                    }
+                }
+            }
+            extents.put(hive, new double[][] {least, most});
         }
     }
 
@@ -166,188 +241,218 @@ public final class SimHives {
         return out;
     }
 
+    public boolean tipping(SimField.Hive hive) {
+        return tipping.containsKey(hive);
+    }
+
     public SimField.Cell upturnedCell(String alliance) {
-        for (SimField.Cell cell : hiveOf(alliance).cells) {
-            if (turned.get(cell).upturned) {
-                return cell;
+        SimField.Hive hive = hiveOf(alliance);
+        double tilt = tilts.get(hive);
+        Tip tip = tipping.get(hive);
+        SimField.Cell up = null;
+        double highest = -Double.MAX_VALUE;
+        for (SimField.Cell cell : hive.cells) {
+            double facing = cell.mouthNormalAt(tilt)[2];
+            if (facing > highest || (facing == highest && tip != null && cell.upturnedAt(tip.to))) {
+                highest = facing;
+                up = cell;
             }
         }
-        throw new IllegalStateException(alliance + "'s hive has no upturned cell");
+        return up;
     }
 
     public boolean upturned(SimField.Cell cell) {
-        return turned.get(cell).upturned;
+        return upturnedCell(cell.alliance) == cell;
     }
 
-    public int scored(String alliance) {
-        int total = 0;
-        for (Map.Entry<SimField.Cell, List<Occupant>> entry : inCell.entrySet()) {
-            if (entry.getKey().alliance.equals(alliance)) {
-                total += entry.getValue().size();
-            }
-        }
-        return total;
+    public static int fills(String kind) {
+        return SimField.NECTAR.equals(kind) ? NECTAR_FILLS : POLLEN_FILLS;
     }
 
-    public Map<String, Integer> scored() {
-        Map<String, Integer> out = new LinkedHashMap<>();
-        for (SimField.Cell cell : inCell.keySet()) {
-            out.merge(cell.alliance, inCell.get(cell).size(), Integer::sum);
-        }
-        return out;
-    }
-
-    public double load(String alliance) {
-        return fill(hiveOf(alliance)) / (double) FULL;
-    }
-
-    public int fill(SimField.Hive hive) {
-        int fill = 0;
-        for (SimField.Cell cell : hive.cells) {
-            for (Occupant occupant : inCell.get(cell)) {
-                fill += SimField.NECTAR.equals(occupant.kind) ? NECTAR_FILLS : POLLEN_FILLS;
-            }
-        }
-        return fill;
-    }
-
-    public void put(Object ball, String kind, double radius, SimField.Cell cell) {
-        takeOut(ball);
-        inCell.get(cell).add(new Occupant(ball, kind, radius));
-        cellOf.put(ball, cell);
-    }
-
-    public void takeOut(Object ball) {
-        SimField.Cell was = cellOf.remove(ball);
-        if (was != null) {
-            inCell.get(was).removeIf(occupant -> occupant.ball == ball);
+    public void tip(SimField.Hive hive) {
+        if (!tipping.containsKey(hive)) {
+            tipping.put(hive, new Tip(tilts.get(hive), -tilts.get(hive)));
         }
     }
 
-    public boolean holds(Object ball) {
-        return cellOf.containsKey(ball);
-    }
-
-    public double[] restingPlace(Object ball) {
-        SimField.Cell cell = cellOf.get(ball);
-        if (cell == null) {
-            throw new IllegalArgumentException("no cell holds that ball");
-        }
-        Turned turn = turned.get(cell);
-        List<Occupant> occupants = inCell.get(cell);
-        int slot = -1;
-        for (int i = 0; i < occupants.size(); i++) {
-            if (occupants.get(i).ball == ball) {
-                slot = i;
-            }
-        }
-        double radius = occupants.get(slot).radius;
-        int perRow = Math.max(1, (int) (turn.floorWidth / (2 * radius)));
-        double across = (slot % perRow - (perRow - 1) / 2.0) * 2 * radius;
-        double along = radius + slot / perRow * 2 * radius;
-        double[] out = new double[3];
-        for (int axis = 0; axis < 3; axis++) {
-            out[axis] = turn.floorAtTheBack[axis]
-                    + turn.towardTheMouth[axis] * along
-                    + turn.acrossTheFloor[axis] * across
-                    + turn.offTheFloor[axis] * radius;
-        }
-        return out;
-    }
-
-    public Met met(double[] from, double[] to, double[] velocity) {
-        for (SimField.Cell cell : field.cells) {
-            Turned turn = turned.get(cell);
-            if (crossing(turn.mouth, turn.mouthNormal, from, to) != null) {
-                return side(turn.mouthNormal, turn.mouth[0], from) > 0 ? Met.scored(cell) : Met.MOUTH_FROM_BEHIND;
-            }
-            for (double[][] panel : turn.panels) {
-                double[] normal = SimField.normal(panel);
-                double[] hit = crossing(panel, normal, from, to);
-                if (hit == null) {
-                    continue;
-                }
-                boolean fromTheFront = side(normal, panel[0], from) > 0;
-                double along = velocity[0] * normal[0] + velocity[1] * normal[1] + velocity[2] * normal[2];
-                double back = fromTheFront ? CONTACT_TOLERANCE_IN : -CONTACT_TOLERANCE_IN;
-                return Met.bounced(
-                        new double[] {hit[0] + back * normal[0], hit[1] + back * normal[1], hit[2] + back * normal[2]},
-                        new double[] {
-                            velocity[0] - (1 + bounce) * along * normal[0],
-                            velocity[1] - (1 + bounce) * along * normal[1],
-                            velocity[2] - (1 + bounce) * along * normal[2]
-                        });
-            }
-        }
-        return Met.NOTHING;
-    }
-
-    public List<LeftACell> turn() {
-        List<LeftACell> left = new ArrayList<>();
+    public void advance(double seconds) {
         for (SimField.Hive hive : field.hives) {
-            if (fill(hive) >= FULL) {
-                tilts.put(hive, -tilts.get(hive));
-                for (SimField.Cell cell : hive.cells) {
-                    turned.put(cell, new Turned(cell, tilts.get(hive)));
-                }
+            Tip tip = tipping.get(hive);
+            if (tip == null) {
+                continue;
             }
-            for (SimField.Cell cell : hive.cells) {
-                if (turned.get(cell).upturned) {
+            tip.elapsed += seconds;
+            if (tip.elapsed >= TIP_SECONDS) {
+                tilts.put(hive, tip.to);
+                tipping.remove(hive);
+            } else {
+                tilts.put(hive, tip.tilt());
+            }
+        }
+    }
+
+    public List<Touch> touching(double[] centre, double radius) {
+        List<Touch> out = new ArrayList<>();
+        for (SimField.Hive hive : field.hives) {
+            if (!near(hive, centre, radius + CONTACT_TOLERANCE_IN)) {
+                continue;
+            }
+            double tilt = tilts.get(hive);
+            double[] local = inHive(hive, tilt, centre);
+            for (Solid solid : solids.get(hive)) {
+                if (length(sub(local, solid.middle)) > solid.reach + radius + CONTACT_TOLERANCE_IN) {
                     continue;
                 }
-                Turned turn = turned.get(cell);
-                for (Occupant occupant : new ArrayList<>(inCell.get(cell))) {
-                    double[] out = restingPlace(occupant.ball);
-                    takeOut(occupant.ball);
-                    left.add(new LeftACell(
-                            occupant.ball,
-                            new double[] {
-                                out[0] + turn.mouthNormal[0] * CONTACT_TOLERANCE_IN,
-                                out[1] + turn.mouthNormal[1] * CONTACT_TOLERANCE_IN,
-                                out[2] + turn.mouthNormal[2] * CONTACT_TOLERANCE_IN
-                            },
-                            new double[] {
-                                turn.mouthNormal[0] * rollOutInchesPerSecond,
-                                turn.mouthNormal[1] * rollOutInchesPerSecond,
-                                turn.mouthNormal[2] * rollOutInchesPerSecond
-                            }));
+                double[] nearest = null;
+                double closest = Double.MAX_VALUE;
+                for (Face face : solid.faces) {
+                    double[] onIt = face.nearestTo(local);
+                    double apart = length(sub(local, onIt));
+                    if (apart < closest) {
+                        closest = apart;
+                        nearest = onIt;
+                    }
                 }
+                double[] inside = solid.outOfItFrom(local);
+                double depth;
+                double[] normal;
+                if (inside != null) {
+                    normal = inside;
+                    depth = radius + closest;
+                } else if (closest >= radius + CONTACT_TOLERANCE_IN) {
+                    continue;
+                } else if (closest > 1e-9) {
+                    normal = scale(sub(local, nearest), 1 / closest);
+                    depth = radius - closest;
+                } else {
+                    normal = solid.faces.get(0).normal.clone();
+                    depth = radius;
+                }
+                double[] touched = hive.at(tilt, nearest);
+                out.add(new Touch(hive.direction(tilt, normal), depth, motionOf(hive, touched)));
             }
         }
-        return left;
+        return out;
     }
 
-    static double side(double[] normal, double[] point, double[] position) {
-        return (position[0] - point[0]) * normal[0]
-                + (position[1] - point[1]) * normal[1]
-                + (position[2] - point[2]) * normal[2];
-    }
-
-    static double[] crossing(double[][] panel, double[] normal, double[] from, double[] to) {
-        double before = side(normal, panel[0], from);
-        double after = side(normal, panel[0], to);
-        if (before == 0 || (before > 0) == (after > 0)) {
-            return null;
+    public boolean near(SimField.Hive hive, double[] centre, double within) {
+        double[] local = inHive(hive, tilts.get(hive), centre);
+        double[][] extent = extents.get(hive);
+        for (int axis = 0; axis < 3; axis++) {
+            if (local[axis] < extent[0][axis] - within || local[axis] > extent[1][axis] + within) {
+                return false;
+            }
         }
-        double t = before / (before - after);
-        double[] hit = {
-            from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t
+        return true;
+    }
+
+    public SimField.Cell cellHolding(double[] point) {
+        for (SimField.Cell cell : field.cells) {
+            double[] local = inHive(cell.hive, tilts.get(cell.hive), point);
+            boolean inside = true;
+            for (Bound bound : bounds.get(cell)) {
+                inside &= dot(sub(local, bound.on), bound.inward) >= 0;
+            }
+            if (inside) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    public List<double[]> restingSpots(SimField.Cell cell, double radius) {
+        double lowest = Double.MAX_VALUE;
+        for (double[] corner : cell.back) {
+            lowest = Math.min(lowest, corner[2]);
+        }
+        List<double[]> floor = new ArrayList<>();
+        for (double[] corner : cell.back) {
+            if (corner[2] <= lowest + 0.2) {
+                floor.add(corner);
+            }
+        }
+        floor.sort((a, b) -> Double.compare(a[1], b[1]));
+        double[] atTheBack = mean(floor);
+        double width = floor.get(floor.size() - 1)[1] - floor.get(0)[1];
+        double toward = Math.signum(cell.mouthNormal[0]);
+        double deep = Math.abs(cell.mouthCentre[0] - atTheBack[0]);
+        int rows = Math.max(1, (int) (deep / (2 * radius)));
+        int perRow = Math.max(1, (int) (width / (2 * radius)));
+        double tilt = tilts.get(cell.hive);
+        List<double[]> spots = new ArrayList<>();
+        for (int row = 0; row < rows; row++) {
+            for (int slot = 0; slot < perRow; slot++) {
+                spots.add(cell.hive.at(tilt, new double[] {
+                    atTheBack[0] + toward * (radius + row * 2 * radius),
+                    atTheBack[1] + (slot - (perRow - 1) / 2.0) * 2 * radius,
+                    atTheBack[2] + radius
+                }));
+            }
+        }
+        return spots;
+    }
+
+    private double[] motionOf(SimField.Hive hive, double[] point) {
+        Tip tip = tipping.get(hive);
+        if (tip == null) {
+            return new double[3];
+        }
+        double radiansPerSecond = Math.toRadians(tip.degreesPerSecond());
+        return new double[] {
+            -radiansPerSecond * (point[2] - hive.pivot[2]), 0, radiansPerSecond * (point[0] - hive.pivot[0])
         };
+    }
 
-        int drop = 0;
-        for (int axis = 1; axis < 3; axis++) {
-            if (Math.abs(normal[axis]) > Math.abs(normal[drop])) {
-                drop = axis;
+    private static double[] inHive(SimField.Hive hive, double tilt, double[] point) {
+        double c = Math.cos(Math.toRadians(tilt)), s = Math.sin(Math.toRadians(tilt));
+        double dx = point[0] - hive.pivot[0], dy = point[1] - hive.pivot[1], dz = point[2] - hive.pivot[2];
+        return new double[] {dx * c + dz * s, dy, -dx * s + dz * c};
+    }
+
+    private static double[] nearestOnSegment(double[] a, double[] b, double[] point) {
+        double[] ab = sub(b, a);
+        double squared = dot(ab, ab);
+        double t = squared == 0 ? 0 : Math.max(0, Math.min(1, dot(sub(point, a), ab) / squared));
+        return along(a, ab, t);
+    }
+
+    private static double[] mean(List<double[]> points) {
+        double[] out = new double[3];
+        for (double[] point : points) {
+            for (int axis = 0; axis < 3; axis++) {
+                out[axis] += point[axis] / points.size();
             }
         }
-        int u = (drop + 1) % 3, v = (drop + 2) % 3;
-        boolean inside = false;
-        for (int i = 0, j = panel.length - 1; i < panel.length; j = i++) {
-            double[] a = panel[i], b = panel[j];
-            if ((a[v] > hit[v]) != (b[v] > hit[v]) && hit[u] < (b[u] - a[u]) * (hit[v] - a[v]) / (b[v] - a[v]) + a[u]) {
-                inside = !inside;
-            }
-        }
-        return inside ? hit : null;
+        return out;
+    }
+
+    static double[] sub(double[] a, double[] b) {
+        return new double[] {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+    }
+
+    static double[] scale(double[] a, double by) {
+        return new double[] {a[0] * by, a[1] * by, a[2] * by};
+    }
+
+    static double[] along(double[] from, double[] direction, double distance) {
+        return new double[] {
+            from[0] + direction[0] * distance, from[1] + direction[1] * distance, from[2] + direction[2] * distance
+        };
+    }
+
+    static double dot(double[] a, double[] b) {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    }
+
+    static double[] cross(double[] a, double[] b) {
+        return new double[] {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+    }
+
+    static double length(double[] a) {
+        return Math.sqrt(dot(a, a));
+    }
+
+    static double[] unit(double[] a) {
+        return scale(a, 1 / length(a));
     }
 }

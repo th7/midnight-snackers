@@ -59,13 +59,6 @@ public class SimRobot {
 
     public static final double LAUNCH_IN_PER_S_PER_TICK_PER_S = 0.189;
 
-    private static final int FULL = 40;
-
-    private static final int NECTAR_FILLS = FULL / 5;
-    private static final int POLLEN_FILLS = FULL / 8;
-
-    private static final double ROLL_OUT_IN_PER_S = 20;
-
     private static final double ROBOT_MASS_KG = 15;
 
     private static final double BALL_MASS_KG = 0.5;
@@ -74,19 +67,19 @@ public class SimRobot {
 
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
 
-    private static final double ROLL_SECONDS = 0.8;
+    private static final double ROLL_SECONDS = SimFlight.ROLL_SECONDS;
 
-    private static final double REST_SPEED_IN_PER_S = 0.5;
+    private static final double REST_SPEED_IN_PER_S = SimFlight.REST_SPEED_IN_PER_S;
 
-    private static final double BOUNCE = 0.3;
+    private static final double BOUNCE = SimFlight.BOUNCE;
 
-    private static final double BALL_FRICTION = 0.4;
+    private static final double BALL_FRICTION = SimFlight.FRICTION;
 
-    private static final double GRAVITY_IN_PER_S2 = 386.09;
+    private static final double GRAVITY_IN_PER_S2 = SimFlight.GRAVITY_IN_PER_S2;
 
     private static final double NEST_FRICTION = 0.5;
 
-    private static final double LANDING_SPEED_IN_PER_S = 25;
+    private static final double LANDING_SPEED_IN_PER_S = SimFlight.LANDING_SPEED_IN_PER_S;
 
     private static final double TOP_GATE_OPENS_AT = 0.8;
 
@@ -153,14 +146,14 @@ public class SimRobot {
 
     private final SimHives hives;
 
+    private final SimFlight flight;
+
     private enum Where {
         ROLLING,
 
         FLYING,
 
         HELD,
-
-        IN_CELL,
 
         IN_FLOWER,
 
@@ -200,8 +193,6 @@ public class SimRobot {
         }
 
         Where where;
-
-        SimField.Cell cell;
 
         SimField.Flower flower;
 
@@ -296,7 +287,8 @@ public class SimRobot {
         robot.setAngularDamping(0);
         world.addBody(robot);
 
-        hives = new SimHives(FIELD, BOUNCE, ROLL_OUT_IN_PER_S);
+        hives = new SimHives(FIELD);
+        flight = new SimFlight(FIELD, hives);
         for (SimField.Flower flower : FIELD.flowers) {
             inFlower.put(flower, new ArrayList<>());
         }
@@ -312,7 +304,7 @@ public class SimRobot {
             if (i < loose) {
                 setDown(balls[i], piece.x, piece.y);
             } else if (i < inCells) {
-                putInCell(balls[i], FIELD.cell(piece.cell));
+                intoTheAir(balls[i], new double[] {piece.x, piece.y, piece.z}, new double[3]);
             } else if (i < held) {
                 putInFlower(balls[i], FIELD.flower(piece.flower), piece.z);
             } else {
@@ -428,8 +420,8 @@ public class SimRobot {
                 case HELD:
                     out[i] = null;
                     break;
-                case IN_CELL:
-                    out[i] = restingPlace(ball);
+                case FLYING:
+                    out[i] = flight.at(ball);
                     break;
                 default:
                     out[i] = new double[] {ball.x, ball.y, ball.z};
@@ -493,9 +485,8 @@ public class SimRobot {
         if (ball.where == Where.ROLLING) {
             world.removeBody(ball.body);
         }
-        if (ball.where == Where.IN_CELL) {
-            hives.takeOut(ball);
-            ball.cell = null;
+        if (ball.where == Where.FLYING) {
+            flight.remove(ball);
         }
         if (ball.where == Where.IN_FLOWER) {
             inFlower.get(ball.flower).remove(ball);
@@ -505,14 +496,14 @@ public class SimRobot {
 
     private void putInCell(Ball ball, SimField.Cell cell) {
         take(ball);
-        ball.where = Where.IN_CELL;
-        ball.cell = cell;
-        ball.vx = ball.vy = ball.vz = 0;
-        hives.put(ball, ball.kind, ball.radius, cell);
+        ball.where = Where.FLYING;
+        flight.putIn(ball, ball.kind, ball.radius, cell);
     }
 
-    private double[] restingPlace(Ball ball) {
-        return hives.restingPlace(ball);
+    private void intoTheAir(Ball ball, double[] at, double[] velocity) {
+        take(ball);
+        ball.where = Where.FLYING;
+        flight.add(ball, ball.kind, ball.radius, at, velocity);
     }
 
     private void putInFlower(Ball ball, SimField.Flower flower, double z) {
@@ -669,15 +660,15 @@ public class SimRobot {
     }
 
     public int scored(String alliance) {
-        return hives.scored(alliance);
+        return flight.scored(alliance);
     }
 
     public Map<String, Integer> scored() {
-        return hives.scored();
+        return flight.scored();
     }
 
     public double load(String alliance) {
-        return hives.load(alliance);
+        return flight.load(alliance);
     }
 
     public double tilt(String alliance) {
@@ -722,7 +713,6 @@ public class SimRobot {
         intakeTheBalls();
         fallInTheFlowers(dt);
         flyTheBalls(dt);
-        turnTheHives();
         readTheSensors(dt);
     }
 
@@ -843,13 +833,18 @@ public class SimRobot {
         double aim = pose.heading.toDouble() + turnTableOffsetRadians();
         double speed = Math.abs(launcher.measuredVelocity) * LAUNCH_IN_PER_S_PER_TICK_PER_S;
         Vector2 robotVelocity = robot.getLinearVelocity();
-        ball.where = Where.FLYING;
-        ball.x = pose.position.x + LAUNCH_AHEAD_IN * Math.cos(aim);
-        ball.y = pose.position.y + LAUNCH_AHEAD_IN * Math.sin(aim);
-        ball.z = LAUNCH_HEIGHT_IN;
-        ball.vx = robotVelocity.x / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.cos(aim);
-        ball.vy = robotVelocity.y / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.sin(aim);
-        ball.vz = speed * Math.sin(LAUNCH_ANGLE_RADIANS);
+        intoTheAir(
+                ball,
+                new double[] {
+                    pose.position.x + LAUNCH_AHEAD_IN * Math.cos(aim),
+                    pose.position.y + LAUNCH_AHEAD_IN * Math.sin(aim),
+                    LAUNCH_HEIGHT_IN
+                },
+                new double[] {
+                    robotVelocity.x / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.cos(aim),
+                    robotVelocity.y / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.sin(aim),
+                    speed * Math.sin(LAUNCH_ANGLE_RADIANS)
+                });
     }
 
     private double turnTableOffsetRadians() {
@@ -857,120 +852,22 @@ public class SimRobot {
     }
 
     private void flyTheBalls(double dt) {
-        for (Ball ball : balls) {
-            if (ball.where != Where.FLYING) {
+        for (SimFlight.Landing landing : flight.step(dt)) {
+            Ball ball = (Ball) landing.ball;
+            if (landing.out) {
+                ball.where = Where.OUT;
+                ball.x = landing.at[0];
+                ball.y = landing.at[1];
+                ball.z = landing.at[2];
                 continue;
             }
-            double[] from = {ball.x, ball.y, ball.z};
-            ball.vz -= GRAVITY_IN_PER_S2 * dt;
-            ball.x += ball.vx * dt;
-            ball.y += ball.vy * dt;
-            ball.z += ball.vz * dt;
-            if (meetsAHive(ball, from)) {
-                continue;
-            }
-            if (ball.z < ball.radius) {
-                ball.z = ball.radius;
-                if (-ball.vz < LANDING_SPEED_IN_PER_S) {
-                    land(ball);
-                    continue;
-                }
-                ball.vz = -ball.vz * BOUNCE;
-            }
-            double limit = SimPlacement.FIELD_SIZE_IN / 2 - ball.radius;
-            for (int axis = 0; axis < 2; axis++) {
-                double position = axis == 0 ? ball.x : ball.y;
-                if (Math.abs(position) <= limit) {
-                    continue;
-                }
-                if (ball.z - ball.radius > SimPlacement.WALL_HEIGHT_IN) {
-                    ball.where = Where.OUT;
-                    ball.z = ball.radius;
-                    break;
-                }
-                double clamped = Math.signum(position) * limit;
-                if (axis == 0) {
-                    ball.x = clamped;
-                    ball.vx = -ball.vx * BOUNCE;
-                } else {
-                    ball.y = clamped;
-                    ball.vy = -ball.vy * BOUNCE;
-                }
-            }
+            ball.where = Where.ROLLING;
+            world.addBody(ball.body);
+            ball.body.getTransform().setTranslation(landing.at[0] * IN, landing.at[1] * IN);
+            ball.body.setLinearVelocity(new Vector2(landing.velocity[0] * IN, landing.velocity[1] * IN));
+            ball.body.setAngularVelocity(0);
+            ball.body.setAtRest(false);
         }
-    }
-
-    private boolean meetsAHive(Ball ball, double[] from) {
-        double[] to = {ball.x, ball.y, ball.z};
-        SimHives.Met met = hives.met(from, to, new double[] {ball.vx, ball.vy, ball.vz});
-        if (met.scored()) {
-            putInCell(ball, met.scoredIn);
-        } else if (met.bounced()) {
-            ball.x = met.at[0];
-            ball.y = met.at[1];
-            ball.z = met.at[2];
-            ball.vx = met.velocity[0];
-            ball.vy = met.velocity[1];
-            ball.vz = met.velocity[2];
-        }
-        return met.met();
-    }
-
-    private void turnTheHives() {
-        for (SimHives.LeftACell left : hives.turn()) {
-            Ball ball = (Ball) left.ball;
-            take(ball);
-            ball.where = Where.FLYING;
-            ball.x = left.at[0];
-            ball.y = left.at[1];
-            ball.z = left.at[2];
-            ball.vx = left.velocity[0];
-            ball.vy = left.velocity[1];
-            ball.vz = left.velocity[2];
-        }
-    }
-
-    private void land(Ball ball) {
-        ball.where = Where.ROLLING;
-        world.addBody(ball.body);
-        ball.body.getTransform().setTranslation(ball.x * IN, ball.y * IN);
-        ball.body.setLinearVelocity(new Vector2(ball.vx * IN, ball.vy * IN));
-        ball.body.setAngularVelocity(0);
-        ball.body.setAtRest(false);
-    }
-
-    private static double side(double[] normal, double[] point, double[] position) {
-        return (position[0] - point[0]) * normal[0]
-                + (position[1] - point[1]) * normal[1]
-                + (position[2] - point[2]) * normal[2];
-    }
-
-    private static double[] crossing(double[][] panel, double[] normal, double[] from, double[] to) {
-        double before = side(normal, panel[0], from);
-        double after = side(normal, panel[0], to);
-        if (before == 0 || (before > 0) == (after > 0)) {
-            return null;
-        }
-        double t = before / (before - after);
-        double[] hit = {
-            from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t
-        };
-
-        int drop = 0;
-        for (int axis = 1; axis < 3; axis++) {
-            if (Math.abs(normal[axis]) > Math.abs(normal[drop])) {
-                drop = axis;
-            }
-        }
-        int u = (drop + 1) % 3, v = (drop + 2) % 3;
-        boolean inside = false;
-        for (int i = 0, j = panel.length - 1; i < panel.length; j = i++) {
-            double[] a = panel[i], b = panel[j];
-            if ((a[v] > hit[v]) != (b[v] > hit[v]) && hit[u] < (b[u] - a[u]) * (hit[v] - a[v]) / (b[v] - a[v]) + a[u]) {
-                inside = !inside;
-            }
-        }
-        return inside ? hit : null;
     }
 
     private void readTheSensors(double dt) {

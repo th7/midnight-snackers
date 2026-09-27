@@ -1158,15 +1158,12 @@ no room, is a ball it pushes.
 The launcher is on the turntable, and its gates feed it as the robot
 code drives them: with the top gate open a ball drops from the hopper
 into the **chamber**, and with the bottom gate open the chambered ball
-drops into the flywheel and leaves at a speed set by the flywheel's, on
-an arc under gravity. A ball that goes in through an upturned cell's
-mouth rests in it, on the floor at the back; one that meets a wall or a
-back bounces off, whichever side it comes from; one that comes down on the
-floor rolls on; one that clears a
-wall is out. The model is planar apart from that flight and the flowers'
+drops into the flywheel and leaves at a speed set by the flywheel's, in
+**flight**. The model is planar apart from flight and the flowers'
 stacks: only the robot's footprint collides, nothing goes over a wall or
-under a hive by being low, and a flying ball meets only the hives, the floor
-and the walls. What a body on the floor meets is what it can **reach**: a
+under a hive by being low, and a ball in flight meets only the hives, the
+floor, the walls and the other balls in flight. What a body on the floor
+meets is what it can **reach**: a
 ball rolls under an obstacle whose underside clears it — a flower's pipes
 begin four inches up — and the robot, being eighteen inches tall, runs into
 the same obstacle. No
@@ -1181,6 +1178,24 @@ drops into the middle of the upturned cell's mouth, which a hive holds
 five feet up: the throw is a steep one. The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Class:
 `SimRobot`.
+
+**Flight** — A ball off the floor: launched, falling, or in or on a hive.
+It is a sphere under gravity, and it meets each part of a hive as the solid
+it is — a cell's walls and back as thin plates, from either side, and the
+tubes, rails and brackets the hive is built from as the solids the CAD
+draws — and the other balls in flight. What it meets hard (faster than the
+landing speed, 25 inches a second) it bounces off; anything slower it stops
+against. It grips and spins as a ball on the floor does, and rolls to a stop
+as one does, but only while it is touching something, so a launch flies the
+same arc it always did. So a ball that goes in through a cell's mouth
+bounces about and rolls down to rest at the back, and one that clips an edge
+— the rim of a mouth, the top of a wall — is turned aside by it. A ball
+that comes down on the floor slowly enough lands and rolls on, a faster one
+bounces first, and one that clears a wall is out. Whatever is at rest on a
+hive is left exactly where it is until something there moves — a ball
+arriving, or the hive tipping — so a ball at rest in a cell does not creep.
+A ball moves no more than a quarter of its radius at a time, so nothing
+passes through a plate. Class: `SimFlight`.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
 real robot does, drawn once per run from a **seed**: the same robot for
@@ -1284,32 +1299,45 @@ origin on the axle, +x along the beam toward the scoring cell with the
 beam level, +y the field's and +z up — and the **tilt** it leans at, in
 degrees above level, is all that says where that is on the field. The
 field is set up with the blue hive leaning 30 degrees toward its scoring
-cell and the red hive 30 degrees the other way; a hive that **tips**
-leans the same 30 degrees the other side of level. Class:
-`SimField.Hive`.
+cell and the red hive 30 degrees the other way; a hive that **tips** turns
+over to lean the same 30 degrees the other side of level. A tip takes a
+second: it starts from rest, is fastest as the hive passes level and comes
+to rest again, so it throws nothing, and whatever the hive touches it
+carries along as it turns. A hive finishes a tip before it can start
+another. Every tick says where each hive has got to, so a replay or a live
+view shows it turning. Class: `SimField.Hive`; `SimHives`.
 
 **Cell** — The basket at one end of a hive, which a launched ball scores
 in: the opening the CAD's goal ribs frame — the **mouth**, twenty inches
 across and fourteen high — swept twelve inches to the **back** that
 closes it, with a **wall** between every pair of the mouth's corners. A
-ball that crosses the mouth going in is in the cell; one that meets a
-wall or the back bounces off it, whichever side it comes from; nothing
-else leaves. Each hive has an **audience** cell and a **scoring** cell,
+ball whose centre is between the mouth, the back and the walls is in the
+cell. The mouth is open and the rest is solid, from either side, so what
+goes in stays in until the cell turns it out. Each hive has an **audience**
+cell and a **scoring** cell,
 named for the end of the field they face. Class: `SimField.Cell`.
 
 **Upturned** — Of a cell: its mouth faces up, so it holds what goes in,
 resting on the floor at the back. The cell at the other end of the same
 hive is **downturned**, mouth facing down, and whatever is in it rolls
 out of the mouth and falls to the floor — which is what a hive tipping
-does to the cell that goes under. One cell of each hive is upturned at a
-time, and that is the one an alliance can score in. Class:
-`SimField.Cell.upturnedAt`; `SimRobot.upturnedCell`.
+does to the cell that goes under. What is in that cell stays in it while
+its floor still slopes toward the back, and rolls out once the hive is
+past level and the floor slopes toward the mouth. One cell of each hive is
+upturned at a time, the one whose mouth faces higher, and that is the one
+an alliance can score in; as a tipping hive passes level it is the cell
+the hive is turning up. Class: `SimField.Cell.upturnedAt`;
+`SimHives.upturnedCell`.
 
-**Load** — How full a hive is, where one is full: a nectar is a fifth of
-it and a pollen an eighth, so five nectar fill a hive, or eight pollen, or
-a combination worth as much — the three nectar a hive is set up with are
-three fifths of it, and four pollen finish the job. A hive that is full
-tips, and tipping empties it. Method: `SimRobot.load`.
+**Load** — How full a hive is: what its upturned cell holds, where one is
+full: a nectar is a fifth of it and a pollen an eighth, so five nectar fill
+a hive, or eight pollen, or a combination worth as much — the three nectar
+a hive is set up with are three fifths of it, and four pollen finish the
+job. A hive that is full tips, and tipping empties it. What is still
+rolling out of the cell that went under is not the hive's load, being in a
+downturned cell, so it cannot tip the hive straight back. What a hive has
+**scored** is every ball in either of its cells. Method: `SimRobot.load`;
+`SimFlight.fill`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.
