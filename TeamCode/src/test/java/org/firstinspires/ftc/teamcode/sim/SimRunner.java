@@ -23,6 +23,18 @@ public final class SimRunner {
 
     public static final double LOOP_SECONDS = 0.02;
 
+    public static final class Meter {
+        long opModeNanos;
+        long tickNanos;
+        long physicsNanos;
+
+        private void measured(long opMode, long tick, long physics) {
+            opModeNanos += opMode;
+            tickNanos += tick;
+            physicsNanos += physics;
+        }
+    }
+
     private static final double DRAWING_PERIOD_SECONDS = 0.05;
 
     private SimRunner() {}
@@ -107,8 +119,20 @@ public final class SimRunner {
             Path outputDir,
             SimDriverStation driverStation,
             Pace pace) {
+        return record(recording, opMode, sim, seconds, outputDir, driverStation, pace, new Meter());
+    }
+
+    public static SimRecording record(
+            SimRecording recording,
+            OpMode opMode,
+            SimRobot sim,
+            double seconds,
+            Path outputDir,
+            SimDriverStation driverStation,
+            Pace pace,
+            Meter meter) {
         try {
-            loopUntilDone(opMode, sim, seconds, recording, driverStation, pace);
+            loopUntilDone(opMode, sim, seconds, recording, driverStation, pace, meter);
             recording.finish(SimRunStream.Outcome.done());
         } catch (RuntimeException | Error e) {
             recording.finish(SimRunStream.Outcome.failed(e));
@@ -143,7 +167,8 @@ public final class SimRunner {
             double seconds,
             SimRecording recording,
             SimDriverStation driverStation,
-            Pace pace) {
+            Pace pace,
+            Meter meter) {
         AutoOp auto = opMode instanceof AutoOp ? (AutoOp) opMode : null;
         opMode.useHardware(sim.hardware());
         opMode.telemetry = new FakeTelemetry();
@@ -175,8 +200,10 @@ public final class SimRunner {
                         seconds, auto.currentStep(), sim.pose()));
             }
 
+            long looping = System.nanoTime();
             SimDriverStation.Applied applied = driverStation.applyTo(opMode.gamepad1, opMode.gamepad2);
             opMode.loop();
+            long ticking = System.nanoTime();
 
             List<TelemetryPacket> allPackets = sim.dashboard.packets;
             List<TelemetryPacket> thisLoop = new ArrayList<>();
@@ -201,7 +228,9 @@ public final class SimRunner {
             }
             recording.add(tick.tick());
 
+            long stepping = System.nanoTime();
             sim.step(sim.noise().nextLoopSeconds());
+            meter.measured(ticking - looping, stepping - ticking, System.nanoTime() - stepping);
             if (pace == Pace.REAL_TIME) {
                 holdToRealTime(wallStartedAt + (sim.nanoTime() - startedAtNanos));
             }
