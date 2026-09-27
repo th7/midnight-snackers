@@ -1291,6 +1291,44 @@ public class CodingServerTest {
     }
 
     @Test
+    public void aPageAsksAboutTheAssetsAgainAndIsSentOnlyWhatChanged() throws IOException {
+        String cookie = approvedUser("mia");
+        Reply model = user("GET", "/sim/assets/field.glb", cookie);
+        Reply drawn = user("GET", "/sim/assets/field-default.js", cookie);
+        Reply bundle = user("GET", "/static/codemirror.js", cookie);
+
+        assertEquals(304, ifNoneMatch("/sim/assets/field.glb", cookie, model.header("ETag")).status);
+        assertEquals(304, ifNoneMatch("/sim/assets/field-default.js", cookie, drawn.header("ETag")).status);
+        assertEquals(304, ifNoneMatch("/static/codemirror.js", cookie, bundle.header("ETag")).status);
+
+        admin("POST", "/admin/assets/default?resolution=low");
+        Reply changed = ifNoneMatch("/sim/assets/field-default.js", cookie, drawn.header("ETag"));
+
+        assertEquals(200, changed.status);
+        assertEquals(FieldAssets.defaultResolutionModule(FieldAssets.Resolution.LOW), changed.body);
+        assertEquals(
+                "a session that is not approved is not told whether anything changed",
+                403,
+                ifNoneMatch("/sim/assets/field.glb", null, model.header("ETag")).status);
+    }
+
+    private Reply ifNoneMatch(String path, String cookie, String version) throws IOException {
+        HttpURLConnection connection =
+                (HttpURLConnection) new URL(server().userUrl() + path.substring(1)).openConnection();
+        if (cookie != null) {
+            connection.setRequestProperty("Cookie", cookie);
+        }
+        connection.setRequestProperty("If-None-Match", version);
+        int status = connection.getResponseCode();
+        try (InputStream in = status < 400 ? connection.getInputStream() : connection.getErrorStream()) {
+            return new Reply(
+                    status, in == null ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8), connection);
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    @Test
     public void whatThePagesDrawSurvivesARestart() throws IOException {
         String cookie = approvedUser("mia");
         admin("POST", "/admin/assets/default?resolution=medium");

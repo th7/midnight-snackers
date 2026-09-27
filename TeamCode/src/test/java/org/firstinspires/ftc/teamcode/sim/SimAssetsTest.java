@@ -62,6 +62,26 @@ public class SimAssetsTest {
     }
 
     @Test
+    public void everyAssetIsKeptByTheBrowserAndAskedAboutAgainRatherThanFetchedWithEveryPage() {
+        for (String name : List.of(
+                "field.glb", "fieldscene.js", "vendor/three.module.min.js", "textures/GoalAprilTag_bluescoring.png")) {
+            assertTrue(name, SimAssets.serve(name).revalidated);
+        }
+    }
+
+    @Test
+    public void anAssetServedFromADirectoryIsKeptByTheBrowserToo() {
+        java.nio.file.Path under = java.nio.file.Paths.get("/state/assets");
+        InMemoryStore store = new InMemoryStore()
+                .with(under.resolve("field-high.glb"), "fetched".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        Response response = SimAssets.serveUnder(under, store, "field-high.glb");
+
+        assertEquals(200, response.status);
+        assertTrue(response.revalidated);
+    }
+
+    @Test
     public void aNameNobodyHasIsNotFound() {
         assertEquals(404, SimAssets.serve("no-such-asset.glb").status);
     }

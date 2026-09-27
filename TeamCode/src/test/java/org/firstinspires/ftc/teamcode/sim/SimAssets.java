@@ -29,7 +29,7 @@ public final class SimAssets {
             return Response.error(404, "no such asset");
         }
         return store.readIfThere(under.resolve(name))
-                .map(body -> Response.bytes(type, body))
+                .map(body -> Response.bytes(type, body).revalidated())
                 .orElseGet(() -> Response.error(404, "no such asset"));
     }
 
@@ -45,7 +45,7 @@ public final class SimAssets {
         if (body == null) {
             return Response.error(404, "no such asset");
         }
-        return Response.bytes(type, body);
+        return Response.bytes(type, body).revalidated();
     }
 
     public static byte[] body(Response response) {
