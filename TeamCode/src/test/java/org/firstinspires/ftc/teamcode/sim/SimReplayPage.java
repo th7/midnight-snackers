@@ -93,7 +93,7 @@ public final class SimReplayPage {
                 .replace("__FIELD_IN__", String.valueOf(SimPlacement.FIELD_SIZE_IN))
                 .replace("__ROBOT_IN__", String.valueOf(SimPlacement.ROBOT_SIZE_IN))
                 .replace("__WALL_IN__", String.valueOf(SimPlacement.WALL_HEIGHT_IN))
-                .replace("__FIELD__", GSON.toJson(SimPlacement.FIELD.json()))
+                .replace("__FIELD__", GSON.toJson(SimPlacement.FIELD_JSON))
                 .replace("__DATA__", GSON.toJson(root));
     }
 

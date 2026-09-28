@@ -9,6 +9,8 @@ import static org.junit.Assert.assertTrue;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.junit.Test;
 
 public class SimFlightTest {
@@ -18,10 +20,10 @@ public class SimFlightTest {
     private static final double CONTACT = 0.1;
     private static final double STEP = 0.005;
 
-    private final SimField field = SimPlacement.FIELD;
+    private final Field field = SimPlacement.FIELD;
     private final SimHives hives = new SimHives(field);
     private final SimFlight flight = new SimFlight(field, hives);
-    private final SimField.Hive blue = hives.hiveOf("Blue");
+    private final Field.Hive blue = hives.hiveOf("Blue");
     private final List<SimFlight.Landing> landed = new ArrayList<>();
 
     private void fly(double seconds) {
@@ -30,22 +32,22 @@ public class SimFlightTest {
         }
     }
 
-    private Object drop(String kind, double radius, double[] at) {
+    private Object drop(Field.Kind kind, double radius, double[] at) {
         Object ball = new Object();
         flight.add(ball, kind, radius, at, new double[3]);
         return ball;
     }
 
-    private double[] aboveTheMouthOf(SimField.Cell cell, double height) {
-        double[] mouth = cell.mouthCentreAt(hives.tilt(cell.alliance));
+    private double[] aboveTheMouthOf(Field.Cell cell, double height) {
+        double[] mouth = Points.array(cell.mouthCentreAt(hives.tilt(cell.alliance())));
         return new double[] {mouth[0], mouth[1], mouth[2] + height};
     }
 
     @Test
     public void aBallDroppedIntoTheMouthOfAnUpturnedCellRollsDownToItsBackAndStaysThere() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
         double tilt = hives.tilt("Blue");
-        Object ball = drop(SimField.POLLEN, POLLEN, aboveTheMouthOf(cell, 10));
+        Object ball = drop(Field.Kind.POLLEN, POLLEN, aboveTheMouthOf(cell, 10));
 
         fly(3.0);
 
@@ -53,12 +55,11 @@ public class SimFlightTest {
         double[] at = flight.at(ball);
         assertSame("it is in the cell", cell, hives.cellHolding(at));
         assertEquals("and scores", 1, flight.scored("Blue"));
-        double[][] back = blue.at(tilt, cell.back);
+        double[][] back = at(tilt, Points.arrays(cell.back()));
         assertEquals(
-                "against its back", POLLEN, Math.abs(SimHivesTest.side(SimField.normal(back), back[0], at)), CONTACT);
-        double[][] floor = blue.at(tilt, floorOf(cell));
-        assertEquals(
-                "on its floor", POLLEN, Math.abs(SimHivesTest.side(SimField.normal(floor), floor[0], at)), CONTACT);
+                "against its back", POLLEN, Math.abs(SimHivesTest.side(Points.normal(back), back[0], at)), CONTACT);
+        double[][] floor = at(tilt, floorOf(cell));
+        assertEquals("on its floor", POLLEN, Math.abs(SimHivesTest.side(Points.normal(floor), floor[0], at)), CONTACT);
 
         fly(2.0);
 
@@ -67,9 +68,9 @@ public class SimFlightTest {
 
     @Test
     public void aBallFallingBesideACellIsKeptItsRadiusClearOfTheWallAndFallsOnPastIt() {
-        double[] onTheWall = blue.at(hives.tilt("Blue"), new double[] {15.45, 10.03, 2.8});
+        double[] onTheWall = Points.array(blue.at(hives.tilt("Blue"), new Vec3(15.45, 10.03, 2.8)));
         double wall = onTheWall[1];
-        drop(SimField.POLLEN, POLLEN, new double[] {onTheWall[0], wall + 0.7, onTheWall[2] + 15});
+        drop(Field.Kind.POLLEN, POLLEN, new double[] {onTheWall[0], wall + 0.7, onTheWall[2] + 15});
 
         fly(3.0);
 
@@ -81,12 +82,13 @@ public class SimFlightTest {
 
     @Test
     public void aBallThrownHardAtTheSideOfAHiveBouncesBackOffIt() {
-        double[] onTheWall = blue.at(hives.tilt("Blue"), new double[] {15.45, 10.03, 2.8});
+        double[] onTheWall = Points.array(blue.at(hives.tilt("Blue"), new Vec3(15.45, 10.03, 2.8)));
         double thrownFrom = onTheWall[1] + 6;
         Object ball = new Object();
-        flight.add(ball, SimField.POLLEN, POLLEN, new double[] {onTheWall[0], thrownFrom, onTheWall[2]}, new double[] {
-            0, -200, 0
-        });
+        flight.add(
+                ball, Field.Kind.POLLEN, POLLEN, new double[] {onTheWall[0], thrownFrom, onTheWall[2]}, new double[] {
+                    0, -200, 0
+                });
 
         fly(2.0);
 
@@ -96,11 +98,11 @@ public class SimFlightTest {
 
     @Test
     public void aBallThrownHarderThanAnyLaunchAtACellsWallDoesNotGoThroughIt() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
-        double[] onTheWall = blue.at(hives.tilt("Blue"), new double[] {15.45, 10.03, 2.8});
+        Field.Cell cell = hives.upturnedCell("Blue");
+        double[] onTheWall = Points.array(blue.at(hives.tilt("Blue"), new Vec3(15.45, 10.03, 2.8)));
         double wall = onTheWall[1];
         Object ball = new Object();
-        flight.add(ball, SimField.POLLEN, POLLEN, new double[] {onTheWall[0], wall + 6, onTheWall[2]}, new double[] {
+        flight.add(ball, Field.Kind.POLLEN, POLLEN, new double[] {onTheWall[0], wall + 6, onTheWall[2]}, new double[] {
             0, -400, 0
         });
 
@@ -118,7 +120,7 @@ public class SimFlightTest {
 
     @Test
     public void ballsDroppedIntoACellOneAfterAnotherComeToRestInItApartFromOneAnother() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
         double leaning = hives.tilt("Blue");
         List<Object> balls = new ArrayList<>();
         List<Double> radii = new ArrayList<>();
@@ -127,7 +129,7 @@ public class SimFlightTest {
             double radius = nectar ? NECTAR : POLLEN;
             double[] above = aboveTheMouthOf(cell, 10);
             above[1] += (i - 2.5) * 1.5;
-            balls.add(drop(nectar ? SimField.NECTAR : SimField.POLLEN, radius, above));
+            balls.add(drop(nectar ? Field.Kind.NECTAR : Field.Kind.POLLEN, radius, above));
             radii.add(radius);
             fly(0.4);
         }
@@ -152,12 +154,12 @@ public class SimFlightTest {
 
     @Test
     public void aBallPutInACellRestsInItBesideWhatIsAlreadyThere() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
         Object first = new Object();
         Object second = new Object();
 
-        flight.putIn(first, SimField.NECTAR, NECTAR, cell);
-        flight.putIn(second, SimField.POLLEN, POLLEN, cell);
+        flight.putIn(first, Field.Kind.NECTAR, NECTAR, cell);
+        flight.putIn(second, Field.Kind.POLLEN, POLLEN, cell);
 
         assertSame(cell, hives.cellHolding(flight.at(first)));
         assertSame(cell, hives.cellHolding(flight.at(second)));
@@ -168,11 +170,11 @@ public class SimFlightTest {
 
     @Test
     public void aHiveThatIsFullTipsAndWhatWasInItRollsOutThroughTheMouthAndLandsBelowIt() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
         double leaning = hives.tilt("Blue");
-        double mouthSide = Math.signum(cell.mouthCentreAt(leaning)[0]);
+        double mouthSide = Math.signum(Points.array(cell.mouthCentreAt(leaning))[0]);
         for (int i = 0; i < 5; i++) {
-            flight.putIn(new Object(), SimField.NECTAR, NECTAR, cell);
+            flight.putIn(new Object(), Field.Kind.NECTAR, NECTAR, cell);
         }
 
         fly(0.05);
@@ -196,9 +198,9 @@ public class SimFlightTest {
 
     @Test
     public void aBallThatHitsTheFloorFastBouncesAndOneThatComesDownSlowlyLandsWithTheSpeedItHadAlongIt() {
-        drop(SimField.POLLEN, POLLEN, new double[] {0, -60, 30});
+        drop(Field.Kind.POLLEN, POLLEN, new double[] {0, -60, 30});
         Object slow = new Object();
-        flight.add(slow, SimField.POLLEN, POLLEN, new double[] {10, -60, POLLEN + 0.2}, new double[] {30, 5, 0});
+        flight.add(slow, Field.Kind.POLLEN, POLLEN, new double[] {10, -60, POLLEN + 0.2}, new double[] {30, 5, 0});
 
         fly(0.1);
 
@@ -217,11 +219,11 @@ public class SimFlightTest {
     public void aBallThatMeetsTheFieldWallBelowItsTopBouncesBackAndOneThatClearsItIsOut() {
         double half = SimPlacement.FIELD_SIZE_IN / 2;
         Object low = new Object();
-        flight.add(low, SimField.POLLEN, POLLEN, new double[] {half - 10, 30, 3}, new double[] {200, 0, 0});
+        flight.add(low, Field.Kind.POLLEN, POLLEN, new double[] {half - 10, 30, 3}, new double[] {200, 0, 0});
         Object high = new Object();
         flight.add(
                 high,
-                SimField.POLLEN,
+                Field.Kind.POLLEN,
                 POLLEN,
                 new double[] {half - 10, -30, SimPlacement.WALL_HEIGHT_IN + 20},
                 new double[] {200, 0, 0});
@@ -254,7 +256,8 @@ public class SimFlightTest {
                 return super.loadClass(name, resolve);
             }
         }) {
-            Class<?> fieldClass = Class.forName(SimField.class.getName(), true, loader);
+            Class<?> fieldClass = Class.forName(Field.class.getName(), true, loader);
+            Class<?> kindClass = Class.forName(Field.Kind.class.getName(), true, loader);
             Class<?> hivesClass = Class.forName(SimHives.class.getName(), true, loader);
             Class<?> flightClass = Class.forName(SimFlight.class.getName(), true, loader);
             Object theirField = Class.forName(SimPlacement.class.getName(), true, loader)
@@ -265,8 +268,14 @@ public class SimFlightTest {
                     flightClass.getConstructor(fieldClass, hivesClass).newInstance(theirField, theirHives);
             Object ball = new Object();
             flightClass
-                    .getMethod("add", Object.class, String.class, double.class, double[].class, double[].class)
-                    .invoke(theirFlight, ball, SimField.POLLEN, POLLEN, new double[] {0, -60, 30}, new double[3]);
+                    .getMethod("add", Object.class, kindClass, double.class, double[].class, double[].class)
+                    .invoke(
+                            theirFlight,
+                            ball,
+                            kindClass.getField("POLLEN").get(null),
+                            POLLEN,
+                            new double[] {0, -60, 30},
+                            new double[3]);
 
             for (int i = 0; i < 10; i++) {
                 flightClass.getMethod("step", double.class).invoke(theirFlight, STEP);
@@ -277,10 +286,18 @@ public class SimFlightTest {
         }
     }
 
-    private static double[][] floorOf(SimField.Cell cell) {
+    private double[][] at(double tilt, double[][] ring) {
+        double[][] out = new double[ring.length][];
+        for (int i = 0; i < ring.length; i++) {
+            out[i] = Points.array(blue.at(tilt, Points.vec(ring[i])));
+        }
+        return out;
+    }
+
+    private static double[][] floorOf(Field.Cell cell) {
         double[][] lowest = null;
         double depth = Double.MAX_VALUE;
-        for (double[][] wall : cell.walls) {
+        for (double[][] wall : Points.arrays(cell.walls())) {
             double z = SimHivesTest.centreOf(wall)[2];
             if (z < depth) {
                 depth = z;

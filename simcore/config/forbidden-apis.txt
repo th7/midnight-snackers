@@ -157,7 +157,6 @@ java.lang.Double#parseDouble(java.lang.String)
 java.lang.Double#valueOf(java.lang.String)
 java.lang.Float#parseFloat(java.lang.String)
 java.lang.Float#valueOf(java.lang.String)
-java.lang.Enum#valueOf(java.lang.Class,java.lang.String)
 java.util.regex.**
 java.lang.String#matches(java.lang.String)
 java.lang.String#split(**)

@@ -13,6 +13,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.junit.Test;
 
 public class SimHivesTest {
@@ -20,13 +21,13 @@ public class SimHivesTest {
     private static final double POLLEN_RADIUS = 1.39;
     private static final double STEP = 0.01;
 
-    private final SimField field = SimPlacement.FIELD;
+    private final Field field = SimPlacement.FIELD;
     private final SimHives hives = new SimHives(field);
-    private final SimField.Hive blue = hives.hiveOf("Blue");
+    private final Field.Hive blue = hives.hiveOf("Blue");
 
     @Test
     public void aHiveStartsLeaningTheWayTheFieldIsSetUp() {
-        assertEquals(field.hive("Blue Hive <1>").tilt, hives.tilt("Blue"), DELTA);
+        assertEquals(field.hive("Blue Hive <1>").orElseThrow().tilt().degrees(), hives.tilt("Blue"), DELTA);
         assertEquals(30, Math.abs(hives.tilt("Blue")), DELTA);
         assertEquals(30, Math.abs(hives.tilt("Red")), DELTA);
         assertNotEquals(
@@ -37,18 +38,18 @@ public class SimHivesTest {
     @Test
     public void oneCellOfEachHiveIsUpturnedAndItIsTheOneThatCanBeScoredIn() {
         for (String alliance : List.of("Blue", "Red")) {
-            SimField.Cell up = hives.upturnedCell(alliance);
+            Field.Cell up = hives.upturnedCell(alliance);
             assertTrue(hives.upturned(up));
-            for (SimField.Cell cell : hives.hiveOf(alliance).cells) {
-                assertEquals(cell.name + " upturned?", cell == up, hives.upturned(cell));
+            for (Field.Cell cell : hives.hiveOf(alliance).cells()) {
+                assertEquals(cell.name() + " upturned?", cell == up, hives.upturned(cell));
             }
         }
     }
 
     @Test
     public void aNectarIsAFifthOfAHiveAndAPollenAnEighth() {
-        assertEquals(SimHives.FULL / 5, SimHives.fills(SimField.NECTAR));
-        assertEquals(SimHives.FULL / 8, SimHives.fills(SimField.POLLEN));
+        assertEquals(SimHives.FULL / 5, SimHives.fills(Field.Kind.NECTAR));
+        assertEquals(SimHives.FULL / 8, SimHives.fills(Field.Kind.POLLEN));
     }
 
     @Test
@@ -119,16 +120,23 @@ public class SimHivesTest {
 
     @Test
     public void whileAHiveTipsOneCellIsUpturnedAtEveryMomentAndItChangesAsTheHivePassesLevel() {
-        SimField.Cell was = hives.upturnedCell("Blue");
-        SimField.Cell other = blue.cells.get(0) == was ? blue.cells.get(1) : blue.cells.get(0);
+        Field.Cell was = hives.upturnedCell("Blue");
+        Field.Cell other =
+                blue.cells().get(0) == was ? blue.cells().get(1) : blue.cells().get(0);
         hives.tip(blue);
 
         for (double t = STEP; t < SimHives.TIP_SECONDS; t += STEP) {
             hives.advance(STEP);
-            SimField.Cell up = hives.upturnedCell("Blue");
+            Field.Cell up = hives.upturnedCell("Blue");
             assertSame(
                     "at " + hives.tilt("Blue") + " degrees",
-                    Math.signum(hives.tilt("Blue")) == Math.signum(field.hive("Blue Hive <1>").tilt) ? was : other,
+                    Math.signum(hives.tilt("Blue"))
+                                    == Math.signum(field.hive("Blue Hive <1>")
+                                            .orElseThrow()
+                                            .tilt()
+                                            .degrees())
+                            ? was
+                            : other,
                     up);
             assertTrue(hives.upturned(up) && !hives.upturned(up == was ? other : was));
         }
@@ -136,26 +144,26 @@ public class SimHivesTest {
 
     @Test
     public void aBallInsideACellAgainstItsBackIsPushedBackIntoTheCell() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
-        double[] inward = unit(sub(cell.mouthCentre, centreOf(cell.back)));
-        double[] local = along(centreOf(cell.back), inward, 1.0);
+        Field.Cell cell = hives.upturnedCell("Blue");
+        double[] inward = unit(sub(Points.array(cell.mouthCentre()), centreOf(Points.arrays(cell.back()))));
+        double[] local = along(centreOf(Points.arrays(cell.back())), inward, 1.0);
 
         List<SimHives.Touch> touches = hives.touching(inBlue(local), POLLEN_RADIUS);
 
         assertEquals("the back and nothing else", 1, touches.size());
         SimHives.Touch touch = touches.get(0);
         assertEquals(POLLEN_RADIUS - 1.0, touch.depth, DELTA);
-        assertVector("away from the back, toward the mouth", blue.direction(hives.tilt("Blue"), inward), touch.normal);
+        assertVector("away from the back, toward the mouth", direction(hives.tilt("Blue"), inward), touch.normal);
         assertVector("a hive at rest is still", new double[3], touch.velocity);
     }
 
     @Test
     public void theMouthOfACellIsOpen() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
 
         assertEquals(
                 0,
-                hives.touching(cell.mouthCentreAt(hives.tilt("Blue")), POLLEN_RADIUS)
+                hives.touching(Points.array(cell.mouthCentreAt(hives.tilt("Blue"))), POLLEN_RADIUS)
                         .size());
     }
 
@@ -185,7 +193,7 @@ public class SimHivesTest {
         assertEquals(POLLEN_RADIUS - Math.hypot(0.6, 0.6), touches.get(0).depth, 0.01);
         assertVector(
                 "from the edge to the ball, not square to the wall",
-                blue.direction(hives.tilt("Blue"), unit(new double[] {0.6, 0, -0.6})),
+                direction(hives.tilt("Blue"), unit(new double[] {0.6, 0, -0.6})),
                 touches.get(0).normal);
     }
 
@@ -197,7 +205,7 @@ public class SimHivesTest {
 
         assertEquals("the base tube, which nothing else is near", 1, touches.size());
         assertEquals(POLLEN_RADIUS - 1.0, touches.get(0).depth, DELTA);
-        assertVector(blue.direction(hives.tilt("Blue"), new double[] {0, 0, -1}), touches.get(0).normal);
+        assertVector(direction(hives.tilt("Blue"), new double[] {0, 0, -1}), touches.get(0).normal);
     }
 
     @Test
@@ -211,17 +219,17 @@ public class SimHivesTest {
 
     @Test
     public void whileAHiveTurnsWhereItTouchesABallMovesWithIt() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
-        double[] inward = unit(sub(cell.mouthCentre, centreOf(cell.back)));
-        double[] local = along(centreOf(cell.back), inward, 1.0);
+        Field.Cell cell = hives.upturnedCell("Blue");
+        double[] inward = unit(sub(Points.array(cell.mouthCentre()), centreOf(Points.arrays(cell.back()))));
+        double[] local = along(centreOf(Points.arrays(cell.back())), inward, 1.0);
         hives.tip(blue);
         hives.advance(SimHives.TIP_SECONDS / 2);
 
         double before = hives.tilt("Blue");
         SimHives.Touch touch = hives.touching(inBlue(local), POLLEN_RADIUS).get(0);
-        double[] touched = blue.at(before, centreOf(cell.back));
+        double[] touched = at(before, centreOf(Points.arrays(cell.back())));
         hives.advance(0.001);
-        double[] after = blue.at(hives.tilt("Blue"), centreOf(cell.back));
+        double[] after = at(hives.tilt("Blue"), centreOf(Points.arrays(cell.back())));
 
         assertVector(
                 "as fast as the hive moves that part of it",
@@ -233,28 +241,28 @@ public class SimHivesTest {
 
     @Test
     public void aPointIsInACellWhenItIsBetweenItsMouthItsBackAndItsWalls() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
         double tilt = hives.tilt("Blue");
-        double[] mouth = cell.mouthCentreAt(tilt);
-        double[] normal = cell.mouthNormalAt(tilt);
+        double[] mouth = Points.array(cell.mouthCentreAt(tilt));
+        double[] normal = Points.array(cell.mouthNormalAt(tilt));
 
-        assertSame(cell, hives.cellHolding(cell.centreAt(tilt)));
+        assertSame(cell, hives.cellHolding(Points.array(cell.centreAt(tilt))));
         assertSame("just inside the mouth", cell, hives.cellHolding(along(mouth, normal, -0.1)));
         assertNull("just outside it", hives.cellHolding(along(mouth, normal, 0.1)));
-        assertNull("between the two cells' backs", hives.cellHolding(blue.at(tilt, new double[] {0, 0, 4})));
+        assertNull("between the two cells' backs", hives.cellHolding(at(tilt, new double[] {0, 0, 4})));
         assertNull("above the roof", hives.cellHolding(inBlue(new double[] {15, 0, 13})));
     }
 
     @Test
     public void aCellsRestingSpotsAreInsideItOnItsFloorAgainstItsBackAndApart() {
-        SimField.Cell cell = hives.upturnedCell("Blue");
+        Field.Cell cell = hives.upturnedCell("Blue");
         double tilt = hives.tilt("Blue");
-        double[][] back = blue.at(tilt, cell.back);
-        double[] backNormal = SimField.normal(back);
+        double[][] back = at(tilt, Points.arrays(cell.back()));
+        double[] backNormal = Points.normal(back);
 
         List<double[]> spots = hives.restingSpots(cell, POLLEN_RADIUS);
 
-        assertTrue("room for a hive's worth", spots.size() >= SimHives.FULL / SimHives.fills(SimField.POLLEN));
+        assertTrue("room for a hive's worth", spots.size() >= SimHives.FULL / SimHives.fills(Field.Kind.POLLEN));
         double[] first = spots.get(0);
         assertSame(cell, hives.cellHolding(first));
         assertEquals("against the back", POLLEN_RADIUS, Math.abs(side(backNormal, back[0], first)), DELTA);
@@ -286,7 +294,7 @@ public class SimHivesTest {
             Class<?> placement = Class.forName(SimPlacement.class.getName(), true, loader);
             Object theirField = placement.getField("FIELD").get(null);
             Object theirHives = hivesClass
-                    .getConstructor(Class.forName(SimField.class.getName(), true, loader))
+                    .getConstructor(Class.forName(Field.class.getName(), true, loader))
                     .newInstance(theirField);
 
             double tilt = (double) hivesClass.getMethod("tilt", String.class).invoke(theirHives, "Blue");
@@ -312,8 +320,24 @@ public class SimHivesTest {
         }
     }
 
+    private double[] at(double tilt, double[] local) {
+        return Points.array(blue.at(tilt, Points.vec(local)));
+    }
+
+    private double[][] at(double tilt, double[][] ring) {
+        double[][] out = new double[ring.length][];
+        for (int i = 0; i < ring.length; i++) {
+            out[i] = at(tilt, ring[i]);
+        }
+        return out;
+    }
+
+    private double[] direction(double tilt, double[] local) {
+        return Points.array(blue.direction(tilt, Points.vec(local)));
+    }
+
     private double[] inBlue(double[] local) {
-        return blue.at(hives.tilt("Blue"), local);
+        return at(hives.tilt("Blue"), local);
     }
 
     private static void assertVector(double[] expected, double[] actual) {

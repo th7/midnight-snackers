@@ -2,22 +2,27 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Vector2d;
+import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.simcore.ConvexPolygon;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Placed;
 import org.firstinspires.ftc.teamcode.simcore.Placement;
 import org.firstinspires.ftc.teamcode.simcore.Pose;
-import org.firstinspires.ftc.teamcode.simcore.Vec2;
 
 public final class SimPlacement {
-    public static final SimField FIELD = SimField.load();
+    private static final SimField.Loaded SEASON = SimField.load();
 
-    public static final double FIELD_SIZE_IN = FIELD.size;
+    public static final Field FIELD = SEASON.field();
 
-    public static final double WALL_HEIGHT_IN = FIELD.wallHeight;
+    public static final JsonObject FIELD_JSON = SEASON.page();
+
+    public static final double FIELD_SIZE_IN = FIELD.size();
+
+    public static final double WALL_HEIGHT_IN = FIELD.wallHeight();
 
     public static final double ROBOT_SIZE_IN = 18;
 
@@ -32,14 +37,10 @@ public final class SimPlacement {
         return applied(candidate, PLACEMENT.clearOfTheObstacles(poseOf(candidate)));
     }
 
-    private static List<ConvexPolygon> obstaclesOf(SimField field) {
+    private static List<ConvexPolygon> obstaclesOf(Field field) {
         List<ConvexPolygon> obstacles = new ArrayList<>();
-        for (SimField.Obstacle obstacle : field.obstacles) {
-            List<Vec2> corners = new ArrayList<>();
-            for (double[] corner : obstacle.footprint) {
-                corners.add(new Vec2(corner[0], corner[1]));
-            }
-            obstacles.add(Valid.value(ConvexPolygon.of(corners)));
+        for (Field.Obstacle obstacle : field.obstacles()) {
+            obstacles.add(obstacle.footprint());
         }
         return obstacles;
     }

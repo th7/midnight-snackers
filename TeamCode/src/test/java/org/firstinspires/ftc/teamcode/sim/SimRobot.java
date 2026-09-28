@@ -38,10 +38,12 @@ import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
+import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Vec2;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class SimRobot {
-    public static final SimField FIELD = SimPlacement.FIELD;
+    public static final Field FIELD = SimPlacement.FIELD;
 
     public static final double BATTERY_VOLTS = SimDevices.BATTERY_VOLTS;
 
@@ -140,9 +142,9 @@ public class SimRobot {
 
     private Ball chambered = null;
 
-    private final Map<SimField.Flower, List<Ball>> inFlower = new LinkedHashMap<>();
+    private final Map<Field.Flower, List<Ball>> inFlower = new LinkedHashMap<>();
 
-    private final Map<SimField.Flower, Ball> offTheSeat = new LinkedHashMap<>();
+    private final Map<Field.Flower, Ball> offTheSeat = new LinkedHashMap<>();
 
     private final SimHives hives;
 
@@ -161,24 +163,24 @@ public class SimRobot {
     }
 
     public interface Piece {
-        String kind();
+        Field.Kind kind();
 
         double radius();
 
-        Optional<SimField.Piece> setUpFrom();
+        Optional<Field.Piece> setUpFrom();
     }
 
     private static final class Ball implements Piece {
         final double radius;
 
-        final String kind;
+        final Field.Kind kind;
 
-        SimField.Piece setUpFrom;
+        Field.Piece setUpFrom;
 
         final Body body;
 
         @Override
-        public String kind() {
+        public Field.Kind kind() {
             return kind;
         }
 
@@ -188,17 +190,17 @@ public class SimRobot {
         }
 
         @Override
-        public Optional<SimField.Piece> setUpFrom() {
+        public Optional<Field.Piece> setUpFrom() {
             return Optional.ofNullable(setUpFrom);
         }
 
         Where where;
 
-        SimField.Flower flower;
+        Field.Flower flower;
 
         double x, y, z, vx, vy, vz;
 
-        Ball(double radius, String kind, Body body) {
+        Ball(double radius, Field.Kind kind, Body body) {
             this.radius = radius;
             this.kind = kind;
             this.body = body;
@@ -270,7 +272,7 @@ public class SimRobot {
         world.addBody(wall(-reach, 0, WALL_THICKNESS_M, length));
         world.addBody(wall(0, reach, length, WALL_THICKNESS_M));
         world.addBody(wall(0, -reach, length, WALL_THICKNESS_M));
-        for (SimField.Obstacle obstacle : FIELD.obstacles) {
+        for (Field.Obstacle obstacle : FIELD.obstacles()) {
             world.addBody(obstacleBody(obstacle));
         }
 
@@ -289,24 +291,28 @@ public class SimRobot {
 
         hives = new SimHives(FIELD);
         flight = new SimFlight(FIELD, hives);
-        for (SimField.Flower flower : FIELD.flowers) {
+        for (Field.Flower flower : FIELD.flowers()) {
             inFlower.put(flower, new ArrayList<>());
         }
-        int loose = FIELD.loosePieces.size();
-        int inCells = loose + FIELD.cellPieces.size();
-        int held = inCells + FIELD.flowerPieces.size();
+        List<Field.Piece> moved = FIELD.movedPieces();
+        Field.Piece aLoosePollen = FIELD.loosePieces().get(0);
+        int held = moved.size();
         balls = new Ball[held + PRELOAD];
         for (int i = 0; i < balls.length; i++) {
-            SimField.Piece piece = i < held ? FIELD.movedPieces.get(i) : FIELD.loosePieces.get(0);
-            balls[i] = new Ball(piece.radius, piece.kind, ballBody(piece.radius));
+            Field.Piece piece = i < held ? moved.get(i) : aLoosePollen;
+            balls[i] = new Ball(piece.radius(), piece.kind(), ballBody(piece.radius()));
             balls[i].setUpFrom = i < held ? piece : null;
             ballBodies.add(balls[i].body);
-            if (i < loose) {
-                setDown(balls[i], piece.x, piece.y);
-            } else if (i < inCells) {
-                intoTheAir(balls[i], new double[] {piece.x, piece.y, piece.z}, new double[3]);
-            } else if (i < held) {
-                putInFlower(balls[i], FIELD.flower(piece.flower), piece.z);
+            Field.Place place = i < held ? piece.place() : null;
+            if (place instanceof Field.Place.Loose) {
+                setDown(balls[i], piece.at().x(), piece.at().y());
+            } else if (place instanceof Field.Place.InCell) {
+                intoTheAir(
+                        balls[i],
+                        new double[] {piece.at().x(), piece.at().y(), piece.at().z()},
+                        new double[3]);
+            } else if (place instanceof Field.Place.InFlower flowerPlace) {
+                putInFlower(balls[i], flowerPlace.flower(), piece.at().z());
             } else {
                 intoTheHopper(balls[i]);
             }
@@ -316,8 +322,8 @@ public class SimRobot {
 
     private static double largestBallRadius() {
         double largest = 0;
-        for (SimField.Piece piece : FIELD.movedPieces) {
-            largest = Math.max(largest, piece.radius);
+        for (Field.Piece piece : FIELD.movedPieces()) {
+            largest = Math.max(largest, piece.radius());
         }
         return largest;
     }
@@ -333,10 +339,11 @@ public class SimRobot {
         return wall;
     }
 
-    private static Body obstacleBody(SimField.Obstacle obstacle) {
-        Vector2[] points = new Vector2[obstacle.footprint.length];
+    private static Body obstacleBody(Field.Obstacle obstacle) {
+        List<Vec2> footprint = obstacle.footprint().corners();
+        Vector2[] points = new Vector2[footprint.size()];
         for (int i = 0; i < points.length; i++) {
-            points[i] = new Vector2(obstacle.footprint[i][0] * IN, obstacle.footprint[i][1] * IN);
+            points[i] = new Vector2(footprint.get(i).x() * IN, footprint.get(i).y() * IN);
         }
         Vector2[] hull = new GiftWrap().generate(points);
         Body body = new Body();
@@ -344,9 +351,9 @@ public class SimRobot {
             BodyFixture fixture = body.addFixture(Geometry.createPolygon(hull));
             fixture.setFriction(0);
             fixture.setRestitution(0);
-            fixture.setFilter(new Reaches(obstacle.clears, obstacle.stands));
+            fixture.setFilter(new Reaches(obstacle.clears(), obstacle.stands()));
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException(obstacle.name + " is not a convex footprint the engine can hold", e);
+            throw new IllegalStateException(obstacle.name() + " is not a convex footprint the engine can hold", e);
         }
         body.setMass(MassType.INFINITE);
         return body;
@@ -461,7 +468,7 @@ public class SimRobot {
         setDown((Ball) piece, x, y);
     }
 
-    public void place(Piece piece, SimField.Cell cell) {
+    public void place(Piece piece, Field.Cell cell) {
         putInCell((Ball) piece, cell);
     }
 
@@ -494,7 +501,7 @@ public class SimRobot {
         }
     }
 
-    private void putInCell(Ball ball, SimField.Cell cell) {
+    private void putInCell(Ball ball, Field.Cell cell) {
         take(ball);
         ball.where = Where.FLYING;
         flight.putIn(ball, ball.kind, ball.radius, cell);
@@ -506,12 +513,12 @@ public class SimRobot {
         flight.add(ball, ball.kind, ball.radius, at, velocity);
     }
 
-    private void putInFlower(Ball ball, SimField.Flower flower, double z) {
+    private void putInFlower(Ball ball, Field.Flower flower, double z) {
         take(ball);
         ball.where = Where.IN_FLOWER;
         ball.flower = flower;
-        ball.x = flower.axis[0];
-        ball.y = flower.axis[1];
+        ball.x = flower.axis().x();
+        ball.y = flower.axis().y();
         ball.z = z;
         ball.vx = ball.vy = ball.vz = 0;
         List<Ball> stack = inFlower.get(flower);
@@ -523,7 +530,7 @@ public class SimRobot {
     }
 
     private void restTheFlowers() {
-        for (SimField.Flower flower : FIELD.flowers) {
+        for (Field.Flower flower : FIELD.flowers()) {
             double under = topOfTheBore(flower);
             for (Ball ball : new ArrayList<>(inFlower.get(flower))) {
                 ball.z = under + ball.radius;
@@ -534,7 +541,7 @@ public class SimRobot {
     }
 
     private void fallInTheFlowers(double dt) {
-        for (SimField.Flower flower : FIELD.flowers) {
+        for (Field.Flower flower : FIELD.flowers()) {
             double under = topOfTheBore(flower);
             for (Ball ball : new ArrayList<>(inFlower.get(flower))) {
                 double resting = under + ball.radius;
@@ -551,15 +558,15 @@ public class SimRobot {
         }
     }
 
-    private double settled(Ball ball, SimField.Flower flower) {
-        if (ball.vz == 0 && ball.z + ball.radius <= flower.lip) {
-            setDown(ball, flower.axis[0], flower.axis[1]);
+    private double settled(Ball ball, Field.Flower flower) {
+        if (ball.vz == 0 && ball.z + ball.radius <= flower.lip()) {
+            setDown(ball, flower.axis().x(), flower.axis().y());
         }
         return ball.z + ball.radius;
     }
 
     private void holdTheNests(double dt) {
-        for (SimField.Flower flower : FIELD.flowers) {
+        for (Field.Flower flower : FIELD.flowers()) {
             Ball nested = nestedIn(flower);
             if (nested == null) {
                 offTheSeat.remove(flower);
@@ -576,11 +583,11 @@ public class SimRobot {
                 offTheSeat.remove(flower);
             }
             Transform at = nested.body.getTransform();
-            double toTheAxis = flower.axis[0] - at.getTranslationX() / IN;
-            double acrossToIt = flower.axis[1] - at.getTranslationY() / IN;
+            double toTheAxis = flower.axis().x() - at.getTranslationX() / IN;
+            double acrossToIt = flower.axis().y() - at.getTranslationY() / IN;
             double out = Math.hypot(toTheAxis, acrossToIt);
             if (out > CONTACT_TOLERANCE_IN) {
-                double hold = overTheRing(flower, nested) * Math.min(1, out / flower.bore);
+                double hold = overTheRing(flower, nested) * Math.min(1, out / flower.bore());
                 nested.body.applyForce(new Vector2(hold * toTheAxis / out, hold * acrossToIt / out));
             }
             Vector2 rolling = nested.body.getLinearVelocity();
@@ -593,7 +600,7 @@ public class SimRobot {
         }
     }
 
-    private Ball nestedIn(SimField.Flower flower) {
+    private Ball nestedIn(Field.Flower flower) {
         Ball nested = null;
         double nearest = Double.MAX_VALUE;
         for (Ball ball : balls) {
@@ -605,7 +612,7 @@ public class SimRobot {
             if (!flower.standsIn(x, y)) {
                 continue;
             }
-            double out = Math.hypot(x - flower.axis[0], y - flower.axis[1]);
+            double out = Math.hypot(x - flower.axis().x(), y - flower.axis().y());
             if (out < nearest) {
                 nearest = out;
                 nested = ball;
@@ -631,17 +638,17 @@ public class SimRobot {
         return false;
     }
 
-    private double loadOn(SimField.Flower flower) {
+    private double loadOn(Field.Flower flower) {
         return (1 + inFlower.get(flower).size()) * BALL_MASS_KG * GRAVITY_IN_PER_S2 * IN;
     }
 
-    private double overTheRing(SimField.Flower flower, Ball ball) {
+    private double overTheRing(Field.Flower flower, Ball ball) {
         return loadOn(flower)
-                * Math.sqrt(2 * ball.radius * flower.nest - flower.nest * flower.nest)
-                / (ball.radius - flower.nest);
+                * Math.sqrt(2 * ball.radius * flower.nest() - flower.nest() * flower.nest())
+                / (ball.radius - flower.nest());
     }
 
-    private double topOfTheBore(SimField.Flower flower) {
+    private double topOfTheBore(Field.Flower flower) {
         double top = 0;
         for (Ball ball : balls) {
             if (ball.where != Where.ROLLING) {
@@ -679,11 +686,11 @@ public class SimRobot {
         return hives.tilts();
     }
 
-    public SimField.Cell upturnedCell(String alliance) {
+    public Field.Cell upturnedCell(String alliance) {
         return hives.upturnedCell(alliance);
     }
 
-    public SimField.Hive hiveOf(String alliance) {
+    public Field.Hive hiveOf(String alliance) {
         return hives.hiveOf(alliance);
     }
 
@@ -793,7 +800,7 @@ public class SimRobot {
             if (held() >= HOLDS) {
                 return;
             }
-            if (ball.where == Where.ROLLING && SimField.POLLEN.equals(ball.kind) && againstTheFront(ball)) {
+            if (ball.where == Where.ROLLING && ball.kind == Field.Kind.POLLEN && againstTheFront(ball)) {
                 intoTheHopper(ball);
             }
         }
