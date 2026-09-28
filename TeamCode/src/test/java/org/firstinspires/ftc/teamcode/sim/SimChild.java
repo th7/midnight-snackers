@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
+import org.firstinspires.ftc.teamcode.simcore.Noise;
 
 public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
@@ -81,8 +82,8 @@ public final class SimChild {
             return recording.outcome();
         }
         Long seed = driverStation.seed();
-        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : SimNoise.seeded(seed));
-        System.err.println("Robot: " + sim.noise());
+        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : Noise.seeded(seed));
+        System.err.println("Robot: " + SimNoise.described(sim.noise()));
         sim.setDown(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);

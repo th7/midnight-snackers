@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ChattyAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -293,7 +294,7 @@ public class SimChildTest {
         JsonObject first = new Gson().fromJson(output.stdout.get(2), JsonObject.class);
         double dx = first.get("x").getAsDouble() + 60, dy = first.get("y").getAsDouble() - 12;
         assertTrue("set down near the pose: " + first, Math.hypot(dx, dy) > 0.01 && Math.hypot(dx, dy) < 3);
-        assertTrue(output.stderr, output.stderr.contains(SimNoise.seeded(7).toString()));
+        assertTrue(output.stderr, output.stderr.contains(SimNoise.described(Noise.seeded(7))));
     }
 
     @Test

@@ -9,6 +9,9 @@ import org.firstinspires.ftc.teamcode.Localizer;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.Traction;
+import org.firstinspires.ftc.teamcode.simcore.Wheel;
 import org.junit.Test;
 
 public class SimRobotNoiseTest {
@@ -20,16 +23,16 @@ public class SimRobotNoiseTest {
 
     @Test
     public void weakerMotorsDriveSlower() {
-        SimRobot sim = new SimRobot(SimNoise.NONE.withMotors(new SimNoise.Motor(1, 1.1, 1)));
+        SimRobot sim = new SimRobot(SimNoise.NONE.withMotors(motor(1, 1.1, 1)));
 
         assertEquals(MAX_SPEED_IN_PER_S / 1.1, freeSpeed(sim), 0.03 * MAX_SPEED_IN_PER_S);
     }
 
     @Test
     public void aWeakerRightSideTurnsTheRobotRightUnderEqualPower() {
-        SimNoise.Motor weaker = new SimNoise.Motor(1, 1.15, 1);
-        SimRobot sim = new SimRobot(
-                SimNoise.NONE.withMotor(SimNoise.RIGHT_FRONT, weaker).withMotor(SimNoise.RIGHT_BACK, weaker));
+        Noise.Motor weaker = motor(1, 1.15, 1);
+        SimRobot sim =
+                new SimRobot(SimNoise.NONE.withMotor(Wheel.RIGHT_FRONT, weaker).withMotor(Wheel.RIGHT_BACK, weaker));
         robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
 
@@ -42,7 +45,7 @@ public class SimRobotNoiseTest {
 
     @Test
     public void theBatteryReadsFreshThenSagsUnderLoadAndDrainsWithTime() {
-        SimRobot sim = new SimRobot(SimNoise.NONE.withBattery(new SimNoise.Battery(13.8, 0.2, 0.004)));
+        SimRobot sim = new SimRobot(SimNoise.NONE.withBattery(Valid.value(Noise.Battery.of(13.8, 0.2, 0.004))));
         robotDrive(sim, robotLocalizer(sim));
 
         assertEquals(13.8, sim.voltageSensor.getVoltage(), 1e-9);
@@ -58,7 +61,7 @@ public class SimRobotNoiseTest {
 
     @Test
     public void aFresherBatteryDrivesFaster() {
-        SimRobot fresh = new SimRobot(SimNoise.NONE.withBattery(new SimNoise.Battery(13.8, 0, 0)));
+        SimRobot fresh = new SimRobot(SimNoise.NONE.withBattery(Valid.value(Noise.Battery.of(13.8, 0, 0))));
 
         double expected = (13.8 - MecanumDrive.PARAMS.kSVolts)
                 / MecanumDrive.PARAMS.kVVoltSecondsPerTick
@@ -70,7 +73,7 @@ public class SimRobotNoiseTest {
     @Test
     public void aWheelCannotAccelerateTheRobotHarderThanTraction() {
         double traction = 40;
-        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction));
+        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction(traction)));
         robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
 
@@ -85,7 +88,7 @@ public class SimRobotNoiseTest {
     @Test
     public void aWheelCannotBrakeTheRobotHarderThanTractionEither() {
         double traction = 40;
-        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction));
+        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction(traction)));
         robotDrive(sim, robotLocalizer(sim));
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
@@ -101,7 +104,7 @@ public class SimRobotNoiseTest {
 
     @Test
     public void theDeadWheelsReadTheTrueMotionEvenWhileTheWheelsSlip() {
-        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(40));
+        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction(40)));
         Localizer localizer = robotLocalizer(sim);
         MecanumDrive drive = robotDrive(sim, localizer);
         localizer.update();
@@ -132,28 +135,36 @@ public class SimRobotNoiseTest {
 
     @Test
     public void withNoiseSettingDownIsNearThePoseAndTheSameForTheSameSeed() {
-        SimRobot sim = new SimRobot(SimNoise.seeded(11));
-        SimRobot again = new SimRobot(SimNoise.seeded(11));
+        SimRobot sim = new SimRobot(Noise.seeded(11));
+        SimRobot again = new SimRobot(Noise.seeded(11));
 
         sim.setDown(new Pose2d(-56, -12, 0.3));
         again.setDown(new Pose2d(-56, -12, 0.3));
 
         assertNotEquals(-56, sim.pose().position.x, 1e-6);
-        assertEquals(-56, sim.pose().position.x, 5 * SimNoise.PLACEMENT_INCHES);
-        assertEquals(-12, sim.pose().position.y, 5 * SimNoise.PLACEMENT_INCHES);
-        assertEquals(0.3, sim.pose().heading.toDouble(), 5 * SimNoise.PLACEMENT_RADIANS);
+        assertEquals(-56, sim.pose().position.x, 5 * Noise.SET_DOWN_INCHES);
+        assertEquals(-12, sim.pose().position.y, 5 * Noise.SET_DOWN_INCHES);
+        assertEquals(0.3, sim.pose().heading.toDouble(), 5 * Noise.SET_DOWN_RADIANS);
         assertEquals(sim.pose(), again.pose());
         assertEquals("the IMU reads where it really is", sim.pose().heading.toDouble(), sim.imu.yawRadians, 0);
     }
 
     @Test
     public void aRobotSetDownBeyondAWallIsSetDownAgainstIt() {
-        SimRobot sim = new SimRobot(SimNoise.seeded(12));
+        SimRobot sim = new SimRobot(Noise.seeded(12));
 
         sim.setDown(new Pose2d(SimPlacement.FIELD_SIZE_IN, 0, 0));
 
         assertEquals(SimPlacement.onTheField(sim.pose()), sim.pose());
         assertTrue(sim.pose().position.x < SimPlacement.FIELD_SIZE_IN / 2);
+    }
+
+    private static Noise.Motor motor(double kSVolts, double kVVoltSecondsPerTick, double kAVoltSecondsSquaredPerTick) {
+        return Valid.value(Noise.Motor.of(kSVolts, kVVoltSecondsPerTick, kAVoltSecondsSquaredPerTick));
+    }
+
+    private static Traction traction(double inPerS2) {
+        return Valid.value(Traction.of(inPerS2));
     }
 
     private static double freeSpeed(SimRobot sim) {

@@ -33,6 +33,14 @@ public final class Heading {
         return sin;
     }
 
+    public Vec2 onTheRobot(Vec2 onTheField) {
+        return new Vec2(cos * onTheField.x() + sin * onTheField.y(), -sin * onTheField.x() + cos * onTheField.y());
+    }
+
+    public Vec2 onTheField(Vec2 onTheRobot) {
+        return new Vec2(cos * onTheRobot.x() - sin * onTheRobot.y(), sin * onTheRobot.x() + cos * onTheRobot.y());
+    }
+
     @Override
     public boolean equals(Object other) {
         return other instanceof Heading that

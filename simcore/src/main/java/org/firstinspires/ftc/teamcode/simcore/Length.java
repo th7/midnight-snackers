@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 public final class Length {
+    public static final double METRES_PER_INCH = 0.0254;
+
     private final double inches;
 
     private Length(double inches) {

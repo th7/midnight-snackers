@@ -5,6 +5,7 @@ import com.acmerobotics.roadrunner.Vector2d;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.ConvexPolygon;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
@@ -24,7 +25,7 @@ public final class SimPlacement {
 
     public static final double WALL_HEIGHT_IN = FIELD.wallHeight();
 
-    public static final double ROBOT_SIZE_IN = 18;
+    public static final double ROBOT_SIZE_IN = Chassis.SIZE_IN;
 
     private static final Placement PLACEMENT = new Placement(
             Valid.value(Length.of(FIELD_SIZE_IN)), Valid.value(Length.of(ROBOT_SIZE_IN)), obstaclesOf(FIELD));
