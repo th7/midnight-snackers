@@ -1210,7 +1210,7 @@ bounces first, and one that clears a wall is out. Whatever is at rest on a
 hive is left exactly where it is until something there moves — a ball
 arriving, or the hive tipping — so a ball at rest in a cell does not creep.
 A ball moves no more than a quarter of its radius at a time, so nothing
-passes through a plate. Class: `SimFlight`.
+passes through a plate. Class: `Flight`, in the **core**.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
 real robot does, drawn once per run from a **seed**: the same robot for
@@ -1320,7 +1320,7 @@ second: it starts from rest, is fastest as the hive passes level and comes
 to rest again, so it throws nothing, and whatever the hive touches it
 carries along as it turns. A hive finishes a tip before it can start
 another. Every tick says where each hive has got to, so a replay or a live
-view shows it turning. Class: `Field.Hive`; `SimHives`.
+view shows it turning. Classes: `Field.Hive`; `Hives`; `Lean`, in the **core**.
 
 **Cell** — The basket at one end of a hive, which a launched ball scores
 in: the opening the CAD's goal ribs frame — the **mouth**, twenty inches
@@ -1342,7 +1342,7 @@ past level and the floor slopes toward the mouth. One cell of each hive is
 upturned at a time, the one whose mouth faces higher, and that is the one
 an alliance can score in; as a tipping hive passes level it is the cell
 the hive is turning up. Class: `Field.Cell.upturnedAt`;
-`SimHives.upturnedCell`.
+`Hives.upturnedCell`.
 
 **Load** — How full a hive is: what its upturned cell holds, where one is
 full: a nectar is a fifth of it and a pollen an eighth, so five nectar fill
@@ -1352,7 +1352,7 @@ job. A hive that is full tips, and tipping empties it. What is still
 rolling out of the cell that went under is not the hive's load, being in a
 downturned cell, so it cannot tip the hive straight back. What a hive has
 **scored** is every ball in either of its cells. Method: `SimRobot.load`;
-`SimFlight.fill`.
+`Flight.fill`.
 
 **True pose** — Where the simulated robot actually is, as opposed to where
 the localizer believes it is.

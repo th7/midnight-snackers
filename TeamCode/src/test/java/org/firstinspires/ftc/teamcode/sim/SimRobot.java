@@ -39,6 +39,10 @@ import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Flight;
+import org.firstinspires.ftc.teamcode.simcore.Hives;
+import org.firstinspires.ftc.teamcode.simcore.Length;
+import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
@@ -69,19 +73,19 @@ public class SimRobot {
 
     private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
 
-    private static final double ROLL_SECONDS = SimFlight.ROLL_SECONDS;
+    private static final double ROLL_SECONDS = Flight.ROLL_SECONDS;
 
-    private static final double REST_SPEED_IN_PER_S = SimFlight.REST_SPEED_IN_PER_S;
+    private static final double REST_SPEED_IN_PER_S = Flight.REST_SPEED_IN_PER_S;
 
-    private static final double BOUNCE = SimFlight.BOUNCE;
+    private static final double BOUNCE = Flight.BOUNCE;
 
-    private static final double BALL_FRICTION = SimFlight.FRICTION;
+    private static final double BALL_FRICTION = Flight.FRICTION;
 
-    private static final double GRAVITY_IN_PER_S2 = SimFlight.GRAVITY_IN_PER_S2;
+    private static final double GRAVITY_IN_PER_S2 = Flight.GRAVITY_IN_PER_S2;
 
     private static final double NEST_FRICTION = 0.5;
 
-    private static final double LANDING_SPEED_IN_PER_S = SimFlight.LANDING_SPEED_IN_PER_S;
+    private static final double LANDING_SPEED_IN_PER_S = Flight.LANDING_SPEED_IN_PER_S;
 
     private static final double TOP_GATE_OPENS_AT = 0.8;
 
@@ -146,9 +150,7 @@ public class SimRobot {
 
     private final Map<Field.Flower, Ball> offTheSeat = new LinkedHashMap<>();
 
-    private final SimHives hives;
-
-    private final SimFlight flight;
+    private Flight<Ball> flight;
 
     private enum Where {
         ROLLING,
@@ -200,8 +202,11 @@ public class SimRobot {
 
         double x, y, z, vx, vy, vz;
 
+        final Length length;
+
         Ball(double radius, Field.Kind kind, Body body) {
             this.radius = radius;
+            this.length = Valid.value(Length.of(radius));
             this.kind = kind;
             this.body = body;
         }
@@ -289,8 +294,7 @@ public class SimRobot {
         robot.setAngularDamping(0);
         world.addBody(robot);
 
-        hives = new SimHives(FIELD);
-        flight = new SimFlight(FIELD, hives);
+        flight = Flight.over(Hives.of(FIELD));
         for (Field.Flower flower : FIELD.flowers()) {
             inFlower.put(flower, new ArrayList<>());
         }
@@ -428,7 +432,7 @@ public class SimRobot {
                     out[i] = null;
                     break;
                 case FLYING:
-                    out[i] = flight.at(ball);
+                    out[i] = Points.array(flight.at(ball).orElseThrow());
                     break;
                 default:
                     out[i] = new double[] {ball.x, ball.y, ball.z};
@@ -493,7 +497,7 @@ public class SimRobot {
             world.removeBody(ball.body);
         }
         if (ball.where == Where.FLYING) {
-            flight.remove(ball);
+            flight = flight.without(ball);
         }
         if (ball.where == Where.IN_FLOWER) {
             inFlower.get(ball.flower).remove(ball);
@@ -504,13 +508,13 @@ public class SimRobot {
     private void putInCell(Ball ball, Field.Cell cell) {
         take(ball);
         ball.where = Where.FLYING;
-        flight.putIn(ball, ball.kind, ball.radius, cell);
+        flight = Valid.value(flight.within(ball, ball.kind, ball.length, cell));
     }
 
     private void intoTheAir(Ball ball, double[] at, double[] velocity) {
         take(ball);
         ball.where = Where.FLYING;
-        flight.add(ball, ball.kind, ball.radius, at, velocity);
+        flight = flight.with(ball, ball.kind, ball.length, Points.vec(at), Points.vec(velocity));
     }
 
     private void putInFlower(Ball ball, Field.Flower flower, double z) {
@@ -675,23 +679,25 @@ public class SimRobot {
     }
 
     public double load(String alliance) {
-        return flight.load(alliance);
+        return flight.load(alliance).orElseThrow(() -> new IllegalArgumentException("no hive for " + alliance));
     }
 
     public double tilt(String alliance) {
-        return hives.tilt(alliance);
+        return flight.hives().tilt(hiveOf(alliance));
     }
 
     public Map<String, Double> tilt() {
-        return hives.tilts();
+        return flight.hives().tilts();
     }
 
     public Field.Cell upturnedCell(String alliance) {
-        return hives.upturnedCell(alliance);
+        return flight.hives().upturnedCell(hiveOf(alliance)).orElseThrow();
     }
 
     public Field.Hive hiveOf(String alliance) {
-        return hives.hiveOf(alliance);
+        return flight.hives()
+                .hiveOf(alliance)
+                .orElseThrow(() -> new IllegalArgumentException("no hive for " + alliance));
     }
 
     public void step(double dtSeconds) {
@@ -859,19 +865,24 @@ public class SimRobot {
     }
 
     private void flyTheBalls(double dt) {
-        for (SimFlight.Landing landing : flight.step(dt)) {
-            Ball ball = (Ball) landing.ball;
-            if (landing.out) {
+        Flight.Stepped<Ball> stepped = flight.step(Valid.value(Seconds.of(dt)));
+        flight = stepped.flight();
+        for (Flight.Landing<Ball> landing : stepped.landings()) {
+            Ball ball = landing.ball();
+            if (!(landing instanceof Flight.OnTheFloor<Ball> floor)) {
                 ball.where = Where.OUT;
-                ball.x = landing.at[0];
-                ball.y = landing.at[1];
-                ball.z = landing.at[2];
+                ball.x = landing.at().x();
+                ball.y = landing.at().y();
+                ball.z = landing.at().z();
                 continue;
             }
             ball.where = Where.ROLLING;
             world.addBody(ball.body);
-            ball.body.getTransform().setTranslation(landing.at[0] * IN, landing.at[1] * IN);
-            ball.body.setLinearVelocity(new Vector2(landing.velocity[0] * IN, landing.velocity[1] * IN));
+            ball.body
+                    .getTransform()
+                    .setTranslation(floor.at().x() * IN, floor.at().y() * IN);
+            ball.body.setLinearVelocity(
+                    new Vector2(floor.velocity().x() * IN, floor.velocity().y() * IN));
             ball.body.setAngularVelocity(0);
             ball.body.setAtRest(false);
         }

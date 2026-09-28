@@ -16,6 +16,10 @@ public final class Tilt {
         return Checked.ok(new Tilt(degrees));
     }
 
+    public Tilt opposite() {
+        return new Tilt(-degrees);
+    }
+
     public double degrees() {
         return degrees;
     }
