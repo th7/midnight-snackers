@@ -7,7 +7,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -371,16 +370,6 @@ public final class SimBench {
         this.children = children;
         this.clock = clock;
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
-    }
-
-    private static SimBuild buildOf(Path project, Path outputDir) {
-        Path harnessRoot = project.resolve("TeamCode/src/test/java");
-        Path child = harnessRoot.resolve(SimChild.class.getName().replace('.', '/') + ".java");
-        if (!Files.isRegularFile(child)) {
-            throw new IllegalArgumentException("no simulator in " + project + ": " + child
-                    + " is missing, and the child would run this server's simulator instead of the project's own");
-        }
-        return new SimBuild(project.resolve("TeamCode/src/main/java"), harnessRoot, outputDir.resolve("classes"));
     }
 
     public SimCatalog catalog() {

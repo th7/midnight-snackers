@@ -1,0 +1,114 @@
+plugins {
+    id 'java-library'
+    id 'pmd'
+    id 'com.diffplug.spotless'
+    id 'net.ltgt.errorprone'
+    id 'de.thetaphi.forbiddenapis'
+}
+
+def corePackage = 'org.firstinspires.ftc.teamcode.simcore'
+
+def errorProneVersion = '2.50.0'
+def nullAwayVersion = '0.14.2'
+def pmdVersion = '7.28.0'
+
+def javacChecks = ['-Xlint:all', '-Werror']
+def errorProneChecks = [
+    '-Xep:NullAway:ERROR',
+    "-XepOpt:NullAway:AnnotatedPackages=${corePackage}".toString(),
+    '-XepOpt:NullAway:JSpecifyMode=true',
+    '-Xep:NonFinalStaticField:ERROR',
+]
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    errorprone "com.google.errorprone:error_prone_core:${errorProneVersion}"
+    errorprone "com.uber.nullaway:nullaway:${nullAwayVersion}"
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "net.sourceforge.pmd:pmd-java:${pmdVersion}"
+    testImplementation "de.thetaphi:forbiddenapis:${forbiddenApisVersion}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += javacChecks
+    options.errorprone.errorproneArgs.addAll(errorProneChecks)
+}
+
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
+}
+
+pmd {
+    toolVersion = pmdVersion
+    ruleSets = []
+    ruleSetFiles = files('config/pmd-total.xml')
+    consoleOutput = true
+}
+tasks.named('pmdTest') { enabled = false }
+
+forbiddenApis {
+    bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-internal', 'jdk-non-portable', 'jdk-reflection']
+    signaturesFiles = files('config/forbidden-apis.txt')
+}
+tasks.named('forbiddenApisTest') { enabled = false }
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        palantirJavaFormat(palantirJavaFormatVersion)
+        removeUnusedImports()
+    }
+}
+
+tasks.named('test') {
+    def compileJava = tasks.named('compileJava', JavaCompile)
+    def pmdMain = tasks.named('pmdMain', Pmd)
+    def forbiddenApisMain = tasks.named('forbiddenApisMain')
+    inputs.files(compileJava.map { it.options.annotationProcessorPath })
+            .withPropertyName('errorProne').withNormalizer(ClasspathNormalizer)
+    inputs.files('config').withPropertyName('gateConfig')
+    jvmArgs(['api', 'code', 'comp', 'file', 'main', 'model', 'parser', 'processing', 'tree', 'util'].collect {
+        "--add-exports=jdk.compiler/com.sun.tools.javac.${it}=ALL-UNNAMED".toString()
+    } + ['code', 'comp'].collect {
+        "--add-opens=jdk.compiler/com.sun.tools.javac.${it}=ALL-UNNAMED".toString()
+    })
+    systemProperty 'gates.corePackage', corePackage
+    doFirst {
+        def javac = compileJava.get()
+        systemProperty 'gates.javac.args', javac.options.allCompilerArgs.join('\n')
+        systemProperty 'gates.javac.release', javac.options.release.get().toString()
+        systemProperty 'gates.javac.classpath', javac.classpath.asPath
+        systemProperty 'gates.javac.processorPath', javac.options.annotationProcessorPath.asPath
+        def pmd = pmdMain.get()
+        systemProperty 'gates.pmd.ruleSetFiles', pmd.ruleSetFiles.files*.absolutePath.join('\n')
+        systemProperty 'gates.pmd.ruleSets', pmd.ruleSets.join('\n')
+        systemProperty 'gates.pmd.ignoreFailures', pmd.ignoreFailures.toString()
+        systemProperty 'gates.pmd.minimumPriority', pmd.rulesMinimumPriority.get().toString()
+        def forbidden = forbiddenApisMain.get()
+        systemProperty 'gates.forbidden.signaturesFiles', forbidden.signaturesFiles.files*.absolutePath.join('\n')
+        systemProperty 'gates.forbidden.signatures', forbidden.signatures.join('\n')
+        systemProperty 'gates.forbidden.bundled', forbidden.bundledSignatures.join('\n')
+        systemProperty 'gates.forbidden.target', forbidden.targetCompatibility
+        systemProperty 'gates.forbidden.ignoreFailures', forbidden.ignoreFailures.toString()
+    }
+}
+
+tasks.register('gatesAndTests') {
+    group = 'verification'
+    description = 'javac and Error Prone, PMD, forbiddenapis, and the tests'
+    dependsOn 'compileJava', 'pmdMain', 'forbiddenApisMain', 'test'
+}

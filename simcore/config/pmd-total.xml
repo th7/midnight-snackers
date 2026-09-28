@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="total"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>Total Core</description>
+
+    <rule name="NoThrow" language="java" message="No throw: return a Checked or a sum type"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[//ThrowStatement]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoAssert" language="java" message="No assert: a Validated Type holds the rule"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[//AssertStatement]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoIntegerDivision" language="java"
+          message="Integer division throws on zero: divide by a nonzero literal, or divide doubles"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+//InfixExpression[@Operator = ('/', '%')]
+    [pmd-java:typeIs('int') or pmd-java:typeIs('long')]
+    [not(*[2][self::NumericLiteral][@ValueAsDouble != 0])]
+|
+//AssignmentExpression[@Operator = ('/=', '%=')]
+    [not(pmd-java:typeIs('double') or pmd-java:typeIs('float'))]
+    [not(*[2][pmd-java:typeIs('double') or pmd-java:typeIs('float')])]
+    [not(*[2][self::NumericLiteral][@ValueAsDouble != 0])]
+]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoIndexing" language="java"
+          message="No indexing: iterate"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[//ArrayAccess]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoSizedArray" language="java"
+          message="No sized arrays: use a list"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[//ArrayDimExpr]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoReferenceCast" language="java"
+          message="No reference casts: they throw"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[//CastExpression[not(PrimitiveType)]]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoExplicitNext" language="java"
+          message="No Iterator.next: use for-each"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+//MethodCall[pmd-java:matchesSig('java.util.Iterator#next()')
+          or pmd-java:matchesSig('java.util.ListIterator#previous()')
+          or pmd-java:matchesSig('java.util.Enumeration#nextElement()')]
+]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoLock" language="java"
+          message="No locks: the core shares nothing"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+//SynchronizedStatement | //MethodDeclaration[pmd-java:modifiers() = ('synchronized', 'native')]
+]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoGlobalState" language="java"
+          message="Static fields are primitive or String constants"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+//FieldDeclaration[pmd-java:modifiers() = 'static']
+    [not(pmd-java:modifiers() = 'final')
+     or not(PrimitiveType or ClassType[pmd-java:typeIsExactly('java.lang.String')])]
+]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="InTheCorePackage" language="java"
+          message="Outside the core package NullAway does not check it"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+/CompilationUnit[not(PackageDeclaration[@Name = 'org.firstinspires.ftc.teamcode.simcore'
+                                        or starts-with(@Name, 'org.firstinspires.ftc.teamcode.simcore.')])]
+]]></value></property>
+        </properties>
+    </rule>
+</ruleset>

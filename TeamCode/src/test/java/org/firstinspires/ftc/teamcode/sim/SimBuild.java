@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -25,6 +26,7 @@ import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
 
 public final class SimBuild {
     static final String SIMULATOR_DOES_NOT_FIT =
@@ -74,17 +76,27 @@ public final class SimBuild {
 
     private final Path resourcesRoot;
 
+    private final Optional<Path> coreRoot;
+
     private final Path buildRoot;
     private String lastFingerprint;
     private Result lastResult;
 
     public SimBuild(Path sourceRoot, Path harnessRoot, Path buildRoot) {
+        this(sourceRoot, harnessRoot, Optional.empty(), buildRoot);
+    }
+
+    public SimBuild(Path sourceRoot, Path harnessRoot, Optional<Path> coreRoot, Path buildRoot) {
         this.sourceRoot = sourceRoot.toAbsolutePath().normalize();
         this.harnessRoot = harnessRoot.toAbsolutePath().normalize();
         this.resourcesRoot = this.harnessRoot.resolveSibling("resources");
+        this.coreRoot = coreRoot.map(root -> root.toAbsolutePath().normalize());
         this.buildRoot = buildRoot.toAbsolutePath().normalize();
         if (!Files.isDirectory(this.harnessRoot)) {
             throw new IllegalArgumentException("no simulator sources at " + this.harnessRoot);
+        }
+        if (this.coreRoot.isPresent() && !Files.isDirectory(this.coreRoot.get())) {
+            throw new IllegalArgumentException("no core sources at " + this.coreRoot.get());
         }
     }
 
@@ -95,15 +107,18 @@ public final class SimBuild {
     public static List<String> libraries() {
         return librariesOf(
                 List.of(System.getProperty("java.class.path").split(Pattern.quote(File.pathSeparator))),
-                locationOf(OpMode.class));
+                List.of(locationOf(OpMode.class), locationOf(Checked.class)));
     }
 
-    static List<String> librariesOf(List<String> classpath, Path serverRobotClasses) {
-        Path robot = serverRobotClasses.toAbsolutePath().normalize();
+    static List<String> librariesOf(List<String> classpath, List<Path> serverCode) {
+        List<Path> own = new ArrayList<>();
+        for (Path code : serverCode) {
+            own.add(code.toAbsolutePath().normalize());
+        }
         List<String> libraries = new ArrayList<>();
         for (String entry : classpath) {
             Path path = Paths.get(entry).toAbsolutePath().normalize();
-            if (Files.isRegularFile(path) && !path.equals(robot)) {
+            if (Files.isRegularFile(path) && !own.contains(path)) {
                 libraries.add(entry);
             }
         }
@@ -123,9 +138,11 @@ public final class SimBuild {
         List<Path> sources = sourcesUnder(sourceRoot);
         List<Path> harness = harnessUnder(harnessRoot);
         List<Path> resources = filesUnder(resourcesRoot);
+        List<Path> core = coreRoot.map(SimBuild::javaFilesUnder).orElse(List.of());
         String fingerprint = fingerprintOf(sourceRoot, sources)
                 + fingerprintOf(harnessRoot, harness)
-                + fingerprintOf(resourcesRoot, resources);
+                + fingerprintOf(resourcesRoot, resources)
+                + coreRoot.map(root -> fingerprintOf(root, core)).orElse("");
         if (fingerprint.equals(lastFingerprint) && lastResult != null) {
             return new Result(lastResult.classes, lastResult.problems, false);
         }
@@ -164,6 +181,9 @@ public final class SimBuild {
                 sourceFiles.add(source.toFile());
             }
             for (Path source : harness) {
+                sourceFiles.add(source.toFile());
+            }
+            for (Path source : core) {
                 sourceFiles.add(source.toFile());
             }
             Iterable<? extends JavaFileObject> units = files.getJavaFileObjectsFromFiles(sourceFiles);
@@ -215,6 +235,16 @@ public final class SimBuild {
             return walk.filter(p -> p.toString().endsWith(".java")
                             && !p.getFileName().toString().endsWith("Test.java")
                             && Files.isRegularFile(p))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    static List<Path> javaFilesUnder(Path root) {
+        try (Stream<Path> walk = Files.walk(root)) {
+            return walk.filter(p -> p.toString().endsWith(".java") && Files.isRegularFile(p))
                     .sorted(Comparator.comparing(Path::toString))
                     .collect(Collectors.toList());
         } catch (IOException e) {
@@ -290,7 +320,15 @@ public final class SimBuild {
             Path file = d.getSource() == null
                     ? null
                     : Path.of(d.getSource().toUri()).toAbsolutePath().normalize();
-            if (file != null && file.startsWith(harnessRoot)) {
+            Optional<Path> core = coreRoot.filter(root -> file != null && file.startsWith(root));
+            if (core.isPresent()) {
+                simulator = true;
+                problems.add(new Problem(
+                        "",
+                        d.getLineNumber(),
+                        "simulator core " + relative(core.get(), file) + ":" + d.getLineNumber() + ": "
+                                + d.getMessage(null)));
+            } else if (file != null && file.startsWith(harnessRoot)) {
                 simulator = true;
                 problems.add(new Problem(
                         "",

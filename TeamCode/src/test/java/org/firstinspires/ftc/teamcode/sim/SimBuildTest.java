@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.List;
+import java.util.Optional;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -25,6 +27,7 @@ public class SimBuildTest {
 
     private Path sourceRoot;
     private Path harnessRoot;
+    private Path coreRoot;
     private Path buildRoot;
 
     private SimBuild build() throws IOException {
@@ -36,12 +39,23 @@ public class SimBuildTest {
         return new SimBuild(sourceRoot, harnessRoot, buildRoot);
     }
 
+    private SimBuild buildWithACore() throws IOException {
+        build();
+        coreRoot = folder.getRoot().toPath().resolve("simcore/src/main/java");
+        Files.createDirectories(coreRoot);
+        return new SimBuild(sourceRoot, harnessRoot, Optional.of(coreRoot), buildRoot);
+    }
+
     private Path write(String relative, String source) throws IOException {
         return writeUnder(sourceRoot, relative, source);
     }
 
     private Path writeHarness(String relative, String source) throws IOException {
         return writeUnder(harnessRoot, relative, source);
+    }
+
+    private Path writeCore(String relative, String source) throws IOException {
+        return writeUnder(coreRoot, relative, source);
     }
 
     private static Path writeUnder(Path root, String relative, String source) throws IOException {
@@ -215,6 +229,78 @@ public class SimBuildTest {
         assertNotEquals(first, edited.classes);
     }
 
+    private static final String THE_PROJECTS_CORE = "package org.firstinspires.ftc.teamcode.simcore;\n"
+            + "public final class Checked { public static String whose() { return \"the project's\"; } }\n";
+
+    private static final String BENCH_ON_THE_CORE = "package demo;\n"
+            + "public class Bench { String whose = org.firstinspires.ftc.teamcode.simcore.Checked.whose(); }\n";
+
+    @Test
+    public void theProjectsOwnCoreIsBuiltWithItsSimulatorAndThisServersIsNotUsed() throws IOException {
+        SimBuild build = buildWithACore();
+        write("demo/Greeter.java", GREETER);
+        writeCore("org/firstinspires/ftc/teamcode/simcore/Checked.java", THE_PROJECTS_CORE);
+        writeHarness("demo/Bench.java", BENCH_ON_THE_CORE);
+
+        SimBuild.Result result = build.build();
+
+        assertNotNull(result.diagnostics, result.classes);
+        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/teamcode/simcore/Checked.class")));
+        assertTrue(Files.isRegularFile(result.classes.resolve("demo/Bench.class")));
+    }
+
+    @Test
+    public void aSimulatorThatNeedsACoreItWasNotGivenFailsTheBuildRatherThanRunningThisServers() throws IOException {
+        SimBuild build = build();
+        write("demo/Greeter.java", GREETER);
+        writeHarness(
+                "demo/Bench.java",
+                "package demo;\npublic class Bench { Object checked = org.firstinspires.ftc.teamcode.simcore.Checked"
+                        + ".ok(\"what this server's core has too\"); }\n");
+
+        SimBuild.Result result = build.build();
+
+        assertNull(result.classes);
+        assertTrue(result.diagnostics, result.diagnostics.contains("does not fit"));
+        assertTrue(result.diagnostics, result.diagnostics.contains("simulator demo/Bench.java:2"));
+    }
+
+    @Test
+    public void aCoreThatDoesNotCompileIsTheSimulatorsProblemNotTheUsers() throws IOException {
+        SimBuild build = buildWithACore();
+        write("demo/Greeter.java", GREETER);
+        writeCore("org/firstinspires/ftc/teamcode/simcore/Checked.java", THE_PROJECTS_CORE.replace("return", ""));
+        writeHarness("demo/Bench.java", BENCH_ON_THE_CORE);
+
+        SimBuild.Result result = build.build();
+
+        assertNull(result.classes);
+        assertEquals(SimBuild.SIMULATOR_DOES_NOT_FIT, result.problems.get(0).message);
+        assertTrue(
+                result.diagnostics,
+                result.diagnostics.contains("simulator core org/firstinspires/ftc/teamcode/simcore/Checked.java:2"));
+        for (SimBuild.Problem problem : result.problems) {
+            assertEquals(problem.message, "", problem.file);
+        }
+    }
+
+    @Test
+    public void anEditedCoreSourceIsRecompiled() throws IOException {
+        SimBuild build = buildWithACore();
+        write("demo/Greeter.java", GREETER);
+        Path core = writeCore("org/firstinspires/ftc/teamcode/simcore/Checked.java", THE_PROJECTS_CORE);
+        writeHarness("demo/Bench.java", BENCH_ON_THE_CORE);
+        Path first = build.build().classes;
+        assertFalse(build.build().rebuilt);
+
+        Files.write(core, THE_PROJECTS_CORE.replace("project's", "branch's").getBytes(StandardCharsets.UTF_8));
+        Files.setLastModifiedTime(core, FileTime.fromMillis(System.currentTimeMillis() + 2000));
+        SimBuild.Result edited = build.build();
+
+        assertTrue(edited.rebuilt);
+        assertNotEquals(first, edited.classes);
+    }
+
     @Test
     public void theSimulatorsResourcesRideAlongWithItsClasses() throws IOException {
         SimBuild build = build();
@@ -272,24 +358,28 @@ public class SimBuildTest {
         String gson = locationOf(com.google.gson.Gson.class);
         String serverRobot = locationOf(org.firstinspires.ftc.teamcode.opmode.OpMode.class);
         String serverSimulator = locationOf(SimBuild.class);
+        String serverCore = locationOf(Checked.class);
 
         assertTrue(libraries.toString(), libraries.contains(gson));
         assertFalse("this server's robot classes: " + serverRobot, libraries.contains(serverRobot));
         assertFalse("this server's simulator: " + serverSimulator, libraries.contains(serverSimulator));
+        assertFalse("this server's core: " + serverCore, libraries.contains(serverCore));
         for (String library : libraries) {
             assertTrue(library, Files.isRegularFile(Paths.get(library)));
         }
     }
 
     @Test
-    public void librariesOfKeepsOnlyExistingFilesThatAreNotThisServersRobotClasses() throws IOException {
+    public void librariesOfKeepsOnlyExistingFilesThatAreNotThisServersOwnCode() throws IOException {
         Path dir = Files.createDirectories(folder.getRoot().toPath().resolve("classes"));
         Path library = Files.createFile(folder.getRoot().toPath().resolve("lib.jar"));
         Path robot = Files.createFile(folder.getRoot().toPath().resolve("robot.jar"));
+        Path core = Files.createFile(folder.getRoot().toPath().resolve("simcore.jar"));
         Path gone = folder.getRoot().toPath().resolve("gone");
 
         List<String> libraries = SimBuild.librariesOf(
-                List.of(dir.toString(), library.toString(), robot.toString(), gone.toString()), robot);
+                List.of(dir.toString(), library.toString(), robot.toString(), core.toString(), gone.toString()),
+                List.of(robot, core));
 
         assertEquals(List.of(library.toString()), libraries);
     }
@@ -334,16 +424,20 @@ public class SimBuildTest {
     }
 
     @Test
-    public void theRealSimulatorCompilesWithTheRealMainSources() throws IOException {
+    public void theRealSimulatorCompilesWithTheRealMainSourcesAndTheRealCore() throws IOException {
         Path real = Paths.get("src/main/java").toAbsolutePath();
         Path harness = Paths.get("src/test/java").toAbsolutePath();
         assertTrue("tests run from the TeamCode module directory: " + harness, Files.isDirectory(harness));
-        SimBuild build = new SimBuild(real, harness, folder.getRoot().toPath().resolve("classes"));
+        Path core = Paths.get("../simcore/src/main/java").toAbsolutePath().normalize();
+        assertTrue(core.toString(), Files.isDirectory(core));
+        SimBuild build = new SimBuild(
+                real, harness, Optional.of(core), folder.getRoot().toPath().resolve("classes"));
 
         SimBuild.Result result = build.build();
 
         assertNotNull(result.diagnostics, result.classes);
         Path teamCode = result.classes.resolve("org/firstinspires/ftc/teamcode");
+        assertTrue(Files.isRegularFile(teamCode.resolve("simcore/Checked.class")));
         assertTrue(Files.isRegularFile(teamCode.resolve("sim/SimChild.class")));
         assertTrue(Files.isRegularFile(teamCode.resolve("sim/SimRobot.class")));
         assertTrue(Files.isRegularFile(teamCode.resolve("fakes/FakeDcMotorEx.class")));
