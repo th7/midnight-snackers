@@ -6,9 +6,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.opmode.AutoOp;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
+import org.firstinspires.ftc.teamcode.simcore.Budget;
+import org.firstinspires.ftc.teamcode.simcore.Ending;
+import org.firstinspires.ftc.teamcode.simcore.Seconds;
 
 public final class SimRunner {
     public enum Pace {
@@ -87,7 +91,15 @@ public final class SimRunner {
         }
         try {
             Pace pace = live == null ? Pace.FASTEST : Pace.REAL_TIME;
-            return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation(), pace);
+            Ending ending =
+                    ended(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation(), pace, new Meter());
+            // What a test of an auto is for: one whose plan is not done within its time fails.
+            if (ending == Ending.TIMED_OUT) {
+                throw new AssertionError(String.format(
+                        "op mode still running after %.1fs; current step: %s; true pose: %s",
+                        timeoutSeconds, opMode.currentStep(), sim.pose()));
+            }
+            return recording;
         } finally {
             if (live != null) {
                 live.awaitViewerSawOutcome(LIVE_HOLD_SECONDS);
@@ -131,9 +143,25 @@ public final class SimRunner {
             SimDriverStation driverStation,
             Pace pace,
             Meter meter) {
+        ended(recording, opMode, sim, seconds, outputDir, driverStation, pace, meter);
+        return recording;
+    }
+
+    /** Runs the op mode until something ends it, and says how in the recording and its replay. */
+    private static Ending ended(
+            SimRecording recording,
+            OpMode opMode,
+            SimRobot sim,
+            double seconds,
+            Path outputDir,
+            SimDriverStation driverStation,
+            Pace pace,
+            Meter meter) {
+        Budget budget = Valid.value(Budget.of(seconds));
         try {
-            loopUntilDone(opMode, sim, seconds, recording, driverStation, pace, meter);
-            recording.finish(SimRunStream.Outcome.done());
+            Ending ending = loopUntilDone(opMode, sim, budget, recording, driverStation, pace, meter);
+            recording.finish(outcomeOf(ending, seconds));
+            return ending;
         } catch (RuntimeException | Error e) {
             recording.finish(SimRunStream.Outcome.failed(e));
             throw e;
@@ -142,7 +170,14 @@ public final class SimRunner {
             SimReplayPage.write(recording, page);
             System.out.println("Simulation replay: " + page.toAbsolutePath());
         }
-        return recording;
+    }
+
+    private static String outcomeOf(Ending ending, double seconds) {
+        return switch (ending) {
+            case STOPPED -> SimRunStream.Outcome.stopped();
+            case DONE -> SimRunStream.Outcome.done();
+            case TIMED_OUT -> SimRunStream.Outcome.timedOut(seconds);
+        };
     }
 
     private static Integer livePortFromEnvironment() {
@@ -161,10 +196,10 @@ public final class SimRunner {
         }
     }
 
-    private static void loopUntilDone(
+    private static Ending loopUntilDone(
             OpMode opMode,
             SimRobot sim,
-            double seconds,
+            Budget budget,
             SimRecording recording,
             SimDriverStation driverStation,
             Pace pace,
@@ -182,22 +217,11 @@ public final class SimRunner {
         long startedAtNanos = sim.nanoTime();
         long wallStartedAt = System.nanoTime();
         while (true) {
-            if (driverStation.stopRequested()) {
-                recording.finish(SimRunStream.Outcome.stopped());
-                return;
-            }
-            if (auto != null && auto.done()) {
-                return;
-            }
             double elapsed = (sim.nanoTime() - startedAtNanos) / 1e9;
-            if (elapsed > seconds) {
-                if (auto == null) {
-                    return;
-                }
-                recording.finish(SimRunStream.Outcome.timedOut(seconds));
-                throw new AssertionError(String.format(
-                        "op mode still running after %.1fs; current step: %s; true pose: %s",
-                        seconds, auto.currentStep(), sim.pose()));
+            Optional<Ending> ending = Ending.before(
+                    driverStation.stopRequested(), planOf(auto), Valid.value(Seconds.of(elapsed)), budget);
+            if (ending.isPresent()) {
+                return ending.get();
             }
 
             long looping = System.nanoTime();
@@ -235,6 +259,13 @@ public final class SimRunner {
                 holdToRealTime(wallStartedAt + (sim.nanoTime() - startedAtNanos));
             }
         }
+    }
+
+    private static Ending.Plan planOf(AutoOp auto) {
+        if (auto == null) {
+            return Ending.Plan.NONE;
+        }
+        return auto.done() ? Ending.Plan.DONE : Ending.Plan.UNDER_WAY;
     }
 
     private static void holdToRealTime(long wallNanos) {

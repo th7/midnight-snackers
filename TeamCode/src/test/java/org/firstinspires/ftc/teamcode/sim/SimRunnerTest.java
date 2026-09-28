@@ -163,6 +163,42 @@ public class SimRunnerTest {
     }
 
     @Test
+    public void aRecordingOfAnAutoThatRunsOutOfTimeSaysSoRatherThanThrowing() {
+        SimRecording recording = SimRunner.record(
+                new SimRecording("NeverDoneAuto"),
+                new NeverDoneAuto(),
+                sim,
+                0.1,
+                folder.getRoot().toPath(),
+                new SimDriverStation(),
+                SimRunner.Pace.FASTEST);
+
+        assertEquals(SimRunStream.Outcome.timedOut(0.1), recording.outcome());
+        assertTrue(Files.exists(folder.getRoot().toPath().resolve("NeverDoneAuto.html")));
+    }
+
+    @Test
+    public void aTimeThatIsNoTimeIsRefusedBeforeTheOpModeRuns() {
+        for (double notATime : new double[] {Double.NaN, -1, Double.NEGATIVE_INFINITY}) {
+            ThreeLoopAuto auto = new ThreeLoopAuto();
+
+            IllegalArgumentException refused = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> SimRunner.record(
+                            new SimRecording("ThreeLoopAuto"),
+                            auto,
+                            sim,
+                            notATime,
+                            folder.getRoot().toPath(),
+                            new SimDriverStation(),
+                            SimRunner.Pace.FASTEST));
+
+            assertTrue(refused.getMessage(), refused.getMessage().contains("Infinity for no limit"));
+        }
+        assertEquals("the robot never moved", 0, sim.nanoTime());
+    }
+
+    @Test
     public void aTeleOpRunsOnTheDriverStationsInputsUntilTheDriverPressesStop() throws Exception {
         SimDriverStation station = new SimDriverStation();
         StickTeleOp teleOp = new StickTeleOp();

@@ -444,21 +444,118 @@ public class SimBenchTest {
         return new SimBench(SimCatalog.of(TestTeleOps.StickTeleOp.class), null, outputDir(), waits, child);
     }
 
-    @Test
-    public void aChildThatGoesSilentWhileItsRunIsUnfinishedIsKilledForNotReturning() throws Exception {
-        FakeChild child =
-                FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started()).thatStaysAliveSayingNothingMore();
-        bench = new SimBench(
+    /** A bench whose every wait is judged on a clock that moves only when the test moves it. */
+    private SimBench benchOn(FakeClock clock, FakeChild child, SimBench.Waits waits) {
+        return new SimBench(
                 SimSources.ofThisClasspath(SimCatalog.of(TestTeleOps.StickTeleOp.class)),
                 outputDir(),
-                WAITS,
+                waits,
                 child,
-                new FakeClock());
+                clock);
+    }
 
-        SimBench.Run run = await(bench.start(bench.catalog().find("Stick").get(), "ada", SimBench.Mode.FREE_PLAY));
+    /**
+     * Waits for a run the test's clock has just ended, in far less real time than any wait it was
+     * given: a wait that ran on real time rather than the bench's clock has not ended it by then.
+     */
+    private static SimBench.Run awaitPromptly(SimBench.Run run) throws InterruptedException {
+        long deadline = System.nanoTime() + 3_000_000_000L;
+        while (run.outcome() == null && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertNotNull("the bench's clock ran out a wait and nothing came of it; phase " + run.phase(), run.outcome());
+        return run;
+    }
 
-        assertTrue(run.outcome(), run.outcome().startsWith("killed"));
+    private static void awaitPhase(SimBench.Run run, String phase) throws InterruptedException {
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        while (!phase.equals(run.phase()) && run.outcome() == null && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertEquals(run.outcome(), phase, run.phase());
+    }
+
+    @Test
+    public void aChildThatGoesSilentWhileItsRunIsUnfinishedIsKilledForNotReturning() throws Exception {
+        FakeClock clock = new FakeClock();
+        bench = benchOn(
+                clock,
+                FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started()).thatStaysAliveSayingNothingMore(),
+                WAITS);
+        SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada", SimBench.Mode.FREE_PLAY);
+        awaitRunning(run);
+
+        clock.advance(WAITS.silence + 0.1);
+
+        assertTrue(run.outcome(), awaitPromptly(run).outcome().startsWith("killed"));
         assertTrue(run.outcome(), run.outcome().contains("the op mode did not return"));
+    }
+
+    @Test
+    public void theStartupIsWaitedOnTheBenchsClock() throws Exception {
+        FakeClock clock = new FakeClock();
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        bench = benchOn(clock, child, WAITS);
+        SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada", SimBench.Mode.FREE_PLAY);
+        awaitPhase(run, "starting");
+
+        clock.advance(WAITS.startup + 0.1);
+
+        assertEquals(
+                SimRunStream.Outcome.killed(WAITS.startup, "the op mode never started"),
+                awaitPromptly(run).outcome());
+        assertFalse("the child is killed with it", child.running().alive());
+    }
+
+    @Test
+    public void aChildThatIgnoresStopHasItsGraceOnTheBenchsClock() throws Exception {
+        FakeClock clock = new FakeClock();
+        double grace = 10;
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started())
+                .thatStaysAliveSayingNothingMore()
+                .thatIgnoresStop();
+        bench = benchOn(clock, child, WAITS.killGrace(grace));
+        SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada", SimBench.Mode.FREE_PLAY);
+        awaitRunning(run);
+
+        run.stop();
+        Thread.sleep(200);
+        assertTrue("killed before the bench's clock said its grace was over", run.running());
+        clock.advance(grace + 0.1);
+
+        assertEquals(
+                SimRunStream.Outcome.killedAfterStop(grace), awaitPromptly(run).outcome());
+        assertFalse("the child is killed", child.running().alive());
+    }
+
+    @Test
+    public void aRunStoppedWhileItsSourcesBuildEndsThereAndLeavesNoChildRunning() throws Exception {
+        CountDownLatch built = new CountDownLatch(1);
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        FakeSources sources =
+                FakeSources.listing(SimCatalog.of(StickTeleOp.class)).thatBuildForARunUntil(built);
+        bench = benchOver(sources, child);
+        SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada", SimBench.Mode.FREE_PLAY);
+        sources.awaitARunsBuild();
+        assertEquals("building", run.phase());
+
+        assertEquals(200, routes().handle(post("/runs/" + run.id + "/stop", "")).status);
+        assertEquals(SimRunStream.Outcome.stopped(), run.outcome());
+        assertTrue(run.message(), run.message().contains("before the build finished"));
+
+        built.countDown();
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while ((child.running() == null || child.running().alive()) && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertNotNull("the build was let finish, and a child started from it", child.running());
+        assertFalse(
+                "the child built for a run that was stopped is still running, and nobody will stop it",
+                child.running().alive());
+        assertEquals("finished", run.phase());
+        assertTrue(
+                "nothing was sent to a child nobody wanted: " + child.whatItWasTold(),
+                child.whatItWasTold().isEmpty());
     }
 
     @Test
