@@ -1267,14 +1267,14 @@ the open are **loose**, the simulator's to roll, the nectar in the hives is
 the hives' to hold, the pollen in the flowers is the flowers', and the rest
 (the rows outside the walls) stay put. Everything is in
 the field frame Road Runner uses, in inches: the origin at the centre, +x
-away from the audience, +y to the audience's left. Class: `SimField`.
+away from the audience, +y to the audience's left. Classes: `Field`, in the **core**; `SimField`, which reads it.
 
 **Alliance area** — Where an alliance's drivers stand: the box its tape marks on
 the floor outside the walls, the tape being the colour of its hive, and the tray
 its human player loads from is in it. Blue's is behind the -y wall and red's
 behind the +y wall, each the other in a mirror. It is worked out from the tape
 when the field is loaded, and a field that marks none for an alliance does not
-load. Class: `SimField.AllianceArea`.
+load. Class: `Field.AllianceArea`.
 
 **Flower** — One of the four towers at the walls, whose four pipes make the
 **bore** a stack of pollen stands in: a circle on the floor, the **axis**
@@ -1282,7 +1282,7 @@ midway between the pipes and the radius the nearest of them leaves clear,
 with the **gap** between two neighbouring pipes narrower than a pollen, so
 what is in the bore stays in it. The bore's wall begins at the **lip**, the
 height the pipes start at; below that it reaches nothing but the **nest**.
-Class: `SimField.Flower`.
+Class: `Field.Flower`.
 
 **Nest** — The ring in a flower's base plate that the ball at the bottom of
 its bore sits in the middle of. To leave, that ball has to roll up over the
@@ -1320,7 +1320,7 @@ second: it starts from rest, is fastest as the hive passes level and comes
 to rest again, so it throws nothing, and whatever the hive touches it
 carries along as it turns. A hive finishes a tip before it can start
 another. Every tick says where each hive has got to, so a replay or a live
-view shows it turning. Class: `SimField.Hive`; `SimHives`.
+view shows it turning. Class: `Field.Hive`; `SimHives`.
 
 **Cell** — The basket at one end of a hive, which a launched ball scores
 in: the opening the CAD's goal ribs frame — the **mouth**, twenty inches
@@ -1330,7 +1330,7 @@ ball whose centre is between the mouth, the back and the walls is in the
 cell. The mouth is open and the rest is solid, from either side, so what
 goes in stays in until the cell turns it out. Each hive has an **audience**
 cell and a **scoring** cell,
-named for the end of the field they face. Class: `SimField.Cell`.
+named for the end of the field they face. Class: `Field.Cell`.
 
 **Upturned** — Of a cell: its mouth faces up, so it holds what goes in,
 resting on the floor at the back. The cell at the other end of the same
@@ -1341,7 +1341,7 @@ its floor still slopes toward the back, and rolls out once the hive is
 past level and the floor slopes toward the mouth. One cell of each hive is
 upturned at a time, the one whose mouth faces higher, and that is the one
 an alliance can score in; as a tipping hive passes level it is the cell
-the hive is turning up. Class: `SimField.Cell.upturnedAt`;
+the hive is turning up. Class: `Field.Cell.upturnedAt`;
 `SimHives.upturnedCell`.
 
 **Load** — How full a hive is: what its upturned cell holds, where one is

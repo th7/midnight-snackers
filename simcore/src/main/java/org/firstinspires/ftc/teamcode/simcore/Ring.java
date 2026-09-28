@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 public final class Ring<T> {
     public record Edge<T>(T from, T to) {}
@@ -32,6 +33,14 @@ public final class Ring<T> {
         }
         return first.map(head -> Checked.ok(new Ring<>(head, rest)))
                 .orElse(Checked.rejected("a ring has at least one element"));
+    }
+
+    public <R> Ring<R> map(Function<? super T, ? extends R> f) {
+        List<R> mapped = new ArrayList<>();
+        for (T element : rest) {
+            mapped.add(f.apply(element));
+        }
+        return new Ring<>(f.apply(first), mapped);
     }
 
     public T first() {

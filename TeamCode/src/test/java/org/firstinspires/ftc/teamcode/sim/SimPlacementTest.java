@@ -101,8 +101,7 @@ public class SimPlacementTest {
 
     @Test
     public void aPoseInsideAnObstacleComesBackOutOfIt() {
-        SimField.Obstacle obstacle = SimPlacement.FIELD.obstacles.get(0);
-        double[] first = obstacle.footprint[0];
+        double[] first = Points.footprint(SimPlacement.FIELD.obstacles().get(0))[0];
 
         Pose2d placed = SimPlacement.onTheField(new Pose2d(first[0], first[1], 0));
 

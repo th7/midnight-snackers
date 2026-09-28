@@ -20,6 +20,7 @@ import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 
 public final class SimRunStream {
     public interface Listener {
@@ -359,10 +360,10 @@ public final class SimRunStream {
             t.add("scored", scored);
         }
         JsonObject tilt = new JsonObject();
-        for (SimField.Hive hive : SimPlacement.FIELD.hives) {
-            Double leaning = tick.tilt.get(hive.alliance);
-            if (leaning != null && leaning != hive.tilt) {
-                tilt.add(hive.alliance, GSON.toJsonTree(leaning));
+        for (Field.Hive hive : SimPlacement.FIELD.hives()) {
+            Double leaning = tick.tilt.get(hive.alliance());
+            if (leaning != null && leaning != hive.tilt().degrees()) {
+                tilt.add(hive.alliance(), GSON.toJsonTree(leaning));
             }
         }
         if (tilt.size() > 0) {

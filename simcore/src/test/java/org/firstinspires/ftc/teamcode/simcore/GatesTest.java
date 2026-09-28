@@ -36,7 +36,8 @@ public class GatesTest {
         assertTrue("refused for " + reason + ", but " + verdict, verdict.refusedFor(reason));
     }
 
-    private static final String CLEAN = "    public static final double HALF = 0.5;\n"
+    private static final String CLEAN = "    public enum Side {\n        LEFT,\n        RIGHT\n    }\n\n"
+            + "    public static final double HALF = 0.5;\n"
             + "    public static final String NAME = \"clean\";\n"
             + "\n"
             + "    public record Pair(double a, double b) {}\n"
@@ -179,6 +180,18 @@ public class GatesTest {
                 pmd("    public static String f(java.util.List<String> xs) {\n"
                         + "        return xs.iterator().next();\n"
                         + "    }\n"));
+    }
+
+    @Test
+    public void anEnumsValueOfIsRefused() {
+        assertRefused(
+                "NoEnumValueOf",
+                pmd("    public enum Kind {\n        ONE\n    }\n\n"
+                        + "    public static Kind f(String name) {\n        return Kind.valueOf(name);\n    }\n"));
+        assertRefused(
+                "NoEnumValueOf",
+                pmd("    public static java.math.RoundingMode f(String name) {\n"
+                        + "        return Enum.valueOf(java.math.RoundingMode.class, name);\n    }\n"));
     }
 
     @Test

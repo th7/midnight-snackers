@@ -10,8 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.sim.SimField;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -126,9 +126,9 @@ public class IntakeSimTest {
     private List<SimRobot.Piece> loosePollen() {
         List<SimRobot.Piece> pollen = new ArrayList<>();
         for (SimRobot.Piece ball : sim.balls()) {
-            if (SimField.POLLEN.equals(ball.kind())
+            if (ball.kind() == Field.Kind.POLLEN
                     && ball.setUpFrom()
-                            .map(piece -> piece.cell == null && piece.flower == null)
+                            .map(piece -> piece.place() instanceof Field.Place.Loose)
                             .orElse(false)) {
                 pollen.add(ball);
             }
@@ -139,8 +139,10 @@ public class IntakeSimTest {
 
     private SimRobot.Piece aCellNectar() {
         for (SimRobot.Piece ball : sim.balls()) {
-            if (SimField.NECTAR.equals(ball.kind())
-                    && ball.setUpFrom().map(piece -> piece.cell != null).orElse(false)) {
+            if (ball.kind() == Field.Kind.NECTAR
+                    && ball.setUpFrom()
+                            .map(piece -> piece.place() instanceof Field.Place.InCell)
+                            .orElse(false)) {
                 return ball;
             }
         }

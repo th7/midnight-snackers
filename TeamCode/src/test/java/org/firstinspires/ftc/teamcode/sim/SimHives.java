@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Ring;
+import org.firstinspires.ftc.teamcode.simcore.Vec3;
 
 public final class SimHives {
     public static final int FULL = 40;
@@ -37,7 +40,7 @@ public final class SimHives {
 
         Face(double[][] corners) {
             this.corners = corners;
-            this.normal = SimField.normal(corners);
+            this.normal = Points.normal(corners);
             double[] edge = sub(corners[1], corners[0]);
             for (int i = 1; dot(edge, edge) < 1e-12 && i < corners.length; i++) {
                 edge = sub(corners[(i + 1) % corners.length], corners[i]);
@@ -114,14 +117,10 @@ public final class SimHives {
             return new Solid(List.of(new Face(corners)), false);
         }
 
-        static Solid part(SimField.Element part) {
+        static Solid part(Field.Element part) {
             List<Face> faces = new ArrayList<>();
-            for (int[] ring : part.faces) {
-                double[][] corners = new double[ring.length][];
-                for (int i = 0; i < ring.length; i++) {
-                    corners[i] = part.vertices[ring[i]];
-                }
-                faces.add(new Face(corners));
+            for (Ring<Vec3> ring : part.faces()) {
+                faces.add(new Face(Points.arrays(ring)));
             }
             return new Solid(faces, true);
         }
@@ -152,7 +151,7 @@ public final class SimHives {
 
         Bound(double[][] ring, double[] centre) {
             this.on = ring[0];
-            double[] normal = SimField.normal(ring);
+            double[] normal = Points.normal(ring);
             this.inward = dot(sub(centre, on), normal) >= 0 ? normal : scale(normal, -1);
         }
     }
@@ -176,31 +175,31 @@ public final class SimHives {
         }
     }
 
-    private final SimField field;
-    private final Map<SimField.Hive, Double> tilts = new LinkedHashMap<>();
-    private final Map<SimField.Hive, Tip> tipping = new LinkedHashMap<>();
-    private final Map<SimField.Hive, List<Solid>> solids = new LinkedHashMap<>();
-    private final Map<SimField.Hive, double[][]> extents = new LinkedHashMap<>();
-    private final Map<SimField.Cell, List<Bound>> bounds = new LinkedHashMap<>();
+    private final Field field;
+    private final Map<Field.Hive, Double> tilts = new LinkedHashMap<>();
+    private final Map<Field.Hive, Tip> tipping = new LinkedHashMap<>();
+    private final Map<Field.Hive, List<Solid>> solids = new LinkedHashMap<>();
+    private final Map<Field.Hive, double[][]> extents = new LinkedHashMap<>();
+    private final Map<Field.Cell, List<Bound>> bounds = new LinkedHashMap<>();
 
-    public SimHives(SimField field) {
+    public SimHives(Field field) {
         this.field = field;
-        for (SimField.Hive hive : field.hives) {
-            tilts.put(hive, hive.tilt);
+        for (Field.Hive hive : field.hives()) {
+            tilts.put(hive, hive.tilt().degrees());
             List<Solid> of = new ArrayList<>();
-            for (SimField.Cell cell : hive.cells) {
-                for (double[][] panel : cell.panels) {
-                    of.add(Solid.plate(panel));
+            for (Field.Cell cell : hive.cells()) {
+                for (Ring<Vec3> panel : cell.panels()) {
+                    of.add(Solid.plate(Points.arrays(panel)));
                 }
                 List<Bound> around = new ArrayList<>();
-                List<double[][]> faces = new ArrayList<>(cell.panels);
-                faces.add(cell.mouth);
-                for (double[][] face : faces) {
-                    around.add(new Bound(face, cell.centre));
+                List<Ring<Vec3>> faces = new ArrayList<>(cell.panels());
+                faces.add(cell.mouth());
+                for (Ring<Vec3> face : faces) {
+                    around.add(new Bound(Points.arrays(face), Points.array(cell.centre())));
                 }
                 bounds.put(cell, around);
             }
-            for (SimField.Element part : hive.parts) {
+            for (Field.Element part : hive.parts()) {
                 of.add(Solid.part(part));
             }
             solids.put(hive, of);
@@ -220,9 +219,9 @@ public final class SimHives {
         }
     }
 
-    public SimField.Hive hiveOf(String alliance) {
-        for (SimField.Hive hive : field.hives) {
-            if (hive.alliance.equals(alliance)) {
+    public Field.Hive hiveOf(String alliance) {
+        for (Field.Hive hive : field.hives()) {
+            if (hive.alliance().equals(alliance)) {
                 return hive;
             }
         }
@@ -235,24 +234,24 @@ public final class SimHives {
 
     public Map<String, Double> tilts() {
         Map<String, Double> out = new LinkedHashMap<>();
-        for (SimField.Hive hive : field.hives) {
-            out.put(hive.alliance, tilts.get(hive));
+        for (Field.Hive hive : field.hives()) {
+            out.put(hive.alliance(), tilts.get(hive));
         }
         return out;
     }
 
-    public boolean tipping(SimField.Hive hive) {
+    public boolean tipping(Field.Hive hive) {
         return tipping.containsKey(hive);
     }
 
-    public SimField.Cell upturnedCell(String alliance) {
-        SimField.Hive hive = hiveOf(alliance);
+    public Field.Cell upturnedCell(String alliance) {
+        Field.Hive hive = hiveOf(alliance);
         double tilt = tilts.get(hive);
         Tip tip = tipping.get(hive);
-        SimField.Cell up = null;
+        Field.Cell up = null;
         double highest = -Double.MAX_VALUE;
-        for (SimField.Cell cell : hive.cells) {
-            double facing = cell.mouthNormalAt(tilt)[2];
+        for (Field.Cell cell : hive.cells()) {
+            double facing = cell.mouthNormalAt(tilt).z();
             if (facing > highest || (facing == highest && tip != null && cell.upturnedAt(tip.to))) {
                 highest = facing;
                 up = cell;
@@ -261,22 +260,22 @@ public final class SimHives {
         return up;
     }
 
-    public boolean upturned(SimField.Cell cell) {
-        return upturnedCell(cell.alliance) == cell;
+    public boolean upturned(Field.Cell cell) {
+        return upturnedCell(cell.alliance()) == cell;
     }
 
-    public static int fills(String kind) {
-        return SimField.NECTAR.equals(kind) ? NECTAR_FILLS : POLLEN_FILLS;
+    public static int fills(Field.Kind kind) {
+        return kind == Field.Kind.NECTAR ? NECTAR_FILLS : POLLEN_FILLS;
     }
 
-    public void tip(SimField.Hive hive) {
+    public void tip(Field.Hive hive) {
         if (!tipping.containsKey(hive)) {
             tipping.put(hive, new Tip(tilts.get(hive), -tilts.get(hive)));
         }
     }
 
     public void advance(double seconds) {
-        for (SimField.Hive hive : field.hives) {
+        for (Field.Hive hive : field.hives()) {
             Tip tip = tipping.get(hive);
             if (tip == null) {
                 continue;
@@ -293,7 +292,7 @@ public final class SimHives {
 
     public List<Touch> touching(double[] centre, double radius) {
         List<Touch> out = new ArrayList<>();
-        for (SimField.Hive hive : field.hives) {
+        for (Field.Hive hive : field.hives()) {
             if (!near(hive, centre, radius + CONTACT_TOLERANCE_IN)) {
                 continue;
             }
@@ -328,14 +327,15 @@ public final class SimHives {
                     normal = solid.faces.get(0).normal.clone();
                     depth = radius;
                 }
-                double[] touched = hive.at(tilt, nearest);
-                out.add(new Touch(hive.direction(tilt, normal), depth, motionOf(hive, touched)));
+                double[] touched = Points.array(hive.at(tilt, Points.vec(nearest)));
+                out.add(new Touch(
+                        Points.array(hive.direction(tilt, Points.vec(normal))), depth, motionOf(hive, touched)));
             }
         }
         return out;
     }
 
-    public boolean near(SimField.Hive hive, double[] centre, double within) {
+    public boolean near(Field.Hive hive, double[] centre, double within) {
         double[] local = inHive(hive, tilts.get(hive), centre);
         double[][] extent = extents.get(hive);
         for (int axis = 0; axis < 3; axis++) {
@@ -346,9 +346,9 @@ public final class SimHives {
         return true;
     }
 
-    public SimField.Cell cellHolding(double[] point) {
-        for (SimField.Cell cell : field.cells) {
-            double[] local = inHive(cell.hive, tilts.get(cell.hive), point);
+    public Field.Cell cellHolding(double[] point) {
+        for (Field.Cell cell : field.cells()) {
+            double[] local = inHive(cell.hive(), tilts.get(cell.hive()), point);
             boolean inside = true;
             for (Bound bound : bounds.get(cell)) {
                 inside &= dot(sub(local, bound.on), bound.inward) >= 0;
@@ -360,13 +360,14 @@ public final class SimHives {
         return null;
     }
 
-    public List<double[]> restingSpots(SimField.Cell cell, double radius) {
+    public List<double[]> restingSpots(Field.Cell cell, double radius) {
+        double[][] back = Points.arrays(cell.back());
         double lowest = Double.MAX_VALUE;
-        for (double[] corner : cell.back) {
+        for (double[] corner : back) {
             lowest = Math.min(lowest, corner[2]);
         }
         List<double[]> floor = new ArrayList<>();
-        for (double[] corner : cell.back) {
+        for (double[] corner : back) {
             if (corner[2] <= lowest + 0.2) {
                 floor.add(corner);
             }
@@ -374,38 +375,43 @@ public final class SimHives {
         floor.sort((a, b) -> Double.compare(a[1], b[1]));
         double[] atTheBack = mean(floor);
         double width = floor.get(floor.size() - 1)[1] - floor.get(0)[1];
-        double toward = Math.signum(cell.mouthNormal[0]);
-        double deep = Math.abs(cell.mouthCentre[0] - atTheBack[0]);
+        double toward = Math.signum(cell.mouthNormal().x());
+        double deep = Math.abs(cell.mouthCentre().x() - atTheBack[0]);
         int rows = Math.max(1, (int) (deep / (2 * radius)));
         int perRow = Math.max(1, (int) (width / (2 * radius)));
-        double tilt = tilts.get(cell.hive);
+        double tilt = tilts.get(cell.hive());
         List<double[]> spots = new ArrayList<>();
         for (int row = 0; row < rows; row++) {
             for (int slot = 0; slot < perRow; slot++) {
-                spots.add(cell.hive.at(tilt, new double[] {
-                    atTheBack[0] + toward * (radius + row * 2 * radius),
-                    atTheBack[1] + (slot - (perRow - 1) / 2.0) * 2 * radius,
-                    atTheBack[2] + radius
-                }));
+                spots.add(Points.array(cell.hive()
+                        .at(
+                                tilt,
+                                new Vec3(
+                                        atTheBack[0] + toward * (radius + row * 2 * radius),
+                                        atTheBack[1] + (slot - (perRow - 1) / 2.0) * 2 * radius,
+                                        atTheBack[2] + radius))));
             }
         }
         return spots;
     }
 
-    private double[] motionOf(SimField.Hive hive, double[] point) {
+    private double[] motionOf(Field.Hive hive, double[] point) {
         Tip tip = tipping.get(hive);
         if (tip == null) {
             return new double[3];
         }
         double radiansPerSecond = Math.toRadians(tip.degreesPerSecond());
         return new double[] {
-            -radiansPerSecond * (point[2] - hive.pivot[2]), 0, radiansPerSecond * (point[0] - hive.pivot[0])
+            -radiansPerSecond * (point[2] - hive.pivot().z()),
+            0,
+            radiansPerSecond * (point[0] - hive.pivot().x())
         };
     }
 
-    private static double[] inHive(SimField.Hive hive, double tilt, double[] point) {
+    private static double[] inHive(Field.Hive hive, double tilt, double[] point) {
         double c = Math.cos(Math.toRadians(tilt)), s = Math.sin(Math.toRadians(tilt));
-        double dx = point[0] - hive.pivot[0], dy = point[1] - hive.pivot[1], dz = point[2] - hive.pivot[2];
+        Vec3 pivot = hive.pivot();
+        double dx = point[0] - pivot.x(), dy = point[1] - pivot.y(), dz = point[2] - pivot.z();
         return new double[] {dx * c + dz * s, dy, -dx * s + dz * c};
     }
 

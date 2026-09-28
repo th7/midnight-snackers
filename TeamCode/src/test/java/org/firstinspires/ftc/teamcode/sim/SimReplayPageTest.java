@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -121,7 +122,7 @@ public class SimReplayPageTest {
     public void thePageCarriesTheFieldModelTheSimulatorCollides() {
         String html = SimReplayPage.written(new SimRecording("SquareAuto"));
 
-        assertTrue(html, html.contains("FIELD = " + new Gson().toJson(SimRobot.FIELD.json())));
+        assertTrue(html, html.contains("FIELD = " + new Gson().toJson(SimPlacement.FIELD_JSON)));
         assertTrue(html, html.contains("Flower Assembly"));
         assertFalse("no placeholder is left behind", html.contains("__FIELD__"));
     }
@@ -129,34 +130,36 @@ public class SimReplayPageTest {
     @Test
     public void thePageDrawsEachHiveWhereItLeans() {
         SimRecording recording = new SimRecording("TipAuto");
-        SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
+        Field.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>").orElseThrow();
         recording.add(
                 SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "1. fill the hive", new double[] {0, 0, 0, 0}, List.of())
-                        .tilted(Map.of(blue.alliance, -blue.tilt))
+                        .tilted(Map.of(blue.alliance(), -blue.tilt().degrees()))
                         .tick());
         recording.finish("done");
 
         String html = SimReplayPage.written(recording);
 
-        assertTrue("the hive's tilt reaches the page", html.contains("\"tilt\":{\"Blue\":" + -blue.tilt));
+        assertTrue(
+                "the hive's tilt reaches the page",
+                html.contains("\"tilt\":{\"Blue\":" + -blue.tilt().degrees()));
         assertTrue("and the page draws the hives with it", html.contains("hiveFaces(hive,"));
         assertTrue("from the model's own pivot and cells", html.contains("hive.pivot") && html.contains("hive.cells"));
     }
 
     @Test
     public void thePageDrawsAHiveThatTipsBackWhereTheFieldWasSetUpAgain() throws Exception {
-        SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
+        Field.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>").orElseThrow();
 
-        String ticks = "[{}, {\"tilt\":{\"Blue\":" + -blue.tilt + "}}, {}]";
+        String ticks = "[{}, {\"tilt\":{\"Blue\":" + -blue.tilt().degrees() + "}}, {}]";
 
         double[] leaning = tiltOnThePage(ticks, blue);
 
-        assertEquals("as the field was set up", blue.tilt, leaning[0], 0);
-        assertEquals("tipped", -blue.tilt, leaning[1], 0);
-        assertEquals("and tipped back, not left tipped", blue.tilt, leaning[2], 0);
+        assertEquals("as the field was set up", blue.tilt().degrees(), leaning[0], 0);
+        assertEquals("tipped", -blue.tilt().degrees(), leaning[1], 0);
+        assertEquals("and tipped back, not left tipped", blue.tilt().degrees(), leaning[2], 0);
     }
 
-    private double[] tiltOnThePage(String ticks, SimField.Hive hive) throws Exception {
+    private double[] tiltOnThePage(String ticks, Field.Hive hive) throws Exception {
         String html = SimReplayPage.written(new SimRecording("TiltRule"));
         Matcher rule = Pattern.compile("\n  function tiltAt\\(hive, upTo\\) \\{.*?\n  \\}", Pattern.DOTALL)
                 .matcher(html);
@@ -166,7 +169,12 @@ public class SimReplayPageTest {
                 script,
                 ("const ticks = " + ticks + ";\n"
                                 + "const hive = "
-                                + new Gson().toJson(Map.of("alliance", hive.alliance, "tilt", hive.tilt)) + ";\n"
+                                + new Gson()
+                                        .toJson(Map.of(
+                                                "alliance",
+                                                hive.alliance(),
+                                                "tilt",
+                                                hive.tilt().degrees())) + ";\n"
                                 + rule.group() + "\n"
                                 + "console.log(JSON.stringify(ticks.map((_, i) => tiltAt(hive, i))));\n")
                         .getBytes(StandardCharsets.UTF_8));

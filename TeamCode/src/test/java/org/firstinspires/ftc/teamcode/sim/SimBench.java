@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Vec3;
 
 public final class SimBench {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
@@ -270,12 +272,13 @@ public final class SimBench {
             if (mode == Mode.FREE_PLAY) {
                 return JsonNull.INSTANCE;
             }
-            SimField.AllianceArea area = SimPlacement.FIELD.allianceArea(entry.drivenFrom());
+            Field.AllianceArea area = Valid.value(SimPlacement.FIELD.allianceArea(entry.drivenFrom()));
+            Vec3 eye = area.eye(), lookingAt = area.lookingAt();
             JsonObject match = new JsonObject();
             match.addProperty("period", budgetSeconds());
-            match.addProperty("alliance", area.alliance);
-            match.add("eye", GSON.toJsonTree(area.eye()));
-            match.add("lookingAt", GSON.toJsonTree(area.lookingAt()));
+            match.addProperty("alliance", area.alliance());
+            match.add("eye", GSON.toJsonTree(new double[] {eye.x(), eye.y(), eye.z()}));
+            match.add("lookingAt", GSON.toJsonTree(new double[] {lookingAt.x(), lookingAt.y(), lookingAt.z()}));
             return match;
         }
 

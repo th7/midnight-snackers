@@ -10,514 +10,192 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import org.firstinspires.ftc.teamcode.simcore.ConvexPolygon;
+import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Length;
+import org.firstinspires.ftc.teamcode.simcore.Tilt;
+import org.firstinspires.ftc.teamcode.simcore.Vec2;
+import org.firstinspires.ftc.teamcode.simcore.Vec3;
 
 public final class SimField {
-    public static final String NECTAR = "Nectar";
-
-    public static final String POLLEN = "Pollen";
-
-    public static final class Obstacle {
-        public final String name;
-        public final double[][] footprint;
-
-        public final double clears;
-
-        public final double stands;
-
-        Obstacle(String name, double[][] footprint, double clears, double stands) {
-            this.name = name;
-            this.footprint = footprint;
-            this.clears = clears;
-            this.stands = stands;
-        }
-    }
-
-    public static final class Flower {
-        public final String name;
-
-        public final double[] axis;
-
-        public final double bore;
-
-        public final double gap;
-
-        public final double lip;
-
-        public final double nest;
-
-        Flower(JsonObject json, Gson gson) {
-            this.name = json.get("name").getAsString();
-            this.axis = gson.fromJson(json.get("axis"), double[].class);
-            this.bore = json.get("bore").getAsDouble();
-            this.gap = json.get("gap").getAsDouble();
-            this.lip = json.get("lip").getAsDouble();
-            this.nest = json.get("nest").getAsDouble();
-        }
-
-        public boolean standsIn(double x, double y) {
-            return Math.hypot(x - axis[0], y - axis[1]) <= bore;
-        }
-    }
-
-    public static final class Element {
-        public final String group;
-        public final String name;
-        public final String colour;
-        public final double[][] vertices;
-        public final int[][] faces;
-
-        Element(String group, String name, String colour, double[][] vertices, int[][] faces) {
-            this.group = group;
-            this.name = name;
-            this.colour = colour;
-            this.vertices = vertices;
-            this.faces = faces;
-        }
-    }
-
-    public static final class Hive {
-        public final String name;
-
-        public final String alliance;
-
-        public final String colour;
-
-        public final double[] pivot;
-
-        public final double tilt;
-
-        public final List<Cell> cells;
-
-        public final List<Element> parts;
-
-        Hive(JsonObject json, Gson gson) {
-            this.name = json.get("name").getAsString();
-            this.alliance = json.get("alliance").getAsString();
-            this.colour = json.get("colour").getAsString();
-            this.pivot = gson.fromJson(json.get("pivot"), double[].class);
-            this.tilt = json.get("tilt").getAsDouble();
-            List<Element> parts = new ArrayList<>();
-            for (JsonElement part : json.getAsJsonArray("parts")) {
-                JsonObject p = part.getAsJsonObject();
-                parts.add(new Element(
-                        name,
-                        p.get("name").getAsString(),
-                        p.get("colour").getAsString(),
-                        gson.fromJson(p.get("vertices"), double[][].class),
-                        gson.fromJson(p.get("faces"), int[][].class)));
-            }
-            this.parts = Collections.unmodifiableList(parts);
-            List<Cell> cells = new ArrayList<>();
-            for (JsonElement cell : json.getAsJsonArray("cells")) {
-                cells.add(new Cell(this, cell.getAsJsonObject(), gson));
-            }
-            this.cells = Collections.unmodifiableList(cells);
-        }
-
-        public double[] at(double tilt, double[] local) {
-            double[] turned = direction(tilt, local);
-            return new double[] {pivot[0] + turned[0], pivot[1] + turned[1], pivot[2] + turned[2]};
-        }
-
-        public double[] direction(double tilt, double[] local) {
-            double c = Math.cos(Math.toRadians(tilt)), s = Math.sin(Math.toRadians(tilt));
-            return new double[] {local[0] * c - local[2] * s, local[1], local[0] * s + local[2] * c};
-        }
-
-        public double[][] at(double tilt, double[][] local) {
-            double[][] out = new double[local.length][];
-            for (int i = 0; i < local.length; i++) {
-                out[i] = at(tilt, local[i]);
-            }
-            return out;
-        }
-    }
-
-    public static final class Cell {
-        public final Hive hive;
-        public final String name;
-
-        public final String alliance;
-
-        public final String side;
-
-        public final double[][] mouth;
-
-        public final double[][] back;
-
-        public final List<double[][]> walls;
-
-        public final List<double[][]> panels;
-
-        public final double[] centre;
-
-        public final double[] mouthCentre;
-
-        public final double[] mouthNormal;
-
-        Cell(Hive hive, JsonObject json, Gson gson) {
-            this.hive = hive;
-            this.name = json.get("name").getAsString();
-            this.alliance = hive.alliance;
-            this.side = json.get("side").getAsString();
-            this.mouth = gson.fromJson(json.get("mouth"), double[][].class);
-            this.back = gson.fromJson(json.get("back"), double[][].class);
-            List<double[][]> walls = new ArrayList<>();
-            for (JsonElement wall : json.getAsJsonArray("walls")) {
-                walls.add(gson.fromJson(wall, double[][].class));
-            }
-            this.walls = Collections.unmodifiableList(walls);
-            List<double[][]> panels = new ArrayList<>(walls);
-            panels.add(back);
-            this.panels = Collections.unmodifiableList(panels);
-            this.centre = mean(List.<double[][]>of(mouth, back));
-            this.mouthCentre = mean(List.<double[][]>of(mouth));
-            double[] normal = normal(mouth);
-            double outward = 0;
-            for (int axis = 0; axis < 3; axis++) {
-                outward += (mouthCentre[axis] - centre[axis]) * normal[axis];
-            }
-            if (outward < 0) {
-                for (int axis = 0; axis < 3; axis++) {
-                    normal[axis] = -normal[axis];
-                }
-            }
-            this.mouthNormal = normal;
-        }
-
-        public double[] centreAt(double tilt) {
-            return hive.at(tilt, centre);
-        }
-
-        public double[] mouthCentreAt(double tilt) {
-            return hive.at(tilt, mouthCentre);
-        }
-
-        public double[] mouthNormalAt(double tilt) {
-            return hive.direction(tilt, mouthNormal);
-        }
-
-        public double[][] mouthAt(double tilt) {
-            return hive.at(tilt, mouth);
-        }
-
-        public List<double[][]> panelsAt(double tilt) {
-            List<double[][]> out = new ArrayList<>(panels.size());
-            for (double[][] panel : panels) {
-                out.add(hive.at(tilt, panel));
-            }
-            return out;
-        }
-
-        public boolean upturnedAt(double tilt) {
-            return mouthNormalAt(tilt)[2] > 0;
-        }
-
-        private static double[] mean(List<double[][]> rings) {
-            double[] sum = new double[3];
-            int count = 0;
-            for (double[][] ring : rings) {
-                for (double[] v : ring) {
-                    for (int axis = 0; axis < 3; axis++) {
-                        sum[axis] += v[axis];
-                    }
-                    count++;
-                }
-            }
-            return new double[] {sum[0] / count, sum[1] / count, sum[2] / count};
-        }
-    }
-
-    static double[] normal(double[][] ring) {
-        double[] n = new double[3];
-        for (int i = 0; i < ring.length; i++) {
-            double[] a = ring[i], b = ring[(i + 1) % ring.length];
-            n[0] += (a[1] - b[1]) * (a[2] + b[2]);
-            n[1] += (a[2] - b[2]) * (a[0] + b[0]);
-            n[2] += (a[0] - b[0]) * (a[1] + b[1]);
-        }
-        double length = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-        return new double[] {n[0] / length, n[1] / length, n[2] / length};
-    }
-
-    public static final class Piece {
-        public final String name;
-
-        public final String kind;
-
-        public final String alliance;
-
-        public final String cell;
-
-        public final String flower;
-
-        public final double x;
-        public final double y;
-        public final double z;
-        public final double radius;
-
-        Piece(String name, String kind, String cell, String flower, double x, double y, double z, double radius) {
-            this.name = name;
-            this.kind = kind;
-            this.alliance = name.startsWith("Blue") ? "Blue" : name.startsWith("Red") ? "Red" : null;
-            this.cell = cell;
-            this.flower = flower;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.radius = radius;
-        }
-    }
-
-    /**
-     * Where an alliance's drivers stand: the box its tape marks on the floor outside the walls, the
-     * tape being the colour of its hive. The tray its human player loads from is in it.
-     */
-    public static final class AllianceArea {
-        /** How high a driver's eyes are: about five feet. */
-        public static final double EYE_IN = 60;
-
-        public final String alliance;
-
-        public final double minX;
-        public final double maxX;
-        public final double minY;
-        public final double maxY;
-
-        AllianceArea(String alliance, double minX, double maxX, double minY, double maxY) {
-            this.alliance = alliance;
-            this.minX = minX;
-            this.maxX = maxX;
-            this.minY = minY;
-            this.maxY = maxY;
-        }
-
-        /** Where a driver's eyes are: over the middle of the area. */
-        public double[] eye() {
-            return new double[] {(minX + maxX) / 2, (minY + maxY) / 2, EYE_IN};
-        }
-
-        /** Where a driver looks before there is a robot to watch: the middle of the field. */
-        public double[] lookingAt() {
-            return new double[] {0, 0, 0};
-        }
-
-        @Override
-        public String toString() {
-            return alliance + "'s area, x " + minX + ".." + maxX + ", y " + minY + ".." + maxY;
-        }
-    }
-
-    public AllianceArea allianceArea(String alliance) {
-        for (AllianceArea area : allianceAreas) {
-            if (area.alliance.equals(alliance)) {
-                return area;
-            }
-        }
-        List<String> known = new ArrayList<>();
-        for (AllianceArea area : allianceAreas) {
-            known.add(area.alliance);
-        }
-        throw new IllegalArgumentException("this field has nowhere for " + alliance + " to stand, only " + known);
-    }
-
     private static final String MODEL = "field.json";
 
-    public final double size;
+    public record Loaded(Field field, JsonObject page) {}
 
-    public final double wallHeight;
-    public final List<Element> elements;
-    public final List<Obstacle> obstacles;
+    private SimField() {}
 
-    public final List<Hive> hives;
-
-    public final List<Cell> cells;
-
-    public final List<Flower> flowers;
-
-    public final List<Piece> loosePieces;
-
-    public final List<Piece> cellPieces;
-
-    public final List<Piece> flowerPieces;
-
-    public final List<Piece> movedPieces;
-
-    public final List<AllianceArea> allianceAreas;
-
-    private final JsonObject json;
-
-    private SimField(JsonObject json) {
-        this.json = json;
-        this.size = json.get("size").getAsDouble();
-        this.wallHeight = json.get("wallHeight").getAsDouble();
-        Gson gson = new Gson();
-        List<Element> elements = new ArrayList<>();
-        for (JsonElement element : json.getAsJsonArray("elements")) {
-            JsonObject e = element.getAsJsonObject();
-            elements.add(new Element(
-                    e.get("group").getAsString(),
-                    e.get("name").getAsString(),
-                    e.get("colour").getAsString(),
-                    gson.fromJson(e.get("vertices"), double[][].class),
-                    gson.fromJson(e.get("faces"), int[][].class)));
-        }
-        this.elements = Collections.unmodifiableList(elements);
-        List<Hive> hives = new ArrayList<>();
-        List<Cell> cells = new ArrayList<>();
-        for (JsonElement hive : json.getAsJsonArray("hives")) {
-            Hive built = new Hive(hive.getAsJsonObject(), gson);
-            hives.add(built);
-            cells.addAll(built.cells);
-        }
-        this.hives = Collections.unmodifiableList(hives);
-        this.cells = Collections.unmodifiableList(cells);
-        List<Flower> flowers = new ArrayList<>();
-        for (JsonElement flower : json.getAsJsonArray("flowers")) {
-            flowers.add(new Flower(flower.getAsJsonObject(), gson));
-        }
-        this.flowers = Collections.unmodifiableList(flowers);
-        List<Piece> loose = new ArrayList<>();
-        List<Piece> inCells = new ArrayList<>();
-        List<Piece> inFlowers = new ArrayList<>();
-        Map<Piece, JsonObject> pieceJson = new IdentityHashMap<>();
-        JsonArray pieces = json.getAsJsonArray("pieces");
-        for (int i = 0; i < pieces.size(); i++) {
-            JsonObject p = pieces.get(i).getAsJsonObject();
-            JsonElement cell = p.get("cell");
-            JsonElement flower = p.get("flower");
-            if (!p.get("loose").getAsBoolean() && cell == null && flower == null) {
-                continue;
-            }
-            JsonArray centre = p.getAsJsonArray("centre");
-            Piece piece = new Piece(
-                    p.get("name").getAsString(),
-                    p.get("kind").getAsString(),
-                    cell == null ? null : cell.getAsString(),
-                    flower == null ? null : flower.getAsString(),
-                    centre.get(0).getAsDouble(),
-                    centre.get(1).getAsDouble(),
-                    centre.get(2).getAsDouble(),
-                    p.get("radius").getAsDouble());
-            (piece.cell != null ? inCells : piece.flower != null ? inFlowers : loose).add(piece);
-            pieceJson.put(piece, p);
-        }
-        this.loosePieces = Collections.unmodifiableList(loose);
-        this.cellPieces = Collections.unmodifiableList(inCells);
-        this.flowerPieces = Collections.unmodifiableList(inFlowers);
-        List<Piece> moved = new ArrayList<>(loose);
-        moved.addAll(inCells);
-        moved.addAll(inFlowers);
-        this.movedPieces = Collections.unmodifiableList(moved);
-        JsonArray movedJson = new JsonArray();
-        for (Piece piece : moved) {
-            movedJson.add(pieceJson.get(piece));
-        }
-        json.add("moved", movedJson);
-        List<Obstacle> obstacles = new ArrayList<>();
-        JsonArray array = json.getAsJsonArray("obstacles");
-        for (int i = 0; i < array.size(); i++) {
-            JsonObject o = array.get(i).getAsJsonObject();
-            obstacles.add(new Obstacle(
-                    o.get("name").getAsString(),
-                    gson.fromJson(o.get("footprint"), double[][].class),
-                    o.get("clears").getAsDouble(),
-                    o.get("stands").getAsDouble()));
-        }
-        this.obstacles = Collections.unmodifiableList(obstacles);
-        List<AllianceArea> areas = new ArrayList<>();
-        for (Hive hive : hives) {
-            areas.add(areaMarkedFor(hive, json.getAsJsonArray("tape"), gson));
-        }
-        this.allianceAreas = Collections.unmodifiableList(areas);
-    }
-
-    /** The box around every mark of the hive's colour that lies wholly beyond the walls. */
-    private AllianceArea areaMarkedFor(Hive hive, JsonArray tape, Gson gson) {
-        double half = size / 2;
-        double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
-        double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
-        for (JsonElement element : tape) {
-            JsonObject mark = element.getAsJsonObject();
-            if (!mark.get("colour").getAsString().equalsIgnoreCase(hive.colour)) {
-                continue;
-            }
-            double[][] footprint = gson.fromJson(mark.get("footprint"), double[][].class);
-            boolean outside = true;
-            for (double[] corner : footprint) {
-                outside &= Math.max(Math.abs(corner[0]), Math.abs(corner[1])) > half;
-            }
-            if (!outside) {
-                continue;
-            }
-            for (double[] corner : footprint) {
-                minX = Math.min(minX, corner[0]);
-                maxX = Math.max(maxX, corner[0]);
-                minY = Math.min(minY, corner[1]);
-                maxY = Math.max(maxY, corner[1]);
-            }
-        }
-        if (minX > maxX) {
-            throw new IllegalStateException("the field marks no area outside the walls in " + hive.colour
-                    + ", the colour of the " + hive.alliance + " hive, so there is nowhere for " + hive.alliance
-                    + "'s drivers to stand");
-        }
-        return new AllianceArea(hive.alliance, minX, maxX, minY, maxY);
-    }
-
-    public static SimField load() {
+    public static Loaded load() {
         try (InputStream in = SimField.class.getResourceAsStream(MODEL)) {
             if (in == null) {
                 throw new IllegalStateException("missing resource " + MODEL + " next to " + SimField.class.getName());
             }
-            return new SimField(
-                    new Gson().fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class));
+            return parse(new Gson().fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonObject.class));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    public JsonObject json() {
-        return json;
+    static Loaded parse(JsonObject json) {
+        Gson gson = new Gson();
+        List<Field.Element> elements = new ArrayList<>();
+        for (JsonElement element : json.getAsJsonArray("elements")) {
+            JsonObject e = element.getAsJsonObject();
+            elements.add(element(e, e.get("group").getAsString(), gson));
+        }
+        List<Field.Obstacle> obstacles = new ArrayList<>();
+        for (JsonElement element : json.getAsJsonArray("obstacles")) {
+            JsonObject o = element.getAsJsonObject();
+            obstacles.add(Valid.value(Field.Obstacle.of(
+                    o.get("name").getAsString(),
+                    Valid.value(ConvexPolygon.of(vec2s(gson.fromJson(o.get("footprint"), double[][].class)))),
+                    o.get("clears").getAsDouble(),
+                    o.get("stands").getAsDouble())));
+        }
+        List<Field.Hive> hives = new ArrayList<>();
+        for (JsonElement element : json.getAsJsonArray("hives")) {
+            hives.add(hive(element.getAsJsonObject(), gson));
+        }
+        List<Field.Flower> flowers = new ArrayList<>();
+        for (JsonElement element : json.getAsJsonArray("flowers")) {
+            JsonObject f = element.getAsJsonObject();
+            double[] axis = gson.fromJson(f.get("axis"), double[].class);
+            flowers.add(Valid.value(Field.Flower.of(
+                    f.get("name").getAsString(),
+                    new Vec2(axis[0], axis[1]),
+                    f.get("bore").getAsDouble(),
+                    f.get("gap").getAsDouble(),
+                    f.get("lip").getAsDouble(),
+                    f.get("nest").getAsDouble())));
+        }
+        List<Field.Piece> pieces = new ArrayList<>();
+        Map<Field.Piece, JsonObject> pieceJson = new IdentityHashMap<>();
+        for (JsonElement element : json.getAsJsonArray("pieces")) {
+            JsonObject p = element.getAsJsonObject();
+            JsonElement cell = p.get("cell");
+            JsonElement flower = p.get("flower");
+            if (!p.get("loose").getAsBoolean() && cell == null && flower == null) {
+                continue;
+            }
+            Field.Place place = cell != null
+                    ? new Field.Place.InCell(named(cellsOf(hives), cell.getAsString(), Field.Cell::name))
+                    : flower != null
+                            ? new Field.Place.InFlower(named(flowers, flower.getAsString(), Field.Flower::name))
+                            : new Field.Place.Loose();
+            double[] centre = gson.fromJson(p.get("centre"), double[].class);
+            Field.Piece piece = Valid.value(Field.Piece.of(
+                    p.get("name").getAsString(),
+                    Valid.value(Field.Kind.named(p.get("kind").getAsString())),
+                    place,
+                    new Vec3(centre[0], centre[1], centre[2]),
+                    Valid.value(Length.of(p.get("radius").getAsDouble()))));
+            pieces.add(piece);
+            pieceJson.put(piece, p);
+        }
+        List<Field.Mark> tape = new ArrayList<>();
+        for (JsonElement element : json.getAsJsonArray("tape")) {
+            JsonObject mark = element.getAsJsonObject();
+            tape.add(new Field.Mark(
+                    mark.get("colour").getAsString(), vec2s(gson.fromJson(mark.get("footprint"), double[][].class))));
+        }
+        Field field = Valid.value(Field.of(
+                Valid.value(Length.of(json.get("size").getAsDouble())),
+                Valid.value(Length.of(json.get("wallHeight").getAsDouble())),
+                elements,
+                obstacles,
+                hives,
+                flowers,
+                pieces,
+                tape));
+        JsonArray moved = new JsonArray();
+        for (Field.Piece piece : field.movedPieces()) {
+            moved.add(pieceJson.get(piece));
+        }
+        json.add("moved", moved);
+        return new Loaded(field, json);
     }
 
-    public Obstacle obstacle(String name) {
-        for (Obstacle obstacle : obstacles) {
-            if (obstacle.name.equals(name)) {
-                return obstacle;
+    private static Field.Element element(JsonObject e, String group, Gson gson) {
+        List<List<Integer>> faces = new ArrayList<>();
+        for (int[] face : gson.fromJson(e.get("faces"), int[][].class)) {
+            List<Integer> ring = new ArrayList<>();
+            for (int index : face) {
+                ring.add(index);
             }
+            faces.add(ring);
         }
-        return null;
+        return Valid.value(Field.Element.of(
+                group,
+                e.get("name").getAsString(),
+                e.get("colour").getAsString(),
+                vec3s(gson.fromJson(e.get("vertices"), double[][].class)),
+                faces));
     }
 
-    public Hive hive(String name) {
-        for (Hive hive : hives) {
-            if (hive.name.equals(name)) {
-                return hive;
-            }
+    private static Field.Hive hive(JsonObject h, Gson gson) {
+        String name = h.get("name").getAsString();
+        List<Field.Element> parts = new ArrayList<>();
+        for (JsonElement part : h.getAsJsonArray("parts")) {
+            parts.add(element(part.getAsJsonObject(), name, gson));
         }
-        return null;
+        List<Field.CellShape> cells = new ArrayList<>();
+        for (JsonElement cell : h.getAsJsonArray("cells")) {
+            JsonObject c = cell.getAsJsonObject();
+            List<List<Vec3>> walls = new ArrayList<>();
+            for (JsonElement wall : c.getAsJsonArray("walls")) {
+                walls.add(vec3s(gson.fromJson(wall, double[][].class)));
+            }
+            cells.add(new Field.CellShape(
+                    c.get("name").getAsString(),
+                    c.get("side").getAsString(),
+                    vec3s(gson.fromJson(c.get("mouth"), double[][].class)),
+                    vec3s(gson.fromJson(c.get("back"), double[][].class)),
+                    walls));
+        }
+        double[] pivot = gson.fromJson(h.get("pivot"), double[].class);
+        return Valid.value(Field.Hive.of(
+                name,
+                h.get("alliance").getAsString(),
+                h.get("colour").getAsString(),
+                new Vec3(pivot[0], pivot[1], pivot[2]),
+                Valid.value(Tilt.of(h.get("tilt").getAsDouble())),
+                cells,
+                parts));
     }
 
-    public Flower flower(String name) {
-        for (Flower flower : flowers) {
-            if (flower.name.equals(name)) {
-                return flower;
-            }
+    private static List<Field.Cell> cellsOf(List<Field.Hive> hives) {
+        List<Field.Cell> cells = new ArrayList<>();
+        for (Field.Hive hive : hives) {
+            cells.addAll(hive.cells());
         }
-        return null;
+        return cells;
     }
 
-    public Cell cell(String name) {
-        for (Cell cell : cells) {
-            if (cell.name.equals(name)) {
-                return cell;
+    private static <T> T named(List<T> all, String name, Function<T, String> nameOf) {
+        for (T one : all) {
+            if (nameOf.apply(one).equals(name)) {
+                return one;
             }
         }
-        return null;
+        throw new IllegalArgumentException("the field has no " + name);
+    }
+
+    private static List<Vec2> vec2s(double[][] points) {
+        List<Vec2> out = new ArrayList<>();
+        for (double[] p : points) {
+            out.add(new Vec2(p[0], p[1]));
+        }
+        return out;
+    }
+
+    private static List<Vec3> vec3s(double[][] points) {
+        List<Vec3> out = new ArrayList<>();
+        for (double[] p : points) {
+            out.add(new Vec3(p[0], p[1], p[2]));
+        }
+        return out;
     }
 }

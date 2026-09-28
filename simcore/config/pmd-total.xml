@@ -79,6 +79,15 @@
         </properties>
     </rule>
 
+    <rule name="NoEnumValueOf" language="java"
+          message="An enum's valueOf throws on a name it does not know: look the name up among its values"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[//MethodCall[@MethodName = 'valueOf'][pmd-java:typeIs('java.lang.Enum')]]]></value></property>
+        </properties>
+    </rule>
+
     <rule name="NoLock" language="java"
           message="No locks: the core shares nothing"
           class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">

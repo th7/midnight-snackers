@@ -12,6 +12,7 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.junit.Test;
 
 public class SimRunStreamTest {
@@ -108,11 +109,29 @@ public class SimRunStreamTest {
     @Test
     public void aTickSaysAHivesTiltOnlyWhileItIsNotLeaningTheWayTheFieldWasSetUp() {
         Heard heard = new Heard();
-        SimField.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>");
-        SimField.Hive red = SimRobot.FIELD.hive("Red Hive <1>");
-        SimRecording.Tick asSetUp = tilted(1, java.util.Map.of(blue.alliance, blue.tilt, red.alliance, red.tilt));
-        SimRecording.Tick tipped = tilted(2, java.util.Map.of(blue.alliance, -blue.tilt, red.alliance, red.tilt));
-        SimRecording.Tick tippedBack = tilted(3, java.util.Map.of(blue.alliance, blue.tilt, red.alliance, red.tilt));
+        Field.Hive blue = SimRobot.FIELD.hive("Blue Hive <1>").orElseThrow();
+        Field.Hive red = SimRobot.FIELD.hive("Red Hive <1>").orElseThrow();
+        SimRecording.Tick asSetUp = tilted(
+                1,
+                java.util.Map.of(
+                        blue.alliance(),
+                        blue.tilt().degrees(),
+                        red.alliance(),
+                        red.tilt().degrees()));
+        SimRecording.Tick tipped = tilted(
+                2,
+                java.util.Map.of(
+                        blue.alliance(),
+                        -blue.tilt().degrees(),
+                        red.alliance(),
+                        red.tilt().degrees()));
+        SimRecording.Tick tippedBack = tilted(
+                3,
+                java.util.Map.of(
+                        blue.alliance(),
+                        blue.tilt().degrees(),
+                        red.alliance(),
+                        red.tilt().degrees()));
 
         SimRunStream.accept(SimRunStream.tick(asSetUp), heard);
         SimRunStream.accept(SimRunStream.tick(tipped), heard);
@@ -122,7 +141,7 @@ public class SimRunStreamTest {
                 "every hive leans as the field was set up: nothing said",
                 heard.ticks.get(0).has("tilt"));
         JsonObject tilt = heard.ticks.get(1).getAsJsonObject("tilt");
-        assertEquals(-blue.tilt, tilt.get("Blue").getAsDouble(), 0);
+        assertEquals(-blue.tilt().degrees(), tilt.get("Blue").getAsDouble(), 0);
         assertFalse("the hive that has not tipped says nothing", tilt.has("Red"));
         assertFalse(
                 "the hive that has tipped back says nothing again",

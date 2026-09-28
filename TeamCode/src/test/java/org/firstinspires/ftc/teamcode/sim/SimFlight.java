@@ -12,6 +12,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.firstinspires.ftc.teamcode.simcore.Field;
 
 public final class SimFlight {
     public static final double GRAVITY_IN_PER_S2 = 386.09;
@@ -61,7 +62,7 @@ public final class SimFlight {
 
     private static final class Ball {
         final Object key;
-        final String kind;
+        final Field.Kind kind;
         final double radius;
         final double[] at;
         final double[] velocity;
@@ -70,7 +71,7 @@ public final class SimFlight {
         boolean awake = true;
         boolean resting;
 
-        Ball(Object key, String kind, double radius, double[] at, double[] velocity) {
+        Ball(Object key, Field.Kind kind, double radius, double[] at, double[] velocity) {
             this.key = key;
             this.kind = kind;
             this.radius = radius;
@@ -145,24 +146,24 @@ public final class SimFlight {
         }
     }
 
-    private final SimField field;
+    private final Field field;
     private final SimHives hives;
     private final List<Ball> balls = new ArrayList<>();
     private final Map<Object, Ball> byKey = new IdentityHashMap<>();
 
-    public SimFlight(SimField field, SimHives hives) {
+    public SimFlight(Field field, SimHives hives) {
         this.field = field;
         this.hives = hives;
     }
 
-    public void add(Object ball, String kind, double radius, double[] at, double[] velocity) {
+    public void add(Object ball, Field.Kind kind, double radius, double[] at, double[] velocity) {
         remove(ball);
         Ball flying = new Ball(ball, kind, radius, at, velocity);
         balls.add(flying);
         byKey.put(ball, flying);
     }
 
-    public void putIn(Object ball, String kind, double radius, SimField.Cell cell) {
+    public void putIn(Object ball, Field.Kind kind, double radius, Field.Cell cell) {
         remove(ball);
         for (double[] spot : hives.restingSpots(cell, radius)) {
             if (clear(spot, radius)) {
@@ -170,7 +171,7 @@ public final class SimFlight {
                 return;
             }
         }
-        throw new IllegalStateException("there is no room left in " + cell.name + " for another " + kind);
+        throw new IllegalStateException("there is no room left in " + cell.name() + " for another " + kind.named());
     }
 
     private boolean clear(double[] spot, double radius) {
@@ -201,8 +202,8 @@ public final class SimFlight {
         return flying.at.clone();
     }
 
-    public int fill(SimField.Hive hive) {
-        SimField.Cell up = hives.upturnedCell(hive.alliance);
+    public int fill(Field.Hive hive) {
+        Field.Cell up = hives.upturnedCell(hive.alliance());
         int fill = 0;
         for (Ball ball : balls) {
             if (hives.cellHolding(ball.at) == up) {
@@ -222,13 +223,13 @@ public final class SimFlight {
 
     public Map<String, Integer> scored() {
         Map<String, Integer> out = new LinkedHashMap<>();
-        for (SimField.Cell cell : field.cells) {
-            out.putIfAbsent(cell.alliance, 0);
+        for (Field.Cell cell : field.cells()) {
+            out.putIfAbsent(cell.alliance(), 0);
         }
         for (Ball ball : balls) {
-            SimField.Cell cell = hives.cellHolding(ball.at);
+            Field.Cell cell = hives.cellHolding(ball.at);
             if (cell != null) {
-                out.merge(cell.alliance, 1, Integer::sum);
+                out.merge(cell.alliance(), 1, Integer::sum);
             }
         }
         return out;
@@ -293,7 +294,7 @@ public final class SimFlight {
                 ball.slowFor = fastest <= REST_SPEED_IN_PER_S ? ball.slowFor + dt : 0;
             }
         }
-        for (SimField.Hive hive : field.hives) {
+        for (Field.Hive hive : field.hives()) {
             if (!hives.tipping(hive) && fill(hive) >= SimHives.FULL) {
                 hives.tip(hive);
             }
@@ -301,8 +302,8 @@ public final class SimFlight {
     }
 
     private void wake() {
-        Map<SimField.Hive, Boolean> stirring = new LinkedHashMap<>();
-        for (SimField.Hive hive : field.hives) {
+        Map<Field.Hive, Boolean> stirring = new LinkedHashMap<>();
+        for (Field.Hive hive : field.hives()) {
             boolean moving = hives.tipping(hive);
             for (Ball ball : balls) {
                 moving |= ball.slowFor < REST_SECONDS && hives.near(hive, ball.at, ball.radius + NEIGHBOURHOOD_IN);
@@ -311,7 +312,7 @@ public final class SimFlight {
         }
         for (Ball ball : balls) {
             boolean nearAny = false, nearStirring = false;
-            for (SimField.Hive hive : field.hives) {
+            for (Field.Hive hive : field.hives()) {
                 if (hives.near(hive, ball.at, ball.radius + NEIGHBOURHOOD_IN)) {
                     nearAny = true;
                     nearStirring |= stirring.get(hive);
@@ -408,12 +409,12 @@ public final class SimFlight {
                 }
                 ball.velocity[2] = -ball.velocity[2] * BOUNCE;
             }
-            double limit = field.size / 2 - ball.radius;
+            double limit = field.size() / 2 - ball.radius;
             for (int axis = 0; axis < 2; axis++) {
                 if (Math.abs(ball.at[axis]) <= limit) {
                     continue;
                 }
-                if (ball.at[2] - ball.radius > field.wallHeight) {
+                if (ball.at[2] - ball.radius > field.wallHeight()) {
                     remove(ball.key);
                     landed.add(new Landing(
                             ball.key, true, new double[] {ball.at[0], ball.at[1], ball.radius}, new double[2]));

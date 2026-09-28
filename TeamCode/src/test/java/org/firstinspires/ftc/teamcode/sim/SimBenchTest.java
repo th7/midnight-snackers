@@ -744,11 +744,11 @@ public class SimBenchTest {
         assertEquals(TELEOP_SECONDS, redGame.get("period").getAsDouble(), 0);
         assertEquals("Red", redGame.get("alliance").getAsString());
         assertArrayEquals(
-                SimPlacement.FIELD.allianceArea("Red").eye(),
+                Points.array(Valid.value(SimPlacement.FIELD.allianceArea("Red")).eye()),
                 new com.google.gson.Gson().fromJson(redGame.get("eye"), double[].class),
                 1e-9);
         assertArrayEquals(
-                SimPlacement.FIELD.allianceArea("Red").lookingAt(),
+                Points.array(Valid.value(SimPlacement.FIELD.allianceArea("Red")).lookingAt()),
                 new com.google.gson.Gson().fromJson(redGame.get("lookingAt"), double[].class),
                 1e-9);
 
