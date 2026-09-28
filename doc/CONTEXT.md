@@ -1328,7 +1328,8 @@ plate around it and free. Classes: `Nest` and `Seat`, in the **core**;
 
 **Stack** — The four pollen a flower is set up with, standing one on another
 in its bore from the floor up. Each rests on what is under it and falls onto
-it under gravity when there is nothing there, landing and settling; the stack
+it under gravity when there is nothing there, landing and settling, and one
+that lands hard bounces first, as a ball in flight does; the stack
 does not move until something takes the bottom pollen out of the nest. What
 can is the robot's own push, directly or through the balls between: its drive
 is behind that push and the nest's ring is no barrier to it, and once a push

@@ -99,7 +99,7 @@ public final class Stack<K> {
             double resting = under + ball.radius().inches();
             double z = ball.z();
             double vz = ball.vz();
-            if (z > resting) {
+            if (z > resting || vz > 0) {
                 vz -= Flight.GRAVITY_IN_PER_S2 * dt.value();
                 z += vz * dt.value();
             }

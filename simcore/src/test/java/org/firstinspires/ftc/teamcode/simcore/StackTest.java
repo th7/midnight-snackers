@@ -88,6 +88,26 @@ public class StackTest {
     }
 
     @Test
+    public void aBallThatLandsHardBouncesBeforeItStands() {
+        Stack<String> stack = Stack.<String>in(FLOWER).with("ball", POLLEN, 20);
+
+        boolean landed = false;
+        double highestAfter = 0;
+        for (int i = 0; i < 400; i++) {
+            stack = stack.after(STEP, NOTHING_ROLLING).stack();
+            double z = heightOf(stack, "ball");
+            if (landed) {
+                highestAfter = Math.max(highestAfter, z);
+            }
+            landed = landed || z == 2.5;
+        }
+
+        assertTrue("it came down", landed);
+        assertTrue("and went up again, to " + highestAfter, highestAfter > 3);
+        assertEquals("and stands", 2.5, heightOf(stack, "ball"), 0);
+    }
+
+    @Test
     public void aBallThatComesToRestBelowTheLipLeavesTheBoreAndWhatIsOnItStandsOnIt() {
         Stack.Settled<String> rested = Stack.<String>in(FLOWER)
                 .with("small", SMALL, 5)
