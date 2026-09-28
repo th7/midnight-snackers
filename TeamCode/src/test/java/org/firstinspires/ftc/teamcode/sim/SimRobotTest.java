@@ -21,6 +21,8 @@ import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.hardware.Wheels;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Launch;
+import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.junit.Test;
 
 public class SimRobotTest {
@@ -194,7 +196,7 @@ public class SimRobotTest {
 
     @Test
     public void theRobotsOwnLocalizerReadsACreepingRobotAsCreeping() {
-        SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(new SimNoise.Motor(0.9, 1, 1)));
+        SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(Valid.value(Noise.Motor.of(0.9, 1, 1))));
         Localizer localizer = robotLocalizer(creeper);
         MecanumDrive drive = new MecanumDrive(
                 new Wheels(creeper.leftFront, creeper.leftBack, creeper.rightBack, creeper.rightFront),
@@ -960,7 +962,7 @@ public class SimRobotTest {
         double[] ball = sim.placeOf(thePreloadOf(sim));
         assertNotNull("the first preloaded ball is on its way", ball);
         assertTrue("ahead of the robot: x=" + ball[0], ball[0] > -60 + SimPlacement.ROBOT_SIZE_IN / 2);
-        assertTrue("in the air: z=" + ball[2], ball[2] > SimRobot.LAUNCH_HEIGHT_IN);
+        assertTrue("in the air: z=" + ball[2], ball[2] > Launch.HEIGHT_IN);
         assertEquals("straight ahead", 0, ball[1], 0.01);
     }
 
@@ -979,7 +981,7 @@ public class SimRobotTest {
         sim.step(1.0);
         double[] still = sim.placeOf(thePreloadOf(sim));
 
-        assertTrue("flying: z=" + flying[2], flying[2] > SimRobot.LAUNCH_HEIGHT_IN + 5);
+        assertTrue("flying: z=" + flying[2], flying[2] > Launch.HEIGHT_IN + 5);
         assertEquals("on the floor", BALL, landed[2], DELTA);
         assertTrue("well down the field: x=" + landed[0], landed[0] > 20);
         assertEquals("at rest", resting[0], still[0], DELTA);

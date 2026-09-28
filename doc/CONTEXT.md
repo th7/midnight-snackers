@@ -583,11 +583,14 @@ server's. Not the Android build: no Kotlin, no desugaring. Class:
 
 ## The simulator
 
-**Core** — `simcore`: the simulator's geometry and physics, and the bench's
-decisions about a run — how it ends, what the **watchdog** holds its child to,
-and what Stop does — in a module whose build proves every function total. A
-project's own core is built with its simulator. Classes: `GatesTest`;
-`SimBuild`.
+**Core** — `simcore`: the simulator's geometry and physics — the field, the
+hives and flight, the robot's motors, dead wheels, intake and launch, the
+flowers' stacks and nests, and the **noise** a run's robot is drawn with — and
+the bench's decisions about a run — how it ends, what the **watchdog** holds its
+child to, and what Stop does — in a module whose build proves every function
+total. What is left outside it is the rigid-body engine and what reads and
+writes it. A project's own core is built with its simulator. Classes:
+`GatesTest`; `SimBuild`.
 
 **Bench** — The simulation core shared by the bench page and the coding
 server's Simulate tab: the catalog, the runs so far, and the routes that
@@ -1216,8 +1219,9 @@ launcher's throw and the turntable's speed are guesses until measured on
 the robot, calibrated so the code's close launch from its launch distance
 drops into the middle of the upturned cell's mouth, which a hive holds
 five feet up: the throw is a steep one. The world moves in steps of at
-most 5 ms whatever the loop rate, so nothing is jumped over. Class:
-`SimRobot`.
+most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
+`SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
+`Launch` and `Turntable`, in the **core**.
 
 **Flight** — A ball off the floor: launched, falling, or in or on a hive.
 It is a sphere under gravity, and it meets each part of a hive as the solid
@@ -1252,7 +1256,9 @@ braking, slips. A robot **set down** at a start pose lands near it, as a
 hand puts it, about half an inch and two degrees off. The loop period is
 about 33 ms (thirty hertz), varied, with the odd **hiccup** of 80 to
 200 ms. A robot without noise is the tuned model exactly, with the loop
-at 20 ms: what every run had before there was noise. Class: `SimNoise`;
+at 20 ms: what every run had before there was noise. A seed draws what
+`java.util.Random` would, so it is the robot it always was. Classes: `Noise`
+and `Draws`, in the **core**; `SimNoise`, which names the robot in a run's log;
 `SimRobot.setDown`.
 
 **Seed** — Which robot an op mode's runs are made on, kept by the bench
@@ -1317,11 +1323,13 @@ on it drags it to a stop there rather than letting it roll about. The
 middle is the axis to within the engine's contact tolerance, so a ball
 rolled back comes to rest rather than creeping at the axis forever. A nest
 holds one ball, the one nearest its middle; another in the bore is on the
-plate around it and free. Method: `SimRobot.holdTheNests`.
+plate around it and free. Classes: `Nest` and `Seat`, in the **core**;
+`SimRobot.holdTheNests`, which pushes on the engine's ball as they say.
 
 **Stack** — The four pollen a flower is set up with, standing one on another
 in its bore from the floor up. Each rests on what is under it and falls onto
-it under gravity when there is nothing there, landing and settling; the stack
+it under gravity when there is nothing there, landing and settling, and one
+that lands hard bounces first, as a ball in flight does; the stack
 does not move until something takes the bottom pollen out of the nest. What
 can is the robot's own push, directly or through the balls between: its drive
 is behind that push and the nest's ring is no barrier to it, and once a push
@@ -1330,7 +1338,7 @@ to rest again. A loose ball rolling in is far too light — it knocks the
 pollen a little way up the ring and the ring rolls it back. When the bore's
 floor does come clear, what is left comes down one place and stands again; a
 ball that comes to rest in a bore holds a stack up as well as a pollen of its
-own does. Method: `SimRobot.fallInTheFlowers`.
+own does. Class: `Stack`, in the **core**.
 
 **Hive** — An alliance's see-saw, hanging over the middle of the field
 from the axle the frame's top bar holds, with a **cell** at each end.

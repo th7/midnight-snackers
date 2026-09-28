@@ -253,7 +253,7 @@ public final class SimRunner {
             recording.add(tick.tick());
 
             long stepping = System.nanoTime();
-            sim.step(sim.noise().nextLoopSeconds());
+            sim.step(sim.nextLoopSeconds());
             meter.measured(ticking - looping, stepping - ticking, System.nanoTime() - stepping);
             if (pace == Pace.REAL_TIME) {
                 holdToRealTime(wallStartedAt + (sim.nanoTime() - startedAtNanos));

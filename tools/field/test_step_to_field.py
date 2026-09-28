@@ -6,9 +6,9 @@ import unittest
 import step_to_field as field
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-SIM_PLACEMENT_JAVA = os.path.join(
-    REPO, 'TeamCode', 'src', 'test', 'java', 'org', 'firstinspires', 'ftc', 'teamcode', 'sim',
-    'SimPlacement.java')
+CHASSIS_JAVA = os.path.join(
+    REPO, 'simcore', 'src', 'main', 'java', 'org', 'firstinspires', 'ftc', 'teamcode', 'simcore',
+    'Chassis.java')
 
 def box(bottom, top, side=4):
     vertices = [(0, 0, bottom), (side, 0, bottom), (side, side, bottom), (0, side, bottom),
@@ -164,10 +164,10 @@ class TheModelThatIsCommitted(unittest.TestCase):
             self.assertIsNotNone(field.checked(json.load(handle)))
 
     def test_the_robot_height_obstacles_are_measured_against_is_the_one_the_simulator_places_with(self):
-        source = open(SIM_PLACEMENT_JAVA).read()
-        found = re.search(r'ROBOT_SIZE_IN\s*=\s*([0-9.]+)', source)
+        source = open(CHASSIS_JAVA).read()
+        found = re.search(r'\bSIZE_IN\s*=\s*([0-9.]+)', source)
 
-        self.assertIsNotNone(found, SIM_PLACEMENT_JAVA + ' no longer names ROBOT_SIZE_IN')
+        self.assertIsNotNone(found, CHASSIS_JAVA + ' no longer names SIZE_IN')
         self.assertEqual(float(found.group(1)), float(field.ROBOT_HEIGHT_IN))
 
 if __name__ == '__main__':

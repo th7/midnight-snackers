@@ -29,7 +29,6 @@ import org.dyn4j.geometry.Vector2;
 import org.dyn4j.geometry.hull.GiftWrap;
 import org.dyn4j.world.ValueMixer;
 import org.dyn4j.world.World;
-import org.firstinspires.ftc.teamcode.Turntable;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
@@ -38,12 +37,33 @@ import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
+import org.firstinspires.ftc.teamcode.simcore.Chassis;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
+import org.firstinspires.ftc.teamcode.simcore.Drawn;
+import org.firstinspires.ftc.teamcode.simcore.Draws;
+import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
+import org.firstinspires.ftc.teamcode.simcore.Feedforward;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
+import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.Hives;
+import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Length;
+import org.firstinspires.ftc.teamcode.simcore.Nest;
+import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.PerWheel;
+import org.firstinspires.ftc.teamcode.simcore.Power;
+import org.firstinspires.ftc.teamcode.simcore.Rolling;
+import org.firstinspires.ftc.teamcode.simcore.Seat;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
+import org.firstinspires.ftc.teamcode.simcore.Sense;
+import org.firstinspires.ftc.teamcode.simcore.Stack;
+import org.firstinspires.ftc.teamcode.simcore.Turntable;
+import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
+import org.firstinspires.ftc.teamcode.simcore.Vec3;
+import org.firstinspires.ftc.teamcode.simcore.ZeroPower;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class SimRobot {
@@ -57,21 +77,9 @@ public class SimRobot {
 
     public static final double MAX_STEP_SECONDS = 0.005;
 
-    public static final double LAUNCH_HEIGHT_IN = 14;
-
-    public static final double LAUNCH_AHEAD_IN = 6;
-
-    public static final double LAUNCH_ANGLE_RADIANS = Math.toRadians(70);
-
-    public static final double LAUNCH_IN_PER_S_PER_TICK_PER_S = 0.189;
-
     private static final double ROBOT_MASS_KG = 15;
 
-    private static final double BALL_MASS_KG = 0.5;
-
-    private static final double INTAKE_REACH_IN = 0.25;
-
-    private static final double TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER = 1700;
+    private static final double BALL_MASS_KG = Nest.BALL_MASS_KG;
 
     private static final double ROLL_SECONDS = Flight.ROLL_SECONDS;
 
@@ -81,33 +89,15 @@ public class SimRobot {
 
     private static final double BALL_FRICTION = Flight.FRICTION;
 
-    private static final double GRAVITY_IN_PER_S2 = Flight.GRAVITY_IN_PER_S2;
-
-    private static final double NEST_FRICTION = 0.5;
-
-    private static final double LANDING_SPEED_IN_PER_S = Flight.LANDING_SPEED_IN_PER_S;
-
     private static final double TOP_GATE_OPENS_AT = 0.8;
 
     private static final double BOTTOM_GATE_OPENS_AT = 0.45;
 
-    private static final double IN = 0.0254;
+    private static final double IN = Length.METRES_PER_INCH;
 
     private static final double CONTACT_TOLERANCE_IN = 0.02;
 
     private static final double WALL_THICKNESS_M = 1;
-
-    private static final int PAR_RAW_SIGN = 1;
-
-    private static final int PERP_RAW_SIGN = -1;
-
-    private static final double HUB_VELOCITY_STEP_TICKS_PER_S = 20;
-
-    private static final int LEFT_FRONT_MOUNT = 1;
-
-    private static final int RIGHT_FRONT_MOUNT = 1;
-    private static final int LEFT_BACK_MOUNT = -1;
-    private static final int RIGHT_BACK_MOUNT = -1;
 
     private final SimDevices devices = new SimDevices();
 
@@ -124,19 +114,23 @@ public class SimRobot {
     public final FakeVoltageSensor voltageSensor = devices.voltageSensor;
     public final FakeDashboard dashboard = devices.dashboard;
 
-    private final SimNoise noise;
+    private final Noise noise;
+
+    private Draws draws;
 
     private final MecanumDrive.Params drive = MecanumDrive.PARAMS;
-    private final TwoDeadWheelLocalizer.Params deadWheels = TwoDeadWheelLocalizer.PARAMS;
+    private final TwoDeadWheelLocalizer.Params deadWheelOffsets = TwoDeadWheelLocalizer.PARAMS;
     private final MecanumKinematics kinematics =
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
+    private final Drivetrain drivetrain;
+    private final Turntable turntable =
+            Valid.value(Turntable.of(org.firstinspires.ftc.teamcode.Turntable.TICKS_PER_REVOLUTION));
     private final World<Body> world = new World<>();
     private final Body robot;
 
     private Pose2d previous = new Pose2d(0, 0, 0);
 
-    private double parTicks = 0;
-    private double perpTicks = 0;
+    private DeadWheels deadWheels;
 
     private final Ball[] balls;
 
@@ -146,9 +140,9 @@ public class SimRobot {
 
     private Ball chambered = null;
 
-    private final Map<Field.Flower, List<Ball>> inFlower = new LinkedHashMap<>();
+    private final Map<Field.Flower, Stack<Ball>> stacks = new LinkedHashMap<>();
 
-    private final Map<Field.Flower, Ball> offTheSeat = new LinkedHashMap<>();
+    private final Map<Field.Flower, Seat<Ball>> seats = new LinkedHashMap<>();
 
     private Flight<Ball> flight;
 
@@ -200,7 +194,7 @@ public class SimRobot {
 
         Field.Flower flower;
 
-        double x, y, z, vx, vy, vz;
+        Vec3 out;
 
         final Length length;
 
@@ -257,9 +251,17 @@ public class SimRobot {
         this(SimNoise.NONE);
     }
 
-    public SimRobot(SimNoise noise) {
+    public SimRobot(Noise noise) {
         this.noise = noise;
-        voltageSensor.voltage = noise.batteryVolts(0, 0);
+        this.draws = noise.draws();
+        this.drivetrain = Valid.value(Drivetrain.of(
+                Valid.value(
+                        Feedforward.of(drive.kSVolts, drive.kVVoltSecondsPerTick, drive.kAVoltSecondsSquaredPerTick)),
+                drive.inPerTick,
+                noise.motors()));
+        this.deadWheels =
+                Valid.value(DeadWheels.of(drive.inPerTick, deadWheelOffsets.parYTicks, deadWheelOffsets.perpXTicks));
+        voltageSensor.voltage = noise.battery().volts(Seconds.zero(), PerWheel.all(Power.none()));
         Settings settings = world.getSettings();
         settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
         settings.setMaximumAtRestLinearVelocity(REST_SPEED_IN_PER_S * IN);
@@ -296,7 +298,8 @@ public class SimRobot {
 
         flight = Flight.over(Hives.of(FIELD));
         for (Field.Flower flower : FIELD.flowers()) {
-            inFlower.put(flower, new ArrayList<>());
+            stacks.put(flower, Stack.in(flower));
+            seats.put(flower, Seat.seated());
         }
         List<Field.Piece> moved = FIELD.movedPieces();
         Field.Piece aLoosePollen = FIELD.loosePieces().get(0);
@@ -311,10 +314,7 @@ public class SimRobot {
             if (place instanceof Field.Place.Loose) {
                 setDown(balls[i], piece.at().x(), piece.at().y());
             } else if (place instanceof Field.Place.InCell) {
-                intoTheAir(
-                        balls[i],
-                        new double[] {piece.at().x(), piece.at().y(), piece.at().z()},
-                        new double[3]);
+                intoTheAir(balls[i], piece.at(), Vec3.zero());
             } else if (place instanceof Field.Place.InFlower flowerPlace) {
                 putInFlower(balls[i], flowerPlace.flower(), piece.at().z());
             } else {
@@ -389,8 +389,14 @@ public class SimRobot {
         return devices.nanoTime();
     }
 
-    public SimNoise noise() {
+    public Noise noise() {
         return noise;
+    }
+
+    public double nextLoopSeconds() {
+        Drawn<Seconds> loop = noise.nextLoop(draws);
+        draws = loop.next();
+        return loop.value().value();
     }
 
     public Pose2d pose() {
@@ -416,7 +422,15 @@ public class SimRobot {
     }
 
     public void setDown(Pose2d pose) {
-        setPose(noise.placed(pose));
+        Drawn<Noise.Nudge> nudge = noise.setDown(draws);
+        draws = nudge.next();
+        setPose(nudge.value()
+                .fold(
+                        pose,
+                        by -> new Pose2d(
+                                pose.position.x + by.offset().x(),
+                                pose.position.y + by.offset().y(),
+                                pose.heading.toDouble() + by.radians())));
     }
 
     public double[][] pieces() {
@@ -434,8 +448,11 @@ public class SimRobot {
                 case FLYING:
                     out[i] = Points.array(flight.at(ball).orElseThrow());
                     break;
+                case IN_FLOWER:
+                    out[i] = Points.array(stacks.get(ball.flower).at(ball).orElseThrow());
+                    break;
                 default:
-                    out[i] = new double[] {ball.x, ball.y, ball.z};
+                    out[i] = Points.array(ball.out);
             }
         }
         return out;
@@ -500,7 +517,7 @@ public class SimRobot {
             flight = flight.without(ball);
         }
         if (ball.where == Where.IN_FLOWER) {
-            inFlower.get(ball.flower).remove(ball);
+            stacks.put(ball.flower, stacks.get(ball.flower).without(ball));
             ball.flower = null;
         }
     }
@@ -511,118 +528,76 @@ public class SimRobot {
         flight = Valid.value(flight.within(ball, ball.kind, ball.length, cell));
     }
 
-    private void intoTheAir(Ball ball, double[] at, double[] velocity) {
+    private void intoTheAir(Ball ball, Vec3 at, Vec3 velocity) {
         take(ball);
         ball.where = Where.FLYING;
-        flight = flight.with(ball, ball.kind, ball.length, Points.vec(at), Points.vec(velocity));
+        flight = flight.with(ball, ball.kind, ball.length, at, velocity);
     }
 
     private void putInFlower(Ball ball, Field.Flower flower, double z) {
         take(ball);
         ball.where = Where.IN_FLOWER;
         ball.flower = flower;
-        ball.x = flower.axis().x();
-        ball.y = flower.axis().y();
-        ball.z = z;
-        ball.vx = ball.vy = ball.vz = 0;
-        List<Ball> stack = inFlower.get(flower);
-        int place = 0;
-        while (place < stack.size() && stack.get(place).z < z) {
-            place++;
-        }
-        stack.add(place, ball);
+        stacks.put(flower, stacks.get(flower).with(ball, ball.length, z));
     }
 
     private void restTheFlowers() {
         for (Field.Flower flower : FIELD.flowers()) {
-            double under = topOfTheBore(flower);
-            for (Ball ball : new ArrayList<>(inFlower.get(flower))) {
-                ball.z = under + ball.radius;
-                ball.vz = 0;
-                under = settled(ball, flower);
-            }
+            settle(stacks.get(flower).rested(rolling()));
         }
     }
 
-    private void fallInTheFlowers(double dt) {
+    private void fallInTheFlowers(Seconds dt) {
         for (Field.Flower flower : FIELD.flowers()) {
-            double under = topOfTheBore(flower);
-            for (Ball ball : new ArrayList<>(inFlower.get(flower))) {
-                double resting = under + ball.radius;
-                if (ball.z > resting) {
-                    ball.vz -= GRAVITY_IN_PER_S2 * dt;
-                    ball.z += ball.vz * dt;
-                }
-                if (ball.z <= resting) {
-                    ball.z = resting;
-                    ball.vz = -ball.vz < LANDING_SPEED_IN_PER_S ? 0 : -ball.vz * BOUNCE;
-                }
-                under = settled(ball, flower);
-            }
+            settle(stacks.get(flower).after(dt, rolling()));
         }
     }
 
-    private double settled(Ball ball, Field.Flower flower) {
-        if (ball.vz == 0 && ball.z + ball.radius <= flower.lip()) {
+    private void settle(Stack.Settled<Ball> settled) {
+        Field.Flower flower = settled.stack().flower();
+        stacks.put(flower, settled.stack());
+        for (Ball ball : settled.leaving()) {
             setDown(ball, flower.axis().x(), flower.axis().y());
         }
-        return ball.z + ball.radius;
     }
 
-    private void holdTheNests(double dt) {
-        for (Field.Flower flower : FIELD.flowers()) {
-            Ball nested = nestedIn(flower);
-            if (nested == null) {
-                offTheSeat.remove(flower);
-                continue;
-            }
-            if (pushedByTheRobot(nested)) {
-                offTheSeat.put(flower, nested);
-            }
-            if (offTheSeat.get(flower) != nested) {
-                offTheSeat.remove(flower);
-            } else if (nested.body.getLinearVelocity().getMagnitude() > REST_SPEED_IN_PER_S * IN) {
-                continue;
-            } else {
-                offTheSeat.remove(flower);
-            }
-            Transform at = nested.body.getTransform();
-            double toTheAxis = flower.axis().x() - at.getTranslationX() / IN;
-            double acrossToIt = flower.axis().y() - at.getTranslationY() / IN;
-            double out = Math.hypot(toTheAxis, acrossToIt);
-            if (out > CONTACT_TOLERANCE_IN) {
-                double hold = overTheRing(flower, nested) * Math.min(1, out / flower.bore());
-                nested.body.applyForce(new Vector2(hold * toTheAxis / out, hold * acrossToIt / out));
-            }
-            Vector2 rolling = nested.body.getLinearVelocity();
-            double speed = rolling.getMagnitude();
-            if (speed > 0) {
-                double drag = Math.min(
-                        NEST_FRICTION * loadOn(flower), nested.body.getMass().getMass() * speed / dt);
-                nested.body.applyForce(rolling.getNormalized().multiply(-drag));
-            }
-        }
-    }
-
-    private Ball nestedIn(Field.Flower flower) {
-        Ball nested = null;
-        double nearest = Double.MAX_VALUE;
+    private List<Rolling<Ball>> rolling() {
+        List<Rolling<Ball>> rolling = new ArrayList<>();
         for (Ball ball : balls) {
-            if (ball.where != Where.ROLLING) {
-                continue;
-            }
-            Transform at = ball.body.getTransform();
-            double x = at.getTranslationX() / IN, y = at.getTranslationY() / IN;
-            if (!flower.standsIn(x, y)) {
-                continue;
-            }
-            double out = Math.hypot(x - flower.axis().x(), y - flower.axis().y());
-            if (out < nearest) {
-                nearest = out;
-                nested = ball;
+            if (ball.where == Where.ROLLING) {
+                rolling.add(new Rolling<>(ball, inches(ball.body.getTransform()), ball.length));
             }
         }
-        return nested;
+        return rolling;
+    }
+
+    private static Vec2 inches(Transform at) {
+        return new Vec2(at.getTranslationX() / IN, at.getTranslationY() / IN);
+    }
+
+    private void holdTheNests(Seconds dt) {
+        List<Rolling<Ball>> rolling = rolling();
+        for (Field.Flower flower : FIELD.flowers()) {
+            Optional<Ball> nested = Nest.nested(flower, rolling);
+            Seat.Next<Ball> next = seats.get(flower)
+                    .next(
+                            nested,
+                            nested.map(this::pushedByTheRobot).orElse(false),
+                            nested.map(ball -> ball.body.getLinearVelocity().getMagnitude())
+                                    .orElse(0.0));
+            seats.put(flower, next.seat());
+            next.held().ifPresent(ball -> hold(flower, ball, dt));
+        }
+    }
+
+    private void hold(Field.Flower flower, Ball nested, Seconds dt) {
+        int standingOnIt = stacks.get(flower).size();
+        Nest.hold(flower, inches(nested.body.getTransform()), nested.length, standingOnIt)
+                .ifPresent(force -> nested.body.applyForce(new Vector2(force.x(), force.y())));
+        Vector2 rolling = nested.body.getLinearVelocity();
+        Nest.drag(standingOnIt, nested.body.getMass().getMass(), rolling.getMagnitude(), dt)
+                .ifPresent(
+                        drag -> nested.body.applyForce(rolling.getNormalized().multiply(-drag)));
     }
 
     private boolean pushedByTheRobot(Ball ball) {
@@ -640,30 +615,6 @@ public class SimRobot {
             touching.addAll(world.getInContactBodies(body, false));
         }
         return false;
-    }
-
-    private double loadOn(Field.Flower flower) {
-        return (1 + inFlower.get(flower).size()) * BALL_MASS_KG * GRAVITY_IN_PER_S2 * IN;
-    }
-
-    private double overTheRing(Field.Flower flower, Ball ball) {
-        return loadOn(flower)
-                * Math.sqrt(2 * ball.radius * flower.nest() - flower.nest() * flower.nest())
-                / (ball.radius - flower.nest());
-    }
-
-    private double topOfTheBore(Field.Flower flower) {
-        double top = 0;
-        for (Ball ball : balls) {
-            if (ball.where != Where.ROLLING) {
-                continue;
-            }
-            Transform at = ball.body.getTransform();
-            if (flower.standsIn(at.getTranslationX() / IN, at.getTranslationY() / IN)) {
-                top = Math.max(top, 2 * ball.radius);
-            }
-        }
-        return top;
     }
 
     public int held() {
@@ -701,97 +652,90 @@ public class SimRobot {
     }
 
     public void step(double dtSeconds) {
+        Seconds dt = Valid.value(Seconds.of(dtSeconds));
         devices.advance(dtSeconds);
         int steps = Math.max(1, (int) Math.ceil(dtSeconds / MAX_STEP_SECONDS));
         for (int i = 0; i < steps; i++) {
-            substep(dtSeconds / steps);
+            substep(dt.dividedInto(steps));
         }
     }
 
-    private void substep(double dt) {
+    private void substep(Seconds dt) {
         launcher.measuredVelocity = launcher.commandedVelocity;
-        turnTable.currentPosition +=
-                (int) Math.round(clamp(turnTable.power) * TURNTABLE_TICKS_PER_SECOND_AT_FULL_POWER * dt);
-
-        double drivePower = Math.abs(clamp(leftFront.power))
-                + Math.abs(clamp(rightFront.power))
-                + Math.abs(clamp(leftBack.power))
-                + Math.abs(clamp(rightBack.power));
-        voltageSensor.voltage = noise.batteryVolts(nanoTime() / 1e9, drivePower);
+        turnTable.currentPosition = turntable.turned(turnTable.currentPosition, Power.clamped(turnTable.power), dt);
+        voltageSensor.voltage = noise.battery()
+                .volts(
+                        Valid.value(Seconds.of(nanoTime() / 1e9)),
+                        new PerWheel<>(
+                                Power.clamped(leftFront.power),
+                                Power.clamped(rightFront.power),
+                                Power.clamped(leftBack.power),
+                                Power.clamped(rightBack.power)));
 
         driveTheRobot(dt);
         feedTheLauncher();
         holdTheNests(dt);
-        world.step(1, dt);
+        world.step(1, dt.value());
         intakeTheBalls();
         fallInTheFlowers(dt);
         flyTheBalls(dt);
-        readTheSensors(dt);
+        readTheSensors();
     }
 
-    private void driveTheRobot(double dt) {
+    private void driveTheRobot(Seconds dt) {
         Vector2 linear = robot.getLinearVelocity();
-        double heading = robot.getTransform().getRotationAngle();
-        double cos = Math.cos(heading), sin = Math.sin(heading);
-        double vx = linear.x / IN, vy = linear.y / IN;
+        Heading heading = Valid.value(Heading.ofRadians(robot.getTransform().getRotationAngle()));
+        Vec2 velocity = heading.onTheRobot(new Vec2(linear.x / IN, linear.y / IN));
         PoseVelocity2d inRobotFrame =
-                new PoseVelocity2d(new Vector2d(cos * vx + sin * vy, -sin * vx + cos * vy), robot.getAngularVelocity());
+                new PoseVelocity2d(new Vector2d(velocity.x(), velocity.y()), robot.getAngularVelocity());
         MecanumKinematics.WheelVelocities<Time> wheels =
                 kinematics.inverse(PoseVelocity2dDual.constant(inRobotFrame, 1));
 
-        double lf = wheelAcceleration(
-                leftFront, LEFT_FRONT_MOUNT, noise.motor(SimNoise.LEFT_FRONT), wheels.leftFront.value(), dt);
-        double lb = wheelAcceleration(
-                leftBack, LEFT_BACK_MOUNT, noise.motor(SimNoise.LEFT_BACK), wheels.leftBack.value(), dt);
-        double rb = wheelAcceleration(
-                rightBack, RIGHT_BACK_MOUNT, noise.motor(SimNoise.RIGHT_BACK), wheels.rightBack.value(), dt);
-        double rf = wheelAcceleration(
-                rightFront, RIGHT_FRONT_MOUNT, noise.motor(SimNoise.RIGHT_FRONT), wheels.rightFront.value(), dt);
+        PerWheel<Double> accelerations = refusedIfNot(drivetrain.accelerations(
+                new PerWheel<>(setting(leftFront), setting(rightFront), setting(leftBack), setting(rightBack)),
+                voltageSensor.voltage,
+                new PerWheel<>(
+                        wheels.leftFront.value(),
+                        wheels.rightFront.value(),
+                        wheels.leftBack.value(),
+                        wheels.rightBack.value()),
+                dt,
+                noise.traction()));
 
         Twist2d acceleration = kinematics
-                .forward(new MecanumKinematics.WheelIncrements<>(dual(lf), dual(lb), dual(rb), dual(rf)))
+                .forward(new MecanumKinematics.WheelIncrements<>(
+                        dual(accelerations.leftFront()),
+                        dual(accelerations.leftBack()),
+                        dual(accelerations.rightBack()),
+                        dual(accelerations.rightFront())))
                 .value();
-        double ax = cos * acceleration.line.x - sin * acceleration.line.y;
-        double ay = sin * acceleration.line.x + cos * acceleration.line.y;
+        Vec2 pushed = heading.onTheField(new Vec2(acceleration.line.x, acceleration.line.y));
         double mass = robot.getMass().getMass();
-        robot.applyForce(new Vector2(ax * IN * mass, ay * IN * mass));
+        robot.applyForce(new Vector2(pushed.x() * IN * mass, pushed.y() * IN * mass));
         robot.applyTorque(acceleration.angle * robot.getMass().getInertia());
     }
 
-    private double wheelAcceleration(
-            FakeDcMotorEx motor, int mount, SimNoise.Motor factors, double velocity, double dt) {
-        int direction = motor.getDirection() == DcMotorSimple.Direction.REVERSE ? -1 : 1;
-        double volts = mount * direction * clamp(motor.power) * voltageSensor.voltage;
-        double kSVolts = drive.kSVolts * factors.kSVolts,
-                kVVoltSecondsPerTick = drive.kVVoltSecondsPerTick * factors.kVVoltSecondsPerTick,
-                kAVoltSecondsSquaredPerTick = drive.kAVoltSecondsSquaredPerTick * factors.kAVoltSecondsSquaredPerTick;
-        double ticksPerSecond = velocity / drive.inPerTick;
-        boolean creeping = Math.abs(ticksPerSecond) <= kSVolts / kAVoltSecondsSquaredPerTick * dt;
-        double acceleration;
-        if (creeping && Math.abs(volts) <= kSVolts) {
-            acceleration = -velocity / dt;
-        } else {
-            double sign = ticksPerSecond != 0 ? Math.signum(ticksPerSecond) : Math.signum(volts);
-
-            double backEmf =
-                    clamp(motor.power) == 0 && !brakesAtZeroPower(motor) ? 0 : kVVoltSecondsPerTick * ticksPerSecond;
-            acceleration = (volts - kSVolts * sign - backEmf) / kAVoltSecondsSquaredPerTick * drive.inPerTick;
-        }
-        double traction = noise.tractionInPerS2;
-        return Math.max(-traction, Math.min(traction, acceleration));
+    private static Drivetrain.Setting setting(FakeDcMotorEx motor) {
+        return new Drivetrain.Setting(
+                motor.getDirection() == DcMotorSimple.Direction.REVERSE ? Sense.REVERSE : Sense.FORWARD,
+                Power.clamped(motor.power),
+                zeroPower(motor.getZeroPowerBehavior()));
     }
 
-    private static boolean brakesAtZeroPower(FakeDcMotorEx motor) {
-        DcMotor.ZeroPowerBehavior behavior = motor.getZeroPowerBehavior();
+    private static ZeroPower zeroPower(DcMotor.ZeroPowerBehavior behavior) {
         if (behavior == DcMotor.ZeroPowerBehavior.BRAKE) {
-            return true;
+            return ZeroPower.BRAKE;
         }
         if (behavior == DcMotor.ZeroPowerBehavior.FLOAT) {
-            return false;
+            return ZeroPower.FLOAT;
         }
-        throw new IllegalStateException("a wheel is rolling at zero power with its zero power behavior "
-                + behavior + ": set BRAKE or FLOAT on it, as MecanumDrive does, so this simulation knows"
-                + " whether its motor holds it back or lets it roll");
+        return ZeroPower.UNKNOWN;
+    }
+
+    private static <T> T refusedIfNot(Checked<T> checked) {
+        return checked.fold(value -> value, rule -> {
+            throw new IllegalStateException(rule);
+        });
     }
 
     private static DualNum<Time> dual(double value) {
@@ -799,7 +743,7 @@ public class SimRobot {
     }
 
     private void intakeTheBalls() {
-        if (clamp(intake.power) <= 0) {
+        if (!(Power.clamped(intake.power).value() > 0)) {
             return;
         }
         for (Ball ball : balls) {
@@ -815,19 +759,17 @@ public class SimRobot {
     private boolean againstTheFront(Ball ball) {
         Transform robotAt = robot.getTransform();
         Transform ballAt = ball.body.getTransform();
-        double heading = robotAt.getRotationAngle();
-        double dx = (ballAt.getTranslationX() - robotAt.getTranslationX()) / IN;
-        double dy = (ballAt.getTranslationY() - robotAt.getTranslationY()) / IN;
-        double ahead = Math.cos(heading) * dx + Math.sin(heading) * dy;
-        double across = -Math.sin(heading) * dx + Math.cos(heading) * dy;
-        double half = SimPlacement.ROBOT_SIZE_IN / 2;
-        return ahead > 0 && ahead - ball.radius <= half + INTAKE_REACH_IN && Math.abs(across) <= half;
+        return Chassis.againstTheFront(
+                Valid.value(Heading.ofRadians(robotAt.getRotationAngle())),
+                new Vec2(
+                        (ballAt.getTranslationX() - robotAt.getTranslationX()) / IN,
+                        (ballAt.getTranslationY() - robotAt.getTranslationY()) / IN),
+                ball.length);
     }
 
     private void intoTheHopper(Ball ball) {
         take(ball);
         ball.where = Where.HELD;
-        ball.vx = ball.vy = ball.vz = 0;
         hopper.add(ball);
     }
 
@@ -843,37 +785,24 @@ public class SimRobot {
 
     private void launch(Ball ball) {
         Pose2d pose = pose();
-        double aim = pose.heading.toDouble() + turnTableOffsetRadians();
-        double speed = Math.abs(launcher.measuredVelocity) * LAUNCH_IN_PER_S_PER_TICK_PER_S;
         Vector2 robotVelocity = robot.getLinearVelocity();
-        intoTheAir(
-                ball,
-                new double[] {
-                    pose.position.x + LAUNCH_AHEAD_IN * Math.cos(aim),
-                    pose.position.y + LAUNCH_AHEAD_IN * Math.sin(aim),
-                    LAUNCH_HEIGHT_IN
-                },
-                new double[] {
-                    robotVelocity.x / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.cos(aim),
-                    robotVelocity.y / IN + speed * Math.cos(LAUNCH_ANGLE_RADIANS) * Math.sin(aim),
-                    speed * Math.sin(LAUNCH_ANGLE_RADIANS)
-                });
+        Launch launch = Launch.from(
+                new Vec2(pose.position.x, pose.position.y),
+                pose.heading.toDouble(),
+                turntable.radians(turnTable.currentPosition),
+                launcher.measuredVelocity,
+                new Vec2(robotVelocity.x / IN, robotVelocity.y / IN));
+        intoTheAir(ball, launch.at(), launch.velocity());
     }
 
-    private double turnTableOffsetRadians() {
-        return (double) turnTable.currentPosition / Turntable.TICKS_PER_REVOLUTION * 2 * Math.PI;
-    }
-
-    private void flyTheBalls(double dt) {
-        Flight.Stepped<Ball> stepped = flight.step(Valid.value(Seconds.of(dt)));
+    private void flyTheBalls(Seconds dt) {
+        Flight.Stepped<Ball> stepped = flight.step(dt);
         flight = stepped.flight();
         for (Flight.Landing<Ball> landing : stepped.landings()) {
             Ball ball = landing.ball();
             if (!(landing instanceof Flight.OnTheFloor<Ball> floor)) {
                 ball.where = Where.OUT;
-                ball.x = landing.at().x();
-                ball.y = landing.at().y();
-                ball.z = landing.at().z();
+                ball.out = landing.at();
                 continue;
             }
             ball.where = Where.ROLLING;
@@ -888,35 +817,23 @@ public class SimRobot {
         }
     }
 
-    private void readTheSensors(double dt) {
+    private void readTheSensors() {
         Pose2d pose = pose();
         Twist2d delta = pose.minus(previous);
         previous = pose;
         Vector2 linear = robot.getLinearVelocity();
-        double heading = pose.heading.toDouble();
-        double cos = Math.cos(heading), sin = Math.sin(heading);
-        double vx = linear.x / IN, vy = linear.y / IN;
-        PoseVelocity2d velocity =
-                new PoseVelocity2d(new Vector2d(cos * vx + sin * vy, -sin * vx + cos * vy), robot.getAngularVelocity());
+        Heading heading = Valid.value(Heading.ofRadians(pose.heading.toDouble()));
+        Twist perSecond =
+                new Twist(heading.onTheRobot(new Vec2(linear.x / IN, linear.y / IN)), robot.getAngularVelocity());
 
-        parTicks += delta.line.x / drive.inPerTick + deadWheels.parYTicks * delta.angle;
-        perpTicks += delta.line.y / drive.inPerTick + deadWheels.perpXTicks * delta.angle;
-        double parVelocity = velocity.linearVel.x / drive.inPerTick + deadWheels.parYTicks * velocity.angVel;
-        double perpVelocity = velocity.linearVel.y / drive.inPerTick + deadWheels.perpXTicks * velocity.angVel;
-        rightBack.currentPosition = (int) Math.round(PAR_RAW_SIGN * parTicks);
-        rightBack.measuredVelocity = asTheHubReports(PAR_RAW_SIGN * parVelocity);
-        leftFront.currentPosition = (int) Math.round(PERP_RAW_SIGN * perpTicks);
-        leftFront.measuredVelocity = asTheHubReports(PERP_RAW_SIGN * perpVelocity);
+        deadWheels = deadWheels.moved(new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle));
+        DeadWheels.Reading reading = deadWheels.read(perSecond);
+        rightBack.currentPosition = reading.par().position();
+        rightBack.measuredVelocity = reading.par().velocity();
+        leftFront.currentPosition = reading.perp().position();
+        leftFront.measuredVelocity = reading.perp().velocity();
 
-        imu.yawRadians = heading;
-        imu.yawRateRadiansPerSecond = velocity.angVel;
-    }
-
-    private static double asTheHubReports(double ticksPerSecond) {
-        return Math.round(ticksPerSecond / HUB_VELOCITY_STEP_TICKS_PER_S) * HUB_VELOCITY_STEP_TICKS_PER_S;
-    }
-
-    private static double clamp(double power) {
-        return Math.max(-1, Math.min(1, power));
+        imu.yawRadians = pose.heading.toDouble();
+        imu.yawRateRadiansPerSecond = perSecond.angle();
     }
 }

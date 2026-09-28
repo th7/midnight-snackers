@@ -7,10 +7,10 @@ import com.acmerobotics.roadrunner.Pose2d;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.opmode.PlanOpModes;
 import org.firstinspires.ftc.teamcode.sim.SimCatalog;
-import org.firstinspires.ftc.teamcode.sim.SimNoise;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
+import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.junit.Test;
 
 public class ForwardLeftBackwardRightSimTest {
@@ -53,7 +53,7 @@ public class ForwardLeftBackwardRightSimTest {
     @Test
     public void drivesTheSquareOnAnImperfectRobotToo() {
         for (long seed = 1; seed <= 5; seed++) {
-            SimRobot sim = new SimRobot(SimNoise.seeded(seed));
+            SimRobot sim = new SimRobot(Noise.seeded(seed));
             sim.setDown(START);
             Pose2d placed = sim.pose();
             SimCatalog.Entry opMode = SimCatalog.of(PlanOpModes.class)
