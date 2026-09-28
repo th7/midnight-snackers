@@ -4,6 +4,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -24,6 +26,8 @@ public final class FakeSources implements SimSources {
     private SimBench.BuildFailed willNotBuild;
     private SimBuild.Result check;
     private SimCatalog listed;
+    private final CountDownLatch runBuildBegan = new CountDownLatch(1);
+    private CountDownLatch runBuilt = new CountDownLatch(0);
 
     private FakeSources(SimCatalog fixed, boolean listedByTheChild) {
         this.fixed = fixed;
@@ -45,6 +49,19 @@ public final class FakeSources implements SimSources {
         willNotBuild = new SimBench.BuildFailed(diagnostics);
         check = new SimBuild.Result(null, List.of(new SimBuild.Problem("", 0, diagnostics)), true);
         return this;
+    }
+
+    /** Sources whose build for a run goes on until the test counts the latch down, so it can act meanwhile. */
+    public FakeSources thatBuildForARunUntil(CountDownLatch built) {
+        runBuilt = built;
+        return this;
+    }
+
+    /** Waits until a bench has begun building a run, which it does only for a run nobody has stopped yet. */
+    public void awaitARunsBuild() throws InterruptedException {
+        if (!runBuildBegan.await(10, TimeUnit.SECONDS)) {
+            throw new AssertionError("no run's build ever began");
+        }
     }
 
     private void built() {
@@ -85,6 +102,12 @@ public final class FakeSources implements SimSources {
 
     @Override
     public Child.Running start(Child children, Consumer<String> log, String[] args) {
+        runBuildBegan.countDown();
+        try {
+            runBuilt.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         built();
         return children.onThisClasspath(log, args);
     }

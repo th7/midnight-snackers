@@ -13,13 +13,14 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Moment;
+import org.firstinspires.ftc.teamcode.simcore.RunState;
+import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
+import org.firstinspires.ftc.teamcode.simcore.Watchdog;
 
 public final class SimBench {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
@@ -28,7 +29,7 @@ public final class SimBench {
 
     private final Clock clock;
     private static final double CATALOG_SECONDS = 60;
-    private static final long SILENCE_POLL_MILLIS = 100;
+    private static final double WATCH_POLL_SECONDS = 0.1;
 
     /**
      * How long a bench waits for each thing it waits for. Said once, by name, because five bare
@@ -53,6 +54,9 @@ public final class SimBench {
         /** How long a run may go with nobody looking at it before it is stopped. */
         public final double unwatched;
 
+        /** The waits the watchdog holds a run's child to, each checked here to be a time. */
+        final Watchdog.Waits watched;
+
         private Waits(
                 double autonomousPeriod,
                 double teleOpPeriod,
@@ -66,6 +70,11 @@ public final class SimBench {
             this.startup = startup;
             this.silence = silence;
             this.unwatched = unwatched;
+            this.watched = new Watchdog.Waits(time(startup), time(silence), time(unwatched), time(killGrace));
+        }
+
+        private static Seconds time(double seconds) {
+            return Valid.value(Seconds.of(seconds));
         }
 
         /**
@@ -144,7 +153,7 @@ public final class SimBench {
 
         public final Mode mode;
 
-        private final AtomicLong lookedAtNanos = new AtomicLong(clock.nanos());
+        private volatile Moment looked = now();
 
         private final List<SimRunStream.TickLine> ticks = new ArrayList<>();
         private final Deque<String> log = new ArrayDeque<>();
@@ -152,6 +161,9 @@ public final class SimBench {
         private String outcome;
         private String message;
         private Child.Running child;
+        private Moment launched;
+        private Moment heard;
+        private Moment toldToStop;
 
         Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed, Mode mode) {
             this.id = id;
@@ -207,9 +219,21 @@ public final class SimBench {
             log.addLast(line);
         }
 
-        synchronized void launched(Child.Running process) {
+        /** Whether the run takes the child built for it: not once Stop has ended it while it built. */
+        synchronized boolean launched(Child.Running process, Moment at) {
+            if (!state().takesAChild()) {
+                return false;
+            }
             child = process;
             phase = "starting";
+            launched = at;
+            heard = at;
+            return true;
+        }
+
+        /** The child said something, which is all a watchdog listening for a hang needs to know. */
+        synchronized void heard(Moment at) {
+            heard = at;
         }
 
         synchronized void started() {
@@ -226,11 +250,24 @@ public final class SimBench {
 
         /** Somebody asked about this run: its page, its ticks, its log, or a press of the controller. */
         void lookedAt() {
-            lookedAtNanos.set(clock.nanos());
+            looked = now();
         }
 
-        double secondsUnwatched() {
-            return (clock.nanos() - lookedAtNanos.get()) / 1e9;
+        /** How far the run has got, as the watchdog and Stop decide from it, at one moment. */
+        synchronized RunState state() {
+            if (outcome != null || (child != null && !child.alive())) {
+                return new RunState.Over();
+            }
+            if (child == null) {
+                return new RunState.Building();
+            }
+            if (toldToStop != null) {
+                return new RunState.Stopping(toldToStop);
+            }
+            if (phase.equals("starting")) {
+                return new RunState.Starting(launched);
+            }
+            return new RunState.Running(heard, looked);
         }
 
         synchronized JsonObject json() {
@@ -289,37 +326,32 @@ public final class SimBench {
             return child.say(GSON.toJson(line));
         }
 
+        /** What pressing Stop does is {@link org.firstinspires.ftc.teamcode.simcore.Stop}'s table. */
         void stop() {
-            boolean told;
+            Child.Running unheard;
             synchronized (this) {
-                if (outcome != null) {
+                boolean tell =
+                        switch (state().onStop()) {
+                            case NOTHING -> false;
+                            case END_UNBUILT -> {
+                                finish(SimRunStream.Outcome.stopped(), "stopped before the build finished");
+                                yield false;
+                            }
+                            case TELL -> true;
+                        };
+                if (!tell) {
                     return;
                 }
-                if (child == null) {
-                    finish(SimRunStream.Outcome.stopped(), "stopped before the build finished");
-                    return;
-                }
+                // The grace runs from now, and the watchdog holds the child to it.
+                toldToStop = now();
                 JsonObject line = new JsonObject();
                 line.addProperty("stop", true);
-                told = send(line);
+                if (send(line)) {
+                    return;
+                }
+                unheard = child;
             }
-            Child.Running process = child();
-            if (!told) {
-                process.kill();
-                return;
-            }
-            Thread grace = new Thread(
-                    () -> {
-                        if (!process.endedWithin(waits.killGrace)) {
-                            finish(
-                                    SimRunStream.Outcome.killedAfterStop(waits.killGrace),
-                                    "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed");
-                            process.kill();
-                        }
-                    },
-                    "sim-run-" + id + "-stop");
-            grace.setDaemon(true);
-            grace.start();
+            unheard.kill();
         }
 
         @Override
@@ -664,49 +696,14 @@ public final class SimBench {
             run.finish(SimRunStream.Outcome.couldNotStartChild(), e.getMessage());
             return;
         }
-        run.launched(child);
-        CountDownLatch started = new CountDownLatch(1);
-        AtomicLong lastHeardNanos = new AtomicLong(clock.nanos());
-        Thread watchdog = new Thread(
-                () -> {
-                    try {
-                        if (!started.await((long) (waits.startup * 1000), TimeUnit.MILLISECONDS)) {
-                            if (child.alive()) {
-                                run.finish(
-                                        SimRunStream.Outcome.killed(waits.startup, "the op mode never started"),
-                                        "the child JVM never said the op mode had started; it was killed");
-                                child.kill();
-                            }
-                            return;
-                        }
-                        while (child.alive() && run.outcome() == null) {
-                            double silentSeconds = (clock.nanos() - lastHeardNanos.get()) / 1e9;
-                            if (silentSeconds > waits.silence) {
-                                run.finish(
-                                        SimRunStream.Outcome.killed(waits.silence, "the op mode did not return"),
-                                        "loop() never came back, so nothing in the child could end the run; the child JVM was killed");
-                                child.kill();
-                                return;
-                            }
-                            // Free play has no end of its own, so a run somebody walked away from
-                            // would go on holding a child and growing its ticks until the server
-                            // ran out of memory. Nobody is watching once no page is asking about it.
-                            if (run.secondsUnwatched() > waits.unwatched) {
-                                run.finish(
-                                        SimRunStream.Outcome.stopped(),
-                                        String.format(
-                                                "nobody had looked at the run for %.1fs, so the bench stopped it and"
-                                                        + " the child JVM with it",
-                                                waits.unwatched));
-                                child.kill();
-                                return;
-                            }
-                            clock.sleep(SILENCE_POLL_MILLIS / 1000.0);
-                        }
-                    } catch (InterruptedException ignored) {
-                    }
-                },
-                "sim-run-" + run.id + "-watchdog");
+        if (!run.launched(child, now())) {
+            // Stop ended the run while its sources built, and a child nobody will place or stop
+            // would wait to be placed for as long as the server runs.
+            child.kill();
+            child.close();
+            return;
+        }
+        Thread watchdog = new Thread(() -> watch(run, child), "sim-run-" + run.id + "-watchdog");
         watchdog.setDaemon(true);
         watchdog.start();
         String[] outcome = {null};
@@ -714,7 +711,6 @@ public final class SimBench {
             @Override
             public void started() {
                 run.started();
-                started.countDown();
             }
 
             @Override
@@ -730,7 +726,7 @@ public final class SimBench {
         try (Child.Running talking = child) {
             boolean first = true;
             for (String line = talking.hear(); line != null; line = talking.hear()) {
-                lastHeardNanos.set(clock.nanos());
+                run.heard(now());
                 if (line.isBlank()) {
                     continue;
                 }
@@ -765,12 +761,62 @@ public final class SimBench {
             }
         }
         child.endedWithin(CATALOG_SECONDS);
-        watchdog.interrupt();
         if (outcome[0] != null) {
             run.finish(outcome[0], null);
         } else {
             run.finish(SimRunStream.Outcome.childExited(child.exitCode().orElse(-1)), run.log());
         }
+    }
+
+    /** How a run the watchdog gave up on ends: its outcome, and the message that says why. */
+    private record Ended(String outcome, String message) {}
+
+    /**
+     * Holds a run's child to the waits, on the bench's clock, until the run is over; what each
+     * verdict is, is {@link Watchdog}'s. It ends when the run does, so nothing need stop it.
+     */
+    private void watch(Run run, Child.Running child) {
+        Watchdog.Verdict verdict = Watchdog.verdict(run.state(), now(), waits.watched);
+        while (verdict == Watchdog.Verdict.WATCHING) {
+            clock.sleep(WATCH_POLL_SECONDS);
+            verdict = Watchdog.verdict(run.state(), now(), waits.watched);
+        }
+        Optional<Ended> ended =
+                switch (verdict) {
+                    case WATCHING, OVER -> Optional.empty();
+                    case NEVER_STARTED ->
+                        Optional.of(new Ended(
+                                SimRunStream.Outcome.killed(waits.startup, "the op mode never started"),
+                                "the child JVM never said the op mode had started; it was killed"));
+                    case SILENT ->
+                        Optional.of(
+                                new Ended(
+                                        SimRunStream.Outcome.killed(waits.silence, "the op mode did not return"),
+                                        "loop() never came back, so nothing in the child could end the run; the child JVM was killed"));
+                    // Free play has no end of its own, so a run somebody walked away from would go on
+                    // holding a child and growing its ticks until the server ran out of memory.
+                    // Nobody is watching once no page is asking about it.
+                    case UNWATCHED ->
+                        Optional.of(new Ended(
+                                SimRunStream.Outcome.stopped(),
+                                String.format(
+                                        "nobody had looked at the run for %.1fs, so the bench stopped it and the child JVM"
+                                                + " with it",
+                                        waits.unwatched)));
+                    case IGNORED_STOP ->
+                        Optional.of(
+                                new Ended(
+                                        SimRunStream.Outcome.killedAfterStop(waits.killGrace),
+                                        "loop() never came back after Stop, so nothing in the child could end the run; the child JVM was killed"));
+                };
+        ended.ifPresent(end -> {
+            run.finish(end.outcome, end.message);
+            child.kill();
+        });
+    }
+
+    private Moment now() {
+        return new Moment(clock.nanos());
     }
 
     public synchronized Run current() {

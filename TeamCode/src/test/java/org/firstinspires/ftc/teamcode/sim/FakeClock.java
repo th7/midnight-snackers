@@ -2,6 +2,11 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * A clock whose time moves only when a test moves it. A sleep passes none of it: it gives the sleeper
+ * a moment of real time, so a thread polling this clock waits for the test rather than spinning
+ * through minutes of it before the thread it races has said a word.
+ */
 public final class FakeClock implements Clock {
     private final AtomicLong nanos = new AtomicLong();
     private final AtomicLong epochMillis = new AtomicLong(1_700_000_000_000L);
@@ -18,7 +23,11 @@ public final class FakeClock implements Clock {
 
     @Override
     public void sleep(double seconds) {
-        advance(seconds);
+        try {
+            Thread.sleep(1);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public FakeClock advance(double seconds) {
