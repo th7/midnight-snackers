@@ -31,8 +31,12 @@ public interface SimSources {
             throw new IllegalArgumentException("no simulator in " + project + ": " + child
                     + " is missing, and the child would run this server's simulator instead of the project's own");
         }
-        return new AProject(
-                new SimBuild(project.resolve("TeamCode/src/main/java"), harnessRoot, outputDir.resolve("classes")));
+        Path core = project.resolve("simcore/src/main/java");
+        return new AProject(new SimBuild(
+                project.resolve("TeamCode/src/main/java"),
+                harnessRoot,
+                Files.isDirectory(core) ? Optional.of(core) : Optional.empty(),
+                outputDir.resolve("classes")));
     }
 
     final class ThisClasspath implements SimSources {

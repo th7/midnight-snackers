@@ -4,7 +4,12 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    plugins {
+        id 'net.ltgt.errorprone' version '5.1.1'
+        id 'de.thetaphi.forbiddenapis' version "${forbiddenApisVersion}"
+    }
 }
 
 include ':FtcRobotController'
 include ':TeamCode'
+include ':simcore'

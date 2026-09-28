@@ -583,6 +583,10 @@ server's. Not the Android build: no Kotlin, no desugaring. Class:
 
 ## The simulator
 
+**Core** — `simcore`: the simulator's geometry and physics, in a module whose
+build proves every function total. A project's own core is built with its
+simulator. Classes: `GatesTest`; `SimBuild`.
+
 **Bench** — The simulation core shared by the bench page and the coding
 server's Simulate tab: the catalog, the runs so far, and the routes that
 start a run and follow it. One run at a time per bench. The bench page
@@ -664,7 +668,8 @@ Method: `SimBench.statusOf`.
 **Libraries** — What a project is built against, navigated against, and
 run with: the jars on the server's classpath, and none of the server's
 own code. The server's code is the directories on its classpath (its
-simulator and tests) and the jar its robot classes come from; the FTC
+simulator and tests), the jar its robot classes come from, and the jar
+its **core** comes from; the FTC
 SDK, Road Runner, and the FtcRobotController module's jar, which no
 project rebuilds, are libraries. So a class a project lacks is missing —
 in its build, in its child, and to the navigator — rather than quietly
@@ -1132,7 +1137,8 @@ forbidden and makes it answer anyway, and checks the same loader still
 refuses the simulated robot, so the gate cannot pass by being toothless.
 Living inside `SimRobot`, it meant that dragging the robot on the placement
 page loaded fifteen hundred lines of simulator and twelve dyn4j classes to
-clamp one pose. Class: `SimPlacement`; `SimPlacementTest`.
+clamp one pose. Classes: `Placement`, in the **core**; `SimPlacement`;
+`PlacementTest`; `SimPlacementTest`.
 
 **Simulated robot** — The robot, the walls, the field's obstacles and the
 balls as rigid bodies in a **dyn4j** world, driven by the model Road Runner

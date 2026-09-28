@@ -67,6 +67,7 @@ public final class SimProject {
     private static void simulatorInto(Path root) {
         copyTree(here("src/test/java"), root.resolve("TeamCode/src/test/java"));
         copyTree(here("src/test/resources"), root.resolve("TeamCode/src/test/resources"));
+        copyTree(here("../simcore/src/main/java"), root.resolve("simcore/src/main/java"));
     }
 
     /** This project's own {@code Plans.java}, replacing whatever was there. */
@@ -131,7 +132,7 @@ public final class SimProject {
 
     /** A directory of this checkout, which the tests run from the TeamCode module. */
     public static Path here(String relative) {
-        Path path = Paths.get(relative).toAbsolutePath();
+        Path path = Paths.get(relative).toAbsolutePath().normalize();
         if (!Files.isDirectory(path)) {
             throw new IllegalStateException("tests run from the TeamCode module directory; there is no " + path);
         }

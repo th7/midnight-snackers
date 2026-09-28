@@ -27,8 +27,8 @@ jobs:
         run: |
           npm ci --prefix tools/browser
           npx --prefix tools/browser playwright install --with-deps chromium
-      - name: Java formatting (same command as local; fix with ./gradlew :TeamCode:spotlessApply)
-        run: ./gradlew :TeamCode:spotlessCheck
+      - name: Java formatting (same command as local; fix with ./gradlew spotlessApply)
+        run: ./gradlew spotlessCheck
       - name: Tool tests (same command as local)
         run: python3 tools/run_tests.py
       - name: Unit tests (same command as local)
