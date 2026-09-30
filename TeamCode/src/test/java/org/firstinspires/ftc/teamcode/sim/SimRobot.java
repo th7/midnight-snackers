@@ -272,7 +272,7 @@ public class SimRobot {
         this.teamRobot = teamRobot;
         this.build = switch (teamRobot) {
             case REGINALD -> new Reginald(devices);
-            case NUGGET -> new Nugget(new FakeDcMotorEx(), new FakeDcMotorEx());
+            case NUGGET -> new Nugget(devices, new FakeDcMotorEx(), new FakeDcMotorEx());
         };
         this.noise = noise;
         this.draws = noise.draws();
@@ -449,7 +449,7 @@ public class SimRobot {
         public void sense(DriveEncoders encoders, Twist perSecond) {}
     }
 
-    private record Nugget(FakeDcMotorEx left, FakeDcMotorEx right) implements Build {
+    private record Nugget(SimDevices devices, FakeDcMotorEx left, FakeDcMotorEx right) implements Build {
         @Override
         public PerWheel<Drivetrain.Setting> wheels() {
             return new Sides<>(setting(left), setting(right)).wheels();
@@ -470,7 +470,13 @@ public class SimRobot {
             if (!(opMode instanceof NuggetOpMode nuggets)) {
                 throw notOf(TeamRobot.NUGGET, opMode);
             }
-            nuggets.useHardware(NuggetHardware.builder().left(left).right(right).build());
+            nuggets.useHardware(NuggetHardware.builder()
+                    .left(left)
+                    .right(right)
+                    .voltageSensor(devices.voltageSensor)
+                    .dashboard(devices.dashboard)
+                    .nanoClock(devices::nanoTime)
+                    .build());
         }
 
         @Override

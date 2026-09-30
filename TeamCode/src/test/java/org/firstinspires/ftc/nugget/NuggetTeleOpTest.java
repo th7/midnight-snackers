@@ -11,13 +11,14 @@ import org.junit.Test;
 public class NuggetTeleOpTest {
     private static final double EXACTLY = 1e-6;
 
-    private final FakeDcMotorEx left = new FakeDcMotorEx();
-    private final FakeDcMotorEx right = new FakeDcMotorEx();
+    private final FakeNugget nugget = new FakeNugget();
+    private final FakeDcMotorEx left = nugget.left;
+    private final FakeDcMotorEx right = nugget.right;
     private final NuggetTeleOp teleOp = new NuggetTeleOp();
 
     @Before
     public void started() {
-        teleOp.useHardware(NuggetHardware.builder().left(left).right(right).build());
+        teleOp.useHardware(nugget.hardware());
         teleOp.telemetry = new FakeTelemetry();
         teleOp.gamepad1 = new Gamepad();
         teleOp.gamepad2 = new Gamepad();

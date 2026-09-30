@@ -280,9 +280,11 @@ left and a right power and, like Reginald's **Wheels**, a command asking more
 of a side than it has is scaled down whole rather than clipped, so the robot
 turns as sharply as it was pointed, slower. Both brake when asked for nothing.
 Its TeleOp drives it from the sticks Reginald's drivers use: the left stick
-forward and back, the right stick across to turn. The hardware is **whole or
-not at all**, as Reginald's is. Classes: `TankDrive`; `NuggetHardware`;
-`NuggetTeleOp`.
+forward and back, the right stick across to turn. Nugget's hardware is those
+two motors, the battery's voltage, the dashboard and the **clock**, which is
+the robot's own as Reginald's is and the simulated one in the simulator, and
+it is **whole or not at all**, as Reginald's is. Classes: `TankDrive`;
+`NuggetHardware`; `NuggetTeleOp`.
 
 **Simulated Nugget** — Nugget as the simulator runs it: the same 18-inch
 rigid body Reginald is, on the same field, pushed by two motors rather than

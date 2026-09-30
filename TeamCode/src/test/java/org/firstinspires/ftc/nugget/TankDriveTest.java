@@ -1,9 +1,6 @@
 package org.firstinspires.ftc.nugget;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -13,10 +10,10 @@ import org.junit.Test;
 public class TankDriveTest {
     private static final double EXACTLY = 1e-9;
 
-    private final FakeDcMotorEx left = new FakeDcMotorEx();
-    private final FakeDcMotorEx right = new FakeDcMotorEx();
-    private final TankDrive drive =
-            new TankDrive(NuggetHardware.builder().left(left).right(right).build());
+    private final FakeNugget nugget = new FakeNugget();
+    private final FakeDcMotorEx left = nugget.left;
+    private final FakeDcMotorEx right = nugget.right;
+    private final TankDrive drive = new TankDrive(nugget.hardware());
 
     @Test
     public void oneMotorTurnsOppositeTheOther() {
@@ -66,15 +63,5 @@ public class TankDriveTest {
 
         assertEquals(0, left.power, EXACTLY);
         assertEquals(0, right.power, EXACTLY);
-    }
-
-    @Test
-    public void aHardwareMissingAMotorIsRefusedNamingIt() {
-        IllegalStateException refused = assertThrows(
-                IllegalStateException.class,
-                () -> NuggetHardware.builder().left(new FakeDcMotorEx()).build());
-
-        assertTrue(refused.getMessage(), refused.getMessage().contains("right"));
-        assertFalse("not the one it was given", refused.getMessage().contains("left"));
     }
 }

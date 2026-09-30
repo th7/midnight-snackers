@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -169,6 +170,18 @@ public class SimNuggetTest {
                 nugget.pose().heading.toDouble() > 0.3);
         assertTrue(opMode.hardware().left.getCurrentPosition() > 0);
         assertTrue(opMode.hardware().right.getCurrentPosition() > 0);
+    }
+
+    @Test
+    public void aNuggetOpModeIsHandedTheSimulatorsClockBatteryAndDashboard() {
+        CountingTeleOp teleOp = started(nugget, new CountingTeleOp());
+
+        drive(nugget, teleOp, 0.5);
+
+        assertEquals(nugget.nanoTime(), teleOp.devices().nanoClock.getAsLong());
+        assertTrue("half a second on", nugget.nanoTime() >= 490_000_000L);
+        assertSame(nugget.voltageSensor, teleOp.devices().voltageSensor);
+        assertSame(nugget.dashboard, teleOp.devices().dashboard);
     }
 
     @Test
