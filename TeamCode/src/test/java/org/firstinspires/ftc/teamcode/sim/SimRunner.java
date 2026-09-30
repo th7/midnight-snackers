@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.reginald.opmode.AutoOp;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
 import org.firstinspires.ftc.teamcode.simcore.Budget;
 import org.firstinspires.ftc.teamcode.simcore.Ending;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
@@ -64,13 +65,12 @@ public final class SimRunner {
         if (!entry.kind.equals(SimCatalog.AUTO)) {
             throw new IllegalArgumentException(entry.name + " is a TeleOp; run it from a driver station with record()");
         }
-        return run(
-                new SimRecording(entry.name, entry.kind),
-                (AutoOp) entry.opMode(),
-                sim,
-                timeoutSeconds,
-                outputDir,
-                livePort);
+        OpMode opMode = entry.opMode();
+        if (!(opMode instanceof RunsAPlan)) {
+            throw new IllegalArgumentException(entry.name + " runs no plan, so nothing says when it is done; run it"
+                    + " for as long as it should last with record()");
+        }
+        return run(new SimRecording(entry.name, entry.kind), opMode, sim, timeoutSeconds, outputDir, livePort);
     }
 
     public static SimRecording run(
@@ -80,7 +80,7 @@ public final class SimRunner {
 
     private static SimRecording run(
             SimRecording recording,
-            AutoOp opMode,
+            OpMode opMode,
             SimRobot sim,
             double timeoutSeconds,
             Path outputDir,
@@ -97,7 +97,7 @@ public final class SimRunner {
             if (ending == Ending.TIMED_OUT) {
                 throw new AssertionError(String.format(
                         "op mode still running after %.1fs; current step: %s; true pose: %s",
-                        timeoutSeconds, opMode.currentStep(), sim.pose()));
+                        timeoutSeconds, planned(opMode).currentStep(), sim.pose()));
             }
             return recording;
         } finally {
@@ -204,7 +204,7 @@ public final class SimRunner {
             SimDriverStation driverStation,
             Pace pace,
             Meter meter) {
-        AutoOp auto = opMode instanceof AutoOp ? (AutoOp) opMode : null;
+        RunsAPlan auto = planned(opMode);
         sim.wire(opMode);
         opMode.telemetry = new FakeTelemetry();
         opMode.gamepad1 = new Gamepad();
@@ -255,7 +255,11 @@ public final class SimRunner {
         }
     }
 
-    private static Ending.Plan planOf(AutoOp auto) {
+    private static RunsAPlan planned(OpMode opMode) {
+        return opMode instanceof RunsAPlan plan ? plan : null;
+    }
+
+    private static Ending.Plan planOf(RunsAPlan auto) {
         if (auto == null) {
             return Ending.Plan.NONE;
         }

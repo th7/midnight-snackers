@@ -56,6 +56,22 @@ public class TankDriveTest {
     }
 
     @Test
+    public void eachSideIsAskedForItsOwnPower() {
+        drive.sides(0.25, -0.5);
+
+        assertEquals(0.25, left.power, EXACTLY);
+        assertEquals(-0.5, right.power, EXACTLY);
+    }
+
+    @Test
+    public void sidesAskedForMoreThanTheyHaveAreScaledDownWholeRatherThanClipped() {
+        drive.sides(-0.75, 1.5);
+
+        assertEquals(-0.5, left.power, EXACTLY);
+        assertEquals(1, right.power, EXACTLY);
+    }
+
+    @Test
     public void stoppingAsksBothSidesForNothing() {
         drive.drive(0.7, -0.2);
 

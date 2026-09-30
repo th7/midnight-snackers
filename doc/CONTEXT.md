@@ -298,6 +298,32 @@ Runner's model of Nugget, and nobody has measured the real one yet, so it is
 the **simulated Nugget**'s, which a test holds it to. Classes:
 `TankLocalizer`; `Trajectories.Params`.
 
+**Trajectories** — How Nugget drives along a path Road Runner has built: from
+the pose the **tank localizer** believes, a path of splines and turns within
+Nugget's limits of speed, turning and acceleration, followed a loop at a time
+by an action that asks the **tank drive** for each side's power. A tank cannot
+move sideways, so a Ramsete controller steers it back onto its path by turning.
+What the path asks of its speed and turning, and of how fast each is changing,
+is fed forward through Nugget's model of its motors, so it keeps up with the
+path rather than lagging behind it and swinging wide of the corners. A turn in
+place is an action too, corrected toward the heading it should have by then.
+What Nugget is, to Road Runner — the inches a tick, the track, its motors, its
+limits and its gains — is one set of parameters, and until someone measures
+the real Nugget it is the **simulated Nugget**'s. Classes: `Trajectories`;
+`Trajectories.Params`.
+
+**RoadRunner example** — Nugget's autonomous op mode, listed on the driver
+station and the Simulate tab as *Nugget RoadRunner Example* under Nugget, and
+the example of a **plan** that drives with Road Runner. Set down on the blue
+side at (-24, -44) facing the back wall, it drives a lap of the field around the
+middle — along the blue side, the back wall, the red side and the audience
+wall — and spins once where it started. Each of those is a **step** of its
+plan, which builds its path from wherever Nugget believes it is when the step
+begins, so no leg inherits where the one before meant to finish. It ticks its
+localizer, then whatever action is being followed, then its plan, and it is
+done when its plan is, well within the autonomous period. In the simulator, set
+it down where its plan says it starts. Class: `RoadRunnerExample`.
+
 **Simulated Nugget** — Nugget as the simulator runs it: the same 18-inch
 rigid body Reginald is, on the same field, pushed by two motors rather than
 four. Each side's motor turns both of that side's simulated wheels, so the
@@ -937,7 +963,10 @@ protocol*, or *child exited with code N*. It starts from the op mode's
 **start pose**, on the op mode's **seed**, as they were when the run was
 started, and it is a **game** or **free play**. An **auto run** is done when
 its plan is, and in a game times out when the plan is not done within the
-autonomous period (30 s of simulated time). A **TeleOp run** has no plan: it is
+autonomous period (30 s of simulated time). An op mode **runs a plan**, whichever
+robot's it is, by saying whether its plan is done and which step it is on, and
+the run records that step every loop; Reginald's autos do, and so does
+Nugget's **RoadRunner example**. A **TeleOp run** has no plan: it is
 driven from the controller until the driver presses Stop, or in a game is done
 when its **period** is over (2:00, a match's driver-controlled period). In free
 play neither kind has a limit. Either kind is *stopped* when the driver presses
@@ -946,7 +975,7 @@ and if not how it ends, is asked before every loop, of whether Stop was pressed,
 where the plan has got, and the simulated time against the run's **budget** —
 its period, or no limit. A run that times out says so in its outcome like any
 other ending; only a test of an auto, through `SimRunner.run`, fails for it.
-Classes: `SimRunner`; `SimRunner.Pace`; `Ending`; `Budget`.
+Classes: `SimRunner`; `SimRunner.Pace`; `Ending`; `Budget`; `RunsAPlan`.
 
 **Stop** — What pressing it does depends on how far the run has got. A run still
 building ends there, stopped, since there is no child to tell, and the child its

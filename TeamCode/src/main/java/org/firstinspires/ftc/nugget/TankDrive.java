@@ -20,8 +20,10 @@ public final class TankDrive {
     }
 
     public void drive(double straight, double turn) {
-        double leftPower = straight - turn;
-        double rightPower = straight + turn;
+        sides(straight - turn, straight + turn);
+    }
+
+    public void sides(double leftPower, double rightPower) {
         double most = Math.max(1, Math.max(Math.abs(leftPower), Math.abs(rightPower)));
         left.setPower(leftPower / most);
         right.setPower(rightPower / most);
