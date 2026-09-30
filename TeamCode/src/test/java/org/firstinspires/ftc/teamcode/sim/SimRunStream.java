@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimRunStream {
     public interface Listener {
@@ -66,6 +67,11 @@ public final class SimRunStream {
         public static String cannotSeed(int childProtocol) {
             return "wrong protocol: the simulator speaks " + childProtocol
                     + " and cannot run a seeded robot; a seed needs " + SEEDED_PROTOCOL;
+        }
+
+        public static String cannotSimulate(int childProtocol, TeamRobot robot) {
+            return "wrong protocol: the simulator speaks " + childProtocol + " and simulates Reginald alone; "
+                    + robot.displayName() + " needs " + ROBOTS_PROTOCOL;
         }
 
         public static String couldNotStartChild() {
@@ -146,13 +152,17 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 4;
+    public static final int PROTOCOL = 5;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
     public static final int PLACED_PROTOCOL = 3;
 
     public static final int SEEDED_PROTOCOL = 4;
+
+    public static final int ROBOTS_PROTOCOL = 5;
+
+    public static final String ROBOT_OPTION = "--robot=";
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -183,8 +193,30 @@ public final class SimRunStream {
         return GSON.toJson(line);
     }
 
-    public static String afterHello(String firstLine) {
-        return protocolOf(firstLine) == 1 ? firstLine : null;
+    public static List<String> robotArguments(TeamRobot robot) {
+        if (robot == TeamRobot.REGINALD) {
+            return List.of();
+        }
+        return List.of(ROBOT_OPTION + robot.asked());
+    }
+
+    public static String afterHello(String firstLine, TeamRobot robot) {
+        int protocol = protocolOf(firstLine);
+        if (!simulates(protocol, robot)) {
+            throw new WrongProtocol(protocol, cannotSimulateMessage(protocol, robot));
+        }
+        return protocol == 1 ? firstLine : null;
+    }
+
+    private static boolean simulates(int protocol, TeamRobot robot) {
+        return robot == TeamRobot.REGINALD || protocol >= ROBOTS_PROTOCOL;
+    }
+
+    private static String cannotSimulateMessage(int protocol, TeamRobot robot) {
+        return "the simulator in these sources speaks protocol " + protocol + " and simulates Reginald alone; "
+                + robot.displayName() + " needs protocol " + ROBOTS_PROTOCOL
+                + ": the sources are older than the server. Pull " + robot.develop()
+                + ", and if that is older too, ask your coach to merge develop into it.";
     }
 
     public static int protocolOf(String firstLine) {
@@ -241,9 +273,17 @@ public final class SimRunStream {
         }
     }
 
-    public static Handshake handshake(String firstLine, Pose2d start, Long seed) {
+    public static Handshake handshake(String firstLine, Pose2d start, Long seed, TeamRobot robot) {
         int protocol = protocolOf(firstLine);
         String content = protocol == 1 ? firstLine : null;
+        if (!simulates(protocol, robot)) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotSimulate(protocol, robot),
+                    cannotSimulateMessage(protocol, robot));
+        }
         if (seed != null && protocol < SEEDED_PROTOCOL) {
             return new Handshake(
                     protocol,

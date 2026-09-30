@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome } from './bench.mjs';
+import { chrome, ON_REGINALD } from './bench.mjs';
 import { asTheBenchServesIt } from './model.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +45,7 @@ function aRunToPlay(model) {
   return {
     name: NAME,
     kind: 'auto',
+    ...ON_REGINALD,
     live: false,
     outcome: 'done',
     ticks: [0, 1, 2].map((n) => ({
@@ -53,7 +54,7 @@ function aRunToPlay(model) {
       y: -20 + n * 5,
       heading: n * 0.4,
       step: `${n}. drive`,
-      powers: [1, 1, 1, 1],
+      powers: [1, 0.5, -0.5, -1],
       packets: n === 0 ? [] : overlay,
       pieces: places(n),
       tilt: n === 1 && blue ? { Blue: blue.tilt - 25 } : undefined
@@ -621,6 +622,37 @@ async function theWrittenPageIsSelfContained(browser, page) {
   }
 }
 
+async function eachDriveMotorIsNamedAsTheRobotNamesIt(browser, page, motors, powers) {
+  const where = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'replay-')), 'replay.html');
+  fs.writeFileSync(where, page);
+  const open = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  const threw = [];
+  open.on('pageerror', (e) => threw.push(String(e && e.message ? e.message : e)));
+  try {
+    await open.goto('file://' + where);
+    await open.waitForFunction(() => window.replayPage && window.replayPage.settled, null, { timeout: 30_000 });
+    const shown = await open.evaluate(() => [...document.querySelectorAll('#powers .power')].map((row) => ({
+      name: row.firstElementChild.textContent,
+      power: row.lastElementChild.textContent
+    })));
+    check(threw.length === 0, `a page of ${motors.join(', ')} threw: ${threw.join('; ')}`);
+    check(shown.map((row) => row.name).join(',') === motors.join(','),
+          `the page names the motors ${shown.map((row) => row.name).join(', ')}, not ${motors.join(', ')}`);
+    check(shown.map((row) => row.power).join(',') === powers.map((p) => p.toFixed(2)).join(','),
+          `the page shows the powers ${shown.map((row) => row.power).join(', ')}, not ${powers.join(', ')}`);
+  } finally {
+    await open.close();
+  }
+}
+
+function aRunOnNugget(run) {
+  return Object.assign({}, run, {
+    robot: 'Nugget',
+    motors: ['L', 'R'],
+    ticks: run.ticks.map((tick) => Object.assign({}, tick, { powers: [0.5, -0.25] }))
+  });
+}
+
 async function main() {
   const template = fs.readFileSync(path.join(sim, 'replay.html'), 'utf8');
   const model = asTheBenchServesIt(JSON.parse(fs.readFileSync(path.join(sim, 'field.json'), 'utf8')), ROBOT_IN);
@@ -632,7 +664,9 @@ async function main() {
     check(left === null, `the page still holds ${left && [...new Set(left)].join(', ')}, so it was never filled in`);
   }
 
-  const following = { name: NAME, kind: 'auto', live: true, outcome: null, ticks: [] };
+  const following = {
+    name: NAME, kind: 'auto', robot: run.robot, motors: run.motors, live: true, outcome: null, ticks: []
+  };
   const game = filled(template, model, Object.assign({}, run, { match: A_GAME }), ASSETS);
   const liveGame = { started: false, page: filled(template, model, Object.assign({}, following, { match: A_GAME }), ASSETS) };
   const server = await served(page, filled(template, model, following, ASSETS), run.ticks, game, liveGame);
@@ -656,6 +690,10 @@ async function main() {
     await aGameBeingPlayedFollowsItsRobotAsTheTicksArrive(browser, base, liveGame, run.ticks);
     await freePlayOrbitsWithNoClock(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
+    await eachDriveMotorIsNamedAsTheRobotNamesIt(
+        browser, filled(template, model, run, null), run.motors, run.ticks[0].powers);
+    await eachDriveMotorIsNamedAsTheRobotNamesIt(
+        browser, filled(template, model, aRunOnNugget(run), null), ['L', 'R'], [0.5, -0.25]);
   } catch (stuck) {
     wrong.push(String(stuck && stuck.message));
   } finally {
@@ -673,7 +711,8 @@ async function main() {
   console.log(`the live view plays ${run.ticks.length} ticks of the field model and follows a run still `
       + 'adding them, and keeps the flat drawing for ?view=flat, for a model it cannot fetch, and for the '
       + 'page it writes to a file; a game is watched from its drivers\' area in either, following its robot '
-      + 'and turning and nothing more, with the time it has left.');
+      + 'and turning and nothing more, with the time it has left; each robot\'s drive motors are named as it '
+      + 'names them, four on Reginald and two on Nugget.');
   if (!solid) {
     console.error('the live view never reported itself drawn');
     process.exit(1);

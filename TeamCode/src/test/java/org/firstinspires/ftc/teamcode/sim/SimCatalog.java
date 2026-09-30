@@ -16,17 +16,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimCatalog {
     public static final String TEAMCODE_PACKAGE = "org.firstinspires.ftc.teamcode";
 
     public static final String ROADRUNNER_PACKAGE = TEAMCODE_PACKAGE + ".roadrunner";
+
+    public static final String NUGGET_PACKAGE = "org.firstinspires.ftc.nugget";
 
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
@@ -46,9 +51,15 @@ public final class SimCatalog {
         /** Which of the {@link #ALLIANCES} it plays for, or null for one that plays for none. */
         public final String alliance;
 
-        private final Supplier<OpMode> opMode;
+        private final Supplier<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> opMode;
 
-        Entry(String name, String group, String kind, String where, String alliance, Supplier<OpMode> opMode) {
+        Entry(
+                String name,
+                String group,
+                String kind,
+                String where,
+                String alliance,
+                Supplier<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> opMode) {
             this.name = name;
             this.group = group;
             this.kind = kind;
@@ -65,7 +76,7 @@ public final class SimCatalog {
             return alliance != null ? alliance : "Blue";
         }
 
-        public OpMode opMode() {
+        public com.qualcomm.robotcore.eventloop.opmode.OpMode opMode() {
             if (opMode == null) {
                 throw new IllegalStateException(name + " was listed by another JVM and cannot be built here");
             }
@@ -99,7 +110,7 @@ public final class SimCatalog {
         List<Entry> entries = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (Class<?> source : sources) {
-            List<Entry> found = entriesFrom(source);
+            List<Entry> found = entriesFrom(source, SimCatalog::anyRobots);
             if (found == null) {
                 throw new IllegalArgumentException(
                         source.getName() + " is neither an annotated op mode nor a registrar");
@@ -148,13 +159,36 @@ public final class SimCatalog {
         return json;
     }
 
-    public static SimCatalog discover() {
+    public static String packageOf(TeamRobot robot) {
+        return switch (robot) {
+            case REGINALD -> TEAMCODE_PACKAGE;
+            case NUGGET -> NUGGET_PACKAGE;
+        };
+    }
+
+    private static Class<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> opModeOf(TeamRobot robot) {
+        return switch (robot) {
+            case REGINALD -> OpMode.class;
+            case NUGGET -> NuggetOpMode.class;
+        };
+    }
+
+    private static boolean anyRobots(Class<?> type) {
+        for (TeamRobot robot : TeamRobot.values()) {
+            if (opModeOf(robot).isAssignableFrom(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static SimCatalog discover(TeamRobot robot) {
         List<Entry> entries = new ArrayList<>();
-        for (Class<?> type : Classpath.classesUnder(TEAMCODE_PACKAGE)) {
+        for (Class<?> type : Classpath.classesUnder(packageOf(robot))) {
             if (type.getName().startsWith(ROADRUNNER_PACKAGE + ".")) {
                 continue;
             }
-            List<Entry> found = entriesFrom(type);
+            List<Entry> found = entriesFrom(type, opModeOf(robot)::isAssignableFrom);
             if (found != null) {
                 entries.addAll(found);
             }
@@ -179,7 +213,7 @@ public final class SimCatalog {
         return new SimCatalog(Collections.unmodifiableList(entries), sources);
     }
 
-    private static List<Entry> entriesFrom(Class<?> type) {
+    private static List<Entry> entriesFrom(Class<?> type, Predicate<Class<?>> ours) {
         boolean annotated = type.getAnnotation(Autonomous.class) != null || type.getAnnotation(TeleOp.class) != null;
         List<Method> registrars = new ArrayList<>();
         for (Method method : type.getDeclaredMethods()) {
@@ -191,16 +225,16 @@ public final class SimCatalog {
             return null;
         }
         List<Entry> entries = new ArrayList<>();
-        if (annotated && !Modifier.isAbstract(type.getModifiers()) && OpMode.class.isAssignableFrom(type)) {
-            entries.add(entryFor(type.asSubclass(OpMode.class)));
+        if (annotated && !Modifier.isAbstract(type.getModifiers()) && ours.test(type)) {
+            entries.add(entryFor(type.asSubclass(com.qualcomm.robotcore.eventloop.opmode.OpMode.class)));
         }
         for (Method registrar : registrars) {
-            entries.addAll(registeredBy(registrar));
+            entries.addAll(registeredBy(registrar, ours));
         }
         return entries;
     }
 
-    private static Entry entryFor(Class<? extends OpMode> type) {
+    private static Entry entryFor(Class<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> type) {
         Autonomous auto = type.getAnnotation(Autonomous.class);
         TeleOp teleOp = type.getAnnotation(TeleOp.class);
         String name = auto != null ? auto.name() : teleOp != null ? teleOp.name() : "";
@@ -214,7 +248,8 @@ public final class SimCatalog {
                 () -> construct(type));
     }
 
-    private static OpMode construct(Class<? extends OpMode> type) {
+    private static com.qualcomm.robotcore.eventloop.opmode.OpMode construct(
+            Class<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> type) {
         try {
             return type.getDeclaredConstructor().newInstance();
         } catch (ReflectiveOperationException e) {
@@ -226,8 +261,11 @@ public final class SimCatalog {
      * An op mode says which alliance it plays for only once it is made, so one is made to ask. One
      * that cannot be made is listed all the same, as it always was, and says why when it is run.
      */
-    private static String allianceOfA(Class<? extends OpMode> type) {
-        OpMode made;
+    private static String allianceOfA(Class<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> type) {
+        if (!OpMode.class.isAssignableFrom(type)) {
+            return null;
+        }
+        com.qualcomm.robotcore.eventloop.opmode.OpMode made;
         try {
             made = construct(type);
         } catch (RuntimeException e) {
@@ -236,8 +274,11 @@ public final class SimCatalog {
         return allianceOf(made);
     }
 
-    private static String allianceOf(OpMode opMode) {
-        Alliance alliance = opMode.alliance();
+    private static String allianceOf(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
+        if (!(opMode instanceof OpMode reginalds)) {
+            return null;
+        }
+        Alliance alliance = reginalds.alliance();
         if (alliance == Alliance.BLUE) {
             return "Blue";
         }
@@ -247,7 +288,7 @@ public final class SimCatalog {
         return null;
     }
 
-    private static List<Entry> registeredBy(Method registrar) {
+    private static List<Entry> registeredBy(Method registrar, Predicate<Class<?>> ours) {
         FakeOpModeManager manager = new FakeOpModeManager();
         try {
             registrar.setAccessible(true);
@@ -261,21 +302,16 @@ public final class SimCatalog {
         }
         List<Entry> entries = new ArrayList<>();
         for (FakeOpModeManager.Registration registration : manager.registrations) {
-            boolean ours = registration.instance != null
-                    ? registration.instance instanceof OpMode
-                    : OpMode.class.isAssignableFrom(registration.type);
-            if (!ours) {
+            Class<?> type = registration.instance != null ? registration.instance.getClass() : registration.type;
+            if (!ours.test(type)) {
                 continue;
             }
-            String where = registration.instance != null
-                    ? ((OpMode) registration.instance).where()
-                    : registration.type.getName();
+            String where = registration.instance instanceof OpMode reginalds ? reginalds.where() : type.getName();
             String kind = registration.meta.flavor == OpModeMeta.Flavor.TELEOP ? TELEOP : AUTO;
-            String alliance = registration.instance != null
-                    ? allianceOf((OpMode) registration.instance)
-                    : allianceOfA(registration.type.asSubclass(OpMode.class));
-            entries.add(new Entry(registration.meta.name, registration.meta.group, kind, where, alliance, () ->
-                    (OpMode) registration.opMode()));
+            String alliance =
+                    registration.instance != null ? allianceOf(registration.instance) : allianceOfA(registration.type);
+            entries.add(new Entry(
+                    registration.meta.name, registration.meta.group, kind, where, alliance, registration::opMode));
         }
         return entries;
     }

@@ -1,21 +1,15 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 public enum Wheel {
-    LEFT_FRONT("left front", Sense.FORWARD),
-    RIGHT_FRONT("right front", Sense.FORWARD),
-    LEFT_BACK("left back", Sense.REVERSE),
-    RIGHT_BACK("right back", Sense.REVERSE);
+    LEFT_FRONT("left front"),
+    RIGHT_FRONT("right front"),
+    LEFT_BACK("left back"),
+    RIGHT_BACK("right back");
 
     private final String label;
-    private final Sense mounted;
 
-    Wheel(String label, Sense mounted) {
+    Wheel(String label) {
         this.label = label;
-        this.mounted = mounted;
-    }
-
-    public Sense mounted() {
-        return mounted;
     }
 
     @Override

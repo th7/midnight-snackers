@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Moment;
 import org.firstinspires.ftc.teamcode.simcore.RunState;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.firstinspires.ftc.teamcode.simcore.Watchdog;
 
@@ -363,12 +364,18 @@ public final class SimBench {
         public String kind() {
             return entry.kind;
         }
+
+        @Override
+        public TeamRobot robot() {
+            return robot;
+        }
     }
 
     public interface Factory {
-        SimBench create(Path worktree);
+        SimBench create(Path worktree, TeamRobot robot);
     }
 
+    private final TeamRobot robot;
     private final SimSources sources;
     private final Path outputDir;
     private final Waits waits;
@@ -377,12 +384,13 @@ public final class SimBench {
     private final List<Run> runs = new ArrayList<>();
     private SimBuild.Result lastCheck;
 
-    public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits) {
-        this(fixedCatalog, project, outputDir, waits, new JvmChild());
+    public SimBench(TeamRobot robot, SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits) {
+        this(robot, fixedCatalog, project, outputDir, waits, new JvmChild());
     }
 
-    public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits, Child children) {
-        this(sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock());
+    public SimBench(
+            TeamRobot robot, SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits, Child children) {
+        this(robot, sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock());
     }
 
     private static SimSources sourcesOf(SimCatalog fixedCatalog, Path project, Path outputDir) {
@@ -398,7 +406,8 @@ public final class SimBench {
      * A bench over whatever it is that builds and starts: the classpath this JVM runs on, a project
      * on disk, or -- in a test of the bench itself -- something that need do neither.
      */
-    public SimBench(SimSources sources, Path outputDir, Waits waits, Child children, Clock clock) {
+    public SimBench(TeamRobot robot, SimSources sources, Path outputDir, Waits waits, Child children, Clock clock) {
+        this.robot = robot;
         this.sources = sources;
         this.outputDir = outputDir;
         this.waits = waits;
@@ -415,8 +424,12 @@ public final class SimBench {
                     return already.get();
                 }
             }
-            return sources.catalog(children);
+            return sources.catalog(children, robot);
         }
+    }
+
+    public TeamRobot robot() {
+        return robot;
     }
 
     public synchronized SimBuild.Result check() {
@@ -431,14 +444,16 @@ public final class SimBench {
         return sources.sourceRoot().orElse(null);
     }
 
-    static SimCatalog listOn(Child children, Path classes) {
+    static SimCatalog listOn(Child children, Path classes, TeamRobot robot) {
         StringBuilder said = new StringBuilder();
+        List<String> args = new ArrayList<>(List.of("--list"));
+        args.addAll(SimRunStream.robotArguments(robot));
         try (Child.Running child =
-                children.onTheClassesAt(classes, line -> said.append(line).append('\n'), "--list")) {
+                children.onTheClassesAt(classes, line -> said.append(line).append('\n'), args.toArray(new String[0]))) {
             String first = child.hear();
             String line;
             try {
-                line = first == null ? null : SimRunStream.afterHello(first);
+                line = first == null ? null : SimRunStream.afterHello(first, robot);
             } catch (SimRunStream.WrongProtocol e) {
                 child.kill();
                 throw e;
@@ -483,7 +498,7 @@ public final class SimBench {
                         (request, params) -> withOpMode(
                                 request,
                                 name -> Response.html(
-                                        SimReplayPage.placement(name, kindOf(name), startPoses.get(name)))))
+                                        SimReplayPage.placement(name, kindOf(name), robot, startPoses.get(name)))))
                 .route(
                         "POST",
                         "/run",
@@ -686,6 +701,7 @@ public final class SimBench {
                 run.entry.name,
                 String.valueOf(run.budgetSeconds()),
                 outputDir.toAbsolutePath().toString()));
+        args.addAll(SimRunStream.robotArguments(robot));
         args.addAll(sources.classNames());
         try {
             child = sources.start(children, run::addLog, args.toArray(new String[0]));
@@ -734,7 +750,7 @@ public final class SimBench {
                     first = false;
                     SimRunStream.Handshake handshake;
                     try {
-                        handshake = SimRunStream.handshake(line, run.start, run.seed);
+                        handshake = SimRunStream.handshake(line, run.start, run.seed, robot);
                     } catch (SimRunStream.WrongProtocol e) {
                         run.finish(SimRunStream.Outcome.wrongProtocol(e.childProtocol), e.getMessage());
                         child.kill();

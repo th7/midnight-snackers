@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -9,7 +10,6 @@ import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.opmode.AutoOp;
-import org.firstinspires.ftc.teamcode.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.simcore.Budget;
 import org.firstinspires.ftc.teamcode.simcore.Ending;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
@@ -205,7 +205,7 @@ public final class SimRunner {
             Pace pace,
             Meter meter) {
         AutoOp auto = opMode instanceof AutoOp ? (AutoOp) opMode : null;
-        opMode.useHardware(sim.hardware());
+        sim.wire(opMode);
         opMode.telemetry = new FakeTelemetry();
         opMode.gamepad1 = new Gamepad();
         opMode.gamepad2 = new Gamepad();
@@ -237,13 +237,7 @@ public final class SimRunner {
             }
             packetsSeen = allPackets.size();
             SimRecording.Tick.Builder tick = SimRecording.Tick.at(
-                            elapsed,
-                            sim.pose(),
-                            auto != null ? auto.currentStep() : "",
-                            new double[] {
-                                sim.leftFront.power, sim.rightFront.power, sim.leftBack.power, sim.rightBack.power
-                            },
-                            thisLoop)
+                            elapsed, sim.pose(), auto != null ? auto.currentStep() : "", sim.powers(), thisLoop)
                     .withBalls(sim.pieces(), sim.held())
                     .scoring(sim.scored())
                     .tilted(sim.tilt());

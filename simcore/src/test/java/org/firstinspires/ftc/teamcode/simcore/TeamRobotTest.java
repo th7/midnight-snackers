@@ -69,4 +69,27 @@ public class TeamRobotTest {
         assertEquals(new TeamRobot.WhenMissing.Required(), TeamRobot.REGINALD.whenMissing());
         assertEquals(new TeamRobot.WhenMissing.StartsFrom(TeamRobot.REGINALD), TeamRobot.NUGGET.whenMissing());
     }
+
+    @Test
+    public void reginaldDrivesOnMecanumWheelsAndNuggetOnATank() {
+        assertEquals(Drivebase.MECANUM, TeamRobot.REGINALD.drivebase());
+        assertEquals(Drivebase.TANK, TeamRobot.NUGGET.drivebase());
+    }
+
+    @Test
+    public void eachDrivebasesMotorsAreDrawnAsTheWheelsTheyTurnAndATanksAsItsFrontWheels() {
+        PerWheel<String> drawn = new PerWheel<>("lf", "rf", "lb", "rb");
+
+        assertEquals(List.of("lf", "rf", "lb", "rb"), Drivebase.MECANUM.perMotor(drawn));
+        assertEquals(List.of("lf", "rf"), Drivebase.TANK.perMotor(drawn));
+        for (Drivebase drivebase : Drivebase.values()) {
+            assertEquals(drivebase.motors().size(), drivebase.perMotor(drawn).size());
+        }
+    }
+
+    @Test
+    public void eachDrivebaseNamesItsMotorsInTheOrderItsPowersAreRecorded() {
+        assertEquals(List.of("LF", "RF", "LB", "RB"), Drivebase.MECANUM.motors());
+        assertEquals(List.of("L", "R"), Drivebase.TANK.motors());
+    }
 }

@@ -368,7 +368,8 @@ public final class CodingServer {
         Path root = Path.of("").toAbsolutePath();
         // One for every user's bench, so how many children run at once is the server's to say.
         Child children = new JvmChild();
-        SimBench.Factory benches = worktree -> new SimBench(
+        SimBench.Factory benches = (worktree, robot) -> new SimBench(
+                robot,
                 null,
                 worktree,
                 worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
@@ -461,7 +462,7 @@ public final class CodingServer {
         synchronized (benchByUser) {
             SimBench bench = benchByUser.get(session.user());
             if (bench == null) {
-                bench = benches.create(worktreeOf(session).path);
+                bench = benches.create(worktreeOf(session).path, session.robot);
                 benchByUser.put(session.user(), bench);
                 benchRoutesByUser.put(session.user(), bench.routes(session.username));
             }

@@ -65,6 +65,8 @@ export function cannedRun(model) {
   };
 }
 
+export const ON_REGINALD = Object.freeze({ robot: 'Reginald', motors: ['LF', 'RF', 'LB', 'RB'] });
+
 export const FIELD_IN = 141.17;
 export const ROBOT_IN = 18;
 export const WALL_IN = 12.2;

@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 /**
  * What a bench builds and starts, in a test of the bench itself: no project on disk, no compile, no
@@ -71,12 +72,12 @@ public final class FakeSources implements SimSources {
     }
 
     @Override
-    public SimCatalog catalog(Child children) {
+    public SimCatalog catalog(Child children, TeamRobot robot) {
         built();
         if (!listedByTheChild) {
             return fixed;
         }
-        listed = SimBench.listOn(children, CLASSES);
+        listed = SimBench.listOn(children, CLASSES, robot);
         return listed;
     }
 

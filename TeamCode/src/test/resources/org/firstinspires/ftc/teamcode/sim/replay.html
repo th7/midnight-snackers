@@ -808,7 +808,7 @@ __IMPORTMAP__
     document.getElementById('balls').textContent =
       'held ' + (tick.held || 0) + ', blue ' + (scored.Blue || 0) + ', red ' + (scored.Red || 0);
 
-    const names = ['LF', 'RF', 'LB', 'RB'];
+    const names = rec.motors;
     document.getElementById('powers').innerHTML = tick.powers.map((p, i) => {
       const pct = Math.min(1, Math.abs(p)) * 50;
       const left = p < 0 ? 50 - pct : 50;

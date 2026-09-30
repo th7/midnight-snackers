@@ -6,19 +6,21 @@ import java.util.Locale;
 import java.util.Optional;
 
 public enum TeamRobot {
-    REGINALD("Reginald", "develop", "coding/", ""),
-    NUGGET("Nugget", "nugget-develop", "nugget/", "-nugget");
+    REGINALD("Reginald", "develop", "coding/", "", Drivebase.MECANUM),
+    NUGGET("Nugget", "nugget-develop", "nugget/", "-nugget", Drivebase.TANK);
 
     private final String displayName;
     private final String develop;
     private final String branchPrefix;
     private final String nameSuffix;
+    private final Drivebase drivebase;
 
-    TeamRobot(String displayName, String develop, String branchPrefix, String nameSuffix) {
+    TeamRobot(String displayName, String develop, String branchPrefix, String nameSuffix, Drivebase drivebase) {
         this.displayName = displayName;
         this.develop = develop;
         this.branchPrefix = branchPrefix;
         this.nameSuffix = nameSuffix;
+        this.drivebase = drivebase;
     }
 
     public sealed interface WhenMissing permits WhenMissing.Required, WhenMissing.StartsFrom {
@@ -54,6 +56,10 @@ public enum TeamRobot {
 
     public String displayName() {
         return displayName;
+    }
+
+    public Drivebase drivebase() {
+        return drivebase;
     }
 
     public String develop() {

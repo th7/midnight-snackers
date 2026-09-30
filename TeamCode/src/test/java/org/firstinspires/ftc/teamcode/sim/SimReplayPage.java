@@ -16,12 +16,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimReplayPage {
     public interface Source {
         String name();
 
         String kind();
+
+        TeamRobot robot();
 
         String ticksJson(int from);
 
@@ -51,7 +54,7 @@ public final class SimReplayPage {
     }
 
     public static String written(Source run) {
-        JsonObject root = root(run.name(), run.kind(), false);
+        JsonObject root = root(run.name(), run.kind(), run.robot(), false);
         root.addProperty("outcome", run.outcome());
         root.add("match", run.match());
         root.add("ticks", GSON.fromJson(run.ticksJson(0), JsonArray.class));
@@ -59,15 +62,15 @@ public final class SimReplayPage {
     }
 
     public static String live(Source run, String assetsUnder) {
-        JsonObject root = root(run.name(), run.kind(), true);
+        JsonObject root = root(run.name(), run.kind(), run.robot(), true);
         root.addProperty("outcome", (String) null);
         root.add("match", run.match());
         root.add("ticks", new JsonArray());
         return fill(run.name(), root, Optional.of(assetsUnder));
     }
 
-    public static String placement(String opMode, String kind, Pose2d start) {
-        JsonObject root = root(opMode, kind, false);
+    public static String placement(String opMode, String kind, TeamRobot robot, Pose2d start) {
+        JsonObject root = root(opMode, kind, robot, false);
         root.addProperty("outcome", (String) null);
         root.add("match", JsonNull.INSTANCE);
         root.add("ticks", new JsonArray());
@@ -75,10 +78,12 @@ public final class SimReplayPage {
         return fill(opMode, root, Optional.empty());
     }
 
-    private static JsonObject root(String name, String kind, boolean live) {
+    private static JsonObject root(String name, String kind, TeamRobot robot, boolean live) {
         JsonObject root = new JsonObject();
         root.addProperty("name", name);
         root.addProperty("kind", kind);
+        root.addProperty("robot", robot.displayName());
+        root.add("motors", GSON.toJsonTree(robot.drivebase().motors()));
         root.addProperty("live", live);
         return root;
     }

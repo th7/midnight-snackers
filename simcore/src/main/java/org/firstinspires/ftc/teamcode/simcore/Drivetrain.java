@@ -1,22 +1,25 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 public final class Drivetrain {
+    private final PerWheel<Sense> mounted;
     private final PerWheel<Feedforward> motors;
     private final double inPerTick;
 
-    private Drivetrain(PerWheel<Feedforward> motors, double inPerTick) {
+    private Drivetrain(PerWheel<Sense> mounted, PerWheel<Feedforward> motors, double inPerTick) {
+        this.mounted = mounted;
         this.motors = motors;
         this.inPerTick = inPerTick;
     }
 
     public record Setting(Sense direction, Power power, ZeroPower atZero) {}
 
-    public static Checked<Drivetrain> of(Feedforward tuned, double inPerTick, PerWheel<Noise.Motor> noise) {
+    public static Checked<Drivetrain> of(
+            Drivebase drivebase, Feedforward tuned, double inPerTick, PerWheel<Noise.Motor> noise) {
         if (!(inPerTick > 0 && Double.isFinite(inPerTick))) {
             return Checked.rejected("a wheel turns a positive, finite distance a tick, not " + inPerTick + " in");
         }
-        return PerWheel.allOf(noise.map(motor -> tuned.scaledBy(motor)))
-                .map(motors -> new Drivetrain(motors, inPerTick));
+        return PerWheel.allOf(drivebase.turning(noise).map(motor -> tuned.scaledBy(motor)))
+                .map(motors -> new Drivetrain(drivebase.mounted(), motors, inPerTick));
     }
 
     public Checked<PerWheel<Double>> accelerations(
@@ -28,7 +31,8 @@ public final class Drivetrain {
     private Checked<Double> acceleration(
             Wheel wheel, Setting setting, double batteryVolts, double velocity, Seconds dt, Traction traction) {
         Feedforward motor = motors.of(wheel);
-        double volts = wheel.mounted().of(setting.direction().of(setting.power().value())) * batteryVolts;
+        double volts =
+                mounted.of(wheel).of(setting.direction().of(setting.power().value())) * batteryVolts;
         double kSVolts = motor.kSVolts();
         double kAVoltSecondsSquaredPerTick = motor.kAVoltSecondsSquaredPerTick();
         double ticksPerSecond = velocity / inPerTick;

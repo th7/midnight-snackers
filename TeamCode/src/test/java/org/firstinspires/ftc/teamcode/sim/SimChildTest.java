@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.sim.TestAutos.ChattyAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -105,6 +106,91 @@ public class SimChildTest {
         assertTrue(catalog.find("RedTeleOp").isPresent());
         assertEquals("auto", catalog.find("driveForward").get().kind);
         assertEquals("teleop", catalog.find("RedTeleOp").get().kind);
+    }
+
+    @Test
+    public void listForNuggetPrintsNuggetsOpModesAndNoneOfReginalds() throws Exception {
+        Output output = run(JvmChild.launchOnThisClasspath("--list", "--robot=nugget"));
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        assertEquals(output.stdout.toString(), 2, output.stdout.size());
+        assertEquals(SimRunStream.hello(), output.stdout.get(0));
+        SimCatalog catalog =
+                SimCatalog.fromJson(new Gson().fromJson(output.stdout.get(1), com.google.gson.JsonArray.class));
+        assertEquals("teleop", catalog.find("Nugget TeleOp").get().kind);
+        assertFalse(catalog.find("driveForward").isPresent());
+        assertFalse(catalog.find("RedTeleOp").isPresent());
+    }
+
+    @Test
+    public void aRobotTheTeamDoesNotHaveIsRefusedByName() throws Exception {
+        Output output = run(JvmChild.launchOnThisClasspath("--list", "--robot=bender"));
+
+        assertNotEquals(0, output.exitCode);
+        assertTrue(output.stderr, output.stderr.contains("'bender'"));
+    }
+
+    @Test
+    public void aNuggetTeleOpRunDrivesTheSimulatedNuggetAndRecordsItsTwoMotors() throws Exception {
+        Process child = JvmChild.launchOnThisClasspath(
+                "--run", "Nugget TeleOp", "30", folder.getRoot().toString(), "--robot=nugget");
+        StringBuilder stderr = new StringBuilder();
+        Thread drain = new Thread(() -> {
+            try (BufferedReader err =
+                    new BufferedReader(new InputStreamReader(child.getErrorStream(), StandardCharsets.UTF_8))) {
+                for (String line = err.readLine(); line != null; line = err.readLine()) {
+                    synchronized (stderr) {
+                        stderr.append(line).append('\n');
+                    }
+                }
+            } catch (IOException ignored) {
+            }
+        });
+        drain.start();
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8));
+        Gson gson = new Gson();
+
+        in.write("{\"gamepad\": 1, \"state\": {\"left_stick_y\": -1}}\n");
+        in.write(gson.toJson(SimDriverStation.startLine(ORIGIN)) + "\n");
+        in.flush();
+        assertEquals(SimRunStream.hello(), out.readLine());
+        String first = out.readLine();
+        assertTrue(
+                String.valueOf(first),
+                first != null && gson.fromJson(first, JsonObject.class).has("started"));
+        long deadline = System.nanoTime() + 20_000_000_000L;
+        JsonObject tick;
+        do {
+            String line = out.readLine();
+            assertTrue("the child ended before Nugget drove anywhere", line != null);
+            tick = gson.fromJson(line, JsonObject.class);
+            assertFalse(tick.toString(), tick.has("outcome"));
+            assertEquals(
+                    "a power for each of Nugget's motors: " + tick,
+                    2,
+                    tick.getAsJsonArray("powers").size());
+            assertEquals("and never sideways: " + tick, 0, tick.get("y").getAsDouble(), 0.01);
+            assertTrue("Nugget never drove forward", System.nanoTime() < deadline);
+        } while (tick.get("x").getAsDouble() < 6);
+        assertEquals(1, tick.getAsJsonArray("powers").get(0).getAsDouble(), 1e-9);
+        assertEquals(1, tick.getAsJsonArray("powers").get(1).getAsDouble(), 1e-9);
+
+        in.write("{\"stop\": true}\n");
+        in.flush();
+        String last = null;
+        for (String line = out.readLine(); line != null; line = out.readLine()) {
+            last = line;
+        }
+        assertTrue("child did not exit", child.waitFor(20, TimeUnit.SECONDS));
+        drain.join(5000);
+        assertEquals(0, child.exitValue());
+        assertEquals(
+                "stopped", gson.fromJson(last, JsonObject.class).get("outcome").getAsString());
+        synchronized (stderr) {
+            assertTrue(stderr.toString(), stderr.toString().contains("Robot: Nugget"));
+        }
+        assertTrue(Files.isRegularFile(folder.getRoot().toPath().resolve("Nugget TeleOp.html")));
     }
 
     @Test
@@ -294,7 +380,7 @@ public class SimChildTest {
         JsonObject first = new Gson().fromJson(output.stdout.get(2), JsonObject.class);
         double dx = first.get("x").getAsDouble() + 60, dy = first.get("y").getAsDouble() - 12;
         assertTrue("set down near the pose: " + first, Math.hypot(dx, dy) > 0.01 && Math.hypot(dx, dy) < 3);
-        assertTrue(output.stderr, output.stderr.contains(SimNoise.described(Noise.seeded(7))));
+        assertTrue(output.stderr, output.stderr.contains(SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7))));
     }
 
     @Test

@@ -105,14 +105,14 @@ public class CodingServerTest {
 
     private CodingServer server() {
         if (server == null) {
-            serverWith(worktree -> bench());
+            serverWith((worktree, robot) -> bench());
         }
         return server;
     }
 
     private static SimBench.Factory sourcesBench() {
-        return worktree ->
-                new SimBench(null, worktree, worktree.resolve("TeamCode/build/sim"), WAITS.autonomousPeriod(2));
+        return (worktree, robot) ->
+                new SimBench(robot, null, worktree, worktree.resolve("TeamCode/build/sim"), WAITS.autonomousPeriod(2));
     }
 
     private static String encode(String name) throws java.io.UnsupportedEncodingException {
@@ -121,6 +121,7 @@ public class CodingServerTest {
 
     private SimBench bench() {
         return new SimBench(
+                TeamRobot.REGINALD,
                 SimCatalog.of(ThreeLoopAuto.class, NeverDoneAuto.class),
                 null,
                 folder.getRoot().toPath().resolve("sim"),
@@ -128,7 +129,7 @@ public class CodingServerTest {
     }
 
     private CodingServer serverWith(SimBench bench) {
-        return serverWith(worktree -> bench);
+        return serverWith((worktree, robot) -> bench);
     }
 
     private static final int CHEAP_SCRYPT = 1 << 4;
@@ -144,8 +145,8 @@ public class CodingServerTest {
     private CodingServer serverWith(SimBench.Factory factory, int scryptN, CodingServer.Assets assets) {
         // Every bench the server makes, however the test asked for it, so the teardown can say whether
         // any of them was left running.
-        SimBench.Factory recorded = worktree -> {
-            SimBench made = factory.create(worktree);
+        SimBench.Factory recorded = (worktree, robot) -> {
+            SimBench made = factory.create(worktree, robot);
             benches.add(made);
             return made;
         };
@@ -214,7 +215,7 @@ public class CodingServerTest {
 
     private CodingServer serverThatHashesAsItWouldInEarnest() {
         return serverWith(
-                worktree -> {
+                (worktree, robot) -> {
                     SimBench bench = bench();
                     benches.add(bench);
                     return bench;
@@ -1099,6 +1100,26 @@ public class CodingServerTest {
     }
 
     @Test
+    public void eachUsersSimulatorIsTheRobotTheyWorkOnAndListsThatRobotsOpModesAlone() throws IOException {
+        List<TeamRobot> madeFor = new ArrayList<>();
+        serverWith((worktree, robot) -> {
+            madeFor.add(robot);
+            return new SimBench(robot, SimCatalog.discover(robot), null, worktree.resolve("TeamCode/build/sim"), WAITS);
+        });
+        String ada = approvedUser("ada");
+        String nell = approvedUser("nell", TeamRobot.NUGGET);
+
+        Reply adas = user("GET", "/sim/catalog", ada);
+        Reply nells = user("GET", "/sim/catalog", nell);
+
+        assertEquals(List.of(TeamRobot.REGINALD, TeamRobot.NUGGET), madeFor);
+        assertTrue(adas.body, adas.body.contains("\"name\":\"driveForward\""));
+        assertFalse(adas.body, adas.body.contains("Nugget TeleOp"));
+        assertTrue(nells.body, nells.body.contains("\"name\":\"Nugget TeleOp\""));
+        assertFalse(nells.body, nells.body.contains("driveForward"));
+    }
+
+    @Test
     public void theSimIsForApprovedSessionsOnly() throws IOException {
         String pending = login("bob");
 
@@ -1117,8 +1138,12 @@ public class CodingServerTest {
 
     @Test
     public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
-        serverWith(worktree ->
-                new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, worktree.resolve("TeamCode/build/sim"), WAITS));
+        serverWith((worktree, robot) -> new SimBench(
+                TeamRobot.REGINALD,
+                SimCatalog.of(ThreeLoopAuto.class),
+                null,
+                worktree.resolve("TeamCode/build/sim"),
+                WAITS));
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String start = "/sim/start?opmode=" + encode("Count to three");
@@ -1143,8 +1168,12 @@ public class CodingServerTest {
 
     @Test
     public void eachUserSeedsTheRobotOnTheirOwnBench() throws Exception {
-        serverWith(worktree ->
-                new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, worktree.resolve("TeamCode/build/sim"), WAITS));
+        serverWith((worktree, robot) -> new SimBench(
+                TeamRobot.REGINALD,
+                SimCatalog.of(ThreeLoopAuto.class),
+                null,
+                worktree.resolve("TeamCode/build/sim"),
+                WAITS));
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String seed = "/sim/seed?opmode=" + encode("Count to three");
@@ -1216,6 +1245,7 @@ public class CodingServerTest {
     @Test
     public void theRunLogIsWhatTheChildWroteToStderr() throws Exception {
         serverWith(new SimBench(
+                TeamRobot.REGINALD,
                 SimCatalog.of(TestAutos.ChattyAuto.class),
                 null,
                 folder.getRoot().toPath().resolve("sim"),
@@ -1374,7 +1404,7 @@ public class CodingServerTest {
     @Test
     public void aRefreshFetchesTheAssetsAndTheyAreWhatTheBenchThenServes() throws IOException {
         serverWith(
-                worktree -> bench(),
+                (worktree, robot) -> bench(),
                 CHEAP_SCRYPT,
                 writing(FieldAssets.everyAsset(FieldAssets.Resolution.DEFAULT).toArray(new String[0])));
         String cookie = approvedUser("mia");
@@ -1391,7 +1421,7 @@ public class CodingServerTest {
 
     @Test
     public void anAssetTheRefreshDidNotWriteStillComesFromWhatIsCommitted() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
 
         admin("POST", "/admin/assets/refresh");
@@ -1405,7 +1435,7 @@ public class CodingServerTest {
 
     @Test
     public void aRefreshOnshapeWillNotAnswerSaysSoAndLeavesThePagesDrawing() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, new CodingServer.Assets() {
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, new CodingServer.Assets() {
             @Override
             public FieldAssets.Refreshed download(Store store, Path into) {
                 throw new Onshape.NoCredentials("no key pair and no proxy");
@@ -1427,7 +1457,7 @@ public class CodingServerTest {
 
     @Test
     public void onlyTheResolutionAskedForIsFetched() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
 
         Reply normal = admin("POST", "/admin/assets/refresh?resolution=low");
@@ -1451,7 +1481,7 @@ public class CodingServerTest {
     public void aDownloadAndABuildAreAskedForSeparately() throws IOException {
         Writing assets = new Writing(
                 FieldAssets.everyAsset(FieldAssets.Resolution.DEFAULT).toArray(new String[0]));
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, assets);
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, assets);
         String cookie = approvedUser("mia");
 
         Reply downloaded = admin("POST", "/admin/assets/download");
@@ -1472,7 +1502,7 @@ public class CodingServerTest {
 
     @Test
     public void aBuildWithNothingDownloadedIsRefusedAndSaysWhatToDo() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
 
         Reply refused = admin("POST", "/admin/assets/build?resolution=low");
 
@@ -1483,7 +1513,7 @@ public class CodingServerTest {
     @Test
     public void aResolutionNobodyBuildsIsRefusedBeforeAnythingIsBuilt() throws IOException {
         Writing assets = new Writing();
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, assets);
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, assets);
 
         Reply refused = admin("POST", "/admin/assets/build?resolution=finest");
 
@@ -1494,7 +1524,7 @@ public class CodingServerTest {
 
     @Test
     public void aResolutionNobodyBuildsIsRefusedRatherThanFetched() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
 
         Reply refused = admin("POST", "/admin/assets/refresh?resolution=finest");
 
@@ -1604,7 +1634,7 @@ public class CodingServerTest {
      */
     @Test
     public void theServerFetchesAndReportsTheFieldItsPagesDraw() throws IOException {
-        serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
         admin("POST", "/admin/assets/default?resolution=low");
 
@@ -1619,7 +1649,7 @@ public class CodingServerTest {
 
     @Test
     public void aServerWhosePagesDrawLowHasWhatItNeedsWithoutTheRest() throws IOException {
-        CodingServer running = serverWith(worktree -> bench(), CHEAP_SCRYPT, writing());
+        CodingServer running = serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
         admin("POST", "/admin/assets/default?resolution=low");
 
         admin("POST", "/admin/assets/refresh?resolution=low");
@@ -1975,7 +2005,7 @@ public class CodingServerTest {
         Files.createFile(otherRoot.resolve("Other.java"));
         SimBench otherBench = bench();
         CodingServer other = CodingServer.start(
-                otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+                otherRoot, (worktree, robot) -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         try {
             assertEquals(
                     "{\"files\":[]}", request(other.adminUrl(), "GET", "/admin/files?robot=reginald", null, null).body);
@@ -1989,7 +2019,7 @@ public class CodingServerTest {
         assertEquals(
                 "{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files?robot=reginald").body);
         other = CodingServer.start(
-                otherRoot, worktree -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+                otherRoot, (worktree, robot) -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
         try {
             assertEquals(
                     "{\"files\":[{\"path\":\"Other.java\"}]}",
@@ -2135,7 +2165,7 @@ public class CodingServerTest {
         SimBench bench = bench();
 
         try {
-            CodingServer.start(plain, worktree -> bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir())
+            CodingServer.start(plain, (worktree, robot) -> bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir())
                     .stop();
             fail("no repository, no worktrees, no server");
         } catch (IllegalStateException e) {

@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.util.List;
+import org.firstinspires.ftc.nugget.NuggetTeleOp;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.opmode.AutoOp;
 import org.firstinspires.ftc.teamcode.opmode.PlanOpModes;
@@ -22,10 +23,48 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimCatalogTest {
-    private final SimCatalog catalog = SimCatalog.discover();
+    private final SimCatalog catalog = SimCatalog.discover(TeamRobot.REGINALD);
+
+    @Test
+    public void nuggetsCatalogListsNuggetsOpModesAndNoneOfReginalds() {
+        SimCatalog nuggets = SimCatalog.discover(TeamRobot.NUGGET);
+
+        SimCatalog.Entry teleOp = nuggets.find("Nugget TeleOp").get();
+        assertEquals("teleop", teleOp.kind);
+        assertEquals("Nugget", teleOp.group);
+        assertEquals(NuggetTeleOp.class.getName(), teleOp.where);
+        assertNull("Nugget plays for no alliance", teleOp.alliance);
+        assertTrue(teleOp.opMode() instanceof NuggetTeleOp);
+        assertNotSame(teleOp.opMode(), teleOp.opMode());
+        assertFalse(nuggets.find("driveForward").isPresent());
+        assertFalse(nuggets.find("RedTeleOp").isPresent());
+    }
+
+    @Test
+    public void reginaldsCatalogListsNoneOfNuggets() {
+        assertFalse(catalog.find("Nugget TeleOp").isPresent());
+        for (SimCatalog.Entry entry : catalog.entries()) {
+            assertFalse(entry.where, entry.where.startsWith(SimCatalog.packageOf(TeamRobot.NUGGET) + "."));
+        }
+    }
+
+    @Test
+    public void eachRobotsOpModesAreItsOwnPackages() {
+        assertEquals("org.firstinspires.ftc.teamcode", SimCatalog.packageOf(TeamRobot.REGINALD));
+        assertEquals("org.firstinspires.ftc.nugget", SimCatalog.packageOf(TeamRobot.NUGGET));
+    }
+
+    @Test
+    public void aFixedCatalogListsNuggetsOpModesTooWhenItIsGivenThem() {
+        SimCatalog fixed = SimCatalog.of(NuggetTeleOp.class);
+
+        assertTrue(fixed.find("Nugget TeleOp").get().opMode() instanceof NuggetTeleOp);
+        assertEquals(List.of(NuggetTeleOp.class.getName()), fixed.sources());
+    }
 
     @Test
     public void listsEveryAutoThePlanRegistrarRegisters() {

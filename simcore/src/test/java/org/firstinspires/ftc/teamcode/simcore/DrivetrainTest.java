@@ -16,7 +16,9 @@ public class DrivetrainTest {
     private static final Feedforward TUNED =
             Valid.value(Feedforward.of(KS_VOLTS, KV_VOLT_SECONDS_PER_TICK, KA_VOLT_SECONDS_SQUARED_PER_TICK));
     private static final Drivetrain EXACT =
-            Valid.value(Drivetrain.of(TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned())));
+            Valid.value(Drivetrain.of(Drivebase.MECANUM, TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned())));
+    private static final Drivetrain TANK =
+            Valid.value(Drivetrain.of(Drivebase.TANK, TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned())));
 
     private static final Seconds STEP = Valid.value(Seconds.of(0.005));
 
@@ -161,8 +163,54 @@ public class DrivetrainTest {
         double ahead = leftFront(forward(1), 0);
         assertEquals(new PerWheel<>(ahead, ahead, -ahead, -ahead), pushes);
         assertEquals(new PerWheel<>(-ahead, -ahead, ahead, ahead), reversedPushes);
-        assertEquals(Sense.FORWARD, Wheel.LEFT_FRONT.mounted());
-        assertEquals(Sense.REVERSE, Wheel.RIGHT_BACK.mounted());
+        assertEquals(
+                new PerWheel<>(Sense.FORWARD, Sense.FORWARD, Sense.REVERSE, Sense.REVERSE),
+                Drivebase.MECANUM.mounted());
+    }
+
+    @Test
+    public void aTanksSidesAreEachOneMotorOnBothItsWheelsTheLeftMountedMirrorImageToTheRight() {
+        Drivetrain.Setting reversed = new Drivetrain.Setting(Sense.REVERSE, Power.clamped(1), ZeroPower.BRAKE);
+        double ahead = leftFront(forward(1), 0);
+
+        PerWheel<Double> leftReversed = Valid.value(TANK.accelerations(
+                new Sides<>(reversed, forward(1)).wheels(), VOLTS, PerWheel.all(0.0), STEP, Traction.unlimited()));
+        PerWheel<Double> neitherReversed = Valid.value(TANK.accelerations(
+                new Sides<>(forward(1), forward(1)).wheels(), VOLTS, PerWheel.all(0.0), STEP, Traction.unlimited()));
+
+        assertEquals("the left reversed, both sides drive ahead", PerWheel.all(ahead), leftReversed);
+        assertEquals(
+                "neither reversed, the left side drives back and the right ahead",
+                new PerWheel<>(-ahead, ahead, -ahead, ahead),
+                neitherReversed);
+        assertEquals(new Sides<>(Sense.REVERSE, Sense.FORWARD).wheels(), Drivebase.TANK.mounted());
+    }
+
+    @Test
+    public void aSideIsItsLeftOnBothLeftWheelsAndItsRightOnBothRightWheels() {
+        assertEquals(new PerWheel<>("left", "right", "left", "right"), new Sides<>("left", "right").wheels());
+    }
+
+    @Test
+    public void aTanksSideTurnsBothItsWheelsWithOneMotorSoBothHaveThatMotorsNoise() {
+        Noise.Motor weaker = Valid.value(Noise.Motor.of(1, 1.1, 1));
+        Noise.Motor stronger = Valid.value(Noise.Motor.of(1, 0.9, 1));
+        PerWheel<Noise.Motor> drawn = new PerWheel<>(weaker, stronger, Noise.Motor.tuned(), Noise.Motor.tuned());
+        Drivetrain noisy = Valid.value(Drivetrain.of(Drivebase.TANK, TUNED, IN_PER_TICK, drawn));
+
+        PerWheel<Double> atSpeed = Valid.value(noisy.accelerations(
+                new Sides<>(new Drivetrain.Setting(Sense.REVERSE, Power.clamped(1), ZeroPower.BRAKE), forward(1))
+                        .wheels(),
+                VOLTS,
+                PerWheel.all(freeSpeed(VOLTS) / 2),
+                STEP,
+                Traction.unlimited()));
+
+        assertEquals(atSpeed.leftFront(), atSpeed.leftBack(), 0);
+        assertEquals(atSpeed.rightFront(), atSpeed.rightBack(), 0);
+        assertTrue("the left motor is the weaker one drawn", atSpeed.leftFront() < atSpeed.rightFront());
+        assertEquals(new Sides<>(weaker, stronger).wheels(), Drivebase.TANK.turning(drawn));
+        assertEquals(drawn, Drivebase.MECANUM.turning(drawn));
     }
 
     @Test
@@ -178,7 +226,10 @@ public class DrivetrainTest {
     public void aNoisyMotorIsItsTuningScaledByItsNoise() {
         Noise.Motor weaker = Valid.value(Noise.Motor.of(1, 1.1, 1));
         Drivetrain noisy = Valid.value(Drivetrain.of(
-                TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned()).with(Wheel.LEFT_FRONT, weaker)));
+                Drivebase.MECANUM,
+                TUNED,
+                IN_PER_TICK,
+                PerWheel.all(Noise.Motor.tuned()).with(Wheel.LEFT_FRONT, weaker)));
 
         double weakerFreeSpeed = (VOLTS - KS_VOLTS) / (1.1 * KV_VOLT_SECONDS_PER_TICK) * IN_PER_TICK;
         assertEquals(0, leftFront(noisy, forward(1), weakerFreeSpeed, Traction.unlimited()), 1e-6);
@@ -204,7 +255,11 @@ public class DrivetrainTest {
         assertTrue(Feedforward.of(1, 1, 0) instanceof Checked.Rejected);
         assertTrue(Feedforward.of(1, 1, Double.NaN) instanceof Checked.Rejected);
         assertTrue(Feedforward.of(Double.POSITIVE_INFINITY, 1, 1) instanceof Checked.Rejected);
-        assertTrue(Drivetrain.of(TUNED, 0, PerWheel.all(Noise.Motor.tuned())) instanceof Checked.Rejected);
-        assertTrue(Drivetrain.of(TUNED, Double.NaN, PerWheel.all(Noise.Motor.tuned())) instanceof Checked.Rejected);
+        assertTrue(
+                Drivetrain.of(Drivebase.MECANUM, TUNED, 0, PerWheel.all(Noise.Motor.tuned()))
+                        instanceof Checked.Rejected);
+        assertTrue(
+                Drivetrain.of(Drivebase.TANK, TUNED, Double.NaN, PerWheel.all(Noise.Motor.tuned()))
+                        instanceof Checked.Rejected);
     }
 }

@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.sim.SimCatalog;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SubSystemsAreTickedTest {
@@ -54,8 +55,8 @@ public class SubSystemsAreTickedTest {
 
     private static Set<Class<?>> tickedByAnOpMode() {
         Set<Class<?>> ticked = new LinkedHashSet<>();
-        for (SimCatalog.Entry entry : SimCatalog.discover().entries()) {
-            OpMode opMode = entry.opMode();
+        for (SimCatalog.Entry entry : SimCatalog.discover(TeamRobot.REGINALD).entries()) {
+            OpMode opMode = (OpMode) entry.opMode();
             opMode.useHardware(new SimRobot().hardware());
             opMode.telemetry = new FakeTelemetry();
             opMode.gamepad1 = new Gamepad();

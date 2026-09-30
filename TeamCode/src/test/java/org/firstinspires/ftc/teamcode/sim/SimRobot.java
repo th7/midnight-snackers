@@ -29,12 +29,15 @@ import org.dyn4j.geometry.Vector2;
 import org.dyn4j.geometry.hull.GiftWrap;
 import org.dyn4j.world.ValueMixer;
 import org.dyn4j.world.World;
+import org.firstinspires.ftc.nugget.NuggetHardware;
+import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.teamcode.simcore.Chassis;
@@ -58,7 +61,9 @@ import org.firstinspires.ftc.teamcode.simcore.Rolling;
 import org.firstinspires.ftc.teamcode.simcore.Seat;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Sense;
+import org.firstinspires.ftc.teamcode.simcore.Sides;
 import org.firstinspires.ftc.teamcode.simcore.Stack;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.firstinspires.ftc.teamcode.simcore.Turntable;
 import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
@@ -114,6 +119,10 @@ public class SimRobot {
     public final FakeVoltageSensor voltageSensor = devices.voltageSensor;
     public final FakeDashboard dashboard = devices.dashboard;
 
+    private final TeamRobot teamRobot;
+
+    private final Build build;
+
     private final Noise noise;
 
     private Draws draws;
@@ -126,7 +135,7 @@ public class SimRobot {
     private final Turntable turntable =
             Valid.value(Turntable.of(org.firstinspires.ftc.teamcode.Turntable.TICKS_PER_REVOLUTION));
     private final World<Body> world = new World<>();
-    private final Body robot;
+    private final Body chassis;
 
     private Pose2d previous = new Pose2d(0, 0, 0);
 
@@ -252,9 +261,19 @@ public class SimRobot {
     }
 
     public SimRobot(Noise noise) {
+        this(TeamRobot.REGINALD, noise);
+    }
+
+    public SimRobot(TeamRobot teamRobot, Noise noise) {
+        this.teamRobot = teamRobot;
+        this.build = switch (teamRobot) {
+            case REGINALD -> new Reginald(devices);
+            case NUGGET -> new Nugget(new FakeDcMotorEx(), new FakeDcMotorEx());
+        };
         this.noise = noise;
         this.draws = noise.draws();
         this.drivetrain = Valid.value(Drivetrain.of(
+                teamRobot.drivebase(),
                 Valid.value(
                         Feedforward.of(drive.kSVolts, drive.kVVoltSecondsPerTick, drive.kAVoltSecondsSquaredPerTick)),
                 drive.inPerTick,
@@ -283,18 +302,18 @@ public class SimRobot {
             world.addBody(obstacleBody(obstacle));
         }
 
-        robot = new Body();
-        BodyFixture footprint = robot.addFixture(
+        chassis = new Body();
+        BodyFixture footprint = chassis.addFixture(
                 Geometry.createRectangle(SimPlacement.ROBOT_SIZE_IN * IN, SimPlacement.ROBOT_SIZE_IN * IN));
         footprint.setDensity(ROBOT_MASS_KG / (SimPlacement.ROBOT_SIZE_IN * IN * SimPlacement.ROBOT_SIZE_IN * IN));
         footprint.setFriction(0);
         footprint.setRestitution(0);
         footprint.setFilter(new Reaches(0, SimPlacement.ROBOT_SIZE_IN));
-        robot.setMass(MassType.NORMAL);
-        robot.setAtRestDetectionEnabled(false);
-        robot.setLinearDamping(0);
-        robot.setAngularDamping(0);
-        world.addBody(robot);
+        chassis.setMass(MassType.NORMAL);
+        chassis.setAtRestDetectionEnabled(false);
+        chassis.setLinearDamping(0);
+        chassis.setAngularDamping(0);
+        world.addBody(chassis);
 
         flight = Flight.over(Hives.of(FIELD));
         for (Field.Flower flower : FIELD.flowers()) {
@@ -304,7 +323,7 @@ public class SimRobot {
         List<Field.Piece> moved = FIELD.movedPieces();
         Field.Piece aLoosePollen = FIELD.loosePieces().get(0);
         int held = moved.size();
-        balls = new Ball[held + PRELOAD];
+        balls = new Ball[held + build.preload()];
         for (int i = 0; i < balls.length; i++) {
             Field.Piece piece = i < held ? moved.get(i) : aLoosePollen;
             balls[i] = new Ball(piece.radius(), piece.kind(), ballBody(piece.radius()));
@@ -377,6 +396,90 @@ public class SimRobot {
         return body;
     }
 
+    private sealed interface Build permits Reginald, Nugget {
+        PerWheel<Drivetrain.Setting> wheels();
+
+        double[] powers();
+
+        int preload();
+
+        void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode);
+    }
+
+    private record Reginald(SimDevices devices) implements Build {
+        @Override
+        public PerWheel<Drivetrain.Setting> wheels() {
+            return new PerWheel<>(
+                    setting(devices.leftFront),
+                    setting(devices.rightFront),
+                    setting(devices.leftBack),
+                    setting(devices.rightBack));
+        }
+
+        @Override
+        public double[] powers() {
+            return new double[] {
+                devices.leftFront.power, devices.rightFront.power, devices.leftBack.power, devices.rightBack.power
+            };
+        }
+
+        @Override
+        public int preload() {
+            return PRELOAD;
+        }
+
+        @Override
+        public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
+            if (!(opMode instanceof OpMode reginalds)) {
+                throw notOf(TeamRobot.REGINALD, opMode);
+            }
+            reginalds.useHardware(devices.hardware());
+        }
+    }
+
+    private record Nugget(FakeDcMotorEx left, FakeDcMotorEx right) implements Build {
+        @Override
+        public PerWheel<Drivetrain.Setting> wheels() {
+            return new Sides<>(setting(left), setting(right)).wheels();
+        }
+
+        @Override
+        public double[] powers() {
+            return new double[] {left.power, right.power};
+        }
+
+        @Override
+        public int preload() {
+            return 0;
+        }
+
+        @Override
+        public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
+            if (!(opMode instanceof NuggetOpMode nuggets)) {
+                throw notOf(TeamRobot.NUGGET, opMode);
+            }
+            nuggets.useHardware(NuggetHardware.builder().left(left).right(right).build());
+        }
+    }
+
+    private static IllegalArgumentException notOf(TeamRobot teamRobot, Object opMode) {
+        return new IllegalArgumentException(opMode.getClass().getName() + " is not one of "
+                + teamRobot.displayName() + "'s op modes, so the simulated " + teamRobot.displayName()
+                + " has no hardware to hand it");
+    }
+
+    public TeamRobot robot() {
+        return teamRobot;
+    }
+
+    public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
+        build.wire(opMode);
+    }
+
+    public double[] powers() {
+        return build.powers();
+    }
+
     public Hardware hardware() {
         return devices.hardware();
     }
@@ -400,7 +503,7 @@ public class SimRobot {
     }
 
     public Pose2d pose() {
-        Transform transform = robot.getTransform();
+        Transform transform = chassis.getTransform();
         return new Pose2d(
                 transform.getTranslationX() / IN, transform.getTranslationY() / IN, transform.getRotationAngle());
     }
@@ -408,15 +511,15 @@ public class SimRobot {
     public void setPose(Pose2d pose) {
         Pose2d placed = SimPlacement.onTheField(pose);
 
-        world.removeBody(robot);
-        Transform transform = robot.getTransform();
+        world.removeBody(chassis);
+        Transform transform = chassis.getTransform();
         transform.setTranslation(placed.position.x * IN, placed.position.y * IN);
         transform.setRotation(placed.heading.toDouble());
-        robot.setLinearVelocity(new Vector2());
-        robot.setAngularVelocity(0);
-        robot.clearForce();
-        robot.clearTorque();
-        world.addBody(robot);
+        chassis.setLinearVelocity(new Vector2());
+        chassis.setAngularVelocity(0);
+        chassis.clearForce();
+        chassis.clearTorque();
+        world.addBody(chassis);
         previous = pose();
         imu.yawRadians = previous.heading.toDouble();
     }
@@ -601,7 +704,7 @@ public class SimRobot {
     }
 
     private boolean pushedByTheRobot(Ball ball) {
-        Deque<Body> touching = new ArrayDeque<>(world.getInContactBodies(robot, false));
+        Deque<Body> touching = new ArrayDeque<>(world.getInContactBodies(chassis, false));
         List<Body> followed = new ArrayList<>();
         while (!touching.isEmpty()) {
             Body body = touching.poll();
@@ -663,16 +766,11 @@ public class SimRobot {
     private void substep(Seconds dt) {
         launcher.measuredVelocity = launcher.commandedVelocity;
         turnTable.currentPosition = turntable.turned(turnTable.currentPosition, Power.clamped(turnTable.power), dt);
-        voltageSensor.voltage = noise.battery()
-                .volts(
-                        Valid.value(Seconds.of(nanoTime() / 1e9)),
-                        new PerWheel<>(
-                                Power.clamped(leftFront.power),
-                                Power.clamped(rightFront.power),
-                                Power.clamped(leftBack.power),
-                                Power.clamped(rightBack.power)));
+        PerWheel<Drivetrain.Setting> wheels = build.wheels();
+        voltageSensor.voltage =
+                noise.battery().volts(Valid.value(Seconds.of(nanoTime() / 1e9)), wheels.map(Drivetrain.Setting::power));
 
-        driveTheRobot(dt);
+        driveTheRobot(wheels, dt);
         feedTheLauncher();
         holdTheNests(dt);
         world.step(1, dt.value());
@@ -682,23 +780,23 @@ public class SimRobot {
         readTheSensors();
     }
 
-    private void driveTheRobot(Seconds dt) {
-        Vector2 linear = robot.getLinearVelocity();
-        Heading heading = Valid.value(Heading.ofRadians(robot.getTransform().getRotationAngle()));
+    private void driveTheRobot(PerWheel<Drivetrain.Setting> wheels, Seconds dt) {
+        Vector2 linear = chassis.getLinearVelocity();
+        Heading heading = Valid.value(Heading.ofRadians(chassis.getTransform().getRotationAngle()));
         Vec2 velocity = heading.onTheRobot(new Vec2(linear.x / IN, linear.y / IN));
         PoseVelocity2d inRobotFrame =
-                new PoseVelocity2d(new Vector2d(velocity.x(), velocity.y()), robot.getAngularVelocity());
-        MecanumKinematics.WheelVelocities<Time> wheels =
+                new PoseVelocity2d(new Vector2d(velocity.x(), velocity.y()), chassis.getAngularVelocity());
+        MecanumKinematics.WheelVelocities<Time> turning =
                 kinematics.inverse(PoseVelocity2dDual.constant(inRobotFrame, 1));
 
         PerWheel<Double> accelerations = refusedIfNot(drivetrain.accelerations(
-                new PerWheel<>(setting(leftFront), setting(rightFront), setting(leftBack), setting(rightBack)),
+                wheels,
                 voltageSensor.voltage,
                 new PerWheel<>(
-                        wheels.leftFront.value(),
-                        wheels.rightFront.value(),
-                        wheels.leftBack.value(),
-                        wheels.rightBack.value()),
+                        turning.leftFront.value(),
+                        turning.rightFront.value(),
+                        turning.leftBack.value(),
+                        turning.rightBack.value()),
                 dt,
                 noise.traction()));
 
@@ -710,9 +808,9 @@ public class SimRobot {
                         dual(accelerations.rightFront())))
                 .value();
         Vec2 pushed = heading.onTheField(new Vec2(acceleration.line.x, acceleration.line.y));
-        double mass = robot.getMass().getMass();
-        robot.applyForce(new Vector2(pushed.x() * IN * mass, pushed.y() * IN * mass));
-        robot.applyTorque(acceleration.angle * robot.getMass().getInertia());
+        double mass = chassis.getMass().getMass();
+        chassis.applyForce(new Vector2(pushed.x() * IN * mass, pushed.y() * IN * mass));
+        chassis.applyTorque(acceleration.angle * chassis.getMass().getInertia());
     }
 
     private static Drivetrain.Setting setting(FakeDcMotorEx motor) {
@@ -757,7 +855,7 @@ public class SimRobot {
     }
 
     private boolean againstTheFront(Ball ball) {
-        Transform robotAt = robot.getTransform();
+        Transform robotAt = chassis.getTransform();
         Transform ballAt = ball.body.getTransform();
         return Chassis.againstTheFront(
                 Valid.value(Heading.ofRadians(robotAt.getRotationAngle())),
@@ -785,7 +883,7 @@ public class SimRobot {
 
     private void launch(Ball ball) {
         Pose2d pose = pose();
-        Vector2 robotVelocity = robot.getLinearVelocity();
+        Vector2 robotVelocity = chassis.getLinearVelocity();
         Launch launch = Launch.from(
                 new Vec2(pose.position.x, pose.position.y),
                 pose.heading.toDouble(),
@@ -821,10 +919,10 @@ public class SimRobot {
         Pose2d pose = pose();
         Twist2d delta = pose.minus(previous);
         previous = pose;
-        Vector2 linear = robot.getLinearVelocity();
+        Vector2 linear = chassis.getLinearVelocity();
         Heading heading = Valid.value(Heading.ofRadians(pose.heading.toDouble()));
         Twist perSecond =
-                new Twist(heading.onTheRobot(new Vec2(linear.x / IN, linear.y / IN)), robot.getAngularVelocity());
+                new Twist(heading.onTheRobot(new Vec2(linear.x / IN, linear.y / IN)), chassis.getAngularVelocity());
 
         deadWheels = deadWheels.moved(new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle));
         DeadWheels.Reading reading = deadWheels.read(perSecond);

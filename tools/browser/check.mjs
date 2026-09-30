@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ASSETS, benchModel, cannedRun, chrome, servingTheLiveView, sim, theLiveView } from './bench.mjs';
+import { ASSETS, benchModel, cannedRun, chrome, ON_REGINALD, servingTheLiveView, sim, theLiveView } from './bench.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,7 +36,7 @@ const check = (ok, said) => { if (!ok) problems.push(said); };
 const model = benchModel();
 const canned = cannedRun(model);
 const livePage = theLiveView(
-    { name: 'FieldCheckAuto', kind: 'auto', live: false, outcome: 'done', ticks: canned.ticks },
+    { name: 'FieldCheckAuto', kind: 'auto', ...ON_REGINALD, live: false, outcome: 'done', ticks: canned.ticks },
     ASSETS,
     'FieldCheckAuto');
 const server = await servingTheLiveView(livePage);

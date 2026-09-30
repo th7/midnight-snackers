@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ASSETS, benchModel, cannedRun, chrome, servingTheLiveView, theLiveView } from './bench.mjs';
+import { ASSETS, benchModel, cannedRun, chrome, ON_REGINALD, servingTheLiveView, theLiveView } from './bench.mjs';
 import { inSoftware } from '../../TeamCode/src/test/resources/org/firstinspires/ftc/teamcode/sim/framecost.js';
 
 const budgetFile = fileURLToPath(new URL('./scene-budget.json', import.meta.url));
@@ -180,7 +180,7 @@ async function main() {
   const model = benchModel();
   const run = cannedRun(model);
   const page = theLiveView(
-      { name: 'CostCheckAuto', kind: 'auto', live: false, outcome: 'done', ticks: run.ticks },
+      { name: 'CostCheckAuto', kind: 'auto', ...ON_REGINALD, live: false, outcome: 'done', ticks: run.ticks },
       ASSETS,
       'CostCheckAuto');
   const server = await servingTheLiveView(page);

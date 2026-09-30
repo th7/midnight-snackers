@@ -22,6 +22,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -223,6 +224,43 @@ public class SimReplayPageTest {
         }
     }
 
+    private static JsonObject recordingIn(String html) {
+        Matcher recording = Pattern.compile(
+                        "<script id=\"recording\" type=\"application/json\">(.*?)</script>", Pattern.DOTALL)
+                .matcher(html);
+        assertTrue("the page carries its recording", recording.find());
+        return new Gson().fromJson(recording.group(1), JsonObject.class);
+    }
+
+    @Test
+    public void aPageNamesTheRobotItsRunWasOnAndItsDriveMotorsInTheOrderTheirPowersAreRecorded() {
+        SimRecording nugget = new SimRecording("Nugget TeleOp", SimCatalog.TELEOP, TeamRobot.NUGGET);
+        nugget.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "", new double[] {0.5, -0.5}, List.of())
+                .tick());
+        nugget.finish("stopped");
+        SimRecording reginald = new SimRecording("Stick", SimCatalog.TELEOP, TeamRobot.REGINALD);
+
+        JsonObject nuggets = recordingIn(SimReplayPage.written(nugget));
+        JsonObject reginalds = recordingIn(SimReplayPage.live(reginald, ASSETS));
+
+        assertEquals("Nugget", nuggets.get("robot").getAsString());
+        assertEquals(new Gson().toJsonTree(List.of("L", "R")), nuggets.get("motors"));
+        assertEquals(
+                2,
+                nuggets.getAsJsonArray("ticks")
+                        .get(0)
+                        .getAsJsonObject()
+                        .getAsJsonArray("powers")
+                        .size());
+        assertEquals("Reginald", reginalds.get("robot").getAsString());
+        assertEquals(new Gson().toJsonTree(List.of("LF", "RF", "LB", "RB")), reginalds.get("motors"));
+        assertEquals(
+                new Gson().toJsonTree(TeamRobot.NUGGET.drivebase().motors()),
+                recordingIn(SimReplayPage.placement(
+                                "Nugget TeleOp", SimCatalog.TELEOP, TeamRobot.NUGGET, StartPoses.ORIGIN))
+                        .get("motors"));
+    }
+
     @Test
     public void aFilledPageKeepsNoPlaceholder() {
         SimRecording recording = new SimRecording("PlaceholderAuto");
@@ -262,7 +300,7 @@ public class SimReplayPageTest {
 
     @Test
     public void thePlacementPageCarriesTheStartPoseAndTheInputsToMoveIt() {
-        String html = SimReplayPage.placement("SquareAuto", "auto", new Pose2d(12.5, -3, 0.5));
+        String html = SimReplayPage.placement("SquareAuto", "auto", TeamRobot.REGINALD, new Pose2d(12.5, -3, 0.5));
 
         assertTrue(html, html.contains("<canvas"));
         assertTrue(html, html.contains("\"name\":\"SquareAuto\""));
@@ -376,6 +414,11 @@ public class SimReplayPageTest {
             }
 
             @Override
+            public TeamRobot robot() {
+                return TeamRobot.REGINALD;
+            }
+
+            @Override
             public String ticksJson(int from) {
                 return SimRunStream.TickLine.array(streamed.subList(from, streamed.size()));
             }
@@ -407,6 +450,11 @@ public class SimReplayPageTest {
             @Override
             public String kind() {
                 return "auto";
+            }
+
+            @Override
+            public TeamRobot robot() {
+                return TeamRobot.REGINALD;
             }
 
             @Override

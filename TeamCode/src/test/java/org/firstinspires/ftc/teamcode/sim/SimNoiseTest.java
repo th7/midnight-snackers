@@ -1,12 +1,14 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.PerWheel;
 import org.firstinspires.ftc.teamcode.simcore.Power;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimNoiseTest {
@@ -29,9 +31,10 @@ public class SimNoiseTest {
 
     @Test
     public void namesTheRobotInALineForAFailureToQuote() {
-        String line = SimNoise.described(SimNoise.NONE.withBattery(Valid.value(Noise.Battery.of(13.8, 0.2, 0.004))));
+        String line = SimNoise.described(
+                TeamRobot.REGINALD, SimNoise.NONE.withBattery(Valid.value(Noise.Battery.of(13.8, 0.2, 0.004))));
 
-        assertTrue(line, line.startsWith("seed 0:"));
+        assertTrue(line, line.startsWith("Reginald, seed 0:"));
         assertTrue(
                 line,
                 line.contains("lf kSVolts x1.000 kVVoltSecondsPerTick x1.000 kAVoltSecondsSquaredPerTick x1.000"));
@@ -39,8 +42,22 @@ public class SimNoiseTest {
         assertTrue(line, line.contains("battery 13.80 V sag 0.20 V/power drain 0.0040 V/s"));
         assertTrue(line, line.contains("traction Infinity g"));
         assertTrue(line, line.contains("loop 20 ms"));
-        String seven = SimNoise.described(Noise.seeded(7));
-        assertTrue(seven, seven.startsWith("seed 7:"));
+        String seven = SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7));
+        assertTrue(seven, seven.startsWith("Reginald, seed 7:"));
         assertTrue(seven, seven.contains("set down +-0.50 in +-2.0 deg; loop 33 ms spread 0.15 hiccups 2%"));
+    }
+
+    @Test
+    public void namesNuggetsTwoMotorsAndNoWheelsItHasNoMotorFor() {
+        Noise seven = Noise.seeded(7);
+
+        String line = SimNoise.described(TeamRobot.NUGGET, seven);
+
+        assertTrue(line, line.startsWith("Nugget, seed 7: l kSVolts x"));
+        assertTrue(
+                line,
+                line.contains(String.format(
+                        " r kSVolts x%.3f", seven.motors().rightFront().kSVolts())));
+        assertFalse(line, line.contains(" lf ") || line.contains(" lb ") || line.contains(" rb "));
     }
 }
