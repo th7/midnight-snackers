@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import org.firstinspires.ftc.teamcode.opmode.PlanOpModes;
+import org.firstinspires.ftc.reginald.opmode.PlanOpModes;
 import org.junit.Test;
 
 public class WheelPowerTraceTest {

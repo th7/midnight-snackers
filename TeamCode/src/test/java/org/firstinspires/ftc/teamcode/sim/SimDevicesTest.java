@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.junit.Test;
 
 public class SimDevicesTest {

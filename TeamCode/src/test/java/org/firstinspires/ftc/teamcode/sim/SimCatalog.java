@@ -19,19 +19,15 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.nugget.NuggetOpMode;
+import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
-import org.firstinspires.ftc.teamcode.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimCatalog {
-    public static final String TEAMCODE_PACKAGE = "org.firstinspires.ftc.teamcode";
-
-    public static final String ROADRUNNER_PACKAGE = TEAMCODE_PACKAGE + ".roadrunner";
-
-    public static final String NUGGET_PACKAGE = "org.firstinspires.ftc.nugget";
+    public static final String ROADRUNNER_PACKAGE = TeamRobot.REGINALD.javaPackage() + ".roadrunner";
 
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
@@ -160,10 +156,7 @@ public final class SimCatalog {
     }
 
     public static String packageOf(TeamRobot robot) {
-        return switch (robot) {
-            case REGINALD -> TEAMCODE_PACKAGE;
-            case NUGGET -> NUGGET_PACKAGE;
-        };
+        return robot.javaPackage();
     }
 
     private static Class<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> opModeOf(TeamRobot robot) {

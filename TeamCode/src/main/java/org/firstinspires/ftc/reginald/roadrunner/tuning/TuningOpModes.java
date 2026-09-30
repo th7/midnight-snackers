@@ -1,0 +1,111 @@
+package org.firstinspires.ftc.reginald.roadrunner.tuning;
+
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.reflection.ReflectionConfig;
+import com.acmerobotics.roadrunner.MotorFeedforward;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.ftc.AngularRampLogger;
+import com.acmerobotics.roadrunner.ftc.DeadWheelDirectionDebugger;
+import com.acmerobotics.roadrunner.ftc.DriveType;
+import com.acmerobotics.roadrunner.ftc.DriveView;
+import com.acmerobotics.roadrunner.ftc.DriveViewFactory;
+import com.acmerobotics.roadrunner.ftc.EncoderGroup;
+import com.acmerobotics.roadrunner.ftc.EncoderRef;
+import com.acmerobotics.roadrunner.ftc.ForwardPushTest;
+import com.acmerobotics.roadrunner.ftc.ForwardRampLogger;
+import com.acmerobotics.roadrunner.ftc.LateralPushTest;
+import com.acmerobotics.roadrunner.ftc.LateralRampLogger;
+import com.acmerobotics.roadrunner.ftc.LynxQuadratureEncoderGroup;
+import com.acmerobotics.roadrunner.ftc.ManualFeedforwardTuner;
+import com.acmerobotics.roadrunner.ftc.MecanumMotorDirectionDebugger;
+import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
+import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
+import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.reginald.roadrunner.TwoDeadWheelLocalizer;
+import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
+
+public final class TuningOpModes {
+    public static final String GROUP = "quickstart";
+    public static final boolean DISABLED = false;
+
+    private TuningOpModes() {}
+
+    private static OpModeMeta metaForClass(Class<? extends OpMode> cls) {
+        return new OpModeMeta.Builder()
+                .setName(cls.getSimpleName())
+                .setGroup(GROUP)
+                .setFlavor(OpModeMeta.Flavor.TELEOP)
+                .build();
+    }
+
+    @OpModeRegistrar
+    public static void register(OpModeManager manager) {
+        if (DISABLED) return;
+
+        DriveViewFactory dvf = hardwareMap -> {
+            TuningDrive tuning = TuningDrive.from(hardwareMap, new Pose2d(0, 0, 0));
+            MecanumDrive md = tuning.drive;
+            TwoDeadWheelLocalizer dl = tuning.localizer.deadWheels();
+
+            List<EncoderGroup> encoderGroups = new ArrayList<>();
+            encoderGroups.add(new LynxQuadratureEncoderGroup(
+                    hardwareMap.getAll(LynxModule.class),
+                    Arrays.asList(new OverflowEncoder(dl.par.encoder), new OverflowEncoder(dl.perp.encoder))));
+            List<EncoderRef> parEncs = new ArrayList<>(), perpEncs = new ArrayList<>();
+            parEncs.add(new EncoderRef(0, 0));
+            perpEncs.add(new EncoderRef(0, 1));
+
+            return new DriveView(
+                    DriveType.MECANUM,
+                    MecanumDrive.PARAMS.inPerTick,
+                    MecanumDrive.PARAMS.maxWheelVelInchesPerSecond,
+                    MecanumDrive.PARAMS.minProfileAccelInchesPerSecondSquared,
+                    MecanumDrive.PARAMS.maxProfileAccelInchesPerSecondSquared,
+                    encoderGroups,
+                    md.wheels.left(),
+                    md.wheels.right(),
+                    new ArrayList<>(),
+                    new ArrayList<>(),
+                    parEncs,
+                    perpEncs,
+                    md.lazyImu,
+                    md.voltageSensor,
+                    () -> new MotorFeedforward(
+                            MecanumDrive.PARAMS.kSVolts,
+                            MecanumDrive.PARAMS.kVVoltSecondsPerTick / MecanumDrive.PARAMS.inPerTick,
+                            MecanumDrive.PARAMS.kAVoltSecondsSquaredPerTick / MecanumDrive.PARAMS.inPerTick),
+                    0);
+        };
+
+        manager.register(metaForClass(AngularRampLogger.class), new AngularRampLogger(dvf));
+        manager.register(metaForClass(ForwardPushTest.class), new ForwardPushTest(dvf));
+        manager.register(metaForClass(ForwardRampLogger.class), new ForwardRampLogger(dvf));
+        manager.register(metaForClass(LateralPushTest.class), new LateralPushTest(dvf));
+        manager.register(metaForClass(LateralRampLogger.class), new LateralRampLogger(dvf));
+        manager.register(metaForClass(ManualFeedforwardTuner.class), new ManualFeedforwardTuner(dvf));
+        manager.register(metaForClass(MecanumMotorDirectionDebugger.class), new MecanumMotorDirectionDebugger(dvf));
+        manager.register(metaForClass(DeadWheelDirectionDebugger.class), new DeadWheelDirectionDebugger(dvf));
+
+        manager.register(metaForClass(ManualFeedbackTuner.class), ManualFeedbackTuner.class);
+        manager.register(metaForClass(SplineTest.class), SplineTest.class);
+        manager.register(metaForClass(LocalizationTest.class), LocalizationTest.class);
+
+        FtcDashboard.getInstance().withConfigRoot(configRoot -> {
+            for (Class<?> c : Arrays.asList(
+                    AngularRampLogger.class,
+                    ForwardRampLogger.class,
+                    LateralRampLogger.class,
+                    ManualFeedforwardTuner.class,
+                    MecanumMotorDirectionDebugger.class,
+                    ManualFeedbackTuner.class)) {
+                configRoot.putVariable(c.getSimpleName(), ReflectionConfig.createVariableFromClass(c));
+            }
+        });
+    }
+}

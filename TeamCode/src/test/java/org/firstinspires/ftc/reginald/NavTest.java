@@ -1,0 +1,166 @@
+package org.firstinspires.ftc.reginald;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import com.acmerobotics.roadrunner.Vector2d;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.sim.SimDevices;
+import org.junit.Test;
+
+public class NavTest {
+    private static final double DELTA = 0.001;
+
+    private static Nav navFor(Alliance alliance) {
+        return new Robot(new SimDevices().hardware(), alliance, new FakeTelemetry()).nav;
+    }
+
+    private static double distance(Nav.Pose from, Vector2d to) {
+        return Math.hypot(to.x - from.xInches(), to.y - from.yInches());
+    }
+
+    @Test
+    public void navDoesNotHoldTheDriveThatBuildsPaths() {
+        List<String> held = new ArrayList<>();
+        for (Field field : Nav.class.getDeclaredFields()) {
+            if (MecanumDrive.class.isAssignableFrom(field.getType())) {
+                held.add(field.getName());
+            }
+        }
+
+        assertEquals("Nav should ask the drive to go somewhere, not build the path itself", List.of(), held);
+    }
+
+    @Test
+    public void redMirrorsYAndHeadingAcrossTheCentreLineAndBlueDoesNot() {
+        Nav.Pose red = navFor(Alliance.RED).pose(1, 2, 0.5);
+        Nav.Pose blue = navFor(Alliance.BLUE).pose(1, 2, 0.5);
+        Nav.Pose relative = navFor(Alliance.RELATIVE).pose(1, 2, 0.5);
+
+        assertEquals(1, red.xInches(), DELTA);
+        assertEquals(-2, red.yInches(), DELTA);
+        assertEquals(-0.5, red.headingRadians(), DELTA);
+        assertEquals(2, blue.yInches(), DELTA);
+        assertEquals(0.5, blue.headingRadians(), DELTA);
+        assertEquals(2, relative.yInches(), DELTA);
+        assertEquals(0.5, relative.headingRadians(), DELTA);
+    }
+
+    @Test
+    public void theRobotStartsAtTheOriginAndIsWhereItWasLastPut() {
+        Nav nav = navFor(Alliance.BLUE);
+        assertEquals(0, nav.currentPose().xInches(), DELTA);
+        assertEquals(0, nav.currentPose().yInches(), DELTA);
+
+        nav.placeAt(nav.pose(12, -6, 1));
+
+        assertEquals(12, nav.currentPose().xInches(), DELTA);
+        assertEquals(-6, nav.currentPose().yInches(), DELTA);
+        assertEquals(1, nav.currentPose().headingRadians(), DELTA);
+    }
+
+    @Test
+    public void theLaunchPoseIsFortyInchesShortOfTheGoalFacingIt() {
+        Nav nav = navFor(Alliance.BLUE);
+        nav.placeAt(nav.pose(10, 5, 2));
+        Vector2d goal = Alliance.BLUE.launchTarget;
+
+        Nav.Pose launch = nav.launchPose().get();
+
+        assertEquals(40, distance(launch, goal), DELTA);
+        assertEquals(Math.atan2(goal.y - launch.yInches(), goal.x - launch.xInches()), launch.headingRadians(), DELTA);
+        assertEquals(
+                "on the line from the robot to the goal",
+                Math.atan2(goal.y - 5, goal.x - 10),
+                launch.headingRadians(),
+                DELTA);
+    }
+
+    @Test
+    public void playingForNoAllianceThereIsNoGoalAndSoNoLaunchPose() {
+        assertTrue(navFor(Alliance.RELATIVE).launchPose().isEmpty());
+        assertTrue(navFor(Alliance.RED).launchPose().isPresent());
+    }
+
+    @Test
+    public void theTurntableHeadingIsZeroUntilTheCameraHasPlacedTheRobotThenTheGoalsBearingBackwards() {
+        Nav nav = navFor(Alliance.BLUE);
+        Vector2d goal = Alliance.BLUE.launchTarget;
+        assertEquals(0, nav.relativeHeadingToTarget(), DELTA);
+
+        nav.sighted(nav.pose(0, 0, 0.25));
+
+        assertEquals(-(Math.atan2(goal.y, goal.x) - 0.25), nav.relativeHeadingToTarget(), DELTA);
+    }
+
+    @Test
+    public void placingTheRobotByHandIsEnoughToAimTheTurntable() {
+        Nav nav = navFor(Alliance.BLUE);
+        Vector2d goal = Alliance.BLUE.launchTarget;
+        assertEquals("nowhere yet", 0, nav.relativeHeadingToTarget(), DELTA);
+
+        nav.placeAt(nav.pose(0, 0, 0.25));
+
+        assertEquals(-(Math.atan2(goal.y, goal.x) - 0.25), nav.relativeHeadingToTarget(), DELTA);
+    }
+
+    @Test
+    public void aSightingNudgesRatherThanTeleportsOnceTheRobotHasBeenPlacedByHand() {
+        Nav nav = navFor(Alliance.BLUE);
+        nav.placeAt(nav.pose(10, 20, 0.5));
+
+        nav.sighted(nav.pose(20, 19.5, 0));
+
+        assertEquals(11, nav.currentPose().xInches(), DELTA);
+        assertEquals(19.5, nav.currentPose().yInches(), DELTA);
+        assertEquals(
+                "a later sighting never changes the heading",
+                0.5,
+                nav.currentPose().headingRadians(),
+                DELTA);
+    }
+
+    @Test
+    public void theFirstSightingPlacesTheRobotAndLaterOnesNudgeItAnInchAtMost() {
+        Nav nav = navFor(Alliance.BLUE);
+
+        nav.sighted(nav.pose(10, 20, 0.5));
+        assertEquals(10, nav.currentPose().xInches(), DELTA);
+        assertEquals(20, nav.currentPose().yInches(), DELTA);
+        assertEquals(0.5, nav.currentPose().headingRadians(), DELTA);
+
+        nav.sighted(nav.pose(20, 19.5, 0));
+        assertEquals(11, nav.currentPose().xInches(), DELTA);
+        assertEquals(19.5, nav.currentPose().yInches(), DELTA);
+        assertEquals(
+                "a later sighting never changes the heading",
+                0.5,
+                nav.currentPose().headingRadians(),
+                DELTA);
+    }
+
+    @Test
+    public void nearIsWithinThreeInchesAndSixDegrees() {
+        Nav nav = navFor(Alliance.BLUE);
+
+        assertTrue(nav.near(nav.pose(2, -2, 0.05)));
+        assertFalse(nav.near(nav.pose(4, 0, 0)));
+        assertFalse(nav.near(nav.pose(0, 4, 0)));
+        assertFalse(nav.near(nav.pose(0, 0, 0.2)));
+    }
+
+    @Test
+    public void aPoseRotatedKeepsItsPlaceAndTurnsItsHeading() {
+        Nav.Pose pose = navFor(Alliance.BLUE).pose(3, 4, 1).rotated(-0.25);
+
+        assertEquals(3, pose.xInches(), DELTA);
+        assertEquals(4, pose.yInches(), DELTA);
+        assertEquals(0.75, pose.headingRadians(), DELTA);
+    }
+}

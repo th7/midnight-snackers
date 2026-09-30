@@ -12,12 +12,12 @@ import path from 'node:path';
 import { chrome, sim } from './bench.mjs';
 
 const FILES = [
-  { path: 'TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java', editors: [] },
-  { path: 'TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Drive.java', editors: ['ana'] }
+  { path: 'TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java', editors: [] },
+  { path: 'TeamCode/src/main/java/org/firstinspires/ftc/reginald/Drive.java', editors: ['ana'] }
 ];
-const CONTENT = 'package org.firstinspires.ftc.teamcode;\n\npublic final class Plans {\n}\n';
+const CONTENT = 'package org.firstinspires.ftc.reginald;\n\npublic final class Plans {\n}\n';
 const OPMODE = { name: 'BlueLeftAuto', kind: 'auto', group: 'Autonomous',
-                 where: 'org.firstinspires.ftc.teamcode.BlueLeftAuto', seed: null };
+                 where: 'org.firstinspires.ftc.reginald.BlueLeftAuto', seed: null };
 
 // What the page asks the user listener for, answered as the server answers it.
 const ANSWERS = {

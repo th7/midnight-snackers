@@ -34,7 +34,7 @@ import javax.tools.ToolProvider;
 import org.firstinspires.ftc.teamcode.sim.Cost;
 import org.firstinspires.ftc.teamcode.sim.SimBuild;
 
-final class MainSources {
+public final class MainSources {
     private static final Path ROOT = Paths.get("src", "main", "java");
 
     private static MainSources compiled;
@@ -43,7 +43,7 @@ final class MainSources {
 
     private final int fileCount;
 
-    record Reference(String file, long line, String inside) {
+    public record Reference(String file, long line, String inside) {
         @Override
         public String toString() {
             return file + ":" + line + " in " + inside;
@@ -55,7 +55,7 @@ final class MainSources {
         this.fileCount = fileCount;
     }
 
-    static synchronized MainSources compiled() {
+    public static synchronized MainSources compiled() {
         if (compiled != null) {
             return compiled;
         }
@@ -164,11 +164,11 @@ final class MainSources {
         }
     }
 
-    int fileCount() {
+    public int fileCount() {
         return fileCount;
     }
 
-    List<Reference> referencesTo(String qualifiedTypeName) {
+    public List<Reference> referencesTo(String qualifiedTypeName) {
         return byType.getOrDefault(qualifiedTypeName, List.of());
     }
 

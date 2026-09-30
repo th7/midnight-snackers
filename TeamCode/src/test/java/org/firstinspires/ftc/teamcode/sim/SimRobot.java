@@ -31,15 +31,15 @@ import org.dyn4j.world.ValueMixer;
 import org.dyn4j.world.World;
 import org.firstinspires.ftc.nugget.NuggetHardware;
 import org.firstinspires.ftc.nugget.NuggetOpMode;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
+import org.firstinspires.ftc.reginald.opmode.OpMode;
+import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.reginald.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.opmode.OpMode;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
@@ -133,7 +133,7 @@ public class SimRobot {
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private final Drivetrain drivetrain;
     private final Turntable turntable =
-            Valid.value(Turntable.of(org.firstinspires.ftc.teamcode.Turntable.TICKS_PER_REVOLUTION));
+            Valid.value(Turntable.of(org.firstinspires.ftc.reginald.Turntable.TICKS_PER_REVOLUTION));
     private final World<Body> world = new World<>();
     private final Body chassis;
 

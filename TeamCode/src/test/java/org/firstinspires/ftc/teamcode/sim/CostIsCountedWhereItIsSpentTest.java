@@ -4,11 +4,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 /**
@@ -58,7 +60,10 @@ public class CostIsCountedWhereItIsSpentTest {
     }
 
     private static List<Path> classes() {
-        List<Path> classes = Bytecode.classesUnder(TEAMCODE);
+        List<Path> classes = new ArrayList<>(Bytecode.classesUnder(TEAMCODE));
+        for (TeamRobot robot : TeamRobot.values()) {
+            classes.addAll(Bytecode.classesUnder(robot.javaPackage().replace('.', '/')));
+        }
         assertTrue("no compiled classes were found, so this rule judged nothing", classes.size() > 20);
         return classes;
     }

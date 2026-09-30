@@ -3,12 +3,12 @@ package org.firstinspires.ftc.teamcode.sim;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
-import org.firstinspires.ftc.teamcode.hardware.Hardware;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public final class SimDevices {

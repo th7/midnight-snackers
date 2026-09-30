@@ -17,9 +17,9 @@ import java.util.stream.Stream;
  */
 public final class SimProject {
 
-    public static final String PLANS = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
+    public static final String PLANS = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
     public static final String HARDWARE =
-            "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/hardware/Hardware.java";
+            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/Hardware.java";
     public static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
     public static final String SIM_DEVICES =
             "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimDevices.java";
@@ -110,17 +110,17 @@ public final class SimProject {
     }
 
     public static String tempPlans(int loops, String group) {
-        return "package org.firstinspires.ftc.teamcode;\n"
-                + "import org.firstinspires.ftc.teamcode.opmode.Auto;\n"
+        return "package org.firstinspires.ftc.reginald;\n"
+                + "import org.firstinspires.ftc.reginald.opmode.Auto;\n"
                 + "import org.firstinspires.ftc.teamcode.base.Loopable;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
                 + "\n"
                 + "public class Plans implements Loopable {\n"
                 + "    private int loops = 0;\n"
-                + "    public Plans(org.firstinspires.ftc.teamcode.Drive drive,"
-                + " org.firstinspires.ftc.teamcode.Nav nav,"
-                + " org.firstinspires.ftc.teamcode.Launcher launcher,"
+                + "    public Plans(org.firstinspires.ftc.reginald.Drive drive,"
+                + " org.firstinspires.ftc.reginald.Nav nav,"
+                + " org.firstinspires.ftc.reginald.Launcher launcher,"
                 + " java.util.function.LongSupplier nanoClock) { }\n"
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group
                 + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"

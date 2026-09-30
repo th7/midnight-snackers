@@ -19,10 +19,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.firstinspires.ftc.nugget.NuggetTeleOp;
+import org.firstinspires.ftc.reginald.opmode.PlanOp;
+import org.firstinspires.ftc.reginald.opmode.RedTeleOp;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.opmode.PlanOp;
-import org.firstinspires.ftc.teamcode.opmode.RedTeleOp;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
@@ -323,7 +323,7 @@ public class SimBenchTest {
     @Test
     public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {
         Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmode/BlueTeleOp.java"));
+        Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/reginald/opmode/BlueTeleOp.java"));
         bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
 
         SimCatalog catalog = bench.catalog();

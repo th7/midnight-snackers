@@ -5,10 +5,10 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import org.firstinspires.ftc.teamcode.Localizer;
+import org.firstinspires.ftc.reginald.Localizer;
+import org.firstinspires.ftc.reginald.hardware.Wheels;
+import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.base.Prints;
-import org.firstinspires.ftc.teamcode.hardware.Wheels;
-import org.firstinspires.ftc.teamcode.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.Traction;
 import org.firstinspires.ftc.teamcode.simcore.Wheel;

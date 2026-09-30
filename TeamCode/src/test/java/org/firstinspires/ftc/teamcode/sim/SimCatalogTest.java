@@ -15,10 +15,10 @@ import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.util.List;
 import org.firstinspires.ftc.nugget.NuggetTeleOp;
+import org.firstinspires.ftc.reginald.opmode.AutoOp;
+import org.firstinspires.ftc.reginald.opmode.PlanOpModes;
+import org.firstinspires.ftc.reginald.opmode.RedTeleOp;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.opmode.AutoOp;
-import org.firstinspires.ftc.teamcode.opmode.PlanOpModes;
-import org.firstinspires.ftc.teamcode.opmode.RedTeleOp;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
@@ -54,7 +54,7 @@ public class SimCatalogTest {
 
     @Test
     public void eachRobotsOpModesAreItsOwnPackages() {
-        assertEquals("org.firstinspires.ftc.teamcode", SimCatalog.packageOf(TeamRobot.REGINALD));
+        assertEquals("org.firstinspires.ftc.reginald", SimCatalog.packageOf(TeamRobot.REGINALD));
         assertEquals("org.firstinspires.ftc.nugget", SimCatalog.packageOf(TeamRobot.NUGGET));
     }
 

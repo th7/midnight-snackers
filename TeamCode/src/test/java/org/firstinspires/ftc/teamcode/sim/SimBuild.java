@@ -25,7 +25,7 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
-import org.firstinspires.ftc.teamcode.opmode.OpMode;
+import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 
 public final class SimBuild {

@@ -1070,7 +1070,7 @@ public class CodingServerTest {
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
         committed("the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
         assertEquals(200, admin("POST", "/admin/files/add?robot=reginald&path=" + key).status);
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
@@ -1208,7 +1208,7 @@ public class CodingServerTest {
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
         committed("the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
         assertEquals(200, admin("POST", "/admin/files/add?robot=reginald&path=" + key).status);
         String cookie = approvedUser("ada");
         assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
@@ -1270,7 +1270,7 @@ public class CodingServerTest {
         SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
         committed("the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/Plans.java";
+        String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
         admin("POST", "/admin/files/add?robot=reginald&path=" + key);
         String cookie = approvedUser("ada");
 
