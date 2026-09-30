@@ -13,6 +13,8 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.nugget.NuggetHardware;
 import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.nugget.NuggetTeleOp;
+import org.firstinspires.ftc.nugget.TankLocalizer;
+import org.firstinspires.ftc.nugget.Trajectories;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
@@ -50,6 +52,22 @@ public class SimNuggetTest {
     public static final class CountingTeleOp extends NuggetTeleOp {
         NuggetHardware devices() {
             return hardware();
+        }
+    }
+
+    public static final class LocalizingTeleOp extends NuggetTeleOp {
+        TankLocalizer localizer;
+
+        @Override
+        public void init() {
+            super.init();
+            localizer = new TankLocalizer(hardware(), Trajectories.PARAMS, new Pose2d(0, 0, 0));
+        }
+
+        @Override
+        public void loop() {
+            localizer.loop();
+            super.loop();
         }
     }
 
@@ -182,6 +200,45 @@ public class SimNuggetTest {
         assertTrue("half a second on", nugget.nanoTime() >= 490_000_000L);
         assertSame(nugget.voltageSensor, teleOp.devices().voltageSensor);
         assertSame(nugget.dashboard, teleOp.devices().dashboard);
+    }
+
+    @Test
+    public void nuggetBelievesItIsWhereTheSimulatorHasTakenIt() {
+        Pose2d start = new Pose2d(-48, -48, 0);
+        LocalizingTeleOp teleOp = started(nugget, new LocalizingTeleOp());
+        nugget.setPose(start);
+
+        teleOp.gamepad1.left_stick_y = -0.5f;
+        drive(nugget, teleOp, 1);
+        teleOp.gamepad1.left_stick_y = 0;
+        teleOp.gamepad1.right_stick_x = -0.5f;
+        drive(nugget, teleOp, 0.5);
+        teleOp.gamepad1.left_stick_y = -0.5f;
+        teleOp.gamepad1.right_stick_x = 0.3f;
+        drive(nugget, teleOp, 1);
+
+        teleOp.localizer.loop();
+
+        Pose2d truth = start.inverse().times(nugget.pose());
+        Pose2d believed = teleOp.localizer.pose();
+        assertTrue("it went somewhere: " + truth, truth.position.norm() > 12);
+        assertEquals("x, having gone to " + truth, truth.position.x, believed.position.x, 0.25);
+        assertEquals("y, having gone to " + truth, truth.position.y, believed.position.y, 0.25);
+        assertEquals("heading, having gone to " + truth, 0, truth.heading.minus(believed.heading), 0.001);
+    }
+
+    @Test
+    public void nuggetBelievesItHasTurnedAsFarAsTheSimulatorHasTurnedIt() {
+        LocalizingTeleOp teleOp = started(nugget, new LocalizingTeleOp());
+        nugget.setPose(ROOM_TO_TURN);
+        teleOp.gamepad1.right_stick_x = -0.5f;
+
+        drive(nugget, teleOp, 1);
+        teleOp.localizer.loop();
+
+        double turned = nugget.pose().heading.toDouble();
+        assertTrue("it turned a good way: " + turned, turned > 1);
+        assertEquals(turned, teleOp.localizer.pose().heading.toDouble(), 0.001);
     }
 
     @Test

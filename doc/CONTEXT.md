@@ -286,6 +286,18 @@ the robot's own as Reginald's is and the simulated one in the simulator, and
 it is **whole or not at all**, as Reginald's is. Classes: `TankDrive`;
 `NuggetHardware`; `NuggetTeleOp`.
 
+**Tank localizer** — Where Nugget believes it is, from how far each side has
+gone by its drive motor's encoder: both sides ahead take it ahead the way it
+faces, and the right side going further than the left turns it
+counterclockwise by the difference over the track. It has nothing else to go
+on, so a side that slips sideways, as a tank does in a tight turn, moves Nugget
+somewhere it does not know about. Like Reginald's **Localizer** it reads the
+encoders once a loop, on Nugget's own **clock**, and whoever owns it ticks it
+first. What it measures in — the inches a tick and the track — is Road
+Runner's model of Nugget, and nobody has measured the real one yet, so it is
+the **simulated Nugget**'s, which a test holds it to. Classes:
+`TankLocalizer`; `Trajectories.Params`.
+
 **Simulated Nugget** — Nugget as the simulator runs it: the same 18-inch
 rigid body Reginald is, on the same field, pushed by two motors rather than
 four. Each side's motor turns both of that side's simulated wheels, so the
