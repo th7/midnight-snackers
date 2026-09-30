@@ -251,6 +251,26 @@ nothing is agreeing, which is when it is worth reading; it is now an answer
 rather than an exception. Classes: `DetectionFilter`;
 `DetectionFilter.Agreed`.
 
+## Nugget
+
+**Nugget** — The team's second robot, whose users work on `nugget-develop`
+(see **Robot**, under the coding server). Its code is a package of its own,
+`org.firstinspires.ftc.nugget`, beside `teamcode` rather than in it, since
+`teamcode` is Reginald and the list of its files is the list of Reginald's
+parts. The simulator has no Nugget yet: what it lists and runs is Reginald's.
+
+**Tank drive** — Nugget's two drive motors, `leftDrive` and `rightDrive` in
+the robot's configuration, one to a side. They are mounted facing each other,
+so one turns opposite the other: the left is reversed, and a positive power
+drives either side forward. Straight and counterclockwise are mixed into a
+left and a right power and, like Reginald's **Wheels**, a command asking more
+of a side than it has is scaled down whole rather than clipped, so the robot
+turns as sharply as it was pointed, slower. Both brake when asked for nothing.
+Its TeleOp drives it from the sticks Reginald's drivers use: the left stick
+forward and back, the right stick across to turn. The hardware is **whole or
+not at all**, as Reginald's is. Classes: `TankDrive`; `NuggetHardware`;
+`NuggetTeleOp`.
+
 ## The coding server
 
 **Coding server** — The host process teammates reach over the LAN to edit
