@@ -297,6 +297,15 @@ modelled as Reginald's, tuned the same, because nobody has measured Nugget's.
 Its drive powers are recorded left then right. Classes: `Drivebase`; `Sides`;
 `SimRobot`.
 
+**Drive encoders** — What Nugget knows of how it has moved: each drive motor
+counts how far its side has gone, in the ticks Reginald's motors are modelled
+in, and reports it as the SDK does, the way the motor turns. So a motor
+reversed to match its mounting counts ahead as its side goes ahead, and one
+that is not counts ahead as its side goes back. The sides turn as the
+simulator's own wheels do, each as far off the centre as Reginald's track says,
+and a hub reports their speed to the nearest twenty ticks a second, as it does
+a dead wheel's. Classes: `DriveEncoders` and `Encoder`, in the core.
+
 ## The coding server
 
 **Coding server** — The host process teammates reach over the LAN to edit

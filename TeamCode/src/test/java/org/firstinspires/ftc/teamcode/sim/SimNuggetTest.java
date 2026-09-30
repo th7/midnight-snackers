@@ -9,8 +9,10 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import org.firstinspires.ftc.nugget.NuggetHardware;
 import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.nugget.NuggetTeleOp;
+import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -27,6 +29,11 @@ public class SimNuggetTest {
 
     public static final class NeitherReversed extends NuggetOpMode {
         @Override
+        protected NuggetHardware hardware() {
+            return super.hardware();
+        }
+
+        @Override
         public void init() {
             hardware().left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             hardware().right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -36,6 +43,12 @@ public class SimNuggetTest {
         public void loop() {
             hardware().left.setPower(1);
             hardware().right.setPower(1);
+        }
+    }
+
+    public static final class CountingTeleOp extends NuggetTeleOp {
+        NuggetHardware devices() {
+            return hardware();
         }
     }
 
@@ -112,6 +125,50 @@ public class SimNuggetTest {
             assertEquals("on loop " + loop + " it moved aside", 0, aside, 1e-3);
         }
         assertTrue("and it drove: " + seeded.pose(), seeded.pose().position.x > CLEAR_OF_EVERYTHING.position.x + 12);
+    }
+
+    @Test
+    public void nuggetsDriveMotorsCountHowFarTheirSideHasGoneAhead() {
+        CountingTeleOp teleOp = started(nugget, new CountingTeleOp());
+        nugget.setPose(CLEAR_OF_EVERYTHING);
+        teleOp.gamepad1.left_stick_y = -1;
+
+        drive(nugget, teleOp, 1);
+
+        double ticks = (nugget.pose().position.x - CLEAR_OF_EVERYTHING.position.x) / MecanumDrive.PARAMS.inPerTick;
+        assertTrue("it drove: " + nugget.pose(), ticks > 12 / MecanumDrive.PARAMS.inPerTick);
+        assertEquals(ticks, teleOp.devices().left.getCurrentPosition(), 2);
+        assertEquals(ticks, teleOp.devices().right.getCurrentPosition(), 2);
+        assertTrue("and each says it is turning", teleOp.devices().left.getVelocity() > 0);
+        assertEquals(teleOp.devices().left.getVelocity(), teleOp.devices().right.getVelocity(), 20);
+    }
+
+    @Test
+    public void turningCounterclockwiseCountsTheLeftSideBackAndTheRightAheadByTheSimulatedTrack() {
+        CountingTeleOp teleOp = started(nugget, new CountingTeleOp());
+        nugget.setPose(ROOM_TO_TURN);
+        teleOp.gamepad1.right_stick_x = -1;
+
+        drive(nugget, teleOp, 0.5);
+
+        double ticks = nugget.pose().heading.toDouble() * MecanumDrive.PARAMS.trackWidthTicks;
+        assertTrue("it turned: " + nugget.pose(), ticks > 0);
+        assertEquals(-ticks, teleOp.devices().left.getCurrentPosition(), 2);
+        assertEquals(ticks, teleOp.devices().right.getCurrentPosition(), 2);
+    }
+
+    @Test
+    public void aDriveMotorCountsTheWayItTurnsSoOneNotReversedCountsAheadAsItsSideGoesBack() {
+        NeitherReversed opMode = started(nugget, new NeitherReversed());
+        nugget.setPose(ROOM_TO_TURN);
+
+        drive(nugget, opMode, 0.5);
+
+        assertTrue(
+                "it spun counterclockwise, the left side going back: " + nugget.pose(),
+                nugget.pose().heading.toDouble() > 0.3);
+        assertTrue(opMode.hardware().left.getCurrentPosition() > 0);
+        assertTrue(opMode.hardware().right.getCurrentPosition() > 0);
     }
 
     @Test

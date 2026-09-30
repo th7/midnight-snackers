@@ -45,7 +45,9 @@ import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
 import org.firstinspires.ftc.teamcode.simcore.Drawn;
 import org.firstinspires.ftc.teamcode.simcore.Draws;
+import org.firstinspires.ftc.teamcode.simcore.DriveEncoders;
 import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
+import org.firstinspires.ftc.teamcode.simcore.Encoder;
 import org.firstinspires.ftc.teamcode.simcore.Feedforward;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
@@ -140,6 +142,8 @@ public class SimRobot {
     private Pose2d previous = new Pose2d(0, 0, 0);
 
     private DeadWheels deadWheels;
+
+    private DriveEncoders driveEncoders;
 
     private final Ball[] balls;
 
@@ -280,6 +284,9 @@ public class SimRobot {
                 noise.motors()));
         this.deadWheels =
                 Valid.value(DeadWheels.of(drive.inPerTick, deadWheelOffsets.parYTicks, deadWheelOffsets.perpXTicks));
+        PerWheel<Sense> mounted = teamRobot.drivebase().mounted();
+        this.driveEncoders = Valid.value(DriveEncoders.of(
+                new Sides<>(mounted.leftFront(), mounted.rightFront()), drive.inPerTick, drive.trackWidthTicks));
         voltageSensor.voltage = noise.battery().volts(Seconds.zero(), PerWheel.all(Power.none()));
         Settings settings = world.getSettings();
         settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
@@ -404,6 +411,8 @@ public class SimRobot {
         int preload();
 
         void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode);
+
+        void sense(DriveEncoders encoders, Twist perSecond);
     }
 
     private record Reginald(SimDevices devices) implements Build {
@@ -435,6 +444,9 @@ public class SimRobot {
             }
             reginalds.useHardware(devices.hardware());
         }
+
+        @Override
+        public void sense(DriveEncoders encoders, Twist perSecond) {}
     }
 
     private record Nugget(FakeDcMotorEx left, FakeDcMotorEx right) implements Build {
@@ -459,6 +471,15 @@ public class SimRobot {
                 throw notOf(TeamRobot.NUGGET, opMode);
             }
             nuggets.useHardware(NuggetHardware.builder().left(left).right(right).build());
+        }
+
+        @Override
+        public void sense(DriveEncoders encoders, Twist perSecond) {
+            Sides<Encoder> read = encoders.read(perSecond, new Sides<>(senseOf(left), senseOf(right)));
+            left.currentPosition = read.left().position();
+            left.measuredVelocity = read.left().velocity();
+            right.currentPosition = read.right().position();
+            right.measuredVelocity = read.right().velocity();
         }
     }
 
@@ -813,11 +834,13 @@ public class SimRobot {
         chassis.applyTorque(acceleration.angle * chassis.getMass().getInertia());
     }
 
+    private static Sense senseOf(FakeDcMotorEx motor) {
+        return motor.getDirection() == DcMotorSimple.Direction.REVERSE ? Sense.REVERSE : Sense.FORWARD;
+    }
+
     private static Drivetrain.Setting setting(FakeDcMotorEx motor) {
         return new Drivetrain.Setting(
-                motor.getDirection() == DcMotorSimple.Direction.REVERSE ? Sense.REVERSE : Sense.FORWARD,
-                Power.clamped(motor.power),
-                zeroPower(motor.getZeroPowerBehavior()));
+                senseOf(motor), Power.clamped(motor.power), zeroPower(motor.getZeroPowerBehavior()));
     }
 
     private static ZeroPower zeroPower(DcMotor.ZeroPowerBehavior behavior) {
@@ -924,8 +947,11 @@ public class SimRobot {
         Twist perSecond =
                 new Twist(heading.onTheRobot(new Vec2(linear.x / IN, linear.y / IN)), chassis.getAngularVelocity());
 
-        deadWheels = deadWheels.moved(new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle));
+        Twist moved = new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle);
+        deadWheels = deadWheels.moved(moved);
         DeadWheels.Reading reading = deadWheels.read(perSecond);
+        driveEncoders = driveEncoders.moved(moved);
+        build.sense(driveEncoders, perSecond);
         rightBack.currentPosition = reading.par().position();
         rightBack.measuredVelocity = reading.par().velocity();
         leftFront.currentPosition = reading.perp().position();

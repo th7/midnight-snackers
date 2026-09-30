@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.simcore;
 public final class DeadWheels {
     public static final int PAR_RAW_SIGN = 1;
     public static final int PERP_RAW_SIGN = -1;
-    public static final double HUB_VELOCITY_STEP_TICKS_PER_S = 20;
 
     private final double inPerTick;
     private final double parYTicks;
@@ -18,8 +17,6 @@ public final class DeadWheels {
         this.parTicks = parTicks;
         this.perpTicks = perpTicks;
     }
-
-    public record Encoder(int position, double velocity) {}
 
     public record Reading(Encoder par, Encoder perp) {}
 
@@ -47,12 +44,7 @@ public final class DeadWheels {
         double parVelocity = perSecond.line().x() / inPerTick + parYTicks * perSecond.angle();
         double perpVelocity = perSecond.line().y() / inPerTick + perpXTicks * perSecond.angle();
         return new Reading(
-                new Encoder((int) Math.round(PAR_RAW_SIGN * parTicks), asTheHubReports(PAR_RAW_SIGN * parVelocity)),
-                new Encoder(
-                        (int) Math.round(PERP_RAW_SIGN * perpTicks), asTheHubReports(PERP_RAW_SIGN * perpVelocity)));
-    }
-
-    private static double asTheHubReports(double ticksPerSecond) {
-        return Math.round(ticksPerSecond / HUB_VELOCITY_STEP_TICKS_PER_S) * HUB_VELOCITY_STEP_TICKS_PER_S;
+                Encoder.asTheHubReports(PAR_RAW_SIGN * parTicks, PAR_RAW_SIGN * parVelocity),
+                Encoder.asTheHubReports(PERP_RAW_SIGN * perpTicks, PERP_RAW_SIGN * perpVelocity));
     }
 }
