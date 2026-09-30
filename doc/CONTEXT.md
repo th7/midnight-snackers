@@ -301,15 +301,18 @@ the **simulated Nugget**'s, which a test holds it to. Classes:
 **Simulated Nugget** — Nugget as the simulator runs it: the same 18-inch
 rigid body Reginald is, on the same field, pushed by two motors rather than
 four. Each side's motor turns both of that side's simulated wheels, so the
-robot drives and turns and cannot strafe, and the two motors are mounted
+robot drives and turns and cannot strafe, nor slide out of a turn: a tank's
+wheels grip the floor sideways, as hard as the floor's traction allows, where
+Reginald's mecanum rollers let it slide and only its motors push it that way.
+The two motors are mounted
 mirror-image, the left one reversed: code that forgets to reverse it spins
 Nugget where it stands, as it would on the floor. A side is one motor, so both
 its wheels share that motor's **noise**, drawn as the front wheel's. It has no
 hopper, so it starts holding no balls, and nothing else of Reginald's: no
 intake, launcher, turntable, camera, dead wheels or IMU. Its motors are
 modelled as Reginald's, tuned the same, because nobody has measured Nugget's.
-Its drive powers are recorded left then right. Classes: `Drivebase`; `Sides`;
-`SimRobot`.
+Its drive powers are recorded left then right. Classes: `Drivebase`;
+`Drivebase.sideways`; `Sides`; `SimRobot`.
 
 **Drive encoders** — What Nugget knows of how it has moved: each drive motor
 counts how far its side has gone, in the ticks Reginald's motors are modelled

@@ -834,7 +834,8 @@ public class SimRobot {
                         dual(accelerations.rightBack()),
                         dual(accelerations.rightFront())))
                 .value();
-        Vec2 pushed = heading.onTheField(new Vec2(acceleration.line.x, acceleration.line.y));
+        double sideways = teamRobot.drivebase().sideways(acceleration.line.y, velocity.y(), dt, noise.traction());
+        Vec2 pushed = heading.onTheField(new Vec2(acceleration.line.x, sideways));
         double mass = chassis.getMass().getMass();
         chassis.applyForce(new Vector2(pushed.x() * IN * mass, pushed.y() * IN * mass));
         chassis.applyTorque(acceleration.angle * chassis.getMass().getInertia());

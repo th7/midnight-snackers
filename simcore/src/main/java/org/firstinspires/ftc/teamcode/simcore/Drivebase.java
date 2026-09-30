@@ -27,6 +27,13 @@ public enum Drivebase {
         };
     }
 
+    public double sideways(double pushed, double sliding, Seconds dt, Traction traction) {
+        return switch (this) {
+            case MECANUM -> pushed;
+            case TANK -> traction.gives(dt.value() > 0 ? -sliding / dt.value() : 0);
+        };
+    }
+
     public List<String> motors() {
         return switch (this) {
             case MECANUM -> List.of("LF", "RF", "LB", "RB");

@@ -242,6 +242,23 @@ public class SimNuggetTest {
     }
 
     @Test
+    public void nuggetTurningAsItDrivesGripsTheFloorRatherThanSlidingOutOfTheTurn() {
+        NuggetTeleOp teleOp = started(nugget, new NuggetTeleOp());
+        nugget.setPose(new Pose2d(-48, -48, 0));
+        teleOp.gamepad1.left_stick_y = -0.6f;
+        teleOp.gamepad1.right_stick_x = -0.3f;
+
+        for (int loop = 0; loop < 50; loop++) {
+            Pose2d before = nugget.pose();
+            teleOp.loop();
+            nugget.step(SimRunner.LOOP_SECONDS);
+            double aside = nugget.pose().minus(before).line.y;
+            assertEquals("on loop " + loop + " it slid aside", 0, aside, 0.01);
+        }
+        assertTrue("and it turned: " + nugget.pose(), nugget.pose().heading.toDouble() > 0.5);
+    }
+
+    @Test
     public void nuggetHasNowhereToHoldABallSoItStartsWithNone() {
         assertEquals(0, nugget.held());
         assertEquals("where Reginald is preloaded", SimRobot.PRELOAD, new SimRobot().held());

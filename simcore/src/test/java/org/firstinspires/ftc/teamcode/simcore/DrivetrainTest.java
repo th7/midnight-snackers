@@ -187,6 +187,20 @@ public class DrivetrainTest {
     }
 
     @Test
+    public void aTanksWheelsGripTheFloorSidewaysAndStopItSlidingAsHardAsTheFloorAllows() {
+        assertEquals(-4 / STEP.value(), Drivebase.TANK.sideways(0.5, 4, STEP, Traction.unlimited()), 1e-9);
+        assertEquals(3 / STEP.value(), Drivebase.TANK.sideways(0.5, -3, STEP, Traction.unlimited()), 1e-9);
+        assertEquals(-100, Drivebase.TANK.sideways(0.5, 4, STEP, Valid.value(Traction.of(100))), 0);
+        assertEquals(0, Drivebase.TANK.sideways(0.5, 0, STEP, Traction.unlimited()), 0);
+    }
+
+    @Test
+    public void mecanumRollersLetItSlideSidewaysSoOnlyWhatItsWheelsPushThatWayMovesIt() {
+        assertEquals(0.5, Drivebase.MECANUM.sideways(0.5, 4, STEP, Traction.unlimited()), 0);
+        assertEquals(-2, Drivebase.MECANUM.sideways(-2, 0, STEP, Valid.value(Traction.of(100))), 0);
+    }
+
+    @Test
     public void aSideIsItsLeftOnBothLeftWheelsAndItsRightOnBothRightWheels() {
         assertEquals(new PerWheel<>("left", "right", "left", "right"), new Sides<>("left", "right").wheels());
     }
