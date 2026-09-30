@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public final class Hardware {

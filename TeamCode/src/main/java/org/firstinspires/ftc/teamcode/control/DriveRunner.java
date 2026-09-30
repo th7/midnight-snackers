@@ -1,13 +1,13 @@
-package org.firstinspires.ftc.reginald.control;
+package org.firstinspires.ftc.teamcode.control;
 
 import com.acmerobotics.dashboard.canvas.Canvas;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import java.util.function.Supplier;
-import org.firstinspires.ftc.reginald.hardware.Dashboard;
-import org.firstinspires.ftc.reginald.roadrunner.Drawing;
 import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.hardware.Dashboard;
+import org.firstinspires.ftc.teamcode.roadrunner.Drawing;
 
 public class DriveRunner implements Loopable {
     private final Dashboard dashboard;

@@ -17,8 +17,11 @@ to what), `control` (the controllers and filters a subsystem steers by) and
 `roadrunner` (trajectories, which we own rather than vendor).
 `org.firstinspires.ftc.teamcode` holds what every robot's code is built on:
 `base` (what a subsystem *is* — `Loopable` — where it prints — `Prints`,
-`Channels` — and the `Alliance` a run plays for) and `planrunner` (plans and
-steps); its test sources hold the simulator, the coding server and the fakes.
+`Channels` — and the `Alliance` a run plays for), `planrunner` (plans and
+steps), and what both robots' Road Runner needs — the **clocked encoder** and
+the drawing of a robot in `roadrunner`, the drive runner that follows an action
+a loop at a time in `control`, and the dashboard it draws on in `hardware`;
+its test sources hold the simulator, the coding server and the fakes.
 Nothing outside a robot's package uses that robot's code, and every op mode
 is in a robot's package, and a test says both: a class moves into `teamcode`
 when a second robot needs it, rather than being reached for across.

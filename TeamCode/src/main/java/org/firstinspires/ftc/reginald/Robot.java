@@ -4,7 +4,6 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.List;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.reginald.hardware.Dashboard;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
@@ -12,6 +11,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Channels;
 import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 
 public final class Robot implements Loopable {
     public final Alliance alliance;

@@ -13,11 +13,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.firstinspires.ftc.reginald.roadrunner.ClockedOverflowEncoder;
 import org.firstinspires.ftc.teamcode.MainSources;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.roadrunner.ClockedOverflowEncoder;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
 import org.junit.Test;
@@ -89,7 +89,7 @@ public class LocalizerReadsTheRobotsClockTest {
 
     private static final String WALL_CLOCK_ENCODER = "com.acmerobotics.roadrunner.ftc.OverflowEncoder";
 
-    private static final String OUR_ENCODER = "org.firstinspires.ftc.reginald.roadrunner.ClockedOverflowEncoder";
+    private static final String OUR_ENCODER = "org.firstinspires.ftc.teamcode.roadrunner.ClockedOverflowEncoder";
 
     private static final String TUNING = "org/firstinspires/ftc/reginald/roadrunner/tuning";
 
@@ -127,7 +127,7 @@ public class LocalizerReadsTheRobotsClockTest {
     public void aNameThatMerelyReadsLikeTheWallClockEncoderIsNotAUseOfIt() {
         assertTrue(
                 "our own encoder's name has OverflowEncoder inside it, so the text is there to match",
-                read(Paths.get("src", "main", "java", "org", "firstinspires", "ftc", "reginald", "roadrunner")
+                read(Paths.get("src", "main", "java", "org", "firstinspires", "ftc", "teamcode", "roadrunner")
                                 .resolve("ClockedOverflowEncoder.java"))
                         .contains("OverflowEncoder"));
 
