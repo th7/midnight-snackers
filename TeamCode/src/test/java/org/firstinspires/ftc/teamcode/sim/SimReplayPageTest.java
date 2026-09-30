@@ -79,7 +79,7 @@ public class SimReplayPageTest {
 
     @Test
     public void aServedPageIsToldWhereTheFieldModelAndTheLibraryThatDrawsItAre() {
-        String html = SimReplayPage.live(new SimRecording("SquareAuto"), ASSETS);
+        String html = SimReplayPage.live(new SimRecording("SquareAuto"), ASSETS, false);
 
         assertTrue(html, html.contains("const ASSETS = \"" + ASSETS + "\""));
         assertTrue("the scene it draws with", html.contains("\"" + ASSETS + "vendor/three.module.min.js\""));
@@ -88,7 +88,7 @@ public class SimReplayPageTest {
 
     @Test
     public void aServedPageDrawsTheSolidFieldAndKeepsTheFlatDrawingToFallBackOn() throws IOException {
-        String html = SimReplayPage.live(new SimRecording("SquareAuto"), ASSETS);
+        String html = SimReplayPage.live(new SimRecording("SquareAuto"), ASSETS, false);
 
         assertTrue(
                 "draws through the scene both pages draw the field with, under the assets it was told of",
@@ -241,7 +241,7 @@ public class SimReplayPageTest {
         SimRecording reginald = new SimRecording("Stick", SimCatalog.TELEOP, TeamRobot.REGINALD);
 
         JsonObject nuggets = recordingIn(SimReplayPage.written(nugget));
-        JsonObject reginalds = recordingIn(SimReplayPage.live(reginald, ASSETS));
+        JsonObject reginalds = recordingIn(SimReplayPage.live(reginald, ASSETS, false));
 
         assertEquals("Nugget", nuggets.get("robot").getAsString());
         assertEquals(new Gson().toJsonTree(List.of("L", "R")), nuggets.get("motors"));
@@ -342,7 +342,7 @@ public class SimReplayPageTest {
 
     @Test
     public void theControllerOffersEveryGamepadInputWithItsOwnKeyboardShortcut() {
-        String html = SimReplayPage.live(new SimRecording("StickTeleOp", "teleop"), ASSETS);
+        String html = SimReplayPage.live(new SimRecording("StickTeleOp", "teleop"), ASSETS, false);
 
         assertTrue(html, html.contains("id=\"controller\""));
         Set<String> keys = new HashSet<>();
@@ -435,7 +435,7 @@ public class SimReplayPageTest {
         };
 
         assertEquals(SimReplayPage.written(recording), SimReplayPage.written(fromTheChild));
-        assertEquals(SimReplayPage.live(recording, ASSETS), SimReplayPage.live(fromTheChild, ASSETS));
+        assertEquals(SimReplayPage.live(recording, ASSETS, false), SimReplayPage.live(fromTheChild, ASSETS, false));
         assertEquals(SimReplayPage.update(recording, 1), SimReplayPage.update(fromTheChild, 1));
     }
 

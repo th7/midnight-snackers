@@ -1,7 +1,10 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
+import java.util.List;
 import org.junit.Test;
 
 public class WatchdogTest {
@@ -9,7 +12,8 @@ public class WatchdogTest {
     private static final Seconds SILENCE = seconds(5);
     private static final Seconds UNWATCHED = seconds(300);
     private static final Seconds KILL_GRACE = seconds(2);
-    private static final Watchdog.Waits WAITS = new Watchdog.Waits(STARTUP, SILENCE, UNWATCHED, KILL_GRACE);
+    private static final Seconds VIEW = seconds(30);
+    private static final Watchdog.Waits WAITS = new Watchdog.Waits(STARTUP, SILENCE, UNWATCHED, KILL_GRACE, VIEW);
 
     private static final Moment LAUNCHED = at(1000);
 
@@ -55,6 +59,41 @@ public class WatchdogTest {
     }
 
     @Test
+    public void aChildHeldForItsViewIsWaitedOnForTheViewWaitAndThenPlacedWithoutIt() {
+        RunState held = new RunState.Held(at(990));
+
+        assertEquals(Watchdog.Verdict.WATCHING, at(held, 1000));
+        assertEquals(Watchdog.Verdict.WATCHING, at(held, 1020));
+        assertEquals(Watchdog.Verdict.VIEW_LATE, at(held, 1020.1));
+    }
+
+    @Test
+    public void aChildHeldForItsViewIsNotJudgedForTheStartupItWasNotLetUse() {
+        Seconds aSecond = seconds(1);
+        Watchdog.Waits viewOutlastsStartup = new Watchdog.Waits(aSecond, aSecond, aSecond, KILL_GRACE, VIEW);
+
+        assertEquals(
+                "the bench held it, so the time held is not the child's to have started in",
+                Watchdog.Verdict.WATCHING,
+                Watchdog.verdict(new RunState.Held(at(1000)), at(1025), viewOutlastsStartup));
+    }
+
+    @Test
+    public void onlyTheVerdictsThatEndNothingKeepTheWatchdogWatching() {
+        assertTrue(Watchdog.Verdict.WATCHING.keepsWatching());
+        assertTrue(
+                "a child placed without its view still has a run to watch", Watchdog.Verdict.VIEW_LATE.keepsWatching());
+        for (Watchdog.Verdict ending : List.of(
+                Watchdog.Verdict.OVER,
+                Watchdog.Verdict.NEVER_STARTED,
+                Watchdog.Verdict.SILENT,
+                Watchdog.Verdict.UNWATCHED,
+                Watchdog.Verdict.IGNORED_STOP)) {
+            assertFalse(ending.name(), ending.keepsWatching());
+        }
+    }
+
+    @Test
     public void aRunningChildThatSaysNothingForLongerThanTheSilenceHasHung() {
         RunState running = new RunState.Running(at(1010), at(1010));
 
@@ -86,7 +125,7 @@ public class WatchdogTest {
     @Test
     public void onceAChildIsToldToStopItsGraceIsTheOnlyClockOnIt() {
         Seconds aSecond = seconds(1);
-        Watchdog.Waits shortOtherwise = new Watchdog.Waits(aSecond, aSecond, aSecond, KILL_GRACE);
+        Watchdog.Waits shortOtherwise = new Watchdog.Waits(aSecond, aSecond, aSecond, KILL_GRACE, aSecond);
 
         assertEquals(
                 "Stop was pressed, so what ends it is Stop or its grace, not a startup, silence or look",
@@ -100,6 +139,7 @@ public class WatchdogTest {
         assertEquals(Watchdog.Verdict.WATCHING, at(new RunState.Running(at(1010), at(1010)), 1009));
         assertEquals(Watchdog.Verdict.WATCHING, at(new RunState.Starting(LAUNCHED), 999));
         assertEquals(Watchdog.Verdict.WATCHING, at(new RunState.Stopping(at(1100)), 1099));
+        assertEquals(Watchdog.Verdict.WATCHING, at(new RunState.Held(at(1000)), 999));
     }
 
     @Test

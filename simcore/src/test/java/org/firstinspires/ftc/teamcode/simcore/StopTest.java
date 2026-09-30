@@ -17,6 +17,8 @@ public class StopTest {
     @Test
     public void stopIsToldToAChildWhetherItsOpModeHasStartedOrNot() {
         assertEquals(Stop.TELL, new RunState.Starting(NOW).onStop());
+        assertEquals(
+                "a child held for its view is told, and ends unplaced", Stop.TELL, new RunState.Held(NOW).onStop());
         assertEquals(Stop.TELL, new RunState.Running(NOW, NOW).onStop());
     }
 
@@ -35,6 +37,7 @@ public class StopTest {
         assertTrue(new RunState.Building().takesAChild());
         assertFalse("Stop ended it while it built", new RunState.Over().takesAChild());
         assertFalse("it has one", new RunState.Starting(NOW).takesAChild());
+        assertFalse("it has one", new RunState.Held(NOW).takesAChild());
         assertFalse("it has one", new RunState.Running(NOW, NOW).takesAChild());
         assertFalse("it has one", new RunState.Stopping(NOW).takesAChild());
     }

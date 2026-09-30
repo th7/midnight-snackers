@@ -922,7 +922,7 @@
 
     function run(entry) {
       msg.textContent = '';
-      fetch('/sim/run?opmode=' + encodeURIComponent(entry.name) + '&mode=' + (game.checked ? 'game' : 'free'),
+      fetch('/sim/run?opmode=' + encodeURIComponent(entry.name) + '&mode=' + (game.checked ? 'game' : 'free') + '&begin=ready',
             { method: 'POST' }).then(function (r) {
         if (r.status === 403) { location.reload(); return; }
         if (!r.ok) { return r.text().then(function (t) { msg.textContent = 'Could not start ' + entry.name + ': ' + t; }); }

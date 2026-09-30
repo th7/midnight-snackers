@@ -79,9 +79,23 @@ function filled(template, model, run, assets) {
       .replace('__DATA__', JSON.stringify(run));
 }
 
-function served(page, live, ticks, game, liveGame) {
+function served(page, live, ticks, game, liveGame, waiting) {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    if (asked === '/waiting/runs/1/ticks') {
+      const from = Number(new URL(request.url, 'http://x').searchParams.get('from') || 0);
+      const begun = waiting.ready || waiting.late;
+      const sent = begun ? ticks.slice(from) : [];
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      const over = waiting.ready && !waiting.late && from >= ticks.length;
+      response.end(JSON.stringify({ outcome: over ? 'done' : null, ticks: sent }));
+      return;
+    }
+    if (asked === '/waiting/runs/1/') {
+      response.writeHead(200, { 'Content-Type': TYPES['.html'] });
+      response.end(waiting.page);
+      return;
+    }
     // A game still waiting for its first tick: the bench answers with none until the check lets the
     // robot out, so what the page does before there is a robot to watch is a state it can be seen in.
     if (asked === '/livegame/runs/1/ticks') {
@@ -124,7 +138,8 @@ function served(page, live, ticks, game, liveGame) {
         : toldToDrawLow ? asked.slice('/default-low'.length)
         : asked.startsWith('/live/') ? asked.slice('/live'.length)
         : asked.startsWith('/game/') ? asked.slice('/game'.length)
-        : asked.startsWith('/livegame/') ? asked.slice('/livegame'.length) : asked;
+        : asked.startsWith('/livegame/') ? asked.slice('/livegame'.length)
+        : asked.startsWith('/waiting/') ? asked.slice('/waiting'.length) : asked;
     if (relative === '/runs/1/') {
       response.writeHead(200, { 'Content-Type': TYPES['.html'] });
       response.end(page);
@@ -584,6 +599,82 @@ async function aGameBeingPlayedFollowsItsRobotAsTheTicksArrive(browser, base, li
   }
 }
 
+async function aRunWaitingForItsViewBeginsOnceTheViewHasDrawnTheField(browser, base, waiting, ticks, asked, drawn) {
+  waiting.ready = false;
+  waiting.late = false;
+  const open = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  const threw = [];
+  open.on('pageerror', (e) => threw.push(String(e && e.message ? e.message : e)));
+  open.on('response', (r) => { if (r.status() >= 400) threw.push(`${r.url()} answered ${r.status()}`); });
+  let saidReady = 0;
+  let whenReady = null;
+  await open.route('**/waiting/runs/1/ready', async (route) => {
+    saidReady++;
+    if (route.request().method() === 'POST' && whenReady === null) {
+      whenReady = await open.evaluate(() => ({
+        settled: window.replayPage.settled,
+        drawing: window.replayPage.drawing,
+        frames: window.replayPage.framesWhenReady,
+        outcome: document.getElementById('outcome').textContent
+      }));
+    }
+    waiting.ready = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  try {
+    await open.goto(`${base}/waiting/runs/1/${asked}`, { waitUntil: 'load', timeout: 60_000 });
+    await open.waitForFunction(() => window.replayPage && window.replayPage.settled, null, { timeout: 90_000 });
+    const began = await open.waitForFunction(
+        (many) => Number(document.getElementById('scrub').max) === many - 1, ticks.length, { timeout: 30_000 })
+        .then(() => true, () => false);
+    check(faults(threw).length === 0, `a view its run waits for threw: ${faults(threw).join('; ')}`);
+    check(saidReady === 1, `a view its run waits for said it was ready ${saidReady} times, not once`);
+    check(began, 'a run waiting for its view never began, so the view never saw a tick of it');
+    check(whenReady === null || (whenReady.settled && whenReady.drawing === drawn),
+          `a view said it was ready while ${whenReady && ('drawing the ' + whenReady.drawing + ' field'
+            + (whenReady.settled ? '' : ', still loading'))}, so its run began before the ${drawn} field `
+          + 'was there to watch it on');
+    check(drawn !== 'solid' || whenReady === null || whenReady.frames > 0,
+          'a view said it was ready before it had drawn a frame of the field, so the frame that compiles '
+          + 'what it draws with lands on the run');
+    check(whenReady === null || /begins once/.test(whenReady.outcome),
+          `a view its run waits for says "${whenReady && whenReady.outcome}", not that the run begins once it is drawn`);
+  } finally {
+    await open.close();
+  }
+}
+
+async function aViewItsRunWentOnWithoutSaysTheRunIsRunning(browser, base, waiting, ticks) {
+  waiting.ready = false;
+  waiting.late = true;
+  const open = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  let whenReady = null;
+  let heard = null;
+  const saidReady = new Promise((resolve) => { heard = resolve; });
+  await open.route('**/waiting/runs/1/ready', async (route) => {
+    if (whenReady === null) {
+      whenReady = await open.evaluate(() => ({
+        loops: Number(document.getElementById('scrub').max) + 1,
+        outcome: document.getElementById('outcome').textContent
+      }));
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    heard();
+  });
+  try {
+    await open.goto(`${base}/waiting/runs/1/`, { waitUntil: 'load', timeout: 60_000 });
+    await Promise.race([saidReady, new Promise((resolve) => setTimeout(resolve, 90_000).unref())]);
+    check(whenReady !== null && whenReady.loops === ticks.length,
+          `the run went on without its view, and ${whenReady ? whenReady.loops : 'none'} of its `
+          + `${ticks.length} ticks had reached the view by the time it was drawn`);
+    check(whenReady === null || !/begins once/.test(whenReady.outcome),
+          `a view whose run went on without it says "${whenReady && whenReady.outcome}" while showing it running`);
+  } finally {
+    waiting.late = false;
+    await open.close();
+  }
+}
+
 // Free play is watched from wherever the viewer likes, as every run was before there were games.
 async function freePlayOrbitsWithNoClock(browser, base) {
   const { open } = await opened(browser, `${base}/runs/1/`);
@@ -669,7 +760,8 @@ async function main() {
   };
   const game = filled(template, model, Object.assign({}, run, { match: A_GAME }), ASSETS);
   const liveGame = { started: false, page: filled(template, model, Object.assign({}, following, { match: A_GAME }), ASSETS) };
-  const server = await served(page, filled(template, model, following, ASSETS), run.ticks, game, liveGame);
+  const waiting = { ready: false, late: false, page: filled(template, model, Object.assign({}, following, { awaited: true }), ASSETS) };
+  const server = await served(page, filled(template, model, following, ASSETS), run.ticks, game, liveGame, waiting);
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chrome();
 
@@ -688,6 +780,9 @@ async function main() {
     await aGameIsWatchedFromTheDriversOwnArea(browser, base, '', '#solid', 'solid', run.ticks);
     await aGameIsWatchedFromTheDriversOwnArea(browser, base, '?view=flat', '#field', 'flat', run.ticks);
     await aGameBeingPlayedFollowsItsRobotAsTheTicksArrive(browser, base, liveGame, run.ticks);
+    await aRunWaitingForItsViewBeginsOnceTheViewHasDrawnTheField(browser, base, waiting, run.ticks, '', 'solid');
+    await aRunWaitingForItsViewBeginsOnceTheViewHasDrawnTheField(browser, base, waiting, run.ticks, '?view=flat', 'flat');
+    await aViewItsRunWentOnWithoutSaysTheRunIsRunning(browser, base, waiting, run.ticks);
     await freePlayOrbitsWithNoClock(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
     await eachDriveMotorIsNamedAsTheRobotNamesIt(
@@ -712,7 +807,8 @@ async function main() {
       + 'adding them, and keeps the flat drawing for ?view=flat, for a model it cannot fetch, and for the '
       + 'page it writes to a file; a game is watched from its drivers\' area in either, following its robot '
       + 'and turning and nothing more, with the time it has left; each robot\'s drive motors are named as it '
-      + 'names them, four on Reginald and two on Nugget.');
+      + 'names them, four on Reginald and two on Nugget; and a run that waits for its view begins only once '
+      + 'the view has drawn the field.');
   if (!solid) {
     console.error('the live view never reported itself drawn');
     process.exit(1);

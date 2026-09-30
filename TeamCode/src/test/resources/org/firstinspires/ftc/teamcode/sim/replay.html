@@ -221,6 +221,7 @@ __IMPORTMAP__
   const ASSETS = __ASSETS__;
   const wanted = new URLSearchParams(location.search).get('view');
   let drawing = 'flat', solid = null, settled = false, webcam = null, tags = null, cost = null;
+  let framesWhenReady = null;
   let fieldProblem = '';
   const asked = new URLSearchParams(location.search);
   const rec = JSON.parse(document.getElementById('recording').textContent);
@@ -487,7 +488,8 @@ __IMPORTMAP__
     const loops = ticks.length ? ticks.length + ' loops, ' + ticks[ticks.length - 1].t.toFixed(2) + ' s' : 'no loops yet';
     let state;
     if (rec.outcome) state = 'outcome: ' + rec.outcome;
-    else if (rec.live) state = rec.disconnected ? 'live view lost the bench' : 'running';
+    else if (rec.live) state = rec.disconnected ? 'live view lost the bench'
+      : rec.awaited && !ticks.length ? 'the run begins once this view has drawn the field' : 'running';
     else state = 'outcome: unknown';
     document.getElementById('outcome').textContent = loops + ', ' + state
       + (match ? '; a game, watched from where ' + match.alliance + '\u2019s drivers stand' : '');
@@ -1343,6 +1345,22 @@ __IMPORTMAP__
       : name + ' could not be judged: ' + reading.why;
   }
 
+  const aFrameDrawn = () => new Promise(go => requestAnimationFrame(() => requestAnimationFrame(go)));
+
+  function sayReady() {
+    if (!rec.live || !rec.awaited) return;
+    Promise.resolve(tags && tags.ready)
+      .then(aFrameDrawn)
+      .then(() => {
+        framesWhenReady = solid ? solid.renderer.info.render.frame : null;
+        return fetch('ready', { method: 'POST' });
+      })
+      .then(() => {
+        rec.awaited = false;
+        updateOutcome();
+      }, () => {});
+  }
+
   if (ASSETS === null || placing || wanted === 'flat') {
     // The colliders, either because they were asked for or because this page carries no model at
     // all. Only the first of those is a choice, so only the first offers the control to change it.
@@ -1350,6 +1368,7 @@ __IMPORTMAP__
       showTheFieldControls(COLLIDERS);
     }
     settled = true;
+    sayReady();
   } else {
     drawTheFieldModel()
       .catch(why => {
@@ -1359,7 +1378,10 @@ __IMPORTMAP__
         fieldMsg.textContent = fieldProblem;
         render();
       })
-      .finally(() => { settled = true; });
+      .finally(() => {
+        settled = true;
+        sayReady();
+      });
   }
 
   window.replayPage = {
@@ -1369,6 +1391,7 @@ __IMPORTMAP__
     get said() { return fieldMsg.textContent; },
     get loaded() { return solid && solid.loaded; },
     get drawnTriangles() { return solid ? solid.renderer.info.render.triangles : 0; },
+    get framesWhenReady() { return framesWhenReady; },
     get scene() { return solid && solid.scene; },
     get robot() {
       const r = solid && solid.robot;

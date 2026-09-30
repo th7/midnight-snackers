@@ -38,7 +38,7 @@ function serve() {
     const asked = decodeURIComponent(request.url.split('?')[0]);
     if (request.method === 'POST' && asked === '/sim/run') {
       const query = new URL(request.url, 'http://x').searchParams;
-      RUNS_ASKED.push({ opmode: query.get('opmode'), mode: query.get('mode') });
+      RUNS_ASKED.push({ opmode: query.get('opmode'), mode: query.get('mode'), begin: query.get('begin') });
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       response.end(JSON.stringify({ id: RUNS_ASKED.length }));
       return;
@@ -171,6 +171,10 @@ async function aGameIsAskedForByTheBox(page, engine) {
   const asked = RUNS_ASKED.slice(before).map((r) => r.mode);
   check(asked.join(',') === 'free,game',
       `${engine}: pressing Run with the box clear and then ticked asked for ${asked.join(', ') || 'nothing'}`);
+  const begins = RUNS_ASKED.slice(before).map((r) => r.begin || 'unsaid');
+  check(begins.length === 2 && begins.every((b) => b === 'ready'),
+      `${engine}: pressing Run asked for runs that begin ${begins.join(', ') || 'never'}, not once the live view `
+      + 'under it has drawn the field, so the view loads while the run is already going');
   await box.uncheck();
 }
 
@@ -249,7 +253,8 @@ async function main() {
     process.exit(1);
   }
   console.log('the dashboard lists its files, opens one in the editor and reaches the Simulate tab, where a '
-      + 'run is a game only when the box says so, on this engine and on one shaped like an older iPad\'s, and '
+      + 'run is a game only when the box says so and begins once the view under it has drawn the field, on '
+      + 'this engine and on one shaped like an older iPad\'s, and '
       + 'says so on the page when the editor cannot start.');
 }
 

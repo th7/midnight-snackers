@@ -683,26 +683,51 @@ runs on the current classpath. Class: `SimBench`.
 name: a game's **autonomous period** and **TeleOp period**, both in simulated
 seconds; the **kill grace** a child has after Stop; the **startup** the op
 mode's time has to begin, which a child JVM's loading is inside; the **silence**
-the child may say nothing at all for mid-run before it is killed for hanging; and
-how long a run may go **unwatched**. It is made from what the bench waits for a
-person watching a run — a match's periods, room to load, and five minutes to
-come back to a run they left — and said differently where a test means something
-different. Five bare seconds in a row at a call site was five chances to hand
-the wrong one to the wrong wait, and the silence was the one nobody could say at
-all, so a test of a hung op mode sat through the real five. Every one but the
-periods is judged on the bench's own clock, by the **watchdog**, so a test moves
-that clock rather than sitting through a wait. Class: `SimBench.Waits`.
+the child may say nothing at all for mid-run before it is killed for hanging;
+how long a run may go **unwatched**; and the **view wait**, how long a run that
+**waits for its view** waits for it. It is made from what the bench waits for a
+person watching a run — a match's periods, room to load, thirty seconds for a
+page to draw the field, and five minutes to come back to a run they left — and
+said differently where a test means something different. Five bare seconds in a
+row at a call site was five chances to hand the wrong one to the wrong wait, and
+the silence was the one nobody could say at all, so a test of a hung op mode sat
+through the real five. Every one but the periods is judged on the bench's own
+clock, by the **watchdog**, so a test moves that clock rather than sitting
+through a wait. Class: `SimBench.Waits`.
 
 **Watchdog** — What a bench holds a run's child to while the run goes on: the op
 mode's time must begin within the **startup**; once it has, the child must say
 something at least every **silence**, and somebody must ask about the run within
 the **unwatched**; and once the child is told to Stop, it must end within its
-**kill grace**, which is then the only wait on it. Each is one answer read off
-how far the run has got — *building*, *starting*, *running*, *stopping*, or
-over — the time on the bench's clock, and the waits, so each rule is tested
-with no thread and no clock. The bench asks every tenth of a second until the
-run is over, and kills the child when an answer says to. Classes: `Watchdog`;
-`RunState`.
+**kill grace**, which is then the only wait on it. A child **held** for its view
+is judged by none of those: it is placed without its view once the **view wait**
+is over, and its startup runs from its placing, since the time it was held was
+the bench's and not its own. Each is one answer read off how far the run has got
+— *building*, *held*, *starting*, *running*, *stopping*, or over — the time on
+the bench's clock, and the waits, so each rule is tested with no thread and no
+clock. The bench asks every tenth of a second until the run is over, and kills
+the child when an answer says to, or places it when the answer is that its view
+is late. Classes: `Watchdog`; `RunState`.
+
+**Waits for its view** — A run started from the Simulate tab begins only once
+the live view under it is **ready**: it has fetched and built the field it
+draws, and the goal tags on it, and has drawn a frame of it, which is when the
+browser compiles what it draws with. That is seconds of a page doing nothing
+else — on the committed low model, drawn in software, a second and a half to
+build the field and nearly two to draw its first frame — and a run already
+under way was watched in stutters, the robot frozen and then leaping ahead to
+catch up, and a TeleOp driven blind. So the bench builds the run and starts its
+child as before, overlapping the page's loading, and **holds** the child's start
+line until the view says it is ready; the op mode's time then begins with the
+view already drawing, and the page says, meanwhile, that the run begins once it
+has drawn the field. A view that is not ready within the **view wait**, thirty
+seconds from pressing Run — a tab closed, a browser that never draws — is not
+waited for longer: the child is placed without it, and the view catches up when
+it can. Stop tells a held child as it tells any other, and it ends unplaced. A
+run nobody asked to wait (`begin=now`, or nothing said) begins as soon as its
+child can be placed, as every run did before; a child from before placement
+places itself, so it is never held. `POST /run?opmode=<name>&begin=ready` and
+`POST /runs/<id>/ready`. Classes: `View`; `RunState.Held`; `SimBench.Begin`.
 
 **Game** and **free play** — The two ways a run is made, chosen per run: `POST
 /run?opmode=<name>&mode=game`, or `mode=free`, which is also what a run that
@@ -844,7 +869,8 @@ real loop does, the same sequence for the same seed. A run's **pace** says wheth
 a run somebody drives or watches live is (`REAL_TIME`), a run nobody
 watches, such as a test, goes as fast as the machine can (`FASTEST`).
 A run has a **phase** (*building*, *starting* while the child JVM
-loads the catalog, *running* from the moment the op mode's time begins,
+loads the catalog and, for a run that **waits for its view**, until the view is
+ready, *running* from the moment the op mode's time begins,
 *finished*), a
 **message** (compile errors, or why it was killed or stopped), and when
 finished an **outcome**: *done*, *stopped*, *timed out*, *build failed*, *wrong
@@ -864,11 +890,11 @@ other ending; only a test of an auto, through `SimRunner.run`, fails for it.
 Classes: `SimRunner`; `SimRunner.Pace`; `Ending`; `Budget`.
 
 **Stop** — What pressing it does depends on how far the run has got. A run still
-building ends there, stopped, since there is no child to tell, and the child
-its build then starts is killed rather than left waiting to be placed. A run
-with a child tells it once, and its **kill grace** runs from then; a child that
-cannot be told is killed. A run that is over, or already told, is left as it
-is. Class: `Stop`.
+building ends there, stopped, since there is no child to tell, and the child its
+build then starts is killed rather than left waiting to be placed. A run with a
+child, held for its view or not, tells it once, and its **kill grace** runs from
+then; a child that cannot be told is killed. A run that is over, or already
+told, is left as it is. Class: `Stop`.
 
 **Driver station** — What the driver does during a run: the state of the
 two **gamepads** and the **Stop** button; and before it, where the robot

@@ -61,8 +61,9 @@ public final class SimReplayPage {
         return fill(run.name(), root, Optional.empty());
     }
 
-    public static String live(Source run, String assetsUnder) {
+    public static String live(Source run, String assetsUnder, boolean awaited) {
         JsonObject root = root(run.name(), run.kind(), run.robot(), true);
+        root.addProperty("awaited", awaited);
         root.addProperty("outcome", (String) null);
         root.add("match", run.match());
         root.add("ticks", new JsonArray());

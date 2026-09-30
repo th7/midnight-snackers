@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.simcore.RunState;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
+import org.firstinspires.ftc.teamcode.simcore.View;
 import org.firstinspires.ftc.teamcode.simcore.Watchdog;
 
 public final class SimBench {
@@ -55,6 +56,8 @@ public final class SimBench {
         /** How long a run may go with nobody looking at it before it is stopped. */
         public final double unwatched;
 
+        public final double view;
+
         /** The waits the watchdog holds a run's child to, each checked here to be a time. */
         final Watchdog.Waits watched;
 
@@ -64,14 +67,17 @@ public final class SimBench {
                 double killGrace,
                 double startup,
                 double silence,
-                double unwatched) {
+                double unwatched,
+                double view) {
             this.autonomousPeriod = autonomousPeriod;
             this.teleOpPeriod = teleOpPeriod;
             this.killGrace = killGrace;
             this.startup = startup;
             this.silence = silence;
             this.unwatched = unwatched;
-            this.watched = new Watchdog.Waits(time(startup), time(silence), time(unwatched), time(killGrace));
+            this.view = view;
+            this.watched =
+                    new Watchdog.Waits(time(startup), time(silence), time(unwatched), time(killGrace), time(view));
         }
 
         private static Seconds time(double seconds) {
@@ -83,31 +89,35 @@ public final class SimBench {
          * five minutes for somebody to come back to a run they left.
          */
         public static Waits ofTheBench() {
-            return new Waits(30, 120, 5, 60, 5, 300);
+            return new Waits(30, 120, 5, 60, 5, 300, 30);
         }
 
         public Waits autonomousPeriod(double seconds) {
-            return new Waits(seconds, teleOpPeriod, killGrace, startup, silence, unwatched);
+            return new Waits(seconds, teleOpPeriod, killGrace, startup, silence, unwatched, view);
         }
 
         public Waits teleOpPeriod(double seconds) {
-            return new Waits(autonomousPeriod, seconds, killGrace, startup, silence, unwatched);
+            return new Waits(autonomousPeriod, seconds, killGrace, startup, silence, unwatched, view);
         }
 
         public Waits killGrace(double seconds) {
-            return new Waits(autonomousPeriod, teleOpPeriod, seconds, startup, silence, unwatched);
+            return new Waits(autonomousPeriod, teleOpPeriod, seconds, startup, silence, unwatched, view);
         }
 
         public Waits startup(double seconds) {
-            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, seconds, silence, unwatched);
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, seconds, silence, unwatched, view);
         }
 
         public Waits silence(double seconds) {
-            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, seconds, unwatched);
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, seconds, unwatched, view);
         }
 
         public Waits unwatched(double seconds) {
-            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, silence, seconds);
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, silence, seconds, view);
+        }
+
+        public Waits view(double seconds) {
+            return new Waits(autonomousPeriod, teleOpPeriod, killGrace, startup, silence, unwatched, seconds);
         }
     }
 
@@ -133,6 +143,30 @@ public final class SimBench {
         }
     }
 
+    public enum Begin {
+        AT_ONCE("now"),
+        WHEN_ITS_VIEW_IS_READY("ready");
+
+        public final String word;
+
+        Begin(String word) {
+            this.word = word;
+        }
+
+        static Optional<Begin> called(String word) {
+            for (Begin begin : values()) {
+                if (begin.word.equals(word)) {
+                    return Optional.of(begin);
+                }
+            }
+            return Optional.empty();
+        }
+
+        View view(Moment asked) {
+            return this == WHEN_ITS_VIEW_IS_READY ? new View.Awaited(asked) : new View.NotAwaited();
+        }
+    }
+
     static final String START_POSES_FILE = "start-poses.json";
 
     public static final class BuildFailed extends RuntimeException {
@@ -154,7 +188,9 @@ public final class SimBench {
 
         public final Mode mode;
 
-        private volatile Moment looked = now();
+        private final Moment asked = now();
+
+        private volatile Moment looked = asked;
 
         private final List<SimRunStream.TickLine> ticks = new ArrayList<>();
         private final Deque<String> log = new ArrayDeque<>();
@@ -162,17 +198,20 @@ public final class SimBench {
         private String outcome;
         private String message;
         private Child.Running child;
-        private Moment launched;
+        private View view;
+        private JsonObject heldStart;
+        private Moment startupSince;
         private Moment heard;
         private Moment toldToStop;
 
-        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed, Mode mode) {
+        Run(int id, SimCatalog.Entry entry, String startedBy, Pose2d start, Long seed, Mode mode, Begin begin) {
             this.id = id;
             this.entry = entry;
             this.startedBy = startedBy;
             this.start = start;
             this.seed = seed;
             this.mode = mode;
+            this.view = begin.view(asked);
         }
 
         public synchronized boolean running() {
@@ -227,9 +266,36 @@ public final class SimBench {
             }
             child = process;
             phase = "starting";
-            launched = at;
+            startupSince = at;
             heard = at;
             return true;
+        }
+
+        synchronized void place(JsonObject startLine, Moment at) {
+            if (view.holdsTheStart(at, waits.watched.view())) {
+                heldStart = startLine;
+                return;
+            }
+            send(startLine);
+        }
+
+        synchronized void viewReady(Moment at) {
+            view = new View.Ready();
+            placeHeld(at);
+        }
+
+        synchronized void placeHeld(Moment at) {
+            if (heldStart == null) {
+                return;
+            }
+            JsonObject startLine = heldStart;
+            heldStart = null;
+            startupSince = at;
+            send(startLine);
+        }
+
+        synchronized boolean viewWaitedFor() {
+            return view.waitedFor();
         }
 
         /** The child said something, which is all a watchdog listening for a hang needs to know. */
@@ -265,8 +331,11 @@ public final class SimBench {
             if (toldToStop != null) {
                 return new RunState.Stopping(toldToStop);
             }
+            if (heldStart != null) {
+                return new RunState.Held(asked);
+            }
             if (phase.equals("starting")) {
-                return new RunState.Starting(launched);
+                return new RunState.Starting(startupSince);
             }
             return new RunState.Running(heard, looked);
         }
@@ -345,6 +414,7 @@ public final class SimBench {
                 }
                 // The grace runs from now, and the watchdog holds the child to it.
                 toldToStop = now();
+                heldStart = null;
                 JsonObject line = new JsonObject();
                 line.addProperty("stop", true);
                 if (send(line)) {
@@ -502,9 +572,17 @@ public final class SimBench {
                 .route(
                         "POST",
                         "/run",
-                        (request, params) -> run(request.query("opmode"), request.query("mode"), startedBy))
+                        (request, params) ->
+                                run(request.query("opmode"), request.query("mode"), request.query("begin"), startedBy))
                 .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
+                .route(
+                        "POST",
+                        "/runs/{id}/ready",
+                        (request, params) -> withRun(params, request, (run, r) -> {
+                            run.viewReady(now());
+                            return Response.json("{}");
+                        }))
                 .route(
                         "GET",
                         "/runs/{id}/ticks",
@@ -617,16 +695,23 @@ public final class SimBench {
     }
 
     private Response page(Run run, Request request) {
-        return Response.html(SimReplayPage.live(run, ASSETS_FROM_A_RUN));
+        return Response.html(SimReplayPage.live(run, ASSETS_FROM_A_RUN, run.viewWaitedFor()));
     }
 
-    private Response run(String opMode, String modeWord, String startedBy) {
+    private Response run(String opMode, String modeWord, String beginWord, String startedBy) {
         Optional<Mode> mode = modeWord == null ? Optional.of(Mode.FREE_PLAY) : Mode.called(modeWord);
         if (mode.isEmpty()) {
             return Response.error(
                     400,
                     "a run is a game or free play: mode=" + Mode.GAME.word + " or mode=" + Mode.FREE_PLAY.word
                             + ", not '" + modeWord + "'");
+        }
+        Optional<Begin> begin = beginWord == null ? Optional.of(Begin.AT_ONCE) : Begin.called(beginWord);
+        if (begin.isEmpty()) {
+            return Response.error(
+                    400,
+                    "a run begins at once or once its live view is ready: begin=" + Begin.AT_ONCE.word + " or begin="
+                            + Begin.WHEN_ITS_VIEW_IS_READY.word + ", not '" + beginWord + "'");
         }
         Optional<SimCatalog.Entry> entry = Optional.empty();
         if (opMode != null) {
@@ -642,7 +727,7 @@ public final class SimBench {
         if (entry.isEmpty()) {
             return Response.error(404, "no runnable op mode named " + opMode);
         }
-        Run run = start(entry.get(), startedBy, mode.get());
+        Run run = start(entry.get(), startedBy, mode.get(), begin.get());
         if (run == null) {
             Run current = current();
             return Response.error(
@@ -678,12 +763,22 @@ public final class SimBench {
         return Response.json("{}");
     }
 
-    public synchronized Run start(SimCatalog.Entry entry, String startedBy, Mode mode) {
+    public Run start(SimCatalog.Entry entry, String startedBy, Mode mode) {
+        return start(entry, startedBy, mode, Begin.AT_ONCE);
+    }
+
+    public synchronized Run start(SimCatalog.Entry entry, String startedBy, Mode mode, Begin begin) {
         if (current() != null) {
             return null;
         }
         Run run = new Run(
-                runs.size() + 1, entry, startedBy, startPoses.get(entry.name), startPoses.seed(entry.name), mode);
+                runs.size() + 1,
+                entry,
+                startedBy,
+                startPoses.get(entry.name),
+                startPoses.seed(entry.name),
+                mode,
+                begin);
         runs.add(run);
         Thread thread = new Thread(() -> perform(run), "sim-run-" + run.id);
         thread.setDaemon(true);
@@ -762,7 +857,7 @@ public final class SimBench {
                         break;
                     }
                     if (handshake.startLine != null) {
-                        run.send(handshake.startLine);
+                        run.place(handshake.startLine, now());
                     }
                     line = handshake.firstContentLine;
                     if (line == null) {
@@ -793,13 +888,16 @@ public final class SimBench {
      */
     private void watch(Run run, Child.Running child) {
         Watchdog.Verdict verdict = Watchdog.verdict(run.state(), now(), waits.watched);
-        while (verdict == Watchdog.Verdict.WATCHING) {
+        while (verdict.keepsWatching()) {
+            if (verdict == Watchdog.Verdict.VIEW_LATE) {
+                run.placeHeld(now());
+            }
             clock.sleep(WATCH_POLL_SECONDS);
             verdict = Watchdog.verdict(run.state(), now(), waits.watched);
         }
         Optional<Ended> ended =
                 switch (verdict) {
-                    case WATCHING, OVER -> Optional.empty();
+                    case WATCHING, OVER, VIEW_LATE -> Optional.empty();
                     case NEVER_STARTED ->
                         Optional.of(new Ended(
                                 SimRunStream.Outcome.killed(waits.startup, "the op mode never started"),

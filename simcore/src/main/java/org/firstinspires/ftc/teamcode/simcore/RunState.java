@@ -2,7 +2,12 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 /** How far a run has got, as its bench sees it at one moment: what the watchdog and Stop decide from. */
 public sealed interface RunState
-        permits RunState.Building, RunState.Starting, RunState.Running, RunState.Stopping, RunState.Over {
+        permits RunState.Building,
+                RunState.Held,
+                RunState.Starting,
+                RunState.Running,
+                RunState.Stopping,
+                RunState.Over {
     /** What the watchdog makes of the run at now. */
     Watchdog.Verdict watched(Moment now, Watchdog.Waits waits);
 
@@ -30,11 +35,30 @@ public sealed interface RunState
         }
     }
 
-    /** Its child was launched, and the op mode's time has not begun: a JVM loading says nothing. */
-    record Starting(Moment launched) implements RunState {
+    record Held(Moment since) implements RunState {
         @Override
         public Watchdog.Verdict watched(Moment now, Watchdog.Waits waits) {
-            return now.secondsSince(launched) > waits.startup().value()
+            return new View.Awaited(since).holdsTheStart(now, waits.view())
+                    ? Watchdog.Verdict.WATCHING
+                    : Watchdog.Verdict.VIEW_LATE;
+        }
+
+        @Override
+        public Stop onStop() {
+            return Stop.TELL;
+        }
+
+        @Override
+        public boolean takesAChild() {
+            return false;
+        }
+    }
+
+    /** Its child was launched, and the op mode's time has not begun: a JVM loading says nothing. */
+    record Starting(Moment since) implements RunState {
+        @Override
+        public Watchdog.Verdict watched(Moment now, Watchdog.Waits waits) {
+            return now.secondsSince(since) > waits.startup().value()
                     ? Watchdog.Verdict.NEVER_STARTED
                     : Watchdog.Verdict.WATCHING;
         }

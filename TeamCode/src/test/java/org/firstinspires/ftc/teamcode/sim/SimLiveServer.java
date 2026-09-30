@@ -12,7 +12,10 @@ public final class SimLiveServer {
     private SimLiveServer(SimReplayPage.Source recording, int port) {
         this.recording = recording;
         Router routes = new Router()
-                .route("GET", "/", (request, params) -> Response.html(SimReplayPage.live(recording, ASSETS_UNDER)))
+                .route(
+                        "GET",
+                        "/",
+                        (request, params) -> Response.html(SimReplayPage.live(recording, ASSETS_UNDER, false)))
                 .route("GET", "/assets/{name*}", (request, params) -> SimAssets.serve(params.get("name")))
                 .route("GET", "/ticks", (request, params) -> {
                     String body = SimReplayPage.update(recording, request.queryInt("from", 0));

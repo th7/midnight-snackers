@@ -28,6 +28,7 @@ import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.RunState;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
@@ -150,7 +151,14 @@ public class SimBenchTest {
     public void aRunsLineWaitsForWhoeverIsChangingTheRun() throws Exception {
         bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         SimBench.Run run = bench
-        .new Run(1, bench.catalog().find("Count to three").get(), "ada", null, null, SimBench.Mode.FREE_PLAY);
+        .new Run(
+                1,
+                bench.catalog().find("Count to three").get(),
+                "ada",
+                null,
+                null,
+                SimBench.Mode.FREE_PLAY,
+                SimBench.Begin.AT_ONCE);
         CountDownLatch asking = new CountDownLatch(1);
         CountDownLatch answered = new CountDownLatch(1);
         AtomicReference<JsonObject> line = new AtomicReference<>();
@@ -628,6 +636,218 @@ public class SimBenchTest {
         assertEquals(SimRunStream.Outcome.killedAfterStop(0.2), run.outcome());
         assertTrue(
                 child.whatItWasTold().toString(), child.whatItWasTold().stream().anyMatch(t -> t.contains("stop")));
+    }
+
+    private SimBench.Run aRunThatWaitsForItsView() {
+        return bench.start(
+                bench.catalog().find("Stick").get(),
+                "ada",
+                SimBench.Mode.FREE_PLAY,
+                SimBench.Begin.WHEN_ITS_VIEW_IS_READY);
+    }
+
+    private static void awaitHeld(SimBench.Run run) throws InterruptedException {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (!(run.state() instanceof RunState.Held) && run.outcome() == null && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertTrue(
+                "the child was not held for its view: " + run.state() + ", " + run.outcome(),
+                run.state() instanceof RunState.Held);
+    }
+
+    private static void awaitPlaced(FakeChild child) throws InterruptedException {
+        long deadline = System.nanoTime() + 3_000_000_000L;
+        while (!aStartLineIsIn(child) && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertTrue("the child was never placed; it was told " + child.whatItWasTold(), aStartLineIsIn(child));
+    }
+
+    private Response ready(SimBench.Run run) {
+        return routes().handle(post("/runs/" + run.id + "/ready", ""));
+    }
+
+    private static void endIt(SimBench.Run run) throws InterruptedException {
+        run.stop();
+        awaitPromptly(run);
+    }
+
+    @Test
+    public void aRunThatWaitsForItsViewIsPlacedOnlyOnceItsViewIsReady() throws Exception {
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        bench = benchOn(new FakeClock(), child, WAITS);
+        SimBench.Run run = aRunThatWaitsForItsView();
+        awaitHeld(run);
+
+        assertFalse("placed before its view was ready: " + child.whatItWasTold(), aStartLineIsIn(child));
+        assertEquals("starting", run.phase());
+
+        Response ready = ready(run);
+
+        assertEquals(ready.body, 200, ready.status);
+        assertTrue("its view is ready, so its op mode's time may begin", aStartLineIsIn(child));
+        assertTrue(run.state().toString(), run.state() instanceof RunState.Starting);
+        assertEquals("placed once", 1, startLinesIn(child));
+        assertEquals(200, ready(run).status);
+        assertEquals("a view that says so twice places nothing twice", 1, startLinesIn(child));
+        endIt(run);
+    }
+
+    @Test
+    public void aViewReadyBeforeTheChildIsHasItsRunPlacedTheMomentTheChildSaysHello() throws Exception {
+        CountDownLatch built = new CountDownLatch(1);
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        FakeSources sources =
+                FakeSources.listing(SimCatalog.of(StickTeleOp.class)).thatBuildForARunUntil(built);
+        bench = new SimBench(TeamRobot.REGINALD, sources, outputDir(), WAITS, child, new FakeClock());
+        SimBench.Run run = aRunThatWaitsForItsView();
+        sources.awaitARunsBuild();
+
+        assertEquals(200, ready(run).status);
+        built.countDown();
+
+        awaitPlaced(child);
+        assertFalse(run.state() instanceof RunState.Held);
+        endIt(run);
+    }
+
+    @Test
+    public void aViewNotReadyWithinTheViewWaitIsNotWaitedForLonger() throws Exception {
+        FakeClock clock = new FakeClock();
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        bench = benchOn(clock, child, WAITS);
+        SimBench.Run run = aRunThatWaitsForItsView();
+        awaitHeld(run);
+
+        clock.advance(WAITS.view);
+        Thread.sleep(200);
+        assertFalse("placed before the view wait was over", aStartLineIsIn(child));
+        clock.advance(0.2);
+
+        awaitPlaced(child);
+        assertTrue("a run begun without its view goes on", run.running());
+        endIt(run);
+    }
+
+    @Test
+    public void theStartupOfAChildHeldForItsViewRunsFromWhenItWasPlaced() throws Exception {
+        FakeClock clock = new FakeClock();
+        double startup = 10;
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        bench = benchOn(clock, child, WAITS.startup(startup));
+        SimBench.Run run = aRunThatWaitsForItsView();
+        awaitHeld(run);
+
+        clock.advance(startup * 2);
+        Thread.sleep(200);
+        assertTrue("killed for a startup it was held through: " + run.outcome(), run.running());
+
+        assertEquals(200, ready(run).status);
+        clock.advance(startup - 1);
+        Thread.sleep(200);
+        assertTrue("killed before its own startup was over: " + run.outcome(), run.running());
+        clock.advance(1.1);
+
+        assertEquals(
+                SimRunStream.Outcome.killed(startup, "the op mode never started"),
+                awaitPromptly(run).outcome());
+    }
+
+    @Test
+    public void stopWhileAChildIsHeldForItsViewEndsTheRunUnplaced() throws Exception {
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        bench = benchOn(new FakeClock(), child, WAITS);
+        SimBench.Run run = aRunThatWaitsForItsView();
+        awaitHeld(run);
+
+        assertEquals(200, routes().handle(post("/runs/" + run.id + "/stop", "")).status);
+        ready(run);
+        awaitPromptly(run);
+
+        assertTrue(
+                "told to stop, and nothing else: " + child.whatItWasTold(),
+                child.whatItWasTold().stream().anyMatch(t -> t.contains("\"stop\"")));
+        assertFalse("placed after Stop: " + child.whatItWasTold(), aStartLineIsIn(child));
+    }
+
+    @Test
+    public void theRunRouteTakesWhenARunBeginsAndBeginsAtOnceOtherwise() throws Exception {
+        FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
+        bench = benchOn(new FakeClock(), child, WAITS);
+        String run = "/run?opmode=Stick&mode=free";
+
+        Response waiting = routes().handle(post(run + "&begin=ready", ""));
+        assertEquals(waiting.body, 200, waiting.status);
+        SimBench.Run held = bench.find(json(waiting.body).get("id").getAsString());
+        awaitHeld(held);
+        assertTrue("its page is told to say when it is ready", awaitedOn(held));
+        assertEquals(200, ready(held).status);
+        assertEquals(1, startLinesIn(child));
+        assertFalse("a page served once the view is ready has nothing to say", awaitedOn(held));
+        endIt(held);
+
+        Response atOnce = routes().handle(post(run + "&begin=now", ""));
+        assertEquals(atOnce.body, 200, atOnce.status);
+        SimBench.Run placed = bench.find(json(atOnce.body).get("id").getAsString());
+        awaitStartLines(child, 2);
+        assertFalse("nobody asked its page to say anything", awaitedOn(placed));
+        endIt(placed);
+
+        Response unsaid = routes().handle(post(run, ""));
+        assertEquals(unsaid.body, 200, unsaid.status);
+        SimBench.Run unsaidRun = bench.find(json(unsaid.body).get("id").getAsString());
+        awaitStartLines(child, 3);
+        assertFalse(awaitedOn(unsaidRun));
+        endIt(unsaidRun);
+
+        Response neither = routes().handle(post(run + "&begin=later", ""));
+        assertEquals(neither.body, 400, neither.status);
+        assertTrue(neither.body, neither.body.contains("now") && neither.body.contains("ready"));
+        assertEquals(
+                "nothing was started",
+                3,
+                json(bench.status()).getAsJsonArray("runs").size());
+    }
+
+    private static long startLinesIn(FakeChild child) {
+        return child.whatItWasTold().stream()
+                .filter(t -> t.contains("\"start\""))
+                .count();
+    }
+
+    private static void awaitStartLines(FakeChild child, long count) throws InterruptedException {
+        long deadline = System.nanoTime() + 3_000_000_000L;
+        while (startLinesIn(child) < count && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertEquals("placed as soon as the child could be: " + child.whatItWasTold(), count, startLinesIn(child));
+    }
+
+    @Test
+    public void aViewSayingItIsReadyForARunThatIsNotWaitingChangesNothing() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
+        bench = benchOverAChild(child);
+        SimBench.Run run =
+                await(bench.start(bench.catalog().find("Count to three").get(), "ada", SimBench.Mode.FREE_PLAY));
+
+        Response ready = ready(run);
+
+        assertEquals(ready.body, 200, ready.status);
+        assertEquals(run.message(), "done", run.outcome());
+        assertEquals(404, routes().handle(post("/runs/999/ready", "")).status);
+        assertEquals(405, routes().handle(get("/runs/" + run.id + "/ready")).status);
+    }
+
+    private boolean awaitedOn(SimBench.Run run) {
+        Response page = routes().handle(get("/runs/" + run.id + "/"));
+        assertEquals(200, page.status);
+        String opening = "<script id=\"recording\" type=\"application/json\">";
+        int from = page.body.indexOf(opening) + opening.length();
+        com.google.gson.JsonElement awaited = json(page.body.substring(from, page.body.indexOf("</script>", from)))
+                .get("awaited");
+        assertNotNull("the page is told nothing either way about whether its run waits for it", awaited);
+        return awaited.getAsBoolean();
     }
 
     /**

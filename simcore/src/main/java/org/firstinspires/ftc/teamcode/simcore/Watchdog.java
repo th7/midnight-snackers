@@ -8,7 +8,7 @@ public final class Watchdog {
     private Watchdog() {}
 
     /** How long the watchdog waits for each thing it waits for. */
-    public record Waits(Seconds startup, Seconds silence, Seconds unwatched, Seconds killGrace) {}
+    public record Waits(Seconds startup, Seconds silence, Seconds unwatched, Seconds killGrace, Seconds view) {}
 
     public enum Verdict {
         /** Nothing has run out yet: look again later. */
@@ -27,7 +27,13 @@ public final class Watchdog {
         UNWATCHED,
 
         /** The child did not end within its grace after Stop: it is killed. */
-        IGNORED_STOP
+        IGNORED_STOP,
+
+        VIEW_LATE;
+
+        public boolean keepsWatching() {
+            return this == WATCHING || this == VIEW_LATE;
+        }
     }
 
     public static Verdict verdict(RunState run, Moment now, Waits waits) {
