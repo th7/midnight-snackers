@@ -129,6 +129,17 @@ a piece of itself must not be indistinguishable from a page with nothing to say.
 keeps `window.codingPage` -- `started`, and `broke` as a list of part and message -- for
 the check to read, and shows the same thing to whoever is looking at it.
 
+`tools/browser/login.mjs` opens the **login page** the same way. A teammate says which
+robot they work on when they ask to join, since the robot is what the admin approves and
+whose line the work lands on, so the check holds the page to it in a browser: the form
+does not go while no robot is picked -- none is picked for anybody -- and once one is,
+the login asks for that one.
+
+`tools/browser/admin.mjs` opens the **admin page**, where the same name on two robots is
+two users: each row says which robot it is on, the files teammates may edit are picked
+for one robot at a time from the robots the server lists, and a delete names the robot
+as well as the user.
+
 Chromium with an API deleted is not WebKit, and this cannot prove the page runs on a real
 iPad; no engine we can run here can. It proves the page needs nothing that engine has not
 got, which is the part that was wrong.

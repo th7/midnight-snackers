@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.List;
 import java.util.Locale;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 final class MergeReport {
     private static final Gson GSON = new Gson();
@@ -46,17 +47,21 @@ final class MergeReport {
     private final String username;
     private final Voice voice;
     private final String worktreePath;
+    private final String develop;
 
-    private MergeReport(Worktrees.Merge merge, Op op, String username, Voice voice, String worktreePath) {
+    private MergeReport(
+            Worktrees.Merge merge, Op op, String username, Voice voice, String worktreePath, TeamRobot robot) {
         this.merge = merge;
         this.op = op;
         this.username = username;
         this.voice = voice;
         this.worktreePath = worktreePath;
+        this.develop = robot.develop();
     }
 
-    static MergeReport of(Worktrees.Merge merge, Op op, String username, Voice voice, String worktreePath) {
-        return new MergeReport(merge, op, username, voice, worktreePath);
+    static MergeReport of(
+            Worktrees.Merge merge, Op op, String username, Voice voice, String worktreePath, TeamRobot robot) {
+        return new MergeReport(merge, op, username, voice, worktreePath, robot);
     }
 
     int status() {
@@ -95,8 +100,7 @@ final class MergeReport {
                 return (voice == Voice.USER ? "" : username + " must ") + "commit first: "
                         + String.join(", ", merge.files);
             case CONFLICTS:
-                return whose + " changes conflict with " + Worktrees.DEVELOP + " in " + String.join(", ", merge.files)
-                        + help;
+                return whose + " changes conflict with " + develop + " in " + String.join(", ", merge.files) + help;
             default:
                 return "git could not " + op.name + help + ": " + merge.detail;
         }
@@ -105,10 +109,10 @@ final class MergeReport {
     private String did() {
         if (op == Op.PULL) {
             return voice == Voice.USER
-                    ? "pulled " + Worktrees.DEVELOP
-                    : "pulled " + Worktrees.DEVELOP + " into " + username + "'s worktree";
+                    ? "pulled " + develop
+                    : "pulled " + develop + " into " + username + "'s worktree";
         }
-        return "pushed to " + Worktrees.DEVELOP + remoteSuffix()
+        return "pushed to " + develop + remoteSuffix()
                 + (merge.detail == null
                         ? ""
                         : "; but your worktree is not up to date; commit and pull: " + merge.detail);
@@ -119,7 +123,7 @@ final class MergeReport {
             return voice == Voice.USER ? "nothing to pull" : "nothing to pull for " + username;
         }
         if (merge.remote != null && merge.remote.outcome == Worktrees.Remote.Outcome.PUSHED) {
-            return "nothing new of yours to push; pushed " + Worktrees.DEVELOP + " to " + merge.remote.name;
+            return "nothing new of yours to push; pushed " + develop + " to " + merge.remote.name;
         }
         return "nothing to push" + (remoteFailed() ? remoteSuffix() : "");
     }
@@ -146,11 +150,11 @@ final class MergeReport {
         if (merge.outcome == Worktrees.Outcome.CONFLICTS) {
             return List.of(
                     "cd " + (worktreePath == null ? "<the user's worktree>" : worktreePath),
-                    "git merge " + Worktrees.DEVELOP + "         # resolve the conflicts in an editor",
+                    "git merge " + develop + "         # resolve the conflicts in an editor",
                     "git add -A && git commit  # then " + username + " presses Push");
         }
         if (remoteFailed()) {
-            return List.of("git push " + merge.remote.name + " " + Worktrees.DEVELOP
+            return List.of("git push " + merge.remote.name + " " + develop
                     + "   # from the checkout, once the network is back; a rejected push wants git pull first");
         }
         if (merge.outcome == Worktrees.Outcome.REFUSED) {

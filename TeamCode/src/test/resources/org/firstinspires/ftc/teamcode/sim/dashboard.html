@@ -35,6 +35,7 @@
   header { display: flex; align-items: center; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   h1 { font-size: 16px; font-weight: 600; margin: 0; padding: 12px 0; }
   header .who { color: var(--muted); margin: 0; margin-left: auto; }
+  header .who .robot { color: var(--ink); font-weight: 600; text-transform: capitalize; }
   nav { display: flex; gap: 2px; align-self: stretch; }
   nav button { border: 0; border-radius: 0; background: none; padding: 12px 14px; color: var(--muted); font-weight: 600; box-shadow: inset 0 -2px 0 transparent; }
   nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
@@ -142,7 +143,7 @@
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
   </nav>
-  <p class="who">Signed in as <strong id="who">…</strong> on <span id="branch" class="mono">…</span></p>
+  <p class="who">Signed in as <strong id="who">…</strong> for <span id="robot" class="robot">…</span> on <span id="branch" class="mono">…</span></p>
   <p class="broke" id="broke" role="alert" hidden></p>
 </header>
 <main id="edit" class="panel" role="tabpanel">
@@ -152,8 +153,8 @@
       <div id="changed">…</div>
       <div class="buttons">
         <button id="commit" type="button" disabled>Commit</button>
-        <button id="pull" type="button" title="Bring develop into your branch">Pull</button>
-        <button id="push" type="button" title="Land your commits on develop">Push</button>
+        <button id="pull" type="button" title="Bring your robot's develop branch into your branch">Pull</button>
+        <button id="push" type="button" title="Land your commits on your robot's develop branch">Push</button>
       </div>
       <div id="git-result" role="status"></div>
     </div>
@@ -665,15 +666,15 @@
       pushButton.disabled = busy || !status.pushable;
       pushButton.title = status.pushable
         ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push'
-        : (n ? 'commit before you push' : 'nothing to push: develop has your work');
+        : (n ? 'commit before you push' : 'nothing to push: ' + status.develop + ' has your work');
       var badge = pullButton.querySelector('.badge');
       if (behind > 0) {
         if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; pullButton.appendChild(badge); }
         badge.textContent = behind;
-        pullButton.title = behind + (behind === 1 ? ' commit' : ' commits') + ' on develop to pull';
+        pullButton.title = behind + (behind === 1 ? ' commit' : ' commits') + ' on ' + status.develop + ' to pull';
       } else if (badge) {
         badge.remove();
-        pullButton.title = 'Bring develop into your branch';
+        pullButton.title = 'Bring ' + status.develop + ' into your branch';
       }
     }
 
@@ -765,6 +766,7 @@
       if (me.state !== 'approved') { location.reload(); return; }
       document.getElementById('who').textContent = me.username;
       document.getElementById('branch').textContent = me.branch || '';
+      document.getElementById('robot').textContent = me.robot || '';
     });
   }
 

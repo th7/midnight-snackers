@@ -275,7 +275,8 @@ admin login; being on the machine is the credential.
 
 **User listing** — `GET /admin/users` and the roster it draws on the admin
 page: every user who has ever logged in, in the order they first did, each
-with the **sessions** they have made under them, oldest first. What is the
+with the **robot** they are on and the **sessions** they have made under
+them, oldest first. What is the
 user's rather than any one session's is said once, on the user — the
 worktree, its branch, its **status** (the same changed, ahead and behind
 that `GET /git/status` gives the user; null until the worktree exists, and
@@ -295,10 +296,26 @@ open exactly while a session of theirs is pending, so a login waiting to
 be decided is never hidden; folded shut, the row still carries the
 pending count, the branch, the status and what its sessions have open.
 
+**Robot** — Which of the team's robots a user works on: **Reginald** or
+**Nugget**. A teammate picks one when they ask to join, and none is picked
+for them; the login says which (`POST /login?username=<name>&robot=reginald`
+or `robot=nugget`), and one that does not is refused before any session
+exists. The robot is part of what the admin approves, so an approved session
+reaches its own robot's work and none of the other's. Each robot works its
+own **develop branch**, and keeps its own worktrees, user branches and
+editable set. Reginald keeps every name it had before there were two robots,
+so a server started on an old state directory finds its users, their
+worktrees and their files where they were, and a login stored before then is
+Reginald's. Which robots there are, what each is called and what its lines
+are named is said once, in the **core**; `GET /admin/info` lists them for the
+admin page, and a test holds the login page's choice to the same list.
+Class: `TeamRobot`, in the core.
+
 **User** — A teammate on the LAN who has logged in with a username. Users
-reach only the user listener. A user is their username: the worktree, the
-branch and the work are owned by it, so one user is one row of the
-listing however many times they log in.
+reach only the user listener. A user is their username on their **robot**:
+the worktree, the branch and the work are owned by that pair, so one user is
+one row of the listing however many times they log in, and the same name on
+the other robot is another user with work of their own.
 
 **Session** — One login by one user, identified by a small integer **id**
 the admin sees, and proven by a **token** the browser holds in the
@@ -312,8 +329,9 @@ session at `POST /admin/logins/<id>/approve|deny|revoke`. A revoked
 session is still a session; only a **delete** takes sessions away, and it
 takes all of that user's at once.
 
-**Editable set** — The files the admin has picked for users to edit, each
-named by its **key**. A user may only ever name a file by exact match
+**Editable set** — The files the admin has picked for users to edit, one set
+per **robot**, each file named by its **key**. The admin picks for one robot
+at a time, and every `/admin/files` route names it with `?robot=`. A user may only ever name a file by exact match
 against this set; nothing a user sends is resolved against the filesystem.
 The admin picks from the host checkout; the key means the same path in
 every worktree. Class: `EditableSet`.
@@ -338,10 +356,16 @@ relative to it, and the editable set and the worktrees are stored per
 project root. A user's save never writes under it; only git does, under
 `.git`.
 
-**Develop branch** — `develop`, the permanent branch every user's work
-starts from, pushes to, and pulls from. The server requires it to exist
-and never deletes or rewrites it: it only adds merge commits to it.
-Getting `develop` to `main` is the coach's job, by pull request.
+**Develop branch** — The permanent branch every user's work starts from,
+pushes to, and pulls from: `develop` for Reginald's users and
+`nugget-develop` for Nugget's, so wherever this glossary says `develop` of a
+Nugget user, it is `nugget-develop`. The server requires `develop` to exist;
+a repository without `nugget-develop` gets one at `develop`'s tip when the
+server starts, said on its console. It never deletes or rewrites either: it
+only adds merge commits to them. Getting `develop` to `main` is the coach's
+job, by pull request, and so is anything that moves between the two robots'
+lines. `GET /git/status` names the one a user's **ahead** and **behind** are
+counted against, as **develop**.
 
 **Which git** — The coding server is handed the git it works the repository
 with, rather than making one. What a real git does is `RealGitTest`'s, over a
@@ -363,12 +387,14 @@ revoke-and-reapprove finds the same work. Made when the admin approves
 the login, so git's refusal, if any, is the admin's to see. Class:
 `Worktrees`.
 
-**User branch** — `coding/<slug>`, created at the tip of `develop` when
-the worktree is made. Saves are uncommitted changes in the worktree
+**User branch** — `coding/<slug>` on Reginald and `nugget/<slug>` on
+Nugget, created at the tip of the robot's **develop branch** when the
+worktree is made. Saves are uncommitted changes in the worktree
 until the user presses Commit.
 
-**Delete** — `POST /admin/users/delete?username=<name>`, the Delete button
-on the user's row: the user leaves the listing. Every session they have is
+**Delete** — `POST /admin/users/delete?robot=<robot>&username=<name>`, the
+Delete button on the user's row: the user leaves the listing, and the same
+name on the other robot stays. Every session they have is
 forgotten, so their browsers are logged out, their bench and its child
 stop, and their worktree directory goes. Their **user branch** stays, and
 so does the mapping to it, so logging in again and being approved rebuilds
@@ -498,7 +524,8 @@ worktree: a deleted user's mapping stays, which is what gives them their
 own slug and their own branch back when they return.
 
 **Worktrees directory** — Where the worktrees live: under the state
-directory, at `worktrees/<root name>-<8 hex of SHA-256(root path)>/<slug>`,
+directory, at `worktrees/<root name>-<8 hex of SHA-256(root path)>/<slug>`
+for Reginald and `worktrees/<root name>-<8 hex>-nugget/<slug>` for Nugget,
 so two checkouts on one machine keep their worktrees apart and the admin
 can still read the directory name.
 
@@ -509,8 +536,10 @@ the file on disk has moved on, whether from another browser or from an IDE
 on the host.
 
 **State directory** — Where the coding server keeps what outlives the
-process: `sessions.json`, `editable.json`, `worktrees.json` (username to
-slug, path, and branch, per project root), `settings.json` (what the admin
+process: `sessions.json` (each with the robot it is for), `editable.json`,
+`worktrees.json` (username to slug, path, and branch, per project root) —
+Reginald's, and `editable-nugget.json` and `worktrees-nugget.json`
+Nugget's — `settings.json` (what the admin
 set, which so far is the **resolution** the pages draw), the assets it
 fetched, and the worktrees themselves.
 It follows the XDG Base Directory convention:

@@ -57,6 +57,9 @@
   .pill.bad { color: var(--bad); background: var(--bad-soft); }
   .pill.warn { color: var(--warn); background: var(--warn-soft); }
   .pill.muted { color: var(--muted); background: var(--hover); }
+  .pill.robot { color: var(--accent); background: var(--hover); margin-left: 8px; font-weight: 600; }
+  .robot-pick { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }
+  .robot-pick select { font: inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
   .user + .user { border-top: 1px solid var(--line); }
   .fold { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 0; border: 0; border-radius: 3px; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
   .fold:hover { filter: none; text-decoration: underline; }
@@ -113,7 +116,12 @@
   <section>
     <div>
       <p class="section-label">Files teammates can edit</p>
-      <div id="editable" class="panel"></div>
+      <div class="panel">
+        <label class="robot-pick" title="Each robot's teammates edit their own files, on their own branch">For
+          <select id="editable-robot"></select>
+        </label>
+        <div id="editable"></div>
+      </div>
     </div>
     <div>
       <p class="section-label">Pick files</p>
@@ -249,8 +257,22 @@
   var treeEl = document.getElementById('tree');
   var crumbsEl = document.getElementById('crumbs');
   var urlsEl = document.getElementById('urls');
+  var editableRobotEl = document.getElementById('editable-robot');
   var editable = [];
   var dir = '';
+  var robots = {};
+
+  function robotName(robot) {
+    return robots[robot] ? robots[robot].name : robot;
+  }
+
+  function developOf(robot) {
+    return robots[robot] ? robots[robot].develop : 'develop';
+  }
+
+  function keyOf(user) {
+    return user.robot + '/' + user.username;
+  }
 
   function post(path) {
     return fetch(path, { method: 'POST' });
@@ -325,13 +347,13 @@
   }
 
   function isExpanded(user) {
-    var chosen = expandedByUsername[user.username];
+    var chosen = expandedByUsername[keyOf(user)];
     return chosen === undefined ? pendingCount(user) > 0 : chosen;
   }
 
   function pull(user) {
     var id = user.sessions[user.sessions.length - 1].id;
-    pullingByUsername[user.username] = true;
+    pullingByUsername[keyOf(user)] = true;
     renderUsers(lastUsers);
     fetch('/admin/logins/' + id + '/pull', { method: 'POST' }).then(function (r) {
       return r.text().then(function (text) { return { ok: r.ok, text: text }; });
@@ -341,37 +363,38 @@
       var result;
       try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
 
-      resultByUsername[user.username] = {
+      resultByUsername[keyOf(user)] = {
         text: result.message,
         kind: result.severity === undefined ? 'bad' : result.severity
       };
-      delete pullingByUsername[user.username];
+      delete pullingByUsername[keyOf(user)];
       refresh();
     });
   }
 
-  function forget(username) {
-    delete resultByUsername[username];
-    delete pullingByUsername[username];
-    delete expandedByUsername[username];
-    delete deleteArmedByUsername[username];
+  function forget(key) {
+    delete resultByUsername[key];
+    delete pullingByUsername[key];
+    delete expandedByUsername[key];
+    delete deleteArmedByUsername[key];
   }
 
   function remove(user) {
-    var armed = deleteArmedByUsername[user.username];
-    var path = '/admin/users/delete?username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
+    var armed = deleteArmedByUsername[keyOf(user)];
+    var path = '/admin/users/delete?robot=' + encodeURIComponent(user.robot)
+        + '&username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
     fetch(path, { method: 'POST' }).then(function (r) {
       return r.text().then(function (text) { return { ok: r.ok, text: text }; });
     }).catch(function () {
       return { ok: false, text: 'could not reach the server' };
     }).then(function (reply) {
       if (reply.ok) {
-        forget(user.username);
+        forget(keyOf(user));
       } else {
         var result;
         try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-        resultByUsername[user.username] = { text: result.message, kind: 'bad', from: 'delete' };
-        deleteArmedByUsername[user.username] = true;
+        resultByUsername[keyOf(user)] = { text: result.message, kind: 'bad', from: 'delete' };
+        deleteArmedByUsername[keyOf(user)] = true;
       }
       refresh();
     });
@@ -398,7 +421,7 @@
     var path = '/admin/logins/' + session.id;
     function decide(verb, label, cls) {
       return button(label, cls, function () {
-        expandedByUsername[user.username] = true;
+        expandedByUsername[keyOf(user)] = true;
         post(path + verb).then(refresh);
       });
     }
@@ -416,12 +439,12 @@
   function renderUser(user, index) {
     var pending = pendingCount(user);
     var expanded = isExpanded(user);
-    var armed = deleteArmedByUsername[user.username];
+    var armed = deleteArmedByUsername[keyOf(user)];
     if (armed && user.deletable) {
-      delete deleteArmedByUsername[user.username];
+      delete deleteArmedByUsername[keyOf(user)];
       armed = false;
-      if (resultByUsername[user.username] && resultByUsername[user.username].from === 'delete') {
-        delete resultByUsername[user.username];
+      if (resultByUsername[keyOf(user)] && resultByUsername[keyOf(user)].from === 'delete') {
+        delete resultByUsername[keyOf(user)];
       }
     }
     var listId = 'sessions-' + index;
@@ -438,12 +461,14 @@
     fold.setAttribute('aria-controls', listId);
     fold.innerHTML = '<span class="caret" aria-hidden="true">▸</span><span class="name"></span>';
     fold.querySelector('.name').textContent = user.username;
+    var robotPill = pill('robot', robotName(user.robot), user.username + ' works on ' + robotName(user.robot) + ', on ' + developOf(user.robot));
     fold.addEventListener('click', function () {
-      expandedByUsername[user.username] = !expanded;
-      delete deleteArmedByUsername[user.username];
+      expandedByUsername[keyOf(user)] = !expanded;
+      delete deleteArmedByUsername[keyOf(user)];
       renderUsers(lastUsers);
     });
     left.appendChild(fold);
+    left.appendChild(robotPill);
     var meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = metaOf(user);
@@ -469,15 +494,15 @@
         badge.textContent = behind;
         pullButton.appendChild(badge);
       }
-      if (pullingByUsername[user.username]) {
+      if (pullingByUsername[keyOf(user)]) {
         pullButton.disabled = true;
         pullButton.title = 'pulling…';
       } else if (!status) {
         pullButton.disabled = true;
         pullButton.title = 'git could not read the worktree';
       } else {
-        pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from develop into ' + user.username + '\'s branch'
-            : user.username + '\'s branch has everything on develop';
+        pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from ' + developOf(user.robot) + ' into ' + user.username + '\'s branch'
+            : user.username + '\'s branch has everything on ' + developOf(user.robot);
       }
       actions.appendChild(pullButton);
     }
@@ -487,7 +512,7 @@
         : 'Forget ' + user.username + '\'s logins and take their worktree; their branch stays';
     actions.appendChild(deleteButton);
 
-    var result = resultByUsername[user.username];
+    var result = resultByUsername[keyOf(user)];
     if (result) {
       var line = document.createElement('div');
       line.className = 'result ' + result.kind;
@@ -533,20 +558,25 @@
   function renderEditable() {
     editableEl.innerHTML = '';
     if (!editable.length) {
-      editableEl.innerHTML = '<p class="empty">Pick files below. Teammates see nothing until you do.</p>';
+      editableEl.innerHTML = '<p class="empty"></p>';
+      editableEl.firstChild.textContent = 'Pick files below. ' + robotName(editableRobot()) + '\'s teammates see nothing until you do.';
       return;
     }
     editable.forEach(function (path) {
       var el = row('', path, '');
       el.querySelector('.actions').appendChild(button('Remove', 'danger', function () {
-        post('/admin/files/remove?path=' + encodeURIComponent(path)).then(loadEditable);
+        post('/admin/files/remove?robot=' + encodeURIComponent(editableRobot()) + '&path=' + encodeURIComponent(path)).then(loadEditable);
       }));
       editableEl.appendChild(el);
     });
   }
 
+  function editableRobot() {
+    return editableRobotEl.value || 'reginald';
+  }
+
   function loadEditable() {
-    return fetch('/admin/files').then(function (r) { return r.json(); }).then(function (json) {
+    return fetch('/admin/files?robot=' + encodeURIComponent(editableRobot())).then(function (r) { return r.json(); }).then(function (json) {
       editable = json.files.map(function (f) { return f.path; });
       renderEditable();
       renderTreeButtons();
@@ -585,7 +615,7 @@
         el.querySelector('.actions').appendChild(pill);
       } else {
         el.querySelector('.actions').appendChild(button('Add', '', function () {
-          post('/admin/files/add?path=' + encodeURIComponent(entry.path)).then(function (r) {
+          post('/admin/files/add?robot=' + encodeURIComponent(editableRobot()) + '&path=' + encodeURIComponent(entry.path)).then(function (r) {
             if (!r.ok) { return r.text().then(alert); }
             return loadEditable();
           });
@@ -607,7 +637,17 @@
     fetch('/admin/users').then(function (r) { return r.json(); }).then(function (json) { renderUsers(json.users); }).catch(function () {});
   }
 
-  fetch('/admin/info').then(function (r) { return r.json(); }).then(function (info) {
+  editableRobotEl.addEventListener('change', loadEditable);
+
+  var told = fetch('/admin/info').then(function (r) { return r.json(); }).then(function (info) {
+    editableRobotEl.innerHTML = '';
+    info.robots.forEach(function (robot) {
+      robots[robot.robot] = robot;
+      var option = document.createElement('option');
+      option.value = robot.robot;
+      option.textContent = robot.name + ' (' + robot.develop + ')';
+      editableRobotEl.appendChild(option);
+    });
     urlsEl.className = 'urls mono';
     urlsEl.innerHTML = '';
     if (!info.addresses.length) {
@@ -619,8 +659,10 @@
       urlsEl.appendChild(line);
     });
   });
-  loadEditable().then(function () { browse(''); });
-  refresh();
+  told.catch(function () {}).then(function () {
+    loadEditable().then(function () { browse(''); });
+    refresh();
+  });
   setInterval(refresh, 2000);
 })();
 </script>

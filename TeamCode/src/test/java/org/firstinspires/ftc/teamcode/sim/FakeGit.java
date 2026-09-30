@@ -317,6 +317,15 @@ public final class FakeGit implements Git {
     }
 
     @Override
+    public Outcome createBranch(Branch branch, Revision at) {
+        if (branches.containsKey(branch.name())) {
+            return Outcome.refused("a branch named " + branch + " already exists");
+        }
+        branches.put(branch.name(), must(at));
+        return Outcome.done();
+    }
+
+    @Override
     public boolean stillAWorktree(Path at) {
         Path where = at.toAbsolutePath().normalize();
         return !where.equals(root) && checkouts.containsKey(where) && Files.isDirectory(where);

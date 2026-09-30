@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +39,8 @@ import java.util.stream.Stream;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class CodingServer {
     public static final String ADMIN_PORT_ENV = "CODING_ADMIN_PORT";
@@ -52,7 +55,7 @@ public final class CodingServer {
     private static final Set<String> STATIC = Set.of("codemirror.js");
 
     private static final String SESSIONS_FILE = "sessions.json";
-    private static final String EDITABLE_FILE = "editable.json";
+    private static final String EDITABLE_STEM = "editable";
     private static final String SETTINGS_FILE = "settings.json";
     private static final String ASSETS_DIR = "assets";
 
@@ -71,9 +74,12 @@ public final class CodingServer {
         REVOKED
     }
 
+    private record User(TeamRobot robot, String username) {}
+
     private static final class Session {
         final int id;
         final String username;
+        final TeamRobot robot;
         final InetAddress address;
         final long createdAtMillis;
         final Secret secret;
@@ -83,19 +89,32 @@ public final class CodingServer {
 
         String openFile;
 
-        Session(int id, String username, InetAddress address, long createdAtMillis, Secret secret, State state) {
+        Session(
+                int id,
+                String username,
+                TeamRobot robot,
+                InetAddress address,
+                long createdAtMillis,
+                Secret secret,
+                State state) {
             this.id = id;
             this.username = username;
+            this.robot = robot;
             this.address = address;
             this.createdAtMillis = createdAtMillis;
             this.secret = secret;
             this.state = state;
         }
 
+        User user() {
+            return new User(robot, username);
+        }
+
         JsonObject toJson() {
             JsonObject item = new JsonObject();
             item.addProperty("id", id);
             item.addProperty("username", username);
+            item.addProperty("robot", robot.asked());
             item.addProperty("address", address == null ? "" : address.getHostAddress());
             item.addProperty("state", state.name().toLowerCase(Locale.ROOT));
             item.addProperty("createdAtMillis", createdAtMillis);
@@ -113,9 +132,15 @@ public final class CodingServer {
                     throw new IllegalStateException("not an address: " + address);
                 }
             }
+            TeamRobot robot = TeamRobot.stored(
+                            Optional.ofNullable(item.get("robot")).map(JsonElement::getAsString))
+                    .fold(found -> found, rule -> {
+                        throw new IllegalStateException(rule);
+                    });
             return new Session(
                     item.get("id").getAsInt(),
                     item.get("username").getAsString(),
+                    robot,
                     parsed,
                     item.get("createdAtMillis").getAsLong(),
                     Secret.fromJson(item.getAsJsonObject("secret")),
@@ -181,16 +206,16 @@ public final class CodingServer {
     private final Path root;
     private final Path stateDir;
     private final int scryptN;
-    private final Worktrees worktrees;
+    private final Map<TeamRobot, Worktrees> worktreesByRobot = new EnumMap<>(TeamRobot.class);
     private final SimBench.Factory benches;
 
-    private final Map<String, SimBench> benchByUsername = new LinkedHashMap<>();
+    private final Map<User, SimBench> benchByUser = new LinkedHashMap<>();
 
-    private final Map<String, JsonObject> lastMergeByUsername = new LinkedHashMap<>();
+    private final Map<User, JsonObject> lastMergeByUser = new LinkedHashMap<>();
 
-    private final Map<String, SourceNavigator> navigatorByUsername = new LinkedHashMap<>();
+    private final Map<User, SourceNavigator> navigatorByUser = new LinkedHashMap<>();
 
-    private final Map<String, Router> benchRoutesByUsername = new LinkedHashMap<>();
+    private final Map<User, Router> benchRoutesByUser = new LinkedHashMap<>();
 
     private final Router userRoutes = userRoutes();
     private final TinyHttpServer admin;
@@ -201,7 +226,7 @@ public final class CodingServer {
 
     private int nextSessionId = 1;
 
-    private final EditableSet editable;
+    private final Map<TeamRobot, EditableSet> editableByRobot = new EnumMap<>(TeamRobot.class);
 
     private final Path assetsDir;
 
@@ -254,11 +279,14 @@ public final class CodingServer {
         this.assets = assets;
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
-        this.worktrees = new Worktrees(this.root, this.stateDir, git);
+        for (TeamRobot robot : TeamRobot.values()) {
+            worktreesByRobot.put(robot, new Worktrees(this.root, this.stateDir, git, robot));
+            editableByRobot.put(
+                    robot, new EditableSet(this.root, this.stateDir.resolve(robot.ownName(EDITABLE_STEM, ".json"))));
+        }
         this.benches = benches;
         loadSessions();
         loadSettings();
-        this.editable = new EditableSet(this.root, stateDir.resolve(EDITABLE_FILE));
         this.assetsDir = this.stateDir.resolve(ASSETS_DIR);
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
         this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
@@ -359,7 +387,10 @@ public final class CodingServer {
         System.out.println(
                 "  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
         System.out.println("  state  " + server.stateDir);
-        System.out.println("  trees  " + server.worktrees.directory());
+        for (Worktrees worktrees : server.worktreesByRobot.values()) {
+            System.out.println("  trees  " + worktrees.directory() + "   ("
+                    + worktrees.robot().displayName() + ", " + worktrees.develop() + ")");
+        }
         if (server.hasFetchedAssets()) {
             System.out.println("  assets " + server.assetsDir);
         } else {
@@ -407,33 +438,41 @@ public final class CodingServer {
     public void stop() {
         admin.stop();
         users.stop();
-        synchronized (benchByUsername) {
-            for (SimBench bench : benchByUsername.values()) {
+        synchronized (benchByUser) {
+            for (SimBench bench : benchByUser.values()) {
                 bench.stop();
             }
         }
     }
 
+    private Worktrees worktreesOf(TeamRobot robot) {
+        return worktreesByRobot.get(robot);
+    }
+
+    private EditableSet editableOf(TeamRobot robot) {
+        return editableByRobot.get(robot);
+    }
+
     private Worktrees.Worktree worktreeOf(Session session) {
-        return worktrees.ensure(session.username);
+        return worktreesOf(session.robot).ensure(session.username);
     }
 
     private SimBench benchOf(Session session) {
-        synchronized (benchByUsername) {
-            SimBench bench = benchByUsername.get(session.username);
+        synchronized (benchByUser) {
+            SimBench bench = benchByUser.get(session.user());
             if (bench == null) {
                 bench = benches.create(worktreeOf(session).path);
-                benchByUsername.put(session.username, bench);
-                benchRoutesByUsername.put(session.username, bench.routes(session.username));
+                benchByUser.put(session.user(), bench);
+                benchRoutesByUser.put(session.user(), bench.routes(session.username));
             }
             return bench;
         }
     }
 
     private Router benchRoutesOf(Session session) {
-        synchronized (benchByUsername) {
+        synchronized (benchByUser) {
             benchOf(session);
-            return benchRoutesByUsername.get(session.username);
+            return benchRoutesByUser.get(session.user());
         }
     }
 
@@ -441,7 +480,10 @@ public final class CodingServer {
         Router approved = new Router()
                 .guard(request ->
                         isApproved(sessionOf(request)) ? null : Response.error(403, "not an approved session"))
-                .route("GET", "/files", (request, params) -> Response.json(GSON.toJson(fileList(true))))
+                .route(
+                        "GET",
+                        "/files",
+                        (request, params) -> Response.json(GSON.toJson(fileList(sessionOf(request).robot, true))))
                 .route("GET", "/files/{key*}", (request, params) -> file(sessionOf(request), params.get("key"), null))
                 .route(
                         "PUT",
@@ -490,7 +532,7 @@ public final class CodingServer {
 
     private Response file(Session session, String path, String edit) {
         synchronized (this) {
-            Optional<Key> key = editable.lookUp(path);
+            Optional<Key> key = editableOf(session.robot).lookUp(path);
             if (key.isEmpty()) {
                 return Response.error(404, "not an editable file: " + path);
             }
@@ -499,16 +541,16 @@ public final class CodingServer {
         }
     }
 
-    private synchronized JsonObject fileList(boolean withEditors) {
+    private synchronized JsonObject fileList(TeamRobot robot, boolean withEditors) {
         JsonArray list = new JsonArray();
-        for (Key key : editable.list()) {
+        for (Key key : editableOf(robot).list()) {
             String path = key.path();
             JsonObject item = new JsonObject();
             item.addProperty("path", path);
             if (withEditors) {
                 JsonArray editors = new JsonArray();
                 for (Session session : sessions.values()) {
-                    if (session.state == State.APPROVED && path.equals(session.openFile)) {
+                    if (session.state == State.APPROVED && session.robot == robot && path.equals(session.openFile)) {
                         editors.add(session.username);
                     }
                 }
@@ -636,6 +678,11 @@ public final class CodingServer {
         if (username.isEmpty() || username.length() > MAX_USERNAME_LENGTH || !printable(username)) {
             return Response.error(400, "username must be 1 to " + MAX_USERNAME_LENGTH + " printable characters");
         }
+        Checked<TeamRobot> asked = robotAskedIn(request);
+        if (!(asked instanceof Checked.Ok<TeamRobot> chosen)) {
+            return Response.error(400, "choose your robot: " + rejection(asked));
+        }
+        TeamRobot robot = chosen.value();
         Session session;
         synchronized (this) {
             if (pendingCount() >= MAX_PENDING_LOGINS) {
@@ -648,6 +695,7 @@ public final class CodingServer {
             session = new Session(
                     id,
                     username,
+                    robot,
                     request.remoteAddress,
                     System.currentTimeMillis(),
                     Secret.of(secret, random, scryptN),
@@ -665,6 +713,15 @@ public final class CodingServer {
                 .withHeader("Set-Cookie", COOKIE + "=" + session.token + "; HttpOnly; SameSite=Strict; Path=/");
     }
 
+    private static Checked<TeamRobot> robotAskedIn(Request request) {
+        String asked = request.query("robot");
+        return TeamRobot.named(asked == null ? "" : asked);
+    }
+
+    private static String rejection(Checked<TeamRobot> asked) {
+        return asked.fold(robot -> "", rule -> rule);
+    }
+
     private static boolean printable(String username) {
         return username.chars().noneMatch(c -> c < 0x20 || Character.isISOControl(c));
     }
@@ -677,7 +734,8 @@ public final class CodingServer {
         }
         body.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
         body.addProperty("username", session.username);
-        Worktrees.Worktree worktree = worktrees.find(session.username);
+        body.addProperty("robot", session.robot.asked());
+        Worktrees.Worktree worktree = worktreesOf(session.robot).find(session.username);
         if (session.state == State.APPROVED && worktree != null) {
             body.addProperty("branch", worktree.branch);
         }
@@ -759,11 +817,11 @@ public final class CodingServer {
         }
         Path worktree = worktreeOf(session).path;
         SourceNavigator navigator;
-        synchronized (navigatorByUsername) {
-            navigator = navigatorByUsername.get(session.username);
+        synchronized (navigatorByUser) {
+            navigator = navigatorByUser.get(session.user());
             if (navigator == null) {
                 navigator = new SourceNavigator(sourceRoot);
-                navigatorByUsername.put(session.username, navigator);
+                navigatorByUser.put(session.user(), navigator);
             }
         }
         return new Sources(worktree, worktree.relativize(sourceRoot).toString().replace('\\', '/') + "/", navigator);
@@ -851,13 +909,13 @@ public final class CodingServer {
         body.addProperty("content", current.content);
         body.addProperty("version", current.version);
         synchronized (this) {
-            body.addProperty("editable", editable.contains(key.get()));
+            body.addProperty("editable", editableOf(session.robot).contains(key.get()));
         }
         return Response.json(GSON.toJson(body));
     }
 
     private Response gitStatus(Session session) {
-        return Response.json(GSON.toJson(statusJson(worktrees.status(session.username))));
+        return Response.json(GSON.toJson(statusJson(worktreesOf(session.robot).status(session.username))));
     }
 
     private Response gitCommit(Session session, String requestBody) {
@@ -878,6 +936,7 @@ public final class CodingServer {
             Worktrees.Commit commit;
             Formatting formatting;
             synchronized (this) {
+                Worktrees worktrees = worktreesOf(session.robot);
                 formatting = format(worktreeOf(session).path, worktrees.uncommitted(session.username));
                 commit = worktrees.commit(session.username, message);
             }
@@ -950,9 +1009,9 @@ public final class CodingServer {
     private Response gitPull(Session session) {
         Worktrees.Merge merge;
         synchronized (this) {
-            merge = worktrees.pull(session.username);
+            merge = worktreesOf(session.robot).pull(session.username);
         }
-        return reply(merge, MergeReport.Op.PULL, session.username, MergeReport.Voice.USER);
+        return reply(merge, MergeReport.Op.PULL, session.user(), MergeReport.Voice.USER);
     }
 
     private Response adminPull(String id) {
@@ -960,6 +1019,7 @@ public final class CodingServer {
         if (found == null) {
             return Response.error(404, "no login with id " + id);
         }
+        Worktrees worktrees = worktreesOf(found.robot);
         if (worktrees.find(found.username) == null) {
             return Response.error(404, found.username + " has no worktree yet: approve the login first");
         }
@@ -971,23 +1031,23 @@ public final class CodingServer {
         } catch (Git.Failed e) {
             return Response.error(500, "git failed for " + found.username + ": " + e.getMessage());
         }
-        return reply(merge, MergeReport.Op.PULL, found.username, MergeReport.Voice.ADMIN);
+        return reply(merge, MergeReport.Op.PULL, found.user(), MergeReport.Voice.ADMIN);
     }
 
     private Response gitPush(Session session) {
         Worktrees.Merge merge;
         synchronized (this) {
-            merge = worktrees.push(session.username);
+            merge = worktreesOf(session.robot).push(session.username);
         }
-        return reply(merge, MergeReport.Op.PUSH, session.username, MergeReport.Voice.USER);
+        return reply(merge, MergeReport.Op.PUSH, session.user(), MergeReport.Voice.USER);
     }
 
-    private Response reply(Worktrees.Merge merge, MergeReport.Op op, String username, MergeReport.Voice voice) {
-        Worktrees.Worktree worktree = worktrees.find(username);
-        MergeReport report =
-                MergeReport.of(merge, op, username, voice, worktree == null ? null : worktree.path.toString());
+    private Response reply(Worktrees.Merge merge, MergeReport.Op op, User user, MergeReport.Voice voice) {
+        Worktrees.Worktree worktree = worktreesOf(user.robot()).find(user.username());
+        MergeReport report = MergeReport.of(
+                merge, op, user.username(), voice, worktree == null ? null : worktree.path.toString(), user.robot());
         synchronized (this) {
-            lastMergeByUsername.put(username, report.record(System.currentTimeMillis()));
+            lastMergeByUser.put(user, report.record(System.currentTimeMillis()));
         }
         return Response.json(report.status(), GSON.toJson(report.json()));
     }
@@ -995,6 +1055,7 @@ public final class CodingServer {
     private static JsonObject statusJson(Worktrees.Status status) {
         JsonObject body = new JsonObject();
         body.addProperty("branch", status.branch);
+        body.addProperty("develop", status.develop);
         body.add("changed", GSON.toJsonTree(status.changed));
         body.addProperty("ahead", status.ahead);
         body.addProperty("behind", status.behind);
@@ -1053,8 +1114,10 @@ public final class CodingServer {
                 .route(
                         "POST",
                         "/admin/users/delete",
-                        (request, params) ->
-                                deleteUser(request.query("username"), "true".equals(request.query("force"))))
+                        (request, params) -> deleteUser(
+                                request.query("username"),
+                                robotAskedIn(request),
+                                "true".equals(request.query("force"))))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("GET", "/admin/assets", (request, params) -> Response.json(GSON.toJson(assetsFetched())))
                 .route("POST", "/admin/assets/download", (request, params) -> downloadAssets())
@@ -1067,9 +1130,15 @@ public final class CodingServer {
                         "/admin/logins/{id}/{decision}",
                         (request, params) -> decide(params.get("id"), params.get("decision")))
                 .route("GET", "/admin/tree", (request, params) -> tree(request.query("dir")))
-                .route("GET", "/admin/files", (request, params) -> Response.json(GSON.toJson(fileList(false))))
-                .route("POST", "/admin/files/add", (request, params) -> addEditable(request.query("path")))
-                .route("POST", "/admin/files/remove", (request, params) -> removeEditable(request.query("path")));
+                .route("GET", "/admin/files", (request, params) -> editableFiles(robotAskedIn(request)))
+                .route(
+                        "POST",
+                        "/admin/files/add",
+                        (request, params) -> addEditable(robotAskedIn(request), request.query("path")))
+                .route(
+                        "POST",
+                        "/admin/files/remove",
+                        (request, params) -> removeEditable(robotAskedIn(request), request.query("path")));
     }
 
     private Response asset(String name) {
@@ -1234,20 +1303,37 @@ public final class CodingServer {
         return Response.json(GSON.toJson(body));
     }
 
-    private Response addEditable(String relative) {
+    private static Response robotRefused(Checked<TeamRobot> asked) {
+        return Response.error(400, "say which robot: " + rejection(asked));
+    }
+
+    private Response editableFiles(Checked<TeamRobot> asked) {
+        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(asked);
+        }
+        return Response.json(GSON.toJson(fileList(robot.value(), false)));
+    }
+
+    private Response addEditable(Checked<TeamRobot> asked, String relative) {
+        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(asked);
+        }
         Path file = underRoot(relative);
         if (file == null || !Files.isRegularFile(file)) {
             return Response.error(400, "not a file under the project root: " + relative);
         }
-        editable.add(Key.of(root, file));
-        return Response.json(GSON.toJson(fileList(false)));
+        editableOf(robot.value()).add(Key.of(root, file));
+        return Response.json(GSON.toJson(fileList(robot.value(), false)));
     }
 
-    private Response removeEditable(String path) {
-        if (path == null || !editable.remove(path)) {
+    private Response removeEditable(Checked<TeamRobot> asked, String path) {
+        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(asked);
+        }
+        if (path == null || !editableOf(robot.value()).remove(path)) {
             return Response.error(404, "not an editable file: " + path);
         }
-        return Response.json(GSON.toJson(fileList(false)));
+        return Response.json(GSON.toJson(fileList(robot.value(), false)));
     }
 
     private String info() {
@@ -1267,20 +1353,32 @@ public final class CodingServer {
         JsonObject body = new JsonObject();
         body.addProperty("userPort", users.port());
         body.addProperty("root", root.toString());
-        body.addProperty("worktreesDir", worktrees.directory().toString());
+        body.addProperty(
+                "worktreesDir", worktreesOf(TeamRobot.REGINALD).directory().toString());
         body.add("addresses", addresses);
+        JsonArray robots = new JsonArray();
+        for (TeamRobot robot : TeamRobot.values()) {
+            JsonObject item = new JsonObject();
+            item.addProperty("robot", robot.asked());
+            item.addProperty("name", robot.displayName());
+            item.addProperty("develop", robot.develop());
+            robots.add(item);
+        }
+        body.add("robots", robots);
         return GSON.toJson(body);
     }
 
     private synchronized String users() {
         JsonArray list = new JsonArray();
         long now = System.currentTimeMillis();
-        Map<String, JsonObject> byUsername = new LinkedHashMap<>();
+        Map<User, JsonObject> byUser = new LinkedHashMap<>();
         for (Session session : sessions.values()) {
-            JsonObject user = byUsername.get(session.username);
+            JsonObject user = byUser.get(session.user());
             if (user == null) {
+                Worktrees worktrees = worktreesOf(session.robot);
                 user = new JsonObject();
                 user.addProperty("username", session.username);
+                user.addProperty("robot", session.robot.asked());
                 Worktrees.Worktree worktree = worktrees.find(session.username);
                 user.addProperty("worktree", worktree == null ? null : worktree.path.toString());
                 user.addProperty("branch", worktree == null ? null : worktree.branch);
@@ -1299,9 +1397,9 @@ public final class CodingServer {
                 user.add("status", status);
                 user.addProperty("statusError", statusError);
                 user.addProperty("deletable", deletable);
-                user.add("lastMerge", lastMergeByUsername.get(session.username));
+                user.add("lastMerge", lastMergeByUser.get(session.user()));
                 user.add("sessions", new JsonArray());
-                byUsername.put(session.username, user);
+                byUser.put(session.user(), user);
                 list.add(user);
             }
             JsonObject login = new JsonObject();
@@ -1333,7 +1431,7 @@ public final class CodingServer {
         switch (verb) {
             case "approve":
                 try {
-                    worktrees.ensure(found.username);
+                    worktreesOf(found.robot).ensure(found.username);
                 } catch (Git.Failed e) {
                     return Response.error(
                             500, "could not make a worktree for " + found.username + ": " + e.getMessage());
@@ -1353,68 +1451,75 @@ public final class CodingServer {
         return Response.json(GSON.toJson(me(found)));
     }
 
-    private Response deleteUser(String username, boolean force) {
+    private Response deleteUser(String username, Checked<TeamRobot> asked, boolean force) {
         if (username == null || username.isEmpty()) {
-            return Response.error(400, "POST /admin/users/delete?username=<name>");
+            return Response.error(400, "POST /admin/users/delete?robot=<robot>&username=<name>");
         }
-        int logins = sessionCountOf(username);
+        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(asked);
+        }
+        User user = new User(robot.value(), username);
+        int logins = sessionCountOf(user);
         if (logins == 0) {
-            return Response.error(404, "no user named " + username);
+            return Response.error(
+                    404, "no user named " + username + " on " + robot.value().displayName());
         }
+        Worktrees worktrees = worktreesOf(user.robot());
         Worktrees.Worktree worktree = worktrees.find(username);
         try {
             if (!force) {
                 Worktrees.Unsaved unsaved = worktrees.unsaved(username);
                 if (!unsaved.none()) {
-                    return refusal(username, unsaved);
+                    return refusal(user, unsaved);
                 }
             }
-            stopBench(username);
-            synchronized (navigatorByUsername) {
-                navigatorByUsername.remove(username);
+            stopBench(user);
+            synchronized (navigatorByUser) {
+                navigatorByUser.remove(user);
             }
 
             Worktrees.Removal removal = worktrees.remove(username, force);
             if (removal.refused != null) {
-                return refusal(username, removal.refused);
+                return refusal(user, removal.refused);
             }
         } catch (Git.Failed e) {
             return Response.error(500, "git failed for " + username + ": " + e.getMessage());
         }
         synchronized (this) {
-            lastMergeByUsername.remove(username);
-            sessions.values().removeIf(session -> session.username.equals(username));
+            lastMergeByUser.remove(user);
+            sessions.values().removeIf(session -> session.user().equals(user));
             saveSessions();
         }
         JsonObject body = new JsonObject();
         body.addProperty("deleted", true);
         body.addProperty("username", username);
+        body.addProperty("robot", user.robot().asked());
         body.addProperty("branch", worktree == null ? null : worktree.branch);
         body.addProperty("logins", logins);
         return Response.json(GSON.toJson(body));
     }
 
-    private synchronized int sessionCountOf(String username) {
+    private synchronized int sessionCountOf(User user) {
         int count = 0;
         for (Session session : sessions.values()) {
-            if (session.username.equals(username)) {
+            if (session.user().equals(user)) {
                 count++;
             }
         }
         return count;
     }
 
-    private void stopBench(String username) {
-        synchronized (benchByUsername) {
-            SimBench bench = benchByUsername.remove(username);
-            benchRoutesByUsername.remove(username);
+    private void stopBench(User user) {
+        synchronized (benchByUser) {
+            SimBench bench = benchByUser.remove(user);
+            benchRoutesByUser.remove(user);
             if (bench != null) {
                 bench.stop();
             }
         }
     }
 
-    private static Response refusal(String username, Worktrees.Unsaved unsaved) {
+    private static Response refusal(User user, Worktrees.Unsaved unsaved) {
         List<String> parts = new ArrayList<>();
         if (!unsaved.changed.isEmpty()) {
             parts.add(plural(unsaved.changed.size(), "changed file"));
@@ -1425,7 +1530,8 @@ public final class CodingServer {
         JsonObject body = new JsonObject();
         body.addProperty(
                 "message",
-                username + " has " + String.join(" and ", parts) + " that " + Worktrees.DEVELOP
+                user.username() + " has " + String.join(" and ", parts) + " that "
+                        + user.robot().develop()
                         + " does not have; push " + (unsaved.changed.size() + unsaved.ahead == 1 ? "it" : "them")
                         + " first, or delete anyway");
         body.add("changed", GSON.toJsonTree(unsaved.changed));

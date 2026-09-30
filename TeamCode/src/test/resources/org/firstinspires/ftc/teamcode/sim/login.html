@@ -15,7 +15,13 @@
   h1 { font-size: 18px; margin: 0; }
   p { margin: 0; color: var(--muted); }
   label { display: grid; gap: 6px; font-weight: 600; }
-  input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+  legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+  .robots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .robots label { display: flex; align-items: center; gap: 8px; font-weight: 500; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: pointer; }
+  .robots label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .robots input { margin: 0; accent-color: var(--accent); }
+  input:not([type="radio"]) { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
   button { font: inherit; padding: 8px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .error { color: var(--bad); }
@@ -27,8 +33,15 @@
 <body>
 <form id="login">
   <h1>Coding server</h1>
-  <p>Enter your name. The person at the host machine will let you in.</p>
+  <p>Enter your name and pick the robot you work on. The person at the host machine will let you in.</p>
   <label>Your name <input id="username" name="username" maxlength="32" autocomplete="username" required autofocus></label>
+  <fieldset>
+    <legend>Your robot</legend>
+    <div class="robots">
+      <label><input type="radio" name="robot" value="reginald" required><span>Reginald</span></label>
+      <label><input type="radio" name="robot" value="nugget" required><span>Nugget</span></label>
+    </div>
+  </fieldset>
   <button type="submit">Ask to join</button>
   <p id="error" class="error" hidden></p>
 </form>
@@ -56,7 +69,9 @@
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var name = document.getElementById('username').value.trim();
-    fetch('/login?username=' + encodeURIComponent(name), { method: 'POST' }).then(function (r) {
+    var picked = form.querySelector('input[name="robot"]:checked');
+    if (!picked) { error.textContent = 'Pick the robot you work on.'; error.hidden = false; return; }
+    fetch('/login?username=' + encodeURIComponent(name) + '&robot=' + encodeURIComponent(picked.value), { method: 'POST' }).then(function (r) {
       if (!r.ok) { return r.text().then(function (t) { error.textContent = t; error.hidden = false; }); }
       form.hidden = true; waiting.hidden = false; poll();
     });

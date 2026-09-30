@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -19,7 +20,7 @@ public abstract class GitContract {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    private static final Git.Branch DEVELOP = Git.Branch.of(Worktrees.DEVELOP);
+    private static final Git.Branch DEVELOP = Git.Branch.of(TeamRobot.REGINALD.develop());
     private static final Git.Author ADA = Git.Author.of("ada", "ada@coding-server.invalid");
 
     protected Path root;
@@ -349,6 +350,24 @@ public abstract class GitContract {
         assertFalse(git.checkouts().stream().anyMatch(c -> c.path.equals(at)));
         git.addWorktree(at, Git.Branch.of("coding/ada"));
         assertTrue(Files.isDirectory(at));
+    }
+
+    @Test
+    public void aBranchIsMadeWhereItIsAskedForAndNeverOverOneThatIsThere() throws IOException {
+        Path ada = worktreeFor("ada");
+        write(ada, "ada.txt", "ada's file");
+        git.stageEverything(ada);
+        git.commitStaged(ada, ADA, "ada");
+        Git.Branch made = Git.Branch.of("nugget-develop");
+        Git.Revision develop = git.commitAt(DEVELOP.tip());
+
+        Git.Outcome first = git.createBranch(made, develop);
+        Git.Outcome again = git.createBranch(made, git.head(ada));
+
+        assertTrue(first.said, first.ok);
+        assertFalse("a branch that is there is not made again", again.ok);
+        assertFalse(again.said.isEmpty());
+        assertEquals(develop, git.commitAt(made.tip()));
     }
 
     @Test

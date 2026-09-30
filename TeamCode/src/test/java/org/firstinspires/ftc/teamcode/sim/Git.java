@@ -197,6 +197,8 @@ public interface Git {
 
     Outcome moveBranch(Branch branch, Revision to, Revision from);
 
+    Outcome createBranch(Branch branch, Revision at);
+
     /**
      * Whether git still has a worktree at that path. Whoever keeps worktrees has to know when one
      * has gone, and that is git's answer rather than a guess at what git leaves on disk: asked of

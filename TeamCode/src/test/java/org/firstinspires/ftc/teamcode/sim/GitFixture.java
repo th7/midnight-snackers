@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 final class GitFixture {
     private GitFixture() {}
@@ -33,7 +34,7 @@ final class GitFixture {
         }
         deleteTree(TEMPLATE);
         Files.createDirectories(TEMPLATE);
-        git(TEMPLATE, "init", "-q", "-b", Worktrees.DEVELOP);
+        git(TEMPLATE, "init", "-q", "-b", TeamRobot.REGINALD.develop());
         Files.write(TEMPLATE.resolve("README"), "hello\n".getBytes(StandardCharsets.UTF_8));
         commitAll(TEMPLATE, "first");
         made = true;
@@ -55,7 +56,7 @@ final class GitFixture {
         Files.createDirectories(bare);
         git(bare, "init", "-q", "--bare");
         git(root, "remote", "add", "origin", bare.toString());
-        git(root, "push", "-q", "origin", Worktrees.DEVELOP);
+        git(root, "push", "-q", "origin", TeamRobot.REGINALD.develop());
     }
 
     static String commitAll(Path cwd, String message) throws IOException {

@@ -4,13 +4,46 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class MergeReportTest {
     private static final String WORKTREE = "/state/worktrees/checkout/ada";
 
     private static MergeReport report(Worktrees.Merge merge, MergeReport.Op op, MergeReport.Voice voice) {
-        return MergeReport.of(merge, op, "ada", voice, WORKTREE);
+        return MergeReport.of(merge, op, "ada", voice, WORKTREE, TeamRobot.REGINALD);
+    }
+
+    @Test
+    public void aReportAboutANuggetUserNamesNuggetsLineWhereverItNamesALine() {
+        MergeReport pulled = MergeReport.of(
+                merge(Worktrees.Outcome.MERGED, List.of(), null),
+                MergeReport.Op.PULL,
+                "ada",
+                MergeReport.Voice.USER,
+                WORKTREE,
+                TeamRobot.NUGGET);
+        MergeReport conflicted = MergeReport.of(
+                merge(Worktrees.Outcome.CONFLICTS, List.of("A.java"), null),
+                MergeReport.Op.PUSH,
+                "ada",
+                MergeReport.Voice.USER,
+                WORKTREE,
+                TeamRobot.NUGGET);
+        MergeReport stranded = MergeReport.of(
+                pushed(Worktrees.Outcome.MERGED, Worktrees.Remote.Outcome.FAILED, "no network"),
+                MergeReport.Op.PUSH,
+                "ada",
+                MergeReport.Voice.USER,
+                WORKTREE,
+                TeamRobot.NUGGET);
+
+        assertEquals("pulled nugget-develop", pulled.message());
+        assertTrue(conflicted.message(), conflicted.message().contains("conflict with nugget-develop in A.java"));
+        assertTrue(conflicted.recipe().toString(), conflicted.recipe().get(1).startsWith("git merge nugget-develop "));
+        assertTrue(stranded.message(), stranded.message().startsWith("pushed to nugget-develop"));
+        assertTrue(
+                stranded.recipe().toString(), stranded.recipe().get(0).startsWith("git push origin nugget-develop "));
     }
 
     private static Worktrees.Merge merge(Worktrees.Outcome outcome, List<String> files, String detail) {

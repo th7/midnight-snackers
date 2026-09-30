@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.stream.Stream;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -36,7 +37,19 @@ public class WorktreesTest {
     }
 
     private Worktrees worktrees() {
-        return new Worktrees(root, stateDir, "git");
+        return new Worktrees(root, stateDir, "git", TeamRobot.REGINALD);
+    }
+
+    private Worktrees nuggets() {
+        return new Worktrees(root, stateDir, "git", TeamRobot.NUGGET);
+    }
+
+    private String commitOnNuggetDevelop(String file, String content) throws IOException {
+        GitFixture.git(root, "checkout", "-q", "nugget-develop");
+        Files.write(root.resolve(file), content.getBytes(StandardCharsets.UTF_8));
+        String commit = GitFixture.commitAll(root, "a commit on nugget-develop: " + file);
+        GitFixture.git(root, "checkout", "-q", "develop");
+        return commit;
     }
 
     private static String read(Path file) throws IOException {
@@ -141,7 +154,8 @@ public class WorktreesTest {
         assertEquals("ada-lovelace-2", later.find("ada-lovelace").slug);
         assertNull(later.find("nobody"));
         assertEquals(ada.path, later.ensure("Ada Lovelace").path);
-        Path store = stateDir.resolve(Worktrees.STORE_FILE);
+        Path store = later.store();
+        assertEquals("where it was kept before there were two robots", stateDir.resolve("worktrees.json"), store);
         assertTrue(Files.exists(store));
         if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
             assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(store)));
@@ -155,7 +169,7 @@ public class WorktreesTest {
         GitFixture.init(other);
         Worktrees.Worktree here = worktrees().ensure("ada");
 
-        Worktrees.Worktree there = new Worktrees(other, stateDir, "git").ensure("ada");
+        Worktrees.Worktree there = new Worktrees(other, stateDir, "git", TeamRobot.REGINALD).ensure("ada");
 
         assertNotEquals(here.path, there.path);
         assertEquals("ada", there.slug);
@@ -168,7 +182,7 @@ public class WorktreesTest {
     @Test
     public void anUnreadableStoreStopsStartupNamingTheFile() throws IOException {
         worktrees().ensure("ada");
-        Path store = stateDir.resolve(Worktrees.STORE_FILE);
+        Path store = worktrees().store();
         Files.write(store, "{not json".getBytes(StandardCharsets.UTF_8));
 
         try {
@@ -860,7 +874,7 @@ public class WorktreesTest {
         Path plain = folder.newFolder("plain").toPath();
 
         try {
-            new Worktrees(plain, stateDir, "git");
+            new Worktrees(plain, stateDir, "git", TeamRobot.REGINALD);
             fail("no repository, no worktrees");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains(plain.toString()));
@@ -872,12 +886,108 @@ public class WorktreesTest {
         Path sub = Files.createDirectories(root.resolve("TeamCode"));
 
         try {
-            new Worktrees(sub, stateDir, "git");
+            new Worktrees(sub, stateDir, "git", TeamRobot.REGINALD);
             fail("the root must be the top of the working tree");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains(sub.toString()));
             assertTrue(e.getMessage(), e.getMessage().contains(root.toString()));
         }
+    }
+
+    @Test
+    public void nuggetsLineIsMadeAtDevelopsTipWhenTheRepositoryHasNone() throws IOException {
+        String develop = GitFixture.commitOf(root, "develop");
+
+        Worktrees nuggets = nuggets();
+
+        assertEquals(develop, GitFixture.commitOf(root, "nugget-develop"));
+        assertEquals(
+                "the host checkout stays where it was",
+                "develop",
+                GitFixture.git(root, "branch", "--show-current").trim());
+        assertEquals("nugget-develop", nuggets.develop().name());
+    }
+
+    @Test
+    public void nuggetsLineThatIsAlreadyThereIsLeftWhereItIs() throws IOException {
+        GitFixture.git(root, "branch", "nugget-develop");
+        String nuggets = commitOnNuggetDevelop("Nugget.java", "class Nugget {}\n");
+
+        nuggets();
+
+        assertEquals(nuggets, GitFixture.commitOf(root, "nugget-develop"));
+        assertNotEquals(nuggets, GitFixture.commitOf(root, "develop"));
+    }
+
+    @Test
+    public void aNuggetWorktreeIsCutFromNuggetDevelopOnABranchAndInADirectoryOfItsOwn() throws IOException {
+        GitFixture.git(root, "branch", "nugget-develop");
+        String nuggetDevelop = commitOnNuggetDevelop("Nugget.java", "class Nugget {}\n");
+        Worktrees nuggets = nuggets();
+        Worktrees reginalds = worktrees();
+
+        Worktrees.Worktree onNugget = nuggets.ensure("Ada Lovelace");
+        Worktrees.Worktree onReginald = reginalds.ensure("Ada Lovelace");
+
+        assertEquals("ada-lovelace", onNugget.slug);
+        assertEquals("nugget/ada-lovelace", onNugget.branch);
+        assertEquals(nuggetDevelop, GitFixture.head(onNugget.path));
+        assertEquals("class Nugget {}\n", read(onNugget.path.resolve("Nugget.java")));
+        assertEquals("coding/ada-lovelace", onReginald.branch);
+        assertFalse("Reginald's line has none of Nugget's", Files.exists(onReginald.path.resolve("Nugget.java")));
+        assertNotEquals(nuggets.directory(), reginalds.directory());
+        assertEquals(
+                reginalds.directory().getFileName() + "-nugget",
+                nuggets.directory().getFileName().toString());
+        assertEquals(nuggets.directory().resolve("ada-lovelace"), onNugget.path);
+        assertTrue(onNugget.path.startsWith(stateDir));
+        assertEquals(stateDir.resolve("worktrees-nugget.json"), nuggets.store());
+        assertEquals(onNugget.path, nuggets().find("Ada Lovelace").path);
+        assertEquals(onReginald.path, worktrees().find("Ada Lovelace").path);
+        assertNull("each robot keeps its own users", nuggets().find("nobody on nugget"));
+    }
+
+    @Test
+    public void aNuggetPullBringsNuggetDevelopAndNotDevelop() throws IOException {
+        Worktrees nuggets = nuggets();
+        Worktrees.Worktree ada = nuggets.ensure("ada");
+        commitOnDevelop("Reginald.java", "class Reginald {}\n");
+        commitOnNuggetDevelop("Nugget.java", "class Nugget {}\n");
+
+        assertEquals(1, nuggets.status("ada").behind);
+        Worktrees.Merge pulled = nuggets.pull("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pulled.outcome);
+        assertEquals(GitFixture.commitOf(root, "nugget-develop"), GitFixture.head(ada.path));
+        assertTrue(Files.exists(ada.path.resolve("Nugget.java")));
+        assertFalse(Files.exists(ada.path.resolve("Reginald.java")));
+        assertEquals(0, nuggets.status("ada").behind);
+    }
+
+    @Test
+    public void aNuggetPushLandsOnNuggetDevelopAndOriginsAndLeavesDevelopAlone() throws IOException {
+        Path origin = origin();
+        String develop = GitFixture.commitOf(root, "develop");
+        Worktrees nuggets = nuggets();
+        String oldNuggetDevelop = GitFixture.commitOf(root, "nugget-develop");
+        Worktrees.Worktree ada = committedWorker(nuggets, "ada", "Mine.java");
+        assertFalse(nuggets.unsaved("ada").none());
+
+        Worktrees.Merge pushed = nuggets.push("ada");
+
+        assertEquals(Worktrees.Outcome.MERGED, pushed.outcome);
+        assertEquals(Worktrees.Remote.Outcome.PUSHED, pushed.remote.outcome);
+        assertNotEquals(oldNuggetDevelop, GitFixture.commitOf(root, "nugget-develop"));
+        assertEquals(2, parentsOf(root, "nugget-develop"));
+        assertEquals("class Mine {}\n", GitFixture.git(root, "show", "nugget-develop:Mine.java"));
+        assertEquals(GitFixture.commitOf(root, "nugget-develop"), GitFixture.head(ada.path));
+        assertEquals(GitFixture.commitOf(root, "nugget-develop"), GitFixture.commitOf(origin, "nugget-develop"));
+        assertEquals(develop, GitFixture.commitOf(root, "develop"));
+        assertEquals(develop, GitFixture.commitOf(origin, "develop"));
+        assertFalse("the host checkout, on develop, has none of it", Files.exists(root.resolve("Mine.java")));
+        assertEquals("", GitFixture.git(root, "status", "--porcelain"));
+        assertTrue("nugget-develop has it all now", nuggets.unsaved("ada").none());
+        assertEquals(0, nuggets.status("ada").ahead);
     }
 
     @Test
@@ -899,7 +1009,7 @@ public class WorktreesTest {
         String missing = folder.getRoot().toPath().resolve("no-such-git").toString();
 
         try {
-            new Worktrees(root, stateDir, missing);
+            new Worktrees(root, stateDir, missing, TeamRobot.REGINALD);
             fail("no git, no worktrees");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains(missing));
@@ -914,7 +1024,7 @@ public class WorktreesTest {
         Files.setPosixFilePermissions(stub, PosixFilePermissions.fromString("rwx------"));
 
         try {
-            new Worktrees(root, stateDir, stub.toString());
+            new Worktrees(root, stateDir, stub.toString(), TeamRobot.REGINALD);
             fail("merge-tree --write-tree needs 2.38");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("2.38"));

@@ -15,14 +15,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class Worktrees {
-    public static final String DEVELOP = "develop";
-
     public static final String REMOTE = "origin";
 
-    public static final String BRANCH_PREFIX = "coding/";
-    public static final String STORE_FILE = "worktrees.json";
+    private static final String STORE_STEM = "worktrees";
 
     public static final int MIN_GIT_MAJOR = 2;
 
@@ -67,6 +65,8 @@ public final class Worktrees {
     public static final class Status {
         public final String branch;
 
+        public final String develop;
+
         public final List<String> changed;
 
         public final int ahead;
@@ -75,8 +75,9 @@ public final class Worktrees {
 
         public final String head;
 
-        Status(String branch, List<String> changed, int ahead, int behind, String head) {
+        Status(String branch, String develop, List<String> changed, int ahead, int behind, String head) {
             this.branch = branch;
+            this.develop = develop;
             this.changed = changed;
             this.ahead = ahead;
             this.behind = behind;
@@ -201,30 +202,30 @@ public final class Worktrees {
     private final Path root;
     private final Path stateDir;
     private final Git git;
+    private final TeamRobot robot;
     private final Path directory;
 
     private final Map<String, Worktree> byUsername = new LinkedHashMap<>();
 
-    public Worktrees(Path root, Path stateDir, String git) {
-        this(root, stateDir, new RealGit(git, root.toAbsolutePath().normalize()));
+    public Worktrees(Path root, Path stateDir, String git, TeamRobot robot) {
+        this(root, stateDir, new RealGit(git, root.toAbsolutePath().normalize()), robot);
     }
 
-    public Worktrees(Path root, Path stateDir, Git git) {
+    public Worktrees(Path root, Path stateDir, Git git, TeamRobot robot) {
         this.root = root.toAbsolutePath().normalize();
         this.stateDir = stateDir.toAbsolutePath().normalize();
         this.git = git;
+        this.robot = robot;
         checkVersion();
         checkRoot();
         checkDevelop();
         String name = this.root.getFileName() == null
                 ? "root"
                 : this.root.getFileName().toString();
-        this.directory = this.stateDir.resolve("worktrees").resolve(name + "-" + shortHash(this.root.toString()));
+        this.directory = this.stateDir
+                .resolve("worktrees")
+                .resolve(robot.ownName(name + "-" + shortHash(this.root.toString()), ""));
         load();
-    }
-
-    private static Git.Branch develop() {
-        return Git.Branch.of(DEVELOP);
     }
 
     private static Git.Author author(String username, Worktree worktree) {
@@ -237,6 +238,22 @@ public final class Worktrees {
 
     public Path root() {
         return root;
+    }
+
+    public Path store() {
+        return stateDir.resolve(robot.ownName(STORE_STEM, ".json"));
+    }
+
+    public TeamRobot robot() {
+        return robot;
+    }
+
+    public Git.Branch develop() {
+        return Git.Branch.of(robot.develop());
+    }
+
+    private String developName() {
+        return robot.develop();
     }
 
     public synchronized Worktree find(String username) {
@@ -262,7 +279,7 @@ public final class Worktrees {
             slug = base + "-" + n;
         }
         Path path = directory.resolve(slug);
-        String branch = BRANCH_PREFIX + slug;
+        String branch = robot.userBranch(slug);
         directoryReady();
         git.createWorktree(path, Git.Branch.of(branch), develop());
         Worktree made = new Worktree(username, slug, path, branch);
@@ -284,7 +301,7 @@ public final class Worktrees {
             return new Unsaved(List.of(), 0);
         }
         List<String> changed = Files.isDirectory(worktree.path) ? changedFiles(worktree) : List.of();
-        return new Unsaved(changed, count(DEVELOP, worktree.branch));
+        return new Unsaved(changed, count(developName(), worktree.branch));
     }
 
     public synchronized Removal remove(String username, boolean force) {
@@ -310,9 +327,10 @@ public final class Worktrees {
         Worktree worktree = ensure(username);
         return new Status(
                 worktree.branch,
+                developName(),
                 changedFiles(worktree),
-                count(DEVELOP, worktree.branch),
-                count(worktree.branch, DEVELOP),
+                count(developName(), worktree.branch),
+                count(worktree.branch, developName()),
                 head(worktree));
     }
 
@@ -333,10 +351,10 @@ public final class Worktrees {
 
     public synchronized Merge pull(String username) {
         Worktree worktree = ensure(username);
-        if (isAncestor(DEVELOP, worktree.branch)) {
+        if (isAncestor(developName(), worktree.branch)) {
             return new Merge(Outcome.NOTHING, List.of(), null);
         }
-        Git.MergeTree tree = mergeTree(worktree.branch, DEVELOP);
+        Git.MergeTree tree = mergeTree(worktree.branch, developName());
         if (!tree.conflicts.isEmpty()) {
             return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
         }
@@ -348,7 +366,7 @@ public final class Worktrees {
         Git.Outcome merged = git.merge(
                 worktree.path,
                 author(username, worktree),
-                "Pull " + DEVELOP,
+                "Pull " + developName(),
                 develop(),
                 Git.History.FAST_FORWARD_WHEN_IT_CAN);
         if (!merged.ok) {
@@ -367,12 +385,12 @@ public final class Worktrees {
                     ? new Merge(Outcome.NOTHING, List.of(), null, pushDevelop())
                     : new Merge(Outcome.UNCOMMITTED, status.changed, null);
         }
-        Git.MergeTree tree = mergeTree(DEVELOP, worktree.branch);
+        Git.MergeTree tree = mergeTree(developName(), worktree.branch);
         if (!tree.conflicts.isEmpty()) {
             return new Merge(Outcome.CONFLICTS, tree.conflicts, null);
         }
         String message = "Push " + username + "'s work";
-        Path checkedOut = checkedOutAt(DEVELOP);
+        Path checkedOut = checkedOutAt(developName());
         if (checkedOut != null) {
             Git.Outcome merged = git.merge(
                     checkedOut,
@@ -483,7 +501,7 @@ public final class Worktrees {
                 return true;
             }
         }
-        return Files.exists(directory.resolve(slug)) || branchExists(BRANCH_PREFIX + slug);
+        return Files.exists(directory.resolve(slug)) || branchExists(robot.userBranch(slug));
     }
 
     private boolean branchExists(String branch) {
@@ -534,14 +552,29 @@ public final class Worktrees {
     }
 
     private void checkDevelop() {
-        if (!branchExists(DEVELOP)) {
-            throw new IllegalStateException(
-                    "no " + DEVELOP + " branch in " + root + "; create it with: git branch " + DEVELOP);
+        if (branchExists(developName())) {
+            return;
         }
+        if (!(robot.whenMissing() instanceof TeamRobot.WhenMissing.StartsFrom startsFrom)) {
+            throw new IllegalStateException(
+                    "no " + developName() + " branch in " + root + "; create it with: git branch " + developName());
+        }
+        String from = startsFrom.robot().develop();
+        if (!branchExists(from)) {
+            throw new IllegalStateException("no " + from + " branch in " + root + " to start " + developName()
+                    + " from; create it with: git branch " + from);
+        }
+        Git.Outcome made =
+                git.createBranch(develop(), git.commitAt(Git.Branch.of(from).tip()));
+        if (!made.ok) {
+            throw new IllegalStateException("could not make " + developName() + " for " + robot.displayName() + " at "
+                    + from + "'s tip: " + made.said);
+        }
+        System.out.println("made " + developName() + " at " + from + "'s tip, for " + robot.displayName());
     }
 
     private void load() {
-        JsonObject stored = StateStore.load(stateDir.resolve(STORE_FILE));
+        JsonObject stored = StateStore.load(store());
         if (stored == null) {
             return;
         }
@@ -556,13 +589,12 @@ public final class Worktrees {
                 }
             }
         } catch (RuntimeException e) {
-            throw new IllegalStateException(
-                    "could not read the worktrees in " + stateDir.resolve(STORE_FILE) + ": " + e, e);
+            throw new IllegalStateException("could not read the worktrees in " + store() + ": " + e, e);
         }
     }
 
     private void save() {
-        Path file = stateDir.resolve(STORE_FILE);
+        Path file = store();
         JsonObject stored = StateStore.load(file);
         JsonObject roots = stored == null || !stored.has("roots") ? new JsonObject() : stored.getAsJsonObject("roots");
         JsonObject ours = new JsonObject();

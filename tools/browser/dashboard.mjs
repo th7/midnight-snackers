@@ -21,9 +21,10 @@ const OPMODE = { name: 'BlueLeftAuto', kind: 'auto', group: 'Autonomous',
 
 // What the page asks the user listener for, answered as the server answers it.
 const ANSWERS = {
-  '/me': { state: 'approved', username: 'mia', branch: 'mia' },
+  '/me': { state: 'approved', username: 'mia', robot: 'nugget', branch: 'nugget/mia' },
   '/files': { files: FILES },
-  '/git/status': { changed: [], behind: 0, ahead: 0, pushable: false, head: '0123456' },
+  '/git/status': { branch: 'nugget/mia', develop: 'nugget-develop', changed: [], behind: 0, ahead: 0, pushable: false,
+                   head: '0123456' },
   '/build': { available: true, ok: true, problems: [] },
   '/sim/catalog': [OPMODE],
   '/sim/status': { running: false, runs: [] }
@@ -122,6 +123,12 @@ async function itWorks(page, engine) {
 
   const who = await page.locator('#who').textContent();
   check(who === 'mia', `${engine}: the header says "${who}" rather than who is signed in`);
+  const robot = await page.locator('#robot').innerText();
+  check(robot === 'Nugget', `${engine}: the header says "${robot}" rather than the robot they are on`);
+  await page.waitForFunction(() => /nugget-develop/.test(document.getElementById('push').title), null,
+      { timeout: 10_000 }).catch(() => {});
+  const push = await page.locator('#push').getAttribute('title');
+  check(/nugget-develop/.test(push), `${engine}: Push says "${push}" rather than the line it lands on`);
 
   const opened = await page.locator('#files li').first().click({ timeout: 5_000 })
       .then(() => true)

@@ -158,6 +158,12 @@ public final class RealGit implements Git {
     }
 
     @Override
+    public Outcome createBranch(Branch branch, Revision at) {
+        Ran ran = ran(root, SECONDS, "branch", "--no-track", branch.name(), at.text());
+        return ran.exit == 0 ? Outcome.done() : Outcome.refused(ran.said());
+    }
+
+    @Override
     public boolean stillAWorktree(Path at) {
         // git's own marker for one, which is what it leaves in a worktree directory and nowhere
         // else. Reading it is this adapter's business, which is why the question lives here.
