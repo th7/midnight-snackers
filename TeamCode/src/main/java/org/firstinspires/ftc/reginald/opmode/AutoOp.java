@@ -3,8 +3,9 @@ package org.firstinspires.ftc.reginald.opmode;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
+import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
 
-public abstract class AutoOp extends OpMode {
+public abstract class AutoOp extends OpMode implements RunsAPlan {
     private PlanRunner planRunner;
 
     protected AutoOp(Alliance alliance) {
@@ -26,10 +27,12 @@ public abstract class AutoOp extends OpMode {
 
     public abstract PlanPart getPlan();
 
+    @Override
     public boolean done() {
         return planRunner.done();
     }
 
+    @Override
     public String currentStep() {
         return planRunner.currentStep();
     }
