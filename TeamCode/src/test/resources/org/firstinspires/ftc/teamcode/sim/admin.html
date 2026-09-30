@@ -555,11 +555,34 @@
     });
   }
 
+  function ownOf(robot) {
+    return robots[robot] && robots[robot].own ? robots[robot].own : [];
+  }
+
+  function ownerOf(entry) {
+    var path = entry.type === 'dir' ? entry.path + '/' : entry.path;
+    var owner = null;
+    Object.keys(robots).forEach(function (robot) {
+      ownOf(robot).forEach(function (own) {
+        if (path.indexOf(own) === 0) { owner = robot; }
+      });
+    });
+    return owner;
+  }
+
   function renderEditable() {
     editableEl.innerHTML = '';
+    var name = robotName(editableRobot());
+    ownOf(editableRobot()).forEach(function (own) {
+      var el = row('', own, 'Every file here is ' + name + '\'s own');
+      el.querySelector('.actions').appendChild(pill('ok', 'always', name + '\'s teammates always edit ' + name + '\'s own files'));
+      editableEl.appendChild(el);
+    });
     if (!editable.length) {
-      editableEl.innerHTML = '<p class="empty"></p>';
-      editableEl.firstChild.textContent = 'Pick files below. ' + robotName(editableRobot()) + '\'s teammates see nothing until you do.';
+      var empty = document.createElement('p');
+      empty.className = 'empty';
+      empty.textContent = 'Pick files below for ' + name + '\'s teammates to edit as well.';
+      editableEl.appendChild(empty);
       return;
     }
     editable.forEach(function (path) {
@@ -606,15 +629,19 @@
     treeEl.innerHTML = '';
     json.entries.forEach(function (entry) {
       var el = row(entry.type, entry.name, '');
+      var actions = el.querySelector('.actions');
+      var owner = ownerOf(entry);
+      if (owner === editableRobot()) {
+        actions.appendChild(pill('ok', 'always editable', 'Every file of ' + robotName(owner) + '\'s own package is'));
+      } else if (owner) {
+        actions.appendChild(pill('muted', robotName(owner) + '\'s', 'Only ' + robotName(owner) + '\'s teammates edit ' + robotName(owner) + '\'s own files'));
+      }
       if (entry.type === 'dir') {
         el.addEventListener('click', function () { browse(entry.path); });
-      } else if (editable.indexOf(entry.path) >= 0) {
-        var pill = document.createElement('span');
-        pill.className = 'pill ok';
-        pill.textContent = 'editable';
-        el.querySelector('.actions').appendChild(pill);
-      } else {
-        el.querySelector('.actions').appendChild(button('Add', '', function () {
+      } else if (!owner && editable.indexOf(entry.path) >= 0) {
+        actions.appendChild(pill('ok', 'editable'));
+      } else if (!owner) {
+        actions.appendChild(button('Add', '', function () {
           post('/admin/files/add?robot=' + encodeURIComponent(editableRobot()) + '&path=' + encodeURIComponent(entry.path)).then(function (r) {
             if (!r.ok) { return r.text().then(alert); }
             return loadEditable();

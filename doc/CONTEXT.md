@@ -7,18 +7,26 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 ## The robot
 
-**Where things live** — `teamcode` holds the **Robot** and nothing but the
-subsystems it is made of, so the list of files is the list of parts.
-Underneath it: `base` (what a subsystem *is* — `Loopable` — where it prints
-— `Prints`, `Channels` — and the `Alliance` a run plays for), `opmode` (what the
-driver station lists and how a plan becomes one), `hardware` (the devices
-and what is wired to what), `control` (the controllers and filters a
-subsystem steers by), `planrunner` (plans and steps) and `roadrunner`
-(trajectories, which we own rather than vendor).
+**Where things live** — Each robot's code is a package of its own, its
+**own files**: `org.firstinspires.ftc.reginald` is Reginald and
+`org.firstinspires.ftc.nugget` is Nugget (see **Nugget**). `reginald` holds
+the **Robot** and nothing but the subsystems it is made of, so the list of
+files is the list of parts. Underneath it: `opmode` (what the driver station
+lists and how a plan becomes one), `hardware` (the devices and what is wired
+to what), `control` (the controllers and filters a subsystem steers by) and
+`roadrunner` (trajectories, which we own rather than vendor).
+`org.firstinspires.ftc.teamcode` holds what every robot's code is built on:
+`base` (what a subsystem *is* — `Loopable` — where it prints — `Prints`,
+`Channels` — and the `Alliance` a run plays for) and `planrunner` (plans and
+steps); its test sources hold the simulator, the coding server and the fakes.
+Nothing outside a robot's package uses that robot's code, and every op mode
+is in a robot's package, and a test says both: a class moves into `teamcode`
+when a second robot needs it, rather than being reached for across.
+Class: `EachRobotKeepsToItsOwnPackageTest`.
 
 **Subsystem** — One part of the robot, and now only that: something the
 robot ticks, which is to say a `Loopable` that lives directly in
-`teamcode`. There is no base class to extend. A subsystem is built with
+`reginald`. There is no base class to extend. A subsystem is built with
 everything it needs, sets itself up in its own constructor, does its work in
 `loop`, and prints to the **channel** it was handed. What used to be three
 hooks a base class asked for is one method an interface asks for, and the
@@ -44,7 +52,7 @@ is where anything the op mode owns is ticked. `loop` is final at both
 levels, so the order is not a subclass's to rearrange, and an auto's plan
 advancing after every subsystem is the shape of it rather than a position in
 a list. That every subsystem is ticked at all is mechanical rather than
-remembered, and a test says so: it finds every `Loopable` in `teamcode` and
+remembered, and a test says so: it finds every `Loopable` in `reginald` and
 fails naming any the op modes never reach. Classes: `Loopable`;
 `Robot.loopOrder`; `SubSystemsAreTickedTest`.
 
@@ -255,9 +263,9 @@ rather than an exception. Classes: `DetectionFilter`;
 
 **Nugget** — The team's second robot, whose users work on `nugget-develop`
 (see **Robot**, under the coding server). Its code is a package of its own,
-`org.firstinspires.ftc.nugget`, beside `teamcode` rather than in it, since
-`teamcode` is Reginald and the list of its files is the list of Reginald's
-parts. Its op modes extend `NuggetOpMode`, which is how the simulator knows
+`org.firstinspires.ftc.nugget`, beside Reginald's `org.firstinspires.ftc.reginald`
+and the shared `teamcode` (see **Where things live**), and its teammates
+always edit every file in it (see **Own files**). Its op modes extend `NuggetOpMode`, which is how the simulator knows
 them for Nugget's and hands them Nugget's hardware rather than the robot
 controller's configuration. Class: `NuggetOpMode`.
 
@@ -305,8 +313,8 @@ listener, per user, so a run started there is recorded as theirs. Class:
 `Router`.
 
 **Admin** — The person at the host machine. Only they can reach the admin
-listener, where they decide logins and pick the editable set. There is no
-admin login; being on the machine is the credential.
+listener, where they decide logins and pick files for the editable set. There
+is no admin login; being on the machine is the credential.
 
 **User listing** — `GET /admin/users` and the roster it draws on the admin
 page: every user who has ever logged in, in the order they first did, each
@@ -364,12 +372,34 @@ session at `POST /admin/logins/<id>/approve|deny|revoke`. A revoked
 session is still a session; only a **delete** takes sessions away, and it
 takes all of that user's at once.
 
-**Editable set** — The files the admin has picked for users to edit, one set
-per **robot**, each file named by its **key**. The admin picks for one robot
-at a time, and every `/admin/files` route names it with `?robot=`. A user may only ever name a file by exact match
-against this set; nothing a user sends is resolved against the filesystem.
-The admin picks from the host checkout; the key means the same path in
-every worktree. Class: `EditableSet`.
+**Editable set** — The files a **robot**'s users may edit: every one of
+that robot's **own files** in the user's worktree, and on top of them the
+files the admin has picked for that robot, each named by its **key**. The
+admin picks for one robot at a time, and every `/admin/files` route names it
+with `?robot=`; `GET /admin/files` lists what was picked, and a robot's own
+files are never among them. A robot's own files cannot be picked, for it or
+for the other robot, nor removed: `POST /admin/files/add` refuses one,
+saying whose it is, and `/admin/files/remove` refuses to take one away. A user
+may only ever name a file by exact match against this set; nothing a user
+sends is resolved against the filesystem. The admin picks from the host
+checkout; the key means the same path in every worktree, and a picked file
+the user's branch does not have yet is listed all the same and answers 404
+naming it. The admin page shows each robot's own package as always editable,
+and marks the files of either robot's package in the picker as whose they are
+rather than offering them. Class: `EditableSet`.
+
+**Own files** — A robot's own package, which its users always edit without
+the admin picking anything: every regular file under
+`TeamCode/src/main/java/` and `TeamCode/src/test/java/` of its package
+(`org/firstinspires/ftc/reginald/`, `org/firstinspires/ftc/nugget/`), and
+of the packages under it, as they are in that user's worktree — so a file
+that arrives there by a pull is editable from then. Found by walking the
+worktree rather than by anything a user sends; a link is not followed, so a
+link in the package, or a package that is a link out of the worktree, gives
+nothing. Which directories are whose, and so what the admin may pick, is
+said once, in the **core**. `GET /admin/info` gives each robot's as `own`.
+Methods: `TeamRobot.javaPackage`; `TeamRobot.ownDirectories`;
+`TeamRobot.owns`; `TeamRobot.picking`.
 
 **Key** — A file the server has vouched for, named by its **root-relative
 path** with `/` separators (`TeamCode/src/main/java/.../Plans.java`), and
@@ -797,7 +827,7 @@ the server's. Method: `SimBuild.libraries()`.
 controller lists them for one robot: every concrete op mode of that robot's
 own kind, under that robot's own package, that carries the
 `@Autonomous` or `@TeleOp` annotation — Reginald's `opmode.OpMode` under
-`teamcode`, Nugget's `NuggetOpMode` under `nugget` — plus whatever a
+`reginald`, Nugget's `NuggetOpMode` under `nugget` — plus whatever a
 **registrar** (a
 static method annotated `@OpModeRegistrar`) registers, found by calling
 the registrar itself. The autos are registered that way: each `@Auto`

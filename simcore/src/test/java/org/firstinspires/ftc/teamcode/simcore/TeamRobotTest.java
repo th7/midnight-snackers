@@ -129,6 +129,17 @@ public class TeamRobotTest {
     }
 
     @Test
+    public void theAdminPicksForARobotOnlyFilesThatAreNoRobotsOwn() {
+        String shared = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/planrunner/Plan.java";
+        String nuggets = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java";
+
+        assertEquals(new TeamRobot.Picking.Pickable(), TeamRobot.NUGGET.picking(shared));
+        assertEquals(new TeamRobot.Picking.Pickable(), TeamRobot.REGINALD.picking(shared));
+        assertEquals(new TeamRobot.Picking.ItsOwn(), TeamRobot.NUGGET.picking(nuggets));
+        assertEquals(new TeamRobot.Picking.OthersOwn(TeamRobot.NUGGET), TeamRobot.REGINALD.picking(nuggets));
+    }
+
+    @Test
     public void reginaldDrivesOnMecanumWheelsAndNuggetOnATank() {
         assertEquals(Drivebase.MECANUM, TeamRobot.REGINALD.drivebase());
         assertEquals(Drivebase.TANK, TeamRobot.NUGGET.drivebase());

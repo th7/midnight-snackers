@@ -457,6 +457,152 @@ public class CodingServerTest {
                 "{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files?robot=reginald").body);
     }
 
+    private static final String REGINALDS = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
+
+    private static final String REGINALDS_TEST =
+            "TeamCode/src/test/java/org/firstinspires/ftc/reginald/opmode/AutoOpTest.java";
+
+    private static final String NUGGETS = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java";
+
+    private static final String SHARED = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/planrunner/Plan.java";
+
+    private void eachRobotsFilesAndASharedOne() throws IOException {
+        for (String key : List.of(REGINALDS, REGINALDS_TEST, NUGGETS, SHARED)) {
+            Path file = root.resolve(key);
+            Files.createDirectories(file.getParent());
+            Files.write(file, ("class " + file.getFileName() + " {}\n").getBytes(StandardCharsets.UTF_8));
+        }
+        committed("each robot's files and a shared one");
+    }
+
+    private static String editableListing(String... keys) {
+        JsonArray files = new JsonArray();
+        for (String key : keys) {
+            JsonObject item = new JsonObject();
+            item.addProperty("path", key);
+            item.add("editors", new JsonArray());
+            files.add(item);
+        }
+        JsonObject body = new JsonObject();
+        body.add("files", files);
+        return body.toString();
+    }
+
+    @Test
+    public void eachRobotsTeammatesEditEveryFileInItsPackageWithoutTheAdminPickingAny() throws IOException {
+        eachRobotsFilesAndASharedOne();
+        String ada = approvedUser("ada", TeamRobot.REGINALD);
+        String bob = approvedUser("bob", TeamRobot.NUGGET);
+
+        assertEquals(editableListing(REGINALDS, REGINALDS_TEST), user("GET", "/files", ada).body);
+        assertEquals(editableListing(NUGGETS), user("GET", "/files", bob).body);
+        String version = json(user("GET", "/files/" + REGINALDS_TEST, ada).body)
+                .get("version")
+                .getAsString();
+        Reply written = user("PUT", "/files/" + REGINALDS_TEST, ada, edit("class AutoOpTest { int more; }\n", version));
+        assertEquals(written.body, 200, written.status);
+        assertEquals(200, user("GET", "/files/" + NUGGETS, bob).status);
+        assertEquals(404, user("GET", "/files/" + NUGGETS, ada).status);
+        assertEquals(404, user("GET", "/files/" + REGINALDS, bob).status);
+        assertEquals(404, user("GET", "/files/" + SHARED, ada).status);
+        assertEquals(404, user("GET", "/files/" + SHARED, bob).status);
+        assertEquals("{\"files\":[]}", admin("GET", "/admin/files?robot=reginald").body);
+    }
+
+    @Test
+    public void aFileThatArrivesInTheRobotsPackageIsEditableFromThen() throws IOException {
+        eachRobotsFilesAndASharedOne();
+        String bob = approvedUser("bob", TeamRobot.NUGGET);
+        String arrived = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/auto/Square.java";
+        Path file = worktreeOf("bob", TeamRobot.NUGGET).resolve(arrived);
+        Files.createDirectories(file.getParent());
+        Files.write(file, "class Square {}\n".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(editableListing(NUGGETS, arrived), user("GET", "/files", bob).body);
+        assertEquals(
+                "class Square {}\n",
+                json(user("GET", "/files/" + arrived, bob).body).get("content").getAsString());
+    }
+
+    @Test
+    public void aRobotsOwnFilesAreWhatIsInItsPackageAndNotWhereALinkInItLeads() throws IOException {
+        eachRobotsFilesAndASharedOne();
+        String bob = approvedUser("bob", TeamRobot.NUGGET);
+        Path outside = Files.createTempDirectory("editor-outside");
+        try {
+            Files.write(outside.resolve("secret.txt"), "shh".getBytes(StandardCharsets.UTF_8));
+            Path nugget =
+                    worktreeOf("bob", TeamRobot.NUGGET).resolve("TeamCode/src/main/java/org/firstinspires/ftc/nugget");
+            Files.createSymbolicLink(nugget.resolve("secret.txt"), outside.resolve("secret.txt"));
+            Files.createSymbolicLink(nugget.resolve("elsewhere"), outside);
+
+            assertEquals(editableListing(NUGGETS), user("GET", "/files", bob).body);
+            assertEquals(
+                    404,
+                    user("GET", "/files/TeamCode/src/main/java/org/firstinspires/ftc/nugget/secret.txt", bob).status);
+            assertEquals(
+                    404,
+                    user("GET", "/files/TeamCode/src/main/java/org/firstinspires/ftc/nugget/elsewhere/secret.txt", bob)
+                            .status);
+        } finally {
+            Files.deleteIfExists(outside.resolve("secret.txt"));
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    @Test
+    public void aRobotsPackageThatIsALinkOutOfTheWorktreeGivesNothing() throws IOException {
+        eachRobotsFilesAndASharedOne();
+        String bob = approvedUser("bob", TeamRobot.NUGGET);
+        Path outside = Files.createTempDirectory("editor-outside");
+        try {
+            Files.write(outside.resolve("Secret.java"), "shh".getBytes(StandardCharsets.UTF_8));
+            Path nugget =
+                    worktreeOf("bob", TeamRobot.NUGGET).resolve("TeamCode/src/main/java/org/firstinspires/ftc/nugget");
+            Files.delete(nugget.resolve("TankDrive.java"));
+            Files.delete(nugget);
+            Files.createSymbolicLink(nugget, outside);
+
+            assertEquals(editableListing(), user("GET", "/files", bob).body);
+            assertEquals(
+                    404,
+                    user("GET", "/files/TeamCode/src/main/java/org/firstinspires/ftc/nugget/Secret.java", bob).status);
+        } finally {
+            Files.deleteIfExists(outside.resolve("Secret.java"));
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    @Test
+    public void theAdminPicksSharedFilesOnTopOfTheRobotsOwn() throws IOException {
+        eachRobotsFilesAndASharedOne();
+        String bob = approvedUser("bob", TeamRobot.NUGGET);
+
+        assertEquals(200, admin("POST", "/admin/files/add?robot=nugget&path=" + SHARED).status);
+
+        assertEquals(editableListing(NUGGETS, SHARED), user("GET", "/files", bob).body);
+        assertEquals(200, user("GET", "/files/" + SHARED, bob).status);
+        assertEquals("{\"files\":[{\"path\":\"" + SHARED + "\"}]}", admin("GET", "/admin/files?robot=nugget").body);
+    }
+
+    @Test
+    public void theAdminCannotTakeARobotsOwnFilesAwayNorHandThemToTheOtherRobot() throws IOException {
+        eachRobotsFilesAndASharedOne();
+
+        Reply alreadyTheirs = admin("POST", "/admin/files/add?robot=reginald&path=" + REGINALDS);
+        Reply othersOwn = admin("POST", "/admin/files/add?robot=nugget&path=" + REGINALDS);
+        Reply takenAway = admin("POST", "/admin/files/remove?robot=reginald&path=" + REGINALDS);
+
+        assertEquals(alreadyTheirs.body, 400, alreadyTheirs.status);
+        assertTrue(alreadyTheirs.body, alreadyTheirs.body.contains("always"));
+        assertEquals(othersOwn.body, 400, othersOwn.status);
+        assertTrue(othersOwn.body, othersOwn.body.contains("Reginald's own"));
+        assertEquals(takenAway.body, 400, takenAway.status);
+        assertTrue(takenAway.body, takenAway.body.contains("always"));
+        assertEquals("{\"files\":[]}", admin("GET", "/admin/files?robot=reginald").body);
+        assertEquals("{\"files\":[]}", admin("GET", "/admin/files?robot=nugget").body);
+    }
+
     @Test
     public void aNuggetUserPushesToAndPullsFromNuggetDevelopAndLeavesDevelopAlone() throws IOException {
         aRealRepository();
@@ -534,12 +680,16 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theAdminInfoNamesEachRobotAndTheLineItWorks() throws IOException {
+    public void theAdminInfoNamesEachRobotTheLineItWorksAndTheFilesItAlwaysEdits() throws IOException {
         JsonArray robots = json(admin("GET", "/admin/info").body).getAsJsonArray("robots");
 
         assertEquals(
-                "[{\"robot\":\"reginald\",\"name\":\"Reginald\",\"develop\":\"develop\"},"
-                        + "{\"robot\":\"nugget\",\"name\":\"Nugget\",\"develop\":\"nugget-develop\"}]",
+                "[{\"robot\":\"reginald\",\"name\":\"Reginald\",\"develop\":\"develop\","
+                        + "\"own\":[\"TeamCode/src/main/java/org/firstinspires/ftc/reginald/\","
+                        + "\"TeamCode/src/test/java/org/firstinspires/ftc/reginald/\"]},"
+                        + "{\"robot\":\"nugget\",\"name\":\"Nugget\",\"develop\":\"nugget-develop\","
+                        + "\"own\":[\"TeamCode/src/main/java/org/firstinspires/ftc/nugget/\","
+                        + "\"TeamCode/src/test/java/org/firstinspires/ftc/nugget/\"]}]",
                 robots.toString());
     }
 
@@ -554,6 +704,7 @@ public class CodingServerTest {
         assertTrue(page, page.contains("'/admin/files/add?robot='"));
         assertTrue(page, page.contains("'/admin/files/remove?robot='"));
         assertTrue(page, page.contains("'/admin/users/delete?robot='"));
+        assertTrue("what a robot's teammates always edit is the server's to say", page.contains(".own"));
     }
 
     @Test
@@ -1071,7 +1222,6 @@ public class CodingServerTest {
         committed("the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
-        assertEquals(200, admin("POST", "/admin/files/add?robot=reginald&path=" + key).status);
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String version =
@@ -1209,7 +1359,6 @@ public class CodingServerTest {
         committed("the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
-        assertEquals(200, admin("POST", "/admin/files/add?robot=reginald&path=" + key).status);
         String cookie = approvedUser("ada");
         assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
 
@@ -1271,7 +1420,6 @@ public class CodingServerTest {
         committed("the auto");
         serverWith(sourcesBench());
         String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
-        admin("POST", "/admin/files/add?robot=reginald&path=" + key);
         String cookie = approvedUser("ada");
 
         Reply good = user("GET", "/build", cookie);
@@ -3135,6 +3283,22 @@ public class CodingServerTest {
         serverWith(sourcesBench());
         assertEquals(200, admin("POST", "/admin/files/add?robot=reginald&path=" + SRC + "Auto.java").status);
         return approvedUser("ada");
+    }
+
+    @Test
+    public void aSourceInTheRobotsOwnPackageSaysItIsEditable() throws IOException {
+        aRealRepository();
+        Path own = root.resolve(REGINALDS);
+        Files.createDirectories(own.getParent());
+        Files.write(
+                own,
+                "package org.firstinspires.ftc.reginald;\npublic class Plans {}\n".getBytes(StandardCharsets.UTF_8));
+        String cookie = navigatingUser();
+
+        Reply source = user("GET", "/source/" + REGINALDS, cookie);
+
+        assertEquals(source.body, 200, source.status);
+        assertTrue(json(source.body).get("editable").getAsBoolean());
     }
 
     private static String nav(String route, String file, String source, String lineText, String token) {

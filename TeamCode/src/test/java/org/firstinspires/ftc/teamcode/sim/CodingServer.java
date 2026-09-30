@@ -282,7 +282,8 @@ public final class CodingServer {
         for (TeamRobot robot : TeamRobot.values()) {
             worktreesByRobot.put(robot, new Worktrees(this.root, this.stateDir, git, robot));
             editableByRobot.put(
-                    robot, new EditableSet(this.root, this.stateDir.resolve(robot.ownName(EDITABLE_STEM, ".json"))));
+                    robot,
+                    new EditableSet(robot, this.root, this.stateDir.resolve(robot.ownName(EDITABLE_STEM, ".json"))));
         }
         this.benches = benches;
         loadSessions();
@@ -481,10 +482,7 @@ public final class CodingServer {
         Router approved = new Router()
                 .guard(request ->
                         isApproved(sessionOf(request)) ? null : Response.error(403, "not an approved session"))
-                .route(
-                        "GET",
-                        "/files",
-                        (request, params) -> Response.json(GSON.toJson(fileList(sessionOf(request).robot, true))))
+                .route("GET", "/files", (request, params) -> Response.json(GSON.toJson(fileList(sessionOf(request)))))
                 .route("GET", "/files/{key*}", (request, params) -> file(sessionOf(request), params.get("key"), null))
                 .route(
                         "PUT",
@@ -533,30 +531,40 @@ public final class CodingServer {
 
     private Response file(Session session, String path, String edit) {
         synchronized (this) {
-            Optional<Key> key = editableOf(session.robot).lookUp(path);
+            Path worktree = worktreeOf(session).path;
+            Optional<Key> key = editableOf(session.robot).lookUpIn(worktree, path);
             if (key.isEmpty()) {
                 return Response.error(404, "not an editable file: " + path);
             }
-            Path worktree = worktreeOf(session).path;
             return edit == null ? read(session, worktree, key.get()) : write(worktree, key.get(), edit);
         }
     }
 
-    private synchronized JsonObject fileList(TeamRobot robot, boolean withEditors) {
+    private synchronized JsonObject fileList(Session asking) {
         JsonArray list = new JsonArray();
-        for (Key key : editableOf(robot).list()) {
+        for (Key key : editableOf(asking.robot).in(worktreeOf(asking).path)) {
             String path = key.path();
             JsonObject item = new JsonObject();
             item.addProperty("path", path);
-            if (withEditors) {
-                JsonArray editors = new JsonArray();
-                for (Session session : sessions.values()) {
-                    if (session.state == State.APPROVED && session.robot == robot && path.equals(session.openFile)) {
-                        editors.add(session.username);
-                    }
+            JsonArray editors = new JsonArray();
+            for (Session session : sessions.values()) {
+                if (session.state == State.APPROVED && session.robot == asking.robot && path.equals(session.openFile)) {
+                    editors.add(session.username);
                 }
-                item.add("editors", editors);
             }
+            item.add("editors", editors);
+            list.add(item);
+        }
+        JsonObject body = new JsonObject();
+        body.add("files", list);
+        return body;
+    }
+
+    private JsonObject pickedList(TeamRobot robot) {
+        JsonArray list = new JsonArray();
+        for (Key key : editableOf(robot).picked()) {
+            JsonObject item = new JsonObject();
+            item.addProperty("path", key.path());
             list.add(item);
         }
         JsonObject body = new JsonObject();
@@ -910,7 +918,7 @@ public final class CodingServer {
         body.addProperty("content", current.content);
         body.addProperty("version", current.version);
         synchronized (this) {
-            body.addProperty("editable", editableOf(session.robot).contains(key.get()));
+            body.addProperty("editable", editableOf(session.robot).containsIn(sources.worktree, key.get()));
         }
         return Response.json(GSON.toJson(body));
     }
@@ -1312,7 +1320,7 @@ public final class CodingServer {
         if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
             return robotRefused(asked);
         }
-        return Response.json(GSON.toJson(fileList(robot.value(), false)));
+        return Response.json(GSON.toJson(pickedList(robot.value())));
     }
 
     private Response addEditable(Checked<TeamRobot> asked, String relative) {
@@ -1323,18 +1331,38 @@ public final class CodingServer {
         if (file == null || !Files.isRegularFile(file)) {
             return Response.error(400, "not a file under the project root: " + relative);
         }
-        editableOf(robot.value()).add(Key.of(root, file));
-        return Response.json(GSON.toJson(fileList(robot.value(), false)));
+        Key key = Key.of(root, file);
+        TeamRobot.Picking picking = editableOf(robot.value()).add(key);
+        if (picking instanceof TeamRobot.Picking.ItsOwn) {
+            return Response.error(400, alwaysEditable(robot.value(), key.path()));
+        }
+        if (picking instanceof TeamRobot.Picking.OthersOwn others) {
+            return Response.error(
+                    400,
+                    key + " is " + others.owner().displayName() + "'s own, so only "
+                            + others.owner().displayName() + "'s teammates edit it, and "
+                            + robot.value().displayName() + "'s never do");
+        }
+        return Response.json(GSON.toJson(pickedList(robot.value())));
+    }
+
+    private static String alwaysEditable(TeamRobot robot, String key) {
+        return key + " is always editable: every file under " + String.join(" and ", robot.ownDirectories())
+                + " is " + robot.displayName() + "'s own, so " + robot.displayName() + "'s teammates edit it"
+                + " without its being picked";
     }
 
     private Response removeEditable(Checked<TeamRobot> asked, String path) {
         if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
             return robotRefused(asked);
         }
-        if (path == null || !editableOf(robot.value()).remove(path)) {
-            return Response.error(404, "not an editable file: " + path);
+        if (path != null && editableOf(robot.value()).remove(path)) {
+            return Response.json(GSON.toJson(pickedList(robot.value())));
         }
-        return Response.json(GSON.toJson(fileList(robot.value(), false)));
+        if (path != null && robot.value().owns(path)) {
+            return Response.error(400, alwaysEditable(robot.value(), path));
+        }
+        return Response.error(404, "not an editable file: " + path);
     }
 
     private String info() {
@@ -1363,6 +1391,9 @@ public final class CodingServer {
             item.addProperty("robot", robot.asked());
             item.addProperty("name", robot.displayName());
             item.addProperty("develop", robot.develop());
+            JsonArray own = new JsonArray();
+            robot.ownDirectories().forEach(own::add);
+            item.add("own", own);
             robots.add(item);
         }
         body.add("robots", robots);

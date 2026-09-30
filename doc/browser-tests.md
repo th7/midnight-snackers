@@ -137,8 +137,10 @@ the login asks for that one.
 
 `tools/browser/admin.mjs` opens the **admin page**, where the same name on two robots is
 two users: each row says which robot it is on, the files teammates may edit are picked
-for one robot at a time from the robots the server lists, and a delete names the robot
-as well as the user.
+for one robot at a time from the robots the server lists, each robot's own package shows
+as always editable with nothing to remove, the picker marks a file of either robot's
+package as whose it is rather than offering it, and a delete names the robot as well as
+the user.
 
 Chromium with an API deleted is not WebKit, and this cannot prove the page runs on a real
 iPad; no engine we can run here can. It proves the page needs nothing that engine has not

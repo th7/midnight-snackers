@@ -41,6 +41,14 @@ public enum TeamRobot {
         record StartsFrom(TeamRobot robot) implements WhenMissing {}
     }
 
+    public sealed interface Picking permits Picking.Pickable, Picking.ItsOwn, Picking.OthersOwn {
+        record Pickable() implements Picking {}
+
+        record ItsOwn() implements Picking {}
+
+        record OthersOwn(TeamRobot owner) implements Picking {}
+    }
+
     public static Checked<TeamRobot> named(String asked) {
         for (TeamRobot robot : values()) {
             if (robot.asked().equals(asked)) {
@@ -116,6 +124,12 @@ public enum TeamRobot {
             }
         }
         return Optional.empty();
+    }
+
+    public Picking picking(String key) {
+        return ownerOf(key)
+                .<Picking>map(owner -> owner == this ? new Picking.ItsOwn() : new Picking.OthersOwn(owner))
+                .orElse(new Picking.Pickable());
     }
 
     public WhenMissing whenMissing() {
