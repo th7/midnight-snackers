@@ -40,6 +40,7 @@ import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class CodingServer {
@@ -237,6 +238,8 @@ public final class CodingServer {
      */
     private volatile FieldAssets.Resolution drawnByDefault = FieldAssets.Resolution.DEFAULT;
 
+    private volatile Constants constants = Constants.defaults();
+
     private final Store assetStore = new OnDiskStore();
     private final Assets assets;
 
@@ -369,13 +372,14 @@ public final class CodingServer {
         Path root = Path.of("").toAbsolutePath();
         // One for every user's bench, so how many children run at once is the server's to say.
         Child children = new JvmChild();
-        SimBench.Factory benches = (worktree, robot) -> new SimBench(
+        SimBench.Factory benches = (worktree, robot, constants) -> new SimBench(
                 robot,
                 null,
                 worktree,
                 worktree.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimBench.Waits.ofTheBench(),
-                children);
+                children,
+                constants);
         Map<String, String> env = System.getenv();
         CodingServer server = start(
                 root,
@@ -463,7 +467,7 @@ public final class CodingServer {
         synchronized (benchByUser) {
             SimBench bench = benchByUser.get(session.user());
             if (bench == null) {
-                bench = benches.create(worktreeOf(session).path, session.robot);
+                bench = benches.create(worktreeOf(session).path, session.robot, () -> constants);
                 benchByUser.put(session.user(), bench);
                 benchRoutesByUser.put(session.user(), bench.routes(session.username));
             }
@@ -1133,6 +1137,8 @@ public final class CodingServer {
                 .route("POST", "/admin/assets/build", (request, params) -> buildAssets(request.query("resolution")))
                 .route("POST", "/admin/assets/refresh", (request, params) -> refreshAssets(request.query("resolution")))
                 .route("POST", "/admin/assets/default", (request, params) -> drawByDefault(request.query("resolution")))
+                .route("GET", "/admin/constants", (request, params) -> Response.json(constantsListed()))
+                .route("PUT", "/admin/constants", (request, params) -> setConstants(request.body))
                 .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
                         "POST",
@@ -1592,23 +1598,55 @@ public final class CodingServer {
         return Response.json(GSON.toJson(assetsFetched()));
     }
 
+    private String constantsListed() {
+        return GSON.toJson(SimConstants.listing(constants));
+    }
+
+    private Response setConstants(String body) {
+        JsonElement asked;
+        try {
+            asked = GSON.fromJson(body, JsonElement.class);
+        } catch (RuntimeException e) {
+            return Response.error(400, "the simulation constants are an object of numbers by name: " + e.getMessage());
+        }
+        if (asked == null) {
+            return Response.error(400, "the simulation constants are an object of numbers by name, and none came");
+        }
+        return SimConstants.fromJson(asked)
+                .fold(
+                        set -> {
+                            synchronized (this) {
+                                constants = set;
+                                saveSettings();
+                            }
+                            return Response.json(constantsListed());
+                        },
+                        rule -> Response.error(400, rule));
+    }
+
     private void loadSettings() {
         JsonObject stored = StateStore.load(stateDir.resolve(SETTINGS_FILE));
-        if (stored == null || !stored.has("defaultResolution")) {
+        if (stored == null) {
             return;
         }
         try {
-            drawnByDefault =
-                    FieldAssets.theOneNamed(stored.get("defaultResolution").getAsString());
+            if (stored.has("defaultResolution")) {
+                drawnByDefault =
+                        FieldAssets.theOneNamed(stored.get("defaultResolution").getAsString());
+            }
+            constants = SimConstants.fromJson(stored.get("constants")).fold(read -> read, rule -> {
+                throw new IllegalArgumentException(rule);
+            });
         } catch (RuntimeException e) {
             throw new IllegalStateException(
                     "could not read the settings in " + stateDir.resolve(SETTINGS_FILE) + ": " + e, e);
         }
     }
 
-    private void saveSettings() {
+    private synchronized void saveSettings() {
         JsonObject body = new JsonObject();
         body.addProperty("defaultResolution", drawnByDefault.asked);
+        body.add("constants", SimConstants.changed(constants));
         StateStore.save(stateDir.resolve(SETTINGS_FILE), body);
     }
 

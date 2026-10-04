@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.PerWheel;
 import org.firstinspires.ftc.teamcode.simcore.Power;
@@ -42,14 +43,14 @@ public class SimNoiseTest {
         assertTrue(line, line.contains("battery 13.80 V sag 0.20 V/power drain 0.0040 V/s"));
         assertTrue(line, line.contains("traction Infinity g"));
         assertTrue(line, line.contains("loop 20 ms"));
-        String seven = SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7));
+        String seven = SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7, Constants.defaults()));
         assertTrue(seven, seven.startsWith("Reginald, seed 7:"));
         assertTrue(seven, seven.contains("set down +-0.50 in +-2.0 deg; loop 33 ms spread 0.15 hiccups 2%"));
     }
 
     @Test
     public void namesNuggetsTwoMotorsAndNoWheelsItHasNoMotorFor() {
-        Noise seven = Noise.seeded(7);
+        Noise seven = Noise.seeded(7, Constants.defaults());
 
         String line = SimNoise.described(TeamRobot.NUGGET, seven);
 

@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.WaitingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.junit.Rule;
 import org.junit.Test;
@@ -71,7 +72,7 @@ public class SimRunnerTest {
 
     @Test
     public void withNoiseTheLoopPeriodVariesAndTheTicksStillSayWhenTheyWere() {
-        SimRobot noisy = new SimRobot(Noise.seeded(4));
+        SimRobot noisy = new SimRobot(Noise.seeded(4, Constants.defaults()));
 
         SimRecording recording =
                 SimRunner.run(new WaitingAuto(), noisy, 10, folder.getRoot().toPath());
@@ -97,17 +98,17 @@ public class SimRunnerTest {
     public void everyRunWithTheSameSeedIsTheSameTickForTick() {
         SimRecording first = SimRunner.run(
                 new WaitingAuto(),
-                new SimRobot(Noise.seeded(4)),
+                new SimRobot(Noise.seeded(4, Constants.defaults())),
                 10,
                 folder.getRoot().toPath());
         SimRecording second = SimRunner.run(
                 new WaitingAuto(),
-                new SimRobot(Noise.seeded(4)),
+                new SimRobot(Noise.seeded(4, Constants.defaults())),
                 10,
                 folder.getRoot().toPath());
         SimRecording other = SimRunner.run(
                 new WaitingAuto(),
-                new SimRobot(Noise.seeded(5)),
+                new SimRobot(Noise.seeded(5, Constants.defaults())),
                 10,
                 folder.getRoot().toPath());
 

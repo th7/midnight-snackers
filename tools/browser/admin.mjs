@@ -51,6 +51,47 @@ const FILES = {
 
 const ASKED = [];
 
+const GROUPS = [
+  { name: 'noise', label: 'Noise', says: 'What a seed draws a run\'s robot from.' },
+  { name: 'mechanisms', label: 'Mechanisms', says: 'Guesses until measured on the robot.' }
+];
+
+const BUILT = [
+  { name: 'motor_spread', group: 'noise', label: 'Motor spread', unit: 'of the tuned value',
+    says: 'How far each drive motor may be drawn from its tuning.', least: 0, most: 0.5, byDefault: 0.1 },
+  { name: 'hiccup_chance', group: 'noise', label: 'Hiccup chance', unit: 'per loop',
+    says: 'The chance that a loop is a hiccup.', least: 0, most: 1, byDefault: 0.02 },
+  { name: 'launch_throw', group: 'mechanisms', label: 'Launcher throw', unit: 'in/s per tick/s',
+    says: 'How fast a ball leaves the launcher.', least: 0.01, most: 1, byDefault: 0.189 }
+];
+
+let set = { launch_throw: 0.25 };
+
+const PUTS = [];
+
+function constantsListed() {
+  return {
+    groups: GROUPS,
+    constants: BUILT.map((c) => ({ ...c, value: c.name in set ? set[c.name] : c.byDefault }))
+  };
+}
+
+function constantsAsked(request, response) {
+  let body = '';
+  request.on('data', (chunk) => { body += chunk; });
+  request.on('end', () => {
+    PUTS.push(body);
+    const asked = JSON.parse(body);
+    if (asked.launch_throw > 1) {
+      response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('Launcher throw is from 0.01 to 1.0 in/s per tick/s, not ' + asked.launch_throw.toFixed(1));
+      return;
+    }
+    set = asked;
+    answer(response, constantsListed());
+  });
+}
+
 function answer(response, body) {
   response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(body));
@@ -72,6 +113,10 @@ function serve() {
     } else if (url.pathname === '/admin/assets') {
       answer(response, { under: '/state/assets', fetched: {}, complete: false, drawing: 'the model committed for tests',
                          resolution: {}, defaultResolution: 'high', downloaded: false });
+    } else if (request.method === 'GET' && url.pathname === '/admin/constants') {
+      answer(response, constantsListed());
+    } else if (request.method === 'PUT' && url.pathname === '/admin/constants') {
+      constantsAsked(request, response);
     } else if (request.method === 'POST' && url.pathname === '/admin/users/delete') {
       answer(response, { deleted: true });
     } else if (url.pathname === '/' || url.pathname === '/admin') {
@@ -171,6 +216,58 @@ async function main() {
     const asked = new URL(deleting.url());
     check(asked.search === '?robot=nugget&username=ada',
         `deleting ada on Nugget asked ${asked.pathname + asked.search}`);
+    await page.waitForFunction(() => document.querySelectorAll('#constants input').length === 3, null,
+        { timeout: 10_000 }).catch(() => {});
+    const panel = await page.locator('#constants').innerText();
+    for (const saying of ['Noise', 'Mechanisms', 'Motor spread', 'Hiccup chance', 'Launcher throw', 'in/s per tick/s',
+      'built 0.189']) {
+      check(panel.includes(saying), `the constants panel does not say ${saying}: ${JSON.stringify(panel)}`);
+    }
+    const throwInput = page.locator('#constants input[data-name="launch_throw"]');
+    check(await throwInput.inputValue() === '0.25', `the launcher throw shows ${await throwInput.inputValue()}, not 0.25`);
+    const changedRows = await page.locator('#constants .constant.changed').allInnerTexts();
+    check(changedRows.length === 1 && changedRows[0].includes('Launcher throw'),
+        `the constants marked as changed are ${JSON.stringify(changedRows)} rather than the launcher throw alone`);
+
+    await page.fill('#constants input[data-name="hiccup_chance"]', '0');
+    check(await page.locator('#constants .constant.changed').count() === 2,
+        'a constant typed away from how it was built is not marked as changed');
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/admin/constants') && r.request().method() === 'PUT',
+          { timeout: 10_000 }),
+      page.click('#save-constants')
+    ]);
+    check(JSON.stringify(JSON.parse(PUTS[PUTS.length - 1])) === JSON.stringify({ hiccup_chance: 0, launch_throw: 0.25 }),
+        `Save sent ${PUTS[PUTS.length - 1]} rather than every constant that differs from how it was built`);
+    await page.waitForFunction(() => document.getElementById('constants-said').textContent.length > 0, null,
+        { timeout: 10_000 }).catch(() => {});
+    check((await page.locator('#constants-said').innerText()).includes('next run'),
+        'saving does not say when the constants take effect');
+
+    await page.fill('#constants input[data-name="launch_throw"]', '5');
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/admin/constants') && r.request().method() === 'PUT',
+          { timeout: 10_000 }),
+      page.click('#save-constants')
+    ]);
+    await page.waitForFunction(() => document.getElementById('constants-said').textContent.includes('from 0.01'), null,
+        { timeout: 10_000 }).catch(() => {});
+    check((await page.locator('#constants-said').innerText()).includes('Launcher throw is from 0.01 to 1.0'),
+        `a refused set does not show why: ${await page.locator('#constants-said').innerText()}`);
+
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/admin/constants') && r.request().method() === 'PUT',
+          { timeout: 10_000 }),
+      page.click('#reset-constants')
+    ]);
+    check(PUTS[PUTS.length - 1] === '{}', `putting them back as built sent ${PUTS[PUTS.length - 1]} rather than {}`);
+    await page.waitForFunction(() => document.querySelectorAll('#constants .constant.changed').length === 0, null,
+        { timeout: 10_000 }).catch(() => {});
+    check(await page.locator('#constants .constant.changed').count() === 0,
+        'after putting them back as built, some are still marked as changed');
+    check(await page.locator('#constants input[data-name="launch_throw"]').inputValue() === '0.189',
+        'after putting them back as built, the launcher throw is not 0.189');
+
     check(threw.length === 0, `the page threw ${threw.join('; ')}`);
   } catch (stuck) {
     wrong.push(String((stuck && stuck.message) || stuck));
@@ -180,7 +277,7 @@ async function main() {
   }
 
   if (wrong.length) {
-    console.error('the coding server\'s admin page did not keep the robots apart:');
+    console.error('the coding server\'s admin page fell short:');
     for (const saying of wrong) {
       console.error('  ' + saying);
     }
@@ -188,7 +285,9 @@ async function main() {
   }
   console.log('the admin page says which robot each user is on, picks files for one robot at a time, '
       + 'shows each robot\'s own package as always editable and never offers it, '
-      + 'and deletes a user from the robot they are on.');
+      + 'deletes a user from the robot they are on, '
+      + 'and shows the simulation constants, saves those that differ from how they were built, '
+      + 'says why a set is refused, and puts them back as built.');
 }
 
 main();

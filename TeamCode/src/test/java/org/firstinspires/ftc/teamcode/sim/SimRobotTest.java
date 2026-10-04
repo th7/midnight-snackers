@@ -20,9 +20,12 @@ import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimRobotTest {
@@ -1018,6 +1021,56 @@ public class SimRobotTest {
         double[] ball = sim.placeOf(thePreloadOf(sim));
         assertTrue("launched to the robot's left (+y): y=" + ball[1], ball[1] > -40 + 10);
         assertEquals(0, ball[0], 0.5);
+    }
+
+    private static Constants constants(Constant constant, double value) {
+        java.util.Map<Constant, Double> set = new java.util.EnumMap<>(Constant.class);
+        set.put(constant, value);
+        return Valid.value(Constants.of(set));
+    }
+
+    private static double[] thrownFrom(SimRobot robot) {
+        robot.setPose(new Pose2d(-60, 0, 0));
+        robot.topGate.position = TOP_GATE_OPEN;
+        robot.bottomGate.position = BOTTOM_GATE_CLOSED;
+        robot.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
+        robot.step(0.1);
+        robot.topGate.position = TOP_GATE_CLOSED;
+        robot.step(0.05);
+        robot.bottomGate.position = BOTTOM_GATE_OPEN;
+        robot.step(0.1);
+        return robot.placeOf(thePreloadOf(robot));
+    }
+
+    @Test
+    public void theLauncherThrowsAsHardAsTheLauncherThrowConstantSays() {
+        SimRobot harder = new SimRobot(
+                TeamRobot.REGINALD,
+                SimNoise.NONE,
+                constants(Constant.LAUNCH_THROW, 1.5 * Constant.LAUNCH_THROW.byDefault()));
+
+        double[] asBuilt = thrownFrom(sim);
+        double[] thrown = thrownFrom(harder);
+
+        double leaves = -60 + Launch.AHEAD_IN;
+        assertTrue("in the air: " + thrown[2], thrown[2] > Launch.HEIGHT_IN);
+        assertEquals("half as far again", 1.5, (thrown[0] - leaves) / (asBuilt[0] - leaves), 0.02);
+    }
+
+    @Test
+    public void theTurntableTurnsAsFastAsTheTurntableSpeedConstantSays() {
+        SimRobot quicker = new SimRobot(
+                TeamRobot.REGINALD,
+                SimNoise.NONE,
+                constants(Constant.TURNTABLE_SPEED, 2 * Constant.TURNTABLE_SPEED.byDefault()));
+        sim.turnTable.power = 1;
+        quicker.turnTable.power = 1;
+
+        sim.step(1);
+        quicker.step(1);
+
+        assertEquals(Constant.TURNTABLE_SPEED.byDefault(), sim.turnTable.currentPosition, 200);
+        assertEquals(2 * Constant.TURNTABLE_SPEED.byDefault(), quicker.turnTable.currentPosition, 200);
     }
 
     @Test

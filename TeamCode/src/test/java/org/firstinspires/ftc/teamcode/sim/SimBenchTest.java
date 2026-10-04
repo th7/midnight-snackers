@@ -28,6 +28,8 @@ import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.RunState;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
@@ -157,6 +159,7 @@ public class SimBenchTest {
                 "ada",
                 null,
                 null,
+                Constants.defaults(),
                 SimBench.Mode.FREE_PLAY,
                 SimBench.Begin.AT_ONCE);
         CountDownLatch asking = new CountDownLatch(1);
@@ -384,6 +387,71 @@ public class SimBenchTest {
                 "the exact robot is a start line with no seed at all",
                 theStartLineIn(child).has("seed"));
         assertTrue(bench.status(), bench.status().contains("\"seed\":null"));
+    }
+
+    private static Constants throwing(double inPerSPerTickPerS) {
+        return Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, inPerSPerTickPerS)));
+    }
+
+    private SimBench benchTunedBy(FakeChild child, AtomicReference<Constants> admin) {
+        return new SimBench(
+                TeamRobot.REGINALD,
+                FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)),
+                outputDir(),
+                WAITS,
+                child,
+                new SystemClock(),
+                admin::get);
+    }
+
+    @Test
+    public void aRunIsMadeOnTheConstantsOfTheMomentItStartsAndSaysSo() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
+        AtomicReference<Constants> admin = new AtomicReference<>(Constants.defaults());
+        bench = benchTunedBy(child, admin);
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+
+        SimBench.Run asBuilt = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
+        assertEquals(Constants.defaults(), asBuilt.constants);
+        assertFalse(
+                "as built is a start line with no constants at all",
+                theStartLineIn(child).has("constants"));
+        assertTrue(bench.status(), bench.status().contains("\"constants\":{}"));
+
+        admin.set(throwing(0.25));
+        SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
+        admin.set(throwing(0.3));
+
+        assertEquals("done", thrown.outcome());
+        assertEquals(throwing(0.25), thrown.constants);
+        assertEquals(
+                "the constants are on the start line",
+                0.25,
+                theStartLineIn(child)
+                        .getAsJsonObject("constants")
+                        .get("launch_throw")
+                        .getAsDouble(),
+                0);
+        assertTrue(bench.status(), bench.status().contains("\"constants\":{\"launch_throw\":0.25}"));
+    }
+
+    @Test
+    public void aChildFromBeforeTheConstantsIsRefusedARunOnChangedOnesAndSaysWhy() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.CONSTANTS_PROTOCOL - 1);
+        AtomicReference<Constants> admin = new AtomicReference<>(Constants.defaults());
+        bench = benchTunedBy(child, admin);
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+
+        SimBench.Run asBuilt = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
+        assertEquals(asBuilt.message(), "done", asBuilt.outcome());
+
+        admin.set(throwing(0.25));
+        SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
+
+        assertEquals(SimRunStream.Outcome.cannotTune(SimRunStream.CONSTANTS_PROTOCOL - 1), thrown.outcome());
+        assertTrue(thrown.message(), thrown.message().contains("Pull develop"));
+        assertEquals(0, thrown.ticks().size());
+        assertNull(bench.current());
     }
 
     @Test

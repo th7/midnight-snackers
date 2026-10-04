@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ChattyAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Rule;
@@ -371,7 +373,7 @@ public class SimChildTest {
         Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
-        in.write(new Gson().toJson(SimDriverStation.startLine(start, 7L)) + "\n");
+        in.write(new Gson().toJson(SimDriverStation.startLine(start, 7L, Constants.defaults())) + "\n");
         in.flush();
 
         Output output = run(child);
@@ -380,7 +382,31 @@ public class SimChildTest {
         JsonObject first = new Gson().fromJson(output.stdout.get(2), JsonObject.class);
         double dx = first.get("x").getAsDouble() + 60, dy = first.get("y").getAsDouble() - 12;
         assertTrue("set down near the pose: " + first, Math.hypot(dx, dy) > 0.01 && Math.hypot(dx, dy) < 3);
-        assertTrue(output.stderr, output.stderr.contains(SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7))));
+        assertTrue(
+                output.stderr,
+                output.stderr.contains(SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7, Constants.defaults()))));
+    }
+
+    @Test
+    public void theConstantsOnTheStartLineAreWhatTheRobotIsDrawnFromAndTheLogSaysSo() throws Exception {
+        Constants grippier = Valid.value(Constants.of(java.util.Map.of(
+                Constant.LEAST_TRACTION_G, 0.9,
+                Constant.MOST_TRACTION_G, 0.9,
+                Constant.LAUNCH_THROW, 0.25)));
+        Process child = JvmChild.launchOnThisClasspath(
+                "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        in.write(new Gson().toJson(SimDriverStation.startLine(new Pose2d(-60, 12, 0), 7L, grippier)) + "\n");
+        in.flush();
+
+        Output output = run(child);
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        assertTrue(
+                output.stderr,
+                output.stderr.contains(SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7, grippier))));
+        assertTrue(output.stderr, output.stderr.contains("traction 0.90 g"));
+        assertTrue(output.stderr, output.stderr.contains("Constants: " + SimConstants.described(grippier)));
     }
 
     @Test

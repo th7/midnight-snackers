@@ -368,8 +368,9 @@ listener, per user, so a run started there is recorded as theirs. Class:
 `Router`.
 
 **Admin** — The person at the host machine. Only they can reach the admin
-listener, where they decide logins and pick files for the editable set. There
-is no admin login; being on the machine is the credential.
+listener, where they decide logins, pick files for the editable set and set
+the **simulation constants**. There is no admin login; being on the machine is
+the credential.
 
 **User listing** — `GET /admin/users` and the roster it draws on the admin
 page: every user who has ever logged in, in the order they first did, each
@@ -660,7 +661,8 @@ process: `sessions.json` (each with the robot it is for), `editable.json`,
 `worktrees.json` (username to slug, path, and branch, per project root) —
 Reginald's, and `editable-nugget.json` and `worktrees-nugget.json`
 Nugget's — `settings.json` (what the admin
-set, which so far is the **resolution** the pages draw), the assets it
+set: the **resolution** the pages draw and the **simulation constants** they
+changed), the assets it
 fetched, and the worktrees themselves.
 It follows the XDG Base Directory convention:
 `$XDG_STATE_HOME/midnight-snackers/coding-server`, else
@@ -935,7 +937,11 @@ by name, with the fix, when a seed is set. From version 5 the child simulates
 whichever robot it is told; an older child simulates Reginald alone, so the
 bench runs Reginald on it and refuses Nugget by name, with the fix, which is
 to pull `nugget-develop` — or, when that is older too, for the coach to merge
-`develop` into it. A tick's
+`develop` into it. From version 6 the start line may carry the **simulation
+constants** the admin changed, and only those; an older child runs on the
+constants it was built with, so the bench lets it run when none were changed
+and refuses it by name, with the fix, when any were: pull the robot's develop
+branch, or have the coach put the constants back as built. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Every one of those decisions —
@@ -1421,7 +1427,8 @@ tens of inches a second). The
 launcher's throw and the turntable's speed are guesses until measured on
 the robot, calibrated so the code's close launch from its launch distance
 drops into the middle of the upturned cell's mouth, which a hive holds
-five feet up: the throw is a steep one. The world moves in steps of at
+five feet up: the throw is a steep one. Both are **simulation constants**,
+so whoever measures them sets them on the admin page. The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
 `Launch` and `Turntable`, in the **core**.
@@ -1460,9 +1467,35 @@ hand puts it, about half an inch and two degrees off. The loop period is
 about 33 ms (thirty hertz), varied, with the odd **hiccup** of 80 to
 200 ms. A robot without noise is the tuned model exactly, with the loop
 at 20 ms: what every run had before there was noise. A seed draws what
-`java.util.Random` would, so it is the robot it always was. Classes: `Noise`
-and `Draws`, in the **core**; `SimNoise`, which names the robot in a run's log;
-`SimRobot.setDown`.
+`java.util.Random` would, so it is the robot it always was. Every range, rate
+and chance above is a **simulation constant**, so a seed draws the robot from
+the constants a run was started on. Classes: `Noise` and `Draws`, in the
+**core**; `SimNoise`, which names the robot in a run's log; `SimRobot.setDown`.
+
+**Simulation constants** — The numbers the simulator was built with that are
+the admin's to change: the **noise** a seed draws a robot from (how far a
+motor strays from its tuning, the battery, its sag and drain, traction, how a
+hand sets the robot down, and the loop and its hiccups), and the
+**mechanisms** nobody has measured yet (the launcher's throw and the
+turntable's speed). Each has a range it may go in, and the ones that come in
+pairs — the flattest and freshest battery, the least and most traction, the
+shortest loop, the loop, and the shortest and longest hiccup — must be the
+right way round, so a set is checked whole and is either taken whole or
+refused, saying which and why. The world's physics — gravity, a ball's bounce
+and grip — and the robot's own tuning are not among them: the one is the
+field's, the other the robot code's. The admin page lists them under
+*Simulation constants*, each with what it is, its unit, its range and what it
+was built as, and a set is saved whole, so what is left out goes back to how
+it was built; `GET /admin/constants` and `PUT /admin/constants` with what
+differs as `{"<name>": <number>}`. The server keeps them with the rest of its
+settings, so a restart runs what was set, and a settings file it cannot read
+stops it from starting. Every run a user starts is made on the constants as
+they were when it was started: its child is told the ones that were changed on
+its start line, its log names them, and `/status` says which they were. The
+core's calls that draw a seeded robot, launch a ball or turn the turntable
+name the constants rather than defaulting them, so none of them is made on the
+built ones by forgetting to say. Classes: `Constant` and `Constants`, in the **core**;
+`SimConstants`, which reads and writes them; `SimBench.Run.constants`.
 
 **Seed** — Which robot an op mode's runs are made on, kept by the bench
 beside the op mode's start pose (in `start-poses.json`, so per user on

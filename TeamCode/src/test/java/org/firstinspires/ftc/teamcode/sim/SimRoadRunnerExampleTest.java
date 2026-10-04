@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.nugget.RoadRunnerExample;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Rule;
@@ -54,7 +55,7 @@ public class SimRoadRunnerExampleTest {
 
     @Test
     public void setDownWhereItsPlanSaysItDrivesALapOfTheFieldAndStopsWhereItStarted() {
-        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE);
+        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE, Constants.defaults());
         nugget.setDown(RoadRunnerExample.START);
 
         SimRecording run = run(nugget);
@@ -66,7 +67,7 @@ public class SimRoadRunnerExampleTest {
 
     @Test
     public void itsPlanIsDoneWellWithinTheAutonomousPeriodAndTheRunEndsWithIt() {
-        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE);
+        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE, Constants.defaults());
         nugget.setDown(RoadRunnerExample.START);
 
         SimRecording run = run(nugget);
@@ -78,7 +79,7 @@ public class SimRoadRunnerExampleTest {
 
     @Test
     public void eachLegIsAStepOfItsPlanAndTheRunSaysWhichItIsOn() {
-        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE);
+        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE, Constants.defaults());
         nugget.setDown(RoadRunnerExample.START);
 
         SimRecording run = run(nugget);
@@ -96,7 +97,8 @@ public class SimRoadRunnerExampleTest {
 
     @Test
     public void aSeededNuggetImperfectAsItIsStillDrivesItsLapAndComesBackToAboutWhereItWasSetDown() {
-        SimRobot nugget = new SimRobot(TeamRobot.NUGGET, Noise.seeded(StartPoses.DEFAULT_SEED));
+        SimRobot nugget = new SimRobot(
+                TeamRobot.NUGGET, Noise.seeded(StartPoses.DEFAULT_SEED, Constants.defaults()), Constants.defaults());
         nugget.setDown(RoadRunnerExample.START);
         Pose2d setDown = nugget.pose();
 

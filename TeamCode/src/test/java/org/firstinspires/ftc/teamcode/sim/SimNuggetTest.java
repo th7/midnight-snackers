@@ -17,6 +17,7 @@ import org.firstinspires.ftc.nugget.TankLocalizer;
 import org.firstinspires.ftc.nugget.Trajectories;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
@@ -28,7 +29,7 @@ public class SimNuggetTest {
 
     private static final double EXACTLY = 1e-9;
 
-    private final SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE);
+    private final SimRobot nugget = new SimRobot(TeamRobot.NUGGET, SimNoise.NONE, Constants.defaults());
 
     public static final class NeitherReversed extends NuggetOpMode {
         @Override
@@ -131,7 +132,7 @@ public class SimNuggetTest {
 
     @Test
     public void aSeededNuggetIsItsOwnImperfectRobotAndStillCannotSlideSideways() {
-        SimRobot seeded = new SimRobot(TeamRobot.NUGGET, Noise.seeded(7));
+        SimRobot seeded = new SimRobot(TeamRobot.NUGGET, Noise.seeded(7, Constants.defaults()), Constants.defaults());
         NuggetTeleOp teleOp = started(seeded, new NuggetTeleOp());
         seeded.setPose(CLEAR_OF_EVERYTHING);
         teleOp.gamepad1.left_stick_y = -1;

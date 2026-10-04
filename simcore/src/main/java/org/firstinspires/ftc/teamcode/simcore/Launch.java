@@ -11,9 +11,10 @@ public record Launch(Vec3 at, Vec3 velocity) {
             double headingRadians,
             double turntableRadians,
             double flywheelTicksPerSecond,
-            Vec2 robotVelocity) {
+            Vec2 robotVelocity,
+            Constants constants) {
         double aim = headingRadians + turntableRadians;
-        double speed = Math.abs(flywheelTicksPerSecond) * IN_PER_S_PER_TICK_PER_S;
+        double speed = Math.abs(flywheelTicksPerSecond) * constants.value(Constant.LAUNCH_THROW);
         return new Launch(
                 new Vec3(robotAt.x() + AHEAD_IN * Math.cos(aim), robotAt.y() + AHEAD_IN * Math.sin(aim), HEIGHT_IN),
                 new Vec3(

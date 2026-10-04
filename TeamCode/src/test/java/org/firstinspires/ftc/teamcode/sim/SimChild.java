@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
@@ -100,8 +101,10 @@ public final class SimChild {
             return recording.outcome();
         }
         Long seed = driverStation.seed();
-        SimRobot sim = new SimRobot(robot, seed == null ? SimNoise.NONE : Noise.seeded(seed));
+        Constants constants = driverStation.constants();
+        SimRobot sim = new SimRobot(robot, seed == null ? SimNoise.NONE : Noise.seeded(seed, constants), constants);
         System.err.println("Robot: " + SimNoise.described(robot, sim.noise()));
+        System.err.println("Constants: " + SimConstants.described(constants));
         sim.setDown(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);

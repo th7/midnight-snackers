@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 
 public final class SimDriverStation {
     public static final class State {
@@ -175,32 +176,41 @@ public final class SimDriverStation {
     private final CountDownLatch placed = new CountDownLatch(1);
     private volatile Pose2d start;
     private volatile Long seed;
+    private volatile Constants constants = Constants.defaults();
 
     public static JsonObject startLine(Pose2d start) {
-        return startLine(start, null);
+        return startLine(start, null, Constants.defaults());
     }
 
-    public static JsonObject startLine(Pose2d start, Long seed) {
+    public static JsonObject startLine(Pose2d start, Long seed, Constants constants) {
         JsonObject line = new JsonObject();
         line.add("start", StartPoses.toJson(start));
         if (seed != null) {
             line.addProperty("seed", seed);
         }
+        if (!constants.asBuilt()) {
+            line.add("constants", SimConstants.changed(constants));
+        }
         return line;
     }
 
     public void place(Pose2d pose) {
-        place(pose, null);
+        place(pose, null, Constants.defaults());
     }
 
-    public void place(Pose2d pose, Long seed) {
+    public void place(Pose2d pose, Long seed, Constants constants) {
         start = Objects.requireNonNull(pose, "start");
         this.seed = seed;
+        this.constants = Objects.requireNonNull(constants, "constants");
         placed.countDown();
     }
 
     public Long seed() {
         return seed;
+    }
+
+    public Constants constants() {
+        return constants;
     }
 
     public Optional<Pose2d> awaitPlacement() {
@@ -253,7 +263,12 @@ public final class SimDriverStation {
             if (!line.get("start").isJsonObject()) {
                 throw new IllegalArgumentException("not a start pose: " + line.get("start"));
             }
-            place(StartPoses.fromJson(line.getAsJsonObject("start")), StartPoses.seedFromJson(line.get("seed")));
+            Pose2d pose = StartPoses.fromJson(line.getAsJsonObject("start"));
+            Long seed = StartPoses.seedFromJson(line.get("seed"));
+            Constants constants = SimConstants.fromJson(line.get("constants")).fold(read -> read, rule -> {
+                throw new IllegalArgumentException("not simulation constants: " + rule);
+            });
+            place(pose, seed, constants);
             return;
         }
         if (line.has("gamepad") && line.has("state")) {

@@ -11,7 +11,8 @@ public final class Noise {
     public static final double LEAST_TRACTION_G = 0.3;
     public static final double MOST_TRACTION_G = 0.6;
     public static final double SET_DOWN_INCHES = 0.5;
-    public static final double SET_DOWN_RADIANS = Math.toRadians(2);
+    public static final double SET_DOWN_DEGREES = 2;
+    public static final double SET_DOWN_RADIANS = Math.toRadians(SET_DOWN_DEGREES);
     public static final double LOOP_SECONDS = 0.033;
     public static final double LOOP_SPREAD = 0.15;
     public static final double LEAST_LOOP_SECONDS = 0.015;
@@ -39,22 +40,37 @@ public final class Noise {
         return new Noise(0, PerWheel.all(Motor.tuned()), battery, Traction.unlimited(), new Hand(0, 0), loop);
     }
 
-    public static Noise seeded(long seed) {
+    public static Noise seeded(long seed, Constants constants) {
         Drawing drawing = new Drawing(Draws.seeded(seed));
-        Motor leftFront = drawing.motor();
-        Motor rightFront = drawing.motor();
-        Motor leftBack = drawing.motor();
-        Motor rightBack = drawing.motor();
-        double freshVolts = FLATTEST_VOLTS + drawing.nextDouble() * (FRESHEST_VOLTS - FLATTEST_VOLTS);
-        double traction = (LEAST_TRACTION_G + drawing.nextDouble() * (MOST_TRACTION_G - LEAST_TRACTION_G))
-                * Flight.GRAVITY_IN_PER_S2;
+        double spread = constants.value(Constant.MOTOR_SPREAD);
+        Motor leftFront = drawing.motor(spread);
+        Motor rightFront = drawing.motor(spread);
+        Motor leftBack = drawing.motor(spread);
+        Motor rightBack = drawing.motor(spread);
+        double flattest = constants.value(Constant.FLATTEST_VOLTS);
+        double freshest = constants.value(Constant.FRESHEST_VOLTS);
+        double freshVolts = flattest + drawing.nextDouble() * (freshest - flattest);
+        double least = constants.value(Constant.LEAST_TRACTION_G);
+        double most = constants.value(Constant.MOST_TRACTION_G);
+        double traction = (least + drawing.nextDouble() * (most - least)) * Flight.GRAVITY_IN_PER_S2;
         return new Noise(
                 seed,
                 new PerWheel<>(leftFront, rightFront, leftBack, rightBack),
-                new Battery(freshVolts, SAG_VOLTS_PER_POWER, DRAIN_VOLTS_PER_SECOND),
+                new Battery(
+                        freshVolts,
+                        constants.value(Constant.SAG_VOLTS_PER_POWER),
+                        constants.value(Constant.DRAIN_VOLTS_PER_SECOND)),
                 Traction.of(traction).orElse(Traction.unlimited()),
-                new Hand(SET_DOWN_INCHES, SET_DOWN_RADIANS),
-                new Loop(Seconds.of(LOOP_SECONDS).orElse(Seconds.zero()), LOOP_SPREAD, HICCUP_CHANCE));
+                new Hand(
+                        constants.value(Constant.SET_DOWN_INCHES),
+                        Math.toRadians(constants.value(Constant.SET_DOWN_DEGREES))),
+                new Loop(
+                        Seconds.of(constants.value(Constant.LOOP_SECONDS)).orElse(Seconds.zero()),
+                        constants.value(Constant.LOOP_SPREAD),
+                        constants.value(Constant.HICCUP_CHANCE),
+                        constants.value(Constant.LEAST_LOOP_SECONDS),
+                        constants.value(Constant.SHORTEST_HICCUP_SECONDS),
+                        constants.value(Constant.LONGEST_HICCUP_SECONDS)));
     }
 
     public long seed() {
@@ -126,12 +142,11 @@ public final class Noise {
         }
         Drawing drawing = new Drawing(draws);
         if (drawing.nextDouble() < loop.hiccupChance) {
-            double hiccup =
-                    SHORTEST_HICCUP_SECONDS + drawing.nextDouble() * (LONGEST_HICCUP_SECONDS - SHORTEST_HICCUP_SECONDS);
+            double hiccup = loop.shortestHiccup + drawing.nextDouble() * (loop.longestHiccup - loop.shortestHiccup);
             return drawing.drawn(Seconds.of(hiccup).orElse(loop.period));
         }
         double period = loop.period.value() * Math.exp(drawing.nextGaussian() * loop.spread);
-        double bounded = Math.max(LEAST_LOOP_SECONDS, Math.min(SHORTEST_HICCUP_SECONDS, period));
+        double bounded = Math.max(loop.least, Math.min(loop.shortestHiccup, period));
         return drawing.drawn(Seconds.of(bounded).orElse(loop.period));
     }
 
@@ -284,11 +299,23 @@ public final class Noise {
         private final Seconds period;
         private final double spread;
         private final double hiccupChance;
+        private final double least;
+        private final double shortestHiccup;
+        private final double longestHiccup;
 
-        private Loop(Seconds period, double spread, double hiccupChance) {
+        private Loop(
+                Seconds period,
+                double spread,
+                double hiccupChance,
+                double least,
+                double shortestHiccup,
+                double longestHiccup) {
             this.period = period;
             this.spread = spread;
             this.hiccupChance = hiccupChance;
+            this.least = least;
+            this.shortestHiccup = shortestHiccup;
+            this.longestHiccup = longestHiccup;
         }
 
         public static Checked<Loop> of(double seconds, double spread, double hiccupChance) {
@@ -301,7 +328,14 @@ public final class Noise {
             if (!(hiccupChance >= 0 && hiccupChance <= 1)) {
                 return Checked.rejected("a hiccup's chance is between 0 and 1, not " + hiccupChance);
             }
-            return Seconds.of(seconds).map(period -> new Loop(period, spread, hiccupChance));
+            return Seconds.of(seconds)
+                    .map(period -> new Loop(
+                            period,
+                            spread,
+                            hiccupChance,
+                            LEAST_LOOP_SECONDS,
+                            SHORTEST_HICCUP_SECONDS,
+                            LONGEST_HICCUP_SECONDS));
         }
 
         public Seconds period() {
@@ -344,15 +378,15 @@ public final class Noise {
             return drawn.value();
         }
 
-        Motor motor() {
-            double kSVolts = spread();
-            double kVVoltSecondsPerTick = spread();
-            double kAVoltSecondsSquaredPerTick = spread();
+        Motor motor(double spread) {
+            double kSVolts = spread(spread);
+            double kVVoltSecondsPerTick = spread(spread);
+            double kAVoltSecondsSquaredPerTick = spread(spread);
             return new Motor(kSVolts, kVVoltSecondsPerTick, kAVoltSecondsSquaredPerTick);
         }
 
-        double spread() {
-            return 1 + (2 * nextDouble() - 1) * MOTOR_SPREAD;
+        double spread(double spread) {
+            return 1 + (2 * nextDouble() - 1) * spread;
         }
 
         <T> Drawn<T> drawn(T value) {

@@ -52,8 +52,8 @@ public class NoiseTest {
 
     @Test
     public void theSameSeedDrawsTheSameRobot() {
-        Noise first = Noise.seeded(42);
-        Noise second = Noise.seeded(42);
+        Noise first = Noise.seeded(42, Constants.defaults());
+        Noise second = Noise.seeded(42, Constants.defaults());
 
         for (Wheel wheel : Wheel.values()) {
             Noise.Motor one = first.motors().of(wheel), other = second.motors().of(wheel);
@@ -77,8 +77,8 @@ public class NoiseTest {
 
     @Test
     public void differentSeedsDrawDifferentRobots() {
-        Noise first = Noise.seeded(1);
-        Noise second = Noise.seeded(2);
+        Noise first = Noise.seeded(1, Constants.defaults());
+        Noise second = Noise.seeded(2, Constants.defaults());
 
         assertNotEquals(
                 first.motors().leftFront().kVVoltSecondsPerTick(),
@@ -91,7 +91,8 @@ public class NoiseTest {
     @Test
     public void everyMotorIsWithinTheSpreadOfItsTuning() {
         for (long seed = 0; seed < 200; seed++) {
-            for (Noise.Motor motor : Noise.seeded(seed).motors().inOrder()) {
+            for (Noise.Motor motor :
+                    Noise.seeded(seed, Constants.defaults()).motors().inOrder()) {
                 assertEquals("seed " + seed + " kSVolts", 1, motor.kSVolts(), Noise.MOTOR_SPREAD);
                 assertEquals(
                         "seed " + seed + " kVVoltSecondsPerTick", 1, motor.kVVoltSecondsPerTick(), Noise.MOTOR_SPREAD);
@@ -107,7 +108,7 @@ public class NoiseTest {
     @Test
     public void theMotorsDifferFromEachOtherNotJustFromTheTuning() {
         Set<Double> kVs = new HashSet<>();
-        for (Noise.Motor motor : Noise.seeded(3).motors().inOrder()) {
+        for (Noise.Motor motor : Noise.seeded(3, Constants.defaults()).motors().inOrder()) {
             kVs.add(motor.kVVoltSecondsPerTick());
         }
 
@@ -117,7 +118,7 @@ public class NoiseTest {
     @Test
     public void theBatteryStartsSomewhereBetweenFlatAndFreshAndSagsUnderLoadAndDrainsWithTime() {
         for (long seed = 0; seed < 200; seed++) {
-            double fresh = Noise.seeded(seed).battery().freshVolts();
+            double fresh = Noise.seeded(seed, Constants.defaults()).battery().freshVolts();
             assertTrue("seed " + seed + ": " + fresh, fresh >= Noise.FLATTEST_VOLTS && fresh <= Noise.FRESHEST_VOLTS);
         }
         Noise.Battery battery = Valid.value(Noise.Battery.of(13.8, 0.2, 0.004));
@@ -138,14 +139,14 @@ public class NoiseTest {
     @Test
     public void tractionIsWithinWhatTheTilesGive() {
         for (long seed = 0; seed < 200; seed++) {
-            double g = Noise.seeded(seed).traction().inPerS2() / Flight.GRAVITY_IN_PER_S2;
+            double g = Noise.seeded(seed, Constants.defaults()).traction().inPerS2() / Flight.GRAVITY_IN_PER_S2;
             assertTrue("seed " + seed + ": " + g + " g", g >= Noise.LEAST_TRACTION_G && g <= Noise.MOST_TRACTION_G);
         }
     }
 
     @Test
     public void aRobotSetDownLandsNearWhereItWasPutNotOnIt() {
-        Noise noise = Noise.seeded(5);
+        Noise noise = Noise.seeded(5, Constants.defaults());
         Draws draws = noise.draws();
 
         Set<Noise.Nudge> seen = new HashSet<>();
@@ -164,7 +165,7 @@ public class NoiseTest {
 
     @Test
     public void theLoopRunsAboutThirtyHertzWithTheOddHiccupAndNeverImpossiblyFast() {
-        Noise noise = Noise.seeded(6);
+        Noise noise = Noise.seeded(6, Constants.defaults());
         Draws draws = noise.draws();
 
         int loops = 10_000;
@@ -188,9 +189,131 @@ public class NoiseTest {
         assertTrue("the periods vary: " + seen.size() + " distinct", seen.size() > loops / 2);
     }
 
+    private static Constants constants(Object... pairs) {
+        java.util.Map<Constant, Double> set = new java.util.EnumMap<>(Constant.class);
+        for (int i = 0; i < pairs.length; i += 2) {
+            set.put((Constant) pairs[i], ((Number) pairs[i + 1]).doubleValue());
+        }
+        return Valid.value(Constants.of(set));
+    }
+
+    private static List<Double> loops(Noise noise, int count) {
+        List<Double> periods = new java.util.ArrayList<>();
+        Draws draws = noise.draws();
+        for (int i = 0; i < count; i++) {
+            Drawn<Seconds> drawn = noise.nextLoop(draws);
+            draws = drawn.next();
+            periods.add(drawn.value().value());
+        }
+        return periods;
+    }
+
+    @Test
+    public void aSeedDrawsTheRobotItAlwaysDrewFromTheConstantsAsBuilt() {
+        Noise one = Noise.seeded(1, Constants.defaults());
+
+        assertEquals(
+                List.of(
+                        Valid.value(Noise.Motor.of(1.0461756381406582, 0.9820161622984404, 0.9415429682619434)),
+                        Valid.value(Noise.Motor.of(0.9665434111919022, 1.0935511818848243, 0.9012234364531523)),
+                        Valid.value(Noise.Motor.of(1.0927409594046416, 1.087973077756382, 1.0894389835326388)),
+                        Valid.value(Noise.Motor.of(1.087416429779194, 0.9794348684369412, 0.969503605840622))),
+                one.motors().inOrder());
+        assertEquals(12.529302657607266, one.battery().freshVolts(), 0);
+        assertEquals(Noise.SAG_VOLTS_PER_POWER, one.battery().sagVoltsPerPower(), 0);
+        assertEquals(Noise.DRAIN_VOLTS_PER_SECOND, one.battery().drainVoltsPerSecond(), 0);
+        assertEquals(174.4914791023158, one.traction().inPerS2(), 0);
+        assertEquals(
+                new Noise.Nudge.By(new Vec2(0.7807905200944775, -0.3040913035034301), -0.03809103889390489),
+                one.setDown(one.draws()).value());
+        List<Double> loops = loops(one, 1000);
+        assertEquals("the first hiccup", 0.155742786597383, loops.get(36), 0);
+        double total = 0;
+        for (double period : loops) {
+            total += period;
+        }
+        assertEquals(36.11084671901952, total, 0);
+    }
+
+    @Test
+    public void theConstantsAreWhatASeedDrawsTheRobotFrom() {
+        Noise drawn = Noise.seeded(
+                7,
+                constants(
+                        Constant.MOTOR_SPREAD, 0,
+                        Constant.FLATTEST_VOLTS, 12.5,
+                        Constant.FRESHEST_VOLTS, 12.5,
+                        Constant.SAG_VOLTS_PER_POWER, 0.5,
+                        Constant.DRAIN_VOLTS_PER_SECOND, 0.01,
+                        Constant.LEAST_TRACTION_G, 0.45,
+                        Constant.MOST_TRACTION_G, 0.45,
+                        Constant.SET_DOWN_INCHES, 0,
+                        Constant.SET_DOWN_DEGREES, 0));
+
+        for (Noise.Motor motor : drawn.motors().inOrder()) {
+            assertEquals(Noise.Motor.tuned(), motor);
+        }
+        assertEquals(12.5, drawn.battery().freshVolts(), 0);
+        assertEquals(0.5, drawn.battery().sagVoltsPerPower(), 0);
+        assertEquals(0.01, drawn.battery().drainVoltsPerSecond(), 0);
+        assertEquals(0.45, drawn.traction().inPerS2() / Flight.GRAVITY_IN_PER_S2, 1e-12);
+        assertEquals(new Noise.Nudge.None(), drawn.setDown(drawn.draws()).value());
+    }
+
+    @Test
+    public void aWiderMotorSpreadDrawsMotorsFurtherFromTheirTuning() {
+        double furthest = 0;
+        for (long seed = 0; seed < 200; seed++) {
+            for (Noise.Motor motor : Noise.seeded(seed, constants(Constant.MOTOR_SPREAD, 0.4))
+                    .motors()
+                    .inOrder()) {
+                for (double factor :
+                        List.of(motor.kSVolts(), motor.kVVoltSecondsPerTick(), motor.kAVoltSecondsSquaredPerTick())) {
+                    assertEquals("seed " + seed, 1, factor, 0.4);
+                    furthest = Math.max(furthest, Math.abs(factor - 1));
+                }
+            }
+        }
+        assertTrue("furthest " + furthest, furthest > 0.35);
+    }
+
+    @Test
+    public void theLoopIsDrawnFromItsPeriodItsSpreadAndItsHiccups() {
+        Noise steady = Noise.seeded(
+                8, constants(Constant.LOOP_SECONDS, 0.05, Constant.LOOP_SPREAD, 0, Constant.HICCUP_CHANCE, 0));
+        for (double period : loops(steady, 100)) {
+            assertEquals(0.05, period, 0);
+        }
+
+        Noise hiccuping = Noise.seeded(
+                8,
+                constants(
+                        Constant.HICCUP_CHANCE, 1,
+                        Constant.SHORTEST_HICCUP_SECONDS, 0.1,
+                        Constant.LONGEST_HICCUP_SECONDS, 0.1));
+        for (double period : loops(hiccuping, 100)) {
+            assertEquals(0.1, period, 1e-12);
+        }
+
+        Noise wild = Noise.seeded(
+                8,
+                constants(
+                        Constant.LOOP_SECONDS, 0.02,
+                        Constant.LOOP_SPREAD, 1,
+                        Constant.HICCUP_CHANCE, 0,
+                        Constant.LEAST_LOOP_SECONDS, 0.019,
+                        Constant.SHORTEST_HICCUP_SECONDS, 0.021));
+        List<Double> periods = loops(wild, 1000);
+        for (double period : periods) {
+            assertTrue("period " + period, period >= 0.019 && period <= 0.021);
+        }
+        assertTrue("some as short as allowed", periods.contains(0.019));
+        assertTrue("some as long as an ordinary loop may be", periods.contains(0.021));
+    }
+
     @Test
     public void withersKeepTheSeedAndReplaceOneThing() {
-        Noise noise = Noise.seeded(9);
+        Noise noise = Noise.seeded(9, Constants.defaults());
         Noise.Motor weaker = Valid.value(Noise.Motor.of(1, 1.2, 1));
 
         Noise changed = noise.withMotor(Wheel.RIGHT_FRONT, weaker);
@@ -202,7 +325,7 @@ public class NoiseTest {
         assertSame(noise.traction(), changed.traction());
         assertEquals(
                 "the original is unchanged",
-                Noise.seeded(9).motors().rightFront().kVVoltSecondsPerTick(),
+                Noise.seeded(9, Constants.defaults()).motors().rightFront().kVVoltSecondsPerTick(),
                 noise.motors().rightFront().kVVoltSecondsPerTick(),
                 0);
         assertEquals(

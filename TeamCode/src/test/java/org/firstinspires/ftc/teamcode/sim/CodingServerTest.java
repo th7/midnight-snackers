@@ -6,11 +6,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +37,8 @@ import java.util.regex.Pattern;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Before;
@@ -105,13 +109,13 @@ public class CodingServerTest {
 
     private CodingServer server() {
         if (server == null) {
-            serverWith((worktree, robot) -> bench());
+            serverWith((worktree, robot, constants) -> bench());
         }
         return server;
     }
 
     private static SimBench.Factory sourcesBench() {
-        return (worktree, robot) ->
+        return (worktree, robot, constants) ->
                 new SimBench(robot, null, worktree, worktree.resolve("TeamCode/build/sim"), WAITS.autonomousPeriod(2));
     }
 
@@ -129,7 +133,7 @@ public class CodingServerTest {
     }
 
     private CodingServer serverWith(SimBench bench) {
-        return serverWith((worktree, robot) -> bench);
+        return serverWith((worktree, robot, constants) -> bench);
     }
 
     private static final int CHEAP_SCRYPT = 1 << 4;
@@ -145,8 +149,8 @@ public class CodingServerTest {
     private CodingServer serverWith(SimBench.Factory factory, int scryptN, CodingServer.Assets assets) {
         // Every bench the server makes, however the test asked for it, so the teardown can say whether
         // any of them was left running.
-        SimBench.Factory recorded = (worktree, robot) -> {
-            SimBench made = factory.create(worktree, robot);
+        SimBench.Factory recorded = (worktree, robot, constants) -> {
+            SimBench made = factory.create(worktree, robot, constants);
             benches.add(made);
             return made;
         };
@@ -215,7 +219,7 @@ public class CodingServerTest {
 
     private CodingServer serverThatHashesAsItWouldInEarnest() {
         return serverWith(
-                (worktree, robot) -> {
+                (worktree, robot, constants) -> {
                     SimBench bench = bench();
                     benches.add(bench);
                     return bench;
@@ -1252,7 +1256,7 @@ public class CodingServerTest {
     @Test
     public void eachUsersSimulatorIsTheRobotTheyWorkOnAndListsThatRobotsOpModesAlone() throws IOException {
         List<TeamRobot> madeFor = new ArrayList<>();
-        serverWith((worktree, robot) -> {
+        serverWith((worktree, robot, constants) -> {
             madeFor.add(robot);
             return new SimBench(robot, SimCatalog.discover(robot), null, worktree.resolve("TeamCode/build/sim"), WAITS);
         });
@@ -1288,7 +1292,7 @@ public class CodingServerTest {
 
     @Test
     public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
-        serverWith((worktree, robot) -> new SimBench(
+        serverWith((worktree, robot, constants) -> new SimBench(
                 TeamRobot.REGINALD,
                 SimCatalog.of(ThreeLoopAuto.class),
                 null,
@@ -1318,7 +1322,7 @@ public class CodingServerTest {
 
     @Test
     public void eachUserSeedsTheRobotOnTheirOwnBench() throws Exception {
-        serverWith((worktree, robot) -> new SimBench(
+        serverWith((worktree, robot, constants) -> new SimBench(
                 TeamRobot.REGINALD,
                 SimCatalog.of(ThreeLoopAuto.class),
                 null,
@@ -1552,7 +1556,7 @@ public class CodingServerTest {
     @Test
     public void aRefreshFetchesTheAssetsAndTheyAreWhatTheBenchThenServes() throws IOException {
         serverWith(
-                (worktree, robot) -> bench(),
+                (worktree, robot, constants) -> bench(),
                 CHEAP_SCRYPT,
                 writing(FieldAssets.everyAsset(FieldAssets.Resolution.DEFAULT).toArray(new String[0])));
         String cookie = approvedUser("mia");
@@ -1569,7 +1573,7 @@ public class CodingServerTest {
 
     @Test
     public void anAssetTheRefreshDidNotWriteStillComesFromWhatIsCommitted() throws IOException {
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
 
         admin("POST", "/admin/assets/refresh");
@@ -1583,7 +1587,7 @@ public class CodingServerTest {
 
     @Test
     public void aRefreshOnshapeWillNotAnswerSaysSoAndLeavesThePagesDrawing() throws IOException {
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, new CodingServer.Assets() {
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, new CodingServer.Assets() {
             @Override
             public FieldAssets.Refreshed download(Store store, Path into) {
                 throw new Onshape.NoCredentials("no key pair and no proxy");
@@ -1605,7 +1609,7 @@ public class CodingServerTest {
 
     @Test
     public void onlyTheResolutionAskedForIsFetched() throws IOException {
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
 
         Reply normal = admin("POST", "/admin/assets/refresh?resolution=low");
@@ -1629,7 +1633,7 @@ public class CodingServerTest {
     public void aDownloadAndABuildAreAskedForSeparately() throws IOException {
         Writing assets = new Writing(
                 FieldAssets.everyAsset(FieldAssets.Resolution.DEFAULT).toArray(new String[0]));
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, assets);
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, assets);
         String cookie = approvedUser("mia");
 
         Reply downloaded = admin("POST", "/admin/assets/download");
@@ -1650,7 +1654,7 @@ public class CodingServerTest {
 
     @Test
     public void aBuildWithNothingDownloadedIsRefusedAndSaysWhatToDo() throws IOException {
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, writing());
 
         Reply refused = admin("POST", "/admin/assets/build?resolution=low");
 
@@ -1661,7 +1665,7 @@ public class CodingServerTest {
     @Test
     public void aResolutionNobodyBuildsIsRefusedBeforeAnythingIsBuilt() throws IOException {
         Writing assets = new Writing();
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, assets);
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, assets);
 
         Reply refused = admin("POST", "/admin/assets/build?resolution=finest");
 
@@ -1672,7 +1676,7 @@ public class CodingServerTest {
 
     @Test
     public void aResolutionNobodyBuildsIsRefusedRatherThanFetched() throws IOException {
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, writing());
 
         Reply refused = admin("POST", "/admin/assets/refresh?resolution=finest");
 
@@ -1775,6 +1779,170 @@ public class CodingServerTest {
                 user("GET", "/sim/assets/field-default.js", cookie).body);
     }
 
+    private Reply admin(String method, String path, String body) throws IOException {
+        return request(server().adminUrl(), method, path, null, body);
+    }
+
+    private static JsonObject constantNamed(Reply listing, Constant constant) {
+        for (JsonElement element :
+                new Gson().fromJson(listing.body, JsonObject.class).getAsJsonArray("constants")) {
+            if (element.getAsJsonObject().get("name").getAsString().equals(constant.asked())) {
+                return element.getAsJsonObject();
+            }
+        }
+        throw new AssertionError("no " + constant.asked() + " in " + listing.body);
+    }
+
+    @Test
+    public void theAdminSeesEverySimulationConstantAsBuiltUntilTheyChangeOne() throws IOException {
+        Reply listing = admin("GET", "/admin/constants");
+
+        assertEquals(listing.body, 200, listing.status);
+        JsonArray listed = new Gson().fromJson(listing.body, JsonObject.class).getAsJsonArray("constants");
+        assertEquals(Constant.values().length, listed.size());
+        for (Constant constant : Constant.values()) {
+            JsonObject one = constantNamed(listing, constant);
+            assertEquals(
+                    constant.asked(), constant.byDefault(), one.get("value").getAsDouble(), 0);
+            assertEquals(constant.label(), one.get("label").getAsString());
+        }
+        assertTrue(listing.body, listing.body.contains("\"groups\""));
+    }
+
+    @Test
+    public void theAdminChangesTheConstantsAndTheyOutliveARestartAlongsideTheOtherSettings() throws IOException {
+        admin("POST", "/admin/assets/default?resolution=medium");
+
+        Reply set = admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25, \"hiccup_chance\": 0}");
+
+        assertEquals(set.body, 200, set.status);
+        assertEquals(
+                0.25, constantNamed(set, Constant.LAUNCH_THROW).get("value").getAsDouble(), 0);
+        assertEquals(0, constantNamed(set, Constant.HICCUP_CHANCE).get("value").getAsDouble(), 0);
+        assertEquals(
+                Constant.MOTOR_SPREAD.byDefault(),
+                constantNamed(set, Constant.MOTOR_SPREAD).get("value").getAsDouble(),
+                0);
+
+        restart();
+
+        Reply after = admin("GET", "/admin/constants");
+        assertEquals(
+                0.25, constantNamed(after, Constant.LAUNCH_THROW).get("value").getAsDouble(), 0);
+        assertEquals(
+                0, constantNamed(after, Constant.HICCUP_CHANCE).get("value").getAsDouble(), 0);
+        assertTrue(
+                "and what the pages draw is kept too",
+                admin("GET", "/admin/assets").body.contains("\"defaultResolution\":\"medium\""));
+    }
+
+    @Test
+    public void whatThePagesDrawIsSetWithoutForgettingTheConstants() throws IOException {
+        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+
+        admin("POST", "/admin/assets/default?resolution=low");
+        restart();
+
+        assertEquals(
+                0.25,
+                constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW)
+                        .get("value")
+                        .getAsDouble(),
+                0);
+    }
+
+    @Test
+    public void theConstantsAreSetWholeSoWhatIsLeftOutGoesBackToHowItWasBuilt() throws IOException {
+        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25, \"hiccup_chance\": 0}");
+
+        Reply set = admin("PUT", "/admin/constants", "{\"hiccup_chance\": 0.1}");
+        Reply none = admin("PUT", "/admin/constants", "{}");
+
+        assertEquals(
+                Constant.LAUNCH_THROW.byDefault(),
+                constantNamed(set, Constant.LAUNCH_THROW).get("value").getAsDouble(),
+                0);
+        assertEquals(
+                0.1, constantNamed(set, Constant.HICCUP_CHANCE).get("value").getAsDouble(), 0);
+        for (Constant constant : Constant.values()) {
+            assertEquals(
+                    constant.asked(),
+                    constant.byDefault(),
+                    constantNamed(none, constant).get("value").getAsDouble(),
+                    0);
+        }
+    }
+
+    @Test
+    public void constantsTheSimulatorCannotTakeAreRefusedSayingWhyAndChangeNothing() throws IOException {
+        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+
+        Reply outOfRange = admin("PUT", "/admin/constants", "{\"launch_throw\": 5}");
+        Reply backwards = admin("PUT", "/admin/constants", "{\"least_traction_g\": 0.9}");
+        Reply unknown = admin("PUT", "/admin/constants", "{\"gravity\": 1}");
+        Reply notANumber = admin("PUT", "/admin/constants", "{\"launch_throw\": \"hard\"}");
+        Reply notJson = admin("PUT", "/admin/constants", "harder");
+        Reply nothing = admin("PUT", "/admin/constants", "");
+
+        assertEquals(400, outOfRange.status);
+        assertTrue(outOfRange.body, outOfRange.body.contains("Launcher throw is from"));
+        assertEquals(400, backwards.status);
+        assertTrue(backwards.body, backwards.body.contains("Least traction may not be more than most traction"));
+        assertEquals(400, unknown.status);
+        assertTrue(unknown.body, unknown.body.contains("'gravity'"));
+        assertEquals(400, notANumber.status);
+        assertTrue(notANumber.body, notANumber.body.contains("Launcher throw is a number"));
+        assertEquals(400, notJson.status);
+        assertEquals(400, nothing.status);
+        assertEquals(
+                "what was set is what it was",
+                0.25,
+                constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW)
+                        .get("value")
+                        .getAsDouble(),
+                0);
+    }
+
+    @Test
+    public void eachUsersBenchIsHandedTheConstantsTheAdminSetWhenTheirRunStarts() throws IOException {
+        List<java.util.function.Supplier<Constants>> handed = new ArrayList<>();
+        serverWith((worktree, robot, constants) -> {
+            handed.add(constants);
+            return bench();
+        });
+        String ada = approvedUser("ada");
+        user("GET", "/sim/catalog", ada);
+        assertEquals(1, handed.size());
+        assertEquals(Constants.defaults(), handed.get(0).get());
+
+        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+
+        assertEquals(
+                Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, 0.25))),
+                handed.get(0).get());
+    }
+
+    @Test
+    public void settingsThatCannotBeReadStopTheServerRatherThanQuietlyRunningOnOthers() throws IOException {
+        Files.createDirectories(stateDir());
+        Files.write(
+                stateDir().resolve("settings.json"),
+                "{\"constants\": {\"launch_throw\": 5}}".getBytes(StandardCharsets.UTF_8));
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class, this::server);
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains("settings"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("Launcher throw"));
+        server = null;
+    }
+
+    @Test
+    public void theAdminPageShowsAndSetsTheConstants() throws IOException {
+        String page = admin("GET", "/admin").body;
+
+        assertTrue("the admin page asks for the constants", page.contains("/admin/constants"));
+    }
+
     /**
      * The setting is what the server builds and reports against too, rather than only what the pages
      * read: a build nobody gave a resolution makes the one the pages draw, and the server says it is
@@ -1782,7 +1950,7 @@ public class CodingServerTest {
      */
     @Test
     public void theServerFetchesAndReportsTheFieldItsPagesDraw() throws IOException {
-        serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
+        serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, writing());
         String cookie = approvedUser("mia");
         admin("POST", "/admin/assets/default?resolution=low");
 
@@ -1797,7 +1965,7 @@ public class CodingServerTest {
 
     @Test
     public void aServerWhosePagesDrawLowHasWhatItNeedsWithoutTheRest() throws IOException {
-        CodingServer running = serverWith((worktree, robot) -> bench(), CHEAP_SCRYPT, writing());
+        CodingServer running = serverWith((worktree, robot, constants) -> bench(), CHEAP_SCRYPT, writing());
         admin("POST", "/admin/assets/default?resolution=low");
 
         admin("POST", "/admin/assets/refresh?resolution=low");
@@ -2153,7 +2321,12 @@ public class CodingServerTest {
         Files.createFile(otherRoot.resolve("Other.java"));
         SimBench otherBench = bench();
         CodingServer other = CodingServer.start(
-                otherRoot, (worktree, robot) -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+                otherRoot,
+                (worktree, robot, constants) -> otherBench,
+                InetAddress.getLoopbackAddress(),
+                0,
+                0,
+                stateDir());
         try {
             assertEquals(
                     "{\"files\":[]}", request(other.adminUrl(), "GET", "/admin/files?robot=reginald", null, null).body);
@@ -2167,7 +2340,12 @@ public class CodingServerTest {
         assertEquals(
                 "{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files?robot=reginald").body);
         other = CodingServer.start(
-                otherRoot, (worktree, robot) -> otherBench, InetAddress.getLoopbackAddress(), 0, 0, stateDir());
+                otherRoot,
+                (worktree, robot, constants) -> otherBench,
+                InetAddress.getLoopbackAddress(),
+                0,
+                0,
+                stateDir());
         try {
             assertEquals(
                     "{\"files\":[{\"path\":\"Other.java\"}]}",
@@ -2313,7 +2491,13 @@ public class CodingServerTest {
         SimBench bench = bench();
 
         try {
-            CodingServer.start(plain, (worktree, robot) -> bench, InetAddress.getLoopbackAddress(), 0, 0, stateDir())
+            CodingServer.start(
+                            plain,
+                            (worktree, robot, constants) -> bench,
+                            InetAddress.getLoopbackAddress(),
+                            0,
+                            0,
+                            stateDir())
                     .stop();
             fail("no repository, no worktrees, no server");
         } catch (IllegalStateException e) {

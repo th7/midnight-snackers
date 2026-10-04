@@ -42,6 +42,7 @@ import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
 import org.firstinspires.ftc.teamcode.simcore.Drawn;
 import org.firstinspires.ftc.teamcode.simcore.Draws;
@@ -134,8 +135,8 @@ public class SimRobot {
     private final MecanumKinematics kinematics =
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private final Drivetrain drivetrain;
-    private final Turntable turntable =
-            Valid.value(Turntable.of(org.firstinspires.ftc.reginald.Turntable.TICKS_PER_REVOLUTION));
+    private final Constants constants;
+    private final Turntable turntable;
     private final World<Body> world = new World<>();
     private final Body chassis;
 
@@ -265,16 +266,19 @@ public class SimRobot {
     }
 
     public SimRobot(Noise noise) {
-        this(TeamRobot.REGINALD, noise);
+        this(TeamRobot.REGINALD, noise, Constants.defaults());
     }
 
-    public SimRobot(TeamRobot teamRobot, Noise noise) {
+    public SimRobot(TeamRobot teamRobot, Noise noise, Constants constants) {
         this.teamRobot = teamRobot;
         this.build = switch (teamRobot) {
             case REGINALD -> new Reginald(devices);
             case NUGGET -> new Nugget(devices, new FakeDcMotorEx(), new FakeDcMotorEx());
         };
         this.noise = noise;
+        this.constants = constants;
+        this.turntable =
+                Valid.value(Turntable.of(org.firstinspires.ftc.reginald.Turntable.TICKS_PER_REVOLUTION, constants));
         this.draws = noise.draws();
         this.drivetrain = Valid.value(Drivetrain.of(
                 teamRobot.drivebase(),
@@ -919,7 +923,8 @@ public class SimRobot {
                 pose.heading.toDouble(),
                 turntable.radians(turnTable.currentPosition),
                 launcher.measuredVelocity,
-                new Vec2(robotVelocity.x / IN, robotVelocity.y / IN));
+                new Vec2(robotVelocity.x / IN, robotVelocity.y / IN),
+                constants);
         intoTheAir(ball, launch.at(), launch.velocity());
     }
 

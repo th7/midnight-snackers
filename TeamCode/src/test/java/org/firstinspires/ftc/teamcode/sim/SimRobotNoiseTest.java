@@ -9,6 +9,7 @@ import org.firstinspires.ftc.reginald.Localizer;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.Traction;
 import org.firstinspires.ftc.teamcode.simcore.Wheel;
@@ -135,8 +136,8 @@ public class SimRobotNoiseTest {
 
     @Test
     public void withNoiseSettingDownIsNearThePoseAndTheSameForTheSameSeed() {
-        SimRobot sim = new SimRobot(Noise.seeded(11));
-        SimRobot again = new SimRobot(Noise.seeded(11));
+        SimRobot sim = new SimRobot(Noise.seeded(11, Constants.defaults()));
+        SimRobot again = new SimRobot(Noise.seeded(11, Constants.defaults()));
 
         sim.setDown(new Pose2d(-56, -12, 0.3));
         again.setDown(new Pose2d(-56, -12, 0.3));
@@ -151,7 +152,7 @@ public class SimRobotNoiseTest {
 
     @Test
     public void aRobotSetDownBeyondAWallIsSetDownAgainstIt() {
-        SimRobot sim = new SimRobot(Noise.seeded(12));
+        SimRobot sim = new SimRobot(Noise.seeded(12, Constants.defaults()));
 
         sim.setDown(new Pose2d(SimPlacement.FIELD_SIZE_IN, 0, 0));
 

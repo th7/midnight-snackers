@@ -10,8 +10,11 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import java.util.Map;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.junit.Test;
 
 public class SimDriverStationTest {
@@ -186,17 +189,63 @@ public class SimDriverStationTest {
     public void theStartLineCarriesTheSeedWhenThereIsOne() {
         SimDriverStation station = new SimDriverStation();
         Pose2d placed = new Pose2d(-60, 12, 0);
-        JsonObject seeded = SimDriverStation.startLine(placed, 7L);
+        JsonObject seeded = SimDriverStation.startLine(placed, 7L, Constants.defaults());
         assertEquals("{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7}", seeded.toString());
         assertEquals(
                 "no seed, no key",
                 SimDriverStation.startLine(placed).toString(),
-                SimDriverStation.startLine(placed, null).toString());
+                SimDriverStation.startLine(placed, null, Constants.defaults()).toString());
 
         station.accept(seeded);
 
         assertEquals(Long.valueOf(7), station.seed());
         assertEquals(-60, station.awaitPlacement().get().position.x, 0);
+    }
+
+    @Test
+    public void theStartLineCarriesTheConstantsThatWereChangedAndOnlyThose() {
+        SimDriverStation station = new SimDriverStation();
+        Pose2d placed = new Pose2d(-60, 12, 0);
+        Constants changed = Valid.value(Constants.of(Map.of(Constant.LAUNCH_THROW, 0.25)));
+        JsonObject line = SimDriverStation.startLine(placed, 7L, changed);
+        assertEquals(
+                "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7,\"constants\":{\"launch_throw\":0.25}}",
+                line.toString());
+        assertEquals(
+                "as built, no key",
+                SimDriverStation.startLine(placed, 7L, Constants.defaults()).toString(),
+                "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7}");
+
+        station.accept(line);
+
+        assertEquals(changed, station.constants());
+        assertEquals(Long.valueOf(7), station.seed());
+    }
+
+    @Test
+    public void aStartLineWithoutConstantsIsTheRobotAsBuilt() {
+        SimDriverStation station = new SimDriverStation();
+
+        station.accept(SimDriverStation.startLine(new Pose2d(0, 0, 0)));
+
+        assertEquals(Constants.defaults(), station.constants());
+    }
+
+    @Test
+    public void constantsTheStationCannotTakeAreRefusedSayingWhy() {
+        SimDriverStation station = new SimDriverStation();
+
+        IllegalArgumentException unknown = assertThrows(
+                IllegalArgumentException.class,
+                () -> station.accept(
+                        json("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"gravity\": 1}}")));
+        assertTrue(unknown.getMessage(), unknown.getMessage().contains("'gravity'"));
+        IllegalArgumentException outOfRange = assertThrows(
+                IllegalArgumentException.class,
+                () -> station.accept(json(
+                        "{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"launch_throw\": 5}}")));
+        assertTrue(outOfRange.getMessage(), outOfRange.getMessage().contains("Launcher throw"));
+        assertFalse("not placed by a line it refused", station.stopRequested());
     }
 
     @Test

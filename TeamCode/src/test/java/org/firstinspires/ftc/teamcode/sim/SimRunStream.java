@@ -20,6 +20,7 @@ import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
@@ -72,6 +73,12 @@ public final class SimRunStream {
         public static String cannotSimulate(int childProtocol, TeamRobot robot) {
             return "wrong protocol: the simulator speaks " + childProtocol + " and simulates Reginald alone; "
                     + robot.displayName() + " needs " + ROBOTS_PROTOCOL;
+        }
+
+        public static String cannotTune(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and runs on the constants it was built with; constants set on the admin page need "
+                    + CONSTANTS_PROTOCOL;
         }
 
         public static String couldNotStartChild() {
@@ -152,7 +159,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 5;
+    public static final int PROTOCOL = 6;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -161,6 +168,8 @@ public final class SimRunStream {
     public static final int SEEDED_PROTOCOL = 4;
 
     public static final int ROBOTS_PROTOCOL = 5;
+
+    public static final int CONSTANTS_PROTOCOL = 6;
 
     public static final String ROBOT_OPTION = "--robot=";
 
@@ -273,7 +282,7 @@ public final class SimRunStream {
         }
     }
 
-    public static Handshake handshake(String firstLine, Pose2d start, Long seed, TeamRobot robot) {
+    public static Handshake handshake(String firstLine, Pose2d start, Long seed, TeamRobot robot, Constants constants) {
         int protocol = protocolOf(firstLine);
         String content = protocol == 1 ? firstLine : null;
         if (!simulates(protocol, robot)) {
@@ -296,8 +305,24 @@ public final class SimRunStream {
                             + SEEDED_PROTOCOL
                             + ": the sources are older than the server. Pull develop, or clear the seed.");
         }
+        if (!constants.asBuilt() && protocol < CONSTANTS_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotTune(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and runs on the constants it was built with, not the ones set on the admin page ("
+                            + SimConstants.described(constants)
+                            + "); they need protocol "
+                            + CONSTANTS_PROTOCOL
+                            + ": the sources are older than the server. Pull "
+                            + robot.develop()
+                            + ", or ask your coach to put the simulation constants back as they were built.");
+        }
         if (protocol >= PLACED_PROTOCOL) {
-            return new Handshake(protocol, content, SimDriverStation.startLine(start, seed), null, null);
+            return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, constants), null, null);
         }
         Twist2d fromOrigin = start.minus(StartPoses.ORIGIN);
         if (Math.hypot(fromOrigin.line.x, fromOrigin.line.y) < 1e-9 && Math.abs(fromOrigin.angle) < 1e-9) {

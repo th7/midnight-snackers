@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.sim.SimCatalog;
 import org.firstinspires.ftc.teamcode.sim.SimRecording;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.sim.SimRunner;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.junit.Test;
 
@@ -53,7 +54,7 @@ public class ForwardLeftBackwardRightSimTest {
     @Test
     public void drivesTheSquareOnAnImperfectRobotToo() {
         for (long seed = 1; seed <= 5; seed++) {
-            SimRobot sim = new SimRobot(Noise.seeded(seed));
+            SimRobot sim = new SimRobot(Noise.seeded(seed, Constants.defaults()));
             sim.setDown(START);
             Pose2d placed = sim.pose();
             SimCatalog.Entry opMode = SimCatalog.of(PlanOpModes.class)

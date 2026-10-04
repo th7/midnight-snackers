@@ -95,6 +95,20 @@
     50% { box-shadow: 0 0 0 5px rgba(47, 91, 215, 0); }
   }
   @media (prefers-reduced-motion: reduce) { button.pull.behind:not(:disabled) { animation: none; border-color: var(--accent); } }
+  .constants-note { margin: 0; padding: 10px 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .constant-group { padding: 10px 14px 4px; }
+  .constant-group .name { font-weight: 600; }
+  .constant-group .meta { color: var(--muted); font-size: 12px; }
+  .constant { display: grid; grid-template-columns: minmax(0, 1fr) 7.5em minmax(0, 0.9fr); gap: 4px 10px; align-items: center; padding: 6px 14px; border-top: 1px solid var(--line); }
+  .constant.changed { box-shadow: inset 3px 0 0 var(--accent); }
+  .constant .name { overflow-wrap: anywhere; }
+  .constant input { font: inherit; width: 100%; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .constant input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .constant .unit { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .constant .built { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+  .constant:not(.changed) .built { display: none; }
+  .constants-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+  .constants-actions .result { flex: 1 1 12em; }
 </style>
 </head>
 <body>
@@ -155,6 +169,20 @@
         <button id="build-assets" type="button" title="Build the models from the export already downloaded; no Onshape, under a second">Build</button>
         <button id="refresh-assets" type="button" title="Download and then build, in one">Refresh assets</button>
         <p id="assets-said" class="mono"></p>
+      </div>
+    </div>
+  </section>
+  <section>
+    <div>
+      <p class="section-label">Simulation constants</p>
+      <div class="panel">
+        <p class="constants-note">Every run a teammate starts on this server is made with these, from the moment they are saved. Hover over one for what it is and how far it may go.</p>
+        <div id="constants"></div>
+        <div class="constants-actions">
+          <button id="save-constants" type="button" class="primary">Save</button>
+          <button id="reset-constants" type="button" title="Every constant back to the value the simulator was built with">Back as built</button>
+          <span id="constants-said" class="result"></span>
+        </div>
       </div>
     </div>
   </section>
@@ -251,6 +279,108 @@
   });
 
   loadAssets();
+
+  var constantsEl = document.getElementById('constants');
+  var constantsSaid = document.getElementById('constants-said');
+  var saveConstants = document.getElementById('save-constants');
+  var resetConstants = document.getElementById('reset-constants');
+  var constantsListed = [];
+
+  function inputOf(constant) {
+    return constantsEl.querySelector('input[data-name="' + constant.name + '"]');
+  }
+
+  function differs(constant, typed) {
+    return typed.trim() !== '' && Number(typed) !== constant.byDefault;
+  }
+
+  function showConstants(json) {
+    constantsListed = json.constants || [];
+    constantsEl.textContent = '';
+    (json.groups || []).forEach(function (group) {
+      var head = document.createElement('div');
+      head.className = 'constant-group';
+      head.innerHTML = '<div class="name"></div><div class="meta"></div>';
+      head.querySelector('.name').textContent = group.label;
+      head.querySelector('.meta').textContent = group.says;
+      constantsEl.appendChild(head);
+      constantsListed.filter(function (constant) { return constant.group === group.name; }).forEach(function (constant) {
+        var row = document.createElement('label');
+        row.className = 'constant' + (constant.value !== constant.byDefault ? ' changed' : '');
+        row.title = constant.says + ' From ' + constant.least + ' to ' + constant.most + ' ' + constant.unit + '.';
+        row.innerHTML = '<span class="name"></span><input class="mono" type="number" step="any"><span class="unit"></span>'
+          + '<span class="built mono"></span>';
+        row.querySelector('.name').textContent = constant.label;
+        row.querySelector('.unit').textContent = constant.unit;
+        row.querySelector('.built').textContent = 'built ' + constant.byDefault;
+        var input = row.querySelector('input');
+        input.dataset.name = constant.name;
+        input.min = constant.least;
+        input.max = constant.most;
+        input.value = constant.value;
+        input.addEventListener('input', function () {
+          row.classList.toggle('changed', differs(constant, input.value));
+        });
+        constantsEl.appendChild(row);
+      });
+    });
+  }
+
+  function loadConstants() {
+    return fetch('/admin/constants').then(function (r) { return r.json(); }).then(showConstants)
+      .catch(function () { constantsSaid.textContent = 'The admin server did not answer about the constants.'; });
+  }
+
+  function askedConstants() {
+    var asked = {};
+    constantsListed.forEach(function (constant) {
+      var typed = inputOf(constant).value;
+      if (differs(constant, typed)) {
+        var number = Number(typed);
+        asked[constant.name] = isNaN(number) ? typed : number;
+      }
+    });
+    return asked;
+  }
+
+  function putConstants(asked, saying) {
+    saveConstants.disabled = true;
+    resetConstants.disabled = true;
+    constantsSaid.className = 'result';
+    constantsSaid.textContent = 'Saving\u2026';
+    fetch('/admin/constants', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(asked)
+    }).then(function (r) {
+      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
+    }).then(function (answer) {
+      if (!answer.ok) {
+        constantsSaid.className = 'result bad';
+        constantsSaid.textContent = answer.text;
+        return;
+      }
+      showConstants(JSON.parse(answer.text));
+      constantsSaid.className = 'result ok';
+      constantsSaid.textContent = saying;
+    }).catch(function (wrong) {
+      constantsSaid.className = 'result bad';
+      constantsSaid.textContent = 'The constants could not be saved: ' + wrong;
+    }).then(function () {
+      saveConstants.disabled = false;
+      resetConstants.disabled = false;
+    });
+  }
+
+  saveConstants.addEventListener('click', function () {
+    putConstants(askedConstants(), 'Saved. The next run anyone starts is made with these.');
+  });
+
+  resetConstants.addEventListener('click', function () {
+    putConstants({}, 'Back as built. The next run anyone starts is made with these.');
+  });
+
+  loadConstants();
 
   var usersEl = document.getElementById('users');
   var editableEl = document.getElementById('editable');
