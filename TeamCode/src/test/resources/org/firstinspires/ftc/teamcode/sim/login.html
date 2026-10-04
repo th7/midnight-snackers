@@ -33,10 +33,10 @@
 <body>
 <form id="login">
   <h1>Coding server</h1>
-  <p>Enter your name and pick the robot you work on. The person at the host machine will let you in.</p>
+  <p>Enter your name and pick the robot to work on now. The person at the host machine lets you in, and onto the robots you work on; once in, you can switch between them.</p>
   <label>Your name <input id="username" name="username" maxlength="32" autocomplete="username" required autofocus></label>
   <fieldset>
-    <legend>Your robot</legend>
+    <legend>Robot to work on</legend>
     <div class="robots">
       <label><input type="radio" name="robot" value="reginald" required><span>Reginald</span></label>
       <label><input type="radio" name="robot" value="nugget" required><span>Nugget</span></label>
@@ -70,7 +70,7 @@
     e.preventDefault();
     var name = document.getElementById('username').value.trim();
     var picked = form.querySelector('input[name="robot"]:checked');
-    if (!picked) { error.textContent = 'Pick the robot you work on.'; error.hidden = false; return; }
+    if (!picked) { error.textContent = 'Pick the robot to work on.'; error.hidden = false; return; }
     fetch('/login?username=' + encodeURIComponent(name) + '&robot=' + encodeURIComponent(picked.value), { method: 'POST' }).then(function (r) {
       if (!r.ok) { return r.text().then(function (t) { error.textContent = t; error.hidden = false; }); }
       form.hidden = true; waiting.hidden = false; poll();

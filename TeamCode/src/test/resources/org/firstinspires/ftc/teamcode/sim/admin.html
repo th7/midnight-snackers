@@ -57,7 +57,21 @@
   .pill.bad { color: var(--bad); background: var(--bad-soft); }
   .pill.warn { color: var(--warn); background: var(--warn-soft); }
   .pill.muted { color: var(--muted); background: var(--hover); }
-  .pill.robot { color: var(--accent); background: var(--hover); margin-left: 8px; font-weight: 600; }
+  .pill.robot { color: var(--accent); background: var(--hover); font-weight: 600; }
+  .robots { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 10px; vertical-align: baseline; }
+  .robots label { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .robots label:has(input:checked) { color: var(--accent); border-color: var(--accent); }
+  .robots input { margin: 0; accent-color: var(--accent); }
+  .robots input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .work { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 6px 14px 6px 30px; border-top: 1px dashed var(--line); }
+  .work .what { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .work .branch { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .work .git { grid-column: 1 / 2; margin-top: 0; }
+  @media (max-width: 520px) {
+    .row.user-head, .work { grid-template-columns: minmax(0, 1fr); }
+    .row.user-head .actions, .work .actions { flex-wrap: wrap; }
+    .robots { display: flex; margin: 4px 0 2px; }
+  }
   .robot-pick { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }
   .robot-pick select { font: inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
   .user + .user { border-top: 1px solid var(--line); }
@@ -401,11 +415,27 @@
   }
 
   function keyOf(user) {
-    return user.robot + '/' + user.username;
+    return user.username;
+  }
+
+  function workKeyOf(user, work) {
+    return work.robot + '/' + user.username;
   }
 
   function post(path) {
     return fetch(path, { method: 'POST' });
+  }
+
+  function answered(r) {
+    return r.text().then(function (text) { return { ok: r.ok, text: text }; });
+  }
+
+  function unreachable() {
+    return { ok: false, text: 'could not reach the server' };
+  }
+
+  function messageOf(reply) {
+    try { return JSON.parse(reply.text).message || reply.text; } catch (e) { return reply.text; }
   }
 
   function row(cls, name, meta) {
@@ -441,12 +471,12 @@
     return el;
   }
 
-  function renderStatus(user) {
-    var status = user.status;
+  function renderStatus(work) {
+    var status = work.status;
     var git = document.createElement('div');
     git.className = 'git';
     if (!status) {
-      git.appendChild(pill('bad', 'no status', user.statusError || ''));
+      git.appendChild(pill('bad', 'no status', work.statusError || ''));
       return git;
     }
     var changed = status.changed.length;
@@ -460,7 +490,8 @@
   var stateClass = { pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' };
 
   var resultByUsername = {};
-  var pullingByUsername = {};
+  var resultByWork = {};
+  var pullingByWork = {};
 
   var deleteArmedByUsername = {};
 
@@ -481,49 +512,59 @@
     return chosen === undefined ? pendingCount(user) > 0 : chosen;
   }
 
-  function pull(user) {
-    var id = user.sessions[user.sessions.length - 1].id;
-    pullingByUsername[keyOf(user)] = true;
-    renderUsers(lastUsers);
-    fetch('/admin/logins/' + id + '/pull', { method: 'POST' }).then(function (r) {
-      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
-    }).catch(function () {
-      return { ok: false, text: 'could not reach the server' };
-    }).then(function (reply) {
-      var result;
-      try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-
-      resultByUsername[keyOf(user)] = {
-        text: result.message,
-        kind: result.severity === undefined ? 'bad' : result.severity
-      };
-      delete pullingByUsername[keyOf(user)];
-      refresh();
-    });
+  function enabledWork(user) {
+    return user.robots.filter(function (work) { return work.enabled; });
   }
 
-  function forget(key) {
-    delete resultByUsername[key];
-    delete pullingByUsername[key];
-    delete expandedByUsername[key];
-    delete deleteArmedByUsername[key];
+  function pull(user, work) {
+    var key = workKeyOf(user, work);
+    pullingByWork[key] = true;
+    renderUsers(lastUsers);
+    post('/admin/users/pull?robot=' + encodeURIComponent(work.robot) + '&username=' + encodeURIComponent(user.username))
+      .then(answered).catch(unreachable).then(function (reply) {
+        var result;
+        try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
+
+        resultByWork[key] = {
+          text: result.message,
+          kind: result.severity === undefined ? 'bad' : result.severity
+        };
+        delete pullingByWork[key];
+        refresh();
+      });
+  }
+
+  function letOnto(user, work, enabled) {
+    post('/admin/users/robots?robot=' + encodeURIComponent(work.robot) + '&username=' + encodeURIComponent(user.username)
+        + '&enabled=' + (enabled ? 'true' : 'false'))
+      .then(answered).catch(unreachable).then(function (reply) {
+        if (reply.ok) {
+          delete resultByUsername[keyOf(user)];
+        } else {
+          resultByUsername[keyOf(user)] = { text: messageOf(reply), kind: 'bad', from: 'robots' };
+        }
+        refresh();
+      });
+  }
+
+  function forget(user) {
+    delete resultByUsername[keyOf(user)];
+    delete expandedByUsername[keyOf(user)];
+    delete deleteArmedByUsername[keyOf(user)];
+    user.robots.forEach(function (work) {
+      delete resultByWork[workKeyOf(user, work)];
+      delete pullingByWork[workKeyOf(user, work)];
+    });
   }
 
   function remove(user) {
     var armed = deleteArmedByUsername[keyOf(user)];
-    var path = '/admin/users/delete?robot=' + encodeURIComponent(user.robot)
-        + '&username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
-    fetch(path, { method: 'POST' }).then(function (r) {
-      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
-    }).catch(function () {
-      return { ok: false, text: 'could not reach the server' };
-    }).then(function (reply) {
+    var path = '/admin/users/delete?username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
+    post(path).then(answered).catch(unreachable).then(function (reply) {
       if (reply.ok) {
-        forget(keyOf(user));
+        forget(user);
       } else {
-        var result;
-        try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-        resultByUsername[keyOf(user)] = { text: result.message, kind: 'bad', from: 'delete' };
+        resultByUsername[keyOf(user)] = { text: messageOf(reply), kind: 'bad', from: 'delete' };
         deleteArmedByUsername[keyOf(user)] = true;
       }
       refresh();
@@ -532,7 +573,8 @@
 
   function metaOf(user) {
     var parts = [];
-    if (user.branch) { parts.push(user.branch); }
+    var on = enabledWork(user).map(function (work) { return robotName(work.robot); });
+    parts.push(on.length ? 'works on ' + on.join(' and ') : 'on no robot yet');
     parts.push(plural(user.sessions.length, 'login', 'logins'));
     var open = [];
     user.sessions.forEach(function (session) {
@@ -542,26 +584,112 @@
     return parts.join(' · ');
   }
 
+  function renderRobots(user) {
+    var el = document.createElement('span');
+    el.className = 'robots';
+    user.robots.forEach(function (work) {
+      var label = document.createElement('label');
+      label.title = work.enabled
+          ? user.username + ' works on ' + robotName(work.robot) + ', on ' + developOf(work.robot) + '; clear to take them off it'
+          : 'Let ' + user.username + ' work on ' + robotName(work.robot) + ' as well';
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = work.enabled;
+      box.addEventListener('click', function (e) { e.stopPropagation(); });
+      box.addEventListener('change', function () { letOnto(user, work, box.checked); });
+      var name = document.createElement('span');
+      name.textContent = robotName(work.robot);
+      label.appendChild(box);
+      label.appendChild(name);
+      el.appendChild(label);
+    });
+    return el;
+  }
+
+  function renderWork(user, work) {
+    var key = workKeyOf(user, work);
+    var el = document.createElement('div');
+    el.className = 'work';
+    var what = document.createElement('div');
+    what.className = 'what';
+    what.appendChild(pill('robot', robotName(work.robot), 'What ' + user.username + ' has on ' + robotName(work.robot)));
+    var branch = document.createElement('span');
+    branch.className = 'branch mono';
+    branch.textContent = work.branch || 'no worktree yet';
+    if (work.worktree) { branch.title = work.worktree; }
+    what.appendChild(branch);
+    el.appendChild(what);
+    var actions = document.createElement('div');
+    actions.className = 'actions';
+    el.appendChild(actions);
+    if (work.worktree) {
+      el.appendChild(renderStatus(work));
+      var status = work.status;
+      var behind = status ? status.behind : 0;
+      var pullButton = button('Pull', 'pull' + (behind > 0 ? ' behind' : ''), function () { pull(user, work); });
+      if (behind > 0) {
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = behind;
+        pullButton.appendChild(badge);
+      }
+      if (pullingByWork[key]) {
+        pullButton.disabled = true;
+        pullButton.title = 'pulling…';
+      } else if (!status) {
+        pullButton.disabled = true;
+        pullButton.title = 'git could not read the worktree';
+      } else {
+        pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from ' + developOf(work.robot) + ' into ' + user.username + '\'s branch'
+            : user.username + '\'s branch has everything on ' + developOf(work.robot);
+      }
+      actions.appendChild(pullButton);
+    }
+    var result = resultByWork[key];
+    if (result) {
+      var line = document.createElement('div');
+      line.className = 'result ' + result.kind;
+      line.textContent = result.text;
+      el.appendChild(line);
+    }
+    var last = work.lastMerge;
+
+    if (last && last.recipe && last.recipe.length) {
+      var recipe = document.createElement('pre');
+      recipe.className = 'recipe mono';
+      var why = document.createElement('div');
+      why.className = 'why ' + (last.severity || '');
+      why.textContent = last.op + ': ' + last.message;
+      recipe.appendChild(why);
+      recipe.appendChild(document.createTextNode(last.recipe.join('\n')));
+      el.appendChild(recipe);
+    }
+    return el;
+  }
+
   function renderSession(user, session) {
-    var meta = session.address + ' · ' + age(session.ageSeconds)
+    var meta = 'on ' + robotName(session.robot) + ' · ' + session.address + ' · ' + age(session.ageSeconds)
         + (session.file ? ' · editing ' + session.file : '');
     var el = row('session ' + session.state, 'login ' + session.id, meta);
     var actions = el.querySelector('.actions');
     actions.appendChild(pill(stateClass[session.state], session.state));
     var path = '/admin/logins/' + session.id;
-    function decide(verb, label, cls) {
-      return button(label, cls, function () {
+    function decide(verb, label, cls, title) {
+      var b = button(label, cls, function () {
         expandedByUsername[keyOf(user)] = true;
         post(path + verb).then(refresh);
       });
+      if (title) { b.title = title; }
+      return b;
     }
+    var onto = 'Let this login in, on ' + robotName(session.robot) + ', and ' + user.username + ' onto ' + robotName(session.robot);
     if (session.state === 'pending') {
-      actions.appendChild(decide('/approve', 'Approve', 'primary'));
+      actions.appendChild(decide('/approve', 'Approve', 'primary', onto));
       actions.appendChild(decide('/deny', 'Deny', 'danger'));
     } else if (session.state === 'approved') {
       actions.appendChild(decide('/revoke', 'Revoke', 'danger'));
     } else {
-      actions.appendChild(decide('/approve', 'Approve', ''));
+      actions.appendChild(decide('/approve', 'Approve', '', onto));
     }
     return el;
   }
@@ -591,20 +719,17 @@
     fold.setAttribute('aria-controls', listId);
     fold.innerHTML = '<span class="caret" aria-hidden="true">▸</span><span class="name"></span>';
     fold.querySelector('.name').textContent = user.username;
-    var robotPill = pill('robot', robotName(user.robot), user.username + ' works on ' + robotName(user.robot) + ', on ' + developOf(user.robot));
     fold.addEventListener('click', function () {
       expandedByUsername[keyOf(user)] = !expanded;
       delete deleteArmedByUsername[keyOf(user)];
       renderUsers(lastUsers);
     });
     left.appendChild(fold);
-    left.appendChild(robotPill);
+    left.appendChild(renderRobots(user));
     var meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = metaOf(user);
-    if (user.worktree) { meta.title = user.worktree; }
     left.appendChild(meta);
-    if (user.worktree) { left.appendChild(renderStatus(user)); }
     head.appendChild(left);
     var actions = document.createElement('div');
     actions.className = 'actions';
@@ -614,32 +739,11 @@
     if (pending) {
       actions.appendChild(pill('warn', plural(pending, 'login', 'logins') + ' to decide'));
     }
-    if (user.worktree) {
-      var status = user.status;
-      var behind = status ? status.behind : 0;
-      var pullButton = button('Pull', 'pull' + (behind > 0 ? ' behind' : ''), function () { pull(user); });
-      if (behind > 0) {
-        var badge = document.createElement('span');
-        badge.className = 'badge';
-        badge.textContent = behind;
-        pullButton.appendChild(badge);
-      }
-      if (pullingByUsername[keyOf(user)]) {
-        pullButton.disabled = true;
-        pullButton.title = 'pulling…';
-      } else if (!status) {
-        pullButton.disabled = true;
-        pullButton.title = 'git could not read the worktree';
-      } else {
-        pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from ' + developOf(user.robot) + ' into ' + user.username + '\'s branch'
-            : user.username + '\'s branch has everything on ' + developOf(user.robot);
-      }
-      actions.appendChild(pullButton);
-    }
+    var branches = enabledWork(user).map(function (work) { return work.branch; }).filter(Boolean);
     var deleteButton = button(armed ? 'Delete anyway' : 'Delete', 'danger', function () { remove(user); });
     deleteButton.title = armed
-        ? 'Delete ' + user.username + ' anyway: ' + (user.branch || 'their branch') + ' keeps what they committed'
-        : 'Forget ' + user.username + '\'s logins and take their worktree; their branch stays';
+        ? 'Delete ' + user.username + ' anyway: ' + (branches.length ? branches.join(' and ') : 'their branches') + ' keep what they committed'
+        : 'Forget ' + user.username + '\'s logins and take their worktree on every robot; their branches stay';
     actions.appendChild(deleteButton);
 
     var result = resultByUsername[keyOf(user)];
@@ -649,18 +753,10 @@
       line.textContent = result.text;
       head.appendChild(line);
     }
-    var last = user.lastMerge;
 
-    if (last && last.recipe && last.recipe.length) {
-      var recipe = document.createElement('pre');
-      recipe.className = 'recipe mono';
-      var why = document.createElement('div');
-      why.className = 'why ' + (last.severity || '');
-      why.textContent = last.op + ': ' + last.message;
-      recipe.appendChild(why);
-      recipe.appendChild(document.createTextNode(last.recipe.join('\n')));
-      head.appendChild(recipe);
-    }
+    enabledWork(user).forEach(function (work) {
+      el.appendChild(renderWork(user, work));
+    });
 
     var sessions = document.createElement('div');
     sessions.className = 'sessions';

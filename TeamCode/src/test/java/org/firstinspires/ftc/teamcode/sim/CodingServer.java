@@ -41,6 +41,7 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Robots;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class CodingServer {
@@ -56,6 +57,7 @@ public final class CodingServer {
     private static final Set<String> STATIC = Set.of("codemirror.js");
 
     private static final String SESSIONS_FILE = "sessions.json";
+    private static final String USERS_FILE = "users.json";
     private static final String EDITABLE_STEM = "editable";
     private static final String SETTINGS_FILE = "settings.json";
     private static final String ASSETS_DIR = "assets";
@@ -75,12 +77,12 @@ public final class CodingServer {
         REVOKED
     }
 
-    private record User(TeamRobot robot, String username) {}
+    private record Work(TeamRobot robot, String username) {}
 
     private static final class Session {
         final int id;
         final String username;
-        final TeamRobot robot;
+        TeamRobot robot;
         final InetAddress address;
         final long createdAtMillis;
         final Secret secret;
@@ -107,8 +109,8 @@ public final class CodingServer {
             this.state = state;
         }
 
-        User user() {
-            return new User(robot, username);
+        Work work() {
+            return new Work(robot, username);
         }
 
         JsonObject toJson() {
@@ -210,13 +212,13 @@ public final class CodingServer {
     private final Map<TeamRobot, Worktrees> worktreesByRobot = new EnumMap<>(TeamRobot.class);
     private final SimBench.Factory benches;
 
-    private final Map<User, SimBench> benchByUser = new LinkedHashMap<>();
+    private final Map<Work, SimBench> benchByWork = new LinkedHashMap<>();
 
-    private final Map<User, JsonObject> lastMergeByUser = new LinkedHashMap<>();
+    private final Map<Work, JsonObject> lastMergeByWork = new LinkedHashMap<>();
 
-    private final Map<User, SourceNavigator> navigatorByUser = new LinkedHashMap<>();
+    private final Map<Work, SourceNavigator> navigatorByWork = new LinkedHashMap<>();
 
-    private final Map<User, Router> benchRoutesByUser = new LinkedHashMap<>();
+    private final Map<Work, Router> benchRoutesByWork = new LinkedHashMap<>();
 
     private final Router userRoutes = userRoutes();
     private final TinyHttpServer admin;
@@ -224,6 +226,8 @@ public final class CodingServer {
     private final SecureRandom random = new SecureRandom();
 
     private final Map<Integer, Session> sessions = new LinkedHashMap<>();
+
+    private final Map<String, Robots> robotsByUsername = new LinkedHashMap<>();
 
     private int nextSessionId = 1;
 
@@ -290,6 +294,7 @@ public final class CodingServer {
         }
         this.benches = benches;
         loadSessions();
+        loadUsers();
         loadSettings();
         this.assetsDir = this.stateDir.resolve(ASSETS_DIR);
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
@@ -444,8 +449,8 @@ public final class CodingServer {
     public void stop() {
         admin.stop();
         users.stop();
-        synchronized (benchByUser) {
-            for (SimBench bench : benchByUser.values()) {
+        synchronized (benchByWork) {
+            for (SimBench bench : benchByWork.values()) {
                 bench.stop();
             }
         }
@@ -459,26 +464,26 @@ public final class CodingServer {
         return editableByRobot.get(robot);
     }
 
-    private Worktrees.Worktree worktreeOf(Session session) {
-        return worktreesOf(session.robot).ensure(session.username);
+    private Worktrees.Worktree worktreeOf(Work work) {
+        return worktreesOf(work.robot()).ensure(work.username());
     }
 
-    private SimBench benchOf(Session session) {
-        synchronized (benchByUser) {
-            SimBench bench = benchByUser.get(session.user());
+    private SimBench benchOf(Work work) {
+        synchronized (benchByWork) {
+            SimBench bench = benchByWork.get(work);
             if (bench == null) {
-                bench = benches.create(worktreeOf(session).path, session.robot, () -> constants);
-                benchByUser.put(session.user(), bench);
-                benchRoutesByUser.put(session.user(), bench.routes(session.username));
+                bench = benches.create(worktreeOf(work).path, work.robot(), () -> constants);
+                benchByWork.put(work, bench);
+                benchRoutesByWork.put(work, bench.routes(work.username()));
             }
             return bench;
         }
     }
 
-    private Router benchRoutesOf(Session session) {
-        synchronized (benchByUser) {
-            benchOf(session);
-            return benchRoutesByUser.get(session.user());
+    private Router benchRoutesOf(Work work) {
+        synchronized (benchByWork) {
+            benchOf(work);
+            return benchRoutesByWork.get(work);
         }
     }
 
@@ -493,13 +498,14 @@ public final class CodingServer {
                         "/files/{key*}",
                         (request, params) -> file(sessionOf(request), params.get("key"), request.body))
                 .route("GET", "/sim/assets/{name*}", (request, params) -> asset(params.get("name")))
-                .mount("/sim", request -> benchRoutesOf(sessionOf(request)))
+                .mount("/sim", request -> benchRoutesOf(sessionOf(request).work()))
                 .route("GET", "/nav/{op}", (request, params) -> navigate(sessionOf(request), params.get("op"), request))
                 .route("GET", "/source/{key*}", (request, params) -> source(sessionOf(request), params.get("key")))
                 .route("GET", "/git/status", (request, params) -> gitStatus(sessionOf(request)))
                 .route("POST", "/git/commit", (request, params) -> gitCommit(sessionOf(request), request.body))
                 .route("POST", "/git/pull", (request, params) -> gitPull(sessionOf(request)))
                 .route("POST", "/git/push", (request, params) -> gitPush(sessionOf(request)))
+                .route("POST", "/robot", (request, params) -> switchRobot(sessionOf(request), robotAskedIn(request)))
                 .route("GET", "/build", (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))))
                 .route(
                         "GET",
@@ -535,18 +541,19 @@ public final class CodingServer {
 
     private Response file(Session session, String path, String edit) {
         synchronized (this) {
-            Path worktree = worktreeOf(session).path;
-            Optional<Key> key = editableOf(session.robot).lookUpIn(worktree, path);
+            Work work = session.work();
+            Path worktree = worktreeOf(work).path;
+            Optional<Key> key = editableOf(work.robot()).lookUpIn(worktree, path);
             if (key.isEmpty()) {
                 return Response.error(404, "not an editable file: " + path);
             }
-            return edit == null ? read(session, worktree, key.get()) : write(worktree, key.get(), edit);
+            return edit == null ? read(session, worktree, key.get()) : write(work, worktree, key.get(), edit);
         }
     }
 
     private synchronized JsonObject fileList(Session asking) {
         JsonArray list = new JsonArray();
-        for (Key key : editableOf(asking.robot).in(worktreeOf(asking).path)) {
+        for (Key key : editableOf(asking.robot).in(worktreeOf(asking.work()).path)) {
             String path = key.path();
             JsonObject item = new JsonObject();
             item.addProperty("path", path);
@@ -639,18 +646,34 @@ public final class CodingServer {
         body.addProperty("path", key.path());
         body.addProperty("content", current.content);
         body.addProperty("version", current.version);
+        body.addProperty("robot", session.robot.asked());
         return Response.json(GSON.toJson(body));
     }
 
-    private Response write(Path worktree, Key key, String requestBody) {
+    private Response write(Work work, Path worktree, Key key, String requestBody) {
         JsonObject edit;
         try {
             edit = GSON.fromJson(requestBody, JsonObject.class);
         } catch (RuntimeException e) {
             edit = null;
         }
-        if (edit == null || !edit.has("content") || !edit.has("baseVersion")) {
-            return Response.error(400, "PUT a JSON body with content and baseVersion");
+        if (edit == null || !edit.has("content") || !edit.has("baseVersion") || !edit.has("robot")) {
+            return Response.error(400, "PUT a JSON body with content, baseVersion and the robot it was edited on");
+        }
+        Checked<TeamRobot> editedOn = TeamRobot.named(edit.get("robot").getAsString());
+        if (!(editedOn instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(editedOn);
+        }
+        if (robot.value() != work.robot()) {
+            JsonObject body = new JsonObject();
+            body.addProperty("path", key.path());
+            body.addProperty("robot", work.robot().asked());
+            body.addProperty(
+                    "message",
+                    "this was edited on " + robot.value().displayName() + ", and you are on "
+                            + work.robot().displayName() + " now, so it was not saved; reload to work on "
+                            + work.robot().displayName());
+            return Response.json(409, GSON.toJson(body));
         }
         Current current = current(worktree, key);
         if (current.problem != null) {
@@ -731,8 +754,8 @@ public final class CodingServer {
         return TeamRobot.named(asked == null ? "" : asked);
     }
 
-    private static String rejection(Checked<TeamRobot> asked) {
-        return asked.fold(robot -> "", rule -> rule);
+    private static String rejection(Checked<?> asked) {
+        return asked.fold(accepted -> "", rule -> rule);
     }
 
     private static boolean printable(String username) {
@@ -745,10 +768,14 @@ public final class CodingServer {
             body.addProperty("state", "none");
             return body;
         }
+        Work work = session.work();
         body.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
-        body.addProperty("username", session.username);
-        body.addProperty("robot", session.robot.asked());
-        Worktrees.Worktree worktree = worktreesOf(session.robot).find(session.username);
+        body.addProperty("username", work.username());
+        body.addProperty("robot", work.robot().asked());
+        if (session.state == State.APPROVED) {
+            body.add("robots", GSON.toJsonTree(robotsOfLogin(session).asked()));
+        }
+        Worktrees.Worktree worktree = worktreesOf(work.robot()).find(work.username());
         if (session.state == State.APPROVED && worktree != null) {
             body.addProperty("branch", worktree.branch);
         }
@@ -823,18 +850,18 @@ public final class CodingServer {
         }
     }
 
-    private Sources sourcesOf(Session session) {
-        Path sourceRoot = benchOf(session).sourceRoot();
+    private Sources sourcesOf(Work work) {
+        Path sourceRoot = benchOf(work).sourceRoot();
         if (sourceRoot == null) {
             return null;
         }
-        Path worktree = worktreeOf(session).path;
+        Path worktree = worktreeOf(work).path;
         SourceNavigator navigator;
-        synchronized (navigatorByUser) {
-            navigator = navigatorByUser.get(session.user());
+        synchronized (navigatorByWork) {
+            navigator = navigatorByWork.get(work);
             if (navigator == null) {
                 navigator = new SourceNavigator(sourceRoot);
-                navigatorByUser.put(session.user(), navigator);
+                navigatorByWork.put(work, navigator);
             }
         }
         return new Sources(worktree, worktree.relativize(sourceRoot).toString().replace('\\', '/') + "/", navigator);
@@ -844,7 +871,7 @@ public final class CodingServer {
         if (!op.equals("definition") && !op.equals("usages")) {
             return Response.error(404, "not found: " + request.path);
         }
-        Sources sources = sourcesOf(session);
+        Sources sources = sourcesOf(session.work());
         if (sources == null) {
             JsonObject body = new JsonObject();
             body.addProperty("available", false);
@@ -908,7 +935,8 @@ public final class CodingServer {
     }
 
     private Response source(Session session, String path) {
-        Sources sources = sourcesOf(session);
+        Work work = session.work();
+        Sources sources = sourcesOf(work);
         Optional<Key> key = sources == null ? Optional.empty() : sources.lookUp(path);
         if (key.isEmpty()) {
             return Response.error(404, "not a source file: " + path);
@@ -922,13 +950,14 @@ public final class CodingServer {
         body.addProperty("content", current.content);
         body.addProperty("version", current.version);
         synchronized (this) {
-            body.addProperty("editable", editableOf(session.robot).containsIn(sources.worktree, key.get()));
+            body.addProperty("editable", editableOf(work.robot()).containsIn(sources.worktree, key.get()));
         }
         return Response.json(GSON.toJson(body));
     }
 
     private Response gitStatus(Session session) {
-        return Response.json(GSON.toJson(statusJson(worktreesOf(session.robot).status(session.username))));
+        Work work = session.work();
+        return Response.json(GSON.toJson(statusJson(worktreesOf(work.robot()).status(work.username()))));
     }
 
     private Response gitCommit(Session session, String requestBody) {
@@ -949,9 +978,10 @@ public final class CodingServer {
             Worktrees.Commit commit;
             Formatting formatting;
             synchronized (this) {
-                Worktrees worktrees = worktreesOf(session.robot);
-                formatting = format(worktreeOf(session).path, worktrees.uncommitted(session.username));
-                commit = worktrees.commit(session.username, message);
+                Work work = session.work();
+                Worktrees worktrees = worktreesOf(work.robot());
+                formatting = format(worktreeOf(work).path, worktrees.uncommitted(work.username()));
+                commit = worktrees.commit(work.username(), message);
             }
             JsonObject reply = new JsonObject();
             reply.addProperty("committed", commit.made);
@@ -1020,47 +1050,62 @@ public final class CodingServer {
     }
 
     private Response gitPull(Session session) {
+        Work work = session.work();
         Worktrees.Merge merge;
         synchronized (this) {
-            merge = worktreesOf(session.robot).pull(session.username);
+            merge = worktreesOf(work.robot()).pull(work.username());
         }
-        return reply(merge, MergeReport.Op.PULL, session.user(), MergeReport.Voice.USER);
+        return reply(merge, MergeReport.Op.PULL, work, MergeReport.Voice.USER);
     }
 
-    private Response adminPull(String id) {
-        Session found = sessionById(id);
-        if (found == null) {
-            return Response.error(404, "no login with id " + id);
+    private Response adminPull(String username, Checked<TeamRobot> asked) {
+        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(asked);
         }
-        Worktrees worktrees = worktreesOf(found.robot);
-        if (worktrees.find(found.username) == null) {
-            return Response.error(404, found.username + " has no worktree yet: approve the login first");
+        if (username == null || username.isEmpty()) {
+            return Response.error(400, "POST /admin/users/pull?robot=<robot>&username=<name>");
+        }
+        if (sessionCountOf(username) == 0) {
+            return Response.error(404, "no user named " + username);
+        }
+        if (!robotsOf(username).map(robots -> robots.has(robot.value())).orElse(false)) {
+            return Response.error(
+                    404,
+                    username + " does not work on " + robot.value().displayName()
+                            + ": approve a login of theirs for it, or let them onto it");
+        }
+        Work work = new Work(robot.value(), username);
+        Worktrees worktrees = worktreesOf(work.robot());
+        if (worktrees.find(username) == null) {
+            return Response.error(
+                    404, username + " has no worktree on " + robot.value().displayName() + " yet: let them onto it");
         }
         Worktrees.Merge merge;
         try {
             synchronized (this) {
-                merge = worktrees.pull(found.username);
+                merge = worktrees.pull(username);
             }
         } catch (Git.Failed e) {
-            return Response.error(500, "git failed for " + found.username + ": " + e.getMessage());
+            return Response.error(500, "git failed for " + username + ": " + e.getMessage());
         }
-        return reply(merge, MergeReport.Op.PULL, found.user(), MergeReport.Voice.ADMIN);
+        return reply(merge, MergeReport.Op.PULL, work, MergeReport.Voice.ADMIN);
     }
 
     private Response gitPush(Session session) {
+        Work work = session.work();
         Worktrees.Merge merge;
         synchronized (this) {
-            merge = worktreesOf(session.robot).push(session.username);
+            merge = worktreesOf(work.robot()).push(work.username());
         }
-        return reply(merge, MergeReport.Op.PUSH, session.user(), MergeReport.Voice.USER);
+        return reply(merge, MergeReport.Op.PUSH, work, MergeReport.Voice.USER);
     }
 
-    private Response reply(Worktrees.Merge merge, MergeReport.Op op, User user, MergeReport.Voice voice) {
-        Worktrees.Worktree worktree = worktreesOf(user.robot()).find(user.username());
+    private Response reply(Worktrees.Merge merge, MergeReport.Op op, Work work, MergeReport.Voice voice) {
+        Worktrees.Worktree worktree = worktreesOf(work.robot()).find(work.username());
         MergeReport report = MergeReport.of(
-                merge, op, user.username(), voice, worktree == null ? null : worktree.path.toString(), user.robot());
+                merge, op, work.username(), voice, worktree == null ? null : worktree.path.toString(), work.robot());
         synchronized (this) {
-            lastMergeByUser.put(user, report.record(System.currentTimeMillis()));
+            lastMergeByWork.put(work, report.record(System.currentTimeMillis()));
         }
         return Response.json(report.status(), GSON.toJson(report.json()));
     }
@@ -1080,8 +1125,9 @@ public final class CodingServer {
 
     private JsonObject buildCheck(Session session) {
         JsonObject body = new JsonObject();
-        SimBench bench = benchOf(session);
-        Path worktree = worktreeOf(session).path;
+        Work work = session.work();
+        SimBench bench = benchOf(work);
+        Path worktree = worktreeOf(work).path;
         SimBuild.Result result;
         try {
             result = bench.check();
@@ -1127,10 +1173,17 @@ public final class CodingServer {
                 .route(
                         "POST",
                         "/admin/users/delete",
-                        (request, params) -> deleteUser(
-                                request.query("username"),
-                                robotAskedIn(request),
-                                "true".equals(request.query("force"))))
+                        (request, params) ->
+                                deleteUser(request.query("username"), "true".equals(request.query("force"))))
+                .route(
+                        "POST",
+                        "/admin/users/robots",
+                        (request, params) ->
+                                letOnto(request.query("username"), robotAskedIn(request), request.query("enabled")))
+                .route(
+                        "POST",
+                        "/admin/users/pull",
+                        (request, params) -> adminPull(request.query("username"), robotAskedIn(request)))
                 .route("GET", "/admin/info", (request, params) -> Response.json(info()))
                 .route("GET", "/admin/assets", (request, params) -> Response.json(GSON.toJson(assetsFetched())))
                 .route("POST", "/admin/assets/download", (request, params) -> downloadAssets())
@@ -1139,7 +1192,6 @@ public final class CodingServer {
                 .route("POST", "/admin/assets/default", (request, params) -> drawByDefault(request.query("resolution")))
                 .route("GET", "/admin/constants", (request, params) -> Response.json(constantsListed()))
                 .route("PUT", "/admin/constants", (request, params) -> setConstants(request.body))
-                .route("POST", "/admin/logins/{id}/pull", (request, params) -> adminPull(params.get("id")))
                 .route(
                         "POST",
                         "/admin/logins/{id}/{decision}",
@@ -1409,39 +1461,17 @@ public final class CodingServer {
     private synchronized String users() {
         JsonArray list = new JsonArray();
         long now = System.currentTimeMillis();
-        Map<User, JsonObject> byUser = new LinkedHashMap<>();
+        Map<String, JsonObject> byUsername = new LinkedHashMap<>();
         for (Session session : sessions.values()) {
-            JsonObject user = byUser.get(session.user());
+            JsonObject user = byUsername.get(session.username);
             if (user == null) {
-                Worktrees worktrees = worktreesOf(session.robot);
-                user = new JsonObject();
-                user.addProperty("username", session.username);
-                user.addProperty("robot", session.robot.asked());
-                Worktrees.Worktree worktree = worktrees.find(session.username);
-                user.addProperty("worktree", worktree == null ? null : worktree.path.toString());
-                user.addProperty("branch", worktree == null ? null : worktree.branch);
-                JsonElement status = JsonNull.INSTANCE;
-                String statusError = null;
-
-                boolean deletable = worktree == null;
-                if (worktree != null) {
-                    try {
-                        status = statusJson(worktrees.status(session.username));
-                        deletable = worktrees.unsaved(session.username).none();
-                    } catch (Git.Failed e) {
-                        statusError = e.getMessage();
-                    }
-                }
-                user.add("status", status);
-                user.addProperty("statusError", statusError);
-                user.addProperty("deletable", deletable);
-                user.add("lastMerge", lastMergeByUser.get(session.user()));
-                user.add("sessions", new JsonArray());
-                byUser.put(session.user(), user);
+                user = userListed(session.username);
+                byUsername.put(session.username, user);
                 list.add(user);
             }
             JsonObject login = new JsonObject();
             login.addProperty("id", session.id);
+            login.addProperty("robot", session.robot.asked());
             login.addProperty("address", session.address == null ? "" : session.address.getHostAddress());
             login.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
             login.addProperty("ageSeconds", (now - session.createdAtMillis) / 1000);
@@ -1451,6 +1481,136 @@ public final class CodingServer {
         JsonObject root = new JsonObject();
         root.add("users", list);
         return GSON.toJson(root);
+    }
+
+    private JsonObject userListed(String username) {
+        Optional<Robots> robots = robotsOf(username);
+        boolean deletable = true;
+        JsonArray works = new JsonArray();
+        for (TeamRobot robot : TeamRobot.values()) {
+            Worktrees worktrees = worktreesOf(robot);
+            boolean enabled = robots.map(those -> those.has(robot)).orElse(false);
+            Worktrees.Worktree worktree = enabled ? worktrees.find(username) : null;
+            JsonElement status = JsonNull.INSTANCE;
+            String statusError = null;
+            try {
+                if (worktree != null) {
+                    status = statusJson(worktrees.status(username));
+                }
+                deletable = worktrees.unsaved(username).none() && deletable;
+            } catch (Git.Failed e) {
+                statusError = worktree == null ? null : e.getMessage();
+                deletable = false;
+            }
+            JsonObject work = new JsonObject();
+            work.addProperty("robot", robot.asked());
+            work.addProperty("enabled", enabled);
+            work.addProperty("worktree", worktree == null ? null : worktree.path.toString());
+            work.addProperty("branch", worktree == null ? null : worktree.branch);
+            work.add("status", status);
+            work.addProperty("statusError", statusError);
+            work.add("lastMerge", enabled ? lastMergeByWork.get(new Work(robot, username)) : null);
+            works.add(work);
+        }
+        JsonObject user = new JsonObject();
+        user.addProperty("username", username);
+        user.addProperty("deletable", deletable);
+        user.add("robots", works);
+        user.add("sessions", new JsonArray());
+        return user;
+    }
+
+    private synchronized Optional<Robots> robotsOf(String username) {
+        return Optional.ofNullable(robotsByUsername.get(username));
+    }
+
+    private synchronized Robots robotsOfLogin(Session session) {
+        return robotsOf(session.username).orElse(Robots.only(session.robot));
+    }
+
+    private Response switchRobot(Session session, Checked<TeamRobot> asked) {
+        if (!(asked instanceof Checked.Ok<TeamRobot> chosen)) {
+            return robotRefused(asked);
+        }
+        synchronized (this) {
+            Checked<TeamRobot> allowed = robotsOfLogin(session).switchTo(chosen.value());
+            if (!(allowed instanceof Checked.Ok<TeamRobot> robot)) {
+                return Response.error(403, rejection(allowed));
+            }
+            if (session.robot != robot.value()) {
+                session.robot = robot.value();
+                session.openFile = null;
+                saveSessions();
+            }
+            return Response.json(GSON.toJson(me(session)));
+        }
+    }
+
+    private Response letOnto(String username, Checked<TeamRobot> asked, String enabled) {
+        if (username == null || username.isEmpty()) {
+            return Response.error(400, "POST /admin/users/robots?robot=<robot>&username=<name>&enabled=true|false");
+        }
+        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
+            return robotRefused(asked);
+        }
+        if (!"true".equals(enabled) && !"false".equals(enabled)) {
+            return Response.error(
+                    400,
+                    "say whether " + username + " works on " + robot.value().displayName()
+                            + ": enabled=true or enabled=false, not '" + enabled + "'");
+        }
+        if (sessionCountOf(username) == 0) {
+            return Response.error(404, "no user named " + username);
+        }
+        return "true".equals(enabled) ? letOn(username, robot.value()) : takeOff(username, robot.value());
+    }
+
+    private Response letOn(String username, TeamRobot robot) {
+        try {
+            worktreesOf(robot).ensure(username);
+        } catch (Git.Failed e) {
+            return Response.error(
+                    500,
+                    "could not make a worktree for " + username + " on " + robot.displayName() + ": " + e.getMessage());
+        }
+        synchronized (this) {
+            robotsByUsername.put(username, Robots.letOnto(robotsOf(username), robot));
+            saveSessions();
+            return robotsAnswer(username);
+        }
+    }
+
+    private Response takeOff(String username, TeamRobot robot) {
+        synchronized (this) {
+            Optional<Robots> before = robotsOf(username);
+            if (before.isEmpty() || !before.get().has(robot)) {
+                return robotsAnswer(username);
+            }
+            Checked<Robots> after = before.get().without(robot);
+            if (!(after instanceof Checked.Ok<Robots> left)) {
+                return Response.error(
+                        409,
+                        username + " cannot be taken off " + robot.displayName() + ": " + rejection(after)
+                                + "; revoke their logins or delete them instead");
+            }
+            robotsByUsername.put(username, left.value());
+            for (Session session : sessions.values()) {
+                if (session.username.equals(username) && session.state == State.APPROVED && session.robot == robot) {
+                    session.robot = left.value().workingOn(robot);
+                    session.openFile = null;
+                }
+            }
+            saveSessions();
+        }
+        forgetWork(new Work(robot, username));
+        return robotsAnswer(username);
+    }
+
+    private Response robotsAnswer(String username) {
+        JsonObject body = new JsonObject();
+        body.addProperty("username", username);
+        body.add("robots", GSON.toJsonTree(robotsOf(username).map(Robots::asked).orElse(List.of())));
+        return Response.json(GSON.toJson(body));
     }
 
     private synchronized Session sessionById(String id) {
@@ -1475,6 +1635,7 @@ public final class CodingServer {
                             500, "could not make a worktree for " + found.username + ": " + e.getMessage());
                 }
                 found.state = State.APPROVED;
+                robotsByUsername.put(found.username, Robots.letOnto(robotsOf(found.username), found.robot));
                 break;
             case "deny":
                 found.state = State.DENIED;
@@ -1489,91 +1650,111 @@ public final class CodingServer {
         return Response.json(GSON.toJson(me(found)));
     }
 
-    private Response deleteUser(String username, Checked<TeamRobot> asked, boolean force) {
+    private Response deleteUser(String username, boolean force) {
         if (username == null || username.isEmpty()) {
-            return Response.error(400, "POST /admin/users/delete?robot=<robot>&username=<name>");
+            return Response.error(400, "POST /admin/users/delete?username=<name>");
         }
-        if (!(asked instanceof Checked.Ok<TeamRobot> robot)) {
-            return robotRefused(asked);
-        }
-        User user = new User(robot.value(), username);
-        int logins = sessionCountOf(user);
+        int logins = sessionCountOf(username);
         if (logins == 0) {
-            return Response.error(
-                    404, "no user named " + username + " on " + robot.value().displayName());
+            return Response.error(404, "no user named " + username);
         }
-        Worktrees worktrees = worktreesOf(user.robot());
-        Worktrees.Worktree worktree = worktrees.find(username);
+        List<String> branches = new ArrayList<>();
         try {
             if (!force) {
-                Worktrees.Unsaved unsaved = worktrees.unsaved(username);
-                if (!unsaved.none()) {
-                    return refusal(user, unsaved);
+                Map<TeamRobot, Worktrees.Unsaved> unsaved = new EnumMap<>(TeamRobot.class);
+                for (TeamRobot robot : TeamRobot.values()) {
+                    Worktrees.Unsaved left = worktreesOf(robot).unsaved(username);
+                    if (!left.none()) {
+                        unsaved.put(robot, left);
+                    }
+                }
+                if (!unsaved.isEmpty()) {
+                    return refusal(username, unsaved);
                 }
             }
-            stopBench(user);
-            synchronized (navigatorByUser) {
-                navigatorByUser.remove(user);
+            for (TeamRobot robot : TeamRobot.values()) {
+                forgetWork(new Work(robot, username));
             }
-
-            Worktrees.Removal removal = worktrees.remove(username, force);
-            if (removal.refused != null) {
-                return refusal(user, removal.refused);
+            for (TeamRobot robot : TeamRobot.values()) {
+                Worktrees worktrees = worktreesOf(robot);
+                Worktrees.Worktree worktree = worktrees.find(username);
+                Worktrees.Removal removal = worktrees.remove(username, force);
+                if (removal.refused != null) {
+                    return refusal(username, Map.of(robot, removal.refused));
+                }
+                if (worktree != null) {
+                    branches.add(worktree.branch);
+                }
             }
         } catch (Git.Failed e) {
             return Response.error(500, "git failed for " + username + ": " + e.getMessage());
         }
         synchronized (this) {
-            lastMergeByUser.remove(user);
-            sessions.values().removeIf(session -> session.user().equals(user));
+            for (TeamRobot robot : TeamRobot.values()) {
+                lastMergeByWork.remove(new Work(robot, username));
+            }
+            sessions.values().removeIf(session -> session.username.equals(username));
+            robotsByUsername.remove(username);
             saveSessions();
         }
         JsonObject body = new JsonObject();
         body.addProperty("deleted", true);
         body.addProperty("username", username);
-        body.addProperty("robot", user.robot().asked());
-        body.addProperty("branch", worktree == null ? null : worktree.branch);
+        body.add("branches", GSON.toJsonTree(branches));
         body.addProperty("logins", logins);
         return Response.json(GSON.toJson(body));
     }
 
-    private synchronized int sessionCountOf(User user) {
+    private synchronized int sessionCountOf(String username) {
         int count = 0;
         for (Session session : sessions.values()) {
-            if (session.user().equals(user)) {
+            if (session.username.equals(username)) {
                 count++;
             }
         }
         return count;
     }
 
-    private void stopBench(User user) {
-        synchronized (benchByUser) {
-            SimBench bench = benchByUser.remove(user);
-            benchRoutesByUser.remove(user);
+    private void forgetWork(Work work) {
+        synchronized (benchByWork) {
+            SimBench bench = benchByWork.remove(work);
+            benchRoutesByWork.remove(work);
             if (bench != null) {
                 bench.stop();
             }
         }
+        synchronized (navigatorByWork) {
+            navigatorByWork.remove(work);
+        }
     }
 
-    private static Response refusal(User user, Worktrees.Unsaved unsaved) {
+    private static Response refusal(String username, Map<TeamRobot, Worktrees.Unsaved> unsaved) {
         List<String> parts = new ArrayList<>();
-        if (!unsaved.changed.isEmpty()) {
-            parts.add(plural(unsaved.changed.size(), "changed file"));
-        }
-        if (unsaved.ahead > 0) {
-            parts.add(plural(unsaved.ahead, "commit"));
+        int things = 0;
+        JsonArray listed = new JsonArray();
+        for (Map.Entry<TeamRobot, Worktrees.Unsaved> entry : unsaved.entrySet()) {
+            Worktrees.Unsaved left = entry.getValue();
+            List<String> counts = new ArrayList<>();
+            if (!left.changed.isEmpty()) {
+                counts.add(plural(left.changed.size(), "changed file"));
+            }
+            if (left.ahead > 0) {
+                counts.add(plural(left.ahead, "commit"));
+            }
+            parts.add(String.join(" and ", counts) + " that " + entry.getKey().develop() + " does not have");
+            things += left.changed.size() + left.ahead;
+            JsonObject item = new JsonObject();
+            item.addProperty("robot", entry.getKey().asked());
+            item.add("changed", GSON.toJsonTree(left.changed));
+            item.addProperty("ahead", left.ahead);
+            listed.add(item);
         }
         JsonObject body = new JsonObject();
         body.addProperty(
                 "message",
-                user.username() + " has " + String.join(" and ", parts) + " that "
-                        + user.robot().develop()
-                        + " does not have; push " + (unsaved.changed.size() + unsaved.ahead == 1 ? "it" : "them")
+                username + " has " + String.join(", and ", parts) + "; push " + (things == 1 ? "it" : "them")
                         + " first, or delete anyway");
-        body.add("changed", GSON.toJsonTree(unsaved.changed));
-        body.addProperty("ahead", unsaved.ahead);
+        body.add("unsaved", listed);
         return Response.json(409, GSON.toJson(body));
     }
 
@@ -1667,6 +1848,43 @@ public final class CodingServer {
         }
     }
 
+    private void loadUsers() {
+        Path file = stateDir.resolve(USERS_FILE);
+        JsonObject stored = StateStore.load(file);
+        if (stored == null) {
+            for (Session session : sessions.values()) {
+                if (session.state == State.APPROVED) {
+                    robotsByUsername.put(
+                            session.username,
+                            Robots.letOnto(Optional.ofNullable(robotsByUsername.get(session.username)), session.robot));
+                }
+            }
+        } else {
+            try {
+                for (JsonElement element : stored.getAsJsonArray("users")) {
+                    JsonObject item = element.getAsJsonObject();
+                    List<String> names = new ArrayList<>();
+                    for (JsonElement name : item.getAsJsonArray("robots")) {
+                        names.add(name.getAsString());
+                    }
+                    Robots robots = Robots.named(names).fold(read -> read, rule -> {
+                        throw new IllegalArgumentException(rule);
+                    });
+                    robotsByUsername.put(item.get("username").getAsString(), robots);
+                }
+            } catch (RuntimeException e) {
+                throw new IllegalStateException("could not read the users in " + file + ": " + e, e);
+            }
+        }
+        for (Session session : sessions.values()) {
+            if (session.state == State.APPROVED) {
+                Robots robots =
+                        robotsByUsername.computeIfAbsent(session.username, nobody -> Robots.only(session.robot));
+                session.robot = robots.workingOn(session.robot);
+            }
+        }
+    }
+
     private void saveSessions() {
         JsonArray list = new JsonArray();
         for (Session session : sessions.values()) {
@@ -1675,6 +1893,16 @@ public final class CodingServer {
         JsonObject body = new JsonObject();
         body.add("sessions", list);
         StateStore.save(stateDir.resolve(SESSIONS_FILE), body);
+        JsonArray users = new JsonArray();
+        for (Map.Entry<String, Robots> entry : robotsByUsername.entrySet()) {
+            JsonObject item = new JsonObject();
+            item.addProperty("username", entry.getKey());
+            item.add("robots", GSON.toJsonTree(entry.getValue().asked()));
+            users.add(item);
+        }
+        JsonObject robots = new JsonObject();
+        robots.add("users", users);
+        StateStore.save(stateDir.resolve(USERS_FILE), robots);
     }
 
     private static String page(String name) {

@@ -21,7 +21,7 @@ const OPMODE = { name: 'BlueLeftAuto', kind: 'auto', group: 'Autonomous',
 
 // What the page asks the user listener for, answered as the server answers it.
 const ANSWERS = {
-  '/me': { state: 'approved', username: 'mia', robot: 'nugget', branch: 'nugget/mia' },
+  '/me': { state: 'approved', username: 'mia', robot: 'nugget', robots: ['reginald', 'nugget'], branch: 'nugget/mia' },
   '/files': { files: FILES },
   '/git/status': { branch: 'nugget/mia', develop: 'nugget-develop', changed: [], behind: 0, ahead: 0, pushable: false,
                    head: '0123456' },
@@ -33,9 +33,38 @@ const ANSWERS = {
 // Every run the page asked for, by how it asked: which op mode, and whether it was a game.
 const RUNS_ASKED = [];
 
+const SAVES = [];
+
+const BRANCHES = { reginald: 'coding/mia', nugget: 'nugget/mia' };
+
+function onto(robot, robots) {
+  ANSWERS['/me'] = { ...ANSWERS['/me'], robot, robots, branch: BRANCHES[robot] };
+}
+
 function serve() {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
+    if (request.method === 'POST' && asked === '/robot') {
+      const robot = new URL(request.url, 'http://x').searchParams.get('robot');
+      if (!ANSWERS['/me'].robots.includes(robot)) {
+        response.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }).end('the admin has not let you work on ' + robot);
+        return;
+      }
+      onto(robot, ANSWERS['/me'].robots);
+      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify(ANSWERS['/me']));
+      return;
+    }
+    if (request.method === 'PUT' && asked.startsWith('/files/')) {
+      let body = '';
+      request.on('data', (chunk) => { body += chunk; });
+      request.on('end', () => {
+        SAVES.push(JSON.parse(body));
+        response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        response.end(JSON.stringify({ path: asked.slice('/files/'.length), version: 'v' + (SAVES.length + 1) }));
+      });
+      return;
+    }
     if (request.method === 'POST' && asked === '/sim/run') {
       const query = new URL(request.url, 'http://x').searchParams;
       RUNS_ASKED.push({ opmode: query.get('opmode'), mode: query.get('mode'), begin: query.get('begin') });
@@ -44,7 +73,8 @@ function serve() {
       return;
     }
     const answer = Object.prototype.hasOwnProperty.call(ANSWERS, asked) ? ANSWERS[asked]
-        : asked.startsWith('/files/') ? { path: asked.slice('/files/'.length), version: 'v1', content: CONTENT }
+        : asked.startsWith('/files/') ? { path: asked.slice('/files/'.length), version: 'v1', content: CONTENT,
+                                          robot: ANSWERS['/me'].robot }
         : null;
     if (answer) {
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -123,8 +153,13 @@ async function itWorks(page, engine) {
 
   const who = await page.locator('#who').textContent();
   check(who === 'mia', `${engine}: the header says "${who}" rather than who is signed in`);
-  const robot = await page.locator('#robot').innerText();
-  check(robot === 'Nugget', `${engine}: the header says "${robot}" rather than the robot they are on`);
+  await page.waitForFunction(() => document.getElementById('robot').value === 'nugget', null, { timeout: 10_000 })
+      .catch(() => {});
+  const robot = await page.locator('#robot').inputValue();
+  check(robot === 'nugget', `${engine}: the header says "${robot}" rather than the robot they are on`);
+  const offered = await page.locator('#robot option').allInnerTexts();
+  check(JSON.stringify(offered) === JSON.stringify(['Reginald', 'Nugget']),
+      `${engine}: the header offers ${JSON.stringify(offered)} rather than both robots mia works on`);
   await page.waitForFunction(() => /nugget-develop/.test(document.getElementById('push').title), null,
       { timeout: 10_000 }).catch(() => {});
   const push = await page.locator('#push').getAttribute('title');
@@ -178,6 +213,43 @@ async function aGameIsAskedForByTheBox(page, engine) {
   await box.uncheck();
 }
 
+async function aSaveSaysWhichRobotTheFileWasReadOn(page, engine) {
+  await page.locator('nav [data-tab="edit"]').click({ timeout: 5_000 });
+  const before = SAVES.length;
+  await page.locator('#editor .cm-content').click({ timeout: 5_000 });
+  await page.keyboard.type('x');
+  await page.waitForFunction(() => /saved/.test(document.getElementById('status').textContent), null,
+      { timeout: 10_000 }).catch(() => {});
+  const saved = SAVES.slice(before);
+  check(saved.length > 0 && saved.every((save) => save.robot === 'nugget'),
+      `${engine}: typing saved ${JSON.stringify(saved.map((save) => save.robot))} rather than on the robot it was read on`);
+}
+
+async function aSwitchComesBackOnTheOtherRobot(page, engine) {
+  const [asked] = await Promise.all([
+    page.waitForRequest((request) => request.url().includes('/robot?'), { timeout: 10_000 }),
+    page.selectOption('#robot', 'reginald')
+  ]);
+  const url = new URL(asked.url());
+  check(asked.method() === 'POST' && url.search === '?robot=reginald',
+      `${engine}: switching to Reginald asked ${asked.method()} ${url.pathname + url.search}`);
+  await page.waitForFunction(() => window.codingPage && window.codingPage.started
+      && document.getElementById('robot').value === 'reginald'
+      && document.getElementById('branch').textContent === 'coding/mia', null, { timeout: 15_000 }).catch(() => {});
+  check(await page.locator('#robot').inputValue() === 'reginald'
+      && await page.locator('#branch').textContent() === 'coding/mia',
+      `${engine}: after switching, the page is not back on Reginald's branch`);
+
+  onto('nugget', ['nugget']);
+  await page.waitForFunction(() => document.getElementById('robot').value === 'nugget'
+      && document.getElementById('robot').disabled, null, { timeout: 15_000 }).catch(() => {});
+  check(await page.locator('#robot').inputValue() === 'nugget',
+      `${engine}: moved onto Nugget by the admin, the page stays on ${await page.locator('#robot').inputValue()}`);
+  check(await page.locator('#robot').isDisabled(),
+      `${engine}: on one robot alone, the header still offers a switch`);
+  onto('nugget', ['reginald', 'nugget']);
+}
+
 async function nothingBroke(page, threw, started, engine) {
   check(started, `${engine}: the page never reported itself started, so it stopped before it finished`);
   const broke = started ? await page.evaluate(() => window.codingPage.broke) : [];
@@ -223,6 +295,7 @@ async function main() {
     await itWorks(current.page, 'this engine');
     await aGameIsAskedForByTheBox(current.page, 'this engine');
     await theEditorFollowsTheSystemTheme(current.page, 'this engine');
+    await aSaveSaysWhichRobotTheFileWasReadOn(current.page, 'this engine');
     await nothingBroke(current.page, current.threw, current.started, 'this engine');
 
     const older = await opened(browser, base, { engine: asAnOlderIpad, viewport: { width: 810, height: 1080 } });
@@ -230,6 +303,9 @@ async function main() {
     await aGameIsAskedForByTheBox(older.page, 'an older iPad');
     await theEditorFollowsTheSystemTheme(older.page, 'an older iPad');
     await nothingBroke(older.page, older.threw, older.started, 'an older iPad');
+
+    await aSwitchComesBackOnTheOtherRobot(current.page, 'this engine');
+    await nothingBroke(current.page, current.threw, true, 'this engine, after switching');
 
     const bare = await opened(browser, base, { engine: withNoEditorBundle });
     await itSaysWhatBroke(bare.page);
@@ -252,7 +328,9 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('the dashboard lists its files, opens one in the editor and reaches the Simulate tab, where a '
+  console.log('the dashboard says which robot it is on, switches to another the user works on and comes back on '
+      + 'it, follows the admin moving it, saves on the robot a file was read on, '
+      + 'lists its files, opens one in the editor and reaches the Simulate tab, where a '
       + 'run is a game only when the box says so and begins once the view under it has drawn the field, on '
       + 'this engine and on one shaped like an older iPad\'s, and '
       + 'says so on the page when the editor cannot start.');

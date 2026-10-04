@@ -115,7 +115,10 @@ did not move -- which is also what a server with nothing to show looks like.
 So the check opens the page three times:
 
 - **on this engine**, where the files list, a file opens in the editor, and the
-  Simulate tab opens and lists its op modes;
+  Simulate tab opens and lists its op modes; a save names the robot the file was read
+  on; and, last, the header switches to the other robot the user works on and the page
+  comes back on it, follows the admin moving the login, and offers nothing to pick to a
+  user on one robot alone;
 - **on an engine shaped like an older iPad's**, where `MediaQueryList` carries
   `addListener` and nothing else, and `ResizeObserver`, `requestIdleCallback`,
   `structuredClone`, `Intl.Segmenter` and `replaceChildren` are missing -- every one of
@@ -130,17 +133,21 @@ keeps `window.codingPage` -- `started`, and `broke` as a list of part and messag
 the check to read, and shows the same thing to whoever is looking at it.
 
 `tools/browser/login.mjs` opens the **login page** the same way. A teammate says which
-robot they work on when they ask to join, since the robot is what the admin approves and
-whose line the work lands on, so the check holds the page to it in a browser: the form
-does not go while no robot is picked -- none is picked for anybody -- and once one is,
-the login asks for that one.
+robot to work on when they ask to join, since approving the login lets them onto that
+robot and its line is where the work lands, so the check holds the page to it in a
+browser: the form does not go while no robot is picked -- none is picked for anybody --
+and once one is, the login asks for that one.
 
-`tools/browser/admin.mjs` opens the **admin page**, where the same name on two robots is
-two users: each row says which robot it is on, the files teammates may edit are picked
-for one robot at a time from the robots the server lists, each robot's own package shows
-as always editable with nothing to remove, the picker marks a file of either robot's
-package as whose it is rather than offering it, and a delete names the robot as well as
-the user.
+`tools/browser/admin.mjs` opens the **admin page**, where a name is one user however many
+robots they work on: each row has a box for each robot, ticked for the robots they work
+on, and lists their work on each of those -- its branch and its own Pull, which asks for
+that robot -- and each of their logins says which robot it is on. Ticking a box asks to
+let them onto that robot and clearing one asks to take them off it, and when the server
+refuses, the row says why and the box goes back to what the server holds. The files
+teammates may edit are picked for one robot at a time from the robots the server lists,
+each robot's own package shows as always editable with nothing to remove, the picker
+marks a file of either robot's package as whose it is rather than offering it, and a
+delete names the user alone.
 
 Chromium with an API deleted is not WebKit, and this cannot prove the page runs on a real
 iPad; no engine we can run here can. It proves the page needs nothing that engine has not

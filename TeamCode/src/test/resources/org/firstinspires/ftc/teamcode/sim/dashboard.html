@@ -35,7 +35,9 @@
   header { display: flex; align-items: center; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   h1 { font-size: 16px; font-weight: 600; margin: 0; padding: 12px 0; }
   header .who { color: var(--muted); margin: 0; margin-left: auto; }
-  header .who .robot { color: var(--ink); font-weight: 600; text-transform: capitalize; }
+  header .who .robot { font: inherit; font-weight: 600; color: var(--ink); padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+  header .who .robot:disabled { opacity: 1; border-color: transparent; background: none; padding: 0; appearance: none; -webkit-appearance: none; }
+  header .who .robot:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   nav { display: flex; gap: 2px; align-self: stretch; }
   nav button { border: 0; border-radius: 0; background: none; padding: 12px 14px; color: var(--muted); font-weight: 600; box-shadow: inset 0 -2px 0 transparent; }
   nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
@@ -143,7 +145,7 @@
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
   </nav>
-  <p class="who">Signed in as <strong id="who">…</strong> for <span id="robot" class="robot">…</span> on <span id="branch" class="mono">…</span></p>
+  <p class="who">Signed in as <strong id="who">…</strong> for <select id="robot" class="robot" aria-label="The robot you are working on" disabled><option>…</option></select> on <span id="branch" class="mono">…</span></p>
   <p class="broke" id="broke" role="alert" hidden></p>
 </header>
 <main id="edit" class="panel" role="tabpanel">
@@ -237,6 +239,7 @@
   window.addEventListener('error', function (event) { broke('the page', event.error || event.message); });
 
   var SAVE_DELAY_MS = 300;
+  var SWITCH_WAIT_MS = 10000;
   var filesEl = document.getElementById('files');
   var nofiles = document.getElementById('nofiles');
   var editorHost = document.getElementById('editor');
@@ -369,7 +372,7 @@
       if (r.status === 403) { location.reload(); return; }
       if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
       return r.json().then(function (file) {
-        open = { path: file.path, version: file.version, readOnly: false };
+        open = { path: file.path, version: file.version, robot: file.robot, readOnly: false };
         title.textContent = file.path;
         setDoc(file.content, true);
         reload.hidden = true;
@@ -444,6 +447,18 @@
     save();
   }
 
+  function whenSaved() {
+    saveNow();
+    return new Promise(function (resolve) {
+      var waited = 0;
+      (function settled() {
+        if ((!pendingSave && !saving && !dirtyWhileSaving) || waited >= SWITCH_WAIT_MS) { resolve(); return; }
+        waited += 100;
+        setTimeout(settled, 100);
+      })();
+    });
+  }
+
   function save() {
     if (!open) { return; }
     if (saving) { dirtyWhileSaving = true; return; }
@@ -454,12 +469,18 @@
     fetch(fileUrl(path), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ content: content, baseVersion: open.version })
+      body: JSON.stringify({ content: content, baseVersion: open.version, robot: open.robot })
     }).then(function (r) {
       if (r.status === 403) { location.reload(); return; }
       if (r.status === 409) {
         return r.json().then(function (current) {
           open.version = null;
+          if (current.robot && current.robot !== open.robot) {
+            setStatus(current.message, 'bad');
+            reload.hidden = false;
+            reload.onclick = function () { location.reload(); };
+            return;
+          }
           setStatus('changed on the host', 'warn');
           reload.hidden = false;
           reload.onclick = function () { load(path); };
@@ -761,13 +782,63 @@
     return { refresh: refresh, say: say };
   }
 
+  function robotName(robot) {
+    return robot ? robot.charAt(0).toUpperCase() + robot.slice(1) : '';
+  }
+
   function whoIsSignedIn() {
-    fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
+    var robotEl = document.getElementById('robot');
+    var on = null;
+    var offered = '';
+
+    function show(me) {
       if (me.state !== 'approved') { location.reload(); return; }
+      if (on !== null && me.robot !== on) { location.reload(); return; }
+      on = me.robot;
       document.getElementById('who').textContent = me.username;
       document.getElementById('branch').textContent = me.branch || '';
-      document.getElementById('robot').textContent = me.robot || '';
+      var robots = me.robots || [me.robot];
+      if (robots.join(',') !== offered) {
+        offered = robots.join(',');
+        robotEl.innerHTML = '';
+        robots.forEach(function (robot) {
+          var option = document.createElement('option');
+          option.value = robot;
+          option.textContent = robotName(robot);
+          robotEl.appendChild(option);
+        });
+      }
+      robotEl.value = me.robot;
+      robotEl.disabled = robots.length < 2;
+      robotEl.title = robots.length < 2
+        ? 'The admin has let you onto ' + robotName(me.robot) + ' alone'
+        : 'Switch to another robot you work on; the page comes back on it';
+    }
+
+    function ask() {
+      return fetch('/me').then(function (r) { return r.json(); }).then(show);
+    }
+
+    robotEl.addEventListener('change', function () {
+      var asked = robotEl.value;
+      robotEl.disabled = true;
+      whenSaved().then(function () {
+        return fetch('/robot?robot=' + encodeURIComponent(asked), { method: 'POST' });
+      }).then(function (r) {
+        if (r.ok) { location.reload(); return; }
+        return r.text().then(function (text) {
+          robotEl.value = on;
+          robotEl.disabled = false;
+          if (git) { git.say(text, 'bad'); }
+        });
+      }).catch(function () {
+        robotEl.value = on;
+        robotEl.disabled = false;
+      });
     });
+
+    ask();
+    setInterval(function () { ask().catch(function () {}); }, 3000);
   }
 
   var tabs = [];

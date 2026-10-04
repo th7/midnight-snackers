@@ -373,21 +373,23 @@ the **simulation constants**. There is no admin login; being on the machine is
 the credential.
 
 **User listing** — `GET /admin/users` and the roster it draws on the admin
-page: every user who has ever logged in, in the order they first did, each
-with the **robot** they are on and the **sessions** they have made under
-them, oldest first. What is the
-user's rather than any one session's is said once, on the user — the
-worktree, its branch, its **status** (the same changed, ahead and behind
-that `GET /git/status` gives the user; null until the worktree exists, and
-null with a **statusError** when git cannot read it, so one broken worktree
-does not blank the list), whether they are **deletable** (whether a
-**delete** would go through rather than be refused — said by the server,
-since the server is what enforces it, and false for a user git cannot be
-read for, because what a delete would throw away is exactly what could not
-be counted), how their last pull or push ended, and Pull and
-Delete buttons. Logging in again adds a session to the user, never a
-second row; a **delete** takes the row away, and a login after that is a
-new row for the same branch.
+page: every user who has ever logged in, in the order they first did, one
+row to a name, each with their **work** on every robot and the **sessions**
+they have made, oldest first, each saying which robot it is on. A user's
+work on a robot says whether they work on it (**enabled**, a box on the row
+the admin ticks or clears) and, while they do, the worktree, its branch, its
+**status** (the same changed, ahead and behind that `GET /git/status` gives
+the user; null until the worktree exists, and null with a **statusError**
+when git cannot read it, so one broken worktree does not blank the list),
+how its last pull or push ended, and a Pull button. What is the user's
+rather than any one robot's is said once, on the user: whether they are
+**deletable** (whether a **delete** would go through rather than be refused
+— said by the server, since the server is what enforces it, counting the
+work kept on a robot they were taken off as well, and false for a user git
+cannot be read for, because what a delete would throw away is exactly what
+could not be counted), and a Delete button. Logging in again, on either
+robot, adds a session to the user, never a second row; a **delete** takes
+the row away, and a login after that is a new row for the same branches.
 
 **Fold** — A user's sessions on the admin page, folded away under their
 row and opened by the caret. A user the admin has not folded by hand is
@@ -395,26 +397,55 @@ open exactly while a session of theirs is pending, so a login waiting to
 be decided is never hidden; folded shut, the row still carries the
 pending count, the branch, the status and what its sessions have open.
 
-**Robot** — Which of the team's robots a user works on: **Reginald** or
-**Nugget**. A teammate picks one when they ask to join, and none is picked
-for them; the login says which (`POST /login?username=<name>&robot=reginald`
-or `robot=nugget`), and one that does not is refused before any session
-exists. The robot is part of what the admin approves, so an approved session
-reaches its own robot's work and none of the other's. Each robot works its
-own **develop branch**, and keeps its own worktrees, user branches and
-editable set. Reginald keeps every name it had before there were two robots,
-so a server started on an old state directory finds its users, their
+**Robot** — One of the team's robots: **Reginald** or **Nugget**. Each robot
+works its own **develop branch**, and keeps its own worktrees, user branches
+and editable set. Reginald keeps every name it had before there were two
+robots, so a server started on an old state directory finds its users, their
 worktrees and their files where they were, and a login stored before then is
 Reginald's. Which robots there are, what each is called and what its lines
 are named is said once, in the **core**; `GET /admin/info` lists them for the
 admin page, and a test holds the login page's choice to the same list.
 Class: `TeamRobot`, in the core.
 
+**Robots a user works on** — Which robots the admin lets a user work on:
+either or both, and never none once they have been let in. A teammate picks
+the robot to work on when they ask to join, and none is picked for them; the
+login says which (`POST /login?username=<name>&robot=reginald` or
+`robot=nugget`), and one that does not is refused before any session exists.
+Approving it **lets the user onto** that robot, on top of any they had. The
+admin lets them onto the other, or takes them off one, with the robot's box
+on their row, `POST /admin/users/robots?robot=<robot>&username=<name>&enabled=true|false`;
+letting them on makes their worktree there, so git's refusal, if any, is the
+admin's to see, and taking them off their last robot is refused, saying to
+revoke their logins or delete them instead. Taking them off a robot keeps
+their work on it — the worktree, the branch, anything uncommitted — for when
+they are let back on, stops their run on it, and moves every approved login
+of theirs on it onto a robot they still work on. A user who has only ever
+asked works on none, and may be let onto one before any login is approved.
+An approved login is always on one of its user's robots, which the server
+holds to whatever it is told, and reaches that robot's work and none of the
+other's. Which robots a user works on, which one a login is moved to, and
+whether a switch may happen are decided in the **core**. Class: `Robots`, in
+the core.
+
+**Switch** — `POST /robot?robot=<robot>`, from the robot picker in the
+dashboard's header: the login moves to another robot its user works on, and
+the page comes back on that robot's files, branch and simulator. A robot the
+admin has not let them onto is refused (403), and the login stays where it
+was. Only the login that asked moves, so one browser can be on Reginald while
+another is on Nugget. The page waits for its save to land before it asks,
+and a page whose login was moved under it — by another tab, or by the admin
+taking a robot away — notices on its next look at `GET /me` and comes back on
+the robot it is on now. A user on one robot alone sees it named, with
+nothing to pick.
+
 **User** — A teammate on the LAN who has logged in with a username. Users
-reach only the user listener. A user is their username on their **robot**:
-the worktree, the branch and the work are owned by that pair, so one user is
-one row of the listing however many times they log in, and the same name on
-the other robot is another user with work of their own.
+reach only the user listener. A user is their username, whichever robot they
+are on, so one user is one row of the listing however many times they log
+in. Their **work** on a robot — the worktree, the branch and what is on it —
+is owned by the pair of the username and the robot, so the work on each
+robot is kept apart, and pulling, pushing or simulating on one never touches
+the other.
 
 **Session** — One login by one user, identified by a small integer **id**
 the admin sees, and proven by a **token** the browser holds in the
@@ -423,10 +454,11 @@ the admin sees, and proven by a **token** the browser holds in the
 simulate), *denied* (the admin said no), and *revoked* (was approved, no
 longer is). Only approved sessions reach files, builds, and the simulator.
 A session carries what is its own alone: where it logged in from, how long
-ago, the file it has open, and its state, which the admin decides per
-session at `POST /admin/logins/<id>/approve|deny|revoke`. A revoked
-session is still a session; only a **delete** takes sessions away, and it
-takes all of that user's at once.
+ago, the robot it is on (the one it asked for, until a **switch** or the
+admin moves it), the file it has open, and its state, which the admin
+decides per session at `POST /admin/logins/<id>/approve|deny|revoke`. A
+revoked session is still a session; only a **delete** takes sessions away,
+and it takes all of that user's at once.
 
 **Editable set** — The files a **robot**'s users may edit: every one of
 that robot's **own files** in the user's worktree, and on top of them the
@@ -513,19 +545,21 @@ Nugget, created at the tip of the robot's **develop branch** when the
 worktree is made. Saves are uncommitted changes in the worktree
 until the user presses Commit.
 
-**Delete** — `POST /admin/users/delete?robot=<robot>&username=<name>`, the
-Delete button on the user's row: the user leaves the listing, and the same
-name on the other robot stays. Every session they have is
-forgotten, so their browsers are logged out, their bench and its child
-stop, and their worktree directory goes. Their **user branch** stays, and
-so does the mapping to it, so logging in again and being approved rebuilds
-the same worktree on the same branch with everything they committed, under
-the same slug. Refused, changing nothing, while they have work `develop`
-does not have — uncommitted files, or commits ahead — naming it, until the
-admin asks again with `force`; the page's Delete anyway is that second ask,
-so what the admin reads is what the server enforced and not a warning the
-page worked out for itself. The refusal is decided before the bench is
-stopped, so a user who keeps their work keeps their run.
+**Delete** — `POST /admin/users/delete?username=<name>`, the Delete button
+on the user's row: the user leaves the listing, with their work on every
+robot. Every session they have is forgotten, so their browsers are logged
+out, their benches and their children stop, which robots they work on is
+forgotten, and their worktree directory on each robot goes. Their **user
+branches** stay, and so does the mapping to them, so logging in again and
+being approved rebuilds the same worktree on the same branch with everything
+they committed, under the same slug, on the robot they are approved for.
+Refused, changing nothing, while they have work a robot's `develop` does not
+have — uncommitted files, or commits ahead, on any robot, including one they
+were taken off — naming it robot by robot, until the admin asks again with
+`force`; the page's Delete anyway is that second ask, so what the admin
+reads is what the server enforced and not a warning the page worked out for
+itself. The refusal is decided before the benches are stopped, so a user who
+keeps their work keeps their runs.
 
 **Commit** — `POST /git/commit` with a message: the **formatter** runs over
 every uncommitted `.java` file in the worktree first, and then every
@@ -588,11 +622,11 @@ overwritten, so the pull refuses (commit first), naming only those files
 and changing nothing. It also refuses, changing nothing, on a merge
 conflict. The Pull button pulses, and wears the count, while the branch
 is behind. The admin can press Pull for a user too,
-`POST /admin/logins/<id>/pull`: the same merge in that user's worktree,
-with the same refusals, so a teammate who has walked away from a stale
-branch is brought up to date without their browser. The pull is the
-user's, and any session of theirs names them, so the button on their row
-sends their newest. Their editor
+`POST /admin/users/pull?robot=<robot>&username=<name>`: the same merge in
+that user's worktree on that robot, with the same refusals, so a teammate
+who has walked away from a stale branch is brought up to date without their
+browser. Each robot a user works on has its own Pull on their row, and a
+robot they do not work on is a 404. Their editor
 notices by the **head** in the status moving under it: a file with
 nothing typed since its last save is reloaded; one with unsaved typing
 is left alone, and its next save is the usual conflict with a reload to
@@ -651,13 +685,19 @@ so two checkouts on one machine keep their worktrees apart and the admin
 can still read the directory name.
 
 **Version** — The SHA-256 of a file's bytes, as hex. A read returns the
-content and its version; a save carries the **base version** it was edited
-from, and is refused as a **conflict** (409, with the current content) when
-the file on disk has moved on, whether from another browser or from an IDE
-on the host.
+content, its version and the robot it was read on; a save carries the **base
+version** it was edited from and that robot, and is refused as a
+**conflict** (409, with the current content) when the file on disk has moved
+on, whether from another browser or from an IDE on the host. A save for a
+robot the login is no longer on is refused too (409, naming the robot it is
+on now), writing nothing: a file both robots edit can be byte for byte the
+same on each, so the version alone cannot tell the two apart, and a save
+typed on one must never land on the other.
 
 **State directory** — Where the coding server keeps what outlives the
-process: `sessions.json` (each with the robot it is for), `editable.json`,
+process: `sessions.json` (each with the robot it is on), `users.json` (the
+robots each user works on; a state directory from before it existed lets
+each user onto the robots of their approved logins), `editable.json`,
 `worktrees.json` (username to slug, path, and branch, per project root) —
 Reginald's, and `editable-nugget.json` and `worktrees-nugget.json`
 Nugget's — `settings.json` (what the admin

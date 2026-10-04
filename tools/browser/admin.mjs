@@ -28,21 +28,44 @@ const TREE = {
 
 const STATUS = { branch: '', develop: '', changed: [], ahead: 0, behind: 0, head: '0123456', pushable: false };
 
-function userOn(robot, branch) {
+function workOn(robot, branch) {
   return {
-    username: 'ada',
     robot,
-    worktree: '/state/worktrees/' + branch,
+    enabled: branch !== null,
+    worktree: branch === null ? null : '/state/worktrees/' + branch,
     branch,
-    status: { ...STATUS, branch, develop: ROBOTS.find((r) => r.robot === robot).develop },
+    status: branch === null ? null
+        : { ...STATUS, branch, develop: ROBOTS.find((r) => r.robot === robot).develop, behind: robot === 'nugget' ? 2 : 0 },
     statusError: null,
-    deletable: true,
-    lastMerge: null,
-    sessions: [{ id: robot === 'reginald' ? 1 : 2, address: '10.0.0.5', state: 'approved', ageSeconds: 5, file: null }]
+    lastMerge: null
   };
 }
 
-const USERS = { users: [userOn('reginald', 'coding/ada'), userOn('nugget', 'nugget/ada')] };
+const USERS = {
+  users: [
+    {
+      username: 'ada',
+      deletable: true,
+      robots: [workOn('reginald', 'coding/ada'), workOn('nugget', 'nugget/ada')],
+      sessions: [
+        { id: 1, robot: 'reginald', address: '10.0.0.5', state: 'approved', ageSeconds: 5, file: null },
+        { id: 2, robot: 'nugget', address: '10.0.0.6', state: 'approved', ageSeconds: 9, file: null }
+      ]
+    },
+    {
+      username: 'bob',
+      deletable: true,
+      robots: [workOn('reginald', 'coding/bob'), workOn('nugget', null)],
+      sessions: [
+        { id: 3, robot: 'reginald', address: '10.0.0.7', state: 'approved', ageSeconds: 20, file: null },
+        { id: 4, robot: 'nugget', address: '10.0.0.7', state: 'pending', ageSeconds: 2, file: null }
+      ]
+    }
+  ]
+};
+
+const LAST_ROBOT = 'ada cannot be taken off Reginald: a user works on at least one robot, and Reginald is the only one '
+    + 'left to them; revoke their logins or delete them instead';
 
 const FILES = {
   reginald: { files: [{ path: 'TeamCode/Plans.java' }] },
@@ -119,6 +142,15 @@ function serve() {
       constantsAsked(request, response);
     } else if (request.method === 'POST' && url.pathname === '/admin/users/delete') {
       answer(response, { deleted: true });
+    } else if (request.method === 'POST' && url.pathname === '/admin/users/robots') {
+      if (url.searchParams.get('enabled') === 'false' && url.searchParams.get('robot') === 'reginald') {
+        response.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
+        response.end(LAST_ROBOT);
+        return;
+      }
+      answer(response, { username: url.searchParams.get('username'), robots: ['reginald', 'nugget'] });
+    } else if (request.method === 'POST' && url.pathname === '/admin/users/pull') {
+      answer(response, { outcome: 'pulled', message: 'pulled nugget-develop into ada\'s branch', severity: 'ok' });
     } else if (url.pathname === '/' || url.pathname === '/admin') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       response.end(fs.readFileSync(path.join(sim, 'admin.html')));
@@ -150,9 +182,56 @@ async function main() {
     await page.waitForFunction(() => document.querySelectorAll('#users .user').length === 2, null,
         { timeout: 10_000 }).catch(() => {});
     const rows = await page.locator('#users .user .user-head').allInnerTexts();
-    check(rows.length === 2, `the admin page lists ${rows.length} users rather than ada on each robot`);
-    check(rows.some((row) => row.includes('Reginald')) && rows.some((row) => row.includes('Nugget')),
-        `the users do not say which robot each is on: ${JSON.stringify(rows)}`);
+    check(rows.length === 2, `the admin page lists ${rows.length} rows rather than one for ada and one for bob`);
+    const ada = page.locator('#users .user').filter({ hasText: 'ada' });
+    const bob = page.locator('#users .user').filter({ hasText: 'bob' });
+    const box = (user, name) => user.locator('.user-head').getByRole('checkbox', { name, exact: true });
+    check(await box(ada, 'Reginald').isChecked() && await box(ada, 'Nugget').isChecked(),
+        'ada, who works on both robots, is not shown on both');
+    check(await box(bob, 'Reginald').isChecked() && !(await box(bob, 'Nugget').isChecked()),
+        'bob, who works on Reginald alone, is not shown on Reginald alone');
+    const adasWork = await ada.locator('.work').allInnerTexts();
+    check(adasWork.length === 2 && adasWork[0].includes('coding/ada') && adasWork[1].includes('nugget/ada'),
+        `ada's work on each robot is shown as ${JSON.stringify(adasWork)}`);
+    const bobsWork = await bob.locator('.work').allInnerTexts();
+    check(bobsWork.length === 1 && bobsWork[0].includes('coding/bob'),
+        `bob's work is shown as ${JSON.stringify(bobsWork)} rather than on Reginald alone`);
+    const bobsLogins = await bob.locator('.sessions .row').allInnerTexts();
+    check(bobsLogins.length === 2 && bobsLogins[0].includes('Reginald') && bobsLogins[1].includes('Nugget'),
+        `bob's logins do not say which robot each is on: ${JSON.stringify(bobsLogins)}`);
+
+    const [lettingOn] = await Promise.all([
+      page.waitForRequest((request) => request.url().includes('/admin/users/robots'), { timeout: 10_000 }),
+      box(bob, 'Nugget').check()
+    ]);
+    const letOn = new URL(lettingOn.url());
+    check(letOn.search === '?robot=nugget&username=bob&enabled=true',
+        `letting bob onto Nugget asked ${letOn.pathname + letOn.search}`);
+
+    const [takingOff] = await Promise.all([
+      page.waitForRequest((request) => request.url().includes('/admin/users/robots'), { timeout: 10_000 }),
+      box(ada, 'Reginald').uncheck()
+    ]);
+    const tookOff = new URL(takingOff.url());
+    check(tookOff.search === '?robot=reginald&username=ada&enabled=false',
+        `taking ada off Reginald asked ${tookOff.pathname + tookOff.search}`);
+    await page.waitForFunction(() => document.getElementById('users').textContent.includes('at least one robot'), null,
+        { timeout: 10_000 }).catch(() => {});
+    check((await ada.innerText()).includes('at least one robot'),
+        'the server\'s refusal to take ada off her last robot is not shown');
+    await page.waitForFunction(() => {
+      const boxes = document.querySelectorAll('#users .user:first-child .user-head input[type="checkbox"]');
+      return boxes.length > 0 && boxes[0].checked;
+    }, null, { timeout: 10_000 }).catch(() => {});
+    check(await box(ada, 'Reginald').isChecked(), 'a refused change leaves the box saying what the server refused');
+
+    const [pulling] = await Promise.all([
+      page.waitForRequest((request) => request.url().includes('/admin/users/pull'), { timeout: 10_000 }),
+      ada.locator('.work').filter({ hasText: 'nugget/ada' }).getByRole('button', { name: /Pull/ }).click()
+    ]);
+    const pulled = new URL(pulling.url());
+    check(pulled.search === '?robot=nugget&username=ada',
+        `pulling ada's work on Nugget asked ${pulled.pathname + pulled.search}`);
 
     await page.waitForFunction(() => document.getElementById('editable-robot').options.length === 2, null,
         { timeout: 10_000 }).catch(() => {});
@@ -208,14 +287,12 @@ async function main() {
         && await treeRow('Plans.java').getByRole('button', { name: 'Add' }).count() === 0,
         'Reginald\'s own file is offered to Nugget');
 
-    const nuggetsAda = page.locator('#users .user').filter({ hasText: 'Nugget' });
     const [deleting] = await Promise.all([
       page.waitForRequest((request) => request.url().includes('/admin/users/delete'), { timeout: 10_000 }),
-      nuggetsAda.getByRole('button', { name: 'Delete', exact: true }).click()
+      ada.getByRole('button', { name: 'Delete', exact: true }).click()
     ]);
     const asked = new URL(deleting.url());
-    check(asked.search === '?robot=nugget&username=ada',
-        `deleting ada on Nugget asked ${asked.pathname + asked.search}`);
+    check(asked.search === '?username=ada', `deleting ada asked ${asked.pathname + asked.search}`);
     await page.waitForFunction(() => document.querySelectorAll('#constants input').length === 3, null,
         { timeout: 10_000 }).catch(() => {});
     const panel = await page.locator('#constants').innerText();
@@ -283,9 +360,11 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('the admin page says which robot each user is on, picks files for one robot at a time, '
+  console.log('the admin page shows which robots each user works on and their work on each, lets them onto a '
+      + 'robot and takes them off one, shows why the server refused, pulls the work on the robot it is pressed for, '
+      + 'picks files for one robot at a time, '
       + 'shows each robot\'s own package as always editable and never offers it, '
-      + 'deletes a user from the robot they are on, '
+      + 'deletes a user, '
       + 'and shows the simulation constants, saves those that differ from how they were built, '
       + 'says why a set is refused, and puts them back as built.');
 }

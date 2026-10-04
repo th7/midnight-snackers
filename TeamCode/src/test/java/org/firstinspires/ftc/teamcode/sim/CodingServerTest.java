@@ -319,15 +319,27 @@ public class CodingServerTest {
                 logins.toString(), older.get("id").getAsInt() < newer.get("id").getAsInt());
         assertEquals("pending", older.get("state").getAsString());
         assertEquals("approved", newer.get("state").getAsString());
-        assertEquals("coding/ada", ada.get("branch").getAsString());
-        assertEquals(0, ada.getAsJsonObject("status").get("behind").getAsInt());
-        assertTrue(ada.get("worktree").getAsString().contains("ada"));
-        for (String usersOwn : new String[] {"worktree", "branch", "status", "statusError", "lastMerge"}) {
-            assertFalse("a login must not carry the user's " + usersOwn, newer.has(usersOwn));
+        assertEquals("reginald", newer.get("robot").getAsString());
+        JsonObject onReginald = workOf("ada", TeamRobot.REGINALD);
+        assertTrue(onReginald.get("enabled").getAsBoolean());
+        assertEquals("coding/ada", onReginald.get("branch").getAsString());
+        assertEquals(0, onReginald.getAsJsonObject("status").get("behind").getAsInt());
+        assertTrue(onReginald.get("worktree").getAsString().contains("ada"));
+        JsonObject onNugget = workOf("ada", TeamRobot.NUGGET);
+        assertFalse(onNugget.get("enabled").getAsBoolean());
+        assertTrue(onNugget.toString(), onNugget.get("worktree").isJsonNull());
+        assertTrue(onNugget.toString(), onNugget.get("status").isJsonNull());
+        for (String worksOwn : new String[] {"worktree", "branch", "status", "statusError", "lastMerge"}) {
+            assertFalse("a login must not carry the work's " + worksOwn, newer.has(worksOwn));
+            assertFalse("a user's work is said per robot, not of the user: " + worksOwn, ada.has(worksOwn));
         }
         assertEquals(1, bob.getAsJsonArray("sessions").size());
-        assertTrue(bob.toString(), bob.get("worktree").isJsonNull());
-        assertTrue(bob.toString(), bob.get("status").isJsonNull());
+        assertEquals(List.of(), robotsOf("bob"));
+        assertTrue(
+                bob.toString(),
+                workOf("bob", TeamRobot.REGINALD).get("worktree").isJsonNull());
+        assertTrue(
+                bob.toString(), workOf("bob", TeamRobot.REGINALD).get("status").isJsonNull());
     }
 
     @Test
@@ -339,7 +351,7 @@ public class CodingServerTest {
 
         assertEquals(200, approved.status);
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"branch\":\"coding/ada\"}",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"robots\":[\"reginald\"],\"branch\":\"coding/ada\"}",
                 user("GET", "/me", cookie).body);
         Reply page = user("GET", "/", cookie);
         assertTrue(page.body, page.body.contains("id=\"editor\""));
@@ -388,20 +400,22 @@ public class CodingServerTest {
 
         assertEquals(
                 "{\"state\":\"pending\",\"username\":\"ada\",\"robot\":\"nugget\"}", user("GET", "/me", cookie).body);
-        assertEquals("nugget", userOf("ada", TeamRobot.NUGGET).get("robot").getAsString());
+        assertEquals("nugget", newestSessionOf("ada").get("robot").getAsString());
+        assertEquals("asking is not being let on", List.of(), robotsOf("ada"));
         assertEquals(403, user("GET", "/files", cookie).status);
 
-        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada", TeamRobot.NUGGET) + "/approve").status);
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/approve").status);
 
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"nugget\",\"branch\":\"nugget/ada\"}",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"nugget\",\"robots\":[\"nugget\"],\"branch\":\"nugget/ada\"}",
                 user("GET", "/me", cookie).body);
-        assertEquals("nugget/ada", userOf("ada", TeamRobot.NUGGET).get("branch").getAsString());
+        assertEquals(List.of("nugget"), robotsOf("ada"));
+        assertEquals("nugget/ada", workOf("ada", TeamRobot.NUGGET).get("branch").getAsString());
         assertEquals(200, user("GET", "/files", cookie).status);
     }
 
     @Test
-    public void theSameNameOnEachRobotIsTwoUsersEachOnTheirOwnLine() throws IOException {
+    public void oneNameIsOneUserWhoseWorkOnEachRobotIsKeptApart() throws IOException {
         folder.newFolder("TeamCode");
         Files.write(root.resolve("TeamCode/Plans.java"), "class Plans {}\n".getBytes(StandardCharsets.UTF_8));
         committed("the files");
@@ -424,12 +438,292 @@ public class CodingServerTest {
         assertEquals("nugget's plans", contentOf(onNugget, "Plans.java"));
         assertEquals("class Plans {}\n", contentOf(onReginald, "Plans.java"));
         assertEquals(
-                2,
+                1,
                 json(admin("GET", "/admin/users").body).getAsJsonArray("users").size());
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+        assertEquals(2, userOf("ada").getAsJsonArray("sessions").size());
         assertNotEquals(worktreeOf("ada", TeamRobot.REGINALD), worktreeOf("ada", TeamRobot.NUGGET));
         assertEquals(
-                "coding/ada", userOf("ada", TeamRobot.REGINALD).get("branch").getAsString());
-        assertEquals("nugget/ada", userOf("ada", TeamRobot.NUGGET).get("branch").getAsString());
+                "coding/ada", workOf("ada", TeamRobot.REGINALD).get("branch").getAsString());
+        assertEquals("nugget/ada", workOf("ada", TeamRobot.NUGGET).get("branch").getAsString());
+    }
+
+    private Reply letOnto(String username, TeamRobot robot, boolean enabled) throws IOException {
+        return admin(
+                "POST", "/admin/users/robots?robot=" + robot.asked() + "&username=" + username + "&enabled=" + enabled);
+    }
+
+    private Reply switchTo(String cookie, TeamRobot robot) throws IOException {
+        return user("POST", "/robot?robot=" + robot.asked(), cookie);
+    }
+
+    private void eachRobotsPickedFile() throws IOException {
+        folder.newFolder("TeamCode");
+        Files.write(root.resolve("TeamCode/Plans.java"), "reginald's\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(root.resolve("TeamCode/Nugget.java"), "nugget's\n".getBytes(StandardCharsets.UTF_8));
+        committed("the files");
+        assertEquals(200, admin("POST", "/admin/files/add?robot=reginald&path=TeamCode/Plans.java").status);
+        assertEquals(200, admin("POST", "/admin/files/add?robot=nugget&path=TeamCode/Nugget.java").status);
+    }
+
+    @Test
+    public void theAdminLetsAUserOntoTheOtherRobotAsWell() throws IOException {
+        String cookie = approvedUser("ada");
+        assertEquals(List.of("reginald"), robotsOf("ada"));
+
+        Reply let = letOnto("ada", TeamRobot.NUGGET, true);
+
+        assertEquals(let.body, 200, let.status);
+        assertEquals("{\"username\":\"ada\",\"robots\":[\"reginald\",\"nugget\"]}", let.body);
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+        assertEquals("nugget/ada", workOf("ada", TeamRobot.NUGGET).get("branch").getAsString());
+        assertEquals(
+                "being let onto another robot does not move anybody onto it",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\","
+                        + "\"robots\":[\"reginald\",\"nugget\"],\"branch\":\"coding/ada\"}",
+                user("GET", "/me", cookie).body);
+        assertEquals("letting them on twice is letting them on", 200, letOnto("ada", TeamRobot.NUGGET, true).status);
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+    }
+
+    @Test
+    public void aUserSwitchesToEitherRobotTheAdminLetThemOnto() throws IOException {
+        eachRobotsPickedFile();
+        String cookie = approvedUser("ada");
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+
+        Reply switched = switchTo(cookie, TeamRobot.NUGGET);
+
+        assertEquals(switched.body, 200, switched.status);
+        String onNugget = "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"nugget\","
+                + "\"robots\":[\"reginald\",\"nugget\"],\"branch\":\"nugget/ada\"}";
+        assertEquals(onNugget, switched.body);
+        assertEquals(onNugget, user("GET", "/me", cookie).body);
+        assertEquals(editableListing("TeamCode/Nugget.java"), user("GET", "/files", cookie).body);
+        assertEquals("nugget's\n", contentOf(cookie, "Nugget.java"));
+        assertEquals(404, user("GET", "/files/TeamCode/Plans.java", cookie).status);
+        assertEquals(
+                "nugget-develop",
+                json(user("GET", "/git/status", cookie).body).get("develop").getAsString());
+        assertEquals("nugget", newestSessionOf("ada").get("robot").getAsString());
+
+        assertEquals(200, switchTo(cookie, TeamRobot.REGINALD).status);
+
+        assertEquals(editableListing("TeamCode/Plans.java"), user("GET", "/files", cookie).body);
+        assertEquals(
+                "develop",
+                json(user("GET", "/git/status", cookie).body).get("develop").getAsString());
+    }
+
+    @Test
+    public void aSwitchMovesOnlyTheLoginThatAskedForIt() throws IOException {
+        String first = approvedUser("ada");
+        String second = login("ada");
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/approve").status);
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+
+        assertEquals(200, switchTo(second, TeamRobot.NUGGET).status);
+
+        assertEquals(
+                "reginald", json(user("GET", "/me", first).body).get("robot").getAsString());
+        assertEquals(
+                "nugget", json(user("GET", "/me", second).body).get("robot").getAsString());
+    }
+
+    @Test
+    public void aUserCannotSwitchToARobotTheAdminHasNotLetThemOnto() throws IOException {
+        String cookie = approvedUser("ada");
+        String pending = login("bob");
+
+        Reply refused = switchTo(cookie, TeamRobot.NUGGET);
+
+        assertEquals(refused.body, 403, refused.status);
+        assertTrue(refused.body, refused.body.contains("Nugget"));
+        assertEquals(
+                "reginald", json(user("GET", "/me", cookie).body).get("robot").getAsString());
+        assertEquals(400, user("POST", "/robot?robot=bender", cookie).status);
+        assertEquals(400, user("POST", "/robot", cookie).status);
+        assertEquals(405, user("GET", "/robot?robot=reginald", cookie).status);
+        assertEquals(403, switchTo(pending, TeamRobot.REGINALD).status);
+        assertEquals(403, switchTo(null, TeamRobot.REGINALD).status);
+    }
+
+    @Test
+    public void approvingALoginThatAskedForTheOtherRobotLetsTheUserOntoBoth() throws IOException {
+        String onReginald = approvedUser("ada");
+        String asking = login("ada", TeamRobot.NUGGET);
+        assertEquals(List.of("reginald"), robotsOf("ada"));
+
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/approve").status);
+
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+        assertEquals(
+                "nugget", json(user("GET", "/me", asking).body).get("robot").getAsString());
+        assertEquals(
+                "reginald",
+                json(user("GET", "/me", onReginald).body).get("robot").getAsString());
+    }
+
+    @Test
+    public void takingARobotAwayMovesTheLoginsOnItToTheOtherAndKeepsTheWorkForLater() throws IOException {
+        eachRobotsPickedFile();
+        String cookie = approvedUser("ada");
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+        assertEquals(200, switchTo(cookie, TeamRobot.NUGGET).status);
+        save(cookie, "Nugget.java", "ada's work on nugget");
+        Path onNugget = worktreeOf("ada", TeamRobot.NUGGET);
+
+        Reply taken = letOnto("ada", TeamRobot.NUGGET, false);
+
+        assertEquals(taken.body, 200, taken.status);
+        assertEquals("{\"username\":\"ada\",\"robots\":[\"reginald\"]}", taken.body);
+        assertEquals(List.of("reginald"), robotsOf("ada"));
+        assertEquals(
+                "reginald", json(user("GET", "/me", cookie).body).get("robot").getAsString());
+        assertEquals(editableListing("TeamCode/Plans.java"), user("GET", "/files", cookie).body);
+        assertEquals(403, switchTo(cookie, TeamRobot.NUGGET).status);
+
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+        assertEquals(200, switchTo(cookie, TeamRobot.NUGGET).status);
+
+        assertEquals(onNugget, worktreeOf("ada", TeamRobot.NUGGET));
+        assertEquals("ada's work on nugget", contentOf(cookie, "Nugget.java"));
+    }
+
+    @Test
+    public void theLastRobotAUserHasCannotBeTakenAway() throws IOException {
+        String cookie = approvedUser("ada");
+
+        Reply refused = letOnto("ada", TeamRobot.REGINALD, false);
+
+        assertEquals(refused.body, 409, refused.status);
+        assertTrue(refused.body, refused.body.contains("at least one robot"));
+        assertTrue(refused.body, refused.body.contains("Reginald"));
+        assertEquals(List.of("reginald"), robotsOf("ada"));
+        assertEquals(200, user("GET", "/files", cookie).status);
+        assertEquals(
+                "taking away what they never had changes nothing", 200, letOnto("ada", TeamRobot.NUGGET, false).status);
+        assertEquals(List.of("reginald"), robotsOf("ada"));
+    }
+
+    @Test
+    public void takingARobotAwayStopsTheirRunOnItAndLeavesTheirRunOnTheOther() throws Exception {
+        String onReginald = approvedUser("ada");
+        String onNugget = login("ada");
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/approve").status);
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+        assertEquals(200, switchTo(onNugget, TeamRobot.NUGGET).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", onReginald).status);
+        assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), onNugget).status);
+        assertEquals(2, benches.size());
+
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, false).status);
+
+        assertNull(benches.get(1).current());
+        assertTrue(benches.get(1).status(), benches.get(1).status().contains("\"outcome\":\"stopped\""));
+        assertNotNull("her run on Reginald is still hers", benches.get(0).current());
+        awaitSimStatus(onReginald, "\"outcome\":\"timed out");
+    }
+
+    @Test
+    public void onlyAUserWhoHasLoggedInCanBeLetOntoARobotAndTheRequestMustSayWhatItMeans() throws IOException {
+        String cookie = approvedUser("ada");
+
+        assertEquals(404, letOnto("bob", TeamRobot.NUGGET, true).status);
+        assertEquals(400, admin("POST", "/admin/users/robots?robot=bender&username=ada&enabled=true").status);
+        assertEquals(400, admin("POST", "/admin/users/robots?robot=nugget&username=ada&enabled=maybe").status);
+        assertEquals(400, admin("POST", "/admin/users/robots?robot=nugget&username=ada").status);
+        assertEquals(400, admin("POST", "/admin/users/robots?robot=nugget&enabled=true").status);
+        assertEquals(404, user("POST", "/admin/users/robots?robot=nugget&username=ada&enabled=true", cookie).status);
+        assertEquals(List.of("reginald"), robotsOf("ada"));
+    }
+
+    @Test
+    public void aUserWithOnlyALoginWaitingCanBeLetOntoARobotBeforeItIsApproved() throws IOException {
+        String cookie = login("ada");
+
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+
+        assertEquals(List.of("nugget"), robotsOf("ada"));
+        assertEquals(403, user("GET", "/files", cookie).status);
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/approve").status);
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+        assertEquals(
+                "reginald", json(user("GET", "/me", cookie).body).get("robot").getAsString());
+    }
+
+    @Test
+    public void whichRobotsAUserWorksOnAndWhichOneEachLoginIsOnSurviveARestart() throws IOException {
+        String cookie = approvedUser("ada");
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+        assertEquals(200, switchTo(cookie, TeamRobot.NUGGET).status);
+
+        restart();
+
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+        assertEquals(
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"nugget\","
+                        + "\"robots\":[\"reginald\",\"nugget\"],\"branch\":\"nugget/ada\"}",
+                user("GET", "/me", cookie).body);
+    }
+
+    @Test
+    public void aStateDirectoryFromBeforeLetsEachUserOntoEveryRobotTheyWereApprovedFor() throws IOException {
+        String onReginald = approvedUser("ada", TeamRobot.REGINALD);
+        String onNugget = approvedUser("ada", TeamRobot.NUGGET);
+        login("bob", TeamRobot.NUGGET);
+        String carol = approvedUser("carol", TeamRobot.NUGGET);
+        admin("POST", "/admin/logins/" + idOf("carol") + "/revoke");
+        server.stop();
+        server = null;
+        Files.delete(usersFile());
+
+        server();
+
+        assertEquals(List.of("reginald", "nugget"), robotsOf("ada"));
+        assertEquals(
+                "reginald",
+                json(user("GET", "/me", onReginald).body).get("robot").getAsString());
+        assertEquals(
+                "nugget", json(user("GET", "/me", onNugget).body).get("robot").getAsString());
+        assertEquals("a login still waiting lets nobody on", List.of(), robotsOf("bob"));
+        assertEquals("a login that was revoked lets nobody on", List.of(), robotsOf("carol"));
+        assertEquals(403, user("GET", "/files", carol).status);
+    }
+
+    @Test
+    public void anApprovedLoginIsAlwaysOnARobotItsUserMayWorkOn() throws IOException {
+        String cookie = approvedUser("ada");
+        server.stop();
+        server = null;
+        JsonObject users = new JsonObject();
+        JsonArray list = new JsonArray();
+        JsonObject ada = new JsonObject();
+        ada.addProperty("username", "ada");
+        JsonArray robots = new JsonArray();
+        robots.add("nugget");
+        ada.add("robots", robots);
+        list.add(ada);
+        users.add("users", list);
+        Files.write(usersFile(), users.toString().getBytes(StandardCharsets.UTF_8));
+
+        server();
+
+        assertEquals(
+                "nugget", json(user("GET", "/me", cookie).body).get("robot").getAsString());
+    }
+
+    @Test
+    public void aUserStoreThatCannotBeReadStopsTheServerFromStarting() throws IOException {
+        approvedUser("ada");
+        server.stop();
+        server = null;
+        Files.write(usersFile(), "{\"users\":[{\"username\":\"ada\",\"robots\":[]}]}".getBytes(StandardCharsets.UTF_8));
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class, this::server);
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains("users.json"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("at least one robot"));
     }
 
     @Test
@@ -663,24 +957,77 @@ public class CodingServerTest {
         server();
 
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"branch\":\"coding/ada\"}",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"robots\":[\"reginald\"],\"branch\":\"coding/ada\"}",
                 user("GET", "/me", cookie).body);
         assertEquals(worktree, worktreeOf("ada"));
     }
 
     @Test
-    public void deletingAUserOnOneRobotLeavesTheSameNameOnTheOther() throws IOException {
-        approvedUser("ada", TeamRobot.REGINALD);
+    public void deletingAUserTakesTheirWorkOnEveryRobotAndEveryLogin() throws IOException {
+        aRealRepository();
+        String onReginald = approvedUser("ada", TeamRobot.REGINALD);
         String onNugget = approvedUser("ada", TeamRobot.NUGGET);
+        Path reginalds = worktreeOf("ada", TeamRobot.REGINALD);
+        Path nuggets = worktreeOf("ada", TeamRobot.NUGGET);
 
-        assertEquals(400, admin("POST", "/admin/users/delete?username=ada").status);
-        assertEquals(200, admin("POST", "/admin/users/delete?robot=nugget&username=ada").status);
+        Reply deleted = admin("POST", "/admin/users/delete?username=ada");
 
-        JsonArray users = json(admin("GET", "/admin/users").body).getAsJsonArray("users");
-        assertEquals(1, users.size());
-        assertEquals("reginald", users.get(0).getAsJsonObject().get("robot").getAsString());
+        assertEquals(deleted.body, 200, deleted.status);
+        assertEquals(
+                "{\"deleted\":true,\"username\":\"ada\",\"branches\":[\"coding/ada\",\"nugget/ada\"],\"logins\":2}",
+                deleted.body);
+        assertEquals("{\"users\":[]}", admin("GET", "/admin/users").body);
+        assertEquals("{\"state\":\"none\"}", user("GET", "/me", onReginald).body);
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", onNugget).body);
-        assertEquals(404, admin("POST", "/admin/users/delete?robot=nugget&username=ada").status);
+        assertFalse(Files.exists(reginalds));
+        assertFalse(Files.exists(nuggets));
+        assertEquals("her branches stayed", GitFixture.head(root), GitFixture.commitOf(root, "nugget/ada"));
+        assertEquals(404, admin("POST", "/admin/users/delete?username=ada").status);
+
+        String again = approvedUser("ada", TeamRobot.NUGGET);
+
+        assertEquals(
+                "she comes back on the robot she is approved for and no other", List.of("nugget"), robotsOf("ada"));
+        assertEquals("nugget", json(user("GET", "/me", again).body).get("robot").getAsString());
+    }
+
+    @Test
+    public void aRefusedDeleteNamesWhatEachRobotsLineLacks() throws IOException {
+        approvedUser("ada", TeamRobot.REGINALD);
+        approvedUser("ada", TeamRobot.NUGGET);
+        Files.write(
+                worktreeOf("ada", TeamRobot.REGINALD).resolve("README"), "typing\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(worktreeOf("ada", TeamRobot.NUGGET).resolve("README"), "typing\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(worktreeOf("ada", TeamRobot.NUGGET).resolve("NOTES"), "typing\n".getBytes(StandardCharsets.UTF_8));
+
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
+
+        assertEquals(refused.body, 409, refused.status);
+        JsonObject body = json(refused.body);
+        assertEquals(
+                "ada has 1 changed file that develop does not have, and 2 changed files that nugget-develop does not"
+                        + " have; push them first, or delete anyway",
+                body.get("message").getAsString());
+        assertEquals(
+                "[{\"robot\":\"reginald\",\"changed\":[\"README\"],\"ahead\":0},"
+                        + "{\"robot\":\"nugget\",\"changed\":[\"NOTES\",\"README\"],\"ahead\":0}]",
+                body.getAsJsonArray("unsaved").toString());
+        assertFalse(deletable("ada"));
+        assertTrue(Files.isDirectory(worktreeOf("ada", TeamRobot.NUGGET)));
+    }
+
+    @Test
+    public void workKeptOnARobotTakenAwayStillStopsADelete() throws IOException {
+        approvedUser("ada", TeamRobot.REGINALD);
+        approvedUser("ada", TeamRobot.NUGGET);
+        Files.write(worktreeOf("ada", TeamRobot.NUGGET).resolve("README"), "typing\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, false).status);
+
+        assertFalse(deletable("ada"));
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
+
+        assertEquals(refused.body, 409, refused.status);
+        assertTrue(refused.body, refused.body.contains("nugget-develop"));
     }
 
     @Test
@@ -698,25 +1045,31 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theAdminPageShowsEachUsersRobotAndPicksFilesForOneRobotAtATime() throws IOException {
+    public void theAdminPageLetsEachUserOntoEitherRobotOrBothAndPicksFilesForOneRobotAtATime() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("user.robot"));
+        assertTrue(page, page.contains("user.robots"));
+        assertTrue(page, page.contains("work.enabled"));
+        assertTrue(page, page.contains("'/admin/users/robots?robot='"));
+        assertTrue(page, page.contains("'&enabled='"));
+        assertTrue("each login says which robot it is on", page.contains("session.robot"));
         assertTrue(page, page.contains("id=\"editable-robot\""));
         assertTrue("the robots are the server's to list", page.contains("info.robots"));
         assertTrue("every file route names the robot", page.contains("'/admin/files?robot='"));
         assertTrue(page, page.contains("'/admin/files/add?robot='"));
         assertTrue(page, page.contains("'/admin/files/remove?robot='"));
-        assertTrue(page, page.contains("'/admin/users/delete?robot='"));
+        assertTrue(page, page.contains("'/admin/users/delete?username='"));
         assertTrue("what a robot's teammates always edit is the server's to say", page.contains(".own"));
     }
 
     @Test
-    public void theDashboardSaysWhichRobotYouAreOn() throws IOException {
+    public void theDashboardSaysWhichRobotYouAreOnAndSwitchesToAnotherYouMayWorkOn() throws IOException {
         String page = user("GET", "/", approvedUser("ada", TeamRobot.NUGGET)).body;
 
         assertTrue(page, page.contains("id=\"robot\""));
         assertTrue(page, page.contains("me.robot"));
+        assertTrue("the robots offered are the server's to say", page.contains("me.robots"));
+        assertTrue(page, page.contains("'/robot?robot='"));
         assertTrue("the line pushed to and pulled from is the server's to say", page.contains("status.develop"));
         assertFalse(page, page.contains("'Bring develop into your branch'"));
     }
@@ -876,11 +1229,11 @@ public class CodingServerTest {
     }
 
     private Path worktreeOf(String username, TeamRobot robot) throws IOException {
-        JsonObject user = userOf(username, robot);
-        if (user.get("worktree").isJsonNull()) {
-            throw new AssertionError("no worktree for " + username);
+        JsonObject work = workOf(username, robot);
+        if (work.get("worktree").isJsonNull()) {
+            throw new AssertionError("no worktree for " + username + " on " + robot.displayName());
         }
-        return Path.of(user.get("worktree").getAsString());
+        return Path.of(work.get("worktree").getAsString());
     }
 
     private static String sha256(byte[] bytes) throws IOException {
@@ -900,9 +1253,14 @@ public class CodingServerTest {
     }
 
     private static String edit(String content, String baseVersion) {
+        return edit(content, baseVersion, TeamRobot.REGINALD);
+    }
+
+    private static String edit(String content, String baseVersion, TeamRobot robot) {
         JsonObject body = new JsonObject();
         body.addProperty("content", content);
         body.addProperty("baseVersion", baseVersion);
+        body.addProperty("robot", robot.asked());
         return body.toString();
     }
 
@@ -919,6 +1277,69 @@ public class CodingServerTest {
         assertEquals("class Plans {}\n", json.get("content").getAsString());
         assertEquals(sha256(bytes), json.get("version").getAsString());
         assertEquals("TeamCode/Plans.java", json.get("path").getAsString());
+        assertEquals("reginald", json.get("robot").getAsString());
+    }
+
+    @Test
+    public void aSaveThatDoesNotSayWhichRobotItWasEditedOnIsRefused() throws IOException {
+        String cookie = approvedEditorOf("Plans.java");
+        Files.write(file("Plans.java"), "old".getBytes(StandardCharsets.UTF_8));
+        String version = json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
+                .get("version")
+                .getAsString();
+        JsonObject unsaid = new JsonObject();
+        unsaid.addProperty("content", "new");
+        unsaid.addProperty("baseVersion", version);
+
+        Reply refused = user("PUT", "/files/TeamCode/Plans.java", cookie, unsaid.toString());
+        Reply wrong = user(
+                "PUT",
+                "/files/TeamCode/Plans.java",
+                cookie,
+                edit("new", version).replace("reginald", "bender"));
+
+        assertEquals(refused.body, 400, refused.status);
+        assertTrue(refused.body, refused.body.contains("robot"));
+        assertEquals(wrong.body, 400, wrong.status);
+        assertEquals("old", new String(Files.readAllBytes(file("Plans.java")), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void aSaveMadeOnOneRobotNeverLandsOnTheOtherAfterTheLoginSwitched() throws IOException {
+        folder.newFolder("TeamCode");
+        Files.write(root.resolve("TeamCode/Shared.java"), "the same on both\n".getBytes(StandardCharsets.UTF_8));
+        committed("a file both robots edit");
+        for (TeamRobot robot : TeamRobot.values()) {
+            assertEquals(
+                    200,
+                    admin("POST", "/admin/files/add?robot=" + robot.asked() + "&path=TeamCode/Shared.java").status);
+        }
+        String cookie = approvedUser("ada");
+        assertEquals(200, letOnto("ada", TeamRobot.NUGGET, true).status);
+        JsonObject read = json(user("GET", "/files/TeamCode/Shared.java", cookie).body);
+        assertEquals("reginald", read.get("robot").getAsString());
+        assertEquals(200, switchTo(cookie, TeamRobot.NUGGET).status);
+        assertEquals(
+                "the version alone cannot tell the two apart",
+                read.get("version").getAsString(),
+                json(user("GET", "/files/TeamCode/Shared.java", cookie).body)
+                        .get("version")
+                        .getAsString());
+
+        Reply refused = user(
+                "PUT",
+                "/files/TeamCode/Shared.java",
+                cookie,
+                edit("typed on reginald\n", read.get("version").getAsString(), TeamRobot.REGINALD));
+
+        assertEquals(refused.body, 409, refused.status);
+        JsonObject body = json(refused.body);
+        assertEquals("nugget", body.get("robot").getAsString());
+        assertTrue(refused.body, body.get("message").getAsString().contains("Reginald"));
+        assertTrue(refused.body, body.get("message").getAsString().contains("Nugget"));
+        assertEquals("the same on both\n", contentOf(cookie, "Shared.java"));
+        assertEquals(200, switchTo(cookie, TeamRobot.REGINALD).status);
+        assertEquals("the same on both\n", contentOf(cookie, "Shared.java"));
     }
 
     @Test
@@ -1062,6 +1483,7 @@ public class CodingServerTest {
         assertTrue(page, page.contains("id=\"status\""));
         assertTrue(page, page.contains("method: 'PUT'"));
         assertTrue(page, page.contains("baseVersion"));
+        assertTrue("a save says which robot the file was read on", page.contains("robot: open.robot"));
         assertTrue(page, page.contains("setTimeout"));
         assertTrue(page, page.contains("409"));
     }
@@ -1105,7 +1527,7 @@ public class CodingServerTest {
 
     private String approvedUser(String name, TeamRobot robot) throws IOException {
         String cookie = login(name, robot);
-        assertEquals(200, admin("POST", "/admin/logins/" + idOf(name, robot) + "/approve").status);
+        assertEquals(200, admin("POST", "/admin/logins/" + idOf(name) + "/approve").status);
         return cookie;
     }
 
@@ -2173,7 +2595,7 @@ public class CodingServerTest {
         restart();
 
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"branch\":\"coding/ada\"}",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"robots\":[\"reginald\"],\"branch\":\"coding/ada\"}",
                 user("GET", "/me", cookie).body);
         assertEquals(200, user("GET", "/files/TeamCode/Plans.java", cookie).status);
         assertEquals(id, idOf("ada"));
@@ -2193,7 +2615,7 @@ public class CodingServerTest {
         assertEquals("127.0.0.1", session.get("address").getAsString());
         admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"bob\",\"robot\":\"reginald\",\"branch\":\"coding/bob\"}",
+                "{\"state\":\"approved\",\"username\":\"bob\",\"robot\":\"reginald\",\"robots\":[\"reginald\"],\"branch\":\"coding/bob\"}",
                 user("GET", "/me", cookie).body);
     }
 
@@ -2281,7 +2703,7 @@ public class CodingServerTest {
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
         assertEquals(403, user("GET", "/files", forged).status);
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"branch\":\"coding/ada\"}",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"robots\":[\"reginald\"],\"branch\":\"coding/ada\"}",
                 user("GET", "/me", cookie).body);
     }
 
@@ -2478,11 +2900,11 @@ public class CodingServerTest {
     }
 
     @Test
-    public void theAdminPageShowsEachUsersWorktreeAndBranch() throws IOException {
+    public void theAdminPageShowsEachUsersWorktreeAndBranchOnEachRobot() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("user.branch"));
-        assertTrue(page, page.contains("user.worktree"));
+        assertTrue(page, page.contains("work.branch"));
+        assertTrue(page, page.contains("work.worktree"));
     }
 
     @Test
@@ -2553,6 +2975,10 @@ public class CodingServerTest {
         assertEquals(
                 underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "relative/state", "HOME", home.toString())));
         assertEquals(underHome, CodingServer.stateDir(Map.of("XDG_STATE_HOME", "", "HOME", home.toString())));
+    }
+
+    private Path usersFile() {
+        return stateDir().resolve("users.json");
     }
 
     private Path sessionsFile() {
@@ -2696,10 +3122,15 @@ public class CodingServerTest {
     }
 
     private void save(String cookie, String name, String content) throws IOException {
-        String version = json(user("GET", "/files/TeamCode/" + name, cookie).body)
-                .get("version")
-                .getAsString();
-        Reply written = user("PUT", "/files/TeamCode/" + name, cookie, edit(content, version));
+        JsonObject read = json(user("GET", "/files/TeamCode/" + name, cookie).body);
+        TeamRobot robot = TeamRobot.named(read.get("robot").getAsString()).fold(found -> found, rule -> {
+            throw new AssertionError(rule);
+        });
+        Reply written = user(
+                "PUT",
+                "/files/TeamCode/" + name,
+                cookie,
+                edit(content, read.get("version").getAsString(), robot));
         assertEquals(written.body, 200, written.status);
     }
 
@@ -2986,7 +3417,7 @@ public class CodingServerTest {
         assertTrue("the recipe names the real worktree", logins.contains("git merge develop"));
         assertTrue(logins, logins.contains(worktreeOf("ada").toString().replace("\\", "\\\\")));
         String page = admin("GET", "/admin").body;
-        assertTrue(page, page.contains("user.lastMerge"));
+        assertTrue(page, page.contains("work.lastMerge"));
         assertTrue(page, page.contains("last.recipe"));
     }
 
@@ -3003,28 +3434,47 @@ public class CodingServerTest {
     }
 
     private JsonObject userOf(String username) throws IOException {
-        return userOf(username, TeamRobot.REGINALD);
-    }
-
-    private JsonObject userOf(String username, TeamRobot robot) throws IOException {
         JsonObject found = null;
         for (var element : json(admin("GET", "/admin/users").body).getAsJsonArray("users")) {
             JsonObject user = element.getAsJsonObject();
-            if (user.get("username").getAsString().equals(username)
-                    && user.get("robot").getAsString().equals(robot.asked())) {
+            if (user.get("username").getAsString().equals(username)) {
+                assertNull("two rows for " + username, found);
                 found = user;
             }
         }
-        assertNotNull("no user for " + username + " on " + robot.displayName(), found);
+        assertNotNull("no user named " + username, found);
         return found;
     }
 
-    private JsonObject newestSessionOf(String username) throws IOException {
-        return newestSessionOf(username, TeamRobot.REGINALD);
+    private JsonObject workOf(String username) throws IOException {
+        return workOf(username, TeamRobot.REGINALD);
     }
 
-    private JsonObject newestSessionOf(String username, TeamRobot robot) throws IOException {
-        JsonArray sessions = userOf(username, robot).getAsJsonArray("sessions");
+    private JsonObject workOf(String username, TeamRobot robot) throws IOException {
+        JsonObject found = null;
+        for (var element : userOf(username).getAsJsonArray("robots")) {
+            JsonObject work = element.getAsJsonObject();
+            if (work.get("robot").getAsString().equals(robot.asked())) {
+                found = work;
+            }
+        }
+        assertNotNull(username + " has nothing listed on " + robot.displayName(), found);
+        return found;
+    }
+
+    private List<String> robotsOf(String username) throws IOException {
+        List<String> robots = new ArrayList<>();
+        for (var element : userOf(username).getAsJsonArray("robots")) {
+            JsonObject work = element.getAsJsonObject();
+            if (work.get("enabled").getAsBoolean()) {
+                robots.add(work.get("robot").getAsString());
+            }
+        }
+        return robots;
+    }
+
+    private JsonObject newestSessionOf(String username) throws IOException {
+        JsonArray sessions = userOf(username).getAsJsonArray("sessions");
         assertTrue(username + " has no sessions", sessions.size() > 0);
         return sessions.get(sessions.size() - 1).getAsJsonObject();
     }
@@ -3033,11 +3483,11 @@ public class CodingServerTest {
     public void theAdminListingShowsEachUsersChangedFilesAndCommitsAheadAndBehind() throws IOException {
         String cookie = savedEditor("edited");
 
-        JsonObject before = userOf("ada").getAsJsonObject("status");
+        JsonObject before = workOf("ada").getAsJsonObject("status");
         assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
-        JsonObject after = userOf("ada").getAsJsonObject("status");
+        JsonObject after = workOf("ada").getAsJsonObject("status");
         commitOnDevelop("README", "on develop\n");
-        JsonObject later = userOf("ada").getAsJsonObject("status");
+        JsonObject later = workOf("ada").getAsJsonObject("status");
 
         assertEquals(
                 "[\"TeamCode/Plans.java\"]", before.getAsJsonArray("changed").toString());
@@ -3053,19 +3503,19 @@ public class CodingServerTest {
     public void aUserWithoutAWorktreeHasNoStatusInTheAdminListing() throws IOException {
         login("bob");
 
-        assertTrue(userOf("bob").get("status").isJsonNull());
-        assertTrue(userOf("bob").get("worktree").isJsonNull());
+        assertTrue(workOf("bob").get("status").isJsonNull());
+        assertTrue(workOf("bob").get("worktree").isJsonNull());
     }
 
     @Test
     public void theAdminPageShowsEachUsersStatusAndHasAPullButton() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("user.status"));
+        assertTrue(page, page.contains("work.status"));
         assertTrue(page, page.contains("status.changed"));
         assertTrue(page, page.contains("status.ahead"));
         assertTrue(page, page.contains("status.behind"));
-        assertTrue(page, page.contains("'/pull'"));
+        assertTrue("each robot's work is pulled on its own", page.contains("'/admin/users/pull?robot='"));
         assertTrue("the reply's message is what the page shows", page.contains("result.message"));
     }
 
@@ -3075,9 +3525,9 @@ public class CodingServerTest {
         String cookie = approvedEditorOf("Plans.java");
         commitOnDevelop("TeamCode/Plans.java", plans("fromDevelop"));
         String develop = GitFixture.commitOf(root, "develop");
-        assertEquals(1, userOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertEquals(1, workOf("ada").getAsJsonObject("status").get("behind").getAsInt());
 
-        Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+        Reply pulled = admin("POST", "/admin/users/pull?robot=reginald&username=ada");
 
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
@@ -3087,14 +3537,14 @@ public class CodingServerTest {
                 json(user("GET", "/files/TeamCode/Plans.java", cookie).body)
                         .get("content")
                         .getAsString());
-        assertEquals(0, userOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertEquals(0, workOf("ada").getAsJsonObject("status").get("behind").getAsInt());
         assertEquals(develop, GitFixture.commitOf(root, "coding/ada"));
         assertEquals("develop did not move", develop, GitFixture.commitOf(root, "develop"));
         assertEquals(
-                "pull", userOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
+                "pull", workOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
         assertEquals(
                 "pulled",
-                userOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
+                workOf("ada").getAsJsonObject("lastMerge").get("outcome").getAsString());
     }
 
     @Test
@@ -3110,7 +3560,7 @@ public class CodingServerTest {
                 before,
                 json(user("GET", "/git/status", cookie).body).get("head").getAsString());
 
-        assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/pull").status);
+        assertEquals(200, admin("POST", "/admin/users/pull?robot=reginald&username=ada").status);
 
         assertEquals(
                 GitFixture.commitOf(root, "develop"),
@@ -3132,14 +3582,14 @@ public class CodingServerTest {
         Reply listing = admin("GET", "/admin/users");
 
         assertEquals(listing.body, 200, listing.status);
-        assertTrue(userOf("ada").get("status").isJsonNull());
+        assertTrue(workOf("ada").get("status").isJsonNull());
         assertTrue(
                 userOf("ada").toString(),
-                userOf("ada").get("statusError").getAsString().contains("coding/ada"));
-        assertEquals(0, userOf("bob").getAsJsonObject("status").get("behind").getAsInt());
-        assertTrue(userOf("bob").get("statusError").isJsonNull());
+                workOf("ada").get("statusError").getAsString().contains("coding/ada"));
+        assertEquals(0, workOf("bob").getAsJsonObject("status").get("behind").getAsInt());
+        assertTrue(workOf("bob").get("statusError").isJsonNull());
         String page = admin("GET", "/admin").body;
-        assertTrue(page, page.contains("user.statusError"));
+        assertTrue(page, page.contains("work.statusError"));
     }
 
     @Test
@@ -3148,12 +3598,12 @@ public class CodingServerTest {
         approvedEditorOf("Plans.java");
         String head = GitFixture.commitOf(root, "coding/ada");
 
-        Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+        Reply pulled = admin("POST", "/admin/users/pull?robot=reginald&username=ada");
 
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("nothing", json(pulled.body).get("outcome").getAsString());
         assertEquals(head, GitFixture.commitOf(root, "coding/ada"));
-        assertEquals(405, admin("GET", "/admin/logins/" + idOf("ada") + "/pull").status);
+        assertEquals(405, admin("GET", "/admin/users/pull?robot=reginald&username=ada").status);
     }
 
     @Test
@@ -3164,7 +3614,7 @@ public class CodingServerTest {
         commitOnDevelop("README", "on develop\n");
         String head = GitFixture.commitOf(root, "coding/ada");
 
-        Reply refused = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+        Reply refused = admin("POST", "/admin/users/pull?robot=reginald&username=ada");
 
         assertEquals(409, refused.status);
         assertEquals("uncommitted", json(refused.body).get("outcome").getAsString());
@@ -3191,7 +3641,7 @@ public class CodingServerTest {
         String cookie = savedEditor(plans("mine"));
         commitOnDevelop("README", "on develop\n");
 
-        Reply pulled = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+        Reply pulled = admin("POST", "/admin/users/pull?robot=reginald&username=ada");
 
         assertEquals(pulled.body, 200, pulled.status);
         assertEquals("pulled", json(pulled.body).get("outcome").getAsString());
@@ -3206,7 +3656,7 @@ public class CodingServerTest {
                         .getAsString());
         assertEquals(
                 "[\"TeamCode/Plans.java\"]",
-                userOf("ada")
+                workOf("ada")
                         .getAsJsonObject("status")
                         .getAsJsonArray("changed")
                         .toString());
@@ -3221,7 +3671,7 @@ public class CodingServerTest {
         String head = GitFixture.commitOf(root, "coding/ada");
         String develop = GitFixture.commitOf(root, "develop");
 
-        Reply conflicted = admin("POST", "/admin/logins/" + idOf("ada") + "/pull");
+        Reply conflicted = admin("POST", "/admin/users/pull?robot=reginald&username=ada");
 
         assertEquals(409, conflicted.status);
         JsonObject body = json(conflicted.body);
@@ -3244,18 +3694,38 @@ public class CodingServerTest {
     public void anAdminPullForALoginWithoutAWorktreeIs404() throws IOException {
         login("bob");
 
-        Reply refused = admin("POST", "/admin/logins/" + idOf("bob") + "/pull");
+        Reply refused = admin("POST", "/admin/users/pull?robot=reginald&username=bob");
 
         assertEquals(404, refused.status);
         assertTrue(refused.body, refused.body.contains("bob"));
-        assertEquals(404, admin("POST", "/admin/logins/999/pull").status);
+        assertEquals(404, admin("POST", "/admin/users/pull?robot=reginald&username=nobody").status);
+        assertEquals(400, admin("POST", "/admin/users/pull?robot=bender&username=bob").status);
+    }
+
+    @Test
+    public void anAdminPullIsOfTheWorkOnTheRobotItNames() throws IOException {
+        aRealRepository();
+        approvedUser("ada", TeamRobot.REGINALD);
+        commitOnDevelop("README", "on develop\n");
+        assertEquals(1, workOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+
+        Reply refused = admin("POST", "/admin/users/pull?robot=nugget&username=ada");
+
+        assertEquals(refused.body, 404, refused.status);
+        assertTrue(refused.body, refused.body.contains("Nugget"));
+        assertEquals(1, workOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertEquals(200, admin("POST", "/admin/users/pull?robot=reginald&username=ada").status);
+        assertEquals(0, workOf("ada").getAsJsonObject("status").get("behind").getAsInt());
+        assertTrue(workOf("ada", TeamRobot.NUGGET).get("lastMerge").isJsonNull());
+        assertEquals(
+                "pull", workOf("ada").getAsJsonObject("lastMerge").get("op").getAsString());
     }
 
     @Test
     public void theAdminPullRouteDoesNotExistOnTheUserPort() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
 
-        assertEquals(404, user("POST", "/admin/logins/" + idOf("ada") + "/pull", cookie).status);
+        assertEquals(404, user("POST", "/admin/users/pull?robot=reginald&username=ada", cookie).status);
     }
 
     @Test
@@ -3665,12 +4135,11 @@ public class CodingServerTest {
         Path bobs = worktreeOf("bob");
         assertEquals(200, user("GET", "/files", cookie).status);
 
-        Reply deleted = admin("POST", "/admin/users/delete?robot=reginald&username=ada");
+        Reply deleted = admin("POST", "/admin/users/delete?username=ada");
 
         assertEquals(deleted.body, 200, deleted.status);
         assertEquals(
-                "{\"deleted\":true,\"username\":\"ada\",\"robot\":\"reginald\",\"branch\":\"coding/ada\",\"logins\":2}",
-                deleted.body);
+                "{\"deleted\":true,\"username\":\"ada\",\"branches\":[\"coding/ada\"],\"logins\":2}", deleted.body);
         assertFalse("ada has left the listing", listed("ada"));
         assertTrue("and nobody else has", listed("bob"));
         assertEquals(403, user("GET", "/files", cookie).status);
@@ -3686,15 +4155,16 @@ public class CodingServerTest {
         String cookie = savedEditor("edited");
         Path worktree = worktreeOf("ada");
 
-        Reply refused = admin("POST", "/admin/users/delete?robot=reginald&username=ada");
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
 
         assertEquals(refused.body, 409, refused.status);
         JsonObject body = json(refused.body);
         assertEquals(
                 "ada has 1 changed file that develop does not have; push it first, or delete anyway",
                 body.get("message").getAsString());
-        assertEquals("[\"TeamCode/Plans.java\"]", body.getAsJsonArray("changed").toString());
-        assertEquals(0, body.get("ahead").getAsInt());
+        assertEquals(
+                "[{\"robot\":\"reginald\",\"changed\":[\"TeamCode/Plans.java\"],\"ahead\":0}]",
+                body.getAsJsonArray("unsaved").toString());
         assertTrue("her worktree is untouched", Files.isDirectory(worktree));
         assertEquals("and her login still works", 200, user("GET", "/files", cookie).status);
         assertTrue(listed("ada"));
@@ -3705,15 +4175,16 @@ public class CodingServerTest {
         String cookie = savedEditor("edited");
         assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
 
-        Reply refused = admin("POST", "/admin/users/delete?robot=reginald&username=ada");
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
 
         assertEquals(refused.body, 409, refused.status);
         JsonObject body = json(refused.body);
         assertEquals(
                 "ada has 1 commit that develop does not have; push it first, or delete anyway",
                 body.get("message").getAsString());
-        assertEquals("[]", body.getAsJsonArray("changed").toString());
-        assertEquals(1, body.get("ahead").getAsInt());
+        assertEquals(
+                "[{\"robot\":\"reginald\",\"changed\":[],\"ahead\":1}]",
+                body.getAsJsonArray("unsaved").toString());
     }
 
     @Test
@@ -3721,7 +4192,7 @@ public class CodingServerTest {
         String cookie = savedEditor("edited");
         Path worktree = worktreeOf("ada");
 
-        Reply deleted = admin("POST", "/admin/users/delete?robot=reginald&username=ada&force=true");
+        Reply deleted = admin("POST", "/admin/users/delete?username=ada&force=true");
 
         assertEquals(deleted.body, 200, deleted.status);
         assertFalse(Files.exists(worktree));
@@ -3734,13 +4205,13 @@ public class CodingServerTest {
         String cookie = savedEditor("ada's work");
         assertEquals(200, user("POST", "/git/commit", cookie, message("my change")).status);
         Path worktree = worktreeOf("ada");
-        assertEquals(200, admin("POST", "/admin/users/delete?robot=reginald&username=ada&force=true").status);
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada&force=true").status);
         assertFalse(Files.exists(worktree));
 
         String again = approvedUser("ada");
 
         assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"branch\":\"coding/ada\"}",
+                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\",\"robots\":[\"reginald\"],\"branch\":\"coding/ada\"}",
                 user("GET", "/me", again).body);
         assertEquals("the same worktree, on the same branch", worktree, worktreeOf("ada"));
         assertEquals(
@@ -3758,7 +4229,7 @@ public class CodingServerTest {
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", bob).status);
         assertEquals(2, benches.size());
 
-        assertEquals(200, admin("POST", "/admin/users/delete?robot=reginald&username=ada").status);
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
 
         assertNull(benches.get(0).current());
         assertTrue(benches.get(0).status(), benches.get(0).status().contains("\"outcome\":\"stopped\""));
@@ -3778,7 +4249,7 @@ public class CodingServerTest {
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", ada).status);
         awaitSimStatus(ada, RUNNING);
 
-        Reply refused = admin("POST", "/admin/users/delete?robot=reginald&username=ada");
+        Reply refused = admin("POST", "/admin/users/delete?username=ada");
 
         assertEquals(refused.body, 409, refused.status);
         assertNotNull(benches.get(0).current());
@@ -3790,7 +4261,7 @@ public class CodingServerTest {
     public void deletingAUserNobodyHasIs404AndDeletingNobodyIs400() throws IOException {
         approvedUser("ada");
 
-        Reply missing = admin("POST", "/admin/users/delete?robot=reginald&username=bob");
+        Reply missing = admin("POST", "/admin/users/delete?username=bob");
 
         assertEquals(404, missing.status);
         assertTrue(missing.body, missing.body.contains("bob"));
@@ -3802,7 +4273,7 @@ public class CodingServerTest {
     public void theDeleteRouteDoesNotExistOnTheUserPort() throws IOException {
         String cookie = approvedUser("ada");
 
-        assertEquals(404, user("POST", "/admin/users/delete?robot=reginald&username=ada", cookie).status);
+        assertEquals(404, user("POST", "/admin/users/delete?username=ada", cookie).status);
 
         assertEquals(200, user("GET", "/files", cookie).status);
         assertTrue(listed("ada"));
@@ -3812,7 +4283,7 @@ public class CodingServerTest {
     public void aDeletedUserIsStillGoneAfterARestart() throws IOException {
         String cookie = approvedUser("ada");
         approvedUser("bob");
-        assertEquals(200, admin("POST", "/admin/users/delete?robot=reginald&username=ada").status);
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
 
         restart();
 
@@ -3828,8 +4299,7 @@ public class CodingServerTest {
     public void theAdminPageDeletesAUserAndOffersToDeleteAnywayWhenTheServerRefuses() throws IOException {
         String page = admin("GET", "/admin").body;
 
-        assertTrue(page, page.contains("'/admin/users/delete?robot='"));
-        assertTrue(page, page.contains("'&username='"));
+        assertTrue(page, page.contains("'/admin/users/delete?username='"));
         assertTrue(page, page.contains("'&force=true'"));
         assertTrue(page, page.contains("Delete anyway"));
         assertTrue("the server's refusal is what the admin reads", page.contains("deleteArmedByUsername"));
@@ -3855,9 +4325,9 @@ public class CodingServerTest {
         savedEditor("edited");
 
         assertFalse(deletable("ada"));
-        assertEquals(409, admin("POST", "/admin/users/delete?robot=reginald&username=ada").status);
+        assertEquals(409, admin("POST", "/admin/users/delete?username=ada").status);
 
-        assertEquals(200, admin("POST", "/admin/users/delete?robot=reginald&username=ada&force=true").status);
+        assertEquals(200, admin("POST", "/admin/users/delete?username=ada&force=true").status);
         assertTrue("a user who is gone stands in nobody's way", deletable("bob"));
     }
 
@@ -3882,11 +4352,7 @@ public class CodingServerTest {
     }
 
     private String idOf(String username) throws IOException {
-        return idOf(username, TeamRobot.REGINALD);
-    }
-
-    private String idOf(String username, TeamRobot robot) throws IOException {
-        return newestSessionOf(username, robot).get("id").getAsString();
+        return newestSessionOf(username).get("id").getAsString();
     }
 
     private Reply user(String method, String path, String cookie) throws IOException {
