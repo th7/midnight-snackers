@@ -1907,6 +1907,28 @@ public class CodingServerTest {
     }
 
     @Test
+    public void theDashboardHasALaunchSimTabAfterSimulate() {
+        String page = SimAssets.page("dashboard.html");
+
+        assertTrue(page, page.contains("data-tab=\"launch\" aria-selected=\"false\" aria-controls=\"launch\""));
+        assertTrue(page, page.contains("<main id=\"launch\" class=\"panel\" role=\"tabpanel\" hidden>"));
+        assertTrue(page, page.contains("id=\"launch-stage\""));
+        assertTrue(page, page.contains("'/sim/launch/settings'"));
+        assertTrue(page, page.contains("'/sim/launch/preview'"));
+        assertTrue(page, page.contains("'/sim/launch'"));
+        assertTrue(page, page.contains("'/sim/launches'"));
+        assertTrue(page, page.contains("'/sim/launches/'"));
+        assertTrue(
+                "the Launch Sim tab comes after Simulate",
+                page.indexOf("data-tab=\"simulate\"") < page.indexOf("data-tab=\"launch\""));
+        int launchSim = page.indexOf("part('the launch sim', ");
+        assertTrue("the launch sim starts as a part of its own", launchSim >= 0);
+        assertTrue(
+                "and before the tabs, so the tab it is opened on can enter it",
+                launchSim < page.indexOf("part('the tabs', wireTabs)"));
+    }
+
+    @Test
     public void theSimulateTabShowsBuildingAndTheRunsMessageAndRefreshesTheCatalog() throws IOException {
         String cookie = approvedEditorOf("Plans.java");
 
@@ -2411,7 +2433,9 @@ public class CodingServerTest {
             "#",
             "",
             "#nonsense",
-            "#edit?resolution=low"
+            "#edit?resolution=low",
+            "#launch",
+            "#launch?resolution=low"
         };
 
         String[] got = tabsOnTheDashboard(asked);
@@ -2424,6 +2448,8 @@ public class CodingServerTest {
         assertEquals("edit ", got[5]);
         assertEquals("a tab nobody has is the editor", "edit ", got[6]);
         assertEquals("and options only mean something to the tab that reads them", "edit ", got[7]);
+        assertEquals("the Launch Sim tab is a tab of its own", "launch ", got[8]);
+        assertEquals("and its view is drawn as it is asked to be", "launch resolution=low", got[9]);
     }
 
     private String[] tabsOnTheDashboard(String[] asked) throws Exception {
@@ -2440,7 +2466,6 @@ public class CodingServerTest {
         return new Gson().fromJson(inNode(script), String[].class);
     }
 
-    /** The one place a rule off the dashboard page is run in node, so the one place it is counted. */
     private static String inNode(Path script) throws Exception {
         String out;
         try (Cost.Spent spent = Cost.start(Cost.Kind.NODE)) {

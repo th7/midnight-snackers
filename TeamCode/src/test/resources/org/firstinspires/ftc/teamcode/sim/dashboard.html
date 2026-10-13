@@ -135,6 +135,74 @@
   #editor.idle .cm-content { color: var(--muted); }
   .placeholder { display: grid; place-items: center; color: var(--muted); }
   header .broke { flex-basis: 100%; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 6px; background: var(--bad-soft); color: var(--bad); }
+
+  .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  #launch.panel { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view settings" "launches settings"; }
+  #launch .launch-view { grid-area: view; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
+  #launch .launch-settings { grid-area: settings; border-right: 0; border-left: 1px solid var(--line); padding: 0 0 20px; min-height: 0; overflow: auto; overflow-x: hidden; }
+  #launch .launches { grid-area: launches; border-top: 1px solid var(--line); max-height: 32vh; overflow: auto; min-width: 0; padding: 10px 0 12px; }
+  @media (max-width: 760px) {
+    #launch.panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "view" "settings" "launches"; overflow-y: auto; }
+    #launch .launch-view { height: 62vh; min-height: 320px; }
+    #launch .launch-settings { border-left: 0; border-top: 1px solid var(--line); min-height: auto; overflow: visible; }
+    #launch .launches { max-height: none; min-height: auto; overflow: visible; }
+  }
+  .launch-state { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; min-width: 0; }
+  .launch-bar { position: -webkit-sticky; position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 14px 6px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .launch-message { flex-basis: 100%; margin: 0; min-height: 1.4em; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .launch-message.bad { color: var(--bad); }
+  .launch-preview { margin: 12px 14px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+  .launch-numbers { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; }
+  .launch-numbers dt { color: var(--muted); }
+  .launch-numbers dd { margin: 0; overflow-wrap: anywhere; }
+  .launch-preview .aims { display: grid; gap: 4px; margin-top: 8px; }
+  .launch-preview .aim { text-align: left; font-size: 12px; padding: 3px 8px; }
+  .launch-preview .aim .distance { color: var(--muted); }
+  .launch-forgot { margin: 0 14px 12px; padding: 6px 10px; border-left: 3px solid var(--warn); border-radius: 4px; background: var(--warn-soft); font-size: 12px; }
+  .says { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .launch-group { border-top: 1px solid var(--line); }
+  .launch-group > summary { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; font-weight: 600; list-style: none; }
+  .launch-group > summary::-webkit-details-marker { display: none; }
+  .launch-group > summary::before { content: ""; width: 0; height: 0; margin: 0 3px; border-style: solid; border-width: 5px 0 5px 7px; border-color: transparent transparent transparent var(--muted); }
+  .launch-group[open] > summary::before { border-width: 7px 5px 0 5px; border-color: var(--muted) transparent transparent transparent; }
+  .launch-group > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .launch-group .changes { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 500; }
+  .launch-group > .group-says { margin: -6px 14px 6px calc(14px + 1em + 8px); }
+  .setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding: 5px 14px; }
+  .setting .setting-label { overflow-wrap: anywhere; }
+  .setting .control { display: grid; grid-template-columns: 5.6em 3.6em 3.4em; align-items: center; gap: 4px; }
+  .setting.switch .control { grid-template-columns: 3.4em; }
+  .setting.switch .control .reset { grid-column: 1; }
+  .setting.switch .setting-label { display: flex; align-items: center; gap: 6px; }
+  .setting .says { grid-column: 1 / -1; }
+  .launch-settings input[type="number"] { font: inherit; width: 5.6em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .launch-settings input[type="checkbox"] { margin: 0 4px; width: 16px; height: 16px; }
+  .setting .unit { grid-column: 2; color: var(--muted); font-size: 12px; line-height: 1.2; overflow-wrap: anywhere; }
+  .setting .control .reset { grid-column: 3; }
+  .changed-mark { color: var(--accent); margin-right: 4px; }
+  .launch-settings button.reset { padding: 0 6px; font-size: 13px; line-height: 1.6; }
+  .launch-settings button.reset.unneeded { visibility: hidden; }
+  .setting.changed input[type="number"], .bounce-grid td.changed input { border-color: var(--accent); }
+  .launch-settings input[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-soft); }
+  .bounce-grid { margin: 2px 0 4px; }
+  .bounce-grid th, .bounce-grid td { padding: 3px 4px; border-top: 0; white-space: normal; overflow: visible; text-overflow: clip; }
+  .bounce-grid th:first-child { padding-left: 14px; width: 32%; }
+  .bounce-grid td:last-child, .bounce-grid th:last-child { padding-right: 14px; }
+  .bounce-grid thead th { font-size: 10px; letter-spacing: 0; }
+  .bounce-grid tbody th .reset { margin-left: 2px; padding: 0 4px; font-size: 11px; }
+  .bounce-grid tbody th { color: var(--ink); font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .bounce-grid td input[type="number"] { width: 100%; padding: 3px 4px; -moz-appearance: textfield; }
+  .bounce-grid td input::-webkit-inner-spin-button, .bounce-grid td input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .grid-says { margin: 2px 14px 8px; min-height: 2.9em; }
+  .launches .section-label { margin-bottom: 6px; }
+  .launches-table { margin: 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  #launches { table-layout: auto; }
+  #launches th, #launches td { overflow: visible; text-overflow: clip; }
+  #launches td.since { color: var(--muted); white-space: normal; min-width: 9em; overflow-wrap: anywhere; }
+  #launches td.actions a { margin-right: 8px; }
+  #launches td .use { padding: 1px 8px; font-size: 12px; }
+  #launches input.compare { margin: 0; }
+  .launches .empty { padding: 8px 20px 0; }
 </style>
 </head>
 <body>
@@ -144,6 +212,7 @@
   <nav role="tablist">
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
+    <button role="tab" data-tab="launch" aria-selected="false" aria-controls="launch">Launch Sim</button>
   </nav>
   <p class="who">Signed in as <strong id="who">…</strong> for <select id="robot" class="robot" aria-label="The robot you are working on" disabled><option>…</option></select> on <span id="branch" class="mono">…</span></p>
   <p class="broke" id="broke" role="alert" hidden></p>
@@ -208,12 +277,39 @@
     <iframe id="stage" title="Live view of the current run" hidden></iframe>
   </section>
 </main>
+<main id="launch" class="panel" role="tabpanel" hidden>
+  <section class="launch-view">
+    <div class="stage-head">
+      <h2 id="launch-title">No launch yet</h2>
+      <span id="launch-state" class="launch-state"></span>
+    </div>
+    <iframe id="launch-stage" title="The launch, drawn on the field"></iframe>
+  </section>
+  <aside class="launch-settings" aria-label="Launch settings">
+    <div class="launch-bar">
+      <button id="launch-go" class="primary" type="button" disabled>Launch</button>
+      <button id="launch-defaults" type="button" disabled>Defaults</button>
+      <p id="launch-message" class="launch-message" role="status"></p>
+    </div>
+    <div id="launch-preview" class="launch-preview">
+      <p class="says">The exit speed and spin of the launch show here as you set it.</p>
+    </div>
+    <p id="launch-forgot" class="launch-forgot" hidden></p>
+    <div id="launch-groups"></div>
+  </aside>
+  <section class="launches" aria-label="Launches">
+    <p class="section-label">Launches</p>
+    <div class="launches-table" hidden>
+      <table id="launches">
+        <thead><tr><th><span class="visually-hidden">Compare</span></th><th>#</th><th>Ending</th><th>Exit</th><th>Spin</th><th>Apex</th><th>Changed since the one before</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="launches-none" class="empty">No launches yet. Set the launch and press Launch; each one is listed here.</p>
+  </section>
+</main>
 <script>
 (function () {
-  // The page starts in parts, and a part that cannot start says so. An engine that has not got
-  // something the page reaches for used to leave the shell it was served as -- ellipses in the
-  // header, an empty file list, tabs that do not move -- which is also what "nothing to show you"
-  // looks like, so the failure read as a verdict. Now it is named, here and on the page.
   window.codingPage = { started: false, broke: [] };
 
   function broke(what, wrong) {
@@ -227,7 +323,6 @@
     said.hidden = false;
   }
 
-  // Named `part` and not `stage`: the live view under the Simulate tab is the stage.
   function part(what, start) {
     try {
       start();
@@ -305,8 +400,6 @@
     theme = new CM.Compartment();
     dark = matchMedia('(prefers-color-scheme: dark)');
     view = new CM.EditorView({ parent: editorHost, state: editorState('', false) });
-    // An iPad on iPadOS 13 or older carries a MediaQueryList that is not an EventTarget: it has
-    // addListener and nothing else. CodeMirror asks the same question of its own print query.
     var follow = function () { view.dispatch({ effects: theme.reconfigure(themeFor()) }); };
     if (dark.addEventListener) { dark.addEventListener('change', follow); }
     else { dark.addListener(follow); }
@@ -405,8 +498,6 @@
     });
   }
 
-  // A file cannot be opened with no editor to open it in, and saying which file was asked for is
-  // better than an editor pane that stays empty for no stated reason.
   function withoutTheEditor(path) {
     if (view) { return true; }
     title.textContent = path;
@@ -848,9 +939,9 @@
     var text = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var mark = text.indexOf('?');
     var name = mark < 0 ? text : text.slice(0, mark);
-    var simulating = name === 'simulate';
-    return { name: simulating ? 'simulate' : 'edit',
-             options: simulating && mark >= 0 ? text.slice(mark + 1) : '' };
+    var known = name === 'simulate' || name === 'launch';
+    return { name: known ? name : 'edit',
+             options: known && mark >= 0 ? text.slice(mark + 1) : '' };
   }
 
   function showTab(hash) {
@@ -865,6 +956,7 @@
     var want = '#' + name + (tabOptions ? '?' + tabOptions : '');
     if (location.hash !== want) { history.replaceState(null, '', want); }
     if (name === 'simulate' && simulate) { simulate.enter(); simulate.again(); }
+    if (name === 'launch' && launch) { launch.enter(); }
   }
 
   function withTabOptions(url) {
@@ -899,8 +991,6 @@
     var running = false;
     var pollTimer = null;
 
-    // Whether the next run is a game, remembered in this browser for whoever comes back to it. A
-    // browser that keeps nothing starts every visit with free play, which is what the page says.
     var game = document.getElementById('game-mode');
     var GAME_KEY = 'coding-server.game-mode';
     try { game.checked = window.localStorage.getItem(GAME_KEY) === 'on'; } catch (e) {  }
@@ -912,7 +1002,6 @@
       return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
     }
 
-    // "Autonomous" or "TeleOp", then the op mode's own group when it says something more.
     function groupLabel(entry) {
       var kind = entry.kind === 'teleop' ? 'TeleOp' : 'Autonomous';
       var group = entry.group || '';
@@ -1105,11 +1194,655 @@
     return { enter: enter, again: again };
   }
 
+  function theLaunchTab() {
+    var PREVIEW_DELAY_MS = 250;
+    var YAW = 'yaw';
+    var WHEELS = ['Wheel one', 'Wheel two'];
+    var ENDING_PILLS = { scored: 'ok', cell: 'warn', flower: 'muted', floor: 'muted', rest: 'muted',
+                         out: 'bad', time: 'bad', work: 'bad' };
+    var view = document.getElementById('launch-stage');
+    var title = document.getElementById('launch-title');
+    var state = document.getElementById('launch-state');
+    var go = document.getElementById('launch-go');
+    var defaults = document.getElementById('launch-defaults');
+    var message = document.getElementById('launch-message');
+    var previewBox = document.getElementById('launch-preview');
+    var forgot = document.getElementById('launch-forgot');
+    var groupsHost = document.getElementById('launch-groups');
+    var band = document.querySelector('#launches tbody');
+    var none = document.getElementById('launches-none');
+    var bandTable = document.querySelector('#launch .launches-table');
+    var origin = location.protocol + '//' + location.host;
+
+    var entries = {};
+    var order = [];
+    var groups = {};
+    var ready = false;
+    var settingsAsked = false;
+    var launching = false;
+    var messageKind = '';
+    var previewTimer = null;
+    var previewAsked = 0;
+    var lastPreview = null;
+    var launches = [];
+    var shownId = null;
+    var ticked = [];
+
+    function has(object, key) {
+      return !!object && Object.prototype.hasOwnProperty.call(object, key);
+    }
+
+    function el(tag, className, text) {
+      var made = document.createElement(tag);
+      if (className) { made.className = className; }
+      if (text !== undefined && text !== null) { made.textContent = text; }
+      return made;
+    }
+
+    function clear(node) {
+      while (node.firstChild) { node.removeChild(node.firstChild); }
+    }
+
+    function marked(node, className, on) {
+      if (on) { node.classList.add(className); } else { node.classList.remove(className); }
+    }
+
+    function finite(n) {
+      return typeof n === 'number' && isFinite(n);
+    }
+
+    function whole(n) {
+      return finite(n) ? String(Math.round(n)) : '–';
+    }
+
+    function short(n) {
+      return finite(n) ? String(Math.round(n * 10000) / 10000) : '–';
+    }
+
+    function say(text, kind) {
+      message.textContent = text;
+      messageKind = kind || '';
+      marked(message, 'bad', kind === 'refused' || kind === 'lost' || kind === 'bad');
+    }
+
+    function lost(e) {
+      say('Lost the host: ' + e + '. Ask the admin to restart ./gradlew :TeamCode:codingServer', 'lost');
+    }
+
+    function decimalsOf(n) {
+      var text = String(n);
+      var dot = text.indexOf('.');
+      return dot < 0 || text.indexOf('e') >= 0 ? 0 : text.length - dot - 1;
+    }
+
+    function stepOf(setting) {
+      var span = setting.most - setting.least;
+      var fine = span > 0 ? 1 - Math.floor(Math.log(span) / Math.LN10) : 0;
+      var places = Math.min(6, Math.max(0, fine, decimalsOf(setting.least), decimalsOf(setting.byDefault)));
+      return places === 0 ? '1' : (1 / Math.pow(10, places)).toFixed(places);
+    }
+
+    function rangeOf(setting) {
+      var unit = setting.unit ? ' ' + setting.unit : '';
+      return short(setting.least) + ' to ' + short(setting.most) + unit + '; ' + short(setting.byDefault) + ' unless changed.';
+    }
+
+    function valueOf(entry) {
+      if (entry.setting['switch']) { return entry.input.checked ? 1 : 0; }
+      var typed = entry.input.value.trim();
+      var number = typed === '' ? NaN : Number(typed);
+      return finite(number) ? number : entry.setting.byDefault;
+    }
+
+    function put(entry, value) {
+      if (entry.setting['switch']) { entry.input.checked = value === 1; return; }
+      entry.input.value = String(value);
+    }
+
+    function changed(entry) {
+      return valueOf(entry) !== entry.setting.byDefault;
+    }
+
+    function formValues() {
+      var values = {};
+      order.forEach(function (name) { values[name] = valueOf(entries[name]); });
+      return values;
+    }
+
+    function refreshMarks() {
+      order.forEach(function (name) {
+        var entry = entries[name];
+        var differs = changed(entry);
+        if (entry.cell) { marked(entry.cell, 'changed', differs); return; }
+        marked(entry.row, 'changed', differs);
+        entry.mark.hidden = !differs;
+        marked(entry.reset, 'unneeded', !differs);
+      });
+      Object.keys(groups).forEach(function (key) {
+        var group = groups[key];
+        var count = group.names.filter(function (name) { return changed(entries[name]); }).length;
+        group.count.textContent = count ? count + ' changed' : '';
+        group.rows.forEach(function (row) {
+          var differs = row.names.some(function (name) { return changed(entries[name]); });
+          row.mark.hidden = !differs;
+          row.reset.hidden = !differs;
+        });
+      });
+    }
+
+    function clearInvalid() {
+      order.forEach(function (name) { entries[name].input.removeAttribute('aria-invalid'); });
+    }
+
+    function afterChange(entry) {
+      if (entry) { entry.input.removeAttribute('aria-invalid'); }
+      refreshMarks();
+      schedulePreview();
+    }
+
+    function fill(values) {
+      order.forEach(function (name) {
+        var entry = entries[name];
+        put(entry, has(values, name) && finite(values[name]) ? values[name] : entry.setting.byDefault);
+      });
+      clearInvalid();
+      afterChange(null);
+    }
+
+    function resetButton(label, setting) {
+      var reset = el('button', 'reset unneeded', 'reset');
+      reset.type = 'button';
+      reset.title = setting ? 'Back to ' + short(setting.byDefault) : 'Back to the defaults';
+      reset.setAttribute('aria-label', 'Put ' + label + ' back to ' + (setting ? short(setting.byDefault) : 'the defaults'));
+      return reset;
+    }
+
+    function changedMark() {
+      var mark = el('span', 'changed-mark');
+      mark.hidden = true;
+      mark.title = 'Changed from the default';
+      var dot = el('span', '', '●');
+      dot.setAttribute('aria-hidden', 'true');
+      mark.appendChild(dot);
+      mark.appendChild(el('span', 'visually-hidden', 'changed: '));
+      return mark;
+    }
+
+    function listen(entry) {
+      entry.input.addEventListener('input', function () { afterChange(entry); });
+      entry.input.addEventListener('change', function () { afterChange(entry); });
+    }
+
+    function settingRow(setting, group) {
+      var id = 'launch-setting-' + setting.name;
+      var row = el('div', setting['switch'] ? 'setting switch' : 'setting');
+      row.setAttribute('data-setting', setting.name);
+      var label = el('label', 'setting-label');
+      label.htmlFor = id;
+      var mark = changedMark();
+      label.appendChild(mark);
+      label.appendChild(document.createTextNode(setting.label));
+      var input = document.createElement('input');
+      input.id = id;
+      input.name = setting.name;
+      input.setAttribute('aria-describedby', id + '-says');
+      var control = el('span', 'control');
+      if (setting['switch']) {
+        input.type = 'checkbox';
+        label.insertBefore(input, label.lastChild);
+      } else {
+        input.type = 'number';
+        input.min = String(setting.least);
+        input.max = String(setting.most);
+        input.step = stepOf(setting);
+        control.appendChild(input);
+        if (setting.unit) { control.appendChild(el('span', 'unit', setting.unit)); }
+      }
+      var reset = resetButton(setting.label, setting);
+      control.appendChild(reset);
+      var says = el('p', 'says', setting['switch'] ? setting.says : setting.says + ' ' + rangeOf(setting));
+      says.id = id + '-says';
+      row.appendChild(label);
+      row.appendChild(control);
+      row.appendChild(says);
+      var entry = { setting: setting, input: input, group: group, row: row, mark: mark, reset: reset, cell: null };
+      reset.addEventListener('click', function () { put(entry, setting.byDefault); afterChange(entry); });
+      listen(entry);
+      entries[setting.name] = entry;
+      order.push(setting.name);
+      return row;
+    }
+
+    function capitalised(text) {
+      return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+    }
+
+    function surfaceGrid(gridded, surfaces, group, groupName) {
+      var properties = [];
+      gridded.forEach(function (setting) {
+        if (properties.indexOf(setting.property) < 0) { properties.push(setting.property); }
+      });
+      var rows = [];
+      (surfaces || []).forEach(function (surface) {
+        if (gridded.some(function (setting) { return setting.surface === surface.name; })) { rows.push(surface); }
+      });
+      gridded.forEach(function (setting) {
+        if (!rows.some(function (surface) { return surface.name === setting.surface; })) {
+          rows.push({ name: setting.surface, label: capitalised(setting.surface), says: '' });
+        }
+      });
+      var host = el('div', 'bounce');
+      var table = el('table', 'bounce-grid');
+      var head = el('tr');
+      head.appendChild(el('th', '', 'Surface'));
+      properties.forEach(function (property) { head.appendChild(el('th', '', capitalised(property))); });
+      var thead = el('thead');
+      thead.appendChild(head);
+      table.appendChild(thead);
+      var tbody = el('tbody');
+      var says = el('p', 'says grid-says', 'Tap a box to see what it sets.');
+      says.id = 'launch-grid-says-' + groupName;
+      rows.forEach(function (surface) {
+        var tr = el('tr');
+        tr.setAttribute('data-surface', surface.name);
+        var th = el('th');
+        th.scope = 'row';
+        var mark = changedMark();
+        th.appendChild(mark);
+        th.appendChild(document.createTextNode(surface.label));
+        if (surface.says) { th.title = surface.says; }
+        var reset = resetButton(surface.label, null);
+        reset.className = 'reset';
+        reset.hidden = true;
+        th.appendChild(document.createTextNode(' '));
+        th.appendChild(reset);
+        tr.appendChild(th);
+        var names = [];
+        properties.forEach(function (property) {
+          var td = el('td');
+          var setting = null;
+          gridded.forEach(function (s) { if (s.surface === surface.name && s.property === property) { setting = s; } });
+          if (setting) {
+            td.setAttribute('data-setting', setting.name);
+            var input = document.createElement('input');
+            input.type = 'number';
+            input.id = 'launch-setting-' + setting.name;
+            input.name = setting.name;
+            input.min = String(setting.least);
+            input.max = String(setting.most);
+            input.step = stepOf(setting);
+            input.setAttribute('aria-label', setting.label);
+            input.setAttribute('aria-describedby', says.id);
+            td.appendChild(input);
+            var entry = { setting: setting, input: input, group: group, row: null, mark: null, reset: null, cell: td };
+            input.addEventListener('focus', function () {
+              says.textContent = setting.label + ': ' + setting.says + ' ' + rangeOf(setting);
+            });
+            listen(entry);
+            entries[setting.name] = entry;
+            order.push(setting.name);
+            names.push(setting.name);
+          }
+          tr.appendChild(td);
+        });
+        reset.addEventListener('click', function () {
+          names.forEach(function (name) { put(entries[name], entries[name].setting.byDefault); });
+          afterChange(null);
+        });
+        group.rows.push({ names: names, mark: mark, reset: reset });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      host.appendChild(table);
+      host.appendChild(says);
+      return host;
+    }
+
+    function renderSettings(listing) {
+      clear(groupsHost);
+      entries = {};
+      order = [];
+      groups = {};
+      (listing.groups || []).forEach(function (listed) {
+        var details = el('details', 'launch-group');
+        details.id = 'launch-group-' + listed.name;
+        details.setAttribute('data-group', listed.name);
+        details.open = !!listed.open;
+        var summary = el('summary');
+        summary.appendChild(el('span', '', listed.label));
+        var count = el('span', 'changes');
+        summary.appendChild(count);
+        details.appendChild(summary);
+        if (listed.says) { details.appendChild(el('p', 'says group-says', listed.says)); }
+        var group = { details: details, count: count, names: [], rows: [] };
+        groups[listed.name] = group;
+        var mine = (listing.settings || []).filter(function (setting) { return setting.group === listed.name; });
+        mine.forEach(function (setting) {
+          if (!setting.surface) { details.appendChild(settingRow(setting, group)); }
+        });
+        var gridded = mine.filter(function (setting) { return !!setting.surface; });
+        if (gridded.length) { details.appendChild(surfaceGrid(gridded, listing.surfaces, group, listed.name)); }
+        group.names = mine.map(function (setting) { return setting.name; });
+        groupsHost.appendChild(details);
+      });
+      var start = {};
+      (listing.settings || []).forEach(function (setting) {
+        start[setting.name] = has(setting, 'value') ? setting.value : setting.byDefault;
+      });
+      forgot.textContent = listing.forgot || '';
+      forgot.hidden = !listing.forgot;
+      fill(start);
+    }
+
+    function setGo() {
+      go.disabled = launching || !ready;
+      go.textContent = launching ? 'Simulating…' : 'Launch';
+      defaults.disabled = !ready;
+    }
+
+    function problemOf(text) {
+      try {
+        var problem = JSON.parse(text);
+        if (problem && typeof problem.rule === 'string') {
+          return { setting: typeof problem.setting === 'string' ? problem.setting : null, rule: problem.rule };
+        }
+      } catch (e) {
+        return { setting: null, rule: text };
+      }
+      return { setting: null, rule: text };
+    }
+
+    function refusedFor(problem, launched) {
+      var entry = problem.setting && has(entries, problem.setting) ? entries[problem.setting] : null;
+      clearInvalid();
+      if (entry) {
+        entry.input.setAttribute('aria-invalid', 'true');
+        if (launched) {
+          entry.group.details.open = true;
+          try { entry.input.scrollIntoView({ block: 'center' }); } catch (e) { entry.input.scrollIntoView(); }
+        }
+      }
+      say(problem.rule, 'refused');
+    }
+
+    function post(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(body)
+      });
+    }
+
+    function schedulePreview() {
+      if (!ready) { return; }
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(preview, PREVIEW_DELAY_MS);
+    }
+
+    function preview() {
+      previewAsked += 1;
+      var asked = previewAsked;
+      post('/sim/launch/preview', formValues()).then(function (r) {
+        if (r.status === 403) { location.reload(); return; }
+        return r.text().then(function (text) {
+          if (asked !== previewAsked) { return; }
+          if (r.status === 400) { refusedFor(problemOf(text), false); return; }
+          if (!r.ok) { say(text, 'bad'); return; }
+          clearInvalid();
+          if (messageKind === 'refused' || messageKind === 'lost') { say('', ''); }
+          lastPreview = JSON.parse(text);
+          renderPreview(lastPreview);
+          tellTheView();
+        });
+      }).catch(function (e) { if (asked === previewAsked) { lost(e); } });
+    }
+
+    function number(dl, term, text) {
+      dl.appendChild(el('dt', '', term));
+      dl.appendChild(el('dd', '', text));
+    }
+
+    function renderPreview(shown) {
+      clear(previewBox);
+      var dl = el('dl', 'launch-numbers');
+      number(dl, 'Exit speed', whole(shown.speed) + ' in/s · ' + (finite(shown.speed) ? (shown.speed * 0.0254).toFixed(2) : '–') + ' m/s');
+      number(dl, 'Spin', whole(shown.spinRpm) + ' rpm ' + (shown.spinKind || ''));
+      number(dl, 'S₀', finite(shown.spinParameter) ? shown.spinParameter.toFixed(3) : '–');
+      WHEELS.forEach(function (wheel, i) {
+        var surface = shown.surfaces ? shown.surfaces[i] : null;
+        var after = shown.after ? shown.after[i] : null;
+        var text = whole(surface) + ' in/s · ' + whole(shown.ticksPerSecond ? shown.ticksPerSecond[i] : null) + ' ticks/s';
+        if (finite(after) && finite(surface) && Math.abs(after - surface) >= 0.5) { text += ' · ' + whole(after) + ' in/s after'; }
+        number(dl, wheel, text);
+      });
+      previewBox.appendChild(dl);
+      var aims = (shown.aims || []).filter(function (aim) { return aim.upturned; });
+      if (aims.length && has(entries, YAW)) {
+        var host = el('div', 'aims');
+        aims.forEach(function (aim) {
+          var button = el('button', 'aim', 'Aim at ' + aim.cell);
+          button.type = 'button';
+          button.title = 'Turn the launcher to face ' + aim.cell;
+          button.appendChild(el('span', 'distance', ' · ' + whole(aim.distance) + ' in away'));
+          button.addEventListener('click', function () {
+            put(entries[YAW], Math.round(aim.yaw * 100) / 100);
+            afterChange(entries[YAW]);
+          });
+          host.appendChild(button);
+        });
+        previewBox.appendChild(host);
+      }
+    }
+
+    function tellTheView() {
+      if (!lastPreview || !view.contentWindow) { return; }
+      try {
+        view.contentWindow.postMessage({ type: 'launch-preview', at: lastPreview.at, direction: lastPreview.direction }, origin);
+      } catch (e) {
+        return;
+      }
+    }
+
+    view.addEventListener('load', tellTheView);
+
+    function launchNow() {
+      if (launching || !ready) { return; }
+      launching = true;
+      setGo();
+      say('', '');
+      post('/sim/launch', formValues()).then(function (r) {
+        if (r.status === 403) { location.reload(); return; }
+        return r.text().then(function (text) {
+          if (r.status === 400) { refusedFor(problemOf(text), true); return; }
+          if (!r.ok) { say('Could not launch: ' + text, 'bad'); return; }
+          var launched = JSON.parse(text);
+          shownId = launched.id;
+          openView();
+          return loadLaunches();
+        });
+      }).catch(lost).then(function () {
+        launching = false;
+        setGo();
+      });
+    }
+
+    function viewUrl() {
+      var ids = shownId === null ? [] : [shownId];
+      launches.forEach(function (launch) {
+        if (launch.id !== shownId && ticked.indexOf(launch.id) >= 0) { ids.push(launch.id); }
+      });
+      return withTabOptions('/sim/launches/') + (ids.length ? '#' + ids.join(',') : '');
+    }
+
+    function openView() {
+      var want = viewUrl();
+      if (view.getAttribute('src') !== want) { view.setAttribute('src', want); }
+    }
+
+    function show(id) {
+      shownId = id;
+      openView();
+      renderHead();
+      renderLaunches();
+    }
+
+    function endingPill(ending) {
+      var kind = ending && ending.kind ? ending.kind : '';
+      var pill = el('span', 'pill ' + (has(ENDING_PILLS, kind) ? ENDING_PILLS[kind] : 'muted'), kind || '?');
+      if (ending && ending.says) { pill.title = ending.says; }
+      return pill;
+    }
+
+    function apexHeight(apex) {
+      if (finite(apex)) { return apex; }
+      return apex && apex.at && finite(apex.at[2]) ? apex.at[2] : null;
+    }
+
+    function shownValue(name, value) {
+      var entry = has(entries, name) ? entries[name] : null;
+      if (entry && entry.setting['switch']) { return value === 1 ? 'on' : 'off'; }
+      return short(value);
+    }
+
+    function sinceBefore(launch, oldest) {
+      var since = launch.sinceBefore || {};
+      var names = Object.keys(since);
+      if (!names.length) { return oldest ? '' : 'no change'; }
+      return names.map(function (name) {
+        var entry = has(entries, name) ? entries[name] : null;
+        var pair = since[name] || [];
+        var unit = entry && entry.setting.unit ? ' ' + entry.setting.unit : '';
+        return (entry ? entry.setting.label : name) + ' ' + shownValue(name, pair[0]) + ' → ' + shownValue(name, pair[1]) + unit;
+      }).join(', ');
+    }
+
+    function launchOf(id) {
+      var found = null;
+      launches.forEach(function (launch) { if (launch.id === id) { found = launch; } });
+      return found;
+    }
+
+    function renderHead() {
+      clear(state);
+      title.textContent = shownId === null ? 'No launch yet' : 'Launch ' + shownId;
+      var launch = shownId === null ? null : launchOf(shownId);
+      if (!launch) { return; }
+      state.appendChild(endingPill(launch.ending));
+      if (launch.ending && launch.ending.says) { state.appendChild(el('span', '', launch.ending.says)); }
+      if (finite(launch.computeSeconds)) {
+        state.appendChild(el('span', '', 'computed in ' + whole(launch.computeSeconds * 1000) + ' ms'
+            + (finite(launch.realTime) ? ', ' + launch.realTime.toFixed(launch.realTime < 0.1 ? 3 : 2) + '× real time' : '')));
+      }
+      var compared = ticked.filter(function (id) { return id !== shownId; });
+      if (compared.length) { state.appendChild(el('span', '', 'with ' + compared.join(', ') + ' to compare')); }
+    }
+
+    function use(launch) {
+      fill(launch.changed || {});
+      say('The form holds the settings of launch ' + launch.id + '.', '');
+    }
+
+    function cellWith(tr, child, className) {
+      var td = el('td', className || '');
+      td.appendChild(child);
+      tr.appendChild(td);
+      return td;
+    }
+
+    function renderLaunches() {
+      clear(band);
+      none.hidden = launches.length > 0;
+      bandTable.hidden = !launches.length;
+      launches.forEach(function (launch, i) {
+        var tr = el('tr', launch.id === shownId ? 'current' : '');
+        tr.setAttribute('data-id', String(launch.id));
+        var box = document.createElement('input');
+        box.type = 'checkbox';
+        box.className = 'compare';
+        box.checked = ticked.indexOf(launch.id) >= 0;
+        box.setAttribute('aria-label', 'Compare launch ' + launch.id);
+        box.addEventListener('change', function () {
+          ticked = ticked.filter(function (id) { return id !== launch.id; });
+          if (box.checked) { ticked.push(launch.id); }
+          openView();
+          renderHead();
+        });
+        cellWith(tr, box);
+        tr.appendChild(el('td', 'mono', String(launch.id)));
+        cellWith(tr, endingPill(launch.ending));
+        tr.appendChild(el('td', 'mono', whole(launch.speed) + ' in/s'));
+        tr.appendChild(el('td', '', whole(launch.spinRpm) + ' rpm ' + (launch.spinKind || '')));
+        var apex = apexHeight(launch.apex);
+        tr.appendChild(el('td', 'mono', apex === null ? '–' : apex.toFixed(1) + ' in'));
+        var since = sinceBefore(launch, i === launches.length - 1);
+        var sinceCell = el('td', 'since', since);
+        sinceCell.title = since;
+        tr.appendChild(sinceCell);
+        var actions = el('td', 'actions');
+        var link = el('a', 'show', 'show');
+        link.href = withTabOptions('/sim/launches/') + '#' + launch.id;
+        link.addEventListener('click', function (e) { e.preventDefault(); show(launch.id); });
+        actions.appendChild(link);
+        var again = el('button', 'use', 'use these settings');
+        again.type = 'button';
+        again.title = 'Put the settings of launch ' + launch.id + ' into the form';
+        again.addEventListener('click', function () { use(launch); });
+        actions.appendChild(again);
+        tr.appendChild(actions);
+        if (launch.ending && launch.ending.says) { tr.title = 'Launch ' + launch.id + ' ' + launch.ending.says; }
+        band.appendChild(tr);
+      });
+    }
+
+    function loadLaunches() {
+      return fetch('/sim/launches', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (!r.ok) { return r.text().then(function (t) { say(t, 'bad'); return null; }); }
+        return r.json();
+      }).then(function (listing) {
+        if (!listing) { return; }
+        launches = listing.launches || [];
+        ticked = ticked.filter(function (id) { return launchOf(id) !== null; });
+        if (shownId === null && launches.length) { shownId = launches[0].id; }
+        openView();
+        renderHead();
+        renderLaunches();
+      }).catch(lost);
+    }
+
+    function loadSettings() {
+      if (settingsAsked) { return; }
+      settingsAsked = true;
+      fetch('/sim/launch/settings', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (!r.ok) { return r.text().then(function (t) { settingsAsked = false; say(t, 'bad'); return null; }); }
+        return r.json();
+      }).then(function (listing) {
+        if (!listing) { return; }
+        ready = true;
+        renderSettings(listing);
+        setGo();
+      }).catch(function (e) { settingsAsked = false; lost(e); });
+    }
+
+    go.addEventListener('click', launchNow);
+    defaults.addEventListener('click', function () { fill({}); say('', ''); });
+
+    function enter() {
+      loadSettings();
+      loadLaunches().then(openView);
+    }
+
+    return { enter: enter };
+  }
+
   var git = null;
   var simulate = null;
+  var launch = null;
   part('the editor', startEditor);
   part('the branch panel', function () { git = theBranchPanel(); });
   part('the simulator', function () { simulate = theSimulateTab(); });
+  part('the launch sim', function () { launch = theLaunchTab(); });
   part('the header', whoIsSignedIn);
   part('the file list', refreshFiles);
   part('the tabs', wireTabs);
