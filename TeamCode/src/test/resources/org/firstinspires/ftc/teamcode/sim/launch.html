@@ -1,0 +1,1388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+__IMPORTMAP__
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc;
+    --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7;
+    --impact: #c62828; --apex: #2f5bd7; --row: #eef2fd;
+    --good: #2e7d32; --near: #a15c00; --plain: #6e6a61; --bad: #c62828; --pill-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
+      --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+      --impact: #ff8a80; --apex: #7ea2ff; --row: #262c3d;
+      --good: #66bb6a; --near: #ffb74d; --plain: #9c988f; --bad: #ff8a80; --pill-ink: #101318;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d;
+    --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff;
+    --impact: #ff8a80; --apex: #7ea2ff; --row: #262c3d;
+    --good: #66bb6a; --near: #ffb74d; --plain: #9c988f; --bad: #ff8a80; --pill-ink: #101318;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 8px 12px 16px; max-width: 1320px; margin: 0 auto; }
+  @media (min-width: 960px) {
+    main { grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; padding: 14px 20px 20px; }
+    aside { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow: auto; }
+  }
+  .stage { min-width: 0; }
+  .head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; min-height: 1.6em; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--pill-ink); background: var(--plain); }
+  .pill.good { background: var(--good); } .pill.near { background: var(--near); } .pill.bad { background: var(--bad); }
+  .view { position: relative; }
+  .view canvas { display: block; width: 100%; height: clamp(200px, 56vh, 680px); border: 1px solid var(--line); border-radius: 6px; background: var(--bg); touch-action: none; cursor: grab; }
+  .view canvas:active { cursor: grabbing; }
+  .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .label { position: absolute; left: 0; top: 0; padding: 1px 6px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); font: 12px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: nowrap; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 8px; }
+  button, select { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover, select:hover { border-color: var(--ink); }
+  button:disabled, select:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #play { min-width: 5.5em; }
+  #follow[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .time { margin-left: auto; }
+  .scrubber { position: relative; flex: 1 1 100%; height: 24px; }
+  #scrub { width: 100%; height: 24px; margin: 0; accent-color: var(--accent); }
+  .marks { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; pointer-events: none; }
+  .mark { position: absolute; top: 2px; bottom: 2px; width: 3px; margin-left: -1px; border-radius: 2px; opacity: 0.85; }
+  .mark.impact { background: var(--impact); }
+  .mark.apex { background: var(--apex); }
+  .now { margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .field-controls { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  .field-controls label { display: flex; align-items: center; gap: 6px; }
+  .field-controls select { padding: 2px 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .field-msg { color: var(--muted); font-size: 13px; margin: 6px 0 0; min-height: 1em; }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 14px 10px; align-self: start; min-width: 0; }
+  details { border-top: 1px solid var(--line); padding: 6px 0; }
+  details:first-child { border-top: 0; }
+  summary { cursor: pointer; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 2px 0; }
+  dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 6px 0 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: break-word; }
+  table { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 13px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); padding: 2px 4px; }
+  td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  td.words { white-space: normal; overflow-wrap: break-word; width: 100%; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr[aria-current="true"] { background: var(--row); }
+  .empty { color: var(--muted); margin: 6px 0 0; }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  kbd { font: 11px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="stage">
+    <div class="head">
+      <h1 id="title"></h1>
+      <span id="ending-pill" class="pill" hidden></span>
+    </div>
+    <div class="view">
+      <canvas id="field" aria-label="the field and the shot"></canvas>
+      <div class="labels" id="labels"></div>
+    </div>
+    <div class="controls">
+      <button id="play" type="button">Play</button>
+      <button id="back" type="button" aria-label="one frame back">&larr;</button>
+      <button id="on" type="button" aria-label="one frame on">&rarr;</button>
+      <select id="speed" aria-label="playback speed">
+        <option value="0.05">0.05x</option><option value="0.1">0.1x</option><option value="0.25" selected>0.25x</option>
+        <option value="0.5">0.5x</option><option value="1">1x</option><option value="2">2x</option>
+      </select>
+      <button id="follow" type="button" aria-pressed="false">Follow the pollen</button>
+      <span class="time mono" id="time"></span>
+      <div class="scrubber">
+        <input type="range" id="scrub" min="0" max="0" step="any" value="0" aria-label="time">
+        <div class="marks" id="marks"></div>
+      </div>
+    </div>
+    <p class="now mono" id="now-line"></p>
+    <div class="field-controls" id="field-controls"></div>
+    <p class="field-msg" id="field-msg" role="status"></p>
+  </section>
+  <aside>
+    <details open>
+      <summary>Now</summary>
+      <dl id="now"></dl>
+    </details>
+    <details open>
+      <summary>Launch</summary>
+      <dl id="launch"></dl>
+    </details>
+    <details open>
+      <summary>Apex and first bounce</summary>
+      <dl id="flight"></dl>
+    </details>
+    <details open id="impacts-section">
+      <summary>Impacts</summary>
+      <table id="impacts" class="mono">
+        <thead><tr><th title="seconds">t</th><th>against</th><th title="how fast it came in, in/s">in/s</th><th title="restitution">e</th><th>grip</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="no-impacts" hidden>It touched nothing.</p>
+    </details>
+    <details open id="crossings-section">
+      <summary>Cell mouths crossed</summary>
+      <table id="crossings" class="mono">
+        <thead><tr><th title="seconds">t</th><th>crossing</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="no-crossings" hidden>It crossed no cell's mouth.</p>
+    </details>
+    <details open>
+      <summary>Ending</summary>
+      <p id="ending"></p>
+      <p class="muted" id="computed-line"></p>
+    </details>
+    <details>
+      <summary>Settings changed</summary>
+      <dl id="changed"></dl>
+    </details>
+    <p class="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> one frame, <kbd>shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> the events, <kbd>home</kbd> <kbd>end</kbd>. Drag to orbit, scroll to zoom, double-click to frame the whole path. Inches, field frame: +x away from the audience, +y to their left, +z up.</p>
+  </aside>
+</main>
+<script id="launch-data" type="application/json">__DATA__</script>
+<script type="module">
+const ASSETS = __ASSETS__;
+const FIELD = __FIELD__;
+
+const COLLIDERS = 'colliders';
+const LOWEST = 'low';
+const METRES_PER_INCH = 0.0254;
+const RPM_PER_RAD_S = 60 / (2 * Math.PI);
+const STILL_RAD_S = 0.5;
+const STILL_IN_S = 0.5;
+const SAME_TIME_S = 1e-9;
+const HELD_TRACK_GAP_S = 0.01;
+const HOLE_TO_BALL = 0.2 / 1.4;
+const HOLE_COLOUR = '#2b2606';
+const HOLE_EDGES = 12;
+const PATH_COLOUR = '#e0590b';
+const SPIN_COLOUR = '#7b1fa2';
+const LAUNCH_COLOUR = '#2f5bd7';
+const PREVIEW_COLOUR = '#d81b60';
+const APEX_COLOUR = '#2f5bd7';
+const PREVIEW_LENGTH_IN = 24;
+const LAUNCH_ARROW_IN = 14;
+const SPIN_ARROW_RADII = 2.8;
+const FRAME_MARGIN = 1.2;
+const SURFACE_COLOURS = { floor: '#8d8a80', wall: '#3f8fd0', frame: '#8a95a3', flower: '#3f9a45', cell: '#ef8a00', piece: '#e3c400' };
+const GHOST_COLOURS = ['#7a6fd0', '#2a9d8f', '#c2185b', '#6d8f00', '#8d6e63'];
+const PHASES = { f: 'flying', s: 'sliding', r: 'rolling', x: 'at rest' };
+const TONES = { scored: 'good', cell: 'near', flower: 'near', floor: 'plain', rest: 'plain', out: 'bad', time: 'bad', work: 'bad' };
+
+const asked = new URLSearchParams(location.search);
+const wanted = asked.get('view') === 'flat' ? COLLIDERS : null;
+
+const canvas = document.getElementById('field');
+const labels = document.getElementById('labels');
+const title = document.getElementById('title');
+const endingPill = document.getElementById('ending-pill');
+const play = document.getElementById('play');
+const back = document.getElementById('back');
+const on = document.getElementById('on');
+const speed = document.getElementById('speed');
+const follow = document.getElementById('follow');
+const time = document.getElementById('time');
+const scrub = document.getElementById('scrub');
+const marks = document.getElementById('marks');
+const nowLine = document.getElementById('now-line');
+const fieldControls = document.getElementById('field-controls');
+const fieldMsg = document.getElementById('field-msg');
+const nowList = document.getElementById('now');
+const launchList = document.getElementById('launch');
+const flightList = document.getElementById('flight');
+const impactRows = document.querySelector('#impacts tbody');
+const crossingRows = document.querySelector('#crossings tbody');
+const changedList = document.getElementById('changed');
+
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => Math.hypot(a[0], a[1], a[2]);
+const unit = (a) => { const n = norm(a); return n > 0 ? scale(a, 1 / n) : [0, 0, 0]; };
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const isTriple = (a) => Array.isArray(a) && a.length === 3 && a.every((v) => typeof v === 'number' && isFinite(v));
+const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const said = (why) => (why && why.message ? why.message : String(why));
+
+function fixed(v, digits) {
+  return typeof v === 'number' && isFinite(v) ? v.toFixed(digits) : '—';
+}
+const inches = (v) => fixed(v, 1) + ' in';
+const speedOf = (v) => fixed(v, 1) + ' in/s (' + fixed(v * METRES_PER_INCH, 2) + ' m/s)';
+const pointOf = (p) => isTriple(p) ? 'x ' + fixed(p[0], 1) + ', y ' + fixed(p[1], 1) + ', z ' + fixed(p[2], 1) + ' in' : '—';
+const seconds = (t) => fixed(t, 3) + ' s';
+
+function quaternionTimes(a, b) {
+  return [
+    a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],
+    a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
+    a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1],
+    a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0]
+  ];
+}
+
+function normalised(q) {
+  const n = Math.hypot(q[0], q[1], q[2], q[3]);
+  return n > 0 ? [q[0] / n, q[1] / n, q[2] / n, q[3] / n] : [1, 0, 0, 0];
+}
+
+function turned(q, spin, dt) {
+  const rate = norm(spin);
+  if (!(rate > 0) || dt === 0) {
+    return q;
+  }
+  const half = rate * dt / 2;
+  const s = Math.sin(half) / rate;
+  return normalised(quaternionTimes([Math.cos(half), spin[0] * s, spin[1] * s, spin[2] * s], q));
+}
+
+function slerped(a, b, s) {
+  let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  const to = d < 0 ? b.map((v) => -v) : b;
+  d = Math.abs(d);
+  if (d > 0.9995) {
+    return normalised(a.map((v, i) => v + (to[i] - v) * s));
+  }
+  const angle = Math.acos(d);
+  const wa = Math.sin((1 - s) * angle) / Math.sin(angle);
+  const wb = Math.sin(s * angle) / Math.sin(angle);
+  return a.map((v, i) => v * wa + to[i] * wb);
+}
+
+function spinKind(spin, velocity) {
+  const rate = norm(spin);
+  const speedNow = norm(velocity);
+  if (rate < STILL_RAD_S) {
+    return 'none';
+  }
+  if (speedNow < STILL_IN_S) {
+    return 'turning in place';
+  }
+  const ahead = scale(velocity, 1 / speedNow);
+  const rifle = Math.abs(dot(spin, ahead));
+  const magnus = cross(spin, ahead);
+  const lifting = sub([0, 0, 1], scale(ahead, ahead[2]));
+  const upward = norm(lifting) > 1e-6 ? unit(lifting) : unit(cross(ahead, [0, 1, 0]));
+  const lift = dot(magnus, upward);
+  const side = norm(sub(magnus, scale(upward, lift)));
+  if (rifle >= Math.abs(lift) && rifle >= side) {
+    return 'rifle';
+  }
+  if (side > Math.abs(lift)) {
+    return 'sidespin';
+  }
+  return lift > 0 ? 'backspin' : 'topspin';
+}
+
+function holeDirections() {
+  const out = [];
+  for (const axis of [0, 1, 2]) {
+    for (const sign of [1, -1]) {
+      const d = [0, 0, 0];
+      d[axis] = sign;
+      out.push(d);
+    }
+  }
+  for (const [a, b] of [[0, 1], [0, 2], [1, 2]]) {
+    for (const sa of [1, -1]) {
+      for (const sb of [1, -1]) {
+        const d = [0, 0, 0];
+        d[a] = sa * Math.SQRT1_2;
+        d[b] = sb * Math.SQRT1_2;
+        out.push(d);
+      }
+    }
+  }
+  const third = 1 / Math.sqrt(3);
+  for (const sx of [1, -1]) {
+    for (const sy of [1, -1]) {
+      for (const sz of [1, -1]) {
+        out.push([sx * third, sy * third, sz * third]);
+      }
+    }
+  }
+  return out;
+}
+const HOLES = holeDirections();
+
+function idsIn(hash) {
+  let text = '';
+  try {
+    text = decodeURIComponent(hash.replace(/^#/, ''));
+  } catch (why) {
+    return { ids: [], ignored: [hash] };
+  }
+  const ids = [];
+  const ignored = [];
+  for (const part of text.split(',')) {
+    const id = part.trim();
+    if (!id) {
+      continue;
+    }
+    if (/^[1-9][0-9]{0,8}$/.test(id)) {
+      if (!ids.includes(Number(id))) {
+        ids.push(Number(id));
+      }
+    } else {
+      ignored.push(id);
+    }
+  }
+  return { ids, ignored };
+}
+
+function settingValue(json, name, otherwise) {
+  const found = (json.settings || []).find((s) => String(s.name).toLowerCase() === name);
+  return found && typeof found.value === 'number' ? found.value : otherwise;
+}
+
+function prepared(id, json) {
+  const frames = Array.isArray(json.frames) ? json.frames : [];
+  if (!frames.length || frames.some((f) => !Array.isArray(f) || f.length < 15)) {
+    return { id, wrong: 'Launch ' + id + ' came without the frames it is drawn from.' };
+  }
+  const rows = frames.map((f) => ({
+    t: f[0], p: [f[1], f[2], f[3]], v: [f[4], f[5], f[6]], w: [f[7], f[8], f[9]],
+    q: normalised([f[10], f[11], f[12], f[13]]), phase: f[14]
+  }));
+  const impacts = json.impacts || [];
+  const crossings = json.crossings || [];
+  const start = rows[0].t;
+  const end = rows[rows.length - 1].t;
+  const events = [{ t: start, kind: 'launch', label: 'launched' }];
+  for (const impact of impacts) {
+    events.push({ t: impact.t, kind: 'impact', label: 'hit ' + impact.against });
+  }
+  if (json.apex) {
+    events.push({ t: json.apex.t, kind: 'apex', label: 'apex' });
+  }
+  for (const crossing of crossings) {
+    events.push({ t: crossing.t, kind: 'crossing', label: (crossing.into ? 'into ' : 'out of ') + crossing.cell });
+  }
+  events.push({ t: end, kind: 'end', label: json.ending ? json.ending.says : 'the end' });
+  events.sort((a, b) => a.t - b.t);
+  return {
+    id,
+    shot: {
+      id, json, frames: rows, start, end, events, impacts, crossings,
+      radius: json.pollen && json.pollen.radius > 0 ? json.pollen.radius : 1.4,
+      colour: json.pollen && json.pollen.colour ? json.pollen.colour : '#ffef3f',
+      wind: [settingValue(json, 'wind_x', 0), settingValue(json, 'wind_y', 0), 0]
+    }
+  };
+}
+
+function frameAt(frames, t) {
+  let lo = 0;
+  let hi = frames.length - 1;
+  if (t < frames[0].t) {
+    return 0;
+  }
+  while (lo < hi) {
+    const middle = (lo + hi + 1) >> 1;
+    if (frames[middle].t <= t + SAME_TIME_S) {
+      lo = middle;
+    } else {
+      hi = middle - 1;
+    }
+  }
+  return lo;
+}
+
+function stateAt(frames, k, t) {
+  const a = frames[k];
+  const b = frames[k + 1];
+  if (!b || t <= a.t + SAME_TIME_S || b.t <= a.t + SAME_TIME_S) {
+    return { p: a.p, v: a.v, w: a.w, q: a.q, phase: a.phase };
+  }
+  const h = b.t - a.t;
+  const s = clamp((t - a.t) / h, 0, 1);
+  const s2 = s * s;
+  const s3 = s2 * s;
+  const h00 = 2 * s3 - 3 * s2 + 1;
+  const h10 = s3 - 2 * s2 + s;
+  const h01 = -2 * s3 + 3 * s2;
+  const h11 = s3 - s2;
+  const d00 = (6 * s2 - 6 * s) / h;
+  const d10 = 3 * s2 - 4 * s + 1;
+  const d01 = (6 * s - 6 * s2) / h;
+  const d11 = 3 * s2 - 2 * s;
+  const p = [0, 1, 2].map((i) => h00 * a.p[i] + h10 * h * a.v[i] + h01 * b.p[i] + h11 * h * b.v[i]);
+  const v = [0, 1, 2].map((i) => d00 * a.p[i] + d10 * a.v[i] + d01 * b.p[i] + d11 * b.v[i]);
+  const w = [0, 1, 2].map((i) => a.w[i] + (b.w[i] - a.w[i]) * s);
+  return { p, v, w, q: turned(a.q, a.w, t - a.t), phase: a.phase };
+}
+
+function trackAt(piece, t) {
+  const track = Array.isArray(piece.track) ? piece.track : [];
+  if (piece.fixed || !track.length || t < track[0][0]) {
+    return { p: piece.start, q: [1, 0, 0, 0] };
+  }
+  let lo = 0;
+  let hi = track.length - 1;
+  while (lo < hi) {
+    const middle = (lo + hi + 1) >> 1;
+    if (track[middle][0] <= t + SAME_TIME_S) {
+      lo = middle;
+    } else {
+      hi = middle - 1;
+    }
+  }
+  const a = track[lo];
+  const b = track[lo + 1];
+  const pa = [a[1], a[2], a[3]];
+  const qa = normalised([a[4], a[5], a[6], a[7]]);
+  if (!b || b[0] - a[0] > HELD_TRACK_GAP_S || b[0] <= a[0]) {
+    return { p: pa, q: qa };
+  }
+  const s = clamp((t - a[0]) / (b[0] - a[0]), 0, 1);
+  const pb = [b[1], b[2], b[3]];
+  return { p: add(pa, scale(sub(pb, pa), s)), q: slerped(qa, normalised([b[4], b[5], b[6], b[7]]), s) };
+}
+
+function spinParameter(shot, state) {
+  const relative = sub(state.v, shot.wind);
+  const v = norm(relative);
+  return v > 0 ? shot.radius * norm(cross(state.w, relative)) / (v * v) : 0;
+}
+
+let THREE = null;
+let scene = null;
+let drawing = null;
+let fieldProblem = '';
+let shotProblems = [];
+let sceneSettled = false;
+let swapping = false;
+let swapCount = 0;
+let shot = null;
+let shown = [];
+let at = { k: 0, t: 0 };
+let playing = false;
+let lastNow = null;
+let following = false;
+let showingColliders = false;
+let preview = null;
+let previewArrow = null;
+let shotGroup = null;
+let colliderGroup = null;
+let ghostGroup = null;
+let views = null;
+let ghosts = [];
+let spinLabel = null;
+
+function sayProblems() {
+  fieldMsg.textContent = [fieldProblem].concat(shotProblems).filter(Boolean).join(' ');
+}
+
+function disposed(object) {
+  object.traverse((o) => {
+    if (o.geometry) {
+      o.geometry.dispose();
+    }
+    if (o.material) {
+      for (const one of [].concat(o.material)) {
+        one.dispose();
+      }
+    }
+  });
+}
+
+function emptied(group) {
+  if (!group) {
+    return;
+  }
+  for (const child of group.children.slice()) {
+    group.remove(child);
+    disposed(child);
+  }
+}
+
+function holesGeometry(radius) {
+  const r = radius * HOLE_TO_BALL;
+  const out = radius * 1.006;
+  const positions = [];
+  for (const d of HOLES) {
+    const helper = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const u = unit(cross(helper, d));
+    const v = cross(d, u);
+    const middle = scale(d, out);
+    for (let i = 0; i < HOLE_EDGES; i++) {
+      const a0 = i / HOLE_EDGES * 2 * Math.PI;
+      const a1 = (i + 1) / HOLE_EDGES * 2 * Math.PI;
+      const p0 = add(middle, add(scale(u, r * Math.cos(a0)), scale(v, r * Math.sin(a0))));
+      const p1 = add(middle, add(scale(u, r * Math.cos(a1)), scale(v, r * Math.sin(a1))));
+      positions.push(...middle, ...p0, ...p1);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function holedBall(radius, colour) {
+  const ball = new THREE.Group();
+  const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 32, 20),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(colour), roughness: 0.55, metalness: 0 }));
+  shell.castShadow = true;
+  const holes = new THREE.Mesh(holesGeometry(radius), new THREE.MeshBasicMaterial({ color: new THREE.Color(HOLE_COLOUR) }));
+  ball.add(shell, holes);
+  ball.userData.holes = HOLES.length;
+  return ball;
+}
+
+function lineThrough(points, colour, opacity) {
+  const positions = new Float32Array(Math.max(1, points.length + 1) * 3);
+  points.forEach((p, i) => positions.set(p, i * 3));
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setDrawRange(0, points.length);
+  const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+    color: new THREE.Color(colour), transparent: opacity < 1, opacity: opacity }));
+  line.frustumCulled = false;
+  return line;
+}
+
+function arrow(colour, length) {
+  const helper = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), length,
+                                       new THREE.Color(colour).getHex(), length * 0.24, length * 0.12);
+  helper.frustumCulled = false;
+  return helper;
+}
+
+function pointed(helper, from, toward, length) {
+  const d = unit(toward);
+  helper.position.set(from[0], from[1], from[2]);
+  helper.setDirection(new THREE.Vector3(d[0], d[1], d[2]));
+  if (length) {
+    helper.setLength(length, length * 0.24, length * 0.12);
+  }
+}
+
+function surfaceColour(surface) {
+  return SURFACE_COLOURS[surface] || SURFACE_COLOURS.frame;
+}
+
+function collidersDrawn(colliders, asTheField) {
+  const group = new THREE.Group();
+  const edges = [];
+  const edgeColours = [];
+  for (const collider of colliders) {
+    const faces = Array.isArray(collider.faces) ? collider.faces.filter((ring) => ring.length >= 3) : [];
+    if (!faces.length) {
+      continue;
+    }
+    const colour = new THREE.Color(surfaceColour(collider.surface));
+    const positions = [];
+    for (const ring of faces) {
+      for (let i = 1; i + 1 < ring.length; i++) {
+        positions.push(...ring[0], ...ring[i], ...ring[i + 1]);
+      }
+      for (let i = 0; i < ring.length; i++) {
+        edges.push(...ring[i], ...ring[(i + 1) % ring.length]);
+        edgeColours.push(colour.r, colour.g, colour.b, colour.r, colour.g, colour.b);
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.computeVertexNormals();
+    const plate = collider.kind === 'plate';
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+      color: colour, roughness: 0.7, metalness: 0, side: THREE.DoubleSide, transparent: true,
+      opacity: asTheField ? (plate ? 0.5 : 0.92) : 0.26, depthWrite: asTheField && !plate,
+      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+    mesh.name = collider.name;
+    mesh.userData.surface = collider.surface;
+    mesh.castShadow = asTheField && !plate;
+    mesh.receiveShadow = asTheField;
+    group.add(mesh);
+  }
+  if (edges.length) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(edges, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(edgeColours, 3));
+    group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: asTheField ? 0.95 : 0.7 })));
+  }
+  return group;
+}
+
+function marker(colour, normal, size) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(size * 0.55, size, 24), new THREE.MeshBasicMaterial({
+    color: new THREE.Color(colour), side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false }));
+  ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(normal[0], normal[1], normal[2]));
+  return ring;
+}
+
+function labelled(className, text) {
+  const label = document.createElement('span');
+  label.className = 'label ' + className;
+  label.textContent = text;
+  label.hidden = true;
+  labels.append(label);
+  return label;
+}
+
+function placeLabel(label, point, showing) {
+  if (!showing || !scene) {
+    label.hidden = true;
+    return;
+  }
+  const v = new THREE.Vector3(point[0], point[1], point[2]).project(scene.camera);
+  const inView = v.z > -1 && v.z < 1 && Math.abs(v.x) <= 1.05 && Math.abs(v.y) <= 1.05;
+  label.hidden = !inView;
+  if (inView) {
+    const x = (v.x + 1) / 2 * canvas.clientWidth;
+    const y = (1 - v.y) / 2 * canvas.clientHeight;
+    label.style.transform = 'translate(' + x.toFixed(1) + 'px, ' + y.toFixed(1) + 'px) translate(-50%, -135%)';
+  }
+}
+
+function buildShotViews(next) {
+  emptied(shotGroup);
+  if (!scene || !next) {
+    views = null;
+    return;
+  }
+  const json = next.json;
+  const points = next.frames.map((f) => f.p);
+  const whole = lineThrough(points, PATH_COLOUR, 0.3);
+  const travelled = lineThrough(points, PATH_COLOUR, 1);
+  shotGroup.add(whole, travelled);
+
+  const impactMarks = next.impacts.filter((impact) => isTriple(impact.at) && isTriple(impact.normal)).map((impact) => {
+    const n = unit(impact.normal);
+    const ring = marker(surfaceColour(impact.surface), n, next.radius * 0.9);
+    const contact = add(impact.at, scale(n, 0.06 - next.radius));
+    ring.position.set(contact[0], contact[1], contact[2]);
+    shotGroup.add(ring);
+    return ring;
+  });
+
+  if (json.apex && isTriple(json.apex.at)) {
+    const apex = new THREE.Mesh(new THREE.OctahedronGeometry(next.radius * 0.6),
+                                new THREE.MeshBasicMaterial({ color: new THREE.Color(APEX_COLOUR) }));
+    apex.position.set(json.apex.at[0], json.apex.at[1], json.apex.at[2] + next.radius * 1.8);
+    shotGroup.add(apex);
+    shotGroup.add(lineThrough([[json.apex.at[0], json.apex.at[1], 0], json.apex.at], APEX_COLOUR, 0.35));
+  }
+
+  const launch = json.launch || {};
+  if (isTriple(launch.at)) {
+    const from = new THREE.Mesh(new THREE.SphereGeometry(next.radius * 0.45, 12, 8),
+                                new THREE.MeshBasicMaterial({ color: new THREE.Color(LAUNCH_COLOUR) }));
+    from.position.set(launch.at[0], launch.at[1], launch.at[2]);
+    shotGroup.add(from);
+    if (isTriple(launch.velocity) && norm(launch.velocity) > 0) {
+      const direction = arrow(LAUNCH_COLOUR, LAUNCH_ARROW_IN);
+      pointed(direction, launch.at, launch.velocity);
+      shotGroup.add(direction);
+    }
+  }
+
+  const ball = holedBall(next.radius, next.colour);
+  shotGroup.add(ball);
+  const spin = arrow(SPIN_COLOUR, next.radius * SPIN_ARROW_RADII);
+  shotGroup.add(spin);
+
+  const pieces = (json.pieces || []).filter((piece) => isTriple(piece.start) && piece.radius > 0).map((piece) => {
+    const drawn = holedBall(piece.radius, piece.colour || '#888888');
+    shotGroup.add(drawn);
+    return { piece, drawn };
+  });
+
+  views = { whole, travelled, ball, spin, pieces, impactMarks, overridden: -1, count: points.length };
+}
+
+function buildColliders() {
+  emptied(colliderGroup);
+  const asTheField = drawing === COLLIDERS;
+  if (scene && shot && (asTheField || showingColliders)) {
+    colliderGroup.add(collidersDrawn(shot.json.colliders || [], asTheField));
+  }
+  const legend = document.getElementById('surface-legend');
+  if (legend) {
+    legend.hidden = !(asTheField || showingColliders);
+  }
+}
+
+function buildGhosts(shots) {
+  emptied(ghostGroup);
+  for (const ghost of ghosts) {
+    ghost.label.remove();
+  }
+  ghosts = shots.map((ghostShot, i) => {
+    const colour = GHOST_COLOURS[i % GHOST_COLOURS.length];
+    const points = ghostShot.frames.map((f) => f.p);
+    let line = null;
+    if (scene) {
+      const positions = new Float32Array(points.length * 3);
+      points.forEach((p, j) => positions.set(p, j * 3));
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      line = new THREE.Line(geometry, new THREE.LineDashedMaterial({
+        color: new THREE.Color(colour), dashSize: 2.5, gapSize: 1.5, transparent: true, opacity: 0.8 }));
+      line.computeLineDistances();
+      line.frustumCulled = false;
+      ghostGroup.add(line);
+    }
+    const label = labelled('ghost', '#' + ghostShot.id);
+    label.style.borderColor = colour;
+    label.style.color = colour;
+    return { id: ghostShot.id, points: points.length, line, label, at: points[points.length - 1] };
+  });
+}
+
+function row(list, term, value) {
+  const dt = document.createElement('dt');
+  dt.textContent = term;
+  const dd = document.createElement('dd');
+  dd.textContent = value;
+  list.append(dt, dd);
+  return dd;
+}
+
+function cells(body, values, wordsAt) {
+  const tr = document.createElement('tr');
+  for (const [i, value] of values.entries()) {
+    const td = document.createElement('td');
+    td.textContent = value;
+    td.classList.toggle('words', i === wordsAt);
+    tr.append(td);
+  }
+  body.append(tr);
+  return tr;
+}
+
+function describeShot(next) {
+  launchList.textContent = '';
+  flightList.textContent = '';
+  impactRows.textContent = '';
+  crossingRows.textContent = '';
+  changedList.textContent = '';
+  marks.textContent = '';
+  document.getElementById('ending').textContent = '';
+  document.getElementById('computed-line').textContent = '';
+  endingPill.hidden = true;
+  title.textContent = next ? 'Launch ' + next.id : document.title;
+  if (!next) {
+    nowLine.textContent = shotProblems.length ? '' : 'No launch is shown. Launch one, or show one from the list of launches.';
+    nowList.textContent = '';
+    time.textContent = '';
+    scrub.disabled = true;
+    document.getElementById('no-impacts').hidden = true;
+    document.getElementById('no-crossings').hidden = true;
+    return;
+  }
+  const json = next.json;
+  const launch = json.launch || {};
+  row(launchList, 'exit speed', speedOf(launch.speed));
+  row(launchList, 'spin', fixed(launch.spinRpm, 0) + ' rpm ' + (launch.spinKind || ''));
+  row(launchList, 'spin parameter S₀', fixed(launch.spinParameter, 3));
+  const before = launch.surfaces || [];
+  const after = launch.after || [];
+  row(launchList, 'wheel surfaces', 'one ' + fixed(before[0], 1) + ', two ' + fixed(before[1], 1) + ' in/s');
+  row(launchList, 'after the throw', 'one ' + fixed(after[0], 1) + ', two ' + fixed(after[1], 1) + ' in/s');
+  row(launchList, 'from', pointOf(launch.at));
+  row(launchList, 'air', fixed(json.air && json.air.density, 4) + ' kg/m³');
+
+  row(flightList, 'apex', json.apex
+    ? inches(json.apex.at && json.apex.at[2]) + ' high at ' + seconds(json.apex.t) + ' (' + pointOf(json.apex.at) + ')'
+    : '—');
+  row(flightList, 'first bounce', json.firstBounce
+    ? inches(json.firstBounce.range) + ' out at ' + seconds(json.firstBounce.t)
+    : 'none on the floor');
+
+  for (const impact of next.impacts) {
+    const tr = cells(impactRows, [
+      fixed(impact.t, 3), impact.against + ' (' + impact.surface + ')', fixed(impact.approach, 1),
+      fixed(impact.restitution, 2), impact.gripped ? 'gripped' : 'slid ' + fixed(impact.slip, 1)], 1);
+    tr.tabIndex = 0;
+    tr.dataset.t = String(impact.t);
+    tr.title = 'go to ' + seconds(impact.t);
+  }
+  document.getElementById('no-impacts').hidden = next.impacts.length > 0;
+  for (const crossing of next.crossings) {
+    const tr = cells(crossingRows, [
+      fixed(crossing.t, 3),
+      (crossing.into ? 'into ' : 'out of ') + crossing.cell + (crossing.upturned ? ', upturned' : '') + ', '
+        + inches(crossing.offset) + ' off centre, ' + inches(crossing.rim) + ' from the rim, '
+        + fixed(crossing.angle, 1) + '° off its axis, ' + speedOf(crossing.speed)], 1);
+    tr.title = 'go to ' + seconds(crossing.t);
+    tr.tabIndex = 0;
+    tr.dataset.t = String(crossing.t);
+  }
+  document.getElementById('no-crossings').hidden = next.crossings.length > 0;
+
+  const ending = json.ending || {};
+  endingPill.textContent = ending.kind || '';
+  endingPill.className = 'pill ' + (TONES[ending.kind] || 'plain');
+  endingPill.hidden = !ending.kind;
+  document.getElementById('ending').textContent = 'It ' + (ending.says || 'ended') + (typeof ending.t === 'number' ? ', at ' + seconds(ending.t) : '') + '.';
+  const computed = json.computed || {};
+  document.getElementById('computed-line').textContent = 'computed in ' + fixed((computed.seconds || 0) * 1000, 0) + ' ms, '
+    + fixed(computed.realTime, 3) + 'x real time, ' + fixed(computed.simulated, 2) + ' s simulated';
+
+  const changed = (json.settings || []).filter((s) => s.value !== s.byDefault);
+  for (const setting of changed) {
+    row(changedList, setting.label || setting.name, String(setting.value) + (setting.unit ? ' ' + setting.unit : '') + ' (default ' + setting.byDefault + ')');
+  }
+  if (!changed.length) {
+    row(changedList, 'none', 'every setting is its default');
+  }
+
+  const span = next.end - next.start;
+  for (const event of next.events) {
+    if (event.kind !== 'impact' && event.kind !== 'apex') {
+      continue;
+    }
+    const mark = document.createElement('span');
+    mark.className = 'mark ' + event.kind;
+    mark.style.left = (span > 0 ? (event.t - next.start) / span * 100 : 0).toFixed(3) + '%';
+    mark.title = event.label + ' at ' + seconds(event.t);
+    marks.append(mark);
+  }
+  scrub.disabled = !(span > 0);
+  scrub.min = String(next.start);
+  scrub.max = String(next.end);
+}
+
+function setShot(next) {
+  if (next === shot) {
+    return;
+  }
+  setPlaying(false);
+  shot = next;
+  buildShotViews(next);
+  buildColliders();
+  if (scene) {
+    scene.showTilts(next && next.json.tilts ? next.json.tilts : null);
+  }
+  describeShot(next);
+  if (next) {
+    at = { k: 0, t: next.start };
+    show();
+  }
+}
+
+function show() {
+  if (!shot) {
+    return;
+  }
+  const state = stateAt(shot.frames, at.k, at.t);
+  if (views) {
+    views.ball.position.set(state.p[0], state.p[1], state.p[2]);
+    views.ball.quaternion.set(state.q[1], state.q[2], state.q[3], state.q[0]);
+    views.ball.visible = true;
+    const rate = norm(state.w);
+    views.spin.visible = rate >= STILL_RAD_S;
+    if (views.spin.visible) {
+      pointed(views.spin, state.p, state.w);
+    }
+    const positions = views.travelled.geometry.attributes.position;
+    if (views.overridden >= 0 && views.overridden < views.count) {
+      positions.setXYZ(views.overridden, ...shot.frames[views.overridden].p);
+    }
+    const into = at.k + 1;
+    positions.setXYZ(into, state.p[0], state.p[1], state.p[2]);
+    views.overridden = into;
+    positions.needsUpdate = true;
+    views.travelled.geometry.setDrawRange(0, into + 1);
+    for (const one of views.pieces) {
+      const where = trackAt(one.piece, at.t);
+      one.drawn.position.set(where.p[0], where.p[1], where.p[2]);
+      one.drawn.quaternion.set(where.q[1], where.q[2], where.q[3], where.q[0]);
+    }
+  }
+  const speedNow = norm(state.v);
+  const rpm = norm(state.w) * RPM_PER_RAD_S;
+  const kind = spinKind(state.w, state.v);
+  const phase = PHASES[state.phase] || state.phase;
+  const s = spinParameter(shot, state);
+  spinLabel.textContent = fixed(rpm, 0) + ' rpm ' + kind;
+  nowLine.textContent = fixed(at.t, 3) + ' s · ' + inches(state.p[2]) + ' up · ' + speedOf(speedNow)
+    + ' · ' + fixed(rpm, 0) + ' rpm ' + kind + ' · ' + phase;
+  nowList.textContent = '';
+  row(nowList, 't', seconds(at.t) + ' (frame ' + (at.k + 1) + ' of ' + shot.frames.length + ')');
+  row(nowList, 'position', pointOf(state.p));
+  row(nowList, 'height', inches(state.p[2]) + ' (' + fixed(state.p[2] * METRES_PER_INCH, 2) + ' m)');
+  row(nowList, 'speed', speedOf(speedNow));
+  row(nowList, 'spin', fixed(rpm, 0) + ' rpm ' + kind);
+  row(nowList, 'S', fixed(s, 3));
+  row(nowList, 'phase', phase);
+  time.textContent = fixed(at.t, 3) + ' / ' + fixed(shot.end, 3) + ' s';
+  scrub.value = String(at.t);
+  for (const tr of document.querySelectorAll('#impacts tbody tr, #crossings tbody tr')) {
+    if (Math.abs(Number(tr.dataset.t) - at.t) <= SAME_TIME_S) {
+      tr.setAttribute('aria-current', 'true');
+    } else {
+      tr.removeAttribute('aria-current');
+    }
+  }
+}
+
+function goTo(t) {
+  if (!shot || typeof t !== 'number' || !isFinite(t)) {
+    return;
+  }
+  const clamped = clamp(t, shot.start, shot.end);
+  at = { k: frameAt(shot.frames, clamped), t: clamped };
+  show();
+}
+
+function stepBy(frames) {
+  if (!shot) {
+    return;
+  }
+  const k = clamp(at.k + frames, 0, shot.frames.length - 1);
+  at = { k, t: shot.frames[k].t };
+  show();
+}
+
+function toEvent(direction) {
+  if (!shot) {
+    return;
+  }
+  const next = direction > 0
+    ? shot.events.find((e) => e.t > at.t + SAME_TIME_S)
+    : shot.events.slice().reverse().find((e) => e.t < at.t - SAME_TIME_S);
+  if (next) {
+    goTo(next.t);
+  }
+}
+
+function setPlaying(wanting) {
+  playing = !!(wanting && shot && shot.end > shot.start);
+  lastNow = null;
+  if (playing && at.t >= shot.end - SAME_TIME_S) {
+    goTo(shot.start);
+  }
+  play.textContent = playing ? 'Pause' : 'Play';
+}
+
+function advance(now) {
+  if (lastNow !== null) {
+    goTo(Math.min(shot.end, at.t + (now - lastNow) / 1000 * parseFloat(speed.value)));
+  }
+  lastNow = now;
+  if (at.t >= shot.end - SAME_TIME_S) {
+    setPlaying(false);
+  }
+}
+
+function setFollowing(wanting) {
+  following = !!wanting;
+  follow.setAttribute('aria-pressed', String(following));
+}
+
+function followThePollen() {
+  if (!views || !scene) {
+    return;
+  }
+  const target = scene.controls.target;
+  const ball = views.ball.position;
+  const moved = new THREE.Vector3().subVectors(ball, target);
+  target.add(moved);
+  scene.camera.position.add(moved);
+}
+
+function frameThePath() {
+  if (!scene || !shot) {
+    return;
+  }
+  const box = new THREE.Box3();
+  for (const frame of shot.frames) {
+    box.expandByPoint(new THREE.Vector3(frame.p[0], frame.p[1], frame.p[2]));
+  }
+  const launch = shot.json.launch;
+  if (launch && isTriple(launch.at)) {
+    box.expandByPoint(new THREE.Vector3(launch.at[0], launch.at[1], launch.at[2]));
+  }
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const fov = scene.camera.fov * Math.PI / 180;
+  const narrowest = Math.min(fov, 2 * Math.atan(Math.tan(fov / 2) * scene.camera.aspect));
+  const distance = clamp(Math.max(sphere.radius, 6) / Math.sin(narrowest / 2) * FRAME_MARGIN,
+                         scene.controls.minDistance, scene.controls.maxDistance);
+  const from = new THREE.Vector3().subVectors(scene.camera.position, scene.controls.target).normalize();
+  scene.controls.target.copy(sphere.center);
+  scene.camera.position.copy(sphere.center).addScaledVector(from, distance);
+  setFollowing(false);
+}
+
+function showPreview(from, toward) {
+  preview = isTriple(from) && isTriple(toward) && norm(toward) > 0 ? { at: from.slice(), direction: unit(toward) } : null;
+  if (!scene) {
+    return;
+  }
+  if (!previewArrow) {
+    previewArrow = arrow(PREVIEW_COLOUR, PREVIEW_LENGTH_IN);
+    scene.scene.add(previewArrow);
+  }
+  previewArrow.visible = !!preview;
+  if (preview) {
+    pointed(previewArrow, preview.at, preview.direction);
+  }
+}
+
+function fit() {
+  if (scene) {
+    scene.fit(Math.max(1, canvas.clientWidth), Math.max(1, canvas.clientHeight));
+  }
+}
+
+function loop(now) {
+  if (playing) {
+    advance(now);
+  }
+  if (following) {
+    followThePollen();
+  }
+  scene.controls.update();
+  scene.drawnFrom();
+  placeLabel(spinLabel, views && views.spin.visible ? spinTip() : [0, 0, 0], !!(views && views.spin.visible));
+  for (const ghost of ghosts) {
+    placeLabel(ghost.label, ghost.at, true);
+  }
+}
+
+function spinTip() {
+  const tip = new THREE.Vector3(0, 1, 0).applyQuaternion(views.spin.quaternion)
+    .multiplyScalar(shot.radius * SPIN_ARROW_RADII).add(views.spin.position);
+  return [tip.x, tip.y, tip.z];
+}
+
+function goWith(change) {
+  const going = new URLSearchParams(location.search);
+  change(going);
+  location.search = going.toString();
+}
+
+function showTheFieldControls(showing) {
+  fieldControls.textContent = '';
+  const label = document.createElement('label');
+  label.append('Drawn as ');
+  const select = document.createElement('select');
+  select.id = 'resolution';
+  for (const one of [COLLIDERS, 'low', 'medium', 'high']) {
+    const option = document.createElement('option');
+    option.value = one;
+    option.textContent = one;
+    option.selected = one === showing;
+    select.append(option);
+  }
+  select.addEventListener('change', () => goWith((going) => {
+    if (select.value === COLLIDERS) {
+      going.set('view', 'flat');
+      return;
+    }
+    going.set('resolution', select.value);
+    if (going.get('view') === 'flat') {
+      going.delete('view');
+    }
+  }));
+  label.append(select);
+  fieldControls.append(label);
+
+  const overlay = document.createElement('label');
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.id = 'show-colliders';
+  box.checked = showingColliders;
+  box.addEventListener('change', () => {
+    showingColliders = box.checked;
+    buildColliders();
+  });
+  overlay.append(box, 'show colliders');
+  overlay.title = 'Draw over the field what the shot bounces off, coloured by surface.';
+  overlay.hidden = showing === COLLIDERS;
+  fieldControls.append(overlay);
+
+  const legend = document.createElement('span');
+  legend.id = 'surface-legend';
+  legend.className = 'legend';
+  legend.title = 'This is what the shot collides with.';
+  for (const surface of ['wall', 'frame', 'flower', 'cell']) {
+    const item = document.createElement('span');
+    const chip = document.createElement('i');
+    chip.style.background = SURFACE_COLOURS[surface];
+    item.append(chip, surface);
+    legend.append(item);
+  }
+  legend.hidden = !(showing === COLLIDERS || showingColliders);
+  fieldControls.append(legend);
+}
+
+async function drawTheField() {
+  if (ASSETS === null) {
+    throw new Error('this page came without the bench’s assets, so it has nothing to draw the field with');
+  }
+  const fieldscene = await import(ASSETS + 'fieldscene.js');
+  THREE = await import('three');
+  scene = new fieldscene.FieldScene({ canvas, assets: ASSETS, background: token('--bg') });
+  shotGroup = new THREE.Group();
+  colliderGroup = new THREE.Group();
+  ghostGroup = new THREE.Group();
+  scene.scene.add(colliderGroup, ghostGroup, shotGroup);
+  fit();
+  if (wanted === COLLIDERS) {
+    drawing = COLLIDERS;
+    showTheFieldControls(COLLIDERS);
+  } else {
+    const named = asked.get('resolution');
+    const askedFor = fieldscene.MODELS[named] ? named : fieldscene.DEFAULT_RESOLUTION;
+    let fellBack = false;
+    try {
+      await scene.load(fieldscene.MODELS[askedFor]).catch((wrong) => {
+        if (askedFor === LOWEST) {
+          throw wrong;
+        }
+        fellBack = true;
+        return scene.load(fieldscene.MODELS[LOWEST]);
+      });
+      scene.place(Object.assign({}, FIELD, { moved: [], pieces: [] }));
+      if (scene.robot) {
+        scene.robot.visible = false;
+      }
+      drawing = fellBack ? LOWEST : askedFor;
+      if (fellBack) {
+        fieldProblem = 'The field at ' + askedFor + ' resolution has not been built, so this is the low one.';
+      }
+    } catch (why) {
+      drawing = COLLIDERS;
+      fieldProblem = 'The field model did not load, so this is the colliders the shot meets: ' + said(why);
+    }
+    showTheFieldControls(drawing === COLLIDERS ? COLLIDERS : askedFor);
+  }
+  sayProblems();
+  if (preview) {
+    showPreview(preview.at, preview.direction);
+  }
+  scene.renderer.setAnimationLoop(loop);
+}
+
+function shotNumbered(id) {
+  return fetch(id + '/shot', { cache: 'no-store' }).then(async (response) => {
+    if (response.status === 404) {
+      return { id, wrong: 'There is no launch ' + id + ' on this bench.' };
+    }
+    if (!response.ok) {
+      return { id, wrong: 'Launch ' + id + ' could not be fetched: the bench answered ' + response.status + '.' };
+    }
+    return prepared(id, await response.json());
+  }).catch((why) => ({ id, wrong: 'Launch ' + id + ' could not be fetched: ' + said(why) }));
+}
+
+const fetched = new Map();
+function remembered(id) {
+  if (!fetched.has(id)) {
+    fetched.set(id, shotNumbered(id).then((result) => {
+      if (result.wrong) {
+        fetched.delete(id);
+      }
+      return result;
+    }));
+  }
+  return fetched.get(id);
+}
+
+let fieldDrawn = null;
+
+async function showTheFragment() {
+  const mine = ++swapCount;
+  swapping = true;
+  const { ids, ignored } = idsIn(location.hash);
+  const results = await Promise.all(ids.map(remembered));
+  await fieldDrawn;
+  if (mine !== swapCount) {
+    return;
+  }
+  shotProblems = results.filter((r) => r.wrong).map((r) => r.wrong)
+    .concat(ignored.length ? ['“' + ignored.join(', ') + '” is not a launch number.'] : []);
+  const main = results.length && results[0].shot ? results[0].shot : null;
+  const others = results.slice(1).filter((r) => r.shot && (!main || r.shot.id !== main.id)).map((r) => r.shot);
+  setShot(main);
+  buildGhosts(others);
+  shown = (main ? [main.id] : []).concat(others.map((g) => g.id));
+  if (!main) {
+    describeShot(null);
+  }
+  sayProblems();
+  swapping = false;
+}
+
+play.addEventListener('click', () => setPlaying(!playing));
+back.addEventListener('click', () => { setPlaying(false); stepBy(-1); });
+on.addEventListener('click', () => { setPlaying(false); stepBy(1); });
+follow.addEventListener('click', () => setFollowing(!following));
+scrub.addEventListener('input', () => { setPlaying(false); goTo(parseFloat(scrub.value)); });
+canvas.addEventListener('dblclick', frameThePath);
+
+function goToRow(event) {
+  const tr = event.target.closest('tr[data-t]');
+  if (!tr) {
+    return;
+  }
+  if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  setPlaying(false);
+  goTo(Number(tr.dataset.t));
+}
+for (const body of [impactRows, crossingRows]) {
+  body.addEventListener('click', goToRow);
+  body.addEventListener('keydown', goToRow);
+}
+
+document.addEventListener('keydown', (event) => {
+  const tag = event.target && event.target.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || !shot) {
+    return;
+  }
+  if (event.code === 'Space') {
+    if (tag === 'BUTTON' || tag === 'SUMMARY' || tag === 'TR') {
+      return;
+    }
+    event.preventDefault();
+    setPlaying(!playing);
+  } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    event.preventDefault();
+    setPlaying(false);
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    if (event.shiftKey) {
+      toEvent(direction);
+    } else {
+      stepBy(direction);
+    }
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    setPlaying(false);
+    goTo(shot.start);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    setPlaying(false);
+    goTo(shot.end);
+  }
+});
+
+window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin || event.source !== window.parent) {
+    return;
+  }
+  const message = event.data;
+  if (message && message.type === 'launch-preview') {
+    showPreview(message.at, message.direction);
+  }
+});
+
+window.addEventListener('resize', fit);
+function themeChanged() {
+  if (scene) {
+    scene.background(token('--bg'));
+  }
+}
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
+}
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+spinLabel = labelled('spin', '');
+spinLabel.style.color = SPIN_COLOUR;
+title.textContent = document.title;
+describeShot(null);
+
+window.launchPage = {
+  get settled() { return sceneSettled && !swapping; },
+  get problem() { return fieldMsg.textContent; },
+  get drawing() { return drawing; },
+  get shown() { return shown.slice(); },
+  get time() { return shot ? at.t : null; },
+  get frame() { return shot ? at.k : null; },
+  get ball() {
+    if (!shot || !views) {
+      return null;
+    }
+    const b = views.ball;
+    return {
+      position: [b.position.x, b.position.y, b.position.z],
+      quaternion: { w: b.quaternion.w, x: b.quaternion.x, y: b.quaternion.y, z: b.quaternion.z },
+      visible: b.visible,
+      holes: b.userData.holes
+    };
+  },
+  get spin() {
+    if (!views) {
+      return null;
+    }
+    const d = new THREE.Vector3(0, 1, 0).applyQuaternion(views.spin.quaternion);
+    return { visible: views.spin.visible, direction: [d.x, d.y, d.z], label: spinLabel.textContent };
+  },
+  get ghosts() {
+    return ghosts.map((g) => ({ id: g.id, points: g.points, label: g.label.textContent, drawn: !!(g.line && g.line.visible) }));
+  },
+  get colliderMeshes() {
+    let meshes = 0;
+    if (colliderGroup) {
+      colliderGroup.traverse((o) => { if (o.isMesh) meshes++; });
+    }
+    return meshes;
+  },
+  get pieces() {
+    return views ? views.pieces.map((one) => ({
+      name: one.piece.name, kind: one.piece.kind,
+      position: [one.drawn.position.x, one.drawn.position.y, one.drawn.position.z], visible: one.drawn.visible
+    })) : [];
+  },
+  get impactMarkers() { return views ? views.impactMarks.length : 0; },
+  get preview() {
+    return preview ? { at: preview.at.slice(), direction: preview.direction.slice(), visible: !!(previewArrow && previewArrow.visible) } : null;
+  },
+  get leaning() {
+    return scene ? Object.fromEntries(scene.hives.map((h) => [h.alliance, h.group.matrix.elements[8]])) : null;
+  },
+  get ownPieces() { return scene ? scene.movingBalls.length + scene.staticBalls.length : 0; },
+  get robotShown() { return !!(scene && scene.robot && scene.robot.visible); },
+  get view() {
+    return scene ? { target: scene.controls.target.toArray(), eye: scene.camera.position.toArray() } : null;
+  },
+  get following() { return following; },
+  get playing() { return playing; },
+  get events() { return shot ? shot.events.map((e) => Object.assign({}, e)) : []; },
+  goTo: (t) => goTo(t)
+};
+
+fieldDrawn = drawTheField().catch((why) => {
+  drawing = null;
+  fieldProblem = 'This browser could not draw the field: ' + said(why);
+  sayProblems();
+}).finally(() => {
+  sceneSettled = true;
+});
+window.addEventListener('hashchange', showTheFragment);
+showTheFragment();
+</script>
+</body>
+</html>
