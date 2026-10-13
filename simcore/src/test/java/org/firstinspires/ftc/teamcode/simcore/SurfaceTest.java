@@ -27,7 +27,8 @@ public class SurfaceTest {
     }
 
     @Test
-    public void theFieldIsMadeOfFiveSurfaces() {
-        assertEquals(5, Surface.values().length);
+    public void aBallMeetsFiveSurfacesOfTheFieldAndTheOtherBalls() {
+        assertEquals(6, Surface.values().length);
+        assertEquals(Surface.PIECE, Surface.valueOf("PIECE"));
     }
 }

@@ -7,7 +7,10 @@ public enum Surface {
     WALL("Walls", "The perimeter: polycarbonate panels between aluminium rails."),
     FRAME("Frame", "Metal: the A-frame the hives hang from, and the hives' own tubes, brackets and tag plates."),
     FLOWER("Flowers", "The flowers' HIPS pipes and the plates that hold them."),
-    CELL("Cells", "The walls and backs of the hives' cells, which a scored ball lands in.");
+    CELL("Cells", "The walls and backs of the hives' cells, which a scored ball lands in."),
+    PIECE(
+            "Pieces",
+            "Another ball: polyethylene on polyethylene, when the launched pollen meets a piece or two pieces meet.");
 
     private final String label;
     private final String says;
