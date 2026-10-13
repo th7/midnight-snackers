@@ -718,8 +718,8 @@ listener at `/static/codemirror.js`. It is the one **static asset**: the
 bundle only through `window.CM`.
 
 **Part** — One piece of the dashboard page that starts on its own: the
-editor, the branch panel, the simulator, the header, the file list, the
-tabs. A part that throws is caught, named in a banner at the top of the
+editor, the branch panel, the simulator, the launch sim, the header, the
+file list, the tabs. A part that throws is caught, named in a banner at the top of the
 page and recorded in `window.codingPage.broke`, and the others still
 start — so a browser that cannot run one part of the page still gives the
 rest, and never leaves the shell it was served as, which is what "nothing
@@ -1473,7 +1473,9 @@ most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
 `Launch` and `Turntable`, in the **core**.
 
-**Flight** — A ball off the floor: launched, falling, or in or on a hive.
+**Flight** — A ball off the floor during a run: launched, falling, or in or on
+a hive. The **Launch Sim** flies its pollen on its own model, the **shot**,
+which shares only the field with this one.
 It is a sphere under gravity, and it meets each part of a hive as the solid
 it is — a cell's walls and back as thin plates, from either side, and the
 tubes, rails and brackets the hive is built from as the solids the CAD
@@ -1523,7 +1525,9 @@ shortest loop, the loop, and the shortest and longest hiccup — must be the
 right way round, so a set is checked whole and is either taken whole or
 refused, saying which and why. The world's physics — gravity, a ball's bounce
 and grip — and the robot's own tuning are not among them: the one is the
-field's, the other the robot code's. The admin page lists them under
+field's, the other the robot code's. The **Launch Sim**'s bounce, grip, drag and
+lift are something else again: **shot settings**, chosen per launch by whoever
+launches, kept per user, and never reaching a run or `Flight`. The admin page lists them under
 *Simulation constants*, each with what it is, its unit, its range and what it
 was built as, and a set is saved whole, so what is left out goes back to how
 it was built; `GET /admin/constants` and `PUT /admin/constants` with what
@@ -1682,3 +1686,93 @@ next to Run): the replay page's field with the robot where the run will
 start, dragged to move it and its handle dragged to turn it, or typed
 in inches and degrees; every move is saved. Class: `StartPoses`;
 `SimReplayPage.placement`.
+
+## The launch sim
+
+**Launch Sim** — The dashboard's third tab, after Simulate: one pollen thrown by a
+pair of flywheels, on the field, in as much detail as there is a measured basis
+for, and replayed. Its settings stand on the right, its view in the middle and its
+launches under the view; `#launch`, with the view's options after a `?` as on
+Simulate. It is separate from the realtime robot simulation: it runs no robot code,
+starts no child, changes nothing a run does, and shares only the field model and
+the pages' assets. It runs in the coding server's own process, on the server's own
+**core** rather than the worktree's, since it is the server's physics and not a
+teammate's code. What the model is, where every number came from, what was left
+out and why, and how to calibrate it is `doc/launch-sim.md`. Classes: `Shot`, in
+the **core**; `SimLaunches`; `SimLaunchPage`. Files: `launch.html`.
+
+**Shot** — One launched pollen from the moment it leaves the wheels until it comes
+to rest with nothing else still moving, leaves the field over a wall, runs out of
+time, or has done too much work. It flies through the **air**, bounces off the
+**shot's colliders** and the pieces where a match starts, and says how it ended in
+words a team uses: at rest in which cell (and whether that cell is upturned, so it
+scores), in a flower's bore, on the floor or on a named collider; over which wall.
+A shot is a value: advancing it gives a new one, a shot that is still flying can be
+advanced and one that has finished has an ending and nothing else, and the same
+settings give the same shot bit for bit on any machine however its time is cut up,
+since every class of it uses `StrictMath` and a test reading their class files holds
+that. Integration is RK4 on a fixed grid of steps; each new contact is found by
+bisecting the gap to the moment of touching, so a bounce happens where and when the
+ball meets the surface. Classes: `Shot`, `ShotRun`, `World`, in the **core**.
+
+**Wheel pair** — The two flywheels a shot is thrown by. Each side of the pollen
+leaves at the surface speed of the wheel touching it, so the centre leaves at their
+mean and the difference spins it: with wheel one on top (*roll* 0) and faster it is
+topspin, with the bottom one faster backspin, and at roll 90 sidespin. Speed and
+spin efficiencies, the pollen squeezed between the wheels, and wheels that slow as
+they throw are there to match a real launcher and are off until somebody sets them.
+Not the **launcher**, which is Reginald's subsystem. Class: `WheelPair`, in the
+**core**.
+
+**Air** — What a shot flies through: drag on the air-relative velocity, Magnus lift
+from the part of the spin across the motion, the spin's own slowing, buoyancy and
+added mass, and wind, at a density worked out from the temperature, the elevation
+and the humidity. The drag and lift coefficients are a 26-hole indoor pickleball's,
+the nearest ball anybody has measured in flight. Class: `Air`, in the **core**.
+
+**Bounce** — How a shot meets anything: an impulse with a **restitution** that falls
+as impacts get harder, Coulomb **friction**, and **grip**, the tangential
+restitution that lets backspin kick a bounce up and topspin make it skid; spin about
+the contact's normal and rolling are slowed as they would be. A contact bounces only
+when it is new and faster than the threshold, which is what ends a dropped ball's
+endless ever-smaller bounces. Each **surface** has its own: the floor's foam tiles,
+the perimeter walls, the metal frame, the flowers' HIPS, the hives' cells, and
+another ball. Classes: `Contacts`, `Bounce`, `Surfaces`, `Surface`, in the **core**.
+
+**Shot's colliders** — The field as a shot meets it: the floor, the four walls as
+boxes an inch thick with tops a ball can clip, every field element as a convex solid
+(each checked convex and closed before it is used), and each hive's parts and its
+cells' walls and back, at its rest tilt or tipped. They are what the **colliders**
+view of the launch page draws, from the shot's own list rather than drawn again on
+the page, so the drawing cannot drift from the physics. The robot's obstacle
+footprints and the tape are not among them. Class: `Colliders`, `Collider`, in the
+**core**.
+
+**Asleep** and **awake** — Of a piece in a shot: the loose pollen and the nectar in
+the cells lie **asleep** where a match starts them until something moving touches
+them, and are **awake** from then until they come to rest again; the pollen standing
+in the flowers are held in their bores and never move. A body at rest does not wake
+another, so pieces resting against each other stay asleep. Method:
+`ShotRun.wake`.
+
+**Shot settings** — Every number a launch is made from, each with its group, label,
+unit, range, default and a sentence saying what it does, and checked whole: the
+launcher, the pollen and the pieces, the field, the air, the flight model, the
+bounce of each surface, the contact and the simulation. They are chosen per launch
+on the tab's right, the last ones launched are remembered per user in
+`launch-settings.json` beside the start poses, and a remembered one that no longer
+fits goes back to its default and the tab says so. `GET /sim/launch/settings`,
+`POST /sim/launch/preview` (how the wheels will throw, without launching),
+`POST /sim/launch`, `GET /sim/launches`, `GET /sim/launches/` (the view, with the
+launches to show in its fragment, `#7` or `#7,5,3` with the others as ghosts),
+`GET /sim/launches/<id>/shot` and `GET /sim/launches/<id>/frames.csv`. Classes:
+`ShotSetting`, `ShotSettings`, in the **core**; `SimLaunches`.
+
+**Too much work** — How a shot is held to computing within ten times real time: by a
+count rather than a clock, so the same settings always give the same shot. A shot
+that needs more than two million integrations a second of its own time is stopped and
+says to make the step longer; at what an integration costs here that is well inside
+ten times real time, and every launch says what it actually cost ("computed in 12
+ms, 0.01x real time"), which is printed and never judged. Method:
+`Shot.tooMuchWork`.
+

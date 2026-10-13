@@ -132,6 +132,15 @@ a piece of itself must not be indistinguishable from a page with nothing to say.
 keeps `window.codingPage` -- `started`, and `broke` as a list of part and message -- for
 the check to read, and shows the same thing to whoever is looking at it.
 
+`tools/browser/launch.mjs` opens the **Launch Sim's page** the same way, over a
+throwaway server that answers `/launches/<id>/shot` with shots built by hand -- a lob
+into a cell, a spinning bounce, a shot over a wall -- and with the shot the bench itself
+served for the default launch, kept at `tools/browser/launch-shot.json`. The hand-built
+ones are kinematics a test can reason about to the millimetre; the bench's own is the
+one that says the page and the server still agree, and `SimLaunchPageTest` fails when
+the shot the server serves is no longer shaped as the one kept, saying to regenerate it
+with `-DsimTrace.regenerate=true`.
+
 `tools/browser/login.mjs` opens the **login page** the same way. A teammate says which
 robot to work on when they ask to join, since approving the login lets them onto that
 robot and its line is where the work lands, so the check holds the page to it in a
@@ -306,4 +315,14 @@ checked it. An intended change is read and then regenerated.
 - The controls orbit, and the page survives a resize.
 - The dashboard starts: on this engine, on one missing what an older tablet's is missing,
   and, when a piece of it cannot start, loudly.
+- The Launch Sim's page plays a shot: the pollen drawn with its holes and turned the way
+  it spins, every frame where it should be and between frames where its flight puts it,
+  launches swapped and ghosted by the fragment without reloading, the colliders drawn from
+  the shot's own list, a narrow frame that still shows the field and the play button, and
+  the shot the bench itself serves, whose shape `SimLaunchPageTest` holds to the bench's.
+- The Launch Sim tab: its settings to the right of a view at least 480 px wide with Launch
+  in sight, on this engine and an older tablet's; groups that open as listed; the bounce
+  grid; a preview and the aim; a launch that posts the form and shows itself by changing
+  only the view's fragment; comparing; using a launch's settings again; and a refused
+  setting marked where it is.
 

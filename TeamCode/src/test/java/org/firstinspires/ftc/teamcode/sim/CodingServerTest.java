@@ -1710,6 +1710,25 @@ public class CodingServerTest {
                 user("PUT", "/sim/start?opmode=" + encode("Count to three"), pending, "{\"x\":1,\"y\":2,\"heading\":0}")
                         .status);
         assertEquals(403, user("GET", "/sim/place?opmode=" + encode("Count to three"), pending).status);
+        assertEquals(403, user("GET", "/sim/launch/settings", pending).status);
+        assertEquals(403, user("POST", "/sim/launch/preview", pending, "{}").status);
+        assertEquals(403, user("POST", "/sim/launch", pending, "{}").status);
+        assertEquals(403, user("GET", "/sim/launches", pending).status);
+        assertEquals(403, user("GET", "/sim/launches/", pending).status);
+        assertEquals(403, user("GET", "/sim/launches/1/shot", null).status);
+    }
+
+    @Test
+    public void eachUsersLaunchesAreTheirOwn() throws Exception {
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+
+        assertEquals(200, user("POST", "/sim/launch", ada, "{\"pieces\": 0, \"longest\": 0.5}").status);
+
+        assertEquals("{\"launches\":[]}", user("GET", "/sim/launches", bob).body);
+        assertEquals(404, user("GET", "/sim/launches/1/shot", bob).status);
+        assertEquals(200, user("GET", "/sim/launches/1/shot", ada).status);
+        assertEquals(200, user("GET", "/sim/launches/", bob).status);
     }
 
     @Test

@@ -152,6 +152,7 @@ __IMPORTMAP__
       <summary>Ending</summary>
       <p id="ending"></p>
       <p class="muted" id="computed-line"></p>
+      <p><a id="frames-csv" download hidden>Download the frames (CSV)</a></p>
     </details>
     <details>
       <summary>Settings changed</summary>
@@ -786,6 +787,14 @@ function describeShot(next) {
   marks.textContent = '';
   document.getElementById('ending').textContent = '';
   document.getElementById('computed-line').textContent = '';
+  const download = document.getElementById('frames-csv');
+  download.hidden = !next;
+  if (next) {
+    download.href = next.id + '/frames.csv';
+    download.download = 'launch-' + next.id + '-frames.csv';
+  } else {
+    download.removeAttribute('href');
+  }
   endingPill.hidden = true;
   title.textContent = next ? 'Launch ' + next.id : document.title;
   if (!next) {

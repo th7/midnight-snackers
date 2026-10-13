@@ -19,6 +19,7 @@ const RPM_PER_RAD_S = 60 / (2 * Math.PI);
 const WIDE = { width: 1100, height: 900 };
 const NARROW = { width: 480, height: 680 };
 const ONE_MS = 0.001;
+const THE_BENCHS_OWN = 4;
 
 const UNBUILT = /field-(high|medium)\.glb/;
 const BARE_404 = /Failed to load resource.*404/;
@@ -886,6 +887,40 @@ async function theStageSendsThePreviewArrow(browser, base, elsewhere) {
   }
 }
 
+async function theBenchsOwnShotPlays(browser, base, shot) {
+  const open = await browser.newPage({ viewport: WIDE });
+  const { threw } = watched(open);
+  try {
+    await open.goto(`${base}/launches/?resolution=low#${THE_BENCHS_OWN}`, { waitUntil: 'load', timeout: 60_000 });
+    await settledIn(open);
+    await showing(open, [THE_BENCHS_OWN]);
+    await twoFrames(open);
+    let state = await hook(open);
+    const first = shot.frames[0];
+    const last = shot.frames[shot.frames.length - 1];
+    check(state.ball && near(state.ball.position, positionOf(first), 1e-3),
+          `the bench's shot starts at ${state.ball && state.ball.position}, not ${positionOf(first)}`);
+    check(state.impactMarkers === shot.impacts.length,
+          `the bench's shot has ${shot.impacts.length} impacts and ${state.impactMarkers} markers`);
+    check(state.pieces.length === shot.pieces.length,
+          `${state.pieces.length} of the bench's ${shot.pieces.length} pieces are drawn`);
+    await goTo(open, last[0]);
+    state = await hook(open);
+    check(near(state.ball.position, positionOf(last), 1e-3),
+          `the bench's shot ends at ${state.ball.position}, not ${positionOf(last)}`);
+    const ending = await open.locator('#ending').textContent();
+    check(ending.includes(shot.ending.says), `the bench's shot ends "${ending}", not "${shot.ending.says}"`);
+    const download = await open.locator('#frames-csv').getAttribute('href');
+    check(download === `${THE_BENCHS_OWN}/frames.csv`, `the frames download points at ${download}`);
+    const left = faults(threw, []);
+    check(left.length === 0, `the bench's own shot threw or failed a request: ${left.join('; ')}`);
+  } catch (stuck) {
+    wrong.push(`the bench's own shot got stuck: ${stuck && stuck.message}`);
+  } finally {
+    await open.close();
+  }
+}
+
 async function main() {
   const template = fs.readFileSync(path.join(sim, 'launch.html'), 'utf8');
   const holes = [...new Set(template.match(/__[A-Z_]+__/g) || [])].sort();
@@ -897,10 +932,12 @@ async function main() {
   const left = page.match(/__[A-Z_]+__/g);
   check(left === null, `the filled page still holds ${left && [...new Set(left)].join(', ')}`);
 
+  const real = Object.assign(JSON.parse(fs.readFileSync(path.join(here, 'launch-shot.json'), 'utf8')), { id: THE_BENCHS_OWN });
   const shots = new Map([
     [1, shotJson(1, field, aLobIntoTheBlueScoringCell(field))],
     [2, shotJson(2, field, aHighSpinBounceAcrossTheFloor(field))],
-    [3, shotJson(3, field, aShotOverRedsWall(field))]
+    [3, shotJson(3, field, aShotOverRedsWall(field))],
+    [THE_BENCHS_OWN, real]
   ]);
   check(shots.get(1).crossings.length === 1 && shots.get(1).impacts.length === 2,
         'the canned lob does not cross the cell mouth once and hit twice');
@@ -915,6 +952,7 @@ async function main() {
     await theWideViewWorks(browser, base, shots);
     await theNarrowViewFitsAndSaysWhatIsMissing(browser, base);
     await theStageSendsThePreviewArrow(browser, base, elsewhere);
+    await theBenchsOwnShotPlays(browser, base, real);
   } catch (stuck) {
     wrong.push(String(stuck && stuck.message));
   } finally {
@@ -936,7 +974,8 @@ async function main() {
   console.log(`the launch page shows a lob of ${lob.frames.length} frames into ${lob.crossings[0].cell} with `
       + `${lob.impacts.length} impacts, turns a ${Math.round(shots.get(2).launch.spinRpm)} rpm pollen the way it `
       + 'spins, swaps launches and ghosts by its fragment without reloading, draws the colliders over the field '
-      + `or as the field, fits ${NARROW.width}x${NARROW.height}, and draws the preview its own stage sends it.`);
+      + `or as the field, fits ${NARROW.width}x${NARROW.height}, draws the preview its own stage sends it, and plays `
+      + `the bench's own shot, which ${real.ending.says}.`);
 }
 
 await main();

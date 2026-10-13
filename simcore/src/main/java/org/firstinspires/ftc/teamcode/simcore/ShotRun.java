@@ -73,7 +73,10 @@ final class ShotRun {
         }
 
         Body copy() {
-            return new Body(name, piece, shape, at, velocity, spin, turn, life, restFor, samples);
+            Body copy = new Body(name, piece, shape, at, velocity, spin, turn, life, restFor, samples);
+            copy.touchingColliders.addAll(touchingColliders);
+            copy.touchingBodies.addAll(touchingBodies);
+            return copy;
         }
 
         double radius() {
@@ -378,16 +381,23 @@ final class ShotRun {
             for (Body other : bodies) {
                 if (other != body
                         && other.life != Life.GONE
-                        && gapBetween(body.at, body, other.at, other) <= Shot.TOUCHING_IN) {
+                        && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
                     body.touchingBodies.add(other.name);
                 }
             }
         }
     }
 
-    private static double gapBetween(Vec3 a, Body one, Vec3 b, Body other) {
+    private static boolean within(Vec3 a, Body one, Vec3 b, Body other, double gap) {
         Vec3 apart = a.minus(b);
-        return StrictMath.sqrt(apart.dot(apart)) - one.radius() - other.radius();
+        double reach = one.radius() + other.radius() + gap;
+        return apart.dot(apart) <= reach * reach;
+    }
+
+    private static boolean overlapping(Vec3 a, Body one, Vec3 b, Body other) {
+        Vec3 apart = a.minus(b);
+        double reach = one.radius() + other.radius();
+        return apart.dot(apart) < reach * reach;
     }
 
     private void aPiece(double target) {
@@ -395,19 +405,18 @@ final class ShotRun {
         while (now < target) {
             List<Body> awake = awake();
             double span = target - now;
-            touchingAtTheStart();
             for (Body body : awake) {
                 body.start = new Kin(body.at, body.velocity, body.spin);
             }
             Vec3 from = ball.at;
             integrate(awake, span);
             double covered = span;
-            if (events < Shot.MOST_EVENTS_PER_PIECE && leastNewGap(awake) < 0) {
+            if (events < Shot.MOST_EVENTS_PER_PIECE && overlapsSomethingNew(awake)) {
                 double lo = 0, hi = 1;
                 for (int i = 0; i < Shot.BISECTIONS; i++) {
                     double mid = (lo + hi) / 2;
                     integrate(awake, mid * span);
-                    if (leastNewGap(awake) < 0) {
+                    if (overlapsSomethingNew(awake)) {
                         hi = mid;
                     } else {
                         lo = mid;
@@ -429,6 +438,7 @@ final class ShotRun {
             List<Contacts.Pressing> pressing = resolve();
             project();
             settle(covered);
+            touchingAtTheStart();
             phase = phaseOfThePollen(pressing);
             world.colliders()
                     .crossed(from, ball.at)
@@ -484,12 +494,11 @@ final class ShotRun {
         return a.plus(b.times(2)).plus(c.times(2)).plus(d);
     }
 
-    private double leastNewGap(List<Body> awake) {
-        double least = Double.MAX_VALUE;
+    private boolean overlapsSomethingNew(List<Body> awake) {
         for (Body body : awake) {
             for (Colliders.Near near : world.colliders().near(body.trial.at(), body.reach(), 0)) {
-                if (!body.touchingColliders.contains(near.collider())) {
-                    least = StrictMath.min(least, near.gap());
+                if (near.gap() < 0 && !body.touchingColliders.contains(near.collider())) {
+                    return true;
                 }
             }
             for (Body other : bodies) {
@@ -497,10 +506,12 @@ final class ShotRun {
                     continue;
                 }
                 Vec3 there = other.life == Life.AWAKE ? other.trial.at() : other.at;
-                least = StrictMath.min(least, gapBetween(body.trial.at(), body, there, other));
+                if (overlapping(body.trial.at(), body, there, other)) {
+                    return true;
+                }
             }
         }
-        return least;
+        return false;
     }
 
     private List<Contacts.Pressing> pressings() {
@@ -528,9 +539,12 @@ final class ShotRun {
                 if (other.life == Life.GONE || (other.life == Life.AWAKE && !past)) {
                     continue;
                 }
+                if (!within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
+                    continue;
+                }
                 Vec3 apart = body.at.minus(other.at);
                 double distance = StrictMath.sqrt(apart.dot(apart));
-                if (!(distance > 0) || distance - body.radius() - other.radius() > Shot.TOUCHING_IN) {
+                if (!(distance > 0)) {
                     continue;
                 }
                 Vec3 normal = apart.times(1 / distance);
@@ -556,8 +570,11 @@ final class ShotRun {
     private void wake() {
         List<Body> awake = awake();
         for (Body body : awake) {
+            if (body.restFor > 0) {
+                continue;
+            }
             for (Body other : bodies) {
-                if (other.life == Life.ASLEEP && gapBetween(body.at, body, other.at, other) <= Shot.TOUCHING_IN) {
+                if (other.life == Life.ASLEEP && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
                     other.life = Life.AWAKE;
                     other.restFor = 0;
                     other.samples.add(new Placed(seconds(now), other.at, other.turn));
@@ -615,17 +632,27 @@ final class ShotRun {
     }
 
     private void project() {
-        for (int pass = 0; pass < Shot.PROJECTIONS; pass++) {
-            for (Body body : awake()) {
+        List<Body> touched = new ArrayList<>();
+        for (Body body : awake()) {
+            if (body.touched) {
+                touched.add(body);
+            }
+        }
+        boolean moved = !touched.isEmpty();
+        for (int pass = 0; pass < Shot.PROJECTIONS && moved; pass++) {
+            moved = false;
+            for (Body body : touched) {
                 for (Colliders.Near near : world.colliders().near(body.at, body.reach(), 0)) {
                     if (near.gap() < 0) {
                         body.at = body.at.along(near.normal(), -near.gap());
+                        moved = true;
                     }
                 }
                 for (Body other : bodies) {
-                    if (other == body || other.life == Life.GONE) {
+                    if (other == body || other.life == Life.GONE || !overlapping(body.at, body, other.at, other)) {
                         continue;
                     }
+                    moved = true;
                     Vec3 apart = body.at.minus(other.at);
                     double distance = StrictMath.sqrt(apart.dot(apart));
                     double over = body.radius() + other.radius() - distance;

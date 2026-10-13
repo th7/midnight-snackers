@@ -465,6 +465,7 @@ public final class SimBench {
     private final Waits waits;
     private final Child children;
     private final StartPoses startPoses;
+    private final SimLaunches launches;
     private final Supplier<Constants> constants;
     private final List<Run> runs = new ArrayList<>();
     private SimBuild.Result lastCheck;
@@ -528,6 +529,7 @@ public final class SimBench {
         this.children = children;
         this.clock = clock;
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
+        this.launches = new SimLaunches(outputDir.resolve(SimLaunches.REMEMBERED_FILE), new OnDiskStore(), clock);
         this.constants = constants;
     }
 
@@ -619,6 +621,18 @@ public final class SimBench {
                         "/run",
                         (request, params) ->
                                 run(request.query("opmode"), request.query("mode"), request.query("begin"), startedBy))
+                .route("GET", "/launch/settings", (request, params) -> launches.settings())
+                .route("POST", "/launch/preview", (request, params) -> launches.preview(request.body))
+                .route("POST", "/launch", (request, params) -> launches.launch(request.body))
+                .route("GET", "/launches", (request, params) -> launches.listing())
+                .route("GET", "/launches/", (request, params) -> launches.viewer())
+                .route("GET", "/launches/{id}", (request, params) -> SimLaunches.toTheViewer("./#" + params.get("id")))
+                .route(
+                        "GET",
+                        "/launches/{id}/",
+                        (request, params) -> SimLaunches.toTheViewer("../#" + params.get("id")))
+                .route("GET", "/launches/{id}/shot", (request, params) -> launches.shot(params.get("id")))
+                .route("GET", "/launches/{id}/frames.csv", (request, params) -> launches.frames(params.get("id")))
                 .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
                 .route(
