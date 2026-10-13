@@ -4,11 +4,11 @@ public final class Pollen {
     public static final double THIN_SHELL = 2.0 / 3;
     public static final double GRAMS_PER_KILOGRAM = 1000;
 
-    private final double radius;
+    private final Length radius;
     private final double kilograms;
     private final double inertiaFactor;
 
-    private Pollen(double radius, double kilograms, double inertiaFactor) {
+    private Pollen(Length radius, double kilograms, double inertiaFactor) {
         this.radius = radius;
         this.kilograms = kilograms;
         this.inertiaFactor = inertiaFactor;
@@ -26,10 +26,15 @@ public final class Pollen {
             return Checked.rejected("a sphere's moment of inertia is more than 0 and at most 2/3 of m r^2, the thin"
                     + " shell's, so its inertia factor is not " + inertiaFactor);
         }
-        return Checked.ok(new Pollen(diameterInches / 2, grams / GRAMS_PER_KILOGRAM, inertiaFactor));
+        return Length.of(diameterInches / 2)
+                .map(radius -> new Pollen(radius, grams / GRAMS_PER_KILOGRAM, inertiaFactor));
     }
 
     public double radius() {
+        return radius.inches();
+    }
+
+    public Length radiusLength() {
         return radius;
     }
 
@@ -42,7 +47,7 @@ public final class Pollen {
     }
 
     public double radiusMetres() {
-        return radius * Length.METRES_PER_INCH;
+        return radius.inches() * Length.METRES_PER_INCH;
     }
 
     public double areaSquareMetres() {
@@ -58,19 +63,19 @@ public final class Pollen {
     @Override
     public boolean equals(Object other) {
         return other instanceof Pollen that
-                && Double.compare(radius, that.radius) == 0
+                && radius.equals(that.radius)
                 && Double.compare(kilograms, that.kilograms) == 0
                 && Double.compare(inertiaFactor, that.inertiaFactor) == 0;
     }
 
     @Override
     public int hashCode() {
-        return Double.hashCode(radius) * 31 * 31 + Double.hashCode(kilograms) * 31 + Double.hashCode(inertiaFactor);
+        return radius.hashCode() * 31 * 31 + Double.hashCode(kilograms) * 31 + Double.hashCode(inertiaFactor);
     }
 
     @Override
     public String toString() {
-        return "a pollen " + radius * 2 + " in across, " + kilograms * GRAMS_PER_KILOGRAM + " g, inertia "
+        return "a pollen " + radius.inches() * 2 + " in across, " + kilograms * GRAMS_PER_KILOGRAM + " g, inertia "
                 + inertiaFactor + " m r^2";
     }
 }

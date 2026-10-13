@@ -83,8 +83,8 @@ public class ShotSettingTest {
     @Test
     public void theSettingsAreTheDesignsWithItsDefaultsRangesAndUnitsInItsOrder() {
         List<String> expected = new ArrayList<>(List.of(
-                amount(ShotSetting.X, LAUNCHER, 55, -70, 70, "in"),
-                amount(ShotSetting.Y, LAUNCHER, -12.76, -70, 70, "in"),
+                amount(ShotSetting.X, LAUNCHER, 55, -69, 69, "in"),
+                amount(ShotSetting.Y, LAUNCHER, -12.76, -69, 69, "in"),
                 amount(ShotSetting.HEIGHT, LAUNCHER, 14, 2, 40, "in"),
                 amount(ShotSetting.YAW, LAUNCHER, 180, -180, 180, "deg"),
                 amount(ShotSetting.PITCH, LAUNCHER, 70, -30, 90, "deg"),

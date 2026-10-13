@@ -18,8 +18,12 @@ public final class Turn {
     }
 
     public Turn turnedBy(Vec3 spin, Seconds over) {
+        return turnedBy(spin, over.value());
+    }
+
+    Turn turnedBy(Vec3 spin, double seconds) {
         double rate = StrictMath.sqrt(spin.dot(spin));
-        double angle = rate * over.value();
+        double angle = rate * seconds;
         if (!(angle > 0) || !Double.isFinite(angle)) {
             return this;
         }

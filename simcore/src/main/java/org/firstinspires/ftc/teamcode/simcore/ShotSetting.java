@@ -13,8 +13,8 @@ public enum ShotSetting {
             "Where the pollen leaves the wheels, measured from the centre of the field toward the far wall;"
                     + " the audience's side is negative.",
             55,
-            -70,
-            70),
+            -69,
+            69),
     Y(
             Group.LAUNCHER,
             "Launcher y",
@@ -22,8 +22,8 @@ public enum ShotSetting {
             "Where the pollen leaves the wheels, measured from the centre of the field toward red's wall;"
                     + " blue's side is negative.",
             -12.76,
-            -70,
-            70),
+            -69,
+            69),
     HEIGHT(
             Group.LAUNCHER,
             "Exit height",
