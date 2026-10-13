@@ -61,6 +61,14 @@ final class SimLaunches {
             refusal.addProperty("rule", rule);
             return new Refused(refusal);
         }
+
+        static Asked unknown(String setting, String rule) {
+            JsonObject refusal = new JsonObject();
+            refusal.addProperty("setting", setting);
+            refusal.addProperty("rule", rule);
+            refusal.addProperty("unknown", setting);
+            return new Refused(refusal);
+        }
     }
 
     private final Path file;
@@ -220,7 +228,7 @@ final class SimLaunches {
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
             Checked<ShotSetting> named = ShotSetting.named(entry.getKey());
             if (!(named instanceof Checked.Ok<ShotSetting> ok)) {
-                return Asked.refused(entry.getKey(), rule(named));
+                return Asked.unknown(entry.getKey(), rule(named));
             }
             Optional<Double> number = numberIn(entry.getValue());
             if (number.isEmpty()) {

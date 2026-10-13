@@ -16,6 +16,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
     long MOST_WORK_PER_SECOND = 3_000_000L;
     double LEAST_SECONDS_OF_WORK = 0.1;
     String LAUNCHED = "the launched pollen";
+    double MILLISECONDS_PER_SECOND = 1000;
 
     Story story();
 
@@ -174,7 +175,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
 
             @Override
             public String says() {
-                return "was still moving after " + t;
+                return "was still moving after " + toTheMillisecond(t);
             }
         }
 
@@ -186,7 +187,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
 
             @Override
             public String says() {
-                return "was stopped after " + t + " for taking too much work: make the step longer";
+                return "was stopped after " + toTheMillisecond(t) + " for taking too much work: make the step longer";
             }
         }
     }
@@ -201,6 +202,10 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
 
     static Checked<Flying> launch(World world, Ball pollen, WheelPair.Launched launched) {
         return Flying.start(world, pollen, launched);
+    }
+
+    static String toTheMillisecond(Seconds t) {
+        return StrictMath.round(t.value() * MILLISECONDS_PER_SECOND) / MILLISECONDS_PER_SECOND + " s";
     }
 
     static boolean tooMuchWork(long work, Seconds simulated) {

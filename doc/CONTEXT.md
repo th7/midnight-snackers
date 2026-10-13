@@ -1762,10 +1762,10 @@ footprints and the tape are not among them. Class: `Colliders`, `Collider`, in t
 **Asleep** and **awake** — Of a piece in a shot: the loose pollen and the nectar in
 the cells lie **asleep** where a match starts them until something moving touches
 them, and are **awake** from then until they come to rest again; the pollen standing
-in the flowers are held in their bores and never move. Pieces touching one another
-wake together, as does a piece a moving body was holding up; a body at rest wakes
-nothing, so pieces resting against each other stay asleep. Method:
-`ShotRun.wake`.
+in the flowers are held in their bores and never move. A moving body wakes every
+piece it reaches through pieces touching one another, passing through any that are
+awake but resting, and a piece it was holding up; a body at rest wakes nothing, so
+pieces resting against each other stay asleep. Class: `Islands`, in the **core**.
 
 **Shot settings** — Every number a launch is made from, each with its group, label,
 unit, range, default and a sentence saying what it does, and checked whole: the

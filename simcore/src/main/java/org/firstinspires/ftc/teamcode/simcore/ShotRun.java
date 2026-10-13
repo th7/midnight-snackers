@@ -579,27 +579,25 @@ final class ShotRun {
     }
 
     private void wake() {
-        List<Body> waking = new ArrayList<>();
-        for (Body body : awake()) {
-            if (body.restFor == 0) {
-                waking.add(body);
+        List<Islands.Node> nodes = new ArrayList<>();
+        for (Body body : bodies) {
+            if (body.life == Life.GONE) {
+                continue;
             }
+            Islands.State state = body.life == Life.FIXED
+                    ? Islands.State.HELD
+                    : body.life == Life.ASLEEP
+                            ? Islands.State.ASLEEP
+                            : body.restFor == 0 ? Islands.State.MOVING : Islands.State.RESTING;
+            nodes.add(new Islands.Node(body.name, state, body.at, body.radius(), body.touchingBodies));
         }
-        while (!waking.isEmpty()) {
-            List<Body> woken = new ArrayList<>();
-            for (Body body : waking) {
-                for (Body other : bodies) {
-                    boolean holdingItUp = body.touchingBodies.contains(other.name);
-                    if (other.life == Life.ASLEEP
-                            && (holdingItUp || within(body.at, body, other.at, other, Shot.TOUCHING_IN))) {
-                        other.life = Life.AWAKE;
-                        other.restFor = 0;
-                        other.samples.add(new Placed(seconds(now), other.at, other.turn));
-                        woken.add(other);
-                    }
-                }
+        Set<String> waking = Islands.toWake(nodes, Shot.TOUCHING_IN);
+        for (Body body : bodies) {
+            if (body.life == Life.ASLEEP && waking.contains(body.name)) {
+                body.life = Life.AWAKE;
+                body.restFor = 0;
+                body.samples.add(new Placed(seconds(now), body.at, body.turn));
             }
-            waking = woken;
         }
     }
 

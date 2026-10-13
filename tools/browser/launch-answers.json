@@ -920,7 +920,7 @@
     "launches": [
       {
         "id": 2,
-        "at": 1791906256280,
+        "at": 1791907795905,
         "changed": {
           "pitch": 60.0,
           "pieces": 0.0,
@@ -939,8 +939,8 @@
           "at": null
         },
         "seconds": 0.5,
-        "computeSeconds": 0.016317208,
-        "realTime": 0.032634416,
+        "computeSeconds": 0.024532166,
+        "realTime": 0.049064332,
         "impacts": 1,
         "speed": 207.816,
         "spinRpm": 202.5,
@@ -951,7 +951,7 @@
       },
       {
         "id": 1,
-        "at": 1791906256256,
+        "at": 1791907795870,
         "changed": {
           "pieces": 0.0,
           "longest": 0.5
@@ -964,8 +964,8 @@
           "at": null
         },
         "seconds": 0.5,
-        "computeSeconds": 0.03834525,
-        "realTime": 0.0766905,
+        "computeSeconds": 0.052759833,
+        "realTime": 0.105519666,
         "impacts": 0,
         "speed": 207.816,
         "spinRpm": 202.5,
@@ -979,5 +979,10 @@
   "refused": {
     "setting": "pitch",
     "rule": "Pitch is from -30.0 to 90.0 deg, not 95.0"
+  },
+  "unknown": {
+    "setting": "spin_rate",
+    "rule": "a launch setting is x, y, height, yaw, pitch, roll, wheel_one_rpm, wheel_two_rpm, wheel_one_diameter, wheel_two_diameter, ticks_per_rev, speed_efficiency, spin_efficiency, compression, wheels_slow, wheel_inertia, robot_vx, robot_vy, diameter, mass, inertia, pieces, nectar_mass, blue_hive_tipped, red_hive_tipped, temperature, elevation, humidity, wind_x, wind_y, drag, drag_per_spin, lift_slope, lift_limit, spin_down, added_mass, floor_bounce, floor_friction, floor_grip, wall_bounce, wall_friction, wall_grip, frame_bounce, frame_friction, frame_grip, flower_bounce, flower_friction, flower_grip, cell_bounce, cell_friction, cell_grip, piece_bounce, piece_friction, piece_grip, bounce_loss, bounce_threshold, impact_twist, spin_twist, rolling_resistance, step, longest, not \u0027spin_rate\u0027",
+    "unknown": "spin_rate"
   }
 }

@@ -35,7 +35,8 @@ public class LaunchSimIsStrictTest {
             "World",
             "Shot",
             "ShotRun",
-            "ShotSetup");
+            "ShotSetup",
+            "Islands");
 
     private static List<Path> classFilesOf(String type) throws IOException, URISyntaxException {
         Path directory = Path.of(Shot.class.getResource("Shot.class").toURI()).getParent();

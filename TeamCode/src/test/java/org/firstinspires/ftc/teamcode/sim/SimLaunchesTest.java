@@ -168,8 +168,10 @@ public class SimLaunchesTest {
         assertEquals("pitch", said.get("setting").getAsString());
         assertTrue(
                 said.get("rule").getAsString(), said.get("rule").getAsString().contains("95"));
-        assertEquals(
-                "nope", json(post("/launch", "{\"nope\": 1}")).get("setting").getAsString());
+        JsonObject unknown = json(post("/launch", "{\"nope\": 1}"));
+        assertEquals("nope", unknown.get("setting").getAsString());
+        assertEquals("nope", unknown.get("unknown").getAsString());
+        assertFalse(said.has("unknown"));
         assertEquals(400, post("/launch", "{\"pitch\": \"high\"}").status);
         assertEquals(400, post("/launch", "not json").status);
         assertEquals(400, post("/launch/preview", "{\"pitch\": 95}").status);

@@ -442,6 +442,8 @@ public class ShotTest {
         assertTrue(over.says(), over.says().startsWith("left the field over "));
         assertEquals("floor", new Shot.Finish.AtRest(Vec3.zero(), seconds(1), new Shot.Resting.OnTheFloor()).kind());
         assertEquals("time", new Shot.Finish.OutOfTime(seconds(8)).kind());
+        assertEquals("was still moving after 0.7 s", new Shot.Finish.OutOfTime(seconds(0.7000000000000001)).says());
+        assertTrue(new Shot.Finish.TooMuchWork(seconds(0.1 + 0.2)).says().startsWith("was stopped after 0.3 s "));
         assertEquals("work", new Shot.Finish.TooMuchWork(seconds(2)).kind());
     }
 

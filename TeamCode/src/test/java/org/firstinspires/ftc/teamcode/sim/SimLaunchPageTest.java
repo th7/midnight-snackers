@@ -188,6 +188,11 @@ public class SimLaunchPageTest {
                 gson.fromJson(
                         routes.handle(TinyHttpServer.Request.of("POST", "/launch", "{\"pitch\": 95}")).body,
                         JsonElement.class));
+        answers.add(
+                "unknown",
+                gson.fromJson(
+                        routes.handle(TinyHttpServer.Request.of("POST", "/launch", "{\"spin_rate\": 1}")).body,
+                        JsonElement.class));
         return new com.google.gson.GsonBuilder()
                 .serializeNulls()
                 .setPrettyPrinting()
