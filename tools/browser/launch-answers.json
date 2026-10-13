@@ -1,0 +1,983 @@
+{
+  "settings": {
+    "groups": [
+      {
+        "name": "launcher",
+        "label": "Launcher",
+        "says": "Where the launcher is, which way it points, and how its two wheels throw.",
+        "open": true
+      },
+      {
+        "name": "pollen",
+        "label": "Pollen and pieces",
+        "says": "The pollen that is launched, and the pieces on the field it may hit.",
+        "open": true
+      },
+      {
+        "name": "field",
+        "label": "Field",
+        "says": "How the field is set up: whether either hive has been tipped.",
+        "open": true
+      },
+      {
+        "name": "air",
+        "label": "Air",
+        "says": "The air the pollen flies through: how thick it is, and any wind.",
+        "open": false
+      },
+      {
+        "name": "flight",
+        "label": "Flight model",
+        "says": "How the air acts on a flying pollen: drag slows it, spin lifts it or dips it, and the air slows the spin.",
+        "open": false
+      },
+      {
+        "name": "bounce",
+        "label": "Bounce",
+        "says": "How a pollen bounces off each surface: how much speed it keeps, how hard the surface rubs on it, and how much of its spin springs back.",
+        "open": false
+      },
+      {
+        "name": "contact",
+        "label": "Contact",
+        "says": "What every contact shares: how bounce falls off with speed, when a hit is too slow to bounce, and how a pollen that is touching something stops spinning and rolling.",
+        "open": false
+      },
+      {
+        "name": "simulation",
+        "label": "Simulation",
+        "says": "How finely the shot is worked out, and for how long.",
+        "open": false
+      }
+    ],
+    "settings": [
+      {
+        "name": "x",
+        "group": "launcher",
+        "label": "Launcher x",
+        "unit": "in",
+        "says": "Where the pollen leaves the wheels, measured from the centre of the field toward the far wall; the audience\u0027s side is negative.",
+        "least": -69.0,
+        "most": 69.0,
+        "byDefault": 55.0,
+        "switch": false,
+        "value": 55.0
+      },
+      {
+        "name": "y",
+        "group": "launcher",
+        "label": "Launcher y",
+        "unit": "in",
+        "says": "Where the pollen leaves the wheels, measured from the centre of the field toward red\u0027s wall; blue\u0027s side is negative.",
+        "least": -69.0,
+        "most": 69.0,
+        "byDefault": -12.76,
+        "switch": false,
+        "value": -12.76
+      },
+      {
+        "name": "height",
+        "group": "launcher",
+        "label": "Exit height",
+        "unit": "in",
+        "says": "How high above the floor the pollen\u0027s centre is as it leaves the wheels.",
+        "least": 2.0,
+        "most": 40.0,
+        "byDefault": 14.0,
+        "switch": false,
+        "value": 14.0
+      },
+      {
+        "name": "yaw",
+        "group": "launcher",
+        "label": "Yaw",
+        "unit": "deg",
+        "says": "Which way the launcher points, turning left from the far wall: 90 points at red\u0027s wall, 180 at the audience and -90 at blue\u0027s wall.",
+        "least": -180.0,
+        "most": 180.0,
+        "byDefault": 180.0,
+        "switch": false,
+        "value": 180.0
+      },
+      {
+        "name": "pitch",
+        "group": "launcher",
+        "label": "Pitch",
+        "unit": "deg",
+        "says": "How steeply the pollen is thrown: 0 is level, 90 is straight up and below 0 is downward.",
+        "least": -30.0,
+        "most": 90.0,
+        "byDefault": 70.0,
+        "switch": false,
+        "value": 70.0
+      },
+      {
+        "name": "roll",
+        "group": "launcher",
+        "label": "Roll",
+        "unit": "deg",
+        "says": "Where wheel one sits around the pollen, turning about the way it is thrown: 0 puts it on top, 90 on the left and 180 underneath, and the spin the wheels give turns with it.",
+        "least": -180.0,
+        "most": 180.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "wheel_one_rpm",
+        "group": "launcher",
+        "label": "Wheel one speed",
+        "unit": "rpm",
+        "says": "How fast wheel one turns. With wheel one on top, a faster wheel one gives topspin, which dips the shot, and a slower one gives backspin, which lifts it.",
+        "least": 0.0,
+        "most": 6000.0,
+        "byDefault": 900.0,
+        "switch": false,
+        "value": 900.0
+      },
+      {
+        "name": "wheel_two_rpm",
+        "group": "launcher",
+        "label": "Wheel two speed",
+        "unit": "rpm",
+        "says": "How fast wheel two, across the pollen from wheel one, turns. The pollen leaves at the two wheels\u0027 average surface speed and spins by their difference.",
+        "least": 0.0,
+        "most": 6000.0,
+        "byDefault": 1200.0,
+        "switch": false,
+        "value": 1200.0
+      },
+      {
+        "name": "wheel_one_diameter",
+        "group": "launcher",
+        "label": "Wheel one diameter",
+        "unit": "in",
+        "says": "How big wheel one is across: a bigger wheel\u0027s surface moves faster at the same rpm.",
+        "least": 1.5,
+        "most": 6.0,
+        "byDefault": 3.78,
+        "switch": false,
+        "value": 3.78
+      },
+      {
+        "name": "wheel_two_diameter",
+        "group": "launcher",
+        "label": "Wheel two diameter",
+        "unit": "in",
+        "says": "How big wheel two is across: a bigger wheel\u0027s surface moves faster at the same rpm.",
+        "least": 1.5,
+        "most": 6.0,
+        "byDefault": 3.78,
+        "switch": false,
+        "value": 3.78
+      },
+      {
+        "name": "ticks_per_rev",
+        "group": "launcher",
+        "label": "Encoder ticks per turn",
+        "unit": "ticks",
+        "says": "How many encoder ticks a wheel\u0027s motor counts as its wheel turns once. It only changes what the form shows: each wheel\u0027s speed in ticks a second, as a motor\u0027s setVelocity takes it.",
+        "least": 1.0,
+        "most": 10000.0,
+        "byDefault": 28.0,
+        "switch": false,
+        "value": 28.0
+      },
+      {
+        "name": "speed_efficiency",
+        "group": "launcher",
+        "label": "Speed efficiency",
+        "unit": "",
+        "says": "How much of the wheels\u0027 average surface speed the pollen leaves with: 1 is all of it, and slip between the wheels and the pollen makes it less.",
+        "least": 0.3,
+        "most": 1.0,
+        "byDefault": 1.0,
+        "switch": false,
+        "value": 1.0
+      },
+      {
+        "name": "spin_efficiency",
+        "group": "launcher",
+        "label": "Spin efficiency",
+        "unit": "",
+        "says": "How much of the spin the wheels\u0027 difference in speed would give the pollen it leaves with: 1 is all of it.",
+        "least": 0.3,
+        "most": 1.0,
+        "byDefault": 1.0,
+        "switch": false,
+        "value": 1.0
+      },
+      {
+        "name": "compression",
+        "group": "launcher",
+        "label": "Compression",
+        "unit": "in",
+        "says": "How much the wheels squeeze the pollen: the gap between them is its diameter less this. A tighter squeeze spins it faster for the same difference in wheel speed.",
+        "least": 0.0,
+        "most": 0.6,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "wheels_slow",
+        "group": "launcher",
+        "label": "Wheels slow down",
+        "unit": "",
+        "says": "When on, each wheel loses some of its speed as it throws the pollen, as much as its inertia says, so the pollen leaves slower; when off, the wheels keep their speed.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.0,
+        "switch": true,
+        "value": 0.0
+      },
+      {
+        "name": "wheel_inertia",
+        "group": "launcher",
+        "label": "Wheel inertia",
+        "unit": "lb in^2",
+        "says": "How hard each wheel, with its flywheel, is to slow down. It counts only when Wheels slow down is on: a heavier wheel loses less speed to the pollen.",
+        "least": 0.05,
+        "most": 5.0,
+        "byDefault": 0.95,
+        "switch": false,
+        "value": 0.95
+      },
+      {
+        "name": "robot_vx",
+        "group": "launcher",
+        "label": "Robot speed x",
+        "unit": "in/s",
+        "says": "How fast the robot is driving toward the far wall as it launches; the pollen leaves with the robot\u0027s speed added to its own.",
+        "least": -120.0,
+        "most": 120.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "robot_vy",
+        "group": "launcher",
+        "label": "Robot speed y",
+        "unit": "in/s",
+        "says": "How fast the robot is driving toward red\u0027s wall as it launches; the pollen leaves with the robot\u0027s speed added to its own.",
+        "least": -120.0,
+        "most": 120.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "diameter",
+        "group": "pollen",
+        "label": "Pollen diameter",
+        "unit": "in",
+        "says": "How big the launched pollen is across. A bigger ball meets more air, and the wheels spin it less for the same difference in their speeds.",
+        "least": 2.6,
+        "most": 3.0,
+        "byDefault": 2.8,
+        "switch": false,
+        "value": 2.8
+      },
+      {
+        "name": "mass",
+        "group": "pollen",
+        "label": "Pollen mass",
+        "unit": "g",
+        "says": "How heavy the launched pollen is: 24.9 g is 0.055 lb. The air slows a lighter ball more.",
+        "least": 20.0,
+        "most": 30.0,
+        "byDefault": 24.9,
+        "switch": false,
+        "value": 24.9
+      },
+      {
+        "name": "inertia",
+        "group": "pollen",
+        "label": "Pollen inertia",
+        "unit": "of m r^2",
+        "says": "How hard the pollen is to set spinning, as a share of its mass times its radius squared: a solid ball is 0.4 and a thin hollow shell 2/3, and the pollen\u0027s thick shell makes it 0.634.",
+        "least": 0.4,
+        "most": 0.6666666666666666,
+        "byDefault": 0.634,
+        "switch": false,
+        "value": 0.634
+      },
+      {
+        "name": "pieces",
+        "group": "pollen",
+        "label": "Pieces on the field",
+        "unit": "",
+        "says": "When on, the pollen and nectar where a match starts are on the field, and the launched pollen can hit them and knock them about; when off, the field is empty.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 1.0,
+        "switch": true,
+        "value": 1.0
+      },
+      {
+        "name": "nectar_mass",
+        "group": "pollen",
+        "label": "Nectar mass",
+        "unit": "g",
+        "says": "How heavy each nectar on the field is: 41.3 g is 0.091 lb. A heavier one moves less when the pollen hits it.",
+        "least": 30.0,
+        "most": 55.0,
+        "byDefault": 41.3,
+        "switch": false,
+        "value": 41.3
+      },
+      {
+        "name": "blue_hive_tipped",
+        "group": "field",
+        "label": "Blue hive tipped",
+        "unit": "",
+        "says": "When on, blue\u0027s hive is tipped the other way, so its other cell is the one that faces up and scores.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.0,
+        "switch": true,
+        "value": 0.0
+      },
+      {
+        "name": "red_hive_tipped",
+        "group": "field",
+        "label": "Red hive tipped",
+        "unit": "",
+        "says": "When on, red\u0027s hive is tipped the other way, so its other cell is the one that faces up and scores.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.0,
+        "switch": true,
+        "value": 0.0
+      },
+      {
+        "name": "temperature",
+        "group": "air",
+        "label": "Temperature",
+        "unit": "C",
+        "says": "How warm the air is. Warmer air is thinner, so it holds the pollen back a little less.",
+        "least": -10.0,
+        "most": 45.0,
+        "byDefault": 20.0,
+        "switch": false,
+        "value": 20.0
+      },
+      {
+        "name": "elevation",
+        "group": "air",
+        "label": "Elevation",
+        "unit": "m",
+        "says": "How high above sea level the field is. The air is thinner higher up, so the pollen flies a little farther.",
+        "least": -100.0,
+        "most": 3000.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "humidity",
+        "group": "air",
+        "label": "Humidity",
+        "unit": "%",
+        "says": "How damp the air is, as relative humidity. Damp air is a little thinner than dry air.",
+        "least": 0.0,
+        "most": 100.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "wind_x",
+        "group": "air",
+        "label": "Wind x",
+        "unit": "in/s",
+        "says": "How fast the air is moving toward the far wall, from a fan or a draught; it carries the pollen along with it.",
+        "least": -200.0,
+        "most": 200.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "wind_y",
+        "group": "air",
+        "label": "Wind y",
+        "unit": "in/s",
+        "says": "How fast the air is moving toward red\u0027s wall, from a fan or a draught; it carries the pollen along with it.",
+        "least": -200.0,
+        "most": 200.0,
+        "byDefault": 0.0,
+        "switch": false,
+        "value": 0.0
+      },
+      {
+        "name": "drag",
+        "group": "flight",
+        "label": "Drag",
+        "unit": "",
+        "says": "How hard the air holds the pollen back, as its drag coefficient when it is not spinning: 0.45 is a 26-hole pickleball\u0027s, measured in flight.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.45,
+        "switch": false,
+        "value": 0.45
+      },
+      {
+        "name": "drag_per_spin",
+        "group": "flight",
+        "label": "Drag per spin",
+        "unit": "",
+        "says": "How much harder the air holds back a spinning pollen: the drag coefficient grows by this for each unit of spin, measured as how fast its surface turns over how fast it flies.",
+        "least": 0.0,
+        "most": 0.5,
+        "byDefault": 0.15,
+        "switch": false,
+        "value": 0.15
+      },
+      {
+        "name": "lift_slope",
+        "group": "flight",
+        "label": "Lift slope",
+        "unit": "",
+        "says": "How much lift a little spin makes: the lift coefficient for each unit of spin while the spin is small. Lift pushes a backspinning pollen up and a topspinning one down.",
+        "least": 0.5,
+        "most": 5.0,
+        "byDefault": 2.0,
+        "switch": false,
+        "value": 2.0
+      },
+      {
+        "name": "lift_limit",
+        "group": "flight",
+        "label": "Lift limit",
+        "unit": "",
+        "says": "The most lift spin can make, as a lift coefficient: lift grows with spin and levels off toward this.",
+        "least": 0.1,
+        "most": 1.0,
+        "byDefault": 0.4,
+        "switch": false,
+        "value": 0.4
+      },
+      {
+        "name": "spin_down",
+        "group": "flight",
+        "label": "Spin-down",
+        "unit": "",
+        "says": "How quickly the air slows the pollen\u0027s spin as it flies: the faster it flies, the sooner its spin dies away.",
+        "least": 0.0,
+        "most": 0.05,
+        "byDefault": 0.012,
+        "switch": false,
+        "value": 0.012
+      },
+      {
+        "name": "added_mass",
+        "group": "flight",
+        "label": "Added mass",
+        "unit": "",
+        "says": "How much of the air around the pollen it drags along, as a share of the air it pushes aside: 0.5 is a sphere\u0027s. It makes the ball a little harder to speed up or slow down.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.5,
+        "switch": false,
+        "value": 0.5
+      },
+      {
+        "name": "floor_bounce",
+        "group": "bounce",
+        "label": "Floor bounce",
+        "unit": "",
+        "says": "How much of its speed into the floor a pollen keeps as it bounces back, when it hits at 244 in/s: 1 keeps it all and 0 none, and a harder hit keeps a little less.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.55,
+        "switch": false,
+        "value": 0.55,
+        "surface": "floor",
+        "property": "bounce"
+      },
+      {
+        "name": "floor_friction",
+        "group": "bounce",
+        "label": "Floor friction",
+        "unit": "",
+        "says": "How hard the floor rubs on a pollen sliding along it as they touch, as a friction coefficient: the harder the rub, the more of the slide turns into spin.",
+        "least": 0.0,
+        "most": 1.5,
+        "byDefault": 0.5,
+        "switch": false,
+        "value": 0.5,
+        "surface": "floor",
+        "property": "friction"
+      },
+      {
+        "name": "floor_grip",
+        "group": "bounce",
+        "label": "Floor grip",
+        "unit": "",
+        "says": "How much of a pollen\u0027s slide and spin along the floor springs back the other way when the bounce grips: 0 leaves it rolling and 1 throws it all back.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.2,
+        "switch": false,
+        "value": 0.2,
+        "surface": "floor",
+        "property": "grip"
+      },
+      {
+        "name": "wall_bounce",
+        "group": "bounce",
+        "label": "Wall bounce",
+        "unit": "",
+        "says": "How much of its speed into a wall a pollen keeps as it bounces back, when it hits at 244 in/s: 1 keeps it all and 0 none, and a harder hit keeps a little less.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.5,
+        "switch": false,
+        "value": 0.5,
+        "surface": "wall",
+        "property": "bounce"
+      },
+      {
+        "name": "wall_friction",
+        "group": "bounce",
+        "label": "Wall friction",
+        "unit": "",
+        "says": "How hard a wall rubs on a pollen sliding along it as they touch, as a friction coefficient: the harder the rub, the more of the slide turns into spin.",
+        "least": 0.0,
+        "most": 1.5,
+        "byDefault": 0.3,
+        "switch": false,
+        "value": 0.3,
+        "surface": "wall",
+        "property": "friction"
+      },
+      {
+        "name": "wall_grip",
+        "group": "bounce",
+        "label": "Wall grip",
+        "unit": "",
+        "says": "How much of a pollen\u0027s slide and spin along a wall springs back the other way when the bounce grips: 0 leaves it rolling and 1 throws it all back.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.15,
+        "switch": false,
+        "value": 0.15,
+        "surface": "wall",
+        "property": "grip"
+      },
+      {
+        "name": "frame_bounce",
+        "group": "bounce",
+        "label": "Frame bounce",
+        "unit": "",
+        "says": "How much of its speed into the metal frame a pollen keeps as it bounces back, when it hits at 244 in/s: 1 keeps it all and 0 none, and a harder hit keeps a little less.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.62,
+        "switch": false,
+        "value": 0.62,
+        "surface": "frame",
+        "property": "bounce"
+      },
+      {
+        "name": "frame_friction",
+        "group": "bounce",
+        "label": "Frame friction",
+        "unit": "",
+        "says": "How hard the metal frame rubs on a pollen sliding along it as they touch, as a friction coefficient: the harder the rub, the more of the slide turns into spin.",
+        "least": 0.0,
+        "most": 1.5,
+        "byDefault": 0.35,
+        "switch": false,
+        "value": 0.35,
+        "surface": "frame",
+        "property": "friction"
+      },
+      {
+        "name": "frame_grip",
+        "group": "bounce",
+        "label": "Frame grip",
+        "unit": "",
+        "says": "How much of a pollen\u0027s slide and spin along the metal frame springs back the other way when the bounce grips: 0 leaves it rolling and 1 throws it all back.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.15,
+        "switch": false,
+        "value": 0.15,
+        "surface": "frame",
+        "property": "grip"
+      },
+      {
+        "name": "flower_bounce",
+        "group": "bounce",
+        "label": "Flower bounce",
+        "unit": "",
+        "says": "How much of its speed into a flower a pollen keeps as it bounces back, when it hits at 244 in/s: 1 keeps it all and 0 none, and a harder hit keeps a little less.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.55,
+        "switch": false,
+        "value": 0.55,
+        "surface": "flower",
+        "property": "bounce"
+      },
+      {
+        "name": "flower_friction",
+        "group": "bounce",
+        "label": "Flower friction",
+        "unit": "",
+        "says": "How hard a flower rubs on a pollen sliding along it as they touch, as a friction coefficient: the harder the rub, the more of the slide turns into spin.",
+        "least": 0.0,
+        "most": 1.5,
+        "byDefault": 0.35,
+        "switch": false,
+        "value": 0.35,
+        "surface": "flower",
+        "property": "friction"
+      },
+      {
+        "name": "flower_grip",
+        "group": "bounce",
+        "label": "Flower grip",
+        "unit": "",
+        "says": "How much of a pollen\u0027s slide and spin along a flower springs back the other way when the bounce grips: 0 leaves it rolling and 1 throws it all back.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.15,
+        "switch": false,
+        "value": 0.15,
+        "surface": "flower",
+        "property": "grip"
+      },
+      {
+        "name": "cell_bounce",
+        "group": "bounce",
+        "label": "Cell bounce",
+        "unit": "",
+        "says": "How much of its speed into a cell a pollen keeps as it bounces back, when it hits at 244 in/s: 1 keeps it all and 0 none, and a harder hit keeps a little less.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.5,
+        "switch": false,
+        "value": 0.5,
+        "surface": "cell",
+        "property": "bounce"
+      },
+      {
+        "name": "cell_friction",
+        "group": "bounce",
+        "label": "Cell friction",
+        "unit": "",
+        "says": "How hard a cell rubs on a pollen sliding along it as they touch, as a friction coefficient: the harder the rub, the more of the slide turns into spin.",
+        "least": 0.0,
+        "most": 1.5,
+        "byDefault": 0.3,
+        "switch": false,
+        "value": 0.3,
+        "surface": "cell",
+        "property": "friction"
+      },
+      {
+        "name": "cell_grip",
+        "group": "bounce",
+        "label": "Cell grip",
+        "unit": "",
+        "says": "How much of a pollen\u0027s slide and spin along a cell springs back the other way when the bounce grips: 0 leaves it rolling and 1 throws it all back.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.15,
+        "switch": false,
+        "value": 0.15,
+        "surface": "cell",
+        "property": "grip"
+      },
+      {
+        "name": "piece_bounce",
+        "group": "bounce",
+        "label": "Ball on ball bounce",
+        "unit": "",
+        "says": "How much of its speed into another ball a pollen keeps as it bounces back, when it hits at 244 in/s: 1 keeps it all and 0 none, and a harder hit keeps a little less.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.55,
+        "switch": false,
+        "value": 0.55,
+        "surface": "piece",
+        "property": "bounce"
+      },
+      {
+        "name": "piece_friction",
+        "group": "bounce",
+        "label": "Ball on ball friction",
+        "unit": "",
+        "says": "How hard another ball rubs on a pollen sliding along it as they touch, as a friction coefficient: the harder the rub, the more of the slide turns into spin.",
+        "least": 0.0,
+        "most": 1.5,
+        "byDefault": 0.3,
+        "switch": false,
+        "value": 0.3,
+        "surface": "piece",
+        "property": "friction"
+      },
+      {
+        "name": "piece_grip",
+        "group": "bounce",
+        "label": "Ball on ball grip",
+        "unit": "",
+        "says": "How much of a pollen\u0027s slide and spin along another ball springs back the other way when the bounce grips: 0 leaves it rolling and 1 throws it all back.",
+        "least": 0.0,
+        "most": 1.0,
+        "byDefault": 0.15,
+        "switch": false,
+        "value": 0.15,
+        "surface": "piece",
+        "property": "grip"
+      },
+      {
+        "name": "bounce_loss",
+        "group": "contact",
+        "label": "Bounce loss",
+        "unit": "per 100 in/s",
+        "says": "How much less of its speed a pollen keeps from a bounce for each 100 in/s faster it hits than 244 in/s, and how much more for each 100 in/s slower.",
+        "least": 0.0,
+        "most": 0.2,
+        "byDefault": 0.038,
+        "switch": false,
+        "value": 0.038
+      },
+      {
+        "name": "bounce_threshold",
+        "group": "contact",
+        "label": "Bounce threshold",
+        "unit": "in/s",
+        "says": "The slowest a pollen can hit something and still bounce off it; a slower hit settles against it.",
+        "least": 0.5,
+        "most": 25.0,
+        "byDefault": 4.0,
+        "switch": false,
+        "value": 4.0
+      },
+      {
+        "name": "impact_twist",
+        "group": "contact",
+        "label": "Impact twist",
+        "unit": "in",
+        "says": "How much a bounce slows the pollen\u0027s spin about the line to what it hits, like a top\u0027s: the lever the rub at the contact works with.",
+        "least": 0.0,
+        "most": 0.3,
+        "byDefault": 0.1,
+        "switch": false,
+        "value": 0.1
+      },
+      {
+        "name": "spin_twist",
+        "group": "contact",
+        "label": "Spin twist",
+        "unit": "in",
+        "says": "How quickly a pollen resting or rolling on something stops spinning on it like a top: the lever the rub at the contact works with.",
+        "least": 0.0,
+        "most": 0.2,
+        "byDefault": 0.06,
+        "switch": false,
+        "value": 0.06
+      },
+      {
+        "name": "rolling_resistance",
+        "group": "contact",
+        "label": "Rolling resistance",
+        "unit": "",
+        "says": "How quickly a rolling pollen slows, as a share of gravity: 0.04 takes about 15 in/s off its speed every second.",
+        "least": 0.0,
+        "most": 0.2,
+        "byDefault": 0.04,
+        "switch": false,
+        "value": 0.04
+      },
+      {
+        "name": "step",
+        "group": "simulation",
+        "label": "Step",
+        "unit": "ms",
+        "says": "How much time the simulation moves on at once. A shorter step is more exact and takes more work, and a shot that takes too much work is stopped.",
+        "least": 0.01,
+        "most": 2.0,
+        "byDefault": 0.1,
+        "switch": false,
+        "value": 0.1
+      },
+      {
+        "name": "longest",
+        "group": "simulation",
+        "label": "Longest shot",
+        "unit": "s",
+        "says": "The longest a shot is followed; a pollen still moving then has run out of time.",
+        "least": 0.5,
+        "most": 20.0,
+        "byDefault": 8.0,
+        "switch": false,
+        "value": 8.0
+      }
+    ],
+    "surfaces": [
+      {
+        "name": "floor",
+        "label": "Floor",
+        "says": "The soft foam tiles the field is laid with."
+      },
+      {
+        "name": "wall",
+        "label": "Walls",
+        "says": "The perimeter: polycarbonate panels between aluminium rails."
+      },
+      {
+        "name": "frame",
+        "label": "Frame",
+        "says": "Metal: the A-frame the hives hang from, and the hives\u0027 own tubes, brackets and tag plates."
+      },
+      {
+        "name": "flower",
+        "label": "Flowers",
+        "says": "The flowers\u0027 HIPS pipes and the plates that hold them."
+      },
+      {
+        "name": "cell",
+        "label": "Cells",
+        "says": "The walls and backs of the hives\u0027 cells, which a scored ball lands in."
+      },
+      {
+        "name": "piece",
+        "label": "Pieces",
+        "says": "Another ball: polyethylene on polyethylene, when the launched pollen meets a piece or two pieces meet."
+      }
+    ],
+    "forgot": ""
+  },
+  "preview": {
+    "speed": 207.81635403496477,
+    "spinRpm": 202.50000000000003,
+    "spinKind": "backspin",
+    "spinParameter": 0.14285714285714288,
+    "surfaces": [
+      178.12830345854124,
+      237.50440461138834
+    ],
+    "after": [
+      178.1283034585412,
+      237.50440461138834
+    ],
+    "ticksPerSecond": [
+      420.0,
+      560.0
+    ],
+    "at": [
+      55.0,
+      -12.76,
+      14.0
+    ],
+    "direction": [
+      -0.34202,
+      0.0,
+      0.939693
+    ],
+    "aims": [
+      {
+        "cell": "Blue Cell (Audience) \u003c1\u003e",
+        "alliance": "Blue",
+        "upturned": false,
+        "yaw": -179.99018829126538,
+        "distance": 75.91390627831711,
+        "height": 37.253946330827915
+      },
+      {
+        "cell": "Blue Cell (Scoring) \u003c1\u003e",
+        "alliance": "Blue",
+        "upturned": true,
+        "yaw": -179.9807752611361,
+        "distance": 38.7440970157634,
+        "height": 58.71394633082792
+      },
+      {
+        "cell": "Red Cell (Audience) \u003c1\u003e",
+        "alliance": "Red",
+        "upturned": true,
+        "yaw": 160.31875211035165,
+        "distance": 75.67688676150718,
+        "height": 58.713946330827916
+      },
+      {
+        "cell": "Red Cell (Scoring) \u003c1\u003e",
+        "alliance": "Red",
+        "upturned": false,
+        "yaw": 143.21364338119585,
+        "distance": 42.561121109364834,
+        "height": 37.253946330827915
+      }
+    ]
+  },
+  "launches": {
+    "launches": [
+      {
+        "id": 2,
+        "at": 1791904961282,
+        "changed": {
+          "pitch": 60.0,
+          "pieces": 0.0,
+          "longest": 0.5
+        },
+        "sinceBefore": {
+          "pitch": [
+            70.0,
+            60.0
+          ]
+        },
+        "ending": {
+          "kind": "time",
+          "says": "was still moving after 0.5 s",
+          "t": 0.5,
+          "at": null
+        },
+        "seconds": 0.5,
+        "computeSeconds": 0.020917083,
+        "realTime": 0.041834166,
+        "impacts": 1,
+        "speed": 207.816,
+        "spinRpm": 202.5,
+        "spinKind": "backspin",
+        "apex": 52.097,
+        "firstBounce": null,
+        "crossings": 0
+      },
+      {
+        "id": 1,
+        "at": 1791904961253,
+        "changed": {
+          "pieces": 0.0,
+          "longest": 0.5
+        },
+        "sinceBefore": {},
+        "ending": {
+          "kind": "time",
+          "says": "was still moving after 0.5 s",
+          "t": 0.5,
+          "at": null
+        },
+        "seconds": 0.5,
+        "computeSeconds": 0.036354208,
+        "realTime": 0.072708416,
+        "impacts": 0,
+        "speed": 207.816,
+        "spinRpm": 202.5,
+        "spinKind": "backspin",
+        "apex": 61.644,
+        "firstBounce": null,
+        "crossings": 0
+      }
+    ]
+  },
+  "refused": {
+    "setting": "pitch",
+    "rule": "Pitch is from -30.0 to 90.0 deg, not 95.0"
+  }
+}

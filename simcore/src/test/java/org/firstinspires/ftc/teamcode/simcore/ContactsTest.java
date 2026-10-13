@@ -15,8 +15,8 @@ public class ContactsTest {
     private static final Contacts.Against FLOOR = new Contacts.Against.Fixed("the floor", Surface.FLOOR);
     private static final Contacts.Against WALL = new Contacts.Against.Fixed("the audience's wall", Surface.WALL);
 
-    private static Pollen pollen(double inertiaFactor) {
-        return Valid.value(Pollen.of(2.8, 24.9, inertiaFactor));
+    private static Ball pollen(double inertiaFactor) {
+        return Valid.value(Ball.of(2.8, 24.9, inertiaFactor));
     }
 
     private static Bounce bounce(double restitution, double friction, double grip) {
@@ -28,7 +28,7 @@ public class ContactsTest {
                 bounce, bounce, bounce, bounce, bounce, bounce, 0, 4, impactTwist, spinTwist, rollingResistance));
     }
 
-    private static Contacts.Body body(String name, Pollen shape, Vec3 velocity, Vec3 spin) {
+    private static Contacts.Body body(String name, Ball shape, Vec3 velocity, Vec3 spin) {
         return new Contacts.Body(name, shape, velocity, spin);
     }
 
@@ -60,7 +60,7 @@ public class ContactsTest {
         return vector.minus(normal.times(vector.dot(normal)));
     }
 
-    private static double inertia(Pollen shape) {
+    private static double inertia(Ball shape) {
         return shape.inertiaFactor() * shape.kilograms() * shape.radius() * shape.radius();
     }
 
@@ -84,7 +84,7 @@ public class ContactsTest {
     private record Walton(Vec3 velocity, Vec3 spin, double normalImpulse, boolean grips) {}
 
     private static Walton walton(
-            Pollen shape, Vec3 velocity, Vec3 spin, Vec3 normal, double restitution, double friction, double grip) {
+            Ball shape, Vec3 velocity, Vec3 spin, Vec3 normal, double restitution, double friction, double grip) {
         double m = shape.kilograms(), r = shape.radius(), alpha = shape.inertiaFactor();
         Vec3 arm = normal.times(-r);
         Vec3 c = velocity.plus(spin.cross(arm));
@@ -110,8 +110,8 @@ public class ContactsTest {
         return new Vec3(random.nextGaussian(), random.nextGaussian(), random.nextGaussian()).unit();
     }
 
-    private static Pollen randomPollen(Random random) {
-        return Valid.value(Pollen.of(
+    private static Ball randomPollen(Random random) {
+        return Valid.value(Ball.of(
                 2.6 + random.nextDouble(), 20 + 35 * random.nextDouble(), 0.4 + random.nextDouble() * (2.0 / 3 - 0.4)));
     }
 
@@ -125,7 +125,7 @@ public class ContactsTest {
 
     @Test
     public void aFreshImpactThatCanGripIsWaltonsMapGripping() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Vec3 normal = new Vec3(0.3, -0.2, 1).unit();
         Vec3 velocity = new Vec3(60, -30, -200), spin = new Vec3(5, -12, 3);
         Walton expected = walton(shape, velocity, spin, normal, 0.55, 0.5, 0.2);
@@ -159,7 +159,7 @@ public class ContactsTest {
 
     @Test
     public void aFreshImpactThatCannotGripIsWaltonsMapSlidingAtTheFrictionLimit() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Vec3 normal = new Vec3(0.3, -0.2, 1).unit();
         Vec3 velocity = new Vec3(300, 50, -150), spin = new Vec3(5, -12, 3);
         Walton expected = walton(shape, velocity, spin, normal, 0.55, 0.5, 0.2);
@@ -181,7 +181,7 @@ public class ContactsTest {
     public void everyImpactOnAFixedSurfaceIsWaltonsMap() {
         Random random = new Random(1750);
         for (int i = 0; i < 2000; i++) {
-            Pollen shape = randomPollen(random);
+            Ball shape = randomPollen(random);
             Bounce bounce = randomBounce(random);
             Surfaces surfaces = everywhere(bounce, 0, 0, 0.2 * random.nextDouble());
             Vec3 normal = randomUnit(random);
@@ -203,7 +203,7 @@ public class ContactsTest {
         Random random = new Random(175);
         int gripped = 0, slid = 0;
         for (int i = 0; i < 10000; i++) {
-            Pollen shape = randomPollen(random);
+            Ball shape = randomPollen(random);
             double m = shape.kilograms(), r = shape.radius(), alpha = shape.inertiaFactor();
             Bounce bounce = randomBounce(random);
             double threshold = 0.5 + 24.5 * random.nextDouble();
@@ -272,7 +272,7 @@ public class ContactsTest {
 
     @Test
     public void garwinsPerfectlyGrippingSolidBallLeavesAtThreeSeventhsAndSpinsAtTenSevenths() {
-        Pollen solid = pollen(0.4);
+        Ball solid = pollen(0.4);
         Surfaces superball = everywhere(bounce(1, 1.5, 1), 0, 0, 0);
         List<Vec3> normals = List.of(UP, OFF_THE_WALL, new Vec3(0, -1, 0), new Vec3(1, 1, 1).unit());
         for (Vec3 normal : normals) {
@@ -297,7 +297,7 @@ public class ContactsTest {
 
     @Test
     public void crossesSpinningBallDroppedStraightDownReversesItsSpinAndLeavesTheWayItsTopWasGoing() {
-        Pollen solid = pollen(0.4);
+        Ball solid = pollen(0.4);
         double r = solid.radius();
         Vec3 spin = new Vec3(0, 60, 0);
         Vec3 topGoes = spin.cross(UP.times(r));
@@ -340,7 +340,7 @@ public class ContactsTest {
 
     @Test
     public void aSustainedContactThatCannotGripSlowsTheSlipByTheFrictionLimit() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         double alpha = shape.inertiaFactor();
         Surfaces surfaces = everywhere(bounce(0.55, 0.2, 0.2), 0.1, 0.06, 0);
         Contacts.Body sliding = body("pollen", shape, new Vec3(300, 0, -10), Vec3.zero());
@@ -360,7 +360,7 @@ public class ContactsTest {
     @Test
     public void aContactThatMeetsMoreSlowlyThanTheThresholdDoesNotBounce() {
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.04);
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
 
         for (double approach : new double[] {0.5, 3, 4}) {
             Contacts.Resolved resolved = pressed(
@@ -391,7 +391,7 @@ public class ContactsTest {
 
     @Test
     public void anImpactTwistsTheSpinAboutTheNormalTowardNothingByTheLeverTimesTheImpulse() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0);
         Contacts.Body spinning = body("pollen", shape, new Vec3(0, 0, -200), new Vec3(0, 0, 50));
 
@@ -414,7 +414,7 @@ public class ContactsTest {
 
     @Test
     public void aTwistNeverReversesTheSpinAboutTheNormal() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.3, 0.2, 0);
         Vec3 normal = new Vec3(0.2, 0.1, 1).unit();
         for (double about : new double[] {-50, -1, 1, 50}) {
@@ -443,7 +443,7 @@ public class ContactsTest {
 
     @Test
     public void aBallPressedOnASurfaceRollsLessByTheRollingResistance() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         double r = shape.radius(), alpha = shape.inertiaFactor();
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0, 0, 0.04);
         Contacts.Body rolling = body("pollen", shape, new Vec3(100, 0, -2), new Vec3(0, 100 / r, 0));
@@ -461,7 +461,7 @@ public class ContactsTest {
 
     @Test
     public void rollingResistanceNeverTurnsTheSpinAcrossTheNormalAround() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         double r = shape.radius();
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0, 0, 0.2);
         Vec3 spin = new Vec3(0.3, 1, 0).times(1 / r);
@@ -476,7 +476,7 @@ public class ContactsTest {
 
     @Test
     public void rollingResistanceActsOnlyOnASustainedContactWithSomethingFixed() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         double r = shape.radius();
         Surfaces resisting = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.2);
         Surfaces free = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0);
@@ -498,7 +498,7 @@ public class ContactsTest {
 
     @Test
     public void equalBallsMeetingHeadOnSwapTheirVelocitiesWeightedByTheirRestitution() {
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Surfaces surfaces = everywhere(bounce(0.55, 0.3, 0.15), 0.1, 0.06, 0.04);
         Contacts.Body a = body("a", shape, new Vec3(100, 0, 0), Vec3.zero());
         Contacts.Body b = body("b", shape, new Vec3(-50, 0, 0), Vec3.zero());
@@ -521,7 +521,7 @@ public class ContactsTest {
     public void twoBallsKeepTheirMomentumAndAngularMomentumAndNeverGainEnergy() {
         Random random = new Random(7175);
         for (int i = 0; i < 4000; i++) {
-            Pollen one = randomPollen(random), two = randomPollen(random);
+            Ball one = randomPollen(random), two = randomPollen(random);
             Bounce bounce = randomBounce(random);
             Surfaces surfaces = Valid.value(Surfaces.of(
                     bounce,
@@ -573,7 +573,7 @@ public class ContactsTest {
     @Test
     public void aBallPressedIntoACornerEndsGoingIntoNeitherSide() {
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.04);
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         List<List<Vec3>> corners = List.of(
                 List.of(UP, OFF_THE_WALL),
                 List.of(new Vec3(1, 0, 1).unit(), new Vec3(-1, 0, 1).unit()),
@@ -604,7 +604,7 @@ public class ContactsTest {
     @Test
     public void everyBodyThatTookPartComesBackOnceInTheOrderItWasFirstSeen() {
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.04);
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Contacts.Body a = body("a", shape, new Vec3(0, 0, -50), Vec3.zero());
         Contacts.Body b = body("b", shape, new Vec3(0, 0, -20), Vec3.zero());
         Contacts.Body c = body("c", shape, new Vec3(0, 0, 10), Vec3.zero());
@@ -626,7 +626,7 @@ public class ContactsTest {
     @Test
     public void eachContactThatBouncedIsAHitInTheOrderOfTheContacts() {
         Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.04);
-        Pollen shape = pollen(0.634);
+        Ball shape = pollen(0.634);
         Contacts.Body a = body("a", shape, new Vec3(0, 0, -50), Vec3.zero());
         Contacts.Body b = body("b", shape, new Vec3(-30, 0, 0), Vec3.zero());
         Contacts.Body c = body("c", shape, new Vec3(-30, 0, -40), Vec3.zero());

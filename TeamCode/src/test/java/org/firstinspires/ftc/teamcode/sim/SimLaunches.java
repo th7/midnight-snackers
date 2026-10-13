@@ -11,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,9 +29,13 @@ import org.firstinspires.ftc.teamcode.simcore.Surface;
 import org.firstinspires.ftc.teamcode.simcore.Turn;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.firstinspires.ftc.teamcode.simcore.WheelPair;
+import org.firstinspires.ftc.teamcode.simcore.World;
 
 final class SimLaunches {
     static final int MOST_KEPT = 30;
+    static final long MOST_KEPT_BYTES = 24L * 1024 * 1024;
+    static final String SETTINGS_KEPT = "settings";
+    static final String LAUNCHED_SO_FAR = "launched";
     static final String REMEMBERED_FILE = "launch-settings.json";
     static final double CHUNK_SECONDS = 0.1;
     static final String POLLEN_COLOUR = "#ffef3f";
@@ -43,16 +46,20 @@ final class SimLaunches {
 
     private record Launch(int id, ShotSettings settings, JsonObject summary, String shot, String frames) {}
 
-    private record Asked(Optional<ShotSettings> settings, Optional<JsonObject> refusal) {
+    private sealed interface Asked permits Asked.Settled, Asked.Refused {
+        record Settled(ShotSettings settings) implements Asked {}
+
+        record Refused(JsonObject refusal) implements Asked {}
+
         static Asked of(ShotSettings settings) {
-            return new Asked(Optional.of(settings), Optional.empty());
+            return new Settled(settings);
         }
 
         static Asked refused(String setting, String rule) {
             JsonObject refusal = new JsonObject();
             refusal.add("setting", setting == null ? JsonNull.INSTANCE : new JsonPrimitive(setting));
             refusal.addProperty("rule", rule);
-            return new Asked(Optional.empty(), Optional.of(refusal));
+            return new Refused(refusal);
         }
     }
 
@@ -95,9 +102,16 @@ final class SimLaunches {
         if (kept == null) {
             return;
         }
+        Optional<Double> count = numberIn(kept.get(LAUNCHED_SO_FAR));
+        if (count.isPresent() && count.get() >= 0 && count.get() < Integer.MAX_VALUE) {
+            launched = (int) Math.floor(count.get());
+        }
+        JsonElement settingsKept = kept.get(SETTINGS_KEPT);
+        JsonObject asKept =
+                settingsKept != null && settingsKept.isJsonObject() ? settingsKept.getAsJsonObject() : new JsonObject();
         Map<ShotSetting, Double> set = new EnumMap<>(ShotSetting.class);
         List<String> dropped = new ArrayList<>();
-        for (Map.Entry<String, JsonElement> entry : kept.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : asKept.entrySet()) {
             Checked<ShotSetting> named = ShotSetting.named(entry.getKey());
             if (!(named instanceof Checked.Ok<ShotSetting> ok)) {
                 dropped.add(entry.getKey() + " (there is no such setting now)");
@@ -228,15 +242,16 @@ final class SimLaunches {
     }
 
     private static Response refusedAs(Asked asked) {
-        return Response.json(400, GSON.toJson(asked.refusal().orElse(new JsonObject())));
+        return Response.json(
+                400, GSON.toJson(asked instanceof Asked.Refused refused ? refused.refusal() : new JsonObject()));
     }
 
     Response preview(String body) {
         Asked asked = asked(body);
-        if (asked.settings().isEmpty()) {
+        if (!(asked instanceof Asked.Settled settled)) {
             return refusedAs(asked);
         }
-        Checked<Shot.Preview> previewed = Shot.preview(FIELD, asked.settings().get());
+        Checked<Shot.Preview> previewed = Shot.preview(FIELD, settled.settings());
         if (!(previewed instanceof Checked.Ok<Shot.Preview> ok)) {
             return refusedAs(Asked.refused(null, rule(previewed)));
         }
@@ -271,10 +286,10 @@ final class SimLaunches {
 
     Response launch(String body) {
         Asked asked = asked(body);
-        if (asked.settings().isEmpty()) {
+        if (!(asked instanceof Asked.Settled settled)) {
             return refusedAs(asked);
         }
-        ShotSettings settings = asked.settings().get();
+        ShotSettings settings = settled.settings();
         if (!simulating.compareAndSet(false, true)) {
             return Response.error(409, "a launch is already being simulated; it takes a moment");
         }
@@ -307,19 +322,34 @@ final class SimLaunches {
         JsonObject summary = summary(id, at, settings, before, finished, spent);
         JsonObject shot = shotJson(id, at, settings, finished, spent);
         launches.add(new Launch(id, settings, summary, GSON.toJson(shot), csv(finished)));
-        while (launches.size() > MOST_KEPT) {
+        while (launches.size() > MOST_KEPT || (launches.size() > 1 && keptBytes() > MOST_KEPT_BYTES)) {
             launches.remove(0);
         }
         remembered = settings;
         forgot = "";
+        JsonObject kept = new JsonObject();
+        kept.add(SETTINGS_KEPT, changed(settings));
+        kept.addProperty(LAUNCHED_SO_FAR, launched);
         try {
-            store.writeWhole(file, GSON.toJson(changed(settings)).getBytes(StandardCharsets.UTF_8));
+            store.writeWhole(file, GSON.toJson(kept).getBytes(StandardCharsets.UTF_8));
         } catch (RuntimeException e) {
             forgot = "These settings could not be kept for next time: " + e.getMessage();
         }
         JsonObject answer = new JsonObject();
         answer.addProperty("id", id);
         return answer;
+    }
+
+    private long keptBytes() {
+        long bytes = 0;
+        for (Launch launch : launches) {
+            bytes += launch.shot().length() + launch.frames().length();
+        }
+        return bytes;
+    }
+
+    static boolean isALaunchNumber(String id) {
+        return id != null && id.matches("[0-9]{1,9}");
     }
 
     synchronized Response listing() {
@@ -333,6 +363,9 @@ final class SimLaunches {
     }
 
     private synchronized Optional<Launch> find(String id) {
+        if (!isALaunchNumber(id)) {
+            return Optional.empty();
+        }
         for (Launch launch : launches) {
             if (String.valueOf(launch.id()).equals(id)) {
                 return Optional.of(launch);
@@ -355,8 +388,11 @@ final class SimLaunches {
         return Response.html(SimLaunchPage.viewer());
     }
 
-    static Response toTheViewer(String location) {
-        return new Response(308, "text/plain; charset=utf-8", "").withHeader("Location", location);
+    static Response toTheViewer(String from, String id) {
+        if (!isALaunchNumber(id)) {
+            return Response.error(404, "a launch is a number, and that is not one");
+        }
+        return new Response(308, "text/plain; charset=utf-8", "").withHeader("Location", from + "#" + id);
     }
 
     private static Seconds seconds(double value) {
@@ -401,55 +437,10 @@ final class SimLaunches {
         return xyz;
     }
 
-    private static double rpm(Vec3 spin) {
-        return spin.length() * 60 / (2 * Math.PI);
-    }
-
-    static String kindOf(Shot.Finish finish) {
-        if (finish instanceof Shot.Finish.AtRest rest) {
-            if (rest.where() instanceof Shot.Resting.InCell cell) {
-                return cell.upturned() ? "scored" : "cell";
-            }
-            if (rest.where() instanceof Shot.Resting.InFlower) {
-                return "flower";
-            }
-            return rest.where() instanceof Shot.Resting.OnTheFloor ? "floor" : "rest";
-        }
-        if (finish instanceof Shot.Finish.LeftTheField) {
-            return "out";
-        }
-        return finish instanceof Shot.Finish.OutOfTime ? "time" : "work";
-    }
-
-    static String says(Shot.Finish finish) {
-        if (finish instanceof Shot.Finish.AtRest rest) {
-            if (rest.where() instanceof Shot.Resting.InCell cell) {
-                return "came to rest in " + cell.cell()
-                        + (cell.upturned()
-                                ? ", which is upturned, so it scores"
-                                : ", which is turned down, so it does not score");
-            }
-            if (rest.where() instanceof Shot.Resting.InFlower flower) {
-                return "came to rest in the bore of " + flower.flower();
-            }
-            if (rest.where() instanceof Shot.Resting.On on) {
-                return "came to rest on " + on.what();
-            }
-            return "came to rest on the floor";
-        }
-        if (finish instanceof Shot.Finish.LeftTheField out) {
-            return "left the field over " + out.side().says();
-        }
-        if (finish instanceof Shot.Finish.OutOfTime time) {
-            return "was still moving after " + round(time.t().value(), 3) + " s";
-        }
-        return "was stopped for taking too much work: make the step longer";
-    }
-
     private static JsonObject ending(Shot.Finish finish) {
         JsonObject ending = new JsonObject();
-        ending.addProperty("kind", kindOf(finish));
-        ending.addProperty("says", says(finish));
+        ending.addProperty("kind", finish.kind());
+        ending.addProperty("says", finish.says());
         ending.addProperty("t", round(finish.t().value(), 5));
         if (finish instanceof Shot.Finish.AtRest rest) {
             ending.add("at", vector(rest.at(), 4));
@@ -482,7 +473,7 @@ final class SimLaunches {
         summary.addProperty("realTime", simulated > 0 ? spent / simulated : 0);
         summary.addProperty("impacts", story.impacts().size());
         summary.addProperty("speed", round(launch.velocity().length(), 3));
-        summary.addProperty("spinRpm", round(rpm(launch.spin()), 1));
+        summary.addProperty("spinRpm", round(launch.spinRpm(), 1));
         summary.addProperty("spinKind", launch.kind().name().toLowerCase(Locale.ROOT));
         summary.addProperty("apex", round(story.apex().pollen().at().z(), 3));
         summary.add(
@@ -532,7 +523,7 @@ final class SimLaunches {
         launched.add("velocity", vector(launch.velocity(), 4));
         launched.add("spin", vector(launch.spin(), 4));
         launched.addProperty("speed", round(launch.velocity().length(), 4));
-        launched.addProperty("spinRpm", round(rpm(launch.spin()), 2));
+        launched.addProperty("spinRpm", round(launch.spinRpm(), 2));
         launched.addProperty("spinKind", launch.kind().name().toLowerCase(Locale.ROOT));
         launched.addProperty(
                 "spinParameter",
@@ -676,26 +667,25 @@ final class SimLaunches {
         return colliders;
     }
 
-    private static Map<String, String> coloursByName() {
-        Map<String, String> colours = new LinkedHashMap<>();
-        for (JsonElement piece : SimPlacement.FIELD_JSON.getAsJsonArray("pieces")) {
-            JsonObject one = piece.getAsJsonObject();
-            colours.putIfAbsent(one.get("name").getAsString(), one.get("colour").getAsString());
+    private static String colourOf(World.Piece piece) {
+        if (piece.kind() == Field.Kind.POLLEN) {
+            return POLLEN_COLOUR;
         }
-        return colours;
+        for (Field.Hive hive : FIELD.hives()) {
+            if (piece.alliance().map(hive.alliance()::equals).orElse(false)) {
+                return hive.colour();
+            }
+        }
+        return POLLEN_COLOUR;
     }
 
     private static JsonArray pieces(Shot.Story story) {
-        Map<String, String> colours = coloursByName();
         JsonArray pieces = new JsonArray();
         for (Shot.Track track : story.pieces()) {
-            String name = track.piece().name();
-            int numbered = name.lastIndexOf(" <");
-            String plain = numbered < 0 ? name : name.substring(0, numbered);
             JsonObject one = new JsonObject();
-            one.addProperty("name", name);
+            one.addProperty("name", track.piece().name());
             one.addProperty("kind", track.piece().kind().named());
-            one.addProperty("colour", colours.getOrDefault(plain, POLLEN_COLOUR));
+            one.addProperty("colour", colourOf(track.piece()));
             one.addProperty("radius", track.piece().shape().radius());
             one.addProperty("fixed", track.piece().fixed());
             one.add("start", vector(track.piece().at(), 4));
@@ -712,6 +702,11 @@ final class SimLaunches {
                 samples.add(row);
             }
             one.add("track", samples);
+            if (track.fate() instanceof Shot.Fate.Gone gone) {
+                one.addProperty("gone", round(gone.t().value(), 5));
+            } else {
+                one.add("gone", JsonNull.INSTANCE);
+            }
             pieces.add(one);
         }
         return pieces;

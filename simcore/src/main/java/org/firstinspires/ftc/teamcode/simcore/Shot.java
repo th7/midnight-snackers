@@ -13,7 +13,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
     int MOST_EVENTS_PER_PIECE = 16;
     int BISECTIONS = 48;
     int PROJECTIONS = 4;
-    long MOST_WORK_PER_SECOND = 2_000_000L;
+    long MOST_WORK_PER_SECOND = 3_000_000L;
     double LEAST_SECONDS_OF_WORK = 0.1;
     String LAUNCHED = "the launched pollen";
 
@@ -32,7 +32,13 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
 
     record Placed(Seconds t, Vec3 at, Turn turn) {}
 
-    record Track(World.Piece piece, List<Placed> samples) {}
+    sealed interface Fate permits Fate.OnTheField, Fate.Gone {
+        record OnTheField() implements Fate {}
+
+        record Gone(Seconds t, Colliders.Side side) implements Fate {}
+    }
+
+    record Track(World.Piece piece, List<Placed> samples, Fate fate) {}
 
     record Impact(
             Seconds t,
@@ -61,7 +67,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
 
     record Story(
             World world,
-            Pollen pollen,
+            Ball pollen,
             WheelPair.Launched launched,
             List<Frame> frames,
             List<Impact> impacts,
@@ -73,25 +79,116 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
             Seconds simulated) {}
 
     sealed interface Resting permits Resting.InCell, Resting.InFlower, Resting.OnTheFloor, Resting.On {
-        record InCell(String cell, String alliance, boolean upturned) implements Resting {}
+        String kind();
 
-        record InFlower(String flower) implements Resting {}
+        String says();
 
-        record OnTheFloor() implements Resting {}
+        record InCell(String cell, String alliance, boolean upturned) implements Resting {
+            @Override
+            public String kind() {
+                return upturned ? "scored" : "cell";
+            }
 
-        record On(String what) implements Resting {}
+            @Override
+            public String says() {
+                return "in " + cell
+                        + (upturned
+                                ? ", which is upturned, so it scores"
+                                : ", which is turned down, so it does not score");
+            }
+        }
+
+        record InFlower(String flower) implements Resting {
+            @Override
+            public String kind() {
+                return "flower";
+            }
+
+            @Override
+            public String says() {
+                return "in the bore of " + flower;
+            }
+        }
+
+        record OnTheFloor() implements Resting {
+            @Override
+            public String kind() {
+                return "floor";
+            }
+
+            @Override
+            public String says() {
+                return "on the floor";
+            }
+        }
+
+        record On(String what) implements Resting {
+            @Override
+            public String kind() {
+                return "rest";
+            }
+
+            @Override
+            public String says() {
+                return "on " + what;
+            }
+        }
     }
 
     sealed interface Finish permits Finish.AtRest, Finish.LeftTheField, Finish.OutOfTime, Finish.TooMuchWork {
         Seconds t();
 
-        record AtRest(Vec3 at, Seconds t, Resting where) implements Finish {}
+        String kind();
 
-        record LeftTheField(Vec3 at, Seconds t, Colliders.Side side) implements Finish {}
+        String says();
 
-        record OutOfTime(Seconds t) implements Finish {}
+        record AtRest(Vec3 at, Seconds t, Resting where) implements Finish {
+            @Override
+            public String kind() {
+                return where.kind();
+            }
 
-        record TooMuchWork(Seconds t) implements Finish {}
+            @Override
+            public String says() {
+                return "came to rest " + where.says();
+            }
+        }
+
+        record LeftTheField(Vec3 at, Seconds t, Colliders.Side side) implements Finish {
+            @Override
+            public String kind() {
+                return "out";
+            }
+
+            @Override
+            public String says() {
+                return "left the field over " + side.says();
+            }
+        }
+
+        record OutOfTime(Seconds t) implements Finish {
+            @Override
+            public String kind() {
+                return "time";
+            }
+
+            @Override
+            public String says() {
+                return "was still moving after " + t;
+            }
+        }
+
+        record TooMuchWork(Seconds t) implements Finish {
+            @Override
+            public String kind() {
+                return "work";
+            }
+
+            @Override
+            public String says() {
+                return "was stopped after " + t + " for taking too much work: make the step longer";
+            }
+        }
     }
 
     static Checked<Flying> from(Field field, ShotSettings settings) {
@@ -102,7 +199,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
         return ShotSetup.preview(field, settings);
     }
 
-    static Checked<Flying> launch(World world, Pollen pollen, WheelPair.Launched launched) {
+    static Checked<Flying> launch(World world, Ball pollen, WheelPair.Launched launched) {
         return Flying.start(world, pollen, launched);
     }
 
@@ -136,13 +233,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
             this.frozen = frozen;
         }
 
-        static Checked<Flying> start(World world, Pollen pollen, WheelPair.Launched launched) {
-            if (!(launched.at().isFinite()
-                    && launched.velocity().isFinite()
-                    && launched.spin().isFinite())) {
-                return Checked.rejected("a pollen leaves the wheels from somewhere, at some speed and spin, not at "
-                        + launched.at() + " going " + launched.velocity() + " spinning " + launched.spin());
-            }
+        static Checked<Flying> start(World world, Ball pollen, WheelPair.Launched launched) {
             Colliders colliders = world.colliders();
             Length radius = pollen.radiusLength();
             Optional<Colliders.Side> beyond = colliders.over(launched.at(), radius);
@@ -157,7 +248,8 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
                 }
             }
             for (World.Piece piece : world.pieces()) {
-                double apart = piece.at().minus(launched.at()).length();
+                Vec3 between = piece.at().minus(launched.at());
+                double apart = StrictMath.sqrt(between.dot(between));
                 if (apart < pollen.radius() + piece.shape().radius()) {
                     return Checked.rejected("the pollen would start inside " + piece.name() + ", at " + launched.at());
                 }

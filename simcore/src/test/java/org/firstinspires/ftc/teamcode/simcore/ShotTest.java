@@ -11,7 +11,7 @@ import org.junit.Test;
 
 public class ShotTest {
     private static final double G = Flight.GRAVITY_IN_PER_S2;
-    private static final Pollen POLLEN = Valid.value(Pollen.of(2.8, 24.9, 0.634));
+    private static final Ball POLLEN = Valid.value(Ball.of(2.8, 24.9, 0.634));
     private static final double R = POLLEN.radius();
     private static final double ALPHA = POLLEN.inertiaFactor();
     private static final Field BARE = Valid.value(Field.of(
@@ -61,7 +61,7 @@ public class ShotTest {
     }
 
     private static WheelPair.Launched launched(Vec3 at, Vec3 velocity, Vec3 spin) {
-        return new WheelPair.Launched(at, velocity, spin, 0, 0, 0, 0);
+        return Valid.value(WheelPair.Launched.of(at, velocity, spin, 0, 0, 0, 0));
     }
 
     private static Shot.Finished flown(World world, Vec3 at, Vec3 velocity, Vec3 spin) {
@@ -366,7 +366,7 @@ public class ShotTest {
 
     @Test
     public void aPollenRollingIntoASleepingPieceWakesItAndSetsItRolling() {
-        Pollen nectar = Valid.value(Pollen.of(3.6, 41.3, 0.634));
+        Ball nectar = Valid.value(Ball.of(3.6, 41.3, 0.634));
         World.Piece resting = new World.Piece(
                 "Blue Nectar", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(0, 0, 1.8), false);
         World world = world(Air.vacuum(), floorOf(0.55, 0.5, 0.2), 1e-4, 1.2, List.of(resting));
@@ -404,5 +404,121 @@ public class ShotTest {
 
         assertEquals(Math.cos(angle / 2), turned.w(), 1e-9);
         assertEquals(Math.sin(angle / 2), turned.z(), 1e-9);
+    }
+
+    @Test
+    public void noPieceMayGoByTheLaunchedPollensName() {
+        World.Piece impostor =
+                new World.Piece(Shot.LAUNCHED, Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(0, 0, R), false);
+
+        String said = World.of(
+                        WALLS, Air.vacuum(), floorOf(0.5, 0.5, 0.2), seconds(1e-4), seconds(1), List.of(impostor))
+                .fold(world -> "accepted", rule -> rule);
+
+        assertTrue(said, said.contains("name of its own"));
+    }
+
+    @Test
+    public void aLaunchIsFromAFinitePlaceAtAFiniteSpeedAndSpin() {
+        String said = WheelPair.Launched.of(new Vec3(0, 0, Double.NaN), Vec3.zero(), Vec3.zero(), 0, 0, 0, 0)
+                .fold(launch -> "accepted", rule -> rule);
+
+        assertTrue(said, said.contains("finite"));
+    }
+
+    @Test
+    public void aShotSaysHowItEndedInTheWordsATeamUses() {
+        Shot.Finish scored = new Shot.Finish.AtRest(
+                Vec3.zero(), seconds(1.5), new Shot.Resting.InCell("Blue Cell (Scoring) <1>", "Blue", true));
+        Shot.Finish turnedDown = new Shot.Finish.AtRest(
+                Vec3.zero(), seconds(1.5), new Shot.Resting.InCell("Red Cell (Scoring) <1>", "Red", false));
+        Shot.Finish over = new Shot.Finish.LeftTheField(Vec3.zero(), seconds(0.7), Colliders.Side.RED);
+
+        assertEquals("scored", scored.kind());
+        assertEquals("came to rest in Blue Cell (Scoring) <1>, which is upturned, so it scores", scored.says());
+        assertEquals("cell", turnedDown.kind());
+        assertTrue(turnedDown.says(), turnedDown.says().contains("does not score"));
+        assertEquals("out", over.kind());
+        assertTrue(over.says(), over.says().startsWith("left the field over "));
+        assertEquals("floor", new Shot.Finish.AtRest(Vec3.zero(), seconds(1), new Shot.Resting.OnTheFloor()).kind());
+        assertEquals("time", new Shot.Finish.OutOfTime(seconds(8)).kind());
+        assertEquals("work", new Shot.Finish.TooMuchWork(seconds(2)).kind());
+    }
+
+    @Test
+    public void aPieceKnockedOverAWallIsGoneFromTheFieldAndSaysWhen() {
+        Ball nectar = Valid.value(Ball.of(3.6, 41.3, 0.634));
+        World.Piece hanging = new World.Piece(
+                "Red Nectar", Field.Kind.NECTAR, Optional.of("Red"), nectar, new Vec3(60, 0, 20), false);
+        World world = world(Air.vacuum(), floorOf(0.55, 0.5, 0.2), 1e-4, 1, List.of(hanging));
+        Shot shot = Valid.value(
+                        Shot.launch(world, POLLEN, launched(new Vec3(40, 0, 20), new Vec3(400, 0, 0), Vec3.zero())))
+                .advance(seconds(1));
+
+        Shot.Track knocked = shot.story().pieces().get(0);
+        assertTrue(knocked.fate().toString(), knocked.fate() instanceof Shot.Fate.Gone);
+        assertEquals(Colliders.Side.FAR, ((Shot.Fate.Gone) knocked.fate()).side());
+        assertTrue(shot.story().pieces().get(0).samples().size() >= 2);
+    }
+
+    @Test
+    public void aPieceThatStaysOnTheFieldSaysSo() {
+        Ball nectar = Valid.value(Ball.of(3.6, 41.3, 0.634));
+        World.Piece resting = new World.Piece(
+                "Blue Nectar", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(0, 0, 1.8), false);
+        Shot shot = Valid.value(Shot.launch(
+                        world(Air.vacuum(), floorOf(0.55, 0.5, 0.2), 1e-4, 1, List.of(resting)),
+                        POLLEN,
+                        launched(new Vec3(-30, 0, R), new Vec3(100, 0, 0), new Vec3(0, 100 / R, 0))))
+                .advance(seconds(1));
+
+        assertEquals(new Shot.Fate.OnTheField(), shot.story().pieces().get(0).fate());
+    }
+
+    @Test
+    public void aBallRolledIntoTwoTouchingPiecesSendsTheFarOneOnRatherThanBouncingOffThemAsOffAWall() {
+        World.Piece near =
+                new World.Piece("Pollen <1>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40, 0, R), false);
+        World.Piece far = new World.Piece(
+                "Pollen <2>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40 + 2 * R, 0, R), false);
+        World world = world(Air.vacuum(), floorOf(0.55, 0.5, 0.2), 1e-4, 1.5, List.of(near, far));
+        Shot shot = Valid.value(Shot.launch(
+                        world, POLLEN, launched(new Vec3(20, 0, R), new Vec3(100, 0, 0), new Vec3(0, 100 / R, 0))))
+                .advance(seconds(1.5));
+
+        Shot.Placed farEnd = shot.story()
+                .pieces()
+                .get(1)
+                .samples()
+                .get(shot.story().pieces().get(1).samples().size() - 1);
+        assertTrue("the far pollen rolled on to " + farEnd.at(), farEnd.at().x() > 40 + 2 * R + 10);
+        Shot.Impact struck = shot.story().impacts().get(0);
+        assertTrue(
+                "the ball came off at " + struck.velocityAfter(),
+                struck.velocityAfter().x() > -10);
+    }
+
+    @Test
+    public void aPieceRestingOnAnotherComesDownWhenItsSupportIsKnockedAway() {
+        Ball nectar = Valid.value(Ball.of(3.6, 41.3, 0.634));
+        World.Piece left = new World.Piece(
+                "Blue Nectar <1>", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(40, 0, 1.8), false);
+        World.Piece right = new World.Piece(
+                "Blue Nectar <2>", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(40, 3.6, 1.8), false);
+        double above = Math.sqrt((1.8 + R) * (1.8 + R) - 1.8 * 1.8);
+        World.Piece top = new World.Piece(
+                "Pollen <3>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40, 1.8, 1.8 + above), false);
+        World world = world(Air.vacuum(), floorOf(0.55, 0.5, 0.2), 1e-4, 4, List.of(left, right, top));
+        Shot shot = Valid.value(Shot.launch(
+                        world, POLLEN, launched(new Vec3(65, 3.6, R), new Vec3(-120, 0, 0), new Vec3(0, -120 / R, 0))))
+                .advance(seconds(4));
+
+        Shot.Track fell = shot.story().pieces().get(2);
+        Shot.Placed last = fell.samples().get(fell.samples().size() - 1);
+        assertEquals(
+                "the pollen that was held up by the nectar ended at " + last.at(),
+                R,
+                last.at().z(),
+                0.05);
     }
 }

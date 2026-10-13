@@ -20,7 +20,7 @@ public class LaunchSimIsStrictTest {
                     + " https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/StrictMath.html";
 
     private static final List<String> THE_LAUNCH_SIM = List.of(
-            "Pollen",
+            "Ball",
             "Surface",
             "Turn",
             "ShotSetting",

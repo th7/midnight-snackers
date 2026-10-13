@@ -103,7 +103,7 @@ public class ShotSettingTest {
                 amount(ShotSetting.ROBOT_VY, LAUNCHER, 0, -120, 120, "in/s"),
                 amount(ShotSetting.DIAMETER, POLLEN, 2.8, 2.6, 3.0, "in"),
                 amount(ShotSetting.MASS, POLLEN, 24.9, 20, 30, "g"),
-                amount(ShotSetting.INERTIA, POLLEN, 0.634, 0.4, Pollen.THIN_SHELL, "of m r^2"),
+                amount(ShotSetting.INERTIA, POLLEN, 0.634, 0.4, Ball.THIN_SHELL, "of m r^2"),
                 toggle(ShotSetting.PIECES, POLLEN, 1),
                 amount(ShotSetting.NECTAR_MASS, POLLEN, 41.3, 30, 55, "g"),
                 toggle(ShotSetting.BLUE_HIVE_TIPPED, FIELD, 0),
@@ -144,9 +144,9 @@ public class ShotSettingTest {
 
     @Test
     public void thePollensInertiaGoesAsHighAsAThinShellsAndNoHigher() {
-        assertEquals(Pollen.THIN_SHELL, ShotSetting.INERTIA.most(), 0);
-        assertTrue(Pollen.of(2.8, 24.9, ShotSetting.INERTIA.most()) instanceof Checked.Ok);
-        assertRejected(String.valueOf(Pollen.THIN_SHELL), ShotSetting.INERTIA.admits(Math.nextUp(Pollen.THIN_SHELL)));
+        assertEquals(Ball.THIN_SHELL, ShotSetting.INERTIA.most(), 0);
+        assertTrue(Ball.of(2.8, 24.9, ShotSetting.INERTIA.most()) instanceof Checked.Ok);
+        assertRejected(String.valueOf(Ball.THIN_SHELL), ShotSetting.INERTIA.admits(Math.nextUp(Ball.THIN_SHELL)));
     }
 
     @Test

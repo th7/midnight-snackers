@@ -626,11 +626,8 @@ public final class SimBench {
                 .route("POST", "/launch", (request, params) -> launches.launch(request.body))
                 .route("GET", "/launches", (request, params) -> launches.listing())
                 .route("GET", "/launches/", (request, params) -> launches.viewer())
-                .route("GET", "/launches/{id}", (request, params) -> SimLaunches.toTheViewer("./#" + params.get("id")))
-                .route(
-                        "GET",
-                        "/launches/{id}/",
-                        (request, params) -> SimLaunches.toTheViewer("../#" + params.get("id")))
+                .route("GET", "/launches/{id}", (request, params) -> SimLaunches.toTheViewer("./", params.get("id")))
+                .route("GET", "/launches/{id}/", (request, params) -> SimLaunches.toTheViewer("../", params.get("id")))
                 .route("GET", "/launches/{id}/shot", (request, params) -> launches.shot(params.get("id")))
                 .route("GET", "/launches/{id}/frames.csv", (request, params) -> launches.frames(params.get("id")))
                 .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")

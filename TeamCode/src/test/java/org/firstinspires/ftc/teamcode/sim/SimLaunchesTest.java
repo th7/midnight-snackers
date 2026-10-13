@@ -270,7 +270,8 @@ public class SimLaunchesTest {
         Files.createDirectories(outputDir());
         Files.write(
                 outputDir().resolve(SimLaunches.REMEMBERED_FILE),
-                "{\"pitch\": 500, \"nope\": 3, \"x\": 10}".getBytes(StandardCharsets.UTF_8));
+                "{\"settings\": {\"pitch\": 500, \"nope\": 3, \"x\": 10}, \"launched\": 7}"
+                        .getBytes(StandardCharsets.UTF_8));
 
         JsonObject listing = json(get("/launch/settings"));
         assertEquals(
@@ -296,5 +297,33 @@ public class SimLaunchesTest {
                 ShotSetting.X.byDefault(),
                 named(listing.getAsJsonArray("settings"), "x").get("value").getAsDouble(),
                 0);
+    }
+
+    @Test
+    public void launchesAreNumberedOnFromTheLastOneAfterTheBenchStartsAgain() {
+        launch(QUICK);
+        launch(QUICK);
+        bench.stop();
+        bench = null;
+
+        assertEquals(3, launch(QUICK));
+    }
+
+    @Test
+    public void onlyANumberIsALaunchSoNothingElseReachesAHeader() {
+        assertEquals(404, get("/launches/1%0D%0ASet-Cookie:%20x=1").status);
+        assertEquals(404, get("/launches/abc/").status);
+        assertEquals(404, get("/launches/abc/shot").status);
+        assertEquals(null, get("/launches/abc").headers.get("Location"));
+    }
+
+    @Test
+    public void everyPieceSaysWhetherItLeftTheField() {
+        launch("{\"longest\": 0.5}");
+
+        JsonObject shot = json(get("/launches/1/shot"));
+        for (JsonElement piece : shot.getAsJsonArray("pieces")) {
+            assertTrue(piece.toString(), piece.getAsJsonObject().has("gone"));
+        }
     }
 }

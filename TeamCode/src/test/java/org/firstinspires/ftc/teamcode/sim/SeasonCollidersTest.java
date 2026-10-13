@@ -12,6 +12,7 @@ import java.util.Optional;
 import org.firstinspires.ftc.teamcode.simcore.Collider;
 import org.firstinspires.ftc.teamcode.simcore.Colliders;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Hives;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Surface;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
@@ -141,5 +142,47 @@ public class SeasonCollidersTest {
                         deepest < WALL_REACH_TOLERANCE_IN);
             }
         }
+    }
+
+    @Test
+    public void aLaunchedBallMeetsEachHiveExactlyWhereABallInARunDoes() {
+        Field field = SimPlacement.FIELD;
+        Hives hives = Hives.of(field);
+        Colliders colliders = Valid.value(Colliders.of(field, List.of()));
+        Length radius = Valid.value(Length.of(1.4));
+        int compared = 0;
+        for (Field.Hive hive : field.hives()) {
+            List<String> mine = new ArrayList<>(List.of(hive.name() + " / "));
+            for (Field.Cell cell : hive.cells()) {
+                mine.add(cell.name() + " / ");
+            }
+            for (double dx = -26; dx <= 26; dx += 1.3) {
+                for (double dy = -12; dy <= 12; dy += 1.7) {
+                    for (double dz = -16; dz <= 18; dz += 1.1) {
+                        Vec3 at = hive.pivot().plus(new Vec3(dx, dy, dz));
+                        double deepest = -Double.MAX_VALUE;
+                        for (Hives.Touch touch : hives.touching(at, radius)) {
+                            deepest = Math.max(deepest, touch.depth());
+                        }
+                        double least = Double.MAX_VALUE;
+                        for (Collider collider : colliders.all()) {
+                            if (mine.stream().anyMatch(collider.name()::startsWith)) {
+                                least = Math.min(least, colliders.gap(collider, at, radius));
+                            }
+                        }
+                        if (deepest > -Double.MAX_VALUE) {
+                            assertEquals("at " + at, -deepest, least, 1e-6);
+                            compared++;
+                        } else {
+                            assertTrue(
+                                    "at " + at + " a run's ball touches nothing, and a launched one is " + least
+                                            + " in from it",
+                                    least > 0.02 - 1e-6);
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue("compared " + compared + " places where a ball touches a hive", compared > 500);
     }
 }

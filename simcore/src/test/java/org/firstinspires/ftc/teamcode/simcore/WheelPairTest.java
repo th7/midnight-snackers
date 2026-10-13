@@ -28,8 +28,8 @@ public class WheelPairTest {
         WheelPair.Inertia inertia = new WheelPair.Inertia.KeepSpeed();
         Vec2 robot = STILL;
 
-        Pollen pollen() {
-            return Valid.value(Pollen.of(pollenDiameter, 24.9, 0.634));
+        Ball pollen() {
+            return Valid.value(Ball.of(pollenDiameter, 24.9, 0.634));
         }
 
         Checked<WheelPair> pair() {
@@ -85,7 +85,7 @@ public class WheelPairTest {
     }
 
     private static WheelPair.Launched flying(Vec3 velocity, Vec3 spin) {
-        return new WheelPair.Launched(EXIT, velocity, spin, 0, 0, 0, 0);
+        return Valid.value(WheelPair.Launched.of(EXIT, velocity, spin, 0, 0, 0, 0));
     }
 
     private static Vec3 spinWhoseMagnusRises(double degrees) {
@@ -326,7 +326,7 @@ public class WheelPairTest {
 
         WheelPair.Launched launched = pair.launch();
 
-        Pollen pollen = asked.pollen();
+        Ball pollen = asked.pollen();
         double contact = (POLLEN_DIAMETER - 0.3) / 2;
         Vec3 axis = pair.towardWheelOne().cross(pair.direction());
         double speed = launched.velocity().dot(pair.direction());

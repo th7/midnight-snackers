@@ -30,6 +30,7 @@ public class SimLaunchPageTest {
     private static final Path BROWSER_CHECKS = Paths.get("..", "tools", "browser");
     private static final Path THE_CHECK = BROWSER_CHECKS.resolve("launch.mjs");
     private static final Path THE_SHOT_IT_PLAYS = BROWSER_CHECKS.resolve("launch-shot.json");
+    private static final Path WHAT_THE_TAB_IS_ANSWERED = BROWSER_CHECKS.resolve("launch-answers.json");
     private static final Pattern PLACEHOLDER = Pattern.compile("__[A-Z_]+__");
 
     @Rule
@@ -83,14 +84,20 @@ public class SimLaunchPageTest {
         assertTrue(page.contains(SimLaunchPage.TITLE));
     }
 
+    private Router routes() {
+        if (bench == null) {
+            bench = new SimBench(
+                    TeamRobot.REGINALD,
+                    SimCatalog.of(HangingAuto.class),
+                    null,
+                    folder.getRoot().toPath().resolve("sim"),
+                    SimBench.Waits.ofTheBench());
+        }
+        return bench.routes("ada");
+    }
+
     private String theBenchsDefaultShot() {
-        bench = new SimBench(
-                TeamRobot.REGINALD,
-                SimCatalog.of(HangingAuto.class),
-                null,
-                folder.getRoot().toPath().resolve("sim"),
-                SimBench.Waits.ofTheBench());
-        Router routes = bench.routes("ada");
+        Router routes = routes();
         TinyHttpServer.Response launched = routes.handle(TinyHttpServer.Request.of("POST", "/launch", "{}"));
         assertEquals(launched.body, 200, launched.status);
         int id = new Gson().fromJson(launched.body, JsonObject.class).get("id").getAsInt();
@@ -154,6 +161,66 @@ public class SimLaunchPageTest {
                         + " -D" + SimTrace.REGENERATE + "=true --tests '*SimLaunchPageTest*' and read the diff",
                 shapeOf(new Gson().fromJson(served, JsonElement.class)),
                 shapeOf(played));
+    }
+
+    private String whatTheBenchAnswersTheTab() {
+        Router routes = routes();
+        Gson gson = new Gson();
+        JsonObject answers = new JsonObject();
+        answers.add(
+                "settings",
+                gson.fromJson(
+                        routes.handle(TinyHttpServer.Request.of("GET", "/launch/settings", "")).body,
+                        JsonElement.class));
+        answers.add(
+                "preview",
+                gson.fromJson(
+                        routes.handle(TinyHttpServer.Request.of("POST", "/launch/preview", "{}")).body,
+                        JsonElement.class));
+        routes.handle(TinyHttpServer.Request.of("POST", "/launch", "{\"pieces\": 0, \"longest\": 0.5}"));
+        routes.handle(TinyHttpServer.Request.of("POST", "/launch", "{\"pieces\": 0, \"longest\": 0.5, \"pitch\": 60}"));
+        answers.add(
+                "launches",
+                gson.fromJson(
+                        routes.handle(TinyHttpServer.Request.of("GET", "/launches", "")).body, JsonElement.class));
+        answers.add(
+                "refused",
+                gson.fromJson(
+                        routes.handle(TinyHttpServer.Request.of("POST", "/launch", "{\"pitch\": 95}")).body,
+                        JsonElement.class));
+        return new com.google.gson.GsonBuilder()
+                .serializeNulls()
+                .setPrettyPrinting()
+                .create()
+                .toJson(answers);
+    }
+
+    @Test
+    public void whatTheTabsBrowserCheckIsAnsweredIsShapedAsTheBenchAnswersIt() throws IOException {
+        String answered = whatTheBenchAnswersTheTab();
+
+        if (Boolean.getBoolean(SimTrace.REGENERATE)) {
+            RepoFile.write(WHAT_THE_TAB_IS_ANSWERED, answered.getBytes(StandardCharsets.UTF_8));
+            throw new AssertionError("regenerated " + WHAT_THE_TAB_IS_ANSWERED.toAbsolutePath()
+                    + ". A run that wrote the answers has not checked them: read the diff, then re-run without -D"
+                    + SimTrace.REGENERATE + ".");
+        }
+        assertTrue(
+                "no answers at " + WHAT_THE_TAB_IS_ANSWERED.toAbsolutePath()
+                        + " for the dashboard's check. Write them with:\n"
+                        + "  ./gradlew :TeamCode:testDebugUnitTest --rerun -D" + SimTrace.REGENERATE
+                        + "=true --tests '*SimLaunchPageTest*'",
+                Files.isRegularFile(WHAT_THE_TAB_IS_ANSWERED));
+        JsonElement kept = new Gson()
+                .fromJson(
+                        new String(Files.readAllBytes(WHAT_THE_TAB_IS_ANSWERED), StandardCharsets.UTF_8),
+                        JsonElement.class);
+        assertEquals(
+                "the answers tools/browser/dashboard.mjs gives the Launch Sim tab are no longer shaped as the bench"
+                        + " gives them; regenerate with -D" + SimTrace.REGENERATE
+                        + "=true --tests '*SimLaunchPageTest*'",
+                shapeOf(new Gson().fromJson(answered, JsonElement.class)),
+                shapeOf(kept));
     }
 
     @Test

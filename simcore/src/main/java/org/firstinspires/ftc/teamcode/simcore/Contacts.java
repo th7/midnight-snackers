@@ -9,7 +9,7 @@ public final class Contacts {
 
     private Contacts() {}
 
-    public record Body(String name, Pollen shape, Vec3 velocity, Vec3 spin) {}
+    public record Body(String name, Ball shape, Vec3 velocity, Vec3 spin) {}
 
     public sealed interface Against {
         record Fixed(String name, Surface surface) implements Against {}
@@ -121,7 +121,7 @@ public final class Contacts {
         }
 
         static Moving of(Body body) {
-            Pollen shape = body.shape();
+            Ball shape = body.shape();
             double kilograms = shape.kilograms(), radius = shape.radius();
             double inertia = shape.inertiaFactor() * kilograms * radius * radius;
             return new Moving(1 / kilograms, 1 / inertia, radius, body.velocity(), body.spin());

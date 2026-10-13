@@ -18,7 +18,7 @@ public class AirTest {
     private static final double RADIUS = 1.4;
     private static final double KILOGRAMS = 24.9 / 1000;
     private static final double INERTIA = 0.634;
-    private static final Pollen POLLEN = Valid.value(Pollen.of(2 * RADIUS, 24.9, INERTIA));
+    private static final Ball POLLEN = Valid.value(Ball.of(2 * RADIUS, 24.9, INERTIA));
     private static final Vec3 CALM = Vec3.zero();
 
     private static void assertRejected(String rule, Checked<?> checked) {

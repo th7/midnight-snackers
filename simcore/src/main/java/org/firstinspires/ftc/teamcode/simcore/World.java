@@ -10,8 +10,7 @@ import java.util.Set;
 public final class World {
     public static final double LONGEST_STEP_SECONDS = 0.01;
 
-    public record Piece(
-            String name, Field.Kind kind, Optional<String> alliance, Pollen shape, Vec3 at, boolean fixed) {}
+    public record Piece(String name, Field.Kind kind, Optional<String> alliance, Ball shape, Vec3 at, boolean fixed) {}
 
     private final Colliders colliders;
     private final Air air;
@@ -40,7 +39,7 @@ public final class World {
         }
         Set<String> named = new HashSet<>();
         for (Piece piece : pieces) {
-            if (piece.name().isBlank() || !named.add(piece.name())) {
+            if (piece.name().isBlank() || piece.name().equals(Shot.LAUNCHED) || !named.add(piece.name())) {
                 return Checked.rejected("every piece has a name of its own, and '" + piece.name() + "' is not one");
             }
             if (!piece.at().isFinite()) {

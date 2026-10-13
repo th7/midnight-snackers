@@ -30,7 +30,7 @@ final class ShotSetup {
     }
 
     private static Shot.Preview preview(
-            ShotSettings settings, Pollen pollen, WheelPair wheels, Air air, Colliders colliders) {
+            ShotSettings settings, Ball pollen, WheelPair wheels, Air air, Colliders colliders) {
         WheelPair.Launched launched = wheels.launch();
         List<Shot.Aim> aims = new ArrayList<>();
         for (Colliders.Mouth mouth : colliders.mouths()) {
@@ -54,14 +54,14 @@ final class ShotSetup {
                 aims);
     }
 
-    static Checked<Pollen> pollen(ShotSettings settings) {
-        return Pollen.of(
+    static Checked<Ball> pollen(ShotSettings settings) {
+        return Ball.of(
                 settings.value(ShotSetting.DIAMETER),
                 settings.value(ShotSetting.MASS),
                 settings.value(ShotSetting.INERTIA));
     }
 
-    static Checked<WheelPair> wheels(ShotSettings settings, Pollen pollen) {
+    static Checked<WheelPair> wheels(ShotSettings settings, Ball pollen) {
         Checked<WheelPair.Inertia> inertia = settings.on(ShotSetting.WHEELS_SLOW)
                 ? WheelPair.Inertia.Slows.of(WheelPair.Inertia.Slows.fromPoundSquareInches(
                                 settings.value(ShotSetting.WHEEL_INERTIA)))
@@ -165,7 +165,66 @@ final class ShotSetup {
         return tipped;
     }
 
-    static Checked<List<World.Piece>> pieces(Field field, ShotSettings settings, Pollen pollen) {
+    static final int SETTING_DOWN_PASSES = 200;
+    static final double SET_DOWN_IN = 1e-9;
+
+    private static final class Spot {
+        private final World.Piece piece;
+        private Vec3 at;
+
+        private Spot(World.Piece piece) {
+            this.piece = piece;
+            this.at = piece.at();
+        }
+    }
+
+    static List<World.Piece> setDownClear(Colliders colliders, List<World.Piece> pieces) {
+        List<Spot> spots = new ArrayList<>();
+        for (World.Piece piece : pieces) {
+            spots.add(new Spot(piece));
+        }
+        boolean moved = true;
+        for (int pass = 0; pass < SETTING_DOWN_PASSES && moved; pass++) {
+            moved = false;
+            for (Spot spot : spots) {
+                if (spot.piece.fixed()) {
+                    continue;
+                }
+                for (Colliders.Near near :
+                        colliders.near(spot.at, spot.piece.shape().radiusLength(), 0)) {
+                    if (near.gap() < -SET_DOWN_IN) {
+                        spot.at = spot.at.along(near.normal(), -near.gap());
+                        moved = true;
+                    }
+                }
+                for (Spot other : spots) {
+                    Vec3 apart = spot.at.minus(other.at);
+                    double distance = StrictMath.sqrt(apart.dot(apart));
+                    double over =
+                            spot.piece.shape().radius() + other.piece.shape().radius() - distance;
+                    if (other != spot && distance > 0 && over > SET_DOWN_IN) {
+                        Vec3 away = apart.times(1 / distance);
+                        if (other.piece.fixed()) {
+                            spot.at = spot.at.along(away, over);
+                        } else {
+                            spot.at = spot.at.along(away, over / 2);
+                            other.at = other.at.along(away, -over / 2);
+                        }
+                        moved = true;
+                    }
+                }
+            }
+        }
+        List<World.Piece> placed = new ArrayList<>();
+        for (Spot spot : spots) {
+            World.Piece piece = spot.piece;
+            placed.add(new World.Piece(
+                    piece.name(), piece.kind(), piece.alliance(), piece.shape(), spot.at, piece.fixed()));
+        }
+        return placed;
+    }
+
+    static Checked<List<World.Piece>> pieces(Field field, ShotSettings settings, Ball pollen) {
         List<World.Piece> pieces = new ArrayList<>();
         if (!settings.on(ShotSetting.PIECES)) {
             return Checked.ok(pieces);
@@ -178,10 +237,10 @@ final class ShotSetup {
                     && tipped.contains(held.cell().alliance())) {
                 continue;
             }
-            Checked<Pollen> shape = piece.kind() == Field.Kind.POLLEN
+            Checked<Ball> shape = piece.kind() == Field.Kind.POLLEN
                     ? Checked.ok(pollen)
-                    : Pollen.of(2 * piece.radius(), settings.value(ShotSetting.NECTAR_MASS), pollen.inertiaFactor());
-            if (shape instanceof Checked.Rejected<Pollen> rejected) {
+                    : Ball.of(2 * piece.radius(), settings.value(ShotSetting.NECTAR_MASS), pollen.inertiaFactor());
+            if (shape instanceof Checked.Rejected<Ball> rejected) {
                 return Checked.rejected(rejected.rule());
             }
             String name = piece.name() + " <" + numbered + ">";
@@ -194,11 +253,12 @@ final class ShotSetup {
         return Checked.ok(pieces);
     }
 
-    static Checked<World> world(Field field, ShotSettings settings, Pollen pollen) {
+    static Checked<World> world(Field field, ShotSettings settings, Ball pollen) {
         return Colliders.of(field, tipped(settings))
                 .then(colliders -> air(settings)
                         .then(air -> surfaces(settings)
                                 .then(surfaces -> pieces(field, settings, pollen)
+                                        .map(laid -> setDownClear(colliders, laid))
                                         .then(pieces -> Seconds.of(
                                                         settings.value(ShotSetting.STEP) / MILLISECONDS_PER_SECOND)
                                                 .then(step -> Seconds.of(settings.value(ShotSetting.LONGEST))

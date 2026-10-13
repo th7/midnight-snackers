@@ -134,7 +134,8 @@ relative to the air, v_rel = v − wind, with V = |v_rel|:
     K = ρ·A/(2·m_eff),   S = R·|ω⊥|/V,   g_eff = g·(m − ρ·V_ball)/m_eff,   m_eff = m + C_a·ρ·V_ball
 
 S is the spin parameter. Only the part of the spin across the motion lifts the ball; spin about the
-direction of travel (rifle spin) does not. Both forms are written so that nothing divides by V.
+direction of travel (rifle spin) does not. Both forms are guarded at V = 0, where they are exactly
+zero, and continuous everywhere else.
 They are exactly zero for a ball that is not moving through the air, and continuous everywhere
 else.
 
@@ -209,9 +210,12 @@ m·α/(1 + α), which is how spin and slip trade. For one contact this is exactl
 
 **What the law reproduces:**
 
-- Backspin kicks a bounce up and topspin makes it skid (a 45° impact at 6 m/s leaves at 61° with
-  60 rad/s of backspin, against 38° with topspin).
-- Sidespin throws a ball sideways off a wall: at 100 rad/s, about 1.6 m/s along the wall.
+- Backspin kicks a bounce up and topspin makes it skid. On the default floor, a 45° impact at
+  6 m/s leaves at about 47° with no spin, 63° with 60 rad/s of backspin, and 37° with 60 rad/s of
+  topspin.
+- Sidespin throws a ball sideways off a wall. On the default walls, a head-on hit at 5 m/s with
+  100 rad/s of spin about the vertical leaves about 1.6 m/s along the wall. Below about 140 in/s
+  the wall cannot grip that much spin, and the ball slides at the friction limit instead.
 - A sliding ball comes to roll at (v₀ + α·R·ω₀ × n)/(1 + α).
 - With e = 1 and full grip, a solid ball leaves at 3/7 of its slip speed with 10/7 as much spin
   (Garwin's superball).
@@ -225,8 +229,10 @@ table-tennis slope of 0.015 per m/s. The clamp keeps a bounce below 1 unless you
 a dropped ball always comes to rest.
 
 **Spin about the contact normal** is lost to the contact patch. *Impact twist* (0.1 in) is the
-lever arm for a bounce: for a Hertz patch of Coulomb slip it is (3π/16)·μ·a, and pollen's patch
-radius is about 19 mm at 6 m/s. *Spin twist* (0.06 in) is the lever arm while resting or rolling.
+lever arm for a bounce. For a Hertz patch of Coulomb slip the lever is (3π/16)·μ·a; pollen's patch
+radius is about 19 mm at 6 m/s, which gives about 5.6 mm (0.22 in) at full size. The patch grows
+and shrinks during the contact, so the default is about half of that. *Spin twist* (0.06 in) is the
+lever arm while resting or rolling.
 Neither ever reverses the spin.
 
 **Rolling resistance** (*rolling resistance* 0.04) slows a rolling ball at C_rr·g. Measured values
@@ -248,9 +254,15 @@ These are the first numbers to measure on a real field (see
 
 ## The field it bounces off
 
-The shot meets what the colliders view draws. The Launch Sim's colliders view and overlay are drawn
-from the shot's own collider list, not rebuilt on the page, so the drawing cannot drift from the
-physics. The colliders are:
+The shot meets the field's collision model, `field.json`, the same model the colliders view draws.
+It does not reuse the realtime simulation's colliders as they are, because those were made for a
+robot and balls rolling on the floor: the robot's obstacles are 2.5-D footprints, and a ball in a
+run meets only the hives, the floor and plane walls. The shot builds its own convex solids from the
+same field model, so it meets every element in three dimensions. Its hives are the realtime
+simulation's hives: a test samples the space around both hives and checks that the shot's hive
+colliders give the same gap as `Hives` does, so the two cannot drift apart. The Launch Sim's
+colliders view and overlay are drawn from the shot's own collider list, not rebuilt on the page, so
+the drawing cannot drift from the physics either. The colliders are:
 
 - the floor, z = 0;
 - the four walls, as 1 in thick boxes outside the field's 141.17 in, up to the wall's 11.64 in. A
@@ -279,7 +291,11 @@ With *pieces where a match starts* on (the default), the shot shares the field w
 - **The pollen standing in the flowers** are held in their bores, so they are fixed spheres.
 
 Two balls meet with the *pieces* surface. Momentum is conserved in every ball-on-ball contact,
-which a test checks.
+which a test checks. Pieces touching one another wake together, so a ball rolled into a row of them
+pushes the row on rather than bouncing off it as off a wall, and a piece held up by one that is
+knocked away comes down; tests hold both. Before the shot, every piece that can move is set down
+clear of the field and of the other pieces, since the field model places some of them a few
+hundredths of an inch into the floor, a wall or the back of a cell.
 
 ## Numerics
 
@@ -298,7 +314,9 @@ found as an **event**:
 4. Integrate the rest of the piece.
 
 So a bounce happens where and when the ball meets the surface, not wherever it happened to be at
-the end of a step. Detecting contacts only at step ends is first order, and its error at 0.1 ms is
+the end of a step. A piece locates at most 16 events. After that, the rest of the piece is resolved
+at its end and any overlap projected out, as a safety cap against a storm of contacts. Within the
+0.1 in a piece may travel, nothing in the field's geometry comes near it. Detecting contacts only at step ends is first order, and its error at 0.1 ms is
 0.4 mm. With the event, it is below 10⁻⁵ mm.
 
 **Resolving contacts.** Contacts are resolved together with sequential impulses (20 iterations,
@@ -307,11 +325,14 @@ is projected out along the normals.
 
 **Accuracy.**
 
-- Free flight converges at RK4's fourth order. At 0.1 ms it is converged to about 10⁻⁹ mm.
-- Sliding and rolling come out first order in the step, about 4 µm at 0.1 ms, because friction is
-  applied as an impulse each piece. The speed at which a slide turns to a roll, and rolling's
-  deceleration, are exact.
-- A ball **rests** once it touches something and moves slower than 0.5 in/s for 0.25 s. A contact
+- Free flight is RK4's, and is converged to roundoff at every step the settings allow. A test holds
+  that halving the step moves the first bounce by less than 10⁻⁶ in and its time by less than
+  10⁻⁹ s.
+- Sliding and rolling come out first order in the step, about 1.5 µm at 0.1 ms, because friction is
+  applied as an impulse each piece. The speed at which a slide turns to a roll is exact, and
+  rolling slows at C_rr·g; tests hold both.
+- A ball **rests** once it touches something with |v| + R·|ω| below 0.5 in/s (a rolling ball,
+  whose |v| is R·|ω|, below 0.25 in/s) for 0.25 s. A contact
   that approaches slower than the threshold does not bounce, which ends a dropped ball's endless
   series of ever-smaller bounces.
 
@@ -325,15 +346,18 @@ class files to hold that.
 We read "completing within 10x realtime" as: **computing a shot takes at most ten times as long as
 the shot lasts**. The defaults are far inside that.
 
-- **Measured cost.** One RK4 integration of one ball, with the field's colliders culled by their
-  boxes, takes about 1 µs here. A shot at the default step costs about 0.01× real time, and at the
-  finest step (0.01 ms) about 0.1×. Each launch reports its own figure: "computed in 12 ms,
-  0.01× real time".
+- **What a shot costs.** A shot counts its **work**: every RK4 integration of one ball, and every
+  query of the field's colliders. Measured on the development container (an arm64 VM), a unit of
+  work costs 0.36–0.84 µs, and up to about 1.5 µs in a JVM that has only just started. The default
+  launch computes in about 0.06× real time. The same launch at the finest step (0.01 ms) takes
+  about 0.6×, and a finest-step shot that rattles around a cell among woken nectar about 1.5×.
+  Each launch reports its own figure, for example "computed in 112 ms, 0.06× real time".
 - **The limit is a count, not a clock.** Deciding by the wall clock would make the same settings
   give different shots on a busy server, so the limit is deterministic instead. A shot that needs
-  more than **2,000,000 integrations per simulated second** is stopped as *too much work*, which
-  says to make the step longer. That budget is about twenty times under ten times real time at the
-  measured cost. Only a pathological storm of events could reach it.
+  more than **3,000,000 units of work per simulated second** is stopped as *too much work*, which
+  says to make the step longer. The default launch needs about 100,000. The finest step needs
+  0.5–1.8 million. At the costliest unit measured, the budget allows about 4.4× real time, a margin
+  of more than two to the issue's 10× for a slower machine.
 - **How it is tested.** The tests pin this count. The wall time is printed and never judged,
   because a time is the machine's.
 
@@ -366,7 +390,7 @@ the shot lasts**. The defaults are far inside that.
 | Field | Hives tipping during the shot | no | one pollen cannot fill a hive (3 nectar + 1 pollen is 29 of 40) | — |
 | Pieces | Fixed spheres | for the flowers' pollen | they are held in their bores | tiny |
 | Pieces | Movable sleeping bodies | yes, for loose pollen and cells' nectar | a launched pollen knocks them, and lands on them in a cell | small |
-| Numerics | RK4, fixed step, bisection to each new contact | yes | deterministic, a fixed time grid, exact bounce times | ~1 µs a step |
+| Numerics | RK4, fixed step, bisection to each new contact | yes | deterministic, a fixed time grid, exact bounce times | 0.4–0.8 µs a unit of work |
 | Numerics | Adaptive Dormand–Prince | no | cheaper per unit of accuracy, but its large steps need swept collision tests; compute is not the constraint | — |
 | Numerics | Detecting contacts at step ends | no | first order: 0.4 mm at 0.1 ms | — |
 | Spread | Seeded scatter of rpm, size, angles (k of N score) | not yet | worthwhile next: balls "may vary in size" | N × a shot |
@@ -410,12 +434,13 @@ The *Download frames* link on a replay gives the frames as CSV, to set beside vi
 - **Core tests (`simcore`).** These use closed forms throughout:
   - flight: the vacuum parabola and its landing time; quadratic-drag fall against the exact tanh
     solution; a dropped ball's series of bounces and its rest time; slide-to-roll speed; rolling
-    deceleration; RK4 convergence to the first bounce;
+    deceleration; the first bounce agreeing between two steps;
   - bounces: Walton's map against its formulas and its invariants over 10,000 random impacts
     (energy never rises; angular momentum about the contact point is conserved);
   - spin: Garwin's 3/7; Cross's spin reversal at normal incidence; backspin kicks up and topspin
     skids;
-  - the wheels: kinematics and impulse balances; the density of air;
+  - the wheels: kinematics and impulse balances, and the 80 % and 91 % above; the density of air;
+  - the worked bounce examples above, each against Walton's law;
   - geometry: the colliders' closest points and normals;
   - determinism: a shot is identical bit for bit however it is chunked.
 - **Field tests (`TeamCode`).** On the real field:
@@ -425,6 +450,8 @@ The *Download frames* link on a replay gives the frames as CSV, to set beside vi
   - sidespin throws a ball sideways off a wall;
   - a launched pollen wakes a loose one;
   - a tipped hive is scored at its other end;
+  - the shot's hive colliders give the same gap as the realtime simulation's hives everywhere
+    around them;
   - the finest step stays within the work budget;
   - every setting at either end of its range still launches.
 - **Browser checks.** `tools/browser/launch.mjs` checks the replay page, and `dashboard.mjs`

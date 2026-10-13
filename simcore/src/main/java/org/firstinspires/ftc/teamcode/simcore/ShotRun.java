@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Crossed;
+import org.firstinspires.ftc.teamcode.simcore.Shot.Fate;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Finish;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Finished;
 import org.firstinspires.ftc.teamcode.simcore.Shot.FirstBounce;
@@ -33,13 +34,14 @@ final class ShotRun {
     private static final class Body {
         private final String name;
         private final Optional<World.Piece> piece;
-        private final Pollen shape;
+        private final Ball shape;
         private Vec3 at;
         private Vec3 velocity;
         private Vec3 spin;
         private Turn turn;
         private Life life;
         private double restFor;
+        private Fate fate = new Fate.OnTheField();
         private final List<Placed> samples;
         private Kin start;
         private Kin trial;
@@ -50,7 +52,7 @@ final class ShotRun {
         private Body(
                 String name,
                 Optional<World.Piece> piece,
-                Pollen shape,
+                Ball shape,
                 Vec3 at,
                 Vec3 velocity,
                 Vec3 spin,
@@ -74,6 +76,7 @@ final class ShotRun {
 
         Body copy() {
             Body copy = new Body(name, piece, shape, at, velocity, spin, turn, life, restFor, samples);
+            copy.fate = fate;
             copy.touchingColliders.addAll(touchingColliders);
             copy.touchingBodies.addAll(touchingBodies);
             return copy;
@@ -101,7 +104,7 @@ final class ShotRun {
     }
 
     private final World world;
-    private final Pollen pollen;
+    private final Ball pollen;
     private final WheelPair.Launched launched;
     private final double step;
     private final List<Body> bodies;
@@ -120,7 +123,7 @@ final class ShotRun {
 
     private ShotRun(
             World world,
-            Pollen pollen,
+            Ball pollen,
             WheelPair.Launched launched,
             List<Body> bodies,
             List<Frame> frames,
@@ -172,7 +175,7 @@ final class ShotRun {
         this.apex = apex.orElse(new Frame(Seconds.zero(), ball.moving(phase)));
     }
 
-    static ShotRun starting(World world, Pollen pollen, WheelPair.Launched launched) {
+    static ShotRun starting(World world, Ball pollen, WheelPair.Launched launched) {
         List<Body> bodies = new ArrayList<>();
         bodies.add(new Body(
                 Shot.LAUNCHED,
@@ -243,7 +246,8 @@ final class ShotRun {
     Story story() {
         List<Track> tracks = new ArrayList<>();
         for (Body body : bodies) {
-            body.piece.ifPresent(piece -> tracks.add(new Track(piece, Collections.unmodifiableList(body.samples))));
+            body.piece.ifPresent(
+                    piece -> tracks.add(new Track(piece, Collections.unmodifiableList(body.samples), body.fate)));
         }
         return new Story(
                 world,
@@ -301,12 +305,14 @@ final class ShotRun {
             takeAFrame();
         }
         for (Body body : bodies) {
-            if (body != ball
-                    && body.life == Life.AWAKE
-                    && world.colliders().over(body.at, body.reach()).isPresent()) {
-                body.life = Life.GONE;
-                body.samples.add(new Placed(seconds(now), body.at, body.turn));
+            if (body == ball || body.life != Life.AWAKE) {
+                continue;
             }
+            world.colliders().over(body.at, body.reach()).ifPresent(side -> {
+                body.life = Life.GONE;
+                body.fate = new Fate.Gone(seconds(now), side);
+                body.samples.add(new Placed(seconds(now), body.at, body.turn));
+            });
         }
         Optional<Colliders.Side> over = world.colliders().over(ball.at, ball.reach());
         if (over.isPresent()) {
@@ -375,7 +381,7 @@ final class ShotRun {
             if (body.life != Life.AWAKE) {
                 continue;
             }
-            for (Colliders.Near near : world.colliders().near(body.at, body.reach(), Shot.TOUCHING_IN)) {
+            for (Colliders.Near near : near(body.at, body.reach(), Shot.TOUCHING_IN)) {
                 body.touchingColliders.add(near.collider());
             }
             for (Body other : bodies) {
@@ -496,7 +502,7 @@ final class ShotRun {
 
     private boolean overlapsSomethingNew(List<Body> awake) {
         for (Body body : awake) {
-            for (Colliders.Near near : world.colliders().near(body.trial.at(), body.reach(), 0)) {
+            for (Colliders.Near near : near(body.trial.at(), body.reach(), 0)) {
                 if (near.gap() < 0 && !body.touchingColliders.contains(near.collider())) {
                     return true;
                 }
@@ -521,7 +527,7 @@ final class ShotRun {
             body.touched = false;
         }
         for (Body body : awake) {
-            for (Colliders.Near near : world.colliders().near(body.at, body.reach(), Shot.TOUCHING_IN)) {
+            for (Colliders.Near near : near(body.at, body.reach(), Shot.TOUCHING_IN)) {
                 pressing.add(new Contacts.Pressing(
                         body.contact(),
                         new Contacts.Against.Fixed(
@@ -567,19 +573,33 @@ final class ShotRun {
         return pressing;
     }
 
+    private List<Colliders.Near> near(Vec3 at, Length reach, double within) {
+        work++;
+        return world.colliders().near(at, reach, within);
+    }
+
     private void wake() {
-        List<Body> awake = awake();
-        for (Body body : awake) {
-            if (body.restFor > 0) {
-                continue;
+        List<Body> waking = new ArrayList<>();
+        for (Body body : awake()) {
+            if (body.restFor == 0) {
+                waking.add(body);
             }
-            for (Body other : bodies) {
-                if (other.life == Life.ASLEEP && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
-                    other.life = Life.AWAKE;
-                    other.restFor = 0;
-                    other.samples.add(new Placed(seconds(now), other.at, other.turn));
+        }
+        while (!waking.isEmpty()) {
+            List<Body> woken = new ArrayList<>();
+            for (Body body : waking) {
+                for (Body other : bodies) {
+                    boolean holdingItUp = body.touchingBodies.contains(other.name);
+                    if (other.life == Life.ASLEEP
+                            && (holdingItUp || within(body.at, body, other.at, other, Shot.TOUCHING_IN))) {
+                        other.life = Life.AWAKE;
+                        other.restFor = 0;
+                        other.samples.add(new Placed(seconds(now), other.at, other.turn));
+                        woken.add(other);
+                    }
                 }
             }
+            waking = woken;
         }
     }
 
@@ -642,7 +662,7 @@ final class ShotRun {
         for (int pass = 0; pass < Shot.PROJECTIONS && moved; pass++) {
             moved = false;
             for (Body body : touched) {
-                for (Colliders.Near near : world.colliders().near(body.at, body.reach(), 0)) {
+                for (Colliders.Near near : near(body.at, body.reach(), 0)) {
                     if (near.gap() < 0) {
                         body.at = body.at.along(near.normal(), -near.gap());
                         moved = true;

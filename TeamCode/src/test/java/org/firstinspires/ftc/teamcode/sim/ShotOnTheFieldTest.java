@@ -167,14 +167,16 @@ public class ShotOnTheFieldTest {
                 900));
 
         Shot.Track knocked = shot.story().pieces().stream()
-                .filter(track -> track.piece().at().equals(target.at()))
+                .filter(track -> track.piece()
+                        .name()
+                        .equals(target.name() + " <" + (FIELD.movedPieces().indexOf(target) + 1) + ">"))
                 .findFirst()
                 .orElseThrow();
         Shot.Placed last = knocked.samples().get(knocked.samples().size() - 1);
         assertTrue("it was woken: " + knocked.samples(), knocked.samples().size() > 1);
         assertTrue(
                 "it moved along the wall to " + last.at(),
-                Math.abs(last.at().y() - target.at().y()) > 0.05);
+                Math.abs(last.at().y() - knocked.piece().at().y()) > 0.05);
         assertTrue(
                 shot.story().impacts().stream().anyMatch(impact -> impact.hit().surface() == Surface.PIECE));
     }
@@ -217,6 +219,40 @@ public class ShotOnTheFieldTest {
             for (double value : new double[] {setting.least(), setting.most()}) {
                 String said = Shot.from(FIELD, with(setting, value)).fold(shot -> "", rule -> rule);
                 assertEquals(setting + " at " + value, "", said);
+            }
+        }
+    }
+
+    @Test
+    public void everyPieceThatCanMoveStartsClearOfTheFieldAndOfTheOtherPiecesWhateverThePollensSize() {
+        for (double diameter : new double[] {ShotSetting.DIAMETER.least(), ShotSetting.DIAMETER.most()}) {
+            Shot.Story story = Valid.value(Shot.from(FIELD, with(ShotSetting.DIAMETER, diameter)))
+                    .story();
+            Colliders colliders = story.world().colliders();
+            for (Shot.Track track : story.pieces()) {
+                if (track.piece().fixed()) {
+                    continue;
+                }
+                Vec3 at = track.piece().at();
+                for (org.firstinspires.ftc.teamcode.simcore.Collider collider : colliders.all()) {
+                    double gap =
+                            colliders.gap(collider, at, track.piece().shape().radiusLength());
+                    assertTrue(
+                            track.piece().name() + " starts " + -gap + " in into " + collider.name() + " at diameter "
+                                    + diameter,
+                            gap > -1e-6);
+                }
+                for (Shot.Track other : story.pieces()) {
+                    if (other != track) {
+                        double apart = other.piece().at().minus(at).length()
+                                - other.piece().shape().radius()
+                                - track.piece().shape().radius();
+                        assertTrue(
+                                track.piece().name() + " starts " + -apart + " in into "
+                                        + other.piece().name(),
+                                apart > -1e-6);
+                    }
+                }
             }
         }
     }

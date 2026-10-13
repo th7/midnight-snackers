@@ -130,7 +130,7 @@ public final class Air {
         return density;
     }
 
-    public Motion motion(Pollen ball, Vec3 velocity, Vec3 spin) {
+    public Motion motion(Ball ball, Vec3 velocity, Vec3 spin) {
         Vec3 through = velocity.minus(wind);
         double squaredSpeed = through.dot(through);
         double speed = StrictMath.sqrt(squaredSpeed);
@@ -157,7 +157,7 @@ public final class Air {
         return new Motion(dragging.plus(lifting).plus(falling), spin.times(-spinsDownPerInch * speed));
     }
 
-    public double spinParameter(Pollen ball, Vec3 velocity, Vec3 spin) {
+    public double spinParameter(Ball ball, Vec3 velocity, Vec3 spin) {
         Vec3 through = velocity.minus(wind);
         double speed = sizeOf(through);
         if (!(speed > 0)) {

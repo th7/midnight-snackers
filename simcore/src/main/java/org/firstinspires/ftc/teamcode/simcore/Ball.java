@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
-public final class Pollen {
+public final class Ball {
     public static final double THIN_SHELL = 2.0 / 3;
     public static final double GRAMS_PER_KILOGRAM = 1000;
 
@@ -8,26 +8,24 @@ public final class Pollen {
     private final double kilograms;
     private final double inertiaFactor;
 
-    private Pollen(Length radius, double kilograms, double inertiaFactor) {
+    private Ball(Length radius, double kilograms, double inertiaFactor) {
         this.radius = radius;
         this.kilograms = kilograms;
         this.inertiaFactor = inertiaFactor;
     }
 
-    public static Checked<Pollen> of(double diameterInches, double grams, double inertiaFactor) {
+    public static Checked<Ball> of(double diameterInches, double grams, double inertiaFactor) {
         if (!(diameterInches > 0 && Double.isFinite(diameterInches))) {
-            return Checked.rejected(
-                    "a pollen's diameter is a positive, finite number of inches, not " + diameterInches);
+            return Checked.rejected("a ball's diameter is a positive, finite number of inches, not " + diameterInches);
         }
-        if (!(grams > 0 && Double.isFinite(grams))) {
-            return Checked.rejected("a pollen weighs a positive, finite number of grams, not " + grams);
+        if (!(grams > 0 && Double.isFinite(grams) && grams / GRAMS_PER_KILOGRAM > 0)) {
+            return Checked.rejected("a ball weighs a positive, finite number of grams, not " + grams);
         }
         if (!(inertiaFactor > 0 && inertiaFactor <= THIN_SHELL)) {
             return Checked.rejected("a sphere's moment of inertia is more than 0 and at most 2/3 of m r^2, the thin"
                     + " shell's, so its inertia factor is not " + inertiaFactor);
         }
-        return Length.of(diameterInches / 2)
-                .map(radius -> new Pollen(radius, grams / GRAMS_PER_KILOGRAM, inertiaFactor));
+        return Length.of(diameterInches / 2).map(radius -> new Ball(radius, grams / GRAMS_PER_KILOGRAM, inertiaFactor));
     }
 
     public double radius() {
@@ -62,7 +60,7 @@ public final class Pollen {
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof Pollen that
+        return other instanceof Ball that
                 && radius.equals(that.radius)
                 && Double.compare(kilograms, that.kilograms) == 0
                 && Double.compare(inertiaFactor, that.inertiaFactor) == 0;
@@ -75,7 +73,7 @@ public final class Pollen {
 
     @Override
     public String toString() {
-        return "a pollen " + radius.inches() * 2 + " in across, " + kilograms * GRAMS_PER_KILOGRAM + " g, inertia "
+        return "a ball " + radius.inches() * 2 + " in across, " + kilograms * GRAMS_PER_KILOGRAM + " g, inertia "
                 + inertiaFactor + " m r^2";
     }
 }

@@ -186,7 +186,7 @@ public enum ShotSetting {
                     + " is 0.4 and a thin hollow shell 2/3, and the pollen's thick shell makes it 0.634.",
             0.634,
             0.4,
-            Pollen.THIN_SHELL),
+            Ball.THIN_SHELL),
     PIECES(
             Group.POLLEN,
             "Pieces on the field",

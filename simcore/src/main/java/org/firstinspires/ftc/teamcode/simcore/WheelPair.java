@@ -14,7 +14,7 @@ public final class WheelPair {
     }
 
     public static Checked<WheelPair> of(
-            Pollen pollen,
+            Ball pollen,
             Vec3 exit,
             double yawDegrees,
             double pitchDegrees,
@@ -64,7 +64,7 @@ public final class WheelPair {
         Vec3 spin = frame.towardWheelOne()
                 .cross(frame.direction())
                 .times(thrown.rimSpeed() / contactRadius * spinEfficiency);
-        Launched launched = new Launched(
+        Checked<Launched> launched = Launched.of(
                 exit,
                 velocity,
                 spin,
@@ -72,11 +72,11 @@ public final class WheelPair {
                 surfaceTwo,
                 thrown.speed() + thrown.rimSpeed(),
                 thrown.speed() - thrown.rimSpeed());
-        if (!launched.isFinite()) {
+        if (!(launched instanceof Checked.Ok<Launched> ok)) {
             return Checked.rejected("a launch leaves at a finite speed and spin, and " + one + " and " + two
                     + " throwing " + pollen + " pressed in by " + compressionInches + " in would not");
         }
-        return Checked.ok(new WheelPair(frame.direction(), frame.towardWheelOne(), launched));
+        return Checked.ok(new WheelPair(frame.direction(), frame.towardWheelOne(), ok.value()));
     }
 
     public Launched launch() {
@@ -112,7 +112,7 @@ public final class WheelPair {
         }
 
         static Thrown byWheelsThatSlow(
-                Pollen pollen, double contactRadius, Flywheel one, Flywheel two, Inertia.Slows slows) {
+                Ball pollen, double contactRadius, Flywheel one, Flywheel two, Inertia.Slows slows) {
             double ball = pollen.kilograms();
             double radii = pollen.radius() / contactRadius;
             double ballTurning = pollen.inertiaFactor() * ball * radii * radii;
@@ -236,14 +236,83 @@ public final class WheelPair {
         }
     }
 
-    public record Launched(
-            Vec3 at,
-            Vec3 velocity,
-            Vec3 spin,
-            double surfaceOne,
-            double surfaceTwo,
-            double surfaceOneAfter,
-            double surfaceTwoAfter) {
+    public static final class Launched {
+        private final Vec3 at;
+        private final Vec3 velocity;
+        private final Vec3 spin;
+        private final double surfaceOne;
+        private final double surfaceTwo;
+        private final double surfaceOneAfter;
+        private final double surfaceTwoAfter;
+
+        private Launched(
+                Vec3 at,
+                Vec3 velocity,
+                Vec3 spin,
+                double surfaceOne,
+                double surfaceTwo,
+                double surfaceOneAfter,
+                double surfaceTwoAfter) {
+            this.at = at;
+            this.velocity = velocity;
+            this.spin = spin;
+            this.surfaceOne = surfaceOne;
+            this.surfaceTwo = surfaceTwo;
+            this.surfaceOneAfter = surfaceOneAfter;
+            this.surfaceTwoAfter = surfaceTwoAfter;
+        }
+
+        public static Checked<Launched> of(
+                Vec3 at,
+                Vec3 velocity,
+                Vec3 spin,
+                double surfaceOne,
+                double surfaceTwo,
+                double surfaceOneAfter,
+                double surfaceTwoAfter) {
+            Launched launched =
+                    new Launched(at, velocity, spin, surfaceOne, surfaceTwo, surfaceOneAfter, surfaceTwoAfter);
+            if (!(at.isFinite()
+                    && velocity.isFinite()
+                    && spin.isFinite()
+                    && Double.isFinite(surfaceOne)
+                    && Double.isFinite(surfaceTwo)
+                    && Double.isFinite(surfaceOneAfter)
+                    && Double.isFinite(surfaceTwoAfter))) {
+                return Checked.rejected("a pollen leaves the wheels from a finite place at a finite speed and spin,"
+                        + " not " + launched);
+            }
+            return Checked.ok(launched);
+        }
+
+        public Vec3 at() {
+            return at;
+        }
+
+        public Vec3 velocity() {
+            return velocity;
+        }
+
+        public Vec3 spin() {
+            return spin;
+        }
+
+        public double surfaceOne() {
+            return surfaceOne;
+        }
+
+        public double surfaceTwo() {
+            return surfaceTwo;
+        }
+
+        public double surfaceOneAfter() {
+            return surfaceOneAfter;
+        }
+
+        public double surfaceTwoAfter() {
+            return surfaceTwoAfter;
+        }
+
         public SpinKind kind() {
             return SpinKind.of(velocity, spin);
         }
@@ -252,14 +321,28 @@ public final class WheelPair {
             return StrictMath.sqrt(spin.dot(spin)) * SECONDS_PER_MINUTE / (2 * StrictMath.PI);
         }
 
-        boolean isFinite() {
-            return at.isFinite()
-                    && velocity.isFinite()
-                    && spin.isFinite()
-                    && Double.isFinite(surfaceOne)
-                    && Double.isFinite(surfaceTwo)
-                    && Double.isFinite(surfaceOneAfter)
-                    && Double.isFinite(surfaceTwoAfter);
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Launched that
+                    && at.equals(that.at)
+                    && velocity.equals(that.velocity)
+                    && spin.equals(that.spin)
+                    && Double.compare(surfaceOne, that.surfaceOne) == 0
+                    && Double.compare(surfaceTwo, that.surfaceTwo) == 0
+                    && Double.compare(surfaceOneAfter, that.surfaceOneAfter) == 0
+                    && Double.compare(surfaceTwoAfter, that.surfaceTwoAfter) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return (at.hashCode() * 31 + velocity.hashCode()) * 31 + spin.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "launched from " + at + " at " + velocity + " spinning " + spin + ", the wheels' surfaces "
+                    + surfaceOne + " and " + surfaceTwo + " in/s, after " + surfaceOneAfter + " and "
+                    + surfaceTwoAfter;
         }
     }
 
