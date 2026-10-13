@@ -1197,7 +1197,6 @@
   function theLaunchTab() {
     var PREVIEW_DELAY_MS = 250;
     var VIEWER = '/sim/launches/';
-    var UNKNOWN_SETTING = 'a launch setting is';
     var YAW = 'yaw';
     var WHEELS = ['Wheel one', 'Wheel two'];
     var ENDING_PILLS = { scored: 'ok', cell: 'warn', flower: 'muted', floor: 'muted', rest: 'muted',
@@ -1308,6 +1307,14 @@
 
     function changed(entry) {
       return valueOf(entry) !== entry.setting.byDefault;
+    }
+
+    function changedValues() {
+      var values = {};
+      order.forEach(function (name) {
+        if (changed(entries[name])) { values[name] = valueOf(entries[name]); }
+      });
+      return values;
     }
 
     function formValues() {
@@ -1538,6 +1545,10 @@
     function renderSettings(listing, kept) {
       var opened = {};
       Object.keys(groups).forEach(function (name) { opened[name] = groups[name].details.open; });
+      var focused = null;
+      order.forEach(function (name) {
+        if (entries[name].input === document.activeElement) { focused = name; }
+      });
       clear(groupsHost);
       entries = {};
       order = [];
@@ -1572,6 +1583,7 @@
       forgot.textContent = listing.forgot || '';
       forgot.hidden = !listing.forgot;
       fill(start);
+      if (focused !== null && has(entries, focused)) { entries[focused].input.focus(); }
     }
 
     function setGo() {
@@ -1584,7 +1596,9 @@
       try {
         var problem = JSON.parse(text);
         if (problem && typeof problem.rule === 'string') {
-          return { setting: typeof problem.setting === 'string' ? problem.setting : null, rule: problem.rule };
+          var said = { setting: typeof problem.setting === 'string' ? problem.setting : null, rule: problem.rule };
+          if (typeof problem.unknown === 'string') { said.unknown = problem.unknown; }
+          return said;
         }
       } catch (e) {
         return { setting: null, rule: text };
@@ -1598,7 +1612,7 @@
     }
 
     function refusedFor(problem, launched) {
-      if (problem.setting !== null && problem.rule.indexOf(UNKNOWN_SETTING) === 0) {
+      if (has(problem, 'unknown')) {
         unknownToTheBench(problem, launched);
         return;
       }
@@ -1615,8 +1629,13 @@
     }
 
     function unknownToTheBench(problem, launched) {
-      var name = problem.setting;
+      var name = problem.unknown;
       var listed = has(entries, name);
+      if (listed && !reloading && unreadable().length) {
+        refusal = { setting: name, rule: problem.rule, launched: launched };
+        showProblems();
+        return;
+      }
       if (listed && !reloading && !has(reloadedFor, name)) {
         reloadedFor[name] = labelOf(name);
         reloadSettings(name);
@@ -1632,16 +1651,32 @@
 
     function reloadSettings(name) {
       reloading = true;
+      var failed = function () {
+        reloading = false;
+        delete reloadedFor[name];
+      };
       fetch('/sim/launch/settings', { cache: 'no-store' }).then(function (r) {
         if (r.status === 403) { location.reload(); return null; }
-        if (!r.ok) { return r.text().then(function (t) { say(t, 'bad'); return null; }); }
+        if (!r.ok) {
+          return r.text().then(function (t) {
+            failed();
+            say('The settings could not be reloaded: ' + t, 'bad');
+            return null;
+          });
+        }
         return r.json();
       }).then(function (listing) {
-        reloading = false;
         if (!listing) { return; }
-        renderSettings(listing, formValues());
-        say(reloadedSaying(reloadedFor[name]), 'reloaded');
-      }).catch(function (e) { reloading = false; lost(e); });
+        if (unreadable().length) {
+          failed();
+          showProblems();
+          return;
+        }
+        reloading = false;
+        var said = reloadedFor[name];
+        renderSettings(listing, changedValues());
+        say(reloadedSaying(said), 'reloaded');
+      }).catch(function (e) { failed(); lost(e); });
     }
 
     function post(url, body) {

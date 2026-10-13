@@ -48,15 +48,41 @@ const INSIDE_A_PIECE = { x: -69, y: 60.6, height: 2 };
 const INSIDE_RULE = 'the pollen would start inside Pollen <1>, at Vec3[x=-69.0, y=60.6, z=2.0]';
 const TOO_STEEP = 89;
 const SIMULATING_MS = 400;
+const SETTINGS_FAILED = 'the bench could not list its settings just now';
 
 const PREVIEWS_ASKED = [];
 const LAUNCHES_ASKED = [];
 const LAUNCHES = [];
 const LAUNCHED = [];
 const UNKNOWN_TO_THE_BENCH = new Set();
+const RAISED_DEFAULTS = {};
 let settingsAsked = 0;
+let settingsFailing = 0;
 let viewerLoads = 0;
-let previewsHeld = null;
+
+function gate() {
+  let held = null;
+  return {
+    hold() { held = []; },
+    release() {
+      const answers = held || [];
+      held = null;
+      answers.forEach((answer) => answer());
+    },
+    pass(answer) {
+      if (held) {
+        held.push(answer);
+      } else {
+        answer();
+      }
+    },
+    holding() { return held ? held.length : 0; }
+  };
+}
+
+const PREVIEWS = gate();
+const SETTINGS = gate();
+const LAUNCHING = gate();
 
 function freshLaunches() {
   PREVIEWS_ASKED.length = 0;
@@ -64,26 +90,21 @@ function freshLaunches() {
   LAUNCHES.length = 0;
   LAUNCHED.length = 0;
   UNKNOWN_TO_THE_BENCH.clear();
-  previewsHeld = null;
-}
-
-function holdPreviews() {
-  previewsHeld = [];
-}
-
-function releasePreviews() {
-  const held = previewsHeld || [];
-  previewsHeld = null;
-  held.forEach((answer) => answer());
+  Object.keys(RAISED_DEFAULTS).forEach((name) => delete RAISED_DEFAULTS[name]);
+  settingsFailing = 0;
+  [PREVIEWS, SETTINGS, LAUNCHING].forEach((one) => one.release());
 }
 
 const settingNamed = (name) => LAUNCH_SETTINGS.find((s) => s.name === name);
 const known = () => LAUNCH_SETTINGS.filter((s) => !UNKNOWN_TO_THE_BENCH.has(s.name));
 
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+
 function listingAsRemembered() {
   return Object.assign({}, ANSWERED.settings, {
     settings: known().map((s) => Object.assign({}, s,
-        Object.prototype.hasOwnProperty.call(REMEMBERED, s.name) ? { value: REMEMBERED[s.name] } : {})),
+        has(REMEMBERED, s.name) ? { value: REMEMBERED[s.name] } : {},
+        has(RAISED_DEFAULTS, s.name) ? { byDefault: RAISED_DEFAULTS[s.name], value: RAISED_DEFAULTS[s.name] } : {})),
     forgot: FORGOT
   });
 }
@@ -99,7 +120,7 @@ function refusalOf(body, launching) {
   const names = known().map((s) => s.name);
   const stranger = Object.keys(body).find((name) => !names.includes(name));
   if (stranger !== undefined) {
-    return { setting: stranger, rule: `a launch setting is ${names.join(', ')}, not '${stranger}'` };
+    return Object.assign({}, ANSWERED.unknown, { setting: stranger, unknown: stranger });
   }
   if (valueIn(body, 'pitch') > TOO_STEEP) {
     return ANSWERED.refused;
@@ -133,36 +154,40 @@ const VIEWER = '<!doctype html><meta charset="utf-8"><title>Launch Sim</title><b
 function servedTheLaunchSim(request, response, route) {
   if (request.method === 'GET' && route === '/sim/launch/settings') {
     settingsAsked += 1;
-    json(response, listingAsRemembered());
+    SETTINGS.pass(() => {
+      if (settingsFailing > 0) {
+        settingsFailing -= 1;
+        response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }).end(SETTINGS_FAILED);
+        return;
+      }
+      json(response, listingAsRemembered());
+    });
     return true;
   }
   if (request.method === 'POST' && route === '/sim/launch/preview') {
     bodyOf(request, (body) => {
       PREVIEWS_ASKED.push(body);
       const refusal = refusalOf(body, false);
-      const answer = () => (refusal ? json(response, refusal, 400) : json(response, PREVIEW));
-      if (previewsHeld) {
-        previewsHeld.push(answer);
-      } else {
-        answer();
-      }
+      PREVIEWS.pass(() => (refusal ? json(response, refusal, 400) : json(response, PREVIEW)));
     });
     return true;
   }
   if (request.method === 'POST' && route === '/sim/launch') {
     bodyOf(request, (body) => {
       LAUNCHES_ASKED.push(body);
-      const refusal = refusalOf(body, true);
-      if (refusal) {
-        json(response, refusal, 400);
-        return;
-      }
-      setTimeout(() => {
-        LAUNCHED.push(body);
-        const id = LAUNCHED.length;
-        LAUNCHES.unshift(summaryOf(id));
-        json(response, { id });
-      }, SIMULATING_MS);
+      LAUNCHING.pass(() => {
+        const refusal = refusalOf(body, true);
+        if (refusal) {
+          json(response, refusal, 400);
+          return;
+        }
+        setTimeout(() => {
+          LAUNCHED.push(body);
+          const id = LAUNCHED.length;
+          LAUNCHES.unshift(summaryOf(id));
+          json(response, { id });
+        }, SIMULATING_MS);
+      });
     });
     return true;
   }
@@ -433,6 +458,16 @@ async function untilTrue(page, fn, arg) {
   return page.waitForFunction(fn, arg, { timeout: 10_000 }).then(() => true).catch(() => false);
 }
 
+async function untilSo(ok) {
+  for (let waited = 0; waited < 10_000; waited += 50) {
+    if (ok()) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
+
 async function untilAsked(list, from, ok) {
   for (let waited = 0; waited < 10_000; waited += 50) {
     const found = list.slice(from).find(ok);
@@ -646,7 +681,7 @@ async function aLaunchsRefusalStaysUntilTheFormChanges(page, engine) {
   await settle(page);
   const previewsFrom = PREVIEWS_ASKED.length;
   const launchesFrom = LAUNCHES_ASKED.length;
-  holdPreviews();
+  PREVIEWS.hold();
   for (const [name, value] of Object.entries(INSIDE_A_PIECE)) {
     await input(page, name).fill(String(value));
   }
@@ -659,7 +694,7 @@ async function aLaunchsRefusalStaysUntilTheFormChanges(page, engine) {
   const previewed = await untilAsked(PREVIEWS_ASKED, previewsFrom, startsInsideAPiece);
   check(previewed, `${engine}: the edit that put the launch inside a piece asked for no preview`);
   await page.evaluate(() => { window.previewShownBefore = document.querySelector('#launch-preview dl'); });
-  releasePreviews();
+  PREVIEWS.release();
   const answered = await untilTrue(page,
       () => document.querySelector('#launch-preview dl') !== window.previewShownBefore);
   check(answered, `${engine}: the preview the same edit asked for was never shown`);
@@ -744,7 +779,14 @@ async function aSettingTheBenchNoLongerKnowsReloadsTheSettings(page, engine) {
   const asked = settingsAsked;
   const previewsFrom = PREVIEWS_ASKED.length;
   UNKNOWN_TO_THE_BENCH.add('roll');
-  await input(page, 'wheel_two_rpm').fill('1250');
+  RAISED_DEFAULTS.wheel_one_rpm = 950;
+  SETTINGS.hold();
+  const wheelTwo = input(page, 'wheel_two_rpm');
+  await wheelTwo.fill('1250');
+  check(await untilSo(() => SETTINGS.holding() > 0),
+      `${engine}: the bench refused roll as no setting of its own, and the settings were not asked for again`);
+  await wheelTwo.focus();
+  SETTINGS.release();
   const reloaded = await untilTrue(page, () => document.getElementById('launch-setting-roll') === null);
   check(reloaded && settingsAsked > asked,
       `${engine}: the bench no longer knows roll, and the settings were asked for ${settingsAsked - asked} times since`);
@@ -753,8 +795,80 @@ async function aSettingTheBenchNoLongerKnowsReloadsTheSettings(page, engine) {
       + 'reloaded');
   check(await untilAsked(PREVIEWS_ASKED, previewsFrom, (body) => !('roll' in body) && body.wheel_two_rpm === 1250),
       `${engine}: once the settings were reloaded, no preview was asked of the form as it stood`);
-  check(await input(page, 'wheel_two_rpm').inputValue() === '1250',
-      `${engine}: reloading the settings threw away wheel two's ${await input(page, 'wheel_two_rpm').inputValue()}`);
+  check(await wheelTwo.inputValue() === '1250',
+      `${engine}: reloading the settings threw away wheel two's 1250 for ${await wheelTwo.inputValue()}`);
+  check(await input(page, 'wheel_one_rpm').inputValue() === '950',
+      `${engine}: wheel one, which the user never changed, reads ${await input(page, 'wheel_one_rpm').inputValue()} `
+      + 'after the reload rather than the 950 the bench now starts it at');
+  check(!(await page.locator('#launch [data-setting="wheel_one_rpm"] .changed-mark').isVisible()),
+      `${engine}: wheel one, at the bench's new default, is marked changed after the reload`);
+  const focused = await page.evaluate(() => (document.activeElement && document.activeElement.isConnected
+    ? document.activeElement.id || document.activeElement.tagName : null));
+  check(focused === 'launch-setting-wheel_two_rpm',
+      `${engine}: the user was in wheel two when the settings were reloaded, and the focus went to ${focused}`);
+  UNKNOWN_TO_THE_BENCH.clear();
+}
+
+async function aFailedReloadIsTriedAgain(page, engine) {
+  await settle(page);
+  const asked = settingsAsked;
+  UNKNOWN_TO_THE_BENCH.add('compression');
+  settingsFailing = 1;
+  await input(page, 'wheel_two_rpm').fill('1260');
+  check(await untilSo(() => settingsAsked > asked && settingsFailing === 0),
+      `${engine}: the bench refused compression as no setting of its own, and the settings were not asked for`);
+  check(await untilTrue(page, (said) => document.getElementById('launch-message').textContent.includes(said),
+      SETTINGS_FAILED), `${engine}: the settings could not be reloaded, and the message says "${await message(page)}"`);
+  await input(page, 'wheel_two_rpm').fill('1270');
+  const reloaded = await untilTrue(page, () => document.getElementById('launch-setting-compression') === null);
+  check(reloaded, `${engine}: after reloading the settings failed once, the next refusal of compression did not `
+      + `reload them: they were asked for ${settingsAsked - asked} times`);
+  UNKNOWN_TO_THE_BENCH.clear();
+}
+
+async function typeWhatIsNotANumber(page, name) {
+  await input(page, name).click({ timeout: 5_000 });
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('1e');
+}
+
+const stillUnreadable = (page, name) => input(page, name).evaluate((field) => field.validity.badInput);
+
+async function noReloadTakesTextTheUserIsStillTyping(page, engine) {
+  await settle(page);
+  UNKNOWN_TO_THE_BENCH.add('robot_vx');
+  LAUNCHING.hold();
+  const launchesFrom = LAUNCHES_ASKED.length;
+  await page.locator('#launch-go').click({ timeout: 5_000 });
+  check(await untilAsked(LAUNCHES_ASKED, launchesFrom, (body) => 'robot_vx' in body),
+      `${engine}: Launch was not asked of the bench`);
+  await typeWhatIsNotANumber(page, 'wheel_one_rpm');
+  let asked = settingsAsked;
+  LAUNCHING.release();
+  await settle(page);
+  await page.waitForTimeout(400);
+  check(settingsAsked === asked && await input(page, 'robot_vx').count() === 1 && await stillUnreadable(page, 'wheel_one_rpm'),
+      `${engine}: a launch refused for robot_vx reloaded the settings while wheel one held text the user was still `
+      + 'typing, and threw that text away');
+  await input(page, 'wheel_one_rpm').fill('');
+  check(await untilTrue(page, () => document.getElementById('launch-setting-robot_vx') === null),
+      `${engine}: once wheel one could be read, the next refusal of robot_vx did not reload the settings`);
+
+  UNKNOWN_TO_THE_BENCH.add('robot_vy');
+  SETTINGS.hold();
+  asked = settingsAsked;
+  await input(page, 'wheel_two_rpm').fill('1280');
+  check(await untilSo(() => SETTINGS.holding() > 0),
+      `${engine}: the bench refused robot_vy as no setting of its own, and the settings were not asked for again`);
+  await typeWhatIsNotANumber(page, 'wheel_one_rpm');
+  SETTINGS.release();
+  await page.waitForTimeout(400);
+  check(await input(page, 'robot_vy').count() === 1 && await stillUnreadable(page, 'wheel_one_rpm'),
+      `${engine}: settings that came back while wheel one held text the user was still typing were set out over it, `
+      + 'and threw that text away');
+  await input(page, 'wheel_one_rpm').fill('');
+  check(await untilTrue(page, () => document.getElementById('launch-setting-robot_vy') === null),
+      `${engine}: once wheel one could be read, the next refusal of robot_vy did not reload the settings`);
   UNKNOWN_TO_THE_BENCH.clear();
 }
 
@@ -770,6 +884,8 @@ async function theLaunchSimWorks(page, engine) {
   await theViewKeepsHowItIsDrawn(page, engine);
   await anUnreadableNumberIsNeitherPreviewedNorLaunched(page, engine);
   await aSettingTheBenchNoLongerKnowsReloadsTheSettings(page, engine);
+  await aFailedReloadIsTriedAgain(page, engine);
+  await noReloadTakesTextTheUserIsStillTyping(page, engine);
 }
 
 async function main() {
@@ -831,7 +947,8 @@ async function main() {
       + 'and the launches ticked to compare, by changing the view\'s fragment alone and keeping how the view is '
       + 'drawn, takes a launch\'s settings back, marks the setting a launch was refused for, keeps a launch\'s '
       + 'refusal in sight until the form changes, sends nothing while a number cannot be read, and reloads the '
-      + 'settings when the bench no longer knows one, on '
+      + 'settings when the bench says it no longer knows one, keeping only what the user changed and where they '
+      + 'were typing, trying again after a reload fails and never over a number still being typed, on '
       + 'this engine and on one shaped like an older iPad\'s, and '
       + 'says so on the page when the editor cannot start, where both tabs are still reached.');
 }
