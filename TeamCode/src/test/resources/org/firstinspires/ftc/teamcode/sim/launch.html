@@ -483,6 +483,7 @@ let at = { k: 0, t: 0 };
 let playing = false;
 let lastNow = null;
 let following = false;
+let lookedAround = false;
 let showingColliders = false;
 let preview = null;
 let previewArrow = null;
@@ -894,6 +895,9 @@ function setShot(next) {
   if (next) {
     at = { k: 0, t: next.start };
     show();
+    if (!lookedAround) {
+      frameThePath();
+    }
   }
 }
 
@@ -1038,6 +1042,7 @@ function frameThePath() {
   const from = new THREE.Vector3().subVectors(scene.camera.position, scene.controls.target).normalize();
   scene.controls.target.copy(sphere.center);
   scene.camera.position.copy(sphere.center).addScaledVector(from, distance);
+  lookedAround = false;
   setFollowing(false);
 }
 
@@ -1151,6 +1156,7 @@ async function drawTheField() {
   const fieldscene = await import(ASSETS + 'fieldscene.js');
   THREE = await import('three');
   scene = new fieldscene.FieldScene({ canvas, assets: ASSETS, background: token('--bg') });
+  scene.controls.addEventListener('start', () => { lookedAround = true; });
   shotGroup = new THREE.Group();
   colliderGroup = new THREE.Group();
   ghostGroup = new THREE.Group();

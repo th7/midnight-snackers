@@ -898,6 +898,10 @@ async function theBenchsOwnShotPlays(browser, base, shot) {
     let state = await hook(open);
     const first = shot.frames[0];
     const last = shot.frames[shot.frames.length - 1];
+    const along = (i) => shot.frames.map((f) => f[i]);
+    const inside = (v, i) => v >= Math.min(...along(i)) - 1 && v <= Math.max(...along(i)) + 1;
+    check(inside(state.view.target[0], 1) && inside(state.view.target[1], 2) && inside(state.view.target[2], 3),
+          `the bench's shot was not framed: the camera looks at ${state.view.target}`);
     check(state.ball && near(state.ball.position, positionOf(first), 1e-3),
           `the bench's shot starts at ${state.ball && state.ball.position}, not ${positionOf(first)}`);
     check(state.impactMarkers === shot.impacts.length,
