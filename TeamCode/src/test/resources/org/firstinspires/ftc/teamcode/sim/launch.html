@@ -634,7 +634,8 @@ function collidersDrawn(colliders, asTheField) {
 
 function marker(colour, normal, size) {
   const ring = new THREE.Mesh(new THREE.RingGeometry(size * 0.55, size, 24), new THREE.MeshBasicMaterial({
-    color: new THREE.Color(colour), side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false }));
+    color: new THREE.Color(colour), side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(normal[0], normal[1], normal[2]));
   return ring;
 }
@@ -676,10 +677,8 @@ function buildShotViews(next) {
   shotGroup.add(whole, travelled);
 
   const impactMarks = next.impacts.filter((impact) => isTriple(impact.at) && isTriple(impact.normal)).map((impact) => {
-    const n = unit(impact.normal);
-    const ring = marker(surfaceColour(impact.surface), n, next.radius * 0.9);
-    const contact = add(impact.at, scale(n, 0.06 - next.radius));
-    ring.position.set(contact[0], contact[1], contact[2]);
+    const ring = marker(surfaceColour(impact.surface), unit(impact.normal), next.radius * 0.9);
+    ring.position.set(impact.at[0], impact.at[1], impact.at[2]);
     shotGroup.add(ring);
     return ring;
   });
@@ -925,6 +924,11 @@ function show() {
     positions.needsUpdate = true;
     views.travelled.geometry.setDrawRange(0, into + 1);
     for (const one of views.pieces) {
+      const left = typeof one.piece.gone === 'number' && at.t >= one.piece.gone - SAME_TIME_S;
+      one.drawn.visible = !left;
+      if (left) {
+        continue;
+      }
       const where = trackAt(one.piece, at.t);
       one.drawn.position.set(where.p[0], where.p[1], where.p[2]);
       one.drawn.quaternion.set(where.q[1], where.q[2], where.q[3], where.q[0]);
@@ -1320,7 +1324,12 @@ function themeChanged() {
   }
 }
 if (window.matchMedia) {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  if (dark.addEventListener) {
+    dark.addEventListener('change', themeChanged);
+  } else if (dark.addListener) {
+    dark.addListener(themeChanged);
+  }
 }
 new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
@@ -1371,7 +1380,15 @@ window.launchPage = {
       position: [one.drawn.position.x, one.drawn.position.y, one.drawn.position.z], visible: one.drawn.visible
     })) : [];
   },
-  get impactMarkers() { return views ? views.impactMarks.length : 0; },
+  get impactMarkers() {
+    return views ? views.impactMarks.map((ring) => {
+      const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(ring.quaternion);
+      return { at: [ring.position.x, ring.position.y, ring.position.z], facing: [facing.x, facing.y, facing.z] };
+    }) : [];
+  },
+  get background() {
+    return scene && scene.scene.background ? '#' + scene.scene.background.getHexString() : null;
+  },
   get preview() {
     return preview ? { at: preview.at.slice(), direction: preview.direction.slice(), visible: !!(previewArrow && previewArrow.visible) } : null;
   },

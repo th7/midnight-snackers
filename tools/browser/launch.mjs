@@ -132,7 +132,8 @@ function flown(start, legs) {
       push(t, state, phase);
       push(t, after, leg.phase);
       impacts.push({
-        t: rounded(t, 5), at: roundedAll(state.p, 4), normal: roundedAll(leg.normal, 4),
+        t: rounded(t, 5), at: roundedAll(sub(state.p, scale(leg.normal, POLLEN.radius)), 4),
+        normal: roundedAll(leg.normal, 5),
         against: leg.against, surface: leg.surface, approach: rounded(approach, 4),
         slip: rounded(norm(slipping), 4), restitution: leg.restitution, gripped: leg.gripped,
         before: { velocity: roundedAll(state.v, 4), spin: roundedAll(state.w, 4) },
@@ -220,11 +221,30 @@ function collidersOf(field, tilts) {
 
 function piecesOf(field, tipped) {
   return field.moved
+      .map((piece, i) => ({
+        name: `${piece.name} <${i + 1}>`, kind: piece.kind, colour: piece.colour, radius: piece.radius,
+        fixed: piece.flower !== undefined, start: piece.centre, track: [], gone: null, cell: piece.cell
+      }))
       .filter((piece) => !(piece.cell && tipped.some((alliance) => piece.cell.startsWith(alliance))))
-      .map((piece) => ({
-        name: piece.name, kind: piece.kind, colour: piece.colour, radius: piece.radius,
-        fixed: piece.flower !== undefined, start: piece.centre, track: []
-      }));
+      .map(({ cell, ...piece }) => piece);
+}
+
+function overRedsWall(piece, field, from) {
+  const half = field.size / 2;
+  const across = 30;
+  const toTheWall = (half - piece.start[1]) / across;
+  const clearing = field.wallHeight + 2 * piece.radius - piece.start[2];
+  const up = (clearing + GRAVITY_IN_PER_S2 * toTheWall * toTheWall / 2) / toTheWall;
+  const beyond = half + WALL_THICKNESS_IN + piece.radius;
+  for (let i = 0; ; i++) {
+    const tau = i * FRAME_EVERY_S;
+    const at = add(piece.start, [0, across * tau, up * tau - GRAVITY_IN_PER_S2 * tau * tau / 2]);
+    piece.track.push([rounded(from + tau, 5), ...roundedAll(at, 4), 1, 0, 0, 0]);
+    if (at[1] > beyond) {
+      piece.gone = rounded(from + tau, 5);
+      return;
+    }
+  }
 }
 
 function settingsOf(changed) {
@@ -400,13 +420,15 @@ function aHighSpinBounceAcrossTheFloor(field) {
     ],
     pieces: () => {
       const all = piecesOf(field, ['Red']);
-      const knocked = all.find((piece) => !piece.fixed && !piece.kind.startsWith('Nectar'));
+      const loose = all.filter((piece) => !piece.fixed && !piece.kind.startsWith('Nectar'));
+      const knocked = loose[0];
       for (let i = 0; i <= 125; i++) {
         const t = 1 + i * FRAME_EVERY_S;
         const q = turned([1, 0, 0, 0], [-20 / knocked.radius, 0, 0], i * FRAME_EVERY_S);
         knocked.track.push([rounded(t, 5), ...roundedAll(add(knocked.start, [0, 20 * i * FRAME_EVERY_S, 0]), 4),
                             ...roundedAll(q, 5)]);
       }
+      overRedsWall(loose.slice(1).reduce((best, one) => (one.start[1] > best.start[1] ? one : best)), field, 1.2);
       return all;
     },
     ending: { kind: 'floor', says: 'came to rest on the floor' }
@@ -537,7 +559,7 @@ const hook = (where) => where.evaluate(() => {
     colliderMeshes: page.colliderMeshes, pieces: page.pieces, impactMarkers: page.impactMarkers,
     preview: page.preview, leaning: page.leaning, ownPieces: page.ownPieces, robotShown: page.robotShown,
     view: page.view, following: page.following, playing: page.playing, events: page.events,
-    spin: page.spin
+    spin: page.spin, background: page.background
   };
 });
 
@@ -572,8 +594,8 @@ async function theShotIsDrawnWhereItsFirstFrameIs(open, shot, state) {
         `the pollen starts at ${state.ball && state.ball.position}, not the first frame's ${positionOf(first)}`);
   check(state.ball && state.ball.holes === 26, `the pollen has ${state.ball && state.ball.holes} holes, not 26`);
   check(state.time === first[0] && state.frame === 0, `the page starts at t=${state.time}, frame ${state.frame}`);
-  check(state.impactMarkers === shot.impacts.length,
-        `${state.impactMarkers} impact markers are drawn for ${shot.impacts.length} impacts`);
+  check(state.impactMarkers.length === shot.impacts.length,
+        `${state.impactMarkers.length} impact markers are drawn for ${shot.impacts.length} impacts`);
   check(state.pieces.length === shot.pieces.length,
         `${state.pieces.length} of the shot's ${shot.pieces.length} pieces are drawn`);
   const fixed = shot.pieces.find((piece) => piece.fixed);
@@ -751,6 +773,32 @@ async function betweenFramesThePollenIsWhereItsFlightPutsIt(open, shot) {
         + `${onItsFlight(before, ahead / 2)}: the drawing reached across the impact`);
 }
 
+async function aPieceThatLeavesTheFieldIsHiddenFromThen(open, shot) {
+  const leaving = shot.pieces.find((piece) => typeof piece.gone === 'number');
+  check(!!leaving, 'the canned high-spin shot has no piece that leaves the field');
+  if (!leaving) {
+    return;
+  }
+  const drawnAt = async (t) => {
+    await goTo(open, t);
+    return (await hook(open)).pieces.find((piece) => piece.name === leaving.name);
+  };
+  const lastOnTheField = leaving.track[leaving.track.length - 2];
+  let drawn = await drawnAt(lastOnTheField[0]);
+  check(drawn && drawn.visible && near(drawn.position, lastOnTheField.slice(1, 4), 1e-3),
+        `just before ${leaving.name} leaves the field it is drawn ${JSON.stringify(drawn)}, not on its track at `
+        + `${lastOnTheField.slice(1, 4)}`);
+  drawn = await drawnAt(leaving.gone);
+  check(drawn && !drawn.visible, `${leaving.name} left the field at ${leaving.gone} s and is still drawn then`);
+  drawn = await drawnAt(shot.frames[shot.frames.length - 1][0]);
+  check(drawn && !drawn.visible, `${leaving.name} left the field at ${leaving.gone} s and is still drawn at the end`);
+  const hidden = (await hook(open)).pieces.filter((piece) => piece.name !== leaving.name && !piece.visible);
+  check(hidden.length === 0, `pieces that never left the field are hidden: ${hidden.map((piece) => piece.name)}`);
+  drawn = await drawnAt(shot.frames[0][0]);
+  check(drawn && drawn.visible && near(drawn.position, leaving.start, 1e-3),
+        `back at the launch, ${leaving.name}, which leaves later, is drawn ${JSON.stringify(drawn)}, not at its start`);
+}
+
 async function ghostsAreDrawnBesideTheShownLaunch(open, shots) {
   await open.evaluate(() => { location.hash = '#1,2,3'; });
   await showing(open, [1, 2, 3]);
@@ -801,6 +849,7 @@ async function theWideViewWorks(browser, base, shots) {
     await anotherLaunchIsSwappedInWithoutReloading(open, shots, requested);
     await theSpinTurnsThePollenTheRightWay(open, shots.get(2));
     await betweenFramesThePollenIsWhereItsFlightPutsIt(open, shots.get(2));
+    await aPieceThatLeavesTheFieldIsHiddenFromThen(open, shots.get(2));
     await ghostsAreDrawnBesideTheShownLaunch(open, shots);
     await theCollidersAloneCanBeTheField(open, shots, requested);
     const left = faults(threw, []);
@@ -887,6 +936,46 @@ async function theStageSendsThePreviewArrow(browser, base, elsewhere) {
   }
 }
 
+const withAMediaQueryListThatOnlyAddsListeners = () => {
+  const realMatchMedia = window.matchMedia.bind(window);
+  window.matchMedia = (query) => {
+    const live = realMatchMedia(query);
+    return {
+      media: live.media,
+      get matches() { return live.matches; },
+      addListener: (fn) => live.addListener(fn),
+      removeListener: (fn) => live.removeListener(fn)
+    };
+  };
+};
+
+async function anOlderEngineStillFollowsTheTheme(browser, base) {
+  const open = await browser.newPage({ viewport: NARROW, colorScheme: 'light' });
+  const { threw } = watched(open);
+  await open.addInitScript(withAMediaQueryListThatOnlyAddsListeners);
+  const stopped = new Promise((resolve) => open.once('pageerror', resolve));
+  try {
+    await open.goto(`${base}/launches/?view=flat#1`, { waitUntil: 'load', timeout: 60_000 });
+    const stop = await Promise.race([settledIn(open).then(() => null), stopped]);
+    if (stop) {
+      wrong.push(`where a MediaQueryList has addListener alone, the launch page stopped: ${stop.message || stop}`);
+      return;
+    }
+    await showing(open, [1]);
+    const light = (await hook(open)).background;
+    await open.emulateMedia({ colorScheme: 'dark' });
+    const followed = await open.waitForFunction((was) => window.launchPage.background !== was, light,
+                                                { timeout: 10_000 }).then(() => true, () => false);
+    check(followed, `where a MediaQueryList has addListener alone, the field stays ${light} when the system turns dark`);
+    const left = faults(threw, []);
+    check(left.length === 0, `where a MediaQueryList has addListener alone, the page threw: ${left.join('; ')}`);
+  } catch (stuck) {
+    wrong.push(`the page on an older engine got stuck: ${stuck && stuck.message}`);
+  } finally {
+    await open.close();
+  }
+}
+
 async function theBenchsOwnShotPlays(browser, base, shot) {
   const open = await browser.newPage({ viewport: WIDE });
   const { threw } = watched(open);
@@ -904,8 +993,17 @@ async function theBenchsOwnShotPlays(browser, base, shot) {
           `the bench's shot was not framed: the camera looks at ${state.view.target}`);
     check(state.ball && near(state.ball.position, positionOf(first), 1e-3),
           `the bench's shot starts at ${state.ball && state.ball.position}, not ${positionOf(first)}`);
-    check(state.impactMarkers === shot.impacts.length,
-          `the bench's shot has ${shot.impacts.length} impacts and ${state.impactMarkers} markers`);
+    check(state.impactMarkers.length === shot.impacts.length,
+          `the bench's shot has ${shot.impacts.length} impacts and ${state.impactMarkers.length} markers`);
+    shot.impacts.forEach((impact, i) => {
+      const marker = state.impactMarkers[i];
+      check(marker && near(marker.at, impact.at, 1e-3),
+            `the marker of the bench's impact against ${impact.against} at ${impact.t} s is drawn at `
+            + `${marker && marker.at}, not where the pollen touched it, ${impact.at}`);
+      check(marker && dot(marker.facing, unit(impact.normal)) > 0.999,
+            `the marker of the bench's impact against ${impact.against} at ${impact.t} s faces `
+            + `${marker && marker.facing}, so it does not lie flat on the surface, whose normal is ${impact.normal}`);
+    });
     check(state.pieces.length === shot.pieces.length,
           `${state.pieces.length} of the bench's ${shot.pieces.length} pieces are drawn`);
     await goTo(open, last[0]);
@@ -956,6 +1054,7 @@ async function main() {
     await theWideViewWorks(browser, base, shots);
     await theNarrowViewFitsAndSaysWhatIsMissing(browser, base);
     await theStageSendsThePreviewArrow(browser, base, elsewhere);
+    await anOlderEngineStillFollowsTheTheme(browser, base);
     await theBenchsOwnShotPlays(browser, base, real);
   } catch (stuck) {
     wrong.push(String(stuck && stuck.message));
@@ -977,9 +1076,11 @@ async function main() {
   const lob = shots.get(1);
   console.log(`the launch page shows a lob of ${lob.frames.length} frames into ${lob.crossings[0].cell} with `
       + `${lob.impacts.length} impacts, turns a ${Math.round(shots.get(2).launch.spinRpm)} rpm pollen the way it `
-      + 'spins, swaps launches and ghosts by its fragment without reloading, draws the colliders over the field '
-      + `or as the field, fits ${NARROW.width}x${NARROW.height}, draws the preview its own stage sends it, and plays `
-      + `the bench's own shot, which ${real.ending.says}.`);
+      + 'spins, hides a piece once it has left the field, swaps launches and ghosts by its fragment without '
+      + 'reloading, draws the colliders over the field or as the field, fits '
+      + `${NARROW.width}x${NARROW.height}, draws the preview its own stage sends it, follows the theme where a `
+      + `MediaQueryList has addListener alone, and plays the bench's own shot, which ${real.ending.says}, with `
+      + `each of its ${real.impacts.length} impact markers flat where the pollen touched.`);
 }
 
 await main();

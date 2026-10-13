@@ -1196,6 +1196,8 @@
 
   function theLaunchTab() {
     var PREVIEW_DELAY_MS = 250;
+    var VIEWER = '/sim/launches/';
+    var UNKNOWN_SETTING = 'a launch setting is';
     var YAW = 'yaw';
     var WHEELS = ['Wheel one', 'Wheel two'];
     var ENDING_PILLS = { scored: 'ok', cell: 'warn', flower: 'muted', floor: 'muted', rest: 'muted',
@@ -1227,6 +1229,11 @@
     var launches = [];
     var shownId = null;
     var ticked = [];
+    var refusal = null;
+    var reloading = false;
+    var reloadedFor = {};
+    var viewOpenedWith = null;
+    var viewLoaded = false;
 
     function has(object, key) {
       return !!object && Object.prototype.hasOwnProperty.call(object, key);
@@ -1262,7 +1269,7 @@
     function say(text, kind) {
       message.textContent = text;
       messageKind = kind || '';
-      marked(message, 'bad', kind === 'refused' || kind === 'lost' || kind === 'bad');
+      marked(message, 'bad', kind === 'refused' || kind === 'unreadable' || kind === 'lost' || kind === 'bad');
     }
 
     function lost(e) {
@@ -1330,13 +1337,43 @@
       });
     }
 
-    function clearInvalid() {
-      order.forEach(function (name) { entries[name].input.removeAttribute('aria-invalid'); });
+    function unreadable() {
+      return order.filter(function (name) {
+        var entry = entries[name];
+        return !entry.setting['switch'] && !!entry.input.validity && entry.input.validity.badInput;
+      });
+    }
+
+    function labelOf(name) {
+      return has(entries, name) ? entries[name].setting.label : name;
+    }
+
+    function showProblems() {
+      var bad = unreadable();
+      order.forEach(function (name) {
+        var input = entries[name].input;
+        if (bad.indexOf(name) >= 0 || (refusal !== null && refusal.setting === name)) {
+          input.setAttribute('aria-invalid', 'true');
+        } else {
+          input.removeAttribute('aria-invalid');
+        }
+      });
+      if (bad.length) {
+        say(bad.map(labelOf).join(', ') + (bad.length > 1 ? ' hold' : ' holds') + ' text that is not a number.'
+            + ' Fix it, or clear it to use the default; until then nothing is previewed or launched.', 'unreadable');
+        return;
+      }
+      if (refusal !== null) { say(refusal.rule, 'refused'); return; }
+      if (messageKind === 'unreadable' || messageKind === 'refused') { say('', ''); }
     }
 
     function afterChange(entry) {
-      if (entry) { entry.input.removeAttribute('aria-invalid'); }
+      if (refusal !== null) {
+        refusal = { setting: entry && refusal.setting === entry.setting.name ? null : refusal.setting,
+                    rule: refusal.rule, launched: false };
+      }
       refreshMarks();
+      showProblems();
       schedulePreview();
     }
 
@@ -1345,7 +1382,7 @@
         var entry = entries[name];
         put(entry, has(values, name) && finite(values[name]) ? values[name] : entry.setting.byDefault);
       });
-      clearInvalid();
+      refusal = null;
       afterChange(null);
     }
 
@@ -1498,7 +1535,9 @@
       return host;
     }
 
-    function renderSettings(listing) {
+    function renderSettings(listing, kept) {
+      var opened = {};
+      Object.keys(groups).forEach(function (name) { opened[name] = groups[name].details.open; });
       clear(groupsHost);
       entries = {};
       order = [];
@@ -1507,7 +1546,7 @@
         var details = el('details', 'launch-group');
         details.id = 'launch-group-' + listed.name;
         details.setAttribute('data-group', listed.name);
-        details.open = !!listed.open;
+        details.open = has(opened, listed.name) ? opened[listed.name] : !!listed.open;
         var summary = el('summary');
         summary.appendChild(el('span', '', listed.label));
         var count = el('span', 'changes');
@@ -1527,7 +1566,8 @@
       });
       var start = {};
       (listing.settings || []).forEach(function (setting) {
-        start[setting.name] = has(setting, 'value') ? setting.value : setting.byDefault;
+        start[setting.name] = has(kept, setting.name) ? kept[setting.name]
+          : has(setting, 'value') ? setting.value : setting.byDefault;
       });
       forgot.textContent = listing.forgot || '';
       forgot.hidden = !listing.forgot;
@@ -1552,17 +1592,56 @@
       return { setting: null, rule: text };
     }
 
+    function bringIntoSight(entry) {
+      entry.group.details.open = true;
+      try { entry.input.scrollIntoView({ block: 'center' }); } catch (e) { entry.input.scrollIntoView(); }
+    }
+
     function refusedFor(problem, launched) {
-      var entry = problem.setting && has(entries, problem.setting) ? entries[problem.setting] : null;
-      clearInvalid();
-      if (entry) {
-        entry.input.setAttribute('aria-invalid', 'true');
-        if (launched) {
-          entry.group.details.open = true;
-          try { entry.input.scrollIntoView({ block: 'center' }); } catch (e) { entry.input.scrollIntoView(); }
-        }
+      if (problem.setting !== null && problem.rule.indexOf(UNKNOWN_SETTING) === 0) {
+        unknownToTheBench(problem, launched);
+        return;
       }
-      say(problem.rule, 'refused');
+      if (!launched && refusal !== null && refusal.launched) { return; }
+      var entry = problem.setting !== null && has(entries, problem.setting) ? entries[problem.setting] : null;
+      refusal = { setting: entry ? problem.setting : null, rule: problem.rule, launched: launched };
+      showProblems();
+      if (entry && launched) { bringIntoSight(entry); }
+    }
+
+    function reloadedSaying(name) {
+      return 'The bench no longer has a setting called ' + name
+        + ', so its settings were reloaded; the form keeps what you set. Check it, then launch.';
+    }
+
+    function unknownToTheBench(problem, launched) {
+      var name = problem.setting;
+      var listed = has(entries, name);
+      if (listed && !reloading && !has(reloadedFor, name)) {
+        reloadedFor[name] = labelOf(name);
+        reloadSettings(name);
+        return;
+      }
+      if (listed && !reloading) {
+        refusal = { setting: name, rule: problem.rule, launched: launched };
+        showProblems();
+        return;
+      }
+      if (launched) { say(reloadedSaying(has(reloadedFor, name) ? reloadedFor[name] : name), 'reloaded'); }
+    }
+
+    function reloadSettings(name) {
+      reloading = true;
+      fetch('/sim/launch/settings', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (!r.ok) { return r.text().then(function (t) { say(t, 'bad'); return null; }); }
+        return r.json();
+      }).then(function (listing) {
+        reloading = false;
+        if (!listing) { return; }
+        renderSettings(listing, formValues());
+        say(reloadedSaying(reloadedFor[name]), 'reloaded');
+      }).catch(function (e) { reloading = false; lost(e); });
     }
 
     function post(url, body) {
@@ -1576,10 +1655,15 @@
     function schedulePreview() {
       if (!ready) { return; }
       clearTimeout(previewTimer);
+      if (unreadable().length) {
+        previewAsked += 1;
+        return;
+      }
       previewTimer = setTimeout(preview, PREVIEW_DELAY_MS);
     }
 
     function preview() {
+      if (unreadable().length) { return; }
       previewAsked += 1;
       var asked = previewAsked;
       post('/sim/launch/preview', formValues()).then(function (r) {
@@ -1588,8 +1672,9 @@
           if (asked !== previewAsked) { return; }
           if (r.status === 400) { refusedFor(problemOf(text), false); return; }
           if (!r.ok) { say(text, 'bad'); return; }
-          clearInvalid();
-          if (messageKind === 'refused' || messageKind === 'lost') { say('', ''); }
+          if (refusal !== null && !refusal.launched) { refusal = null; }
+          if (messageKind === 'lost') { say('', ''); }
+          showProblems();
           lastPreview = JSON.parse(text);
           renderPreview(lastPreview);
           tellTheView();
@@ -1643,13 +1728,25 @@
       }
     }
 
-    view.addEventListener('load', tellTheView);
+    view.addEventListener('load', function () {
+      viewLoaded = true;
+      tellTheView();
+    });
 
     function launchNow() {
       if (launching || !ready) { return; }
+      var bad = unreadable();
+      if (bad.length) {
+        showProblems();
+        bringIntoSight(entries[bad[0]]);
+        entries[bad[0]].input.focus();
+        return;
+      }
       launching = true;
+      refusal = null;
       setGo();
       say('', '');
+      showProblems();
       post('/sim/launch', formValues()).then(function (r) {
         if (r.status === 403) { location.reload(); return; }
         return r.text().then(function (text) {
@@ -1666,17 +1763,36 @@
       });
     }
 
-    function viewUrl() {
+    function viewFragment() {
       var ids = shownId === null ? [] : [shownId];
       launches.forEach(function (launch) {
         if (launch.id !== shownId && ticked.indexOf(launch.id) >= 0) { ids.push(launch.id); }
       });
-      return withTabOptions('/sim/launches/') + (ids.length ? '#' + ids.join(',') : '');
+      return ids.length ? '#' + ids.join(',') : '';
+    }
+
+    function viewerShown() {
+      try {
+        var shown = view.contentWindow ? view.contentWindow.location : null;
+        return shown && shown.pathname === VIEWER ? shown : null;
+      } catch (e) {
+        return null;
+      }
     }
 
     function openView() {
-      var want = viewUrl();
-      if (view.getAttribute('src') !== want) { view.setAttribute('src', want); }
+      var fragment = viewFragment();
+      var shown = viewLoaded && viewOpenedWith === tabOptions ? viewerShown() : null;
+      if (shown) {
+        if (shown.hash !== fragment) { shown.hash = fragment; }
+        return;
+      }
+      var want = withTabOptions(VIEWER) + fragment;
+      if (view.getAttribute('src') !== want) {
+        viewOpenedWith = tabOptions;
+        viewLoaded = false;
+        view.setAttribute('src', want);
+      }
     }
 
     function show(id) {
@@ -1780,7 +1896,7 @@
         tr.appendChild(sinceCell);
         var actions = el('td', 'actions');
         var link = el('a', 'show', 'show');
-        link.href = withTabOptions('/sim/launches/') + '#' + launch.id;
+        link.href = withTabOptions(VIEWER) + '#' + launch.id;
         link.addEventListener('click', function (e) { e.preventDefault(); show(launch.id); });
         actions.appendChild(link);
         var again = el('button', 'use', 'use these settings');
