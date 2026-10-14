@@ -7,7 +7,7 @@ import time
 import unittest
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-PACKAGES = ['field']
+PACKAGES = ['field', 'ci']
 
 def main():
     suite = unittest.TestSuite()
@@ -37,14 +37,12 @@ def main():
         wrong = check()
         took.append((check.__name__.replace('_check', ''), time.monotonic() - began))
         if wrong:
-            report(took)
+            print_times_never_judged(took)
             return wrong
-    report(took)
+    print_times_never_judged(took)
     return 0
 
-def report(took):
-    """What each check cost. A time is the machine's, so it is printed and never judged; what is
-    pinned about the scene is its draws and its triangles, in tools/browser/scene-budget.json."""
+def print_times_never_judged(took):
     print()
     print('what the tool tests cost')
     for what, seconds in took:
