@@ -65,6 +65,14 @@ public class BodiesTest {
         return names;
     }
 
+    private static List<String> names(List<Bodies.Gone> gone) {
+        List<String> names = new ArrayList<>();
+        for (Bodies.Gone body : gone) {
+            names.add(body.name());
+        }
+        return names;
+    }
+
     private static String rejection(Checked<?> checked) {
         return checked.fold(value -> "accepted", rule -> rule);
     }
@@ -361,6 +369,29 @@ public class BodiesTest {
         assertEquals(Bodies.Life.ASLEEP, seen(bodies, "sleeping").life());
         assertEquals(Bodies.Life.AWAKE, seen(bodies, "inside").life());
         assertTrue(bodies.goneOver("spared").isEmpty());
+    }
+
+    @Test
+    public void whatIsGoneOverAWallIsGoneOverTheWallsOfTheSurroundingsTheEngineHasNow() {
+        Colliders wider = Valid.value(Colliders.of(
+                Valid.value(Field.of(
+                        Valid.length(200),
+                        Valid.length(11.64),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of())),
+                List.of()));
+        Bodies bodies = unwatched();
+        add(bodies, "over", new Vec3(80, 0, 20), Vec3.zero(), AWAKE);
+
+        bodies.surroundedBy(Surroundings.still(wider));
+
+        assertTrue(bodies.goneOver("spared").isEmpty());
+        bodies.surroundedBy(Surroundings.still(WALLS));
+        assertEquals(List.of("over"), names(bodies.goneOver("spared")));
     }
 
     @Test

@@ -183,11 +183,26 @@ public class MovingSurroundingsTest {
 
     @Test
     public void aBallAsleepOnABallAsleepOnAPartWakesWithItWhenThePartStartsToMoveAndBothGoUp() {
-        Bodies bodies = among(STEP, Carried.sliding(TRAY, new Vec3(0, 0, 6), 0.1));
-        add(bodies, "under", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), ASLEEP);
-        add(bodies, "over", new Vec3(0, 0, ON_THE_TRAY + 2 * R), Vec3.zero(), ASLEEP);
+        Bodies bodies = watching("under", STEP, Carried.sliding(TRAY, new Vec3(0, 0, 6), 0.5));
+        add(bodies, "under", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), AWAKE);
+        add(bodies, "over", new Vec3(0, 0, ON_THE_TRAY + 2 * R), Vec3.zero(), AWAKE);
+        stepFor(bodies, 0.4, STEP);
+        for (String name : List.of("under", "over")) {
+            assertEquals(name, Bodies.Life.ASLEEP, seen(bodies, name).life());
+        }
 
-        stepFor(bodies, 0.6, STEP);
+        List<Bodies.Span> spans = stepFor(bodies, 0.6, STEP);
+
+        List<String> woken = new ArrayList<>();
+        List<Double> when = new ArrayList<>();
+        for (Bodies.Span span : spans) {
+            for (Bodies.Seen seen : span.woken()) {
+                woken.add(seen.name());
+                when.add(span.now());
+            }
+        }
+        assertEquals(List.of("under", "over"), woken);
+        assertEquals(when.get(0), when.get(1));
 
         for (String name : List.of("under", "over")) {
             assertEquals(name, Bodies.Life.AWAKE, seen(bodies, name).life());
@@ -261,6 +276,25 @@ public class MovingSurroundingsTest {
                 new Vec3(0.6, 0, ON_THE_TRAY + StrictMath.sqrt(3) * R),
                 seen(bodies, "top").at(),
                 1e-2);
+    }
+
+    @Test
+    public void aBallRestingOnAMovingPartAndAgainstAStillPartListedAfterItNeverFallsAsleep() {
+        Vec3 creeping = new Vec3(0, 0.2, 0);
+        Collider post = Carried.box("post", new Vec3(R, -30, 11), new Vec3(R + 1, 30, 20));
+        Bodies bodies =
+                watching("ball", STEP, Carried.sliding(TRAY, creeping, 0), Carried.sliding(post, Vec3.zero(), 0));
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), creeping, AWAKE);
+        assertEquals(
+                Set.of("tray", "post"), bodies.touching("ball").orElseThrow().colliders());
+
+        List<Bodies.Span> spans = stepFor(bodies, 4 * Shot.REST_SECONDS, STEP);
+
+        for (Bodies.Span span : spans) {
+            assertTrue("asleep at " + span.now(), span.slept().isEmpty());
+        }
+        assertEquals(Bodies.Life.AWAKE, seen(bodies, "ball").life());
+        assertEquals(0, seen(bodies, "ball").restFor(), 0);
     }
 
     @Test
@@ -361,6 +395,7 @@ public class MovingSurroundingsTest {
         double step = World.LONGEST_STEP_SECONDS, speed = 100;
         Bodies bodies = watching("ball", step, Carried.slidingUntil(paddle(), new Vec3(speed, 0, 0), 0.0021, 0.0079));
         add(bodies, "ball", new Vec3(-38 + 0.2 + R, 0, R), Vec3.zero(), ASLEEP);
+        add(bodies, "beside", new Vec3(-38 + 0.2 + 3 * R, 0, R), Vec3.zero(), ASLEEP);
         add(bodies, "fast", new Vec3(0, 40, 20), new Vec3(600, 0, 0), new Bodies.Start.Awake(Bodies.Sleep.NEVER));
 
         List<Bodies.Span> spans = stepFor(bodies, 0.03, step);
@@ -368,6 +403,16 @@ public class MovingSurroundingsTest {
         List<Contacts.Hit> struck = hits(spans, "paddle");
         assertEquals(struck.toString(), 1, struck.size());
         assertEquals(speed, struck.get(0).approach(), 1e-6);
+        List<String> woken = new ArrayList<>();
+        List<Double> when = new ArrayList<>();
+        for (Bodies.Span span : spans) {
+            for (Bodies.Seen seen : span.woken()) {
+                woken.add(seen.name());
+                when.add(span.now());
+            }
+        }
+        assertEquals(List.of("ball", "beside"), woken);
+        assertEquals(when.get(0), when.get(1));
     }
 
     @Test
