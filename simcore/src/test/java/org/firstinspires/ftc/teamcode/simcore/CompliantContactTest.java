@@ -190,6 +190,29 @@ public class CompliantContactTest {
     }
 
     @Test
+    public void aBallStrikingALoneStillCompliantSurfaceComesBackAtItsRestitutionToWithinWhatItsDampingPushesInAStep() {
+        double step = STEP / 10;
+        for (double restitution : new double[] {0.2, 0.6, 0.9}) {
+            Compliance surface = Valid.value(
+                    Compliance.of(Compliance.STIFFNESS_N_PER_MM, restitution, 0, Compliance.REGULARISATION_M_PER_S));
+            double withinAStep = surface.dampingFor(POLLEN) * step / POLLEN.kilograms();
+            for (double speed : new double[] {4, 40, 200}) {
+                Bodies struck = among(step, CompliantPlate.still("wall", Vec3.zero(), new Vec3(1, 0, 0), surface));
+                add(struck, new Vec3(R + 0.01, 0, 30), new Vec3(-speed, 0, 0));
+
+                stepFor(struck, 0.03, step);
+
+                assertTrue("left the wall", squeezing(struck).isEmpty());
+                assertEquals(
+                        "struck at " + speed + " in/s with a restitution of " + restitution,
+                        restitution,
+                        ball(struck).velocity().x() / speed,
+                        withinAStep);
+            }
+        }
+    }
+
+    @Test
     public void aBallHeldInAStillSqueezeIsHeldThereWithoutAHitAPressOrATouch() {
         Bodies held = heldAt(launcher(STEP, 0));
         Vec3 was = ball(held).at();

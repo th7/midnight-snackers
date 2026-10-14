@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -73,16 +74,31 @@ public class ComplianceTest {
         assertEquals("a compliant surface is shared by at least one ring, not -2", rejection(whole.sharedBy(-2)));
     }
 
+    private static double returnedAt(double ratio) {
+        if (ratio < 1) {
+            return StrictMath.exp(-2 * ratio * StrictMath.acos(ratio) / StrictMath.sqrt(1 - ratio * ratio));
+        }
+        double acosh = StrictMath.log(ratio + StrictMath.sqrt(ratio * ratio - 1));
+        return StrictMath.exp(-2 * ratio * acosh / StrictMath.sqrt(ratio * ratio - 1));
+    }
+
     @Test
-    public void aSurfacesDampingIsWhatMakesABallOfItsMassStrikingItAloneComeBackAtItsRestitution() {
+    public void aSurfacesDampingRatioIsTheOneAtWhichASpringAndDashpotThatNeverPullsReturnsABallAtItsRestitution() {
         Ball pollen = Valid.value(Ball.of(2.78, 24.9, 0.634));
-        double kilograms = pollen.kilograms();
-        for (double restitution : new double[] {0.2, 0.6, 0.9, 1}) {
+        for (double restitution : new double[] {0.01, 0.1, 0.2, 0.6, 0.9, 0.999}) {
             Compliance surface = compliance(restitution);
-            double k = surface.newtonsPerMetre(), c = surface.dampingFor(pollen);
-            double ratio = c / (2 * StrictMath.sqrt(k * kilograms));
-            double decayed = StrictMath.exp(-StrictMath.PI * ratio / StrictMath.sqrt(1 - ratio * ratio));
-            assertEquals("a linear spring and dashpot of damping ratio " + ratio, restitution, decayed, 1e-12);
+            double ratio =
+                    surface.dampingFor(pollen) / (2 * StrictMath.sqrt(surface.newtonsPerMetre() * pollen.kilograms()));
+            assertEquals(
+                    Compliance.DAMPING_SOURCE + ": a damping ratio of " + ratio,
+                    restitution,
+                    returnedAt(ratio),
+                    1e-12 * restitution);
+        }
+        assertEquals(0, compliance(1).dampingFor(pollen), 0);
+        for (double restitution : new double[] {Double.MIN_VALUE, 1e-300, StrictMath.exp(-2), 1 - 1e-16}) {
+            double damping = compliance(restitution).dampingFor(pollen);
+            assertTrue("a damping of " + damping, damping > 0 && Double.isFinite(damping));
         }
     }
 }

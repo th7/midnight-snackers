@@ -1874,8 +1874,11 @@ launcher's are 40 N/mm, 0.6, 0.6 on the wheel and 0.3 on the hood, and 0.02 m/s,
 named beside where it came from. A ball within a piece's travel, a tenth of an inch,
 of where a compliant part reaches is pushed inside each stage of its integration, with
 the parts placed at that stage's own time: along each normal by the stiffness times
-the depth plus a damping times how fast the depth grows, the damping that makes a ball
-of its mass come back at the restitution, never pulling; and against the slip of its surface
+the depth plus a damping times how fast the depth grows, never pulling, so that the
+push ends once it reaches nothing, before the depth does; the damping is the one at
+which a ball of its mass striking the whole surface alone comes back at the
+restitution, as such a spring and dashpot does, to within what the damping pushes in a
+step; and against the slip of its surface
 over what squeezes it (its velocity and its spin across the arm to the contact, less
 the velocity of what squeezes, along the surface) by the friction coefficient times
 that push, in proportion below the regularisation speed, turning it about its centre.

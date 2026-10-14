@@ -16,6 +16,11 @@ final class Compliance {
             "in a model of this launcher the launch is the same from 0.001 to 0.3" + " m/s";
     static final double REGULARISATION_M_PER_S = 0.02;
     static final double MILLIMETRES_PER_METRE = 1000;
+    static final String DAMPING_SOURCE = "a linear spring and dashpot that never pulls lets go once its force reaches"
+            + " nothing, before its depth does, and so returns a ball at exp(-2 z acos(z) / sqrt(1 - z^2)) for a"
+            + " damping ratio z under 1, exp(-2) at 1 and exp(-2 z acosh(z) / sqrt(z^2 - 1)) above it (Schwager and"
+            + " Poeschel, Granular Matter 9, 465, 2007), which falls as z grows";
+    static final int MOST_HALVINGS = 1100;
 
     private final double stiffness;
     private final double restitution;
@@ -24,14 +29,46 @@ final class Compliance {
     private final int rings;
     private final double dampingRatio;
 
-    private Compliance(double stiffness, double restitution, double friction, double regularisation, int rings) {
+    private Compliance(
+            double stiffness,
+            double restitution,
+            double friction,
+            double regularisation,
+            int rings,
+            double dampingRatio) {
         this.stiffness = stiffness;
         this.restitution = restitution;
         this.friction = friction;
         this.regularisation = regularisation;
         this.rings = rings;
-        double lost = StrictMath.abs(StrictMath.log(restitution));
-        this.dampingRatio = lost / StrictMath.sqrt(StrictMath.PI * StrictMath.PI + lost * lost);
+        this.dampingRatio = dampingRatio;
+    }
+
+    private static double dampingRatioFor(double restitution) {
+        double lost = -StrictMath.log(restitution) / 2;
+        double low = 0;
+        double high = 1 + 1 / StrictMath.sqrt(restitution);
+        double middle = low + (high - low) / 2;
+        for (int halvings = 0; halvings < MOST_HALVINGS && low < middle && middle < high; halvings++) {
+            if (halfTheLogLostAt(middle) < lost) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+            middle = low + (high - low) / 2;
+        }
+        return low;
+    }
+
+    private static double halfTheLogLostAt(double ratio) {
+        if (ratio < 1) {
+            return ratio * StrictMath.acos(ratio) / StrictMath.sqrt((1 - ratio) * (1 + ratio));
+        }
+        if (ratio > 1) {
+            double over = StrictMath.sqrt(1 - 1 / (ratio * ratio));
+            return (StrictMath.log(ratio) + StrictMath.log1p(over)) / over;
+        }
+        return 1;
     }
 
     static Checked<Compliance> of(
@@ -52,15 +89,20 @@ final class Compliance {
             return Checked.rejected("a compliant surface's regularisation speed is a positive, finite number of"
                     + " metres a second, not " + regularisationMetresPerSecond);
         }
-        return Checked.ok(
-                new Compliance(newtonsPerMillimetre, restitution, friction, regularisationMetresPerSecond, 1));
+        return Checked.ok(new Compliance(
+                newtonsPerMillimetre,
+                restitution,
+                friction,
+                regularisationMetresPerSecond,
+                1,
+                dampingRatioFor(restitution)));
     }
 
     Checked<Compliance> sharedBy(int rings) {
         if (rings < 1) {
             return Checked.rejected("a compliant surface is shared by at least one ring, not " + rings);
         }
-        return Checked.ok(new Compliance(stiffness, restitution, friction, regularisation, rings));
+        return Checked.ok(new Compliance(stiffness, restitution, friction, regularisation, rings, dampingRatio));
     }
 
     double newtonsPerMetre() {
