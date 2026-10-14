@@ -112,6 +112,6 @@ public class SimConstantsTest {
         String said = SimConstants.described(constants(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0));
 
         assertEquals(
-                "Hiccup chance 0.0 per loop (built 0.02); Launcher throw 0.25 in/s per tick/s (built 0.189)", said);
+                "Hiccup chance 0.0 per loop (built 0.02); Launcher throw 0.25 in/s per tick/s (built 0.1899)", said);
     }
 }

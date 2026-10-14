@@ -1176,29 +1176,47 @@ public class SimRobotTest {
     @Test
     public void aCloseShotFromTheLaunchDistanceScoresInTheAlliancesUpturnedCell() {
         for (String alliance : new String[] {"Blue", "Red"}) {
-            SimRobot sim = new SimRobot();
-            Field.Cell cell = sim.upturnedCell(alliance);
-            int already = sim.scored(alliance);
-            sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
-            sim.topGate.position = TOP_GATE_OPEN;
-            sim.bottomGate.position = BOTTOM_GATE_CLOSED;
-            sim.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
-            sim.step(0.1);
-            sim.topGate.position = TOP_GATE_CLOSED;
-            sim.step(0.05);
-
-            sim.bottomGate.position = BOTTOM_GATE_OPEN;
-            sim.step(5.0);
-
-            assertEquals(alliance + " scored", already + 1, sim.scored(alliance));
-            assertEquals(SimRobot.PRELOAD - 1, sim.held());
-            double[] ball = sim.placeOf(thePreloadOf(sim));
-            assertTrue(
-                    alliance + "'s ball rests in the cell: " + ball[0] + ", " + ball[1] + ", " + ball[2],
-                    within(sim, cell, ball));
-            sim.step(1.0);
-            assertEquals("and stays there", ball[0], sim.placeOf(thePreloadOf(sim))[0], DELTA);
+            assertScoresAndStays(new SimRobot(), alliance, alliance);
         }
+    }
+
+    @Test
+    public void aCloseShotStillScoresAndStaysThrownTwoInchesASecondSlowerOrFasterThanItIsCalibratedTo() {
+        double twoInchesASecond = 2.1 / CLOSE_LAUNCH_VELOCITY;
+        for (double throwing : new double[] {
+            Launch.IN_PER_S_PER_TICK_PER_S - twoInchesASecond, Launch.IN_PER_S_PER_TICK_PER_S + twoInchesASecond
+        }) {
+            for (String alliance : new String[] {"Blue", "Red"}) {
+                assertScoresAndStays(
+                        new SimRobot(TeamRobot.REGINALD, SimNoise.NONE, constants(Constant.LAUNCH_THROW, throwing)),
+                        alliance,
+                        alliance + " throwing " + throwing * CLOSE_LAUNCH_VELOCITY + " in/s");
+            }
+        }
+    }
+
+    private static void assertScoresAndStays(SimRobot sim, String alliance, String said) {
+        Field.Cell cell = sim.upturnedCell(alliance);
+        int already = sim.scored(alliance);
+        sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
+        sim.topGate.position = TOP_GATE_OPEN;
+        sim.bottomGate.position = BOTTOM_GATE_CLOSED;
+        sim.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
+        sim.step(0.1);
+        sim.topGate.position = TOP_GATE_CLOSED;
+        sim.step(0.05);
+
+        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        sim.step(5.0);
+
+        assertEquals(said + " scored", already + 1, sim.scored(alliance));
+        assertEquals(SimRobot.PRELOAD - 1, sim.held());
+        double[] ball = sim.placeOf(thePreloadOf(sim));
+        assertTrue(
+                said + ": the ball rests in the cell: " + ball[0] + ", " + ball[1] + ", " + ball[2],
+                within(sim, cell, ball));
+        sim.step(1.0);
+        assertEquals(said + ": and stays there", ball[0], sim.placeOf(thePreloadOf(sim))[0], DELTA);
     }
 
     @Test

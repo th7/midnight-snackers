@@ -4,7 +4,7 @@ public record Launch(Vec3 at, Vec3 velocity) {
     public static final double HEIGHT_IN = 14;
     public static final double AHEAD_IN = 6;
     public static final double ANGLE_RADIANS = Math.toRadians(70);
-    public static final double IN_PER_S_PER_TICK_PER_S = 0.189;
+    public static final double IN_PER_S_PER_TICK_PER_S = 0.1899;
 
     public static Launch from(
             Vec2 robotAt,
