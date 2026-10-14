@@ -108,6 +108,24 @@ public class MovingSurroundingsTest {
         return spans;
     }
 
+    private static List<Contacts.Hit> hits(List<Bodies.Span> spans, String against) {
+        List<Contacts.Hit> hits = new ArrayList<>();
+        for (Bodies.Span span : spans) {
+            span.resolved().ifPresent(resolved -> {
+                for (Contacts.Hit hit : resolved.hits()) {
+                    if (hit.against().equals(against)) {
+                        hits.add(hit);
+                    }
+                }
+            });
+        }
+        return hits;
+    }
+
+    private static Collider paddle() {
+        return Carried.box("paddle", new Vec3(-39, -10, 0.5), new Vec3(-38, 10, 8));
+    }
+
     private static double speed(Vec3 v) {
         return StrictMath.sqrt(v.dot(v));
     }
@@ -228,6 +246,42 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void aPartThatStartsMovingInsideAStepMeetsAnAwakeBallAtItsFace() {
+        double step = World.LONGEST_STEP_SECONDS, speed = 600, starts = 1e-4;
+        Bodies bodies = watching("ball", step, Carried.sliding(paddle(), new Vec3(speed, 0, 0), starts));
+        add(bodies, "ball", new Vec3(-38 + 2 + R, 0, R), Vec3.zero(), new Bodies.Start.Awake(Bodies.Sleep.NEVER));
+
+        List<Bodies.Span> spans = stepFor(bodies, 0.03, step);
+
+        List<Contacts.Hit> struck = hits(spans, "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+        Bodies.Seen ball = seen(bodies, "ball");
+        assertTrue(
+                ball.at() + " is not ahead of the paddle", ball.at().x() > -38 + speed * (bodies.now() - starts) + R);
+        assertTrue(
+                ball.velocity() + " is not going faster than the paddle",
+                ball.velocity().x() > speed);
+    }
+
+    @Test
+    public void aPartThatStopsMovingInsideAStepMeetsAnAwakeBallAtItsFace() {
+        double step = World.LONGEST_STEP_SECONDS, speed = 600, stops = 0.009;
+        assertTrue(speed * stops > 0.5 + 2 * R + 1);
+        Bodies bodies = watching("ball", step, Carried.slidingUntil(paddle(), new Vec3(speed, 0, 0), 0, stops));
+        add(bodies, "ball", new Vec3(-38 + 0.5 + R, 0, R), Vec3.zero(), new Bodies.Start.Awake(Bodies.Sleep.NEVER));
+
+        List<Bodies.Span> spans = stepFor(bodies, 0.03, step);
+
+        List<Contacts.Hit> struck = hits(spans, "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+        assertTrue(
+                seen(bodies, "ball").velocity().toString(),
+                seen(bodies, "ball").velocity().x() > speed);
+    }
+
+    @Test
     public void aPartThatOnlySpinsAddsNoPiecesToAStepAndKeepsWhatRestsOnItAwake() {
         Bodies bodies =
                 watching("ball", STEP, Carried.spinningInPlace(TRAY, new Vec3(0, 0, 11), new Vec3(0, 0, 100), 0));
@@ -260,7 +314,7 @@ public class MovingSurroundingsTest {
         stepFor(moving, 0.1, STEP);
         stepFor(still, 0.1, STEP);
 
-        int boundsChecks = 1, placements = 1, placementsForTheRollingBallsTrial = 1;
+        int boundsChecks = 1, placements = 2, placementsForTheRollingBallsTrial = 1;
         assertEquals(Bodies.Life.ASLEEP, seen(alone, "far").life());
         assertEquals(alone.steps() * (boundsChecks + placements), alone.work());
         assertEquals(Bodies.Life.ASLEEP, seen(moving, "far").life());

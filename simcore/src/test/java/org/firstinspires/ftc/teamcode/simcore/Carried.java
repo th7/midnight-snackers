@@ -9,6 +9,7 @@ final class Carried implements Surroundings.Part {
     private final Vec3 velocity;
     private final Vec3 spin;
     private final double starts;
+    private final double stops;
     private final boolean inPlace;
     private final double seconds;
 
@@ -18,6 +19,7 @@ final class Carried implements Surroundings.Part {
             Vec3 velocity,
             Vec3 spin,
             double starts,
+            double stops,
             boolean inPlace,
             double seconds) {
         this.colliders = List.copyOf(colliders);
@@ -25,20 +27,25 @@ final class Carried implements Surroundings.Part {
         this.velocity = velocity;
         this.spin = spin;
         this.starts = starts;
+        this.stops = stops;
         this.inPlace = inPlace;
         this.seconds = seconds;
     }
 
     static Carried sliding(Collider collider, Vec3 velocity, double starts) {
-        return new Carried(List.of(collider), Vec3.zero(), velocity, Vec3.zero(), starts, false, 0);
+        return slidingUntil(collider, velocity, starts, Double.POSITIVE_INFINITY);
+    }
+
+    static Carried slidingUntil(Collider collider, Vec3 velocity, double starts, double stops) {
+        return new Carried(List.of(collider), Vec3.zero(), velocity, Vec3.zero(), starts, stops, false, 0);
     }
 
     static Carried turning(Collider collider, Vec3 pivot, Vec3 spin, double starts) {
-        return new Carried(List.of(collider), pivot, Vec3.zero(), spin, starts, false, 0);
+        return new Carried(List.of(collider), pivot, Vec3.zero(), spin, starts, Double.POSITIVE_INFINITY, false, 0);
     }
 
     static Carried spinningInPlace(Collider collider, Vec3 pivot, Vec3 spin, double starts) {
-        return new Carried(List.of(collider), pivot, Vec3.zero(), spin, starts, true, 0);
+        return new Carried(List.of(collider), pivot, Vec3.zero(), spin, starts, Double.POSITIVE_INFINITY, true, 0);
     }
 
     static Collider box(String name, Vec3 least, Vec3 most) {
@@ -46,7 +53,7 @@ final class Carried implements Surroundings.Part {
     }
 
     private double elapsed() {
-        return inPlace ? 0 : StrictMath.max(0, seconds - starts);
+        return inPlace ? 0 : StrictMath.max(0, StrictMath.min(seconds, stops) - starts);
     }
 
     private Vec3 offset() {
@@ -117,7 +124,7 @@ final class Carried implements Surroundings.Part {
 
     @Override
     public boolean moving() {
-        return seconds >= starts && (velocity.dot(velocity) > 0 || spin.dot(spin) > 0);
+        return seconds >= starts && seconds < stops && (velocity.dot(velocity) > 0 || spin.dot(spin) > 0);
     }
 
     @Override
@@ -149,6 +156,6 @@ final class Carried implements Surroundings.Part {
 
     @Override
     public Surroundings.Part at(double seconds) {
-        return new Carried(colliders, pivot, velocity, spin, starts, inPlace, seconds);
+        return new Carried(colliders, pivot, velocity, spin, starts, stops, inPlace, seconds);
     }
 }

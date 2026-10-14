@@ -475,7 +475,8 @@ final class Bodies {
 
     List<Span> step() {
         List<Span> spans = new ArrayList<>();
-        int pieces = piecesOfThisStep();
+        Surroundings ahead = placed(surroundings, (steps + 1) * step);
+        int pieces = piecesOfThisStep(ahead);
         for (int i = 1; i <= pieces; i++) {
             aPiece((steps + (double) i / pieces) * step, spans);
         }
@@ -498,14 +499,15 @@ final class Bodies {
         return Collections.unmodifiableList(gone);
     }
 
-    private int piecesOfThisStep() {
+    private int piecesOfThisStep(Surroundings ahead) {
         double fastest = 0;
         for (Body body : bodies) {
             if (body.life == Life.AWAKE) {
                 fastest = StrictMath.max(fastest, StrictMath.sqrt(body.velocity.dot(body.velocity)));
             }
         }
-        double needed = StrictMath.ceil((fastest + surroundings.sweep()) * step / Shot.MOST_TRAVEL_IN);
+        double sweep = StrictMath.max(surroundings.sweep(), ahead.sweep());
+        double needed = StrictMath.ceil((fastest + sweep) * step / Shot.MOST_TRAVEL_IN);
         if (Double.isNaN(needed)) {
             return Shot.MOST_PIECES_PER_STEP;
         }
