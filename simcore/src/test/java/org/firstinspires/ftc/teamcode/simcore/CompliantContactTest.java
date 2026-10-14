@@ -67,6 +67,7 @@ public class CompliantContactTest {
     private static final double ONSET_EACH_END = 24;
     private static final double ONSET_DAMPING_PER_STIFFNESS_STEP = 0.25;
     private static final double ONSET_SAFETY = 2;
+    private static final double JUST_WITHIN = 0.999;
 
     private static Surfaces surfaces() {
         Bounce bounce = Valid.value(Bounce.of(0.55, 0.5, 0.2));
@@ -231,7 +232,7 @@ public class CompliantContactTest {
         }
     }
 
-    private record Surface(double newtonsPerMillimetre, double friction) {
+    private record Material(double newtonsPerMillimetre, double friction) {
         Compliance at(double restitution) {
             return Valid.value(
                     Compliance.of(newtonsPerMillimetre, restitution, friction, Compliance.REGULARISATION_M_PER_S));
@@ -267,7 +268,8 @@ public class CompliantContactTest {
     private static double stiffestWithin(double stiffnessTimesStepSquaredPerMass, double step) {
         double m = POLLEN.kilograms();
         double stiffness = stiffnessTimesStepSquaredPerMass * m / (step * step) / Compliance.MILLIMETRES_PER_METRE;
-        while (new Surface(stiffness, 0).at(1).newtonsPerMetre() * step * step / m > stiffnessTimesStepSquaredPerMass) {
+        while (new Material(stiffness, 0).at(1).newtonsPerMetre() * step * step / m
+                > stiffnessTimesStepSquaredPerMass) {
             stiffness = StrictMath.nextDown(stiffness);
         }
         return stiffness;
@@ -295,7 +297,7 @@ public class CompliantContactTest {
         double m = POLLEN.kilograms();
         for (double step : new double[] {STEP, STEP / 10}) {
             for (double stiffness : new double[] {Compliance.STIFFNESS_N_PER_MM, stiffestWithin(2, step)}) {
-                Surface wall = new Surface(stiffness, 0);
+                Material wall = new Material(stiffness, 0);
                 double least = wall.leastBouncyDampedAtMost(m / step);
                 List<Double> restitutions = new ArrayList<>(List.of(least));
                 for (double restitution : new double[] {1, 0.9, 0.6, 0.2}) {
@@ -370,10 +372,10 @@ public class CompliantContactTest {
     @Test
     public void aBallAgainstStillSupportsTheStepResolvesNeverGainsEnergyOverASecondHeldOrSlidAlongThem() {
         double m = POLLEN.kilograms();
-        Surface wheels = new Surface(Compliance.STIFFNESS_N_PER_MM, Compliance.WHEEL_FRICTION),
-                hoods = new Surface(Compliance.STIFFNESS_N_PER_MM, Compliance.HOOD_FRICTION),
-                stiffWheels = new Surface(stiffestWithin(0.5, STEP), Compliance.WHEEL_FRICTION),
-                stiffHoods = new Surface(stiffestWithin(0.5, STEP), Compliance.HOOD_FRICTION);
+        Material wheels = new Material(Compliance.STIFFNESS_N_PER_MM, Compliance.WHEEL_FRICTION),
+                hoods = new Material(Compliance.STIFFNESS_N_PER_MM, Compliance.HOOD_FRICTION),
+                stiffWheels = new Material(stiffestWithin(JUST_WITHIN, STEP), Compliance.WHEEL_FRICTION),
+                stiffHoods = new Material(stiffestWithin(JUST_WITHIN, STEP), Compliance.HOOD_FRICTION);
         double leastDamped = leastDamping(HOOD, STEP), stiffDamped = leastDamping(stiffHoods.at(1), STEP);
         for (List<Compliance> supports : List.of(
                 List.of(WHEEL, HOOD),
@@ -409,8 +411,8 @@ public class CompliantContactTest {
     public void aBallArrivingFromBeyondItsReachWithinAStepNeverGainsEnergyOverASecondAgainstASurfaceTheStepResolves() {
         double floor = 20, m = POLLEN.kilograms();
         List<Compliance> surfaces = new ArrayList<>(List.of(HOOD));
-        for (double stiffness : new double[] {Compliance.STIFFNESS_N_PER_MM, stiffestWithin(1, STEP)}) {
-            Surface plate = new Surface(stiffness, 0);
+        for (double stiffness : new double[] {Compliance.STIFFNESS_N_PER_MM, stiffestWithin(2 * JUST_WITHIN, STEP)}) {
+            Material plate = new Material(stiffness, 0);
             surfaces.add(plate.at(plate.mostBouncyDampedAtLeast(leastDamping(plate.at(1), STEP))));
             surfaces.add(plate.at(plate.leastBouncyDampedAtMost(m / STEP)));
         }
