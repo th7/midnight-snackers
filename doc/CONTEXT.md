@@ -1453,8 +1453,10 @@ into the **chamber**, and with the bottom gate open the chambered ball
 drops into the flywheel and leaves at a speed set by the flywheel's, in
 **flight**. The model is planar apart from flight and the flowers'
 stacks: only the robot's footprint collides, nothing goes over a wall or
-under a hive by being low, and a ball in flight meets only the hives, the
-floor, the walls and the other balls in flight. What a body on the floor
+under a hive by being low, and a ball in flight meets what a **shot**'s
+ball meets — the floor, the walls, every element of the field, the hives
+as they turn and the other balls in flight — but never the robot or the
+balls on the floor. What a body on the floor
 meets is what it can **reach**: a
 ball rolls under an obstacle whose underside clears it — a flower's pipes
 begin four inches up — and the robot, being eighteen inches tall, runs into
@@ -1465,33 +1467,45 @@ hub would report it, which for an encoder's velocity is to the nearest
 as a count of the hub's 16-bit overflows, so anything finer is read as
 tens of inches a second). The
 launcher's throw and the turntable's speed are guesses until measured on
-the robot, calibrated so the code's close launch from its launch distance
-drops into the middle of the upturned cell's mouth, which a hive holds
-five feet up: the throw is a steep one. Both are **simulation constants**,
+the robot. The throw, a ball's speed for each tick a second the flywheel
+turns, leaves the launcher with no spin and is calibrated to the middle of
+the widest band of throws at which every shot the tests score from the
+launch distance goes in and stays — for both alliances, against the back,
+after a tip and four in a row — which at the code's close launch of 1050
+ticks a second ran from 192 to 206.75 in/s; the throw is a steep one, into
+a mouth a hive holds five feet up. Both are **simulation constants**,
 so whoever measures them sets them on the admin page. The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
 `Launch` and `Turntable`, in the **core**.
 
 **Flight** — A ball off the floor during a run: launched, falling, or in or on
-a hive. The **Launch Sim** flies its pollen on its own model, the **shot**,
-which shares only the field with this one.
-It is a sphere under gravity, and it meets each part of a hive as the solid
-it is — a cell's walls and back as thin plates, from either side, and the
-tubes, rails and brackets the hive is built from as the solids the CAD
-draws — and the other balls in flight. What it meets hard (faster than the
-landing speed, 25 inches a second) it bounces off; anything slower it stops
-against. It grips and spins as a ball on the floor does, and rolls to a stop
-as one does, but only while it is touching something, so a launch flies the
-same arc it always did. So a ball that goes in through a cell's mouth
-bounces about and rolls down to rest at the back, and one that clips an edge
-— the rim of a mouth, the top of a wall — is turned aside by it. A ball
-that comes down on the floor slowly enough lands and rolls on, a faster one
-bounces first, and one that clears a wall is out. Whatever is at rest on a
-hive is left exactly where it is until something there moves — a ball
-arriving, or the hive tipping — so a ball at rest in a cell does not creep.
-A ball moves no more than a quarter of its radius at a time, so nothing
-passes through a plate. Class: `Flight`, in the **core**.
+a hive or a flower. It flies on the **Launch Sim**'s engine, with what a **shot**
+has by default: the same air, bounce, grip and rolling on every surface, steps of
+0.1 ms with each new contact found where it happens, and the same sleeping and
+waking. A ball is the size of the piece it is, a pollen 24.9 g and a nectar
+41.3 g. It meets the field as a shot does, except that the hives are a part of
+its **surroundings** that turns as one tips, carrying and spinning what it
+touches; the robot and the balls on the floor are not in it. A ball **lands**,
+back on the floor with the robot, once it presses on the floor rather than
+striking it, rolls there without slipping or has fallen asleep there, and
+touches nothing the floor's own world lacks: a wall, the side of an obstacle
+standing on the floor and another ball landing with it are all it may touch,
+so balls that come to rest together land together. A ball resting on another
+ball, on top of an element or on a flower's top stays in flight; no ball gets
+into a flower's bore. A ball whose centre is past a wall's outer face is out. A
+ball counts toward tipping a hive only while it presses on its upturned cell's
+walls or back or on a ball in the cell, never while it crosses the mouth in the
+air. The nectar a hive is set up with lie asleep where the field puts them,
+cleared of what they overlap; a ball put in a cell is awake and falls asleep as
+any ball does; and a flight with nothing awake and no hive tipping does no work
+however long it waits, going on at once to where stepping would have left it.
+Its time is counted in whole nanoseconds and its steps in whole numbers, so a
+run comes out the same however its time is cut into ticks, and a tick is at most
+a quarter of a second. A tick may do three million units of the engine's work a
+second of its own time (five milliseconds' worth at least); past that, contacts
+are resolved at the ends of pieces without being located. A flight is a value.
+Class: `Flight`, in the **core**.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
 real robot does, drawn once per run from a **seed**: the same robot for
@@ -1527,7 +1541,8 @@ refused, saying which and why. The world's physics — gravity, a ball's bounce
 and grip — and the robot's own tuning are not among them: the one is the
 field's, the other the robot code's. The **Launch Sim**'s bounce, grip, drag and
 lift are something else again: **shot settings**, chosen per launch by whoever
-launches, kept per user, and never reaching a run or `Flight`. The admin page lists them under
+launches, kept per user, and never reaching a run: a run's **flight** flies on
+their defaults, which are the field's physics. The admin page lists them under
 *Simulation constants*, each with what it is, its unit, its range and what it
 was built as, and a set is saved whole, so what is left out goes back to how
 it was built; `GET /admin/constants` and `PUT /admin/constants` with what
@@ -1631,8 +1646,11 @@ cell and the red hive 30 degrees the other way; a hive that **tips** turns
 over to lean the same 30 degrees the other side of level. A tip takes a
 second: it starts from rest, is fastest as the hive passes level and comes
 to rest again, so it throws nothing, and whatever the hive touches it
-carries along as it turns. A hive finishes a tip before it can start
-another. Every tick says where each hive has got to, so a replay or a live
+carries along as it turns, at the speed that part of the hive moves. A hive
+finishes a tip before it can start another, and a tip is timed from the
+moment it began, never by adding up the times since. In a run's **flight**
+the hives are turned in their own frame and meet a ball under the same names
+and with the same gaps as the **shot's colliders**, at rest and tipped. Every tick says where each hive has got to, so a replay or a live
 view shows it turning. Classes: `Field.Hive`; `Hives`; `Lean`, in the **core**.
 
 **Cell** — The basket at one end of a hive, which a launched ball scores
@@ -1661,7 +1679,10 @@ the hive is turning up. Class: `Field.Cell.upturnedAt`;
 full: a nectar is a fifth of it and a pollen an eighth, so five nectar fill
 a hive, or eight pollen, or a combination worth as much — the three nectar
 a hive is set up with are three fifths of it, and four pollen finish the
-job. A hive that is full tips, and tipping empties it. What is still
+job. A hive tips once what presses in its upturned cell — on its walls or
+back, or on another ball in it — would fill it, so a ball still crossing the
+mouth in the air counts toward the load but not yet toward the tip; and
+tipping empties it. What is still
 rolling out of the cell that went under is not the hive's load, being in a
 downturned cell, so it cannot tip the hive straight back. What a hive has
 **scored** is every ball in either of its cells. Method: `SimRobot.load`;
@@ -1695,9 +1716,9 @@ for, and replayed. Its settings stand on the right of its view, with its launche
 under the view; under 760 px wide the page stacks them, the view first, then the
 settings, then the launches. `#launch`, with the view's options after a `?` as on
 Simulate. Like a run, a launch is a bench's, so a user's launches are theirs on the
-robot they are on. It is separate from the realtime robot simulation: it runs no robot code,
-starts no child, changes nothing a run does, and shares only the field model and
-the pages' assets. It runs in the coding server's own process, on the server's own
+robot they are on. It runs no robot code, starts no child and changes nothing a run
+does; a run's balls in **flight** move on its engine and its defaults, but nothing a
+user sets here reaches a run. It runs in the coding server's own process, on the server's own
 **core** rather than the worktree's, since it is the server's physics and not a
 teammate's code. What the model is, where every number came from, what was left
 out and why, and how to calibrate it is `doc/launch-sim.md`. Classes: `Shot`, in
@@ -1719,8 +1740,8 @@ ball meets the surface. Each piece's **fate** says whether it stayed on the fiel
 when and over which wall it left. Classes: `Shot`, `ShotRun`, `Bodies`, `World`, in the **core**.
 
 **Ball** — In the launch sim, any ball's size, mass and how far out its mass is: the
-launched pollen is one, and so is each piece, a nectar included. Not the realtime
-simulation's balls, which are `Flight`'s and `SimRobot`'s. Class: `Ball`, in the
+launched pollen is one, and so is each piece, a nectar included, and so is each ball
+in a run's **flight**, the size of the piece it is. Class: `Ball`, in the
 **core**.
 
 **Wheel pair** — The two flywheels a shot is thrown by. Each side of the pollen
@@ -1778,12 +1799,13 @@ the same answers however it was placed, touches only where it says it reaches, a
 that changes as the face's velocity along its normal says and no faster than its
 sweep, a normal that turns as its spin says, and nothing moving while it says it is
 not moving or on a face that is still) is checked by a test helper that every part is
-run through. In a shot nothing moves. Class: `Surroundings`, in the **core**.
+run through. In a shot nothing moves; in a run's **flight** the hives do, as they tip. Class: `Surroundings`, in the **core**.
 
-**Asleep** and **awake** — Of a piece in a shot: the loose pollen and the nectar in
-the cells lie **asleep** where a match starts them until something moving touches
-them, and are **awake** from then until they come to rest again; the pollen standing
-in the flowers are held in their bores and never move. A moving body wakes every
+**Asleep** and **awake** — Of a piece in a shot, or a ball in a run's **flight**: the
+loose pollen and the nectar in the cells lie **asleep** where a match starts them until
+something moving touches them, and are **awake** from then until they come to rest
+again; the pollen standing in the flowers are held in their bores and never move. A
+moving body wakes every
 piece it reaches through pieces touching one another, passing through any that are
 awake but resting, and a piece it was holding up; a body at rest wakes nothing, so
 pieces resting against each other stay asleep. Before a step moves anything, a part

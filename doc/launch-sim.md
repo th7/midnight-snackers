@@ -7,9 +7,13 @@ bounce. It knocks the pieces where a match starts out of the way. This page says
 simulation is, where every number came from, what we chose not to model and why, and how to
 calibrate it against a real robot. Issue #175 asked for this.
 
-It is **separate from the realtime robot simulation**: nothing here changes `Flight`, `Hives`,
-`SimRobot`, `Launch` or the golden traces. A run of an op mode still throws its balls the way it
-always did. The Launch Sim shares the field model (`Field`, read-only) and the pages' assets.
+Its physics is **also the realtime robot simulation's**. A run's balls off the floor (`Flight`) fly
+on the engine a shot does (`Bodies`), with the air, bounces, contacts and step of this page's
+defaults, among the field's colliders without its hives and the hives as a part that turns as one
+tips (`Hives`). What stays the Launch Sim's own is the wheel pair, a shot's story and its settings: a
+run's launcher still throws at the speed `Launch` gives, with no spin, and nothing a user sets here
+reaches a run. Nothing a run does changes a shot either, which stays what it was to the bit (the
+fingerprint tests hold that).
 
 ## Contents
 
@@ -255,12 +259,13 @@ These are the first numbers to measure on a real field (see
 ## The field it bounces off
 
 The shot meets the field's collision model, `field.json`, the same model the colliders view draws.
-It does not reuse the realtime simulation's colliders as they are, because those were made for a
-robot and balls rolling on the floor: the robot's obstacles are 2.5-D footprints, and a ball in a
-run meets only the hives, the floor and plane walls. The shot builds its own convex solids from the
-same field model, so it meets every element in three dimensions. Its hives are the realtime
-simulation's hives: a test samples the space around both hives and checks that the shot's hive
-colliders give the same gap as `Hives` does, so the two cannot drift apart. The Launch Sim's
+It does not reuse the robot's obstacles, which are 2.5-D footprints made for a robot and balls
+rolling on the floor. The shot builds its own convex solids from the same field model, so it meets
+every element in three dimensions, and a ball in flight in a run meets the same solids. Its hives
+are the realtime simulation's hives held still: a run's `Hives` turns each hive's own parts and
+panels in the hive's frame, and a test samples the space around both hives and checks that they
+give the same gap and normal under every name as the shot's colliders, at rest and tipped, so the
+two cannot drift apart. The Launch Sim's
 colliders view and overlay are drawn from the shot's own collider list, not rebuilt on the page, so
 the drawing cannot drift from the physics either. The colliders are:
 
@@ -450,8 +455,9 @@ The *Download frames* link on a replay gives the frames as CSV, to set beside vi
   - sidespin throws a ball sideways off a wall;
   - a launched pollen wakes a loose one;
   - a tipped hive is scored at its other end;
-  - the shot's hive colliders give the same gap as the realtime simulation's hives everywhere
-    around them;
+  - the shot's hive colliders give the same gap and normal under every name as the realtime
+    simulation's hives everywhere around them, at rest and tipped, and a hive part way through a
+    tip meets a ball as it would at rest with the ball turned back about the axle;
   - the finest step stays within the work budget;
   - every setting at either end of its range still launches.
 - **Browser checks.** `tools/browser/launch.mjs` checks the replay page, and `dashboard.mjs`

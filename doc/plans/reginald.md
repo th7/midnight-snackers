@@ -408,13 +408,20 @@ Then implement, and update `doc/CONTEXT.md`: remove **Turntable**; update
   the robot's height, is refused, naming the rule.
 - `Launch.from` takes the exit instead of `HEIGHT_IN`, `AHEAD_IN` and
   `ANGLE_RADIANS`, which go.
-- The throw is recalibrated the way it was first calibrated: so that the
-  code's close launch (1050 ticks/s) from the launch distance drops into the
-  middle of the upturned cell's mouth.
-  - The 2-D check puts that at about 0.204 in/s per tick/s (band
-    0.195–0.212), against 0.189 today.
-  - That is 46 % of a 100 mm wheel's surface speed on a 28-tick motor at 1:1,
-    at the top of what hooded wheels are reported to throw.
+- The throw is recalibrated the way the realtime flight's move onto the
+  Launch Sim's engine calibrated it: a scan in 0.25 in/s steps for the widest
+  band of throws at which every scored shot the tests ask for (both
+  alliances' close shots, the ball at rest against the back, the shot after
+  a tip, one launch and four at their real cadence) goes in and stays, its
+  middle built in.
+  - From today's launch point, with drag and no spin, that band ran from 192
+    to 206.75 in/s at 1050 ticks/s, so 0.1899 in/s per tick/s is built in
+    (0.189 before balls flew through air).
+  - The 2-D check's 0.204 in/s per tick/s (band 0.195–0.212) was worked out
+    in a vacuum for the hood's exit and no longer holds: the hood's exit has
+    to be scanned again.
+  - About 0.2 is 45 % of a 100 mm wheel's surface speed on a 28-tick motor
+    at 1:1, at the top of what hooded wheels are reported to throw.
   - `LAUNCH_THROW`'s built value moves. An admin who set it keeps what they
     set.
 
@@ -426,8 +433,8 @@ Tests first:
    90° is refused, naming its rule.
 3. `SimChassisTest`: `robot.json`'s launch loads.
 4. `SimRobotTest.aCloseShotFromTheLaunchDistanceScoresInTheAlliancesUpturnedCell`:
-   - At 0.189 it is red, because the ball falls short of the mouth. Confirm
-     that this is why.
+   - At 0.1899 from the hood's exit, see whether it is red and why before
+     scanning.
    - At the recalibrated throw it is green.
 5. `ConstantsTest`: the throw's built value.
 6. Flight golden traces: read the diffs, then regenerate.
