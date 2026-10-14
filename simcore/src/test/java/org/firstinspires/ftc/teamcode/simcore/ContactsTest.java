@@ -497,6 +497,66 @@ public class ContactsTest {
     }
 
     @Test
+    public void somethingFixedThatIsNotSaidToMoveIsStill() {
+        assertEquals(
+                new Contacts.Against.Fixed("the floor", Surface.FLOOR, Vec3.zero(), Vec3.zero()),
+                new Contacts.Against.Fixed("the floor", Surface.FLOOR));
+    }
+
+    @Test
+    public void aBallRidingASupportAtTheSupportsOwnSpeedKeepsThatSpeedAndNoSpin() {
+        Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.04);
+        Vec3 carried = new Vec3(40, -15, 0);
+        Contacts.Against belt = new Contacts.Against.Fixed("the belt", Surface.FLOOR, carried, Vec3.zero());
+        Contacts.Body riding = body("pollen", pollen(0.634), carried.plus(new Vec3(0, 0, -2)), Vec3.zero());
+
+        for (boolean fresh : new boolean[] {true, false}) {
+            Contacts.Resolved resolved = pressed(surfaces, new Contacts.Pressing(riding, belt, UP, fresh));
+
+            assertVec("velocity, fresh " + fresh, carried, only(resolved).velocity(), 1e-9);
+            assertVec("spin, fresh " + fresh, Vec3.zero(), only(resolved).spin(), 1e-9);
+            assertTrue("fresh " + fresh, resolved.hits().isEmpty());
+        }
+    }
+
+    @Test
+    public void aBallPressedOnAMovingSupportIsDraggedAlongItAsFarAsFrictionAllows() {
+        Ball shape = pollen(0.634);
+        Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0, 0, 0);
+        Contacts.Against belt = new Contacts.Against.Fixed("the belt", Surface.FLOOR, new Vec3(40, 0, 0), Vec3.zero());
+        Contacts.Body still = body("pollen", shape, new Vec3(0, 0, -2), Vec3.zero());
+
+        Contacts.Body after = only(pressed(surfaces, new Contacts.Pressing(still, belt, UP, false)));
+
+        double pushed = 2 * shape.kilograms();
+        assertVec("velocity", new Vec3(0.5 * pushed / shape.kilograms(), 0, 0), after.velocity(), 1e-9);
+    }
+
+    @Test
+    public void rollingResistanceTurnsTheSpinTowardTheSupportsSpin() {
+        Ball shape = pollen(0.634);
+        double r = shape.radius(), alpha = shape.inertiaFactor();
+        Surfaces surfaces = everywhere(bounce(0.55, 0.5, 0.2), 0, 0, 0.04);
+        Vec3 spin = new Vec3(0, 100 / r, 0);
+        Contacts.Body rolling = body("pollen", shape, new Vec3(100, 0, -2), spin);
+        Contacts.Against alongside = new Contacts.Against.Fixed("a roller", Surface.FLOOR, Vec3.zero(), spin);
+        Contacts.Against faster =
+                new Contacts.Against.Fixed("a roller", Surface.FLOOR, Vec3.zero(), new Vec3(0, 140 / r, 0));
+
+        Contacts.Body kept = only(pressed(surfaces, new Contacts.Pressing(rolling, alongside, UP, false)));
+        Contacts.Body hurried = only(pressed(surfaces, new Contacts.Pressing(rolling, faster, UP, false)));
+
+        double pushed = 2 * shape.kilograms();
+        assertVec("spinning with the roller", spin, kept.spin(), 1e-9);
+        assertVec(
+                "spinning slower than the roller",
+                new Vec3(0, 100 / r + 0.04 * (1 + alpha) * pushed / (alpha * shape.kilograms() * r), 0),
+                hurried.spin(),
+                1e-9);
+        assertVec("velocity", new Vec3(100, 0, 0), hurried.velocity(), 1e-9);
+    }
+
+    @Test
     public void equalBallsMeetingHeadOnSwapTheirVelocitiesWeightedByTheirRestitution() {
         Ball shape = pollen(0.634);
         Surfaces surfaces = everywhere(bounce(0.55, 0.3, 0.15), 0.1, 0.06, 0.04);

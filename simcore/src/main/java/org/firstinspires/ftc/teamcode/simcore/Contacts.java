@@ -12,7 +12,11 @@ public final class Contacts {
     public record Body(String name, Ball shape, Vec3 velocity, Vec3 spin) {}
 
     public sealed interface Against {
-        record Fixed(String name, Surface surface) implements Against {}
+        record Fixed(String name, Surface surface, Vec3 velocity, Vec3 spin) implements Against {
+            public Fixed(String name, Surface surface) {
+                this(name, surface, Vec3.zero(), Vec3.zero());
+            }
+        }
 
         record Ball(Body body) implements Against {}
     }
@@ -47,7 +51,7 @@ public final class Contacts {
                         surfaces,
                         each,
                         a,
-                        Moving.immovable(),
+                        Moving.supporting(fixed.velocity(), fixed.spin()),
                         unit,
                         fixed.name(),
                         fixed.surface(),
@@ -127,8 +131,8 @@ public final class Contacts {
             return new Moving(1 / kilograms, 1 / inertia, radius, body.velocity(), body.spin());
         }
 
-        static Moving immovable() {
-            return new Moving(0, 0, 0, Vec3.zero(), Vec3.zero());
+        static Moving supporting(Vec3 velocity, Vec3 spin) {
+            return new Moving(0, 0, 0, velocity, spin);
         }
 
         double inverseAcross() {
@@ -242,7 +246,7 @@ public final class Contacts {
             if (!(most > 0)) {
                 return;
             }
-            Vec3 rolling = across(a.spin, normal);
+            Vec3 rolling = across(a.spin.minus(b.spin), normal);
             a.spin = a.spin.minus(rolling.times(StrictMath.min(1, most / magnitude(rolling))));
         }
 

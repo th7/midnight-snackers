@@ -1716,7 +1716,7 @@ since every class of it uses `StrictMath` and a test reading their class files h
 that. Integration is RK4 on a fixed grid of steps; each new contact is found by
 bisecting the gap to the moment of touching, so a bounce happens where and when the
 ball meets the surface. Each piece's **fate** says whether it stayed on the field or
-when and over which wall it left. Classes: `Shot`, `ShotRun`, `World`, in the **core**.
+when and over which wall it left. Classes: `Shot`, `ShotRun`, `Bodies`, `World`, in the **core**.
 
 **Ball** — In the launch sim, any ball's size, mass and how far out its mass is: the
 launched pollen is one, and so is each piece, a nectar included. Not the realtime

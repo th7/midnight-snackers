@@ -2,10 +2,10 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Crossed;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Fate;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Finish;
@@ -22,84 +22,19 @@ import org.firstinspires.ftc.teamcode.simcore.Shot.Story;
 import org.firstinspires.ftc.teamcode.simcore.Shot.Track;
 
 final class ShotRun {
-    private enum Life {
-        AWAKE,
-        ASLEEP,
-        FIXED,
-        GONE
-    }
-
-    private record Kin(Vec3 at, Vec3 velocity, Vec3 spin) {}
-
-    private static final class Body {
-        private final String name;
-        private final Optional<World.Piece> piece;
-        private final Ball shape;
-        private Vec3 at;
-        private Vec3 velocity;
-        private Vec3 spin;
-        private Turn turn;
-        private Life life;
-        private double restFor;
-        private Fate fate = new Fate.OnTheField();
+    private static final class History {
+        private final World.Piece piece;
         private final List<Placed> samples;
-        private Kin start;
-        private Kin trial;
-        private boolean touched;
-        private final Set<Collider> touchingColliders = new HashSet<>();
-        private final Set<String> touchingBodies = new HashSet<>();
+        private Fate fate;
 
-        private Body(
-                String name,
-                Optional<World.Piece> piece,
-                Ball shape,
-                Vec3 at,
-                Vec3 velocity,
-                Vec3 spin,
-                Turn turn,
-                Life life,
-                double restFor,
-                List<Placed> samples) {
-            this.name = name;
+        private History(World.Piece piece, List<Placed> samples, Fate fate) {
             this.piece = piece;
-            this.shape = shape;
-            this.at = at;
-            this.velocity = velocity;
-            this.spin = spin;
-            this.turn = turn;
-            this.life = life;
-            this.restFor = restFor;
             this.samples = new ArrayList<>(samples);
-            this.start = new Kin(at, velocity, spin);
-            this.trial = start;
+            this.fate = fate;
         }
 
-        Body copy() {
-            Body copy = new Body(name, piece, shape, at, velocity, spin, turn, life, restFor, samples);
-            copy.fate = fate;
-            copy.touchingColliders.addAll(touchingColliders);
-            copy.touchingBodies.addAll(touchingBodies);
-            return copy;
-        }
-
-        double radius() {
-            return shape.radius();
-        }
-
-        Length reach() {
-            return shape.radiusLength();
-        }
-
-        double inverseMass() {
-            return life == Life.AWAKE ? 1 / shape.kilograms() : 0;
-        }
-
-        Contacts.Body contact() {
-            return new Contacts.Body(name, shape, velocity, spin);
-        }
-
-        Moving moving(Phase phase) {
-            return new Moving(at, velocity, spin, turn, phase);
+        History copy() {
+            return new History(piece, samples, fate);
         }
     }
 
@@ -107,15 +42,13 @@ final class ShotRun {
     private final Ball pollen;
     private final WheelPair.Launched launched;
     private final double step;
-    private final List<Body> bodies;
-    private final Body ball;
+    private final Bodies bodies;
+    private final Map<String, History> pieces;
     private final List<Frame> frames;
     private final List<Impact> impacts;
     private final List<Crossed> crossings;
-    private long steps;
     private long framesTaken;
-    private double now;
-    private long work;
+    private Bodies.Seen ball;
     private Frame apex;
     private Optional<FirstBounce> firstBounce;
     private Phase phase;
@@ -125,15 +58,14 @@ final class ShotRun {
             World world,
             Ball pollen,
             WheelPair.Launched launched,
-            List<Body> bodies,
+            Bodies bodies,
+            Map<String, History> pieces,
             List<Frame> frames,
             List<Impact> impacts,
             List<Crossed> crossings,
-            long steps,
             long framesTaken,
-            double now,
-            long work,
-            Optional<Frame> apex,
+            Bodies.Seen ball,
+            Frame apex,
             Optional<FirstBounce> firstBounce,
             Phase phase,
             List<Contacts.Pressing> pressingThePollen) {
@@ -141,87 +73,79 @@ final class ShotRun {
         this.pollen = pollen;
         this.launched = launched;
         this.step = world.step().value();
-        this.bodies = new ArrayList<>();
-        for (Body body : bodies) {
-            this.bodies.add(body.copy());
+        this.bodies = bodies;
+        this.pieces = new LinkedHashMap<>();
+        for (Map.Entry<String, History> piece : pieces.entrySet()) {
+            this.pieces.put(piece.getKey(), piece.getValue().copy());
         }
-        Body first = new Body(
-                Shot.LAUNCHED,
-                Optional.empty(),
-                pollen,
-                launched.at(),
-                launched.velocity(),
-                launched.spin(),
-                Turn.identity(),
-                Life.AWAKE,
-                0,
-                List.of());
-        for (Body body : this.bodies) {
-            if (body.name.equals(Shot.LAUNCHED)) {
-                first = body;
-            }
-        }
-        this.ball = first;
         this.frames = new ArrayList<>(frames);
         this.impacts = new ArrayList<>(impacts);
         this.crossings = new ArrayList<>(crossings);
-        this.steps = steps;
         this.framesTaken = framesTaken;
-        this.now = now;
-        this.work = work;
+        this.ball = ball;
+        this.apex = apex;
         this.firstBounce = firstBounce;
         this.phase = phase;
         this.pressingThePollen = new ArrayList<>(pressingThePollen);
-        this.apex = apex.orElse(new Frame(Seconds.zero(), ball.moving(phase)));
     }
 
-    static ShotRun starting(World world, Ball pollen, WheelPair.Launched launched) {
-        List<Body> bodies = new ArrayList<>();
-        bodies.add(new Body(
-                Shot.LAUNCHED,
-                Optional.empty(),
-                pollen,
-                launched.at(),
-                launched.velocity(),
-                launched.spin(),
-                Turn.identity(),
-                Life.AWAKE,
-                0,
-                List.of()));
+    static Checked<ShotRun> starting(World world, Ball pollen, WheelPair.Launched launched) {
+        Checked<Bodies> added = Bodies.watching(world, Shot.LAUNCHED)
+                .add(
+                        Shot.LAUNCHED,
+                        pollen,
+                        launched.at(),
+                        launched.velocity(),
+                        launched.spin(),
+                        Bodies.Life.AWAKE,
+                        Bodies.Sleep.NEVER);
+        Map<String, History> pieces = new LinkedHashMap<>();
         for (World.Piece piece : world.pieces()) {
-            bodies.add(new Body(
+            added = added.then(bodies -> bodies.add(
                     piece.name(),
-                    Optional.of(piece),
                     piece.shape(),
                     piece.at(),
                     Vec3.zero(),
                     Vec3.zero(),
-                    Turn.identity(),
-                    piece.fixed() ? Life.FIXED : Life.ASLEEP,
-                    0,
-                    List.of(new Placed(Seconds.zero(), piece.at(), Turn.identity()))));
+                    piece.fixed() ? Bodies.Life.FIXED : Bodies.Life.ASLEEP,
+                    Bodies.Sleep.WHEN_RESTING));
+            pieces.put(
+                    piece.name(),
+                    new History(
+                            piece,
+                            List.of(new Placed(Seconds.zero(), piece.at(), Turn.identity())),
+                            new Fate.OnTheField()));
         }
-        ShotRun run = new ShotRun(
-                world,
-                pollen,
-                launched,
-                bodies,
-                List.of(),
-                List.of(),
-                List.of(),
-                0,
-                0,
-                0,
-                0,
-                Optional.empty(),
-                Optional.empty(),
-                Phase.FLYING,
-                List.of());
-        run.touchingAtTheStart();
-        run.phase = run.phaseOfThePollen(run.pressings());
-        run.apex = run.frameNow();
-        run.takeAFrame();
-        return run;
+        Bodies.Seen ball = new Bodies.Seen(
+                Shot.LAUNCHED,
+                launched.at(),
+                launched.velocity(),
+                launched.spin(),
+                Turn.identity(),
+                Bodies.Life.AWAKE,
+                0);
+        return added.map(bodies -> {
+            bodies.touchingAtTheStart();
+            ShotRun run = new ShotRun(
+                    world,
+                    pollen,
+                    launched,
+                    bodies,
+                    pieces,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    0,
+                    ball,
+                    new Frame(Seconds.zero(), moving(ball, Phase.FLYING)),
+                    Optional.empty(),
+                    Phase.FLYING,
+                    List.of());
+            run.phase = run.phaseOfThePollen(bodies.pressings(), ball);
+            run.apex = run.frameNow();
+            run.takeAFrame();
+            return run;
+        });
     }
 
     ShotRun copy() {
@@ -229,15 +153,14 @@ final class ShotRun {
                 world,
                 pollen,
                 launched,
-                bodies,
+                bodies.copy(),
+                pieces,
                 frames,
                 impacts,
                 crossings,
-                steps,
                 framesTaken,
-                now,
-                work,
-                Optional.of(apex),
+                ball,
+                apex,
                 firstBounce,
                 phase,
                 pressingThePollen);
@@ -245,9 +168,8 @@ final class ShotRun {
 
     Story story() {
         List<Track> tracks = new ArrayList<>();
-        for (Body body : bodies) {
-            body.piece.ifPresent(
-                    piece -> tracks.add(new Track(piece, Collections.unmodifiableList(body.samples), body.fate)));
+        for (History history : pieces.values()) {
+            tracks.add(new Track(history.piece, Collections.unmodifiableList(history.samples), history.fate));
         }
         return new Story(
                 world,
@@ -259,16 +181,20 @@ final class ShotRun {
                 apex,
                 firstBounce,
                 Collections.unmodifiableList(tracks),
-                work,
-                seconds(now));
+                bodies.work(),
+                seconds(bodies.now()));
     }
 
     private static Seconds seconds(double t) {
         return Seconds.of(t).orElse(Seconds.zero());
     }
 
+    private static Moving moving(Bodies.Seen ball, Phase phase) {
+        return new Moving(ball.at(), ball.velocity(), ball.spin(), ball.turn(), phase);
+    }
+
     Shot until(double until) {
-        while (steps * step < until) {
+        while (bodies.steps() * step < until) {
             Optional<Finish> finish = aStep();
             if (finish.isPresent()) {
                 return finish.<Shot>map(this::finished).orElse(new Flying(this));
@@ -286,42 +212,33 @@ final class ShotRun {
         if (!taken) {
             frames.add(last);
         }
-        for (Body body : bodies) {
-            if (body.life == Life.AWAKE && body.piece.isPresent()) {
-                body.samples.add(new Placed(seconds(now), body.at, body.turn));
-            }
-        }
+        sampleTheAwake();
         return new Finished(copy().story(), finish);
     }
 
     private Optional<Finish> aStep() {
-        int pieces = piecesOfThisStep();
-        for (int i = 1; i <= pieces; i++) {
-            aPiece((steps + (double) i / pieces) * step);
+        for (Bodies.Span span : bodies.step()) {
+            replay(span);
         }
-        steps++;
-        now = steps * step;
+        double now = bodies.now();
         if (now >= framesTaken * Shot.FRAME_SECONDS) {
             takeAFrame();
         }
-        for (Body body : bodies) {
-            if (body == ball || body.life != Life.AWAKE) {
-                continue;
+        for (Bodies.Gone gone : bodies.goneOver(Shot.LAUNCHED)) {
+            History history = pieces.get(gone.name());
+            if (history != null) {
+                history.fate = new Fate.Gone(seconds(now), gone.side());
+                history.samples.add(new Placed(seconds(now), gone.at(), gone.turn()));
             }
-            world.colliders().over(body.at, body.reach()).ifPresent(side -> {
-                body.life = Life.GONE;
-                body.fate = new Fate.Gone(seconds(now), side);
-                body.samples.add(new Placed(seconds(now), body.at, body.turn));
-            });
         }
-        Optional<Colliders.Side> over = world.colliders().over(ball.at, ball.reach());
+        Optional<Colliders.Side> over = world.colliders().over(ball.at(), pollen.radiusLength());
         if (over.isPresent()) {
-            return over.map(side -> new Finish.LeftTheField(ball.at, seconds(now), side));
+            return over.map(side -> new Finish.LeftTheField(ball.at(), seconds(now), side));
         }
-        if (ball.restFor >= Shot.REST_SECONDS && !anyPieceAwake()) {
-            return Optional.of(new Finish.AtRest(ball.at, seconds(now), where()));
+        if (ball.restFor() >= Shot.REST_SECONDS && !bodies.anyAwakeBut(Shot.LAUNCHED)) {
+            return Optional.of(new Finish.AtRest(ball.at(), seconds(now), where()));
         }
-        if (Shot.tooMuchWork(work, seconds(now))) {
+        if (Shot.tooMuchWork(bodies.work(), seconds(now))) {
             return Optional.of(new Finish.TooMuchWork(seconds(now)));
         }
         if (now >= world.longest().value()) {
@@ -330,299 +247,36 @@ final class ShotRun {
         return Optional.empty();
     }
 
-    private boolean anyPieceAwake() {
-        for (Body body : bodies) {
-            if (body != ball && body.life == Life.AWAKE) {
-                return true;
-            }
+    private void replay(Bodies.Span span) {
+        for (Bodies.Seen woken : span.woken()) {
+            sample(woken, span.now());
         }
-        return false;
-    }
-
-    private int piecesOfThisStep() {
-        double fastest = 0;
-        for (Body body : bodies) {
-            if (body.life == Life.AWAKE) {
-                fastest = StrictMath.max(fastest, StrictMath.sqrt(body.velocity.dot(body.velocity)));
-            }
-        }
-        double needed = StrictMath.ceil(fastest * step / Shot.MOST_TRAVEL_IN);
-        return (int) StrictMath.max(1, StrictMath.min(Shot.MOST_PIECES_PER_STEP, needed));
-    }
-
-    private void takeAFrame() {
-        frames.add(frameNow());
-        for (Body body : bodies) {
-            if (body.life == Life.AWAKE && body.piece.isPresent()) {
-                body.samples.add(new Placed(seconds(now), body.at, body.turn));
-            }
-        }
-        framesTaken = (long) StrictMath.floor(now / Shot.FRAME_SECONDS) + 1;
-    }
-
-    private Frame frameNow() {
-        return new Frame(seconds(now), ball.moving(phase));
-    }
-
-    private List<Body> awake() {
-        List<Body> awake = new ArrayList<>();
-        for (Body body : bodies) {
-            if (body.life == Life.AWAKE) {
-                awake.add(body);
-            }
-        }
-        return awake;
-    }
-
-    private void touchingAtTheStart() {
-        for (Body body : bodies) {
-            body.touchingColliders.clear();
-            body.touchingBodies.clear();
-            if (body.life != Life.AWAKE) {
-                continue;
-            }
-            for (Colliders.Near near : near(body.at, body.reach(), Shot.TOUCHING_IN)) {
-                body.touchingColliders.add(near.collider());
-            }
-            for (Body other : bodies) {
-                if (other != body
-                        && other.life != Life.GONE
-                        && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
-                    body.touchingBodies.add(other.name);
-                }
-            }
-        }
-    }
-
-    private static boolean within(Vec3 a, Body one, Vec3 b, Body other, double gap) {
-        Vec3 apart = a.minus(b);
-        double reach = one.radius() + other.radius() + gap;
-        return apart.dot(apart) <= reach * reach;
-    }
-
-    private static boolean overlapping(Vec3 a, Body one, Vec3 b, Body other) {
-        Vec3 apart = a.minus(b);
-        double reach = one.radius() + other.radius();
-        return apart.dot(apart) < reach * reach;
-    }
-
-    private void aPiece(double target) {
-        int events = 0;
-        while (now < target) {
-            List<Body> awake = awake();
-            double span = target - now;
-            for (Body body : awake) {
-                body.start = new Kin(body.at, body.velocity, body.spin);
-            }
-            Vec3 from = ball.at;
-            integrate(awake, span);
-            double covered = span;
-            if (events < Shot.MOST_EVENTS_PER_PIECE && overlapsSomethingNew(awake)) {
-                double lo = 0, hi = 1;
-                for (int i = 0; i < Shot.BISECTIONS; i++) {
-                    double mid = (lo + hi) / 2;
-                    integrate(awake, mid * span);
-                    if (overlapsSomethingNew(awake)) {
-                        hi = mid;
-                    } else {
-                        lo = mid;
-                    }
-                }
-                integrate(awake, lo * span);
-                covered = lo * span;
-                events++;
-            }
-            for (Body body : awake) {
-                body.at = body.trial.at();
-                body.velocity = body.trial.velocity();
-                body.spin = body.trial.spin();
-                body.turn = body.turn.turnedBy(body.start.spin(), covered);
-            }
-            double began = now;
-            double took = covered;
-            now = covered == span ? target : now + covered;
-            List<Contacts.Pressing> pressing = resolve();
-            project();
-            settle(covered);
-            touchingAtTheStart();
-            phase = phaseOfThePollen(pressing);
-            world.colliders()
-                    .crossed(from, ball.at)
-                    .ifPresent(crossing -> crossings.add(new Crossed(
-                            seconds(began + crossing.fraction() * took),
-                            crossing,
-                            StrictMath.sqrt(ball.velocity.dot(ball.velocity)))));
-            if (ball.at.z() > apex.pollen().at().z()) {
-                apex = frameNow();
-            }
-        }
-    }
-
-    private void integrate(List<Body> awake, double over) {
-        for (Body body : awake) {
-            body.trial = rk4(body, body.start, over);
-            work++;
-        }
-    }
-
-    private Kin rk4(Body body, Kin from, double dt) {
-        Air air = world.air();
-        Air.Motion m1 = air.motion(body.shape, from.velocity(), from.spin());
-        Kin k1 = new Kin(from.velocity(), m1.acceleration(), m1.spinRate());
-        Kin s2 = along(from, k1, dt / 2);
-        Air.Motion m2 = air.motion(body.shape, s2.velocity(), s2.spin());
-        Kin k2 = new Kin(s2.velocity(), m2.acceleration(), m2.spinRate());
-        Kin s3 = along(from, k2, dt / 2);
-        Air.Motion m3 = air.motion(body.shape, s3.velocity(), s3.spin());
-        Kin k3 = new Kin(s3.velocity(), m3.acceleration(), m3.spinRate());
-        Kin s4 = along(from, k3, dt);
-        Air.Motion m4 = air.motion(body.shape, s4.velocity(), s4.spin());
-        Kin k4 = new Kin(s4.velocity(), m4.acceleration(), m4.spinRate());
-        double sixth = dt / 6;
-        return new Kin(
-                from.at().plus(weighted(k1.at(), k2.at(), k3.at(), k4.at()).times(sixth)),
-                from.velocity()
-                        .plus(weighted(k1.velocity(), k2.velocity(), k3.velocity(), k4.velocity())
-                                .times(sixth)),
-                from.spin()
-                        .plus(weighted(k1.spin(), k2.spin(), k3.spin(), k4.spin())
-                                .times(sixth)));
-    }
-
-    private static Kin along(Kin from, Kin rate, double dt) {
-        return new Kin(
-                from.at().along(rate.at(), dt),
-                from.velocity().along(rate.velocity(), dt),
-                from.spin().along(rate.spin(), dt));
-    }
-
-    private static Vec3 weighted(Vec3 a, Vec3 b, Vec3 c, Vec3 d) {
-        return a.plus(b.times(2)).plus(c.times(2)).plus(d);
-    }
-
-    private boolean overlapsSomethingNew(List<Body> awake) {
-        for (Body body : awake) {
-            for (Colliders.Near near : near(body.trial.at(), body.reach(), 0)) {
-                if (near.gap() < 0 && !body.touchingColliders.contains(near.collider())) {
-                    return true;
-                }
-            }
-            for (Body other : bodies) {
-                if (other == body || other.life == Life.GONE || body.touchingBodies.contains(other.name)) {
-                    continue;
-                }
-                Vec3 there = other.life == Life.AWAKE ? other.trial.at() : other.at;
-                if (overlapping(body.trial.at(), body, there, other)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private List<Contacts.Pressing> pressings() {
-        List<Contacts.Pressing> pressing = new ArrayList<>();
-        List<Body> awake = awake();
-        for (Body body : awake) {
-            body.touched = false;
-        }
-        for (Body body : awake) {
-            for (Colliders.Near near : near(body.at, body.reach(), Shot.TOUCHING_IN)) {
-                pressing.add(new Contacts.Pressing(
-                        body.contact(),
-                        new Contacts.Against.Fixed(
-                                near.collider().name(), near.collider().surface()),
-                        near.normal(),
-                        !body.touchingColliders.contains(near.collider())));
-                body.touched = true;
-            }
-            boolean past = false;
-            for (Body other : bodies) {
-                if (other == body) {
-                    past = true;
-                    continue;
-                }
-                if (other.life == Life.GONE || (other.life == Life.AWAKE && !past)) {
-                    continue;
-                }
-                if (!within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
-                    continue;
-                }
-                Vec3 apart = body.at.minus(other.at);
-                double distance = StrictMath.sqrt(apart.dot(apart));
-                if (!(distance > 0)) {
-                    continue;
-                }
-                Vec3 normal = apart.times(1 / distance);
-                boolean fresh = !body.touchingBodies.contains(other.name);
-                body.touched = true;
-                if (other.life == Life.FIXED || other.life == Life.ASLEEP) {
-                    pressing.add(new Contacts.Pressing(
-                            body.contact(), new Contacts.Against.Fixed(other.name, Surface.PIECE), normal, fresh));
-                } else if (other == ball) {
-                    other.touched = true;
-                    pressing.add(new Contacts.Pressing(
-                            other.contact(), new Contacts.Against.Ball(body.contact()), normal.negated(), fresh));
-                } else {
-                    other.touched = true;
-                    pressing.add(new Contacts.Pressing(
-                            body.contact(), new Contacts.Against.Ball(other.contact()), normal, fresh));
-                }
-            }
-        }
-        return pressing;
-    }
-
-    private List<Colliders.Near> near(Vec3 at, Length reach, double within) {
-        work++;
-        return world.colliders().near(at, reach, within);
-    }
-
-    private void wake() {
-        List<Islands.Node> nodes = new ArrayList<>();
-        for (Body body : bodies) {
-            if (body.life == Life.GONE) {
-                continue;
-            }
-            Islands.State state = body.life == Life.FIXED
-                    ? Islands.State.HELD
-                    : body.life == Life.ASLEEP
-                            ? Islands.State.ASLEEP
-                            : body.restFor == 0 ? Islands.State.MOVING : Islands.State.RESTING;
-            nodes.add(new Islands.Node(body.name, state, body.at, body.radius(), body.touchingBodies));
-        }
-        Set<String> waking = Islands.toWake(nodes, Shot.TOUCHING_IN);
-        for (Body body : bodies) {
-            if (body.life == Life.ASLEEP && waking.contains(body.name)) {
-                body.life = Life.AWAKE;
-                body.restFor = 0;
-                body.samples.add(new Placed(seconds(now), body.at, body.turn));
-            }
-        }
-    }
-
-    private List<Contacts.Pressing> resolve() {
-        wake();
-        List<Contacts.Pressing> pressing = pressings();
         pressingThePollen = new ArrayList<>();
-        for (Contacts.Pressing press : pressing) {
+        for (Contacts.Pressing press : span.pressing()) {
             if (press.ball().name().equals(Shot.LAUNCHED)) {
                 pressingThePollen.add(press);
             }
         }
-        if (pressing.isEmpty()) {
-            return pressing;
+        span.resolved().ifPresent(resolved -> bounced(span, resolved));
+        for (Bodies.Seen slept : span.slept()) {
+            sample(slept, span.now());
         }
-        Vec3 velocityBefore = ball.velocity, spinBefore = ball.spin;
-        Contacts.Resolved resolved = Contacts.resolve(world.surfaces(), pressing);
-        for (Contacts.Body moved : resolved.bodies()) {
-            for (Body body : bodies) {
-                if (body.name.equals(moved.name()) && body.life == Life.AWAKE) {
-                    body.velocity = moved.velocity();
-                    body.spin = moved.spin();
-                }
-            }
+        Bodies.Seen after = span.after();
+        ball = after;
+        phase = phaseOfThePollen(span.pressing(), after);
+        world.colliders()
+                .crossed(span.from(), after.at())
+                .ifPresent(crossing -> crossings.add(new Crossed(
+                        seconds(span.began() + crossing.fraction() * span.took()),
+                        crossing,
+                        StrictMath.sqrt(after.velocity().dot(after.velocity())))));
+        if (after.at().z() > apex.pollen().at().z()) {
+            apex = new Frame(seconds(span.now()), moving(after, phase));
         }
+    }
+
+    private void bounced(Bodies.Span span, Contacts.Resolved resolved) {
+        Bodies.Seen before = span.before(), at = span.atResolve();
         boolean bounced = false;
         for (Contacts.Hit hit : resolved.hits()) {
             boolean mine = hit.ball().equals(Shot.LAUNCHED);
@@ -630,78 +284,58 @@ final class ShotRun {
                 continue;
             }
             Vec3 normal = mine ? hit.normal() : hit.normal().negated();
-            Vec3 at = ball.at.along(normal, -ball.radius());
+            Vec3 touch = at.at().along(normal, -pollen.radius());
             if (!bounced) {
-                frames.add(new Frame(seconds(now), new Moving(ball.at, velocityBefore, spinBefore, ball.turn, phase)));
+                frames.add(new Frame(
+                        seconds(span.now()), new Moving(at.at(), before.velocity(), before.spin(), at.turn(), phase)));
             }
-            impacts.add(
-                    new Impact(seconds(now), at, normal, hit, velocityBefore, spinBefore, ball.velocity, ball.spin));
+            impacts.add(new Impact(
+                    seconds(span.now()),
+                    touch,
+                    normal,
+                    hit,
+                    before.velocity(),
+                    before.spin(),
+                    at.velocity(),
+                    at.spin()));
             if (firstBounce.isEmpty() && hit.surface() == Surface.FLOOR) {
-                Vec3 run = at.minus(launched.at());
-                firstBounce = Optional.of(
-                        new FirstBounce(seconds(now), at, StrictMath.sqrt(run.x() * run.x() + run.y() * run.y())));
+                Vec3 run = touch.minus(launched.at());
+                firstBounce = Optional.of(new FirstBounce(
+                        seconds(span.now()), touch, StrictMath.sqrt(run.x() * run.x() + run.y() * run.y())));
             }
             bounced = true;
         }
         if (bounced) {
-            frames.add(new Frame(seconds(now), ball.moving(phaseOfThePollen(pressing))));
+            frames.add(new Frame(seconds(span.now()), moving(at, phaseOfThePollen(span.pressing(), at))));
         }
-        return pressing;
     }
 
-    private void project() {
-        List<Body> touched = new ArrayList<>();
-        for (Body body : awake()) {
-            if (body.touched) {
-                touched.add(body);
-            }
+    private void sample(Bodies.Seen body, double t) {
+        History history = pieces.get(body.name());
+        if (history != null) {
+            history.samples.add(new Placed(seconds(t), body.at(), body.turn()));
         }
-        boolean moved = !touched.isEmpty();
-        for (int pass = 0; pass < Shot.PROJECTIONS && moved; pass++) {
-            moved = false;
-            for (Body body : touched) {
-                for (Colliders.Near near : near(body.at, body.reach(), 0)) {
-                    if (near.gap() < 0) {
-                        body.at = body.at.along(near.normal(), -near.gap());
-                        moved = true;
-                    }
-                }
-                for (Body other : bodies) {
-                    if (other == body || other.life == Life.GONE || !overlapping(body.at, body, other.at, other)) {
-                        continue;
-                    }
-                    moved = true;
-                    Vec3 apart = body.at.minus(other.at);
-                    double distance = StrictMath.sqrt(apart.dot(apart));
-                    double over = body.radius() + other.radius() - distance;
-                    if (!(distance > 0) || !(over > 0)) {
-                        continue;
-                    }
-                    Vec3 normal = apart.times(1 / distance);
-                    double mine = body.inverseMass(), theirs = other.inverseMass();
-                    double share = mine / (mine + theirs);
-                    body.at = body.at.along(normal, over * share);
-                    other.at = other.at.along(normal, -over * (1 - share));
-                }
+    }
+
+    private void sampleTheAwake() {
+        for (Bodies.Seen body : bodies.seen()) {
+            if (body.life() == Bodies.Life.AWAKE) {
+                sample(body, bodies.now());
             }
         }
     }
 
-    private void settle(double covered) {
-        for (Body body : awake()) {
-            double moving = StrictMath.sqrt(body.velocity.dot(body.velocity))
-                    + body.radius() * StrictMath.sqrt(body.spin.dot(body.spin));
-            body.restFor = body.touched && moving < Shot.REST_SPEED_IN_PER_S ? body.restFor + covered : 0;
-            if (body != ball && body.restFor >= Shot.REST_SECONDS) {
-                body.life = Life.ASLEEP;
-                body.velocity = Vec3.zero();
-                body.spin = Vec3.zero();
-                body.samples.add(new Placed(seconds(now), body.at, body.turn));
-            }
-        }
+    private void takeAFrame() {
+        frames.add(frameNow());
+        sampleTheAwake();
+        framesTaken = (long) StrictMath.floor(bodies.now() / Shot.FRAME_SECONDS) + 1;
     }
 
-    private Phase phaseOfThePollen(List<Contacts.Pressing> pressing) {
+    private Frame frameNow() {
+        return new Frame(seconds(bodies.now()), moving(ball, phase));
+    }
+
+    private Phase phaseOfThePollen(List<Contacts.Pressing> pressing, Bodies.Seen ball) {
         Optional<Contacts.Pressing> first = Optional.empty();
         for (Contacts.Pressing press : pressing) {
             if (first.isEmpty() && press.ball().name().equals(Shot.LAUNCHED)) {
@@ -711,29 +345,29 @@ final class ShotRun {
         if (first.isEmpty()) {
             return Phase.FLYING;
         }
-        double moving = StrictMath.sqrt(ball.velocity.dot(ball.velocity))
-                + ball.radius() * StrictMath.sqrt(ball.spin.dot(ball.spin));
+        double moving = StrictMath.sqrt(ball.velocity().dot(ball.velocity()))
+                + pollen.radius() * StrictMath.sqrt(ball.spin().dot(ball.spin()));
         if (moving < Shot.REST_SPEED_IN_PER_S) {
             return Phase.RESTING;
         }
-        double slip = first.map(press -> slipOf(press.normal())).orElse(0.0);
+        double slip = first.map(press -> slipOf(press.normal(), ball)).orElse(0.0);
         return slip > Shot.REST_SPEED_IN_PER_S ? Phase.SLIDING : Phase.ROLLING;
     }
 
-    private double slipOf(Vec3 normal) {
-        Vec3 contact = ball.velocity.plus(ball.spin.cross(normal.times(-ball.radius())));
+    private double slipOf(Vec3 normal, Bodies.Seen ball) {
+        Vec3 contact = ball.velocity().plus(ball.spin().cross(normal.times(-pollen.radius())));
         Vec3 across = contact.minus(normal.times(contact.dot(normal)));
         return StrictMath.sqrt(across.dot(across));
     }
 
     private Resting where() {
         Colliders colliders = world.colliders();
-        Optional<Colliders.InCell> cell = colliders.cellHolding(ball.at);
+        Optional<Colliders.InCell> cell = colliders.cellHolding(ball.at());
         if (cell.isPresent()) {
             return cell.<Resting>map(held -> new Resting.InCell(held.cell(), held.alliance(), held.upturned()))
                     .orElse(new Resting.OnTheFloor());
         }
-        Optional<String> flower = colliders.flowerHolding(ball.at);
+        Optional<String> flower = colliders.flowerHolding(ball.at());
         if (flower.isPresent()) {
             return flower.<Resting>map(Resting.InFlower::new).orElse(new Resting.OnTheFloor());
         }
