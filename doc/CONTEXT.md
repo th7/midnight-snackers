@@ -1761,16 +1761,24 @@ the page, so the drawing cannot drift from the physics. The robot's obstacle
 footprints and the tape are not among them. Class: `Colliders`, `Collider`, in the
 **core**.
 
-**Surroundings** — What the balls of a shot or of the realtime simulation meet
-besides one another: the **shot's colliders**, which never move, and the parts that
-may, each listed by itself with its own names, where it reaches, how fast its shape
-sweeps through space (nothing for a part that only spins about its own axis, as a
-flywheel does) and whether it is moving. Whatever a ball touches says how fast the
-surface goes there and how it spins, so a ball rides what carries it and is dragged
-along by what slides or turns under it. A step is cut finer while a part sweeps
-fast, and each new contact with a part is found where its face meets the ball, so no
-part passes through a ball. In a shot nothing moves. Class: `Surroundings`, in the
-**core**.
+**Surroundings** — What the balls of a shot meet besides one another: the **shot's
+colliders**, which never move, and the parts that may, each listed by itself under
+the names it gives when it comes in, with where it reaches, how fast its shape sweeps
+through space (nothing for a part that only spins about its own axis, as a flywheel
+does) and whether it is moving. Whatever a ball touches says how fast the surface
+goes there and how it spins, so a ball rides what carries it and is dragged along by
+what slides or turns under it; a face of a moving part that does not itself move says
+it is still. A touch has a unit normal and a finite gap, velocity and spin, and a
+part's touch is kept only within the reach asked for and under one of the names the
+part came in with. A step is cut finer while a part sweeps fast at the step's start
+or at its end, and each new contact with a part is found where its face meets the
+ball, so a part that is moving at either end of a step passes through no ball. What a
+part promises the engine (its names given once and the same wherever it is placed,
+the same answers however it was placed, touches only where it says it reaches, a gap
+that changes as the face's velocity along its normal says and no faster than its
+sweep, a normal that turns as its spin says, and nothing moving while it says it is
+not moving or on a face that is still) is checked by a test helper that every part is
+run through. In a shot nothing moves. Class: `Surroundings`, in the **core**.
 
 **Asleep** and **awake** — Of a piece in a shot: the loose pollen and the nectar in
 the cells lie **asleep** where a match starts them until something moving touches
@@ -1778,11 +1786,26 @@ them, and are **awake** from then until they come to rest again; the pollen stan
 in the flowers are held in their bores and never move. A moving body wakes every
 piece it reaches through pieces touching one another, passing through any that are
 awake but resting, and a piece it was holding up; a body at rest wakes nothing, so
-pieces resting against each other stay asleep. A part of the **surroundings** that
-moves or spins wakes what rests against it and what it could reach within a step,
-and a body pressed against a surface that moves or spins never falls asleep; a part
-that moves nowhere near a sleeping body costs it nothing. Classes: `Islands`,
-`Bodies`, in the **core**.
+pieces resting against each other stay asleep. Before a step moves anything, a part
+of the **surroundings** moving at the step's start or at its end wakes every sleeping
+body one of its moving faces could reach within the step, and so do new surroundings
+the moment they are given; after each piece, a part moving then wakes what it could
+reach within the next step, and the wake spreads from what it woke in the same piece.
+A body at rest within a step's reach of a moving face does not fall asleep, and a
+body pressed against a surface that moves or spins, or against an awake body that is,
+is never at rest, so a stack riding a slowly moving part rides it awake. A ball asleep
+on a still face of a moving part sleeps on, and a part that moves nowhere near a
+sleeping body wakes nothing. Classes: `Islands`, `Bodies`, in the **core**.
+
+**Idle** and **allowance** — Of the engine a shot moves its balls on: it is **idle**
+through to a later step when nothing is awake and no moving face could reach a
+sleeping body before then, and it then goes there at once, exactly where stepping
+there would leave it. Its work counts every integration, every query of its
+surroundings, every check of a moving part's bounds and every placing of the parts,
+so an engine among moving parts never reads as doing nothing. A step can be given an
+**allowance** of that work, which lasts across steps; once the work reaches it,
+contacts are resolved at the ends of pieces without being located, as they are once
+a piece has used up its events. Class: `Bodies`, in the **core**.
 
 **Shot settings** — Every number a launch is made from, each with its group, label,
 unit, range, default and a sentence saying what it does, and checked whole: the
