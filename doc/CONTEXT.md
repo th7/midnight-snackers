@@ -1874,7 +1874,9 @@ the ball meets it. The surroundings make each overlap a compliant touch for the 
 they were asked about, at the centre and radius they were asked with: it meets the
 ball midway through their overlap, the centre less the radius less half the depth
 along the normal, and takes the velocity of what squeezes there, finite or no touch
-at all, so no part can choose where a ball is met. A touch moves while that velocity
+at all, so a part names no point: the ball is met where the part's surface overlaps
+it, and the part contract holds a depth to being that overlap, shrinking as the ball
+moves out along the normal and growing as its radius does. A touch moves while that velocity
 or that spin is not nothing. A compliance is the whole
 surface's stiffness in newtons a millimetre, shared evenly by the rings it is sampled
 by, a restitution more than 0 and at most 1, a friction coefficient not below 0 and a

@@ -146,6 +146,13 @@ final class PartContract {
                         + " in along it shrinks the depth by " + shrank + said);
             }
         }
+        Optional<Surroundings.Overlap> larger = sameOverlap(
+                then.squeezing(probe.centre(), Valid.length(probe.radius().inches() + NUDGE_IN)), overlap);
+        double grew = larger.map(deeper -> deeper.depth() - overlap.depth()).orElse(Double.NaN);
+        if (!(StrictMath.abs(grew - NUDGE_IN) <= NUDGE_IN * RATE_WITHIN)) {
+            breaches.add("the part's depth is not the ball's overlap for the radius it was asked about: a ball "
+                    + NUDGE_IN + " in larger is squeezed " + grew + " in deeper" + said);
+        }
         Optional<Surroundings.Overlap> earlier =
                 sameOverlap(part.at(Valid.time(t - DT)).squeezing(probe.centre(), probe.radius()), overlap);
         Optional<Surroundings.Overlap> later =

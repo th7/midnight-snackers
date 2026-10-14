@@ -131,7 +131,8 @@ public class PartContractTest {
         FORGETFUL,
         PUSHING_IN_WITHOUT_GOING_DEEPER,
         DIFFERENTLY_WHERE_IT_WAS,
-        BEYOND_ANY_SPEED
+        BEYOND_ANY_SPEED,
+        FOR_ONE_RADIUS
     }
 
     private static final class LyingSqueezer implements Surroundings.Part {
@@ -196,7 +197,9 @@ public class PartContractTest {
 
         @Override
         public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
-            Length asked = lie == Squeezing.FURTHER_THAN_IT_REACHES ? Valid.length(radius.inches() + 5) : radius;
+            Length asked = lie == Squeezing.FURTHER_THAN_IT_REACHES
+                    ? Valid.length(radius.inches() + 5)
+                    : lie == Squeezing.FOR_ONE_RADIUS ? Valid.length(R) : radius;
             List<Surroundings.Overlap> told = new ArrayList<>();
             for (Surroundings.Overlap overlap : inner.squeezing(centre, asked)) {
                 String id = lie == Squeezing.UNDER_ANOTHER_NAME ? "elsewhere" : overlap.id();
@@ -395,6 +398,12 @@ public class PartContractTest {
         assertSqueezeBreached("squeezes differently placed at", Squeezing.DIFFERENTLY_WHERE_IT_WAS);
         assertSqueezeBreached(
                 "squeezes with what moves at no finite velocity where the ball meets it", Squeezing.BEYOND_ANY_SPEED);
+    }
+
+    @Test
+    public void aPartsDepthIsTheBallsOverlapForTheRadiusItWasAskedAboutSoALargerBallIsSqueezedAsMuchDeeper() {
+        assertSqueezeBreached(
+                "depth is not the ball's overlap for the radius it was asked about", Squeezing.FOR_ONE_RADIUS);
     }
 
     @Test
