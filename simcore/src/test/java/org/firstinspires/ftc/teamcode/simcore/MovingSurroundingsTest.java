@@ -216,6 +216,54 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void aBallStackedOnABallOnAPartMovingMoreSlowlyThanABallAtRestRidesAlongAndNeitherFallsAsleep() {
+        Vec3 creeping = new Vec3(0.2, 0, 0);
+        Bodies bodies = watching("over", STEP, Carried.sliding(TRAY, creeping, 0));
+        add(bodies, "over", new Vec3(0, 0, ON_THE_TRAY + 2 * R), creeping, AWAKE);
+        add(bodies, "under", new Vec3(0, 0, ON_THE_TRAY), creeping, AWAKE);
+
+        List<Bodies.Span> spans = stepFor(bodies, 2, STEP);
+
+        for (Bodies.Span span : spans) {
+            assertTrue(
+                    "asleep at " + span.now() + ": " + span.slept(),
+                    span.slept().isEmpty());
+        }
+        assertVec("under", new Vec3(0.4, 0, ON_THE_TRAY), seen(bodies, "under").at(), 1e-6);
+        assertVec(
+                "over",
+                new Vec3(0.4, 0, ON_THE_TRAY + 2 * R),
+                seen(bodies, "over").at(),
+                1e-6);
+    }
+
+    @Test
+    public void aPyramidOfBallsOnAPartMovingMoreSlowlyThanABallAtRestKeepsThePartsVelocityAndNoneFallsAsleep() {
+        Vec3 creeping = new Vec3(0.2, 0, 0);
+        Bodies bodies = watching("top", STEP, Carried.sliding(TRAY, creeping, 0));
+        add(bodies, "left", new Vec3(-R, 0, ON_THE_TRAY), creeping, AWAKE);
+        add(bodies, "right", new Vec3(R, 0, ON_THE_TRAY), creeping, AWAKE);
+        add(bodies, "top", new Vec3(0, 0, ON_THE_TRAY + StrictMath.sqrt(3) * R), creeping, AWAKE);
+
+        List<Bodies.Span> spans = stepFor(bodies, 3, STEP);
+
+        for (Bodies.Span span : spans) {
+            assertTrue(
+                    "asleep at " + span.now() + ": " + span.slept(),
+                    span.slept().isEmpty());
+        }
+        for (String name : List.of("left", "right", "top")) {
+            assertEquals(name, Bodies.Life.AWAKE, seen(bodies, name).life());
+            assertVec(name, creeping, seen(bodies, name).velocity(), 1e-4);
+        }
+        assertVec(
+                "top",
+                new Vec3(0.6, 0, ON_THE_TRAY + StrictMath.sqrt(3) * R),
+                seen(bodies, "top").at(),
+                1e-2);
+    }
+
+    @Test
     public void aPartSweepingFurtherInAStepThanABallIsWideMeetsABallAtRestWhereItsFaceReachesIt() {
         double step = World.LONGEST_STEP_SECONDS, speed = 600;
         assertTrue(speed * step > 2 * R + 1);

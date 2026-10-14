@@ -189,6 +189,8 @@ final class Bodies {
 
     private record Kin(Vec3 at, Vec3 velocity, Vec3 spin) {}
 
+    private record Leaning(Body one, Body other) {}
+
     private static final class Body {
         private final String name;
         private final Ball shape;
@@ -697,6 +699,7 @@ final class Bodies {
 
     List<Contacts.Pressing> pressings() {
         List<Contacts.Pressing> pressing = new ArrayList<>();
+        List<Leaning> leaning = new ArrayList<>();
         List<Body> awake = awake();
         for (Body body : awake) {
             body.touched = false;
@@ -737,12 +740,28 @@ final class Bodies {
                             body.contact(), new Contacts.Against.Fixed(other.name, Surface.PIECE), normal, fresh));
                 } else {
                     other.touched = true;
+                    leaning.add(new Leaning(body, other));
                     pressing.add(new Contacts.Pressing(
                             body.contact(), new Contacts.Against.Ball(other.contact()), normal, fresh));
                 }
             }
         }
+        carriedThrough(leaning);
         return pressing;
+    }
+
+    private static void carriedThrough(List<Leaning> leaning) {
+        boolean spread = true;
+        while (spread) {
+            spread = false;
+            for (Leaning pair : leaning) {
+                if (pair.one().carried != pair.other().carried) {
+                    pair.one().carried = true;
+                    pair.other().carried = true;
+                    spread = true;
+                }
+            }
+        }
     }
 
     private List<Surroundings.Touch> near(Surroundings around, Vec3 at, Length reach, double within) {
