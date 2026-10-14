@@ -130,14 +130,8 @@ public final class Colliders {
                         + ", not for " + alliance);
             }
         }
-        List<Checked<Collider>> made = new ArrayList<>();
-        made.add(Checked.ok(Collider.floor("Floor")));
-        made.addAll(walls(field.size() / 2, field.wallHeight()));
         Map<String, Integer> seen = new LinkedHashMap<>();
-        for (Field.Element element : field.elements()) {
-            Surface surface = element.group().startsWith("Flower") ? Surface.FLOWER : Surface.FRAME;
-            made.add(Collider.solid(numbered(element, seen), surface, element.faces()));
-        }
+        List<Checked<Collider>> made = floorWallsAndElements(field, seen);
         Map<String, Double> tilts = new LinkedHashMap<>();
         List<Checked<Basket>> baskets = new ArrayList<>();
         for (Field.Hive hive : field.hives()) {
@@ -155,13 +149,36 @@ public final class Colliders {
                 baskets.add(basketOf(cell, turn));
             }
         }
+        List<Bore> bores = boresOf(field);
+        return allOf(made)
+                .then(Colliders::namedApart)
+                .then(colliders -> allOf(baskets).map(cells -> new Colliders(field, colliders, tilts, cells, bores)));
+    }
+
+    public static Checked<Colliders> withoutHives(Field field) {
+        List<Bore> bores = boresOf(field);
+        return allOf(floorWallsAndElements(field, new LinkedHashMap<>()))
+                .then(Colliders::namedApart)
+                .map(colliders -> new Colliders(field, colliders, new LinkedHashMap<>(), List.of(), bores));
+    }
+
+    private static List<Checked<Collider>> floorWallsAndElements(Field field, Map<String, Integer> seen) {
+        List<Checked<Collider>> made = new ArrayList<>();
+        made.add(Checked.ok(Collider.floor("Floor")));
+        made.addAll(walls(field.size() / 2, field.wallHeight()));
+        for (Field.Element element : field.elements()) {
+            Surface surface = element.group().startsWith("Flower") ? Surface.FLOWER : Surface.FRAME;
+            made.add(Collider.solid(numbered(element, seen), surface, element.faces()));
+        }
+        return made;
+    }
+
+    private static List<Bore> boresOf(Field field) {
         List<Bore> bores = new ArrayList<>();
         for (Field.Flower flower : field.flowers()) {
             bores.add(boreOf(flower, field.elements()));
         }
-        return allOf(made)
-                .then(Colliders::namedApart)
-                .then(colliders -> allOf(baskets).map(cells -> new Colliders(field, colliders, tilts, cells, bores)));
+        return bores;
     }
 
     static Checked<List<Framed>> inTheirHivesFrames(Field field) {

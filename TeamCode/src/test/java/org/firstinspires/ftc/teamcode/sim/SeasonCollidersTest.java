@@ -52,6 +52,16 @@ public class SeasonCollidersTest {
         assertEquals(field.wallHeight(), atRest.wallHeight(), 0);
     }
 
+    @Test
+    public void withoutItsHivesTheSeasonsFieldIsTheFloorFourWallsAndItsElementsInTheirOrder() {
+        Colliders without = Valid.value(Colliders.withoutHives(field));
+
+        assertEquals(FLOOR + WALLS + ELEMENTS, without.all().size());
+        for (int i = 0; i < without.all().size(); i++) {
+            assertEquals(atRest.all().get(i).name(), without.all().get(i).name());
+        }
+    }
+
     private List<String> firstNames(int count) {
         List<String> names = new ArrayList<>();
         for (Collider collider : atRest.all()) {

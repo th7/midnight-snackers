@@ -228,6 +228,46 @@ public class CollidersTest {
     }
 
     @Test
+    public void withoutItsHivesTheFieldIsTheFloorTheWallsAndTheElementsAsTheyAreWithThem() {
+        Colliders without = Valid.value(Colliders.withoutHives(field(REST_TILT)));
+
+        assertEquals(
+                List.of(
+                        "Floor",
+                        "Far wall",
+                        "Audience wall",
+                        "Red wall",
+                        "Blue wall",
+                        "Frame <1> / Block <1>",
+                        "Frame <1> / Block <2>",
+                        "Flower Assembly <1> / Flower HIPS Pipe <1>"),
+                names(without));
+        for (Collider collider : without.all()) {
+            for (Vec3 at :
+                    List.of(new Vec3(23, 0, 5), new Vec3(41, 0.4, 3), new Vec3(49.2, 3, 2), new Vec3(1, 2, 0.4))) {
+                assertNear(
+                        without,
+                        collider.name(),
+                        at,
+                        HALF_INCH,
+                        atRest().near(named(atRest(), collider.name()), at, HALF_INCH)
+                                .normal(),
+                        atRest().gap(named(atRest(), collider.name()), at, HALF_INCH));
+            }
+        }
+        assertTrue("no cell has a mouth", without.mouths().isEmpty());
+        assertEquals(
+                Optional.empty(),
+                without.cellHolding(mouth(atRest(), "Blue Cell (Scoring)")
+                        .centre()
+                        .along(mouth(atRest(), "Blue Cell (Scoring)").normal(), -1)));
+        assertEquals(Optional.of("Flower Assembly <1>"), without.flowerHolding(new Vec3(40.5, 0.5, 5)));
+        assertEquals(Optional.of(Colliders.Side.FAR), without.over(new Vec3(HALF + 2.6, 0, 1), HALF_INCH));
+        assertEquals(field(REST_TILT).size(), without.size(), 0);
+        assertEquals(field(REST_TILT).wallHeight(), without.wallHeight(), 0);
+    }
+
+    @Test
     public void eachColliderIsTheKindAndSurfaceOfWhatItIsMadeOf() {
         Colliders colliders = atRest();
 
