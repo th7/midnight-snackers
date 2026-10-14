@@ -420,7 +420,7 @@ public class SimBenchTest {
 
         admin.set(throwing(0.25));
         SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
-        admin.set(throwing(0.3));
+        admin.set(throwing(0.2));
 
         assertEquals("done", thrown.outcome());
         assertEquals(throwing(0.25), thrown.constants);

@@ -85,7 +85,7 @@ const BUILT = [
   { name: 'hiccup_chance', group: 'noise', label: 'Hiccup chance', unit: 'per loop',
     says: 'The chance that a loop is a hiccup.', least: 0, most: 1, byDefault: 0.02 },
   { name: 'launch_throw', group: 'mechanisms', label: 'Launcher throw', unit: 'in/s per tick/s',
-    says: 'How fast a ball leaves the launcher.', least: 0.01, most: 1, byDefault: 0.189 }
+    says: 'How fast a ball leaves the launcher.', least: 0.01, most: 0.29, byDefault: 0.189 }
 ];
 
 let set = { launch_throw: 0.25 };
@@ -105,9 +105,9 @@ function constantsAsked(request, response) {
   request.on('end', () => {
     PUTS.push(body);
     const asked = JSON.parse(body);
-    if (asked.launch_throw > 1) {
+    if (asked.launch_throw > 0.29) {
       response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-      response.end('Launcher throw is from 0.01 to 1.0 in/s per tick/s, not ' + asked.launch_throw.toFixed(1));
+      response.end('Launcher throw is from 0.01 to 0.29 in/s per tick/s, not ' + asked.launch_throw.toFixed(1));
       return;
     }
     set = asked;
@@ -329,7 +329,7 @@ async function main() {
     ]);
     await page.waitForFunction(() => document.getElementById('constants-said').textContent.includes('from 0.01'), null,
         { timeout: 10_000 }).catch(() => {});
-    check((await page.locator('#constants-said').innerText()).includes('Launcher throw is from 0.01 to 1.0'),
+    check((await page.locator('#constants-said').innerText()).includes('Launcher throw is from 0.01 to 0.29'),
         `a refused set does not show why: ${await page.locator('#constants-said').innerText()}`);
 
     await Promise.all([

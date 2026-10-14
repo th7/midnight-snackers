@@ -98,14 +98,23 @@ public class LaunchTest {
 
     @Test
     public void aBallLeavesAtTheSpeedTheLauncherThrowGivesTheFlywheel() {
-        Launch harder = Launch.from(AT, 0.3, 0.2, 1000, STILL, constants(Constant.LAUNCH_THROW, 0.3));
+        Launch harder = Launch.from(AT, 0.3, 0.2, 1000, STILL, constants(Constant.LAUNCH_THROW, 0.25));
 
-        assertEquals(1000 * 0.3, harder.velocity().length(), DELTA);
+        assertEquals(1000 * 0.25, harder.velocity().length(), DELTA);
         assertVec(
                 Launch.from(AT, 0.3, 0.2, 1000, STILL, Constants.defaults())
                         .velocity()
-                        .times(0.3 / Launch.IN_PER_S_PER_TICK_PER_S),
+                        .times(0.25 / Launch.IN_PER_S_PER_TICK_PER_S),
                 harder.velocity());
+    }
+
+    @Test
+    public void aFlywheelCommandedPastItsMotorsTopSpeedThrowsAsItsTopSpeedDoesEitherWay() {
+        for (double way : new double[] {1, -1}) {
+            assertEquals(
+                    Launch.from(AT, 0.3, 0.2, way * Flywheel.TOP_TICKS_PER_SECOND, STILL, Constants.defaults()),
+                    Launch.from(AT, 0.3, 0.2, way * 10000, STILL, Constants.defaults()));
+        }
     }
 
     @Test

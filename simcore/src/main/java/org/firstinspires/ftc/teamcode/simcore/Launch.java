@@ -5,6 +5,7 @@ public record Launch(Vec3 at, Vec3 velocity) {
     public static final double AHEAD_IN = 6;
     public static final double ANGLE_RADIANS = Math.toRadians(70);
     public static final double IN_PER_S_PER_TICK_PER_S = 0.1899;
+    public static final double MOST_ROBOT_SPEED_IN_PER_S = 180;
 
     public static Launch from(
             Vec2 robotAt,
@@ -14,7 +15,7 @@ public record Launch(Vec3 at, Vec3 velocity) {
             Vec2 robotVelocity,
             Constants constants) {
         double aim = headingRadians + turntableRadians;
-        double speed = Math.abs(flywheelTicksPerSecond) * constants.value(Constant.LAUNCH_THROW);
+        double speed = Math.abs(Flywheel.turnsAt(flywheelTicksPerSecond)) * constants.value(Constant.LAUNCH_THROW);
         return new Launch(
                 new Vec3(robotAt.x() + AHEAD_IN * Math.cos(aim), robotAt.y() + AHEAD_IN * Math.sin(aim), HEIGHT_IN),
                 new Vec3(

@@ -177,4 +177,12 @@ public class ConstantsTest {
 
         assertEquals(0.2, constants.value(Constant.LAUNCH_THROW), 0);
     }
+
+    @Test
+    public void theFastestBallTheLauncherThrowConstantAllowsFromTheFastestRobotIsOneAFlightTakes() {
+        assertTrue(
+                Constant.LAUNCH_THROW.most() + " in/s per tick/s",
+                Constant.LAUNCH_THROW.most() * Flywheel.TOP_TICKS_PER_SECOND + Launch.MOST_ROBOT_SPEED_IN_PER_S
+                        <= Flight.MOST_SPEED_IN_PER_S);
+    }
 }

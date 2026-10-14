@@ -52,6 +52,7 @@ import org.firstinspires.ftc.teamcode.simcore.Encoder;
 import org.firstinspires.ftc.teamcode.simcore.Feedforward;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
+import org.firstinspires.ftc.teamcode.simcore.Flywheel;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Length;
@@ -794,7 +795,7 @@ public class SimRobot {
     }
 
     private void substep(Seconds dt) {
-        launcher.measuredVelocity = launcher.commandedVelocity;
+        launcher.measuredVelocity = Flywheel.turnsAt(launcher.commandedVelocity);
         turnTable.currentPosition = turntable.turned(turnTable.currentPosition, Power.clamped(turnTable.power), dt);
         PerWheel<Drivetrain.Setting> wheels = build.wheels();
         voltageSensor.voltage =
@@ -908,12 +909,13 @@ public class SimRobot {
         if (topGate.position >= TOP_GATE_OPENS_AT && chambered == null && !hopper.isEmpty()) {
             chambered = hopper.poll();
         }
-        if (bottomGate.position >= BOTTOM_GATE_OPENS_AT && chambered != null && launched(chambered)) {
+        if (bottomGate.position >= BOTTOM_GATE_OPENS_AT && chambered != null) {
+            launch(chambered);
             chambered = null;
         }
     }
 
-    private boolean launched(Ball ball) {
+    private void launch(Ball ball) {
         Pose2d pose = pose();
         Vector2 robotVelocity = chassis.getLinearVelocity();
         Launch launch = Launch.from(
@@ -923,15 +925,9 @@ public class SimRobot {
                 launcher.measuredVelocity,
                 new Vec2(robotVelocity.x / IN, robotVelocity.y / IN),
                 constants);
-        return flight.with(ball, ball.kind, ball.length, launch.at(), launch.velocity())
-                .fold(
-                        next -> {
-                            take(ball);
-                            ball.where = Where.FLYING;
-                            flight = next;
-                            return true;
-                        },
-                        rule -> false);
+        flight = refusedIfNot(flight.with(ball, ball.kind, ball.length, launch.at(), launch.velocity()));
+        take(ball);
+        ball.where = Where.FLYING;
     }
 
     public long flightWork() {

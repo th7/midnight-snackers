@@ -1451,7 +1451,12 @@ The launcher is on the turntable, and its gates feed it as the robot
 code drives them: with the top gate open a ball drops from the hopper
 into the **chamber**, and with the bottom gate open the chambered ball
 drops into the flywheel and leaves at a speed set by the flywheel's, in
-**flight**. The model is planar apart from flight and the flowers'
+**flight**. The flywheel turns as fast as the code commands it, up to its
+motor's top speed of 2,800 ticks a second either way (a goBILDA 5203 at 6,000
+rpm with no load, 28 ticks a turn), and the throw is never set so high that the
+fastest ball it throws from there, off the fastest robot the noise allows, is
+one a flight refuses: so every launch leaves the robot, and one a flight did
+refuse would stop the run saying why. The model is planar apart from flight and the flowers'
 stacks: only the robot's footprint collides, nothing goes over a wall or
 under a hive by being low, and a ball in flight meets what a **shot**'s
 ball meets — the floor, the walls, every element of the field, the hives

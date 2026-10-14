@@ -121,7 +121,7 @@ public enum Constant {
             "How fast a ball leaves Reginald's launcher for each tick a second its flywheel turns.",
             Launch.IN_PER_S_PER_TICK_PER_S,
             0.01,
-            1),
+            0.29),
     TURNTABLE_SPEED(
             Group.MECHANISMS,
             "Turntable speed",

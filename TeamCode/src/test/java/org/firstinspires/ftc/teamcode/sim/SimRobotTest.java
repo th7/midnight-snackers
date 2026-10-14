@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Flywheel;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
@@ -1035,10 +1036,14 @@ public class SimRobotTest {
     }
 
     private static double[] thrownFrom(SimRobot robot) {
+        return thrownFrom(robot, CLOSE_LAUNCH_VELOCITY);
+    }
+
+    private static double[] thrownFrom(SimRobot robot, double flywheelVelocity) {
         robot.setPose(new Pose2d(-60, 0, 0));
         robot.topGate.position = TOP_GATE_OPEN;
         robot.bottomGate.position = BOTTOM_GATE_CLOSED;
-        robot.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
+        robot.launcher.commandedVelocity = flywheelVelocity;
         robot.step(0.1);
         robot.topGate.position = TOP_GATE_CLOSED;
         robot.step(0.05);
@@ -1064,6 +1069,48 @@ public class SimRobotTest {
                 1.5,
                 (thrown[0] - leaves) / (asBuilt[0] - leaves),
                 0.005);
+    }
+
+    @Test
+    public void theMostTheLauncherThrowConstantAllowsStillThrowsTheCodesCloseLaunch() {
+        SimRobot most = new SimRobot(
+                TeamRobot.REGINALD, SimNoise.NONE, constants(Constant.LAUNCH_THROW, Constant.LAUNCH_THROW.most()));
+
+        double[] thrown = thrownFrom(most);
+
+        assertEquals("it left the launcher", SimRobot.PRELOAD - 1, most.held());
+        assertNotNull("and is on its way", thrown);
+        assertTrue("in the air: " + thrown[2], thrown[2] > Launch.HEIGHT_IN);
+    }
+
+    @Test
+    public void aFlywheelCommandedPastItsMotorsTopSpeedStillThrowsTheBallAsItsTopSpeedWould() {
+        for (double way : new double[] {1, -1}) {
+            SimRobot past = new SimRobot();
+
+            double[] thrown = thrownFrom(past, way * 10000);
+
+            assertEquals("it left the launcher", SimRobot.PRELOAD - 1, past.held());
+            assertArrayEquals(
+                    "as fast as at its motor's top speed",
+                    thrownFrom(new SimRobot(), way * Flywheel.TOP_TICKS_PER_SECOND),
+                    thrown,
+                    0);
+        }
+    }
+
+    @Test
+    public void theRobotDrivesNoFasterThanTheFastestRobotTheLaunchAllowsForWhateverTheNoiseConstantsAllow() {
+        MecanumDrive.Params drive = MecanumDrive.PARAMS;
+        double weakest = 1 - Constant.MOTOR_SPREAD.most();
+        double fastestWheel = (Constant.FRESHEST_VOLTS.most() - drive.kSVolts * weakest)
+                / (drive.kVVoltSecondsPerTick * weakest)
+                * drive.inPerTick;
+
+        assertTrue(
+                "a wheel turns at most " + fastestWheel
+                        + " in/s, where its motor's kS and kV leave its battery's volts",
+                fastestWheel <= Launch.MOST_ROBOT_SPEED_IN_PER_S);
     }
 
     @Test
