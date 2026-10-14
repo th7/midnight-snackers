@@ -42,6 +42,132 @@ final class Bodies {
         }
     }
 
+    sealed interface Start permits Start.Awake, Start.Asleep, Start.Fixed {
+        Life life();
+
+        record Awake(Sleep sleep) implements Start {
+            @Override
+            public Life life() {
+                return Life.AWAKE;
+            }
+        }
+
+        record Asleep() implements Start {
+            @Override
+            public Life life() {
+                return Life.ASLEEP;
+            }
+        }
+
+        record Fixed() implements Start {
+            @Override
+            public Life life() {
+                return Life.FIXED;
+            }
+        }
+    }
+
+    static final class Name {
+        private final String text;
+
+        private Name(String text) {
+            this.text = text;
+        }
+
+        static Checked<Name> of(String text) {
+            if (text.isBlank()) {
+                return Checked.rejected("a body has a name, not '" + text + "'");
+            }
+            return Checked.ok(new Name(text));
+        }
+
+        static Name launched() {
+            return new Name(Shot.LAUNCHED);
+        }
+
+        String text() {
+            return text;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Name that && text.equals(that.text);
+        }
+
+        @Override
+        public int hashCode() {
+            return text.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return text;
+        }
+    }
+
+    static final class Motion {
+        private final Vec3 at;
+        private final Vec3 velocity;
+        private final Vec3 spin;
+
+        private Motion(Vec3 at, Vec3 velocity, Vec3 spin) {
+            this.at = at;
+            this.velocity = velocity;
+            this.spin = spin;
+        }
+
+        static Checked<Motion> of(Vec3 at, Vec3 velocity, Vec3 spin) {
+            if (!(at.isFinite() && velocity.isFinite() && spin.isFinite())) {
+                return Checked.rejected("a body is at a finite place, moving and spinning at finite rates, not at " + at
+                        + " moving at " + velocity + " spinning at " + spin);
+            }
+            return Checked.ok(new Motion(at, velocity, spin));
+        }
+
+        static Motion of(WheelPair.Launched launched) {
+            return new Motion(launched.at(), launched.velocity(), launched.spin());
+        }
+
+        Vec3 at() {
+            return at;
+        }
+
+        Vec3 velocity() {
+            return velocity;
+        }
+
+        Vec3 spin() {
+            return spin;
+        }
+    }
+
+    record Entry(Name name, Ball shape, Motion motion, Start start) {}
+
+    static final class Pieces {
+        private final List<Entry> entries;
+
+        private Pieces(List<Entry> entries) {
+            this.entries = entries;
+        }
+
+        static Pieces none() {
+            return new Pieces(List.of());
+        }
+
+        Checked<Pieces> with(Entry entry) {
+            boolean taken = entry.name().equals(Name.launched());
+            for (Entry piece : entries) {
+                taken = taken || piece.name().equals(entry.name());
+            }
+            if (taken) {
+                return Checked.rejected("every body has a name of its own, and '" + entry.name() + "' is not one");
+            }
+            List<Entry> more = new ArrayList<>(entries);
+            more.add(entry);
+            return Checked.ok(new Pieces(Collections.unmodifiableList(more)));
+        }
+    }
+
     record Seen(String name, Vec3 at, Vec3 velocity, Vec3 spin, Turn turn, Life life, double restFor) {}
 
     record Touching(Set<String> colliders, Set<String> bodies) {}
@@ -101,6 +227,21 @@ final class Bodies {
             this.restFor = restFor;
             this.start = new Kin(at, velocity, spin);
             this.trial = start;
+        }
+
+        static Body of(Entry entry) {
+            Motion motion = entry.motion();
+            Start start = entry.start();
+            return new Body(
+                    entry.name().text(),
+                    entry.shape(),
+                    start instanceof Start.Awake awake ? awake.sleep() : Sleep.WHEN_RESTING,
+                    motion.at(),
+                    motion.velocity(),
+                    motion.spin(),
+                    Turn.identity(),
+                    start.life(),
+                    0);
         }
 
         Body copy() {
@@ -196,14 +337,41 @@ final class Bodies {
         this.work = work;
     }
 
-    static Bodies watching(Surroundings surroundings, Air air, Surfaces surfaces, Step step, String name) {
+    static Bodies watching(Surroundings surroundings, Air air, Surfaces surfaces, Step step, Name name) {
         return new Bodies(
-                surroundings, air, surfaces, step.seconds().value(), Optional.of(name), new ArrayList<>(), 0, 0, 0);
+                surroundings,
+                air,
+                surfaces,
+                step.seconds().value(),
+                Optional.of(name.text()),
+                new ArrayList<>(),
+                0,
+                0,
+                0);
     }
 
     static Bodies unwatched(Surroundings surroundings, Air air, Surfaces surfaces, Step step) {
         return new Bodies(
                 surroundings, air, surfaces, step.seconds().value(), Optional.empty(), new ArrayList<>(), 0, 0, 0);
+    }
+
+    static Bodies launchedAmong(
+            Surroundings surroundings,
+            Air air,
+            Surfaces surfaces,
+            Step step,
+            Ball pollen,
+            Motion launched,
+            Pieces pieces) {
+        List<Body> bodies = new ArrayList<>();
+        bodies.add(Body.of(new Entry(Name.launched(), pollen, launched, new Start.Awake(Sleep.NEVER))));
+        for (Entry piece : pieces.entries) {
+            bodies.add(Body.of(piece));
+        }
+        Bodies engine = new Bodies(
+                surroundings, air, surfaces, step.seconds().value(), Optional.of(Shot.LAUNCHED), bodies, 0, 0, 0);
+        engine.touchingAtTheStart();
+        return engine;
     }
 
     Bodies copy() {
@@ -218,18 +386,11 @@ final class Bodies {
         this.surroundings = surroundings.at(now);
     }
 
-    Checked<Seen> add(String name, Ball shape, Vec3 at, Vec3 velocity, Vec3 spin, Life life, Sleep sleep) {
-        if (name.isBlank() || named(name).isPresent()) {
+    Checked<Seen> add(Name name, Ball shape, Motion motion, Start start) {
+        if (named(name.text()).isPresent()) {
             return Checked.rejected("every body has a name of its own, and '" + name + "' is not one");
         }
-        if (!(at.isFinite() && velocity.isFinite() && spin.isFinite())) {
-            return Checked.rejected(name + " is at a finite place, moving and spinning at finite rates, not at " + at
-                    + " moving at " + velocity + " spinning at " + spin);
-        }
-        if (life == Life.GONE) {
-            return Checked.rejected(name + " comes in awake, asleep or fixed, not gone");
-        }
-        Body body = new Body(name, shape, sleep, at, velocity, spin, Turn.identity(), life, 0);
+        Body body = Body.of(new Entry(name, shape, motion, start));
         bodies.add(body);
         return Checked.ok(body.seen());
     }

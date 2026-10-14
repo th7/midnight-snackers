@@ -89,27 +89,17 @@ final class ShotRun {
         this.pressingThePollen = new ArrayList<>(pressingThePollen);
     }
 
-    static Checked<ShotRun> starting(World world, Ball pollen, WheelPair.Launched launched) {
-        Bodies bodies = Bodies.watching(
-                Surroundings.still(world.colliders()), world.air(), world.surfaces(), world.stepping(), Shot.LAUNCHED);
-        Checked<Bodies.Seen> added = bodies.add(
-                Shot.LAUNCHED,
+    static ShotRun starting(World world, Ball pollen, WheelPair.Launched launched) {
+        Bodies bodies = Bodies.launchedAmong(
+                Surroundings.still(world.colliders()),
+                world.air(),
+                world.surfaces(),
+                world.stepping(),
                 pollen,
-                launched.at(),
-                launched.velocity(),
-                launched.spin(),
-                Bodies.Life.AWAKE,
-                Bodies.Sleep.NEVER);
+                Bodies.Motion.of(launched),
+                world.bodies());
         Map<String, History> pieces = new LinkedHashMap<>();
         for (World.Piece piece : world.pieces()) {
-            added = added.then(previous -> bodies.add(
-                    piece.name(),
-                    piece.shape(),
-                    piece.at(),
-                    Vec3.zero(),
-                    Vec3.zero(),
-                    piece.fixed() ? Bodies.Life.FIXED : Bodies.Life.ASLEEP,
-                    Bodies.Sleep.WHEN_RESTING));
             pieces.put(
                     piece.name(),
                     new History(
@@ -125,28 +115,25 @@ final class ShotRun {
                 Turn.identity(),
                 Bodies.Life.AWAKE,
                 0);
-        return added.map(last -> {
-            bodies.touchingAtTheStart();
-            ShotRun run = new ShotRun(
-                    world,
-                    pollen,
-                    launched,
-                    bodies,
-                    pieces,
-                    List.of(),
-                    List.of(),
-                    List.of(),
-                    0,
-                    ball,
-                    new Frame(Seconds.zero(), moving(ball, Phase.FLYING)),
-                    Optional.empty(),
-                    Phase.FLYING,
-                    List.of());
-            run.phase = run.phaseOfThePollen(bodies.pressings(), ball);
-            run.apex = run.frameNow();
-            run.takeAFrame();
-            return run;
-        });
+        ShotRun run = new ShotRun(
+                world,
+                pollen,
+                launched,
+                bodies,
+                pieces,
+                List.of(),
+                List.of(),
+                List.of(),
+                0,
+                ball,
+                new Frame(Seconds.zero(), moving(ball, Phase.FLYING)),
+                Optional.empty(),
+                Phase.FLYING,
+                List.of());
+        run.phase = run.phaseOfThePollen(bodies.pressings(), ball);
+        run.apex = run.frameNow();
+        run.takeAFrame();
+        return run;
     }
 
     ShotRun copy() {

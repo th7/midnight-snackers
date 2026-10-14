@@ -259,7 +259,7 @@ public sealed interface Shot permits Shot.Flying, Shot.Finished {
                     return Checked.rejected("the pollen would start inside " + piece.name() + ", at " + launched.at());
                 }
             }
-            return ShotRun.starting(world, pollen, launched).map(Flying::new);
+            return Checked.ok(new Flying(ShotRun.starting(world, pollen, launched)));
         }
 
         @Override

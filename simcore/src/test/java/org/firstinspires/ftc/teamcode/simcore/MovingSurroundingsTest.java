@@ -12,6 +12,8 @@ public class MovingSurroundingsTest {
     private static final Ball POLLEN = Valid.value(Ball.of(2.8, 24.9, 0.634));
     private static final double R = POLLEN.radius();
     private static final double STEP = 1e-4;
+    private static final Bodies.Start AWAKE = new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING);
+    private static final Bodies.Start ASLEEP = new Bodies.Start.Asleep();
     private static final Colliders WALLS = Valid.value(Colliders.of(
             Valid.value(Field.of(
                     Valid.length(141.17),
@@ -44,11 +46,16 @@ public class MovingSurroundingsTest {
     }
 
     private static Bodies watching(String name, double step, Surroundings.Part... parts) {
-        return Bodies.watching(around(parts), Air.vacuum(), surfaces(), stepping(step), name);
+        return Bodies.watching(
+                around(parts), Air.vacuum(), surfaces(), stepping(step), Valid.value(Bodies.Name.of(name)));
     }
 
-    private static void add(Bodies bodies, String name, Vec3 at, Vec3 velocity, Bodies.Life life) {
-        Valid.value(bodies.add(name, POLLEN, at, velocity, Vec3.zero(), life, Bodies.Sleep.WHEN_RESTING));
+    private static void add(Bodies bodies, String name, Vec3 at, Vec3 velocity, Bodies.Start start) {
+        Valid.value(bodies.add(
+                Valid.value(Bodies.Name.of(name)),
+                POLLEN,
+                Valid.value(Bodies.Motion.of(at, velocity, Vec3.zero())),
+                start));
         bodies.touchingAtTheStart();
     }
 
@@ -79,7 +86,7 @@ public class MovingSurroundingsTest {
     public void aBallRidingAPartAtThePartsOwnSpeedIsNeitherPushedAlongNorTurnedAndGoesWithIt() {
         Vec3 carried = new Vec3(12, 5, 0);
         Bodies bodies = watching("ball", STEP, Carried.sliding(TRAY, carried, 0));
-        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), carried, Bodies.Life.AWAKE);
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), carried, AWAKE);
 
         List<Bodies.Span> spans = stepFor(bodies, 0.5, STEP);
 
@@ -98,7 +105,7 @@ public class MovingSurroundingsTest {
     @Test
     public void aBallAsleepOnAPartWakesWhenThePartStartsToMoveAndGoesUpWithItWithoutBouncing() {
         Bodies bodies = watching("ball", STEP, Carried.sliding(TRAY, new Vec3(0, 0, 6), 0.1));
-        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), ASLEEP);
 
         stepFor(bodies, 0.05, STEP);
         assertEquals(Bodies.Life.ASLEEP, seen(bodies, "ball").life());
@@ -123,8 +130,8 @@ public class MovingSurroundingsTest {
     @Test
     public void aBallAsleepOnABallAsleepOnAPartWakesWithItWhenThePartStartsToMoveAndBothGoUp() {
         Bodies bodies = among(STEP, Carried.sliding(TRAY, new Vec3(0, 0, 6), 0.1));
-        add(bodies, "under", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), Bodies.Life.ASLEEP);
-        add(bodies, "over", new Vec3(0, 0, ON_THE_TRAY + 2 * R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "under", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), ASLEEP);
+        add(bodies, "over", new Vec3(0, 0, ON_THE_TRAY + 2 * R), Vec3.zero(), ASLEEP);
 
         stepFor(bodies, 0.6, STEP);
 
@@ -141,7 +148,7 @@ public class MovingSurroundingsTest {
         Vec3 creeping = new Vec3(0.2, 0, 0);
         assertTrue(speed(creeping) < Shot.REST_SPEED_IN_PER_S);
         Bodies bodies = watching("ball", STEP, Carried.sliding(TRAY, creeping, 0));
-        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), creeping, Bodies.Life.AWAKE);
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), creeping, AWAKE);
 
         List<Bodies.Span> spans = stepFor(bodies, 4 * Shot.REST_SECONDS, STEP);
 
@@ -160,7 +167,7 @@ public class MovingSurroundingsTest {
         assertTrue(speed * step > 2 * R + 1);
         Collider paddle = Carried.box("paddle", new Vec3(-39, -10, 0.5), new Vec3(-38, 10, 8));
         Bodies bodies = watching("ball", step, Carried.sliding(paddle, new Vec3(speed, 0, 0), 0));
-        add(bodies, "ball", new Vec3(0.05, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "ball", new Vec3(0.05, 0, R), Vec3.zero(), ASLEEP);
 
         List<Bodies.Span> spans = stepFor(bodies, 0.1, step);
 
@@ -188,7 +195,7 @@ public class MovingSurroundingsTest {
     public void aPartThatOnlySpinsAddsNoPiecesToAStepAndKeepsWhatRestsOnItAwake() {
         Bodies bodies =
                 watching("ball", STEP, Carried.spinningInPlace(TRAY, new Vec3(0, 0, 11), new Vec3(0, 0, 100), 0));
-        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), AWAKE);
 
         for (int i = 0; i < 4 * Shot.REST_SECONDS / STEP; i++) {
             List<Bodies.Span> spans = bodies.step();
@@ -205,13 +212,13 @@ public class MovingSurroundingsTest {
                 Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(10, 0, 0), 0);
         Vec3 far = new Vec3(40, 40, R), lane = new Vec3(0, -40, R), rolling = new Vec3(20, 0, 0);
         Bodies alone = among(STEP, sliding);
-        add(alone, "far", far, Vec3.zero(), Bodies.Life.ASLEEP);
+        add(alone, "far", far, Vec3.zero(), ASLEEP);
         Bodies moving = among(STEP, sliding);
-        add(moving, "far", far, Vec3.zero(), Bodies.Life.ASLEEP);
-        add(moving, "rolling", lane, rolling, Bodies.Life.AWAKE);
+        add(moving, "far", far, Vec3.zero(), ASLEEP);
+        add(moving, "rolling", lane, rolling, AWAKE);
         Bodies still = among(STEP);
-        add(still, "far", far, Vec3.zero(), Bodies.Life.ASLEEP);
-        add(still, "rolling", lane, rolling, Bodies.Life.AWAKE);
+        add(still, "far", far, Vec3.zero(), ASLEEP);
+        add(still, "rolling", lane, rolling, AWAKE);
 
         stepFor(alone, 0.1, STEP);
         stepFor(moving, 0.1, STEP);
@@ -230,7 +237,7 @@ public class MovingSurroundingsTest {
         Surroundings.Part tipping = Carried.turning(tray, new Vec3(0, 0, 10.5), new Vec3(0, 3, 0), 0.1);
         Surroundings surroundings = around(tipping);
         Bodies bodies = Bodies.unwatched(surroundings, Air.vacuum(), surfaces(), stepping(STEP));
-        add(bodies, "ball", new Vec3(0, 0, 10.5 + R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "ball", new Vec3(0, 0, 10.5 + R), Vec3.zero(), ASLEEP);
 
         double deepest = 0;
         for (int i = 0; i < 3 / STEP; i++) {
@@ -253,7 +260,7 @@ public class MovingSurroundingsTest {
     @Test
     public void aBallAsleepOnAPlatterWakesWhenItStartsToSpinAndIsDraggedTheWayItsSurfaceGoes() {
         Bodies bodies = among(STEP, Carried.spinningInPlace(TRAY, new Vec3(0, 0, 11), new Vec3(0, 0, 2), 0.1));
-        add(bodies, "ball", new Vec3(10, 0, ON_THE_TRAY), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "ball", new Vec3(10, 0, ON_THE_TRAY), Vec3.zero(), ASLEEP);
 
         stepFor(bodies, 0.05, STEP);
         assertEquals(Bodies.Life.ASLEEP, seen(bodies, "ball").life());
@@ -271,7 +278,7 @@ public class MovingSurroundingsTest {
         stepFor(bodies, 0.2, STEP);
 
         bodies.surroundedBy(around(Carried.sliding(TRAY, new Vec3(0, 0, 6), 0)));
-        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY + 6 * 0.2), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY + 6 * 0.2), Vec3.zero(), AWAKE);
 
         assertEquals(Set.of("tray"), bodies.touching("ball").orElseThrow().colliders());
     }
@@ -280,7 +287,7 @@ public class MovingSurroundingsTest {
     public void aCopyAmongMovingPartsGoesOnExactlyAsTheOriginal() {
         Collider tray = Carried.box("tray", new Vec3(-3, -3, 10), new Vec3(3, 3, 10.5));
         Bodies bodies = among(STEP, Carried.turning(tray, new Vec3(0, 0, 10.5), new Vec3(0, 3, 0), 0.1));
-        add(bodies, "ball", new Vec3(0, 0, 10.5 + R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "ball", new Vec3(0, 0, 10.5 + R), Vec3.zero(), ASLEEP);
         stepFor(bodies, 0.2, STEP);
 
         Bodies copy = bodies.copy();

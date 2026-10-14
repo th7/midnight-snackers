@@ -2,10 +2,8 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 public final class World {
     public static final double LONGEST_STEP_SECONDS = Bodies.Step.LONGEST_SECONDS;
@@ -18,15 +16,23 @@ public final class World {
     private final Bodies.Step step;
     private final Seconds longest;
     private final List<Piece> pieces;
+    private final Bodies.Pieces bodies;
 
     private World(
-            Colliders colliders, Air air, Surfaces surfaces, Bodies.Step step, Seconds longest, List<Piece> pieces) {
+            Colliders colliders,
+            Air air,
+            Surfaces surfaces,
+            Bodies.Step step,
+            Seconds longest,
+            List<Piece> pieces,
+            Bodies.Pieces bodies) {
         this.colliders = colliders;
         this.air = air;
         this.surfaces = surfaces;
         this.step = step;
         this.longest = longest;
         this.pieces = Collections.unmodifiableList(new ArrayList<>(pieces));
+        this.bodies = bodies;
     }
 
     public static Checked<World> of(
@@ -39,16 +45,27 @@ public final class World {
         if (!(longest.value() > 0)) {
             return Checked.rejected("a shot flies for some time, not " + longest.value() + " s");
         }
-        Set<String> named = new HashSet<>();
+        Checked<Bodies.Pieces> laid = Checked.ok(Bodies.Pieces.none());
         for (Piece piece : pieces) {
-            if (piece.name().isBlank() || piece.name().equals(Shot.LAUNCHED) || !named.add(piece.name())) {
-                return Checked.rejected("every piece has a name of its own, and '" + piece.name() + "' is not one");
-            }
-            if (!piece.at().isFinite()) {
-                return Checked.rejected(piece.name() + " is somewhere on the field, not at " + piece.at());
-            }
+            laid = laid.then(so ->
+                    entryOf(piece).then(entry -> so.with(entry).fold(Checked::ok, rule -> notItsOwn(piece))));
         }
-        return Checked.ok(new World(colliders, air, surfaces, step, longest, pieces));
+        return laid.map(bodies -> new World(colliders, air, surfaces, step, longest, pieces, bodies));
+    }
+
+    private static Checked<Bodies.Entry> entryOf(Piece piece) {
+        Bodies.Start start = piece.fixed() ? new Bodies.Start.Fixed() : new Bodies.Start.Asleep();
+        return Bodies.Name.of(piece.name())
+                .fold(Checked::ok, rule -> World.<Bodies.Name>notItsOwn(piece))
+                .then(name -> Bodies.Motion.of(piece.at(), Vec3.zero(), Vec3.zero())
+                        .fold(
+                                motion -> Checked.ok(new Bodies.Entry(name, piece.shape(), motion, start)),
+                                rule -> Checked.rejected(
+                                        piece.name() + " is somewhere on the field, not at " + piece.at())));
+    }
+
+    private static <T> Checked<T> notItsOwn(Piece piece) {
+        return Checked.rejected("every piece has a name of its own, and '" + piece.name() + "' is not one");
     }
 
     public Colliders colliders() {
@@ -69,6 +86,10 @@ public final class World {
 
     Bodies.Step stepping() {
         return step;
+    }
+
+    Bodies.Pieces bodies() {
+        return bodies;
     }
 
     public Seconds longest() {

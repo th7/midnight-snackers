@@ -464,6 +464,26 @@ public class ShotTest {
     }
 
     @Test
+    public void everyPieceHasANameOfItsOwnAndIsSomewhereOnTheField() {
+        World.Piece one =
+                new World.Piece("Pollen <1>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(0, 0, R), false);
+        World.Piece blank =
+                new World.Piece(" ", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(10, 0, R), false);
+        World.Piece nowhere = new World.Piece(
+                "Pollen <2>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(Double.NaN, 0, R), false);
+
+        List<String> said = new ArrayList<>();
+        for (List<World.Piece> pieces : List.of(List.of(blank), List.of(one, one), List.of(one, nowhere))) {
+            said.add(World.of(WALLS, Air.vacuum(), floorOf(0.5, 0.5, 0.2), seconds(1e-4), seconds(1), pieces)
+                    .fold(world -> "accepted", rule -> rule));
+        }
+
+        assertTrue(said.get(0), said.get(0).contains("every piece has a name of its own, and ' ' is not one"));
+        assertTrue(said.get(1), said.get(1).contains("every piece has a name of its own, and 'Pollen <1>' is not one"));
+        assertTrue(said.get(2), said.get(2).contains("Pollen <2> is somewhere on the field, not at"));
+    }
+
+    @Test
     public void aLaunchIsFromAFinitePlaceAtAFiniteSpeedAndSpin() {
         String said = WheelPair.Launched.of(new Vec3(0, 0, Double.NaN), Vec3.zero(), Vec3.zero(), 0, 0, 0, 0)
                 .fold(launch -> "accepted", rule -> rule);
