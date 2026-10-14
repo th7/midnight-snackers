@@ -1858,7 +1858,7 @@ that every part is run through. A part may also squeeze: it says so, and answers
 squeezes a ball (`squeezing`) with overlaps, under names it never touches by, which
 the surroundings make into compliant touches (**compliant contact**) where the ball
 they were asked about meets each; they ask only the parts that squeeze, and only
-where they reach. Every part so far squeezes nothing, and the same helper holds a part
+where they reach. Only the **launcher** squeezes, and the same helper holds a part
 to squeezing only where it says it reaches, under its own names, only if it says it
 squeezes, with what moves at a finite velocity where the ball meets it, and with a
 depth that shrinks along its normal and changes as the face's velocity along it
@@ -1866,7 +1866,7 @@ says. In a shot nothing moves; in a run's **flight** the hives do,
 as they tip. Class: `Surroundings`, in the **core**.
 
 **Compliant contact** — How a ball meets a surface that gives, as Reginald's flywheel
-and hood will: by a force while it is squeezed, never by an impulse. A part answers
+and hood do in the **launcher**: by a force while it is squeezed, never by an impulse. A part answers
 what squeezes a ball with an overlap: the name of what squeezes, its surface's
 **compliance**, a unit normal, a depth more than nothing, and how what squeezes moves,
 as a point of it goes and as it spins, each finite; an overlap says nothing of where
@@ -1919,6 +1919,71 @@ ball, as in each check of whether what squeezes a sleeping ball moves; a ball fu
 from every compliant part moves exactly as it would, and costs exactly as it would
 among parts that squeeze nothing. Classes: `Compliance`, `CompliantContact`, `Surroundings`,
 `Bodies`, in the **core**.
+
+**Flywheel** — Reginald's flywheel as the simulator turns it. Its motor, a goBILDA 5203
+at 6,000 rpm with no load and 28 ticks a turn, turns at most 2,800 ticks a second
+either way: a command past that turns it at that, and one that is not a number does
+not turn it. Its **ticks per turn** are how many of its motor's ticks turn the flywheel
+once, gearing included, from 18 to 10,000; any other count is refused, saying so. It
+turns at its clamped command times a whole turn over its ticks per turn, in radians a
+second, signed as the command is: positive when the back of the wheel moves up, the
+motor's direction, which in the **launcher**'s frame is about the way to its left. So
+no command turns it faster than 2,800 ticks a second over 18, 977 radians a second.
+A run's launch does not turn it yet: it still leaves at a speed in proportion to the
+command (**Simulated robot**). Classes: `Flywheel`, with `Flywheel.TicksPerTurn` and
+`Flywheel.AngularSpeed`, in the **core**.
+
+**Launcher** — Reginald's flywheel and hood as a part of the **surroundings**, its
+faces **arcs** a ball meets by **compliant contact**, as stage 4 of
+`doc/plans/runtime-flight.md` gives them; no run uses it until stage 4c, when a
+**flight** holds it and feeds it. Its **frame** is the robot's pose turned by the
+**turntable**: a place within 10,000 in of the field's centre either way and a finite
+yaw, kept within half a turn either way; anything else is refused, saying which. In it,
+in inches with x forward, y to the left and z up from the floor, the flywheel's axle
+runs along y, 13 mm behind the origin and 180 mm up, and angles about it run from
+straight back, up. The wheel's groove is sampled across its width by five whole rings,
+at 0, ±12.5 and ±25 mm, of radius 75.2886 − √(35.56² − X²) mm, which turn with the
+wheel; the hood's by five arcs of radius 72.341 + √(36² − X²) mm from −64.8° to +20°,
+each carried on down to −73°, the hood extension's lower end, by a **lead-in**: an arc
+of the same radius about a centre of its own, opening to a gap of the pollen's
+diameter less 0.25 mm at −73°, whose normal turns by about 6.5° where it meets the
+hood, an edge a ball rolls over. A hood ring answers with whichever of its arc and
+its lead-in is nearer, so it squeezes a ball once. The wheel's rings share the
+wheel's compliance and the hood's rings the hood's. A rigid **stop** stands across the
+path one pollen's radius below the **entry**, from the wheel's flange out to the
+lead-in's lower end and across the hood's groove, and a ball touches it as it would
+the field's metal frame. A launcher is placed for a step: it holds the frame the step
+begins at and the frame it ends at, with their times, and the wheel's speed, which
+stays as it was given wherever it is placed. Placed at any time, its frame is on the
+straight line through the two, on past them and never clamped, its yaw changing by
+the difference of the two yaws less whole turns, so it turns the short way across
+±π, at that rate; a step of no time leaves it at rest where it ends, and two equal
+frames leave it exactly still. A step whose frame would sweep a face faster than a
+flight takes a ball, its speed plus its turn times the 5.26 in the farthest face
+stands from the turning axis, or that ends before it begins, is refused, saying so;
+so whatever the types admit, what squeezes a ball within its reach moves at a finite
+velocity where it meets it. A new wheel speed or a new frame comes as a new launcher
+in its place. A wheel ring moves as the frame does at the hub, plus the wheel's turn
+about the axle; a hood ring and the stop move with the frame alone; a still frame with
+a stopped wheel squeezes and touches with exactly nothing moving, so a ball held in it
+falls asleep there. It reaches where some face of it is within the distance asked and
+nowhere else, so a ball elsewhere on the field moves and costs as it would were the
+launcher to squeeze nothing. A fed ball goes in at the entry, at −73° with its centre
+one radius off the wheel's groove bottom, touching the stop, at the frame's velocity
+there and 0.1 m/s up the path, which stands in for the ramp that
+`doc/plans/reginald-internals.md` simulates. At 1,050 ticks a second and 24.2 ticks a
+turn, on a flight's step and in its air, it throws the pollen at 227.7 in/s, 0.42 of
+the wheel's surface speed at its 100 mm diameter, 71.0° up, with backspin of 171.5
+radians a second about the axle, a spin ratio of 1.05; the first sample with nothing
+of it touching the ball is 8.5° past the hood's upper end, 31.2 ms after the feed and
+5,615 units of the engine's work later. A faster wheel throws faster with more spin;
+a smoother hood carries a ball faster through the groove, spinning less for its speed;
+a frame moving at a constant velocity throws as a still one does with that velocity
+added, exactly in a vacuum, and a turned frame throws turned as much about the
+upright, across ±π as anywhere; a stopped wheel holds a fed ball against the stop,
+inside the robot and off the floor, until it spins up and throws it; and a reversed
+wheel drives it onto the stop and never throws it. Classes: `Launcher`, with
+`Launcher.Frame`, `Launcher.Course` and `Launcher.Faces`, in the **core**.
 
 **Asleep** and **awake** — Of a piece in a shot, or a ball in a run's **flight**: the
 loose pollen and the nectar in the cells lie **asleep** where a match starts them until
