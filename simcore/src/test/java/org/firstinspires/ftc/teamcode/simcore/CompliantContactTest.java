@@ -651,4 +651,79 @@ public class CompliantContactTest {
         assertTrue("thrown at " + exit.speed() + " in/s", exit.speed() > 0.3 * rim);
         assertTrue("thrown " + exit.degreesUp() + " degrees up", exit.degreesUp() > 45);
     }
+
+    private static final double SPINS_UP_AT = 0.6;
+    private static final double SPINNING_UP_FOR = 0.05;
+
+    private static CompliantArc wheelSpinningUp() {
+        return CompliantArc.spinningUp(
+                "wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, SPINS_UP_AT, SPINNING_UP_FOR, WHEEL_SPEED);
+    }
+
+    private static void advanceAsAFlightDoes(Bodies bodies, long target) {
+        while (bodies.steps() < target) {
+            if (!bodies.anyAwake() && bodies.idleThrough(target)) {
+                continue;
+            }
+            bodies.step();
+        }
+    }
+
+    @Test
+    public void
+            anEngineIdlesThroughABallAsleepInASqueezeOnlyUntilTheWheelSqueezingItTurnsAndIdlingLeavesItAsSteppingWould() {
+        long before = StrictMath.round((SPINS_UP_AT - SPINNING_UP_FOR) / STEP),
+                after = StrictMath.round((SPINS_UP_AT + SPINNING_UP_FOR) / STEP),
+                thrown = StrictMath.round((SPINS_UP_AT + 0.2) / STEP);
+        Bodies asleep = heldAt(among(STEP, wheelSpinningUp(), hood()));
+        stepFor(asleep, 0.4, STEP);
+        assertEquals(Bodies.Life.ASLEEP, ball(asleep).life());
+        long work = asleep.work();
+
+        Bodies jumping = asleep.copy();
+        assertTrue("idles while the wheel is still", jumping.idleThrough(before));
+        assertEquals(before, jumping.steps());
+        assertEquals(work, jumping.work());
+        assertTrue("does not idle past the wheel turning", !jumping.idleThrough(after));
+        assertEquals(before, jumping.steps());
+        assertEquals(work, jumping.work());
+
+        Bodies stepped = asleep.copy();
+        stepFor(stepped, (thrown - stepped.steps()) * STEP, STEP);
+        assertEquals(thrown, stepped.steps());
+        assertTrue(
+                "thrown: " + ball(stepped),
+                squeezing(stepped).isEmpty() && ball(stepped).at().z() > HUB.z());
+        for (long chunk : new long[] {1, 7, 37, 500, 2000, 7500}) {
+            Bodies chunked = asleep.copy();
+            while (chunked.steps() < thrown) {
+                advanceAsAFlightDoes(chunked, StrictMath.min(thrown, chunked.steps() + chunk));
+            }
+            assertEquals("in chunks of " + chunk, ball(stepped), ball(chunked));
+            assertEquals("in chunks of " + chunk, stepped.work(), chunked.work());
+        }
+    }
+
+    @Test
+    public void aBallAsleepInTheSqueezeOfAWheelAboutToTurnIsWokenBeforeTheFirstStepInWhichItTurnsAndMovesInThatStep() {
+        CompliantArc wheel = wheelSpinningUp();
+        Bodies held = heldAt(among(STEP, wheel, hood()));
+        stepFor(held, SPINS_UP_AT - SPINNING_UP_FOR, STEP);
+        assertEquals(Bodies.Life.ASLEEP, ball(held).life());
+
+        Bodies.Seen asleep = ball(held);
+        while (ball(held).life() == Bodies.Life.ASLEEP && held.steps() * STEP < SPINS_UP_AT + SPINNING_UP_FOR) {
+            asleep = ball(held);
+            held.step();
+        }
+
+        Bodies.Step step = stepping(STEP);
+        assertTrue(
+                "still as the step began",
+                !wheel.at(GridTime.at(held.steps() - 1, step)).moving());
+        assertTrue(
+                "turning as it ended", wheel.at(GridTime.at(held.steps(), step)).moving());
+        assertEquals(Bodies.Life.AWAKE, ball(held).life());
+        assertTrue("moved from " + asleep.at(), !ball(held).at().equals(asleep.at()));
+    }
 }

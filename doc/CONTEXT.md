@@ -1914,7 +1914,9 @@ piece it reaches through pieces touching one another, passing through any that a
 awake but resting, and a piece it was holding up; a body at rest wakes nothing, so
 pieces resting against each other stay asleep. Before a step moves anything, a part
 of the **surroundings** moving at the step's start or at its end wakes every sleeping
-body one of its moving faces could reach within the step, and so do new surroundings
+body one of its moving faces could reach within the step, or that a support squeezing
+it moves or turns at either end (**compliant contact**), so a ball asleep in a wheel's
+squeeze moves in the first step in which the wheel turns; and so do new surroundings
 the moment they are given; after each piece, a part moving then wakes what it could
 reach within the next step, and the wake spreads from what it woke in the same piece.
 A body at rest within a step's reach of a moving face does not fall asleep, and a
@@ -1925,7 +1927,8 @@ sleeping body wakes nothing. Classes: `Islands`, `Bodies`, in the **core**.
 
 **Idle** and **allowance** — Of the engine a shot moves its balls on: it is **idle**
 through to a later step when nothing is awake and no moving face could reach a
-sleeping body before then, and it then goes there at once, exactly where stepping
+sleeping body before then, nor a support squeezing one move or turn now or then, and
+it then goes there at once, exactly where stepping
 there would leave it. Its work counts every integration (every evaluation in one, for
 a ball near enough a compliant part to be pushed by it, as **compliant contact**
 says), every query of its surroundings (asking what squeezes a ball among them), every
