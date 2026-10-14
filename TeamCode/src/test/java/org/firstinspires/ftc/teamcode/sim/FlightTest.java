@@ -29,8 +29,6 @@ public class FlightTest {
     private static final double CONTACT = 0.1;
     private static final double STEP = 0.005;
     private static final double POLLEN_INERTIA = 0.634;
-    private static final double BOUNCES_FOR_EACH_IN_PER_S_OF_ITS_FIRST_IMPACT = 1 / 129.0;
-    private static final double ROLLS_OUT_AND_LANDS_SECONDS = 0.5;
 
     private final Field field = SimPlacement.FIELD;
     private Flight<Object> flight = Valid.value(Hives.of(field).then(Flight::<Object>over));
@@ -52,13 +50,6 @@ public class FlightTest {
 
     private static Flight.Tick tick(double seconds) {
         return Valid.value(Flight.Tick.of(Valid.value(Seconds.of(seconds))));
-    }
-
-    private static double settledAfterFalling(double inches) {
-        double g = Flight.GRAVITY_IN_PER_S2;
-        return Math.sqrt(2 * inches / g)
-                + Math.sqrt(2 * g * inches) * BOUNCES_FOR_EACH_IN_PER_S_OF_ITS_FIRST_IMPACT
-                + ROLLS_OUT_AND_LANDS_SECONDS;
     }
 
     private List<Flight.Landing<Object>> fly(double seconds) {
@@ -141,7 +132,7 @@ public class FlightTest {
         double wall = onTheWall.y();
         drop(Field.Kind.POLLEN, POLLEN, new Vec3(onTheWall.x(), wall + 0.7, onTheWall.z()));
 
-        fly(settledAfterFalling(onTheWall.z()));
+        fly(Falling.settledAfter(onTheWall.z()));
 
         assertEquals("it reached the floor", 1, landed.size());
         assertTrue(landed.get(0) instanceof Flight.OnTheFloor);
@@ -155,7 +146,7 @@ public class FlightTest {
         double thrownFrom = onTheWall.y() + 6;
         throwIt(Field.Kind.POLLEN, POLLEN, new Vec3(onTheWall.x(), thrownFrom, onTheWall.z()), new Vec3(0, -200, 0));
 
-        fly(settledAfterFalling(onTheWall.z()));
+        fly(Falling.settledAfter(onTheWall.z()));
 
         assertEquals("it came down", 1, landed.size());
         assertTrue(
@@ -171,7 +162,7 @@ public class FlightTest {
         Object ball = throwIt(
                 Field.Kind.POLLEN, POLLEN, new Vec3(onTheWall.x(), wall + 6, onTheWall.z()), new Vec3(0, -400, 0));
 
-        double until = settledAfterFalling(onTheWall.z());
+        double until = Falling.settledAfter(onTheWall.z());
         while (flown < until && flight.holds(ball)) {
             once(STEP);
             if (flight.holds(ball)) {
@@ -280,7 +271,7 @@ public class FlightTest {
         assertTrue("five nectar fill it and it has begun to tip", hives().tipping(blue));
         assertEquals("with them still in it", 5, flight.scored("Blue"));
 
-        fly(Lean.TIP_SECONDS + settledAfterFalling(cell.mouthCentreAt(leaning).z()));
+        fly(Lean.TIP_SECONDS + Falling.settledAfter(cell.mouthCentreAt(leaning).z()));
 
         assertEquals("it tipped over", -leaning, tilt(blue), DELTA);
         assertEquals("and is empty", 0, flight.scored("Blue"));
@@ -349,7 +340,7 @@ public class FlightTest {
                 rebound / approach,
                 0.02);
 
-        fly(settledAfterFalling(height));
+        fly(Falling.settledAfter(height));
 
         assertEquals("then it lands", 1, landed.size());
         assertEquals("on the floor", POLLEN_RADIUS, landed.get(0).at().z(), DELTA);
@@ -382,7 +373,7 @@ public class FlightTest {
         drop(Field.Kind.POLLEN, POLLEN, new Vec3(half - POLLEN_RADIUS, -40, 6));
         drop(Field.Kind.POLLEN, POLLEN, new Vec3(0, -24.73 - POLLEN_RADIUS, 6));
 
-        fly(settledAfterFalling(6) + 1);
+        fly(Falling.settledAfter(6) + 1);
 
         assertEquals("both landed", 2, landed.size());
         assertEquals(
@@ -400,7 +391,7 @@ public class FlightTest {
         drop(Field.Kind.POLLEN, POLLEN, new Vec3(-30 + 2 * POLLEN_RADIUS, -50, 4));
 
         List<Flight.Landing<Object>> together = List.of();
-        while (landed.isEmpty() && flown < settledAfterFalling(4) + 1) {
+        while (landed.isEmpty() && flown < Falling.settledAfter(4) + 1) {
             together = once(STEP);
         }
 
@@ -418,7 +409,7 @@ public class FlightTest {
         double from = pipe.x() - 10;
         throwIt(Field.Kind.POLLEN, POLLEN, new Vec3(from, pipe.y(), pipe.z()), new Vec3(150, 0, 0));
 
-        fly(settledAfterFalling(pipe.z()) + 1);
+        fly(Falling.settledAfter(pipe.z()) + 1);
 
         assertEquals(1, landed.size());
         assertTrue(
@@ -480,7 +471,7 @@ public class FlightTest {
                 new Vec3(half - 10, -30, SimPlacement.WALL_HEIGHT_IN + 20),
                 new Vec3(200, 0, 0));
 
-        fly(settledAfterFalling(SimPlacement.WALL_HEIGHT_IN + 20));
+        fly(Falling.settledAfter(SimPlacement.WALL_HEIGHT_IN + 20));
 
         assertEquals(2, landed.size());
         for (Flight.Landing<Object> landing : landed) {

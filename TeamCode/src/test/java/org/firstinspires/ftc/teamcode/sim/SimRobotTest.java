@@ -24,6 +24,7 @@ import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
+import org.firstinspires.ftc.teamcode.simcore.Lean;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
@@ -1243,7 +1244,8 @@ public class SimRobotTest {
         sim.place(thePreloadOf(sim), down);
         assertEquals("in the cell for now", 4, sim.scored("Blue"));
 
-        sim.step(2.0);
+        sim.step(Falling.ROLLS_THE_LENGTH_OF_A_CELL_SECONDS
+                + Falling.settledAfter(down.mouthCentreAt(sim.tilt("Blue")).z()));
 
         assertEquals("but not for long", 3, sim.scored("Blue"));
         double[] ball = sim.placeOf(thePreloadOf(sim));
@@ -1339,7 +1341,7 @@ public class SimRobotTest {
         for (int i = 0; i < 8; i++) {
             sim.place(pollen.get(i), second);
         }
-        sim.step(3.0);
+        sim.step(Lean.TIP_SECONDS + Falling.settledAfter(first.hive().pivot().z()));
 
         assertEquals("the next eight tip it back", leaning, sim.tilt("Blue"), DELTA);
         assertTrue("the cell that was up first is up again", first == sim.upturnedCell("Blue"));
@@ -1358,7 +1360,7 @@ public class SimRobotTest {
             sim.place(pollen.get(i), was);
         }
 
-        sim.step(3.0);
+        sim.step(Lean.TIP_SECONDS + Falling.settledAfter(was.hive().pivot().z()));
 
         assertEquals("nothing is left in the hive", 0, sim.scored("Blue"));
         assertEquals(0, sim.load("Blue"), DELTA);
