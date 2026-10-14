@@ -260,7 +260,7 @@ public class MovingSurroundingsTest {
         stepFor(moving, 0.1, STEP);
         stepFor(still, 0.1, STEP);
 
-        int boundsChecks = 1, placements = 2, placementsForTheRollingBallsTrial = 1;
+        int boundsChecks = 1, placements = 1, placementsForTheRollingBallsTrial = 1;
         assertEquals(Bodies.Life.ASLEEP, seen(alone, "far").life());
         assertEquals(alone.steps() * (boundsChecks + placements), alone.work());
         assertEquals(Bodies.Life.ASLEEP, seen(moving, "far").life());

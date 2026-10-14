@@ -481,7 +481,6 @@ final class Bodies {
         }
         steps++;
         now = steps * step;
-        surroundings = placed(surroundings, now);
         return Collections.unmodifiableList(spans);
     }
 
