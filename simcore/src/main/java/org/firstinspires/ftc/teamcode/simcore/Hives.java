@@ -258,6 +258,16 @@ public final class Hives {
         }
 
         @Override
+        public boolean squeezes() {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            return List.of();
+        }
+
+        @Override
         public Surroundings.Part at(GridTime time) {
             return new AsAPart(hives.at(time));
         }

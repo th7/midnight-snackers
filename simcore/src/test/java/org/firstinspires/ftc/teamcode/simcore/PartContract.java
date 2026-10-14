@@ -49,6 +49,8 @@ final class PartContract {
             }
         }
         double before = Double.NaN;
+        Set<String> touchedUnder = new HashSet<>();
+        Set<String> squeezedUnder = new HashSet<>();
         for (double t : times) {
             Surroundings.Part then = part.at(Valid.time(t));
             if (!then.ids().equals(ids)) {
@@ -70,12 +72,98 @@ final class PartContract {
                     breaches.add("the part touches beyond where it says it reaches" + where);
                 }
                 for (Surroundings.Touch touch : touches) {
+                    touchedUnder.add(touch.id());
                     breaches.addAll(touchBreaches(part, then, t, probe, touch, named, still, where));
+                }
+                List<Surroundings.Squeeze> squeezes = then.squeezing(probe.centre(), probe.radius());
+                if (!squeezes.equals(then.squeezing(probe.centre(), probe.radius()))) {
+                    breaches.add("the part squeezes differently when asked again" + where);
+                }
+                if (!Double.isNaN(before)
+                        && !squeezes.equals(part.at(Valid.time(before))
+                                .at(Valid.time(t))
+                                .squeezing(probe.centre(), probe.radius()))) {
+                    breaches.add("the part squeezes differently placed at " + before + " s and then" + where);
+                }
+                if (!squeezes.isEmpty() && !then.squeezes()) {
+                    breaches.add("the part squeezes while it says it does not" + where);
+                }
+                if (!squeezes.isEmpty()
+                        && !then.reaches(probe.centre(), probe.radius().inches())) {
+                    breaches.add("the part squeezes beyond where it says it reaches" + where);
+                }
+                for (Surroundings.Squeeze squeeze : squeezes) {
+                    squeezedUnder.add(squeeze.id());
+                    breaches.addAll(squeezeBreaches(part, then, t, probe, squeeze, named, where));
                 }
             }
             before = t;
         }
+        for (String id : touchedUnder) {
+            if (squeezedUnder.contains(id)) {
+                breaches.add("the part touches under a name it squeezes under: " + id);
+            }
+        }
         return breaches;
+    }
+
+    private static List<String> squeezeBreaches(
+            Surroundings.Part part,
+            Surroundings.Part then,
+            double t,
+            Probe probe,
+            Surroundings.Squeeze squeeze,
+            Set<String> named,
+            String where) {
+        List<String> breaches = new ArrayList<>();
+        String said = " (" + squeeze + ")" + where;
+        if (!named.contains(squeeze.id())) {
+            breaches.add("the part squeezes under a name it does not have" + said);
+        }
+        if (!then.moving() && squeeze.moves()) {
+            breaches.add("the part moves a squeezing face while it says it is not moving" + said);
+        }
+        Vec3 n = squeeze.normal();
+        double sweep = sweepAround(part, t);
+        double along = squeeze.velocity().dot(n);
+        if (StrictMath.abs(along) > sweep * (1 + RATE_WITHIN) + RATE_WITHIN) {
+            breaches.add("the part moves a squeezing face along its normal at " + along
+                    + " in/s, faster than its sweep of " + sweep + said);
+        }
+        Optional<Surroundings.Squeeze> nudged =
+                sameSqueeze(then.squeezing(probe.centre().along(n, NUDGE_IN), probe.radius()), squeeze);
+        if (nudged.isPresent() && closeTo(nudged.get().normal(), n, FLAT_WITHIN)) {
+            double shrank = squeeze.depth() - nudged.get().depth();
+            if (StrictMath.abs(shrank - NUDGE_IN) > NUDGE_IN * RATE_WITHIN) {
+                breaches.add("the part's normal is not the way its depth shrinks: moving the ball " + NUDGE_IN
+                        + " in along it shrinks the depth by " + shrank + said);
+            }
+        }
+        Optional<Surroundings.Squeeze> earlier =
+                sameSqueeze(part.at(Valid.time(t - DT)).squeezing(probe.centre(), probe.radius()), squeeze);
+        Optional<Surroundings.Squeeze> later =
+                sameSqueeze(part.at(Valid.time(t + DT)).squeezing(probe.centre(), probe.radius()), squeeze);
+        if (earlier.isPresent() && later.isPresent()) {
+            double behind = (squeeze.depth() - earlier.get().depth()) / DT,
+                    ahead = (later.get().depth() - squeeze.depth()) / DT;
+            double tolerance = RATE_WITHIN * (1 + sweep);
+            double rate = (later.get().depth() - earlier.get().depth()) / (2 * DT);
+            if (StrictMath.abs(ahead - behind) <= tolerance && StrictMath.abs(rate - along) > tolerance) {
+                breaches.add("the part's depth changes at " + rate
+                        + " in/s where the face's velocity along its normal says " + along + said);
+            }
+        }
+        return breaches;
+    }
+
+    private static Optional<Surroundings.Squeeze> sameSqueeze(
+            List<Surroundings.Squeeze> squeezes, Surroundings.Squeeze squeeze) {
+        for (Surroundings.Squeeze other : squeezes) {
+            if (other.id().equals(squeeze.id())) {
+                return Optional.of(other);
+            }
+        }
+        return Optional.empty();
     }
 
     private static List<String> touchBreaches(

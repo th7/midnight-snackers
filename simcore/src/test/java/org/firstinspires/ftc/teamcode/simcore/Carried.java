@@ -162,6 +162,16 @@ final class Carried implements Surroundings.Part {
     }
 
     @Override
+    public boolean squeezes() {
+        return false;
+    }
+
+    @Override
+    public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        return List.of();
+    }
+
+    @Override
     public Surroundings.Part at(GridTime time) {
         return new Carried(colliders, pivot, velocity, spin, starts, stops, inPlace, time.seconds());
     }

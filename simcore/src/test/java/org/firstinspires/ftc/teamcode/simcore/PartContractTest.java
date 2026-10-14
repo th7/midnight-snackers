@@ -100,10 +100,149 @@ public class PartContractTest {
         }
 
         @Override
+        public boolean squeezes() {
+            return inner.squeezes();
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            return inner.squeezing(centre, radius);
+        }
+
+        @Override
         public Surroundings.Part at(GridTime then) {
             GridTime when = lie == Lie.TIME_FROM_WHERE_IT_WAS ? Valid.time(seconds + then.seconds()) : then;
             return new Lying(inner.at(when), lie, when.seconds(), asked);
         }
+    }
+
+    private static final Compliance SOFT = Valid.value(Compliance.of(40, 0.6, 0.6, 0.02));
+    private static final Vec3 AXLE = new Vec3(0, 1, 0);
+    private static final Vec3 WHEEL = new Vec3(0, 0, 10);
+
+    private enum Squeezing {
+        NONE,
+        UNDER_ANOTHER_NAME,
+        SAYS_IT_DOES_NOT,
+        FURTHER_THAN_IT_REACHES,
+        ALSO_TOUCHES,
+        SAYS_STILL,
+        DEPTH_TWICE_AS_DEEP,
+        FORGETFUL,
+        PUSHING_IN_WITHOUT_GOING_DEEPER,
+        DIFFERENTLY_WHERE_IT_WAS
+    }
+
+    private static final class LyingSqueezer implements Surroundings.Part {
+        private final Surroundings.Part inner;
+        private final Squeezing lie;
+        private final double seconds;
+        private final List<Integer> asked;
+
+        private LyingSqueezer(Surroundings.Part inner, Squeezing lie, double seconds, List<Integer> asked) {
+            this.inner = inner;
+            this.lie = lie;
+            this.seconds = seconds;
+            this.asked = asked;
+        }
+
+        static LyingSqueezer about(Squeezing lie) {
+            return new LyingSqueezer(
+                    CompliantArc.spinningUp("wheel", WHEEL, AXLE, 4, SOFT, 0.1, 0.2, 300), lie, 0, new ArrayList<>());
+        }
+
+        @Override
+        public List<String> ids() {
+            return inner.ids();
+        }
+
+        @Override
+        public boolean reaches(Vec3 centre, double by) {
+            return inner.reaches(centre, by);
+        }
+
+        @Override
+        public double sweep() {
+            return inner.sweep();
+        }
+
+        @Override
+        public boolean moving() {
+            return lie != Squeezing.SAYS_STILL && inner.moving();
+        }
+
+        @Override
+        public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+            List<Surroundings.Touch> touches = new ArrayList<>();
+            if (lie == Squeezing.ALSO_TOUCHES) {
+                for (Surroundings.Squeeze squeeze : inner.squeezing(centre, radius)) {
+                    touches.add(Valid.value(Surroundings.Touch.of(
+                            squeeze.id(),
+                            Surface.FRAME,
+                            squeeze.normal(),
+                            -squeeze.depth(),
+                            Vec3.zero(),
+                            Vec3.zero())));
+                }
+            }
+            return touches;
+        }
+
+        @Override
+        public boolean squeezes() {
+            return lie != Squeezing.SAYS_IT_DOES_NOT;
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            Length asked = lie == Squeezing.FURTHER_THAN_IT_REACHES ? Valid.length(radius.inches() + 5) : radius;
+            List<Surroundings.Squeeze> told = new ArrayList<>();
+            for (Surroundings.Squeeze squeeze : inner.squeezing(centre, asked)) {
+                String id = lie == Squeezing.UNDER_ANOTHER_NAME ? "elsewhere" : squeeze.id();
+                double depth = lie == Squeezing.DEPTH_TWICE_AS_DEEP ? 2 * squeeze.depth() : squeeze.depth();
+                Vec3 velocity = lie == Squeezing.PUSHING_IN_WITHOUT_GOING_DEEPER
+                        ? squeeze.velocity().along(squeeze.normal(), 3)
+                        : squeeze.velocity();
+                if (lie == Squeezing.FORGETFUL) {
+                    this.asked.add(this.asked.size());
+                    depth = depth + this.asked.size() * 1e-9;
+                }
+                if (lie == Squeezing.DIFFERENTLY_WHERE_IT_WAS) {
+                    depth = depth + seconds * 1e-3;
+                }
+                told.add(Valid.value(Surroundings.Squeeze.of(
+                        id, Valid.value(Compliance.of(40, 0.6, 0.6, 0.02)), squeeze.normal(), depth, velocity)));
+            }
+            return told;
+        }
+
+        @Override
+        public Surroundings.Part at(GridTime then) {
+            double when = lie == Squeezing.DIFFERENTLY_WHERE_IT_WAS ? seconds + then.seconds() : then.seconds();
+            return new LyingSqueezer(inner.at(then), lie, when, asked);
+        }
+    }
+
+    private static List<PartContract.Probe> aroundTheWheel() {
+        List<PartContract.Probe> probes = new ArrayList<>();
+        for (double x = -6; x <= 6; x += 1.25) {
+            for (double y : new double[] {-1.5, -0.3, 0, 0.8}) {
+                for (double z = 4; z <= 16; z += 1.25) {
+                    probes.add(PartContract.Probe.of(new Vec3(x, y, z), R, 0));
+                }
+            }
+        }
+        return probes;
+    }
+
+    private static void assertSqueezeBreached(String rule, Squeezing lie) {
+        List<String> breaches =
+                PartContract.breaches(LyingSqueezer.about(lie), aroundTheWheel(), TIMES, PartContract.NO_FACE_STILL);
+        boolean named = false;
+        for (String breach : breaches) {
+            named = named || breach.contains(rule);
+        }
+        assertTrue(lie + " breaches " + breaches.size() + " times, never with '" + rule + "': " + breaches, named);
     }
 
     private static List<PartContract.Probe> probes() {
@@ -187,6 +326,65 @@ public class PartContractTest {
                 "hives", hives, probes, TIMES, (seconds, touch) -> touch.id().equals("red"));
         List<String> breaches = PartContract.breaches(hives, probes, TIMES, (seconds, touch) -> true);
         assertTrue(breaches.toString(), breaches.get(0).contains("moves a face that is still"));
+    }
+
+    @Test
+    public void compliantPlatesStillAndSlidingAndArcsStillAndSpinningUpKeepThePartContract() {
+        PartContract.assertKept(
+                "a still plate",
+                CompliantPlate.still("plate", WHEEL, new Vec3(0.6, 0, 0.8), SOFT),
+                aroundTheWheel(),
+                TIMES,
+                PartContract.NO_FACE_STILL);
+        PartContract.assertKept(
+                "a sliding plate",
+                CompliantPlate.sliding("belt", WHEEL, new Vec3(0, 0, -1), SOFT, new Vec3(30, -4, 0)),
+                aroundTheWheel(),
+                TIMES,
+                PartContract.NO_FACE_STILL);
+        PartContract.assertKept(
+                "a still arc",
+                CompliantArc.still(
+                        "hood", Valid.value(Arc.of(WHEEL, AXLE, 4, Valid.value(Arc.Span.of(2.5, 1.5)))), SOFT),
+                aroundTheWheel(),
+                TIMES,
+                PartContract.NO_FACE_STILL);
+        PartContract.assertKept(
+                "a ring spinning up",
+                CompliantArc.spinningUp("wheel", WHEEL, AXLE, 4, SOFT, 0.1, 0.2, 300),
+                aroundTheWheel(),
+                TIMES,
+                PartContract.NO_FACE_STILL);
+        PartContract.assertKept(
+                "a ring and a rigid tray joined",
+                Joined.of(
+                        CompliantArc.spinning("wheel", WHEEL, AXLE, 4, SOFT, -200),
+                        Carried.sliding(TRAY, new Vec3(1, 0, 0), 0)),
+                aroundTheWheel(),
+                TIMES,
+                PartContract.NO_FACE_STILL);
+        assertEquals(
+                List.of(),
+                PartContract.breaches(
+                        LyingSqueezer.about(Squeezing.NONE), aroundTheWheel(), TIMES, PartContract.NO_FACE_STILL));
+    }
+
+    @Test
+    public void aPartSqueezesOnlyWhereItReachesUnderItsOwnNamesNeverUnderANameItTouchesByAndOnlyIfItSaysItSqueezes() {
+        assertSqueezeBreached("squeezes under a name it does not have", Squeezing.UNDER_ANOTHER_NAME);
+        assertSqueezeBreached("squeezes while it says it does not", Squeezing.SAYS_IT_DOES_NOT);
+        assertSqueezeBreached("squeezes beyond where it says it reaches", Squeezing.FURTHER_THAN_IT_REACHES);
+        assertSqueezeBreached("touches under a name it squeezes under", Squeezing.ALSO_TOUCHES);
+    }
+
+    @Test
+    public void aPartsSqueezingFacesMoveAndDeepenAsTheirVelocityAndNormalSayAndItSqueezesTheSameHoweverPlaced() {
+        assertSqueezeBreached("moves a squeezing face while it says it is not moving", Squeezing.SAYS_STILL);
+        assertSqueezeBreached("normal is not the way its depth shrinks", Squeezing.DEPTH_TWICE_AS_DEEP);
+        assertSqueezeBreached("depth changes at", Squeezing.PUSHING_IN_WITHOUT_GOING_DEEPER);
+        assertSqueezeBreached("faster than its sweep", Squeezing.PUSHING_IN_WITHOUT_GOING_DEEPER);
+        assertSqueezeBreached("squeezes differently when asked again", Squeezing.FORGETFUL);
+        assertSqueezeBreached("squeezes differently placed at", Squeezing.DIFFERENTLY_WHERE_IT_WAS);
     }
 
     @Test

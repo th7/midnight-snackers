@@ -44,6 +44,54 @@ public class SurroundingsTest {
         }
 
         @Override
+        public boolean squeezes() {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            return List.of();
+        }
+
+        @Override
+        public Surroundings.Part at(GridTime time) {
+            return this;
+        }
+    }
+
+    private record Squeezer(String id, boolean squeezes, boolean reaching, List<Surroundings.Squeeze> answer)
+            implements Surroundings.Part {
+        @Override
+        public List<String> ids() {
+            return List.of(id);
+        }
+
+        @Override
+        public boolean reaches(Vec3 centre, double by) {
+            return reaching;
+        }
+
+        @Override
+        public double sweep() {
+            return 0;
+        }
+
+        @Override
+        public boolean moving() {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+            return List.of();
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            return answer;
+        }
+
+        @Override
         public Surroundings.Part at(GridTime time) {
             return this;
         }
@@ -72,6 +120,16 @@ public class SurroundingsTest {
         }
 
         @Override
+        public boolean squeezes() {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            return List.of();
+        }
+
+        @Override
         public Surroundings.Part at(GridTime time) {
             return new Answering(later, answer, later);
         }
@@ -79,6 +137,12 @@ public class SurroundingsTest {
 
     private static Surroundings.Touch touch(String id, double gap) {
         return Valid.value(Surroundings.Touch.of(id, Surface.FRAME, new Vec3(0, 0, 1), gap, Vec3.zero(), Vec3.zero()));
+    }
+
+    private static final Compliance SOFT = Valid.value(Compliance.of(40, 0.6, 0.6, 0.02));
+
+    private static Surroundings.Squeeze squeeze(String id, double depth) {
+        return Valid.value(Surroundings.Squeeze.of(id, SOFT, new Vec3(0, 0, 1), depth, Vec3.zero()));
     }
 
     private static Surroundings with(Surroundings.Part... parts) {
@@ -308,5 +372,79 @@ public class SurroundingsTest {
                         .near(new Vec3(0, 0, top + 4), R, 1e-6)
                         .get(0)
                         .velocity());
+    }
+
+    @Test
+    public void theSurroundingsAskOnlyThePartsThatSqueezeAndOnlyWhereTheyReachAndKeepOnlyTheirOwnNames() {
+        Squeezer wheel = new Squeezer(
+                "wheel",
+                true,
+                true,
+                List.of(squeeze("wheel", 0.1), squeeze("Floor", 0.2), squeeze("nowhere", 0.3), squeeze("wheel", 2)));
+        Squeezer liar = new Squeezer("liar", false, true, List.of(squeeze("liar", 0.1)));
+        Squeezer far = new Squeezer("far", true, false, List.of(squeeze("far", 0.1)));
+        Vec3 here = new Vec3(0, 0, 30);
+
+        assertEquals(
+                List.of(squeeze("wheel", 0.1), squeeze("wheel", 2)),
+                with(wheel, liar, far).squeezing(here, R));
+        assertEquals(List.of(), with(liar, far).squeezing(here, R));
+        assertEquals(List.of(), with(liar).near(here, R, 5));
+        assertTrue(with(wheel, liar).squeezes());
+        assertTrue(with(far).squeezes());
+        assertEquals(false, with(liar).squeezes());
+        assertEquals(false, Surroundings.still(WALLS).squeezes());
+        assertTrue(with(liar, wheel).squeezeReaches(here, 1));
+        assertEquals(false, with(liar, far).squeezeReaches(here, 1));
+        assertEquals(List.of(), Surroundings.still(WALLS).squeezing(new Vec3(0, 0, 0.5), R));
+    }
+
+    @Test
+    public void whatSqueezesABallAtATimeIsAnsweredByThePartsThatSqueezePlacedThenWhateverTimeTheyWereAt() {
+        CompliantArc wheel = CompliantArc.spinningUp("wheel", new Vec3(0, 0, 20), new Vec3(0, 1, 0), 4, SOFT, 0, 1, 50);
+        Surroundings around = with(Carried.sliding(PLATE, new Vec3(0, 0, 2), 1), wheel);
+        Vec3 beside = new Vec3(-5.2, 0, 20);
+
+        for (double seconds : new double[] {0, 0.25, 0.5, 2}) {
+            GridTime then = Valid.time(seconds);
+            assertEquals("at " + seconds, wheel.at(then).squeezing(beside, R), around.squeezingAt(then, beside, R));
+            assertEquals(
+                    "at " + seconds + " from later",
+                    wheel.at(then).squeezing(beside, R),
+                    around.at(Valid.time(3)).squeezingAt(then, beside, R));
+            assertEquals("at " + seconds, around.at(then).squeezing(beside, R), around.squeezingAt(then, beside, R));
+        }
+        Vec3 rim = around.squeezingAt(Valid.time(0.25), beside, R).get(0).velocity();
+        assertEquals(0, rim.x(), 0);
+        assertEquals(0, rim.y(), 0);
+        assertEquals(4 * 50 * 0.25, rim.z(), 1e-12);
+    }
+
+    @Test
+    public void aSqueezeHasAUnitNormalAFiniteDepthMoreThanNothingAndAFiniteVelocity() {
+        Vec3 up = new Vec3(0, 0, 1), unknown = new Vec3(Double.NaN, 0, 0);
+        String rule = "a squeeze has a unit normal, a finite depth more than 0 and a finite velocity, not ";
+
+        for (Checked<Surroundings.Squeeze> refused : List.of(
+                Surroundings.Squeeze.of("wheel", SOFT, new Vec3(0, 0, 2), 0.1, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, Vec3.zero(), 0.1, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, unknown, 0.1, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, up, 0, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, up, -0.1, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, up, Double.NaN, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, up, Double.POSITIVE_INFINITY, Vec3.zero()),
+                Surroundings.Squeeze.of("wheel", SOFT, up, 0.1, unknown))) {
+            String said = rejection(refused);
+            assertTrue(said, said.startsWith(rule));
+        }
+        Vec3 slanted = new Vec3(0.6, 0, 0.8), velocity = new Vec3(1, 2, 3);
+        Surroundings.Squeeze squeeze = Valid.value(Surroundings.Squeeze.of("wheel", SOFT, slanted, 0.05, velocity));
+        assertEquals("wheel", squeeze.id());
+        assertEquals(SOFT, squeeze.compliance());
+        assertEquals(slanted, squeeze.normal());
+        assertEquals(0.05, squeeze.depth(), 0);
+        assertEquals(velocity, squeeze.velocity());
+        assertTrue(squeeze.moves());
+        assertEquals(false, squeeze("wheel", 0.1).moves());
     }
 }

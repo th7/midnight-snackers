@@ -91,6 +91,78 @@ final class Surroundings {
         }
     }
 
+    static final class Squeeze {
+        private final String id;
+        private final Compliance compliance;
+        private final Vec3 normal;
+        private final double depth;
+        private final Vec3 velocity;
+
+        private Squeeze(String id, Compliance compliance, Vec3 normal, double depth, Vec3 velocity) {
+            this.id = id;
+            this.compliance = compliance;
+            this.normal = normal;
+            this.depth = depth;
+            this.velocity = velocity;
+        }
+
+        static Checked<Squeeze> of(String id, Compliance compliance, Vec3 normal, double depth, Vec3 velocity) {
+            if (!(StrictMath.abs(normal.dot(normal) - 1) <= Touch.UNIT_WITHIN
+                    && depth > 0
+                    && Double.isFinite(depth)
+                    && velocity.isFinite())) {
+                return Checked.rejected("a squeeze has a unit normal, a finite depth more than 0 and a finite velocity,"
+                        + " not a normal of " + normal + ", a depth of " + depth + " and a velocity of " + velocity);
+            }
+            return Checked.ok(new Squeeze(id, compliance, normal, depth, velocity));
+        }
+
+        String id() {
+            return id;
+        }
+
+        Compliance compliance() {
+            return compliance;
+        }
+
+        Vec3 normal() {
+            return normal;
+        }
+
+        double depth() {
+            return depth;
+        }
+
+        Vec3 velocity() {
+            return velocity;
+        }
+
+        boolean moves() {
+            return velocity.dot(velocity) > 0;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Squeeze that
+                    && id.equals(that.id)
+                    && compliance.equals(that.compliance)
+                    && normal.equals(that.normal)
+                    && Double.compare(depth, that.depth) == 0
+                    && velocity.equals(that.velocity);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, compliance, normal, depth, velocity);
+        }
+
+        @Override
+        public String toString() {
+            return "Squeeze[id=" + id + ", compliance=" + compliance + ", normal=" + normal + ", depth=" + depth
+                    + ", velocity=" + velocity + "]";
+        }
+    }
+
     interface Part {
         List<String> ids();
 
@@ -101,6 +173,10 @@ final class Surroundings {
         boolean moving();
 
         List<Touch> near(Vec3 centre, Length radius, double within);
+
+        boolean squeezes();
+
+        List<Squeeze> squeezing(Vec3 centre, Length radius);
 
         Part at(GridTime time);
     }
@@ -141,6 +217,20 @@ final class Surroundings {
             return kept;
         }
 
+        boolean squeezes() {
+            return part.squeezes();
+        }
+
+        List<Squeeze> squeezing(Vec3 centre, Length radius) {
+            List<Squeeze> kept = new ArrayList<>();
+            for (Squeeze squeeze : part.squeezing(centre, radius)) {
+                if (ids.contains(squeeze.id())) {
+                    kept.add(squeeze);
+                }
+            }
+            return kept;
+        }
+
         Held at(GridTime time) {
             return new Held(part.at(time), ids);
         }
@@ -149,20 +239,26 @@ final class Surroundings {
     private final Colliders still;
     private final List<Held> parts;
     private final List<Held> moving;
+    private final List<Held> compliant;
     private final double sweep;
 
     private Surroundings(Colliders still, List<Held> parts) {
         this.still = still;
         this.parts = Collections.unmodifiableList(new ArrayList<>(parts));
         List<Held> moving = new ArrayList<>();
+        List<Held> compliant = new ArrayList<>();
         double sweep = 0;
         for (Held part : parts) {
             if (part.moving()) {
                 moving.add(part);
                 sweep = StrictMath.max(sweep, part.sweep());
             }
+            if (part.squeezes()) {
+                compliant.add(part);
+            }
         }
         this.moving = Collections.unmodifiableList(moving);
+        this.compliant = Collections.unmodifiableList(compliant);
         this.sweep = sweep;
     }
 
@@ -239,6 +335,40 @@ final class Surroundings {
 
     List<Held> moving() {
         return moving;
+    }
+
+    boolean squeezes() {
+        return !compliant.isEmpty();
+    }
+
+    boolean squeezeReaches(Vec3 centre, double by) {
+        for (Held part : compliant) {
+            if (part.reaches(centre, by)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    List<Squeeze> squeezing(Vec3 centre, Length radius) {
+        List<Squeeze> squeezes = new ArrayList<>();
+        for (Held part : compliant) {
+            if (part.reaches(centre, radius.inches())) {
+                squeezes.addAll(part.squeezing(centre, radius));
+            }
+        }
+        return squeezes;
+    }
+
+    List<Squeeze> squeezingAt(GridTime time, Vec3 centre, Length radius) {
+        List<Squeeze> squeezes = new ArrayList<>();
+        for (Held part : compliant) {
+            Held then = part.at(time);
+            if (then.reaches(centre, radius.inches())) {
+                squeezes.addAll(then.squeezing(centre, radius));
+            }
+        }
+        return squeezes;
     }
 
     int placements() {
