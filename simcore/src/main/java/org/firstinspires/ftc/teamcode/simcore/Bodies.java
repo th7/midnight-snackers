@@ -20,6 +20,28 @@ final class Bodies {
         NEVER
     }
 
+    static final class Step {
+        static final double LONGEST_SECONDS = 0.01;
+
+        private final Seconds seconds;
+
+        private Step(Seconds seconds) {
+            this.seconds = seconds;
+        }
+
+        static Checked<Step> of(Seconds seconds) {
+            if (!(seconds.value() > 0 && seconds.value() <= LONGEST_SECONDS)) {
+                return Checked.rejected(
+                        "a step is more than 0 and at most " + LONGEST_SECONDS + " s, not " + seconds.value());
+            }
+            return Checked.ok(new Step(seconds));
+        }
+
+        Seconds seconds() {
+            return seconds;
+        }
+    }
+
     record Seen(String name, Vec3 at, Vec3 velocity, Vec3 spin, Turn turn, Life life, double restFor) {}
 
     record Touching(Set<String> colliders, Set<String> bodies) {}
@@ -143,7 +165,8 @@ final class Bodies {
         }
     }
 
-    private final World world;
+    private final Air air;
+    private final Surfaces surfaces;
     private final double step;
     private final Optional<String> watching;
     private final List<Body> bodies;
@@ -153,16 +176,19 @@ final class Bodies {
     private long work;
 
     private Bodies(
-            World world,
             Surroundings surroundings,
+            Air air,
+            Surfaces surfaces,
+            double step,
             Optional<String> watching,
             List<Body> bodies,
             long steps,
             double now,
             long work) {
-        this.world = world;
-        this.step = world.step().value();
         this.surroundings = surroundings;
+        this.air = air;
+        this.surfaces = surfaces;
+        this.step = step;
         this.watching = watching;
         this.bodies = bodies;
         this.steps = steps;
@@ -170,12 +196,14 @@ final class Bodies {
         this.work = work;
     }
 
-    static Bodies watching(World world, String name) {
-        return new Bodies(world, Surroundings.still(world.colliders()), Optional.of(name), new ArrayList<>(), 0, 0, 0);
+    static Bodies watching(Surroundings surroundings, Air air, Surfaces surfaces, Step step, String name) {
+        return new Bodies(
+                surroundings, air, surfaces, step.seconds().value(), Optional.of(name), new ArrayList<>(), 0, 0, 0);
     }
 
-    static Bodies unwatched(World world) {
-        return new Bodies(world, Surroundings.still(world.colliders()), Optional.empty(), new ArrayList<>(), 0, 0, 0);
+    static Bodies unwatched(Surroundings surroundings, Air air, Surfaces surfaces, Step step) {
+        return new Bodies(
+                surroundings, air, surfaces, step.seconds().value(), Optional.empty(), new ArrayList<>(), 0, 0, 0);
     }
 
     Bodies copy() {
@@ -183,7 +211,7 @@ final class Bodies {
         for (Body body : bodies) {
             copied.add(body.copy());
         }
-        return new Bodies(world, surroundings, watching, copied, steps, now, work);
+        return new Bodies(surroundings, air, surfaces, step, watching, copied, steps, now, work);
     }
 
     Bodies surroundedBy(Surroundings surroundings) {
@@ -413,7 +441,6 @@ final class Bodies {
     }
 
     private Kin rk4(Body body, Kin from, double dt) {
-        Air air = world.air();
         Air.Motion m1 = air.motion(body.shape, from.velocity(), from.spin());
         Kin k1 = new Kin(from.velocity(), m1.acceleration(), m1.spinRate());
         Kin s2 = along(from, k1, dt / 2);
@@ -584,7 +611,7 @@ final class Bodies {
         if (pressing.isEmpty()) {
             return Optional.empty();
         }
-        Contacts.Resolved resolved = Contacts.resolve(world.surfaces(), pressing);
+        Contacts.Resolved resolved = Contacts.resolve(surfaces, pressing);
         for (Contacts.Body moved : resolved.bodies()) {
             for (Body body : bodies) {
                 if (body.name.equals(moved.name()) && body.life == Life.AWAKE) {

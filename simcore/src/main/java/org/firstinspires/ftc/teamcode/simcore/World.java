@@ -8,18 +8,19 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class World {
-    public static final double LONGEST_STEP_SECONDS = 0.01;
+    public static final double LONGEST_STEP_SECONDS = Bodies.Step.LONGEST_SECONDS;
 
     public record Piece(String name, Field.Kind kind, Optional<String> alliance, Ball shape, Vec3 at, boolean fixed) {}
 
     private final Colliders colliders;
     private final Air air;
     private final Surfaces surfaces;
-    private final Seconds step;
+    private final Bodies.Step step;
     private final Seconds longest;
     private final List<Piece> pieces;
 
-    private World(Colliders colliders, Air air, Surfaces surfaces, Seconds step, Seconds longest, List<Piece> pieces) {
+    private World(
+            Colliders colliders, Air air, Surfaces surfaces, Bodies.Step step, Seconds longest, List<Piece> pieces) {
         this.colliders = colliders;
         this.air = air;
         this.surfaces = surfaces;
@@ -30,10 +31,11 @@ public final class World {
 
     public static Checked<World> of(
             Colliders colliders, Air air, Surfaces surfaces, Seconds step, Seconds longest, List<Piece> pieces) {
-        if (!(step.value() > 0 && step.value() <= LONGEST_STEP_SECONDS)) {
-            return Checked.rejected(
-                    "a shot's step is more than 0 and at most " + LONGEST_STEP_SECONDS + " s, not " + step.value());
-        }
+        return Bodies.Step.of(step).then(stepping -> of(colliders, air, surfaces, stepping, longest, pieces));
+    }
+
+    private static Checked<World> of(
+            Colliders colliders, Air air, Surfaces surfaces, Bodies.Step step, Seconds longest, List<Piece> pieces) {
         if (!(longest.value() > 0)) {
             return Checked.rejected("a shot flies for some time, not " + longest.value() + " s");
         }
@@ -62,6 +64,10 @@ public final class World {
     }
 
     public Seconds step() {
+        return step.seconds();
+    }
+
+    Bodies.Step stepping() {
         return step;
     }
 

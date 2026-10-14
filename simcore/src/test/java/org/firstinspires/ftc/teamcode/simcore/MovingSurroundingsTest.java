@@ -26,15 +26,13 @@ public class MovingSurroundingsTest {
     private static final Collider TRAY = Carried.box("tray", new Vec3(-30, -30, 10), new Vec3(30, 30, 11));
     private static final double ON_THE_TRAY = 11 + R;
 
-    private static World world(double step) {
+    private static Surfaces surfaces() {
         Bounce bounce = Valid.value(Bounce.of(0.55, 0.5, 0.2));
-        return Valid.value(World.of(
-                WALLS,
-                Air.vacuum(),
-                Valid.value(Surfaces.of(bounce, bounce, bounce, bounce, bounce, bounce, 0, 4, 0, 0, 0)),
-                Valid.value(Seconds.of(step)),
-                Valid.value(Seconds.of(10)),
-                List.of()));
+        return Valid.value(Surfaces.of(bounce, bounce, bounce, bounce, bounce, bounce, 0, 4, 0, 0, 0));
+    }
+
+    private static Bodies.Step stepping(double step) {
+        return Valid.value(Bodies.Step.of(Valid.value(Seconds.of(step))));
     }
 
     private static Surroundings around(Surroundings.Part... parts) {
@@ -42,11 +40,11 @@ public class MovingSurroundingsTest {
     }
 
     private static Bodies among(double step, Surroundings.Part... parts) {
-        return Bodies.unwatched(world(step)).surroundedBy(around(parts));
+        return Bodies.unwatched(around(parts), Air.vacuum(), surfaces(), stepping(step));
     }
 
     private static Bodies watching(String name, double step, Surroundings.Part... parts) {
-        return Bodies.watching(world(step), name).surroundedBy(around(parts));
+        return Bodies.watching(around(parts), Air.vacuum(), surfaces(), stepping(step), name);
     }
 
     private static Bodies with(Bodies bodies, String name, Vec3 at, Vec3 velocity, Bodies.Life life) {
@@ -243,7 +241,7 @@ public class MovingSurroundingsTest {
                 rolling,
                 Bodies.Life.AWAKE);
         Bodies still = with(
-                with(Bodies.unwatched(world(STEP)), "far", far, Vec3.zero(), Bodies.Life.ASLEEP),
+                with(among(STEP), "far", far, Vec3.zero(), Bodies.Life.ASLEEP),
                 "rolling",
                 lane,
                 rolling,
@@ -266,7 +264,7 @@ public class MovingSurroundingsTest {
         Surroundings.Part tipping = Carried.turning(tray, new Vec3(0, 0, 10.5), new Vec3(0, 3, 0), 0.1);
         Surroundings surroundings = around(tipping);
         Bodies bodies = with(
-                Bodies.unwatched(world(STEP)).surroundedBy(surroundings),
+                Bodies.unwatched(surroundings, Air.vacuum(), surfaces(), stepping(STEP)),
                 "ball",
                 new Vec3(0, 0, 10.5 + R),
                 Vec3.zero(),
@@ -311,7 +309,7 @@ public class MovingSurroundingsTest {
 
     @Test
     public void surroundingsGivenToAnEngineAreWhereTheyAreAtTheEnginesTime() {
-        Bodies bodies = Bodies.unwatched(world(STEP));
+        Bodies bodies = among(STEP);
         stepFor(bodies, 0.2, STEP);
 
         Bodies surrounded = with(

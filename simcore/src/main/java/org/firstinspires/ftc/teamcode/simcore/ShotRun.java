@@ -90,7 +90,12 @@ final class ShotRun {
     }
 
     static Checked<ShotRun> starting(World world, Ball pollen, WheelPair.Launched launched) {
-        Checked<Bodies> added = Bodies.watching(world, Shot.LAUNCHED)
+        Checked<Bodies> added = Bodies.watching(
+                        Surroundings.still(world.colliders()),
+                        world.air(),
+                        world.surfaces(),
+                        world.stepping(),
+                        Shot.LAUNCHED)
                 .add(
                         Shot.LAUNCHED,
                         pollen,
