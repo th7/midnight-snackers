@@ -323,9 +323,17 @@ public final class Colliders {
     }
 
     public Optional<Side> over(Vec3 centre, Length radius) {
+        return over(centre, radius.inches());
+    }
+
+    public Optional<Side> outside(Vec3 centre) {
+        return over(centre, 0);
+    }
+
+    private Optional<Side> over(Vec3 centre, double margin) {
         double outerFace = size / 2 + WALL_THICKNESS_IN;
         Optional<Side> over = Optional.empty();
-        double furthest = radius.inches();
+        double furthest = margin;
         for (Side side : Side.values()) {
             double beyond = side.beyond(centre, outerFace);
             if (beyond > furthest) {

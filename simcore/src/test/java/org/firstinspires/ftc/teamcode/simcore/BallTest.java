@@ -22,6 +22,18 @@ public class BallTest {
     }
 
     @Test
+    public void aBallOfAGivenRadiusIsThatRadiusExactlyAndKeepsTheSameRulesForItsMass() {
+        Length radius = Valid.length(1.39);
+
+        Ball pollen = Valid.value(Ball.of(radius, 24.9, 0.634));
+
+        assertEquals(radius, pollen.radiusLength());
+        assertEquals(0.0249, pollen.kilograms(), 1e-12);
+        assertRejected("positive, finite number of grams", Ball.of(radius, 0, 0.634));
+        assertRejected("2/3", Ball.of(radius, 24.9, 0.7));
+    }
+
+    @Test
     public void itsAreaAndVolumeAreASpheres() {
         Ball pollen = Valid.value(Ball.of(2.8, 24.9, 0.634));
         double r = 1.4 * Length.METRES_PER_INCH;

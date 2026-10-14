@@ -268,6 +268,17 @@ public class CollidersTest {
     }
 
     @Test
+    public void aCentreBeyondAWallsOuterFaceIsOutsideTheFieldWhereAShotsBallIsNotYetOverIt() {
+        double outer = HALF + Colliders.WALL_THICKNESS_IN;
+
+        assertEquals(Optional.of(Colliders.Side.FAR), atRest().outside(new Vec3(outer + 0.01, 0, 1)));
+        assertEquals(Optional.of(Colliders.Side.BLUE), atRest().outside(new Vec3(0, -outer - 0.01, 1)));
+        assertEquals(Optional.empty(), atRest().outside(new Vec3(outer, 0, 1)));
+        assertEquals(Optional.empty(), atRest().outside(new Vec3(HALF + 0.5, 0, WALL_HEIGHT + 1)));
+        assertEquals(Optional.empty(), atRest().over(new Vec3(outer + 0.01, 0, 1), HALF_INCH));
+    }
+
+    @Test
     public void eachColliderIsTheKindAndSurfaceOfWhatItIsMadeOf() {
         Colliders colliders = atRest();
 

@@ -326,7 +326,7 @@ public class SimRobot {
         chassis.setAngularDamping(0);
         world.addBody(chassis);
 
-        flight = Flight.over(Valid.value(Hives.of(FIELD)));
+        flight = Valid.value(Hives.of(FIELD).then(Flight::<Ball>over));
         for (Field.Flower flower : FIELD.flowers()) {
             stacks.put(flower, Stack.in(flower));
             seats.put(flower, Seat.seated());
@@ -344,7 +344,7 @@ public class SimRobot {
             if (place instanceof Field.Place.Loose) {
                 setDown(balls[i], piece.at().x(), piece.at().y());
             } else if (place instanceof Field.Place.InCell) {
-                intoTheAir(balls[i], piece.at(), Vec3.zero());
+                restInTheCell(balls[i], piece.at());
             } else if (place instanceof Field.Place.InFlower flowerPlace) {
                 putInFlower(balls[i], flowerPlace.flower(), piece.at().z());
             } else {
@@ -662,10 +662,10 @@ public class SimRobot {
         flight = Valid.value(flight.within(ball, ball.kind, ball.length, cell));
     }
 
-    private void intoTheAir(Ball ball, Vec3 at, Vec3 velocity) {
+    private void restInTheCell(Ball ball, Vec3 at) {
         take(ball);
         ball.where = Where.FLYING;
-        flight = flight.with(ball, ball.kind, ball.length, at, velocity);
+        flight = Valid.value(flight.restingAt(ball, ball.kind, ball.length, at));
     }
 
     private void putInFlower(Ball ball, Field.Flower flower, double z) {
@@ -909,13 +909,12 @@ public class SimRobot {
         if (topGate.position >= TOP_GATE_OPENS_AT && chambered == null && !hopper.isEmpty()) {
             chambered = hopper.poll();
         }
-        if (bottomGate.position >= BOTTOM_GATE_OPENS_AT && chambered != null) {
-            launch(chambered);
+        if (bottomGate.position >= BOTTOM_GATE_OPENS_AT && chambered != null && launched(chambered)) {
             chambered = null;
         }
     }
 
-    private void launch(Ball ball) {
+    private boolean launched(Ball ball) {
         Pose2d pose = pose();
         Vector2 robotVelocity = chassis.getLinearVelocity();
         Launch launch = Launch.from(
@@ -925,11 +924,23 @@ public class SimRobot {
                 launcher.measuredVelocity,
                 new Vec2(robotVelocity.x / IN, robotVelocity.y / IN),
                 constants);
-        intoTheAir(ball, launch.at(), launch.velocity());
+        return flight.with(ball, ball.kind, ball.length, launch.at(), launch.velocity())
+                .fold(
+                        next -> {
+                            take(ball);
+                            ball.where = Where.FLYING;
+                            flight = next;
+                            return true;
+                        },
+                        rule -> false);
+    }
+
+    public long flightWork() {
+        return flight.work();
     }
 
     private void flyTheBalls(Seconds dt) {
-        Flight.Stepped<Ball> stepped = flight.step(dt);
+        Flight.Stepped<Ball> stepped = flight.step(Valid.value(Flight.Tick.of(dt)));
         flight = stepped.flight();
         for (Flight.Landing<Ball> landing : stepped.landings()) {
             Ball ball = landing.ball();

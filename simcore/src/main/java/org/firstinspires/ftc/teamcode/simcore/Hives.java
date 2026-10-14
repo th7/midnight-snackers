@@ -388,10 +388,6 @@ public final class Hives {
         return false;
     }
 
-    boolean reaches(Field.Hive hive, Vec3 centre, double by) {
-        return held(hive).map(held -> held.reaches(centre, by)).orElse(false);
-    }
-
     Surroundings.Part part() {
         return new AsAPart(this);
     }

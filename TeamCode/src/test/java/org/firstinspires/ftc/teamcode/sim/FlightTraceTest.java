@@ -21,7 +21,7 @@ public class FlightTraceTest {
     private static final int STEPS_PER_SAMPLE = 4;
 
     private final Field field = SimPlacement.FIELD;
-    private Flight<Object> flight = Flight.over(Valid.value(Hives.of(field)));
+    private Flight<Object> flight = Valid.value(Hives.of(field).then(Flight::<Object>over));
     private final List<Object> balls = new ArrayList<>();
     private final Map<Object, String> landed = new IdentityHashMap<>();
     private final FlightTrace trace = new FlightTrace();
@@ -30,14 +30,16 @@ public class FlightTraceTest {
     private Object add(Field.Kind kind, double radius, double[] at, double[] velocity) {
         Object ball = new Object();
         balls.add(ball);
-        flight = flight.with(ball, kind, Valid.value(Length.of(radius)), Points.vec(at), Points.vec(velocity));
+        flight = Valid.value(
+                flight.with(ball, kind, Valid.value(Length.of(radius)), Points.vec(at), Points.vec(velocity)));
         return ball;
     }
 
     private void fly(double duration) {
         for (long sample = Math.round(duration / (STEP * STEPS_PER_SAMPLE)); sample > 0; sample--) {
             for (int i = 0; i < STEPS_PER_SAMPLE; i++) {
-                Flight.Stepped<Object> stepped = flight.step(Valid.value(Seconds.of(STEP)));
+                Flight.Stepped<Object> stepped =
+                        flight.step(Valid.value(Flight.Tick.of(Valid.value(Seconds.of(STEP)))));
                 flight = stepped.flight();
                 for (Flight.Landing<Object> landing : stepped.landings()) {
                     Vec2 velocity =

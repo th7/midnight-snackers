@@ -41,6 +41,8 @@ public class SimRobotTest {
 
     private static final double LAUNCH_DISTANCE_INCHES = 40;
 
+    private static final double FLIES_BOUNCES_AND_LANDS_SECONDS = 4;
+
     private static final double TOP_GATE_OPEN = 1, TOP_GATE_CLOSED = 0.6;
     private static final double BOTTOM_GATE_OPEN = 0.5, BOTTOM_GATE_CLOSED = 0.4;
 
@@ -970,14 +972,15 @@ public class SimRobotTest {
     }
 
     @Test
-    public void aLaunchedBallFliesOnAnArcLandsAndRollsToRestInsideTheWalls() {
-        sim.setPose(new Pose2d(-60, 0, 0));
+    public void aLaunchedBallFliesOnAnArcBouncesLandsAndRollsToRestInsideTheWalls() {
+        double lane = -40;
+        sim.setPose(new Pose2d(-60, lane, 0));
         readyToLaunch(CLOSE_LAUNCH_VELOCITY);
 
         sim.bottomGate.position = BOTTOM_GATE_OPEN;
         sim.step(0.3);
         double[] flying = sim.placeOf(thePreloadOf(sim));
-        sim.step(1.7);
+        sim.step(FLIES_BOUNCES_AND_LANDS_SECONDS - 0.3);
         double[] landed = sim.placeOf(thePreloadOf(sim));
         sim.step(6.0);
         double[] resting = sim.placeOf(thePreloadOf(sim));
@@ -986,7 +989,8 @@ public class SimRobotTest {
 
         assertTrue("flying: z=" + flying[2], flying[2] > Launch.HEIGHT_IN + 5);
         assertEquals("on the floor", BALL, landed[2], DELTA);
-        assertTrue("well down the field: x=" + landed[0], landed[0] > 20);
+        assertTrue("beyond where it was launched from: x=" + landed[0], landed[0] > -60 + Launch.AHEAD_IN);
+        assertEquals("in its lane, which nothing on the field crosses", lane, landed[1], 1);
         assertEquals("at rest", resting[0], still[0], DELTA);
         assertEquals(resting[1], still[1], DELTA);
         double half = SimPlacement.FIELD_SIZE_IN / 2 - BALL;
@@ -1038,7 +1042,7 @@ public class SimRobotTest {
         robot.topGate.position = TOP_GATE_CLOSED;
         robot.step(0.05);
         robot.bottomGate.position = BOTTOM_GATE_OPEN;
-        robot.step(0.1);
+        robot.step(SimRobot.MAX_STEP_SECONDS);
         return robot.placeOf(thePreloadOf(robot));
     }
 
@@ -1054,7 +1058,21 @@ public class SimRobotTest {
 
         double leaves = -60 + Launch.AHEAD_IN;
         assertTrue("in the air: " + thrown[2], thrown[2] > Launch.HEIGHT_IN);
-        assertEquals("half as far again", 1.5, (thrown[0] - leaves) / (asBuilt[0] - leaves), 0.02);
+        assertEquals(
+                "half as far again in the first step it flies, before the air has slowed either",
+                1.5,
+                (thrown[0] - leaves) / (asBuilt[0] - leaves),
+                0.005);
+    }
+
+    @Test
+    public void aRobotJustBuiltAndLeftAloneCostsItsFlightNoWork() {
+        long built = sim.flightWork();
+
+        sim.step(2.0);
+
+        assertEquals(built, sim.flightWork());
+        assertEquals("the nectar its hives are set up with lie still in them", 3, sim.scored("Blue"));
     }
 
     @Test

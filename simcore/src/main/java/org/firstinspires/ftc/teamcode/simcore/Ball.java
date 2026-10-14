@@ -28,6 +28,17 @@ public final class Ball {
         return Length.of(diameterInches / 2).map(radius -> new Ball(radius, grams / GRAMS_PER_KILOGRAM, inertiaFactor));
     }
 
+    public static Checked<Ball> of(Length radius, double grams, double inertiaFactor) {
+        if (!(grams > 0 && Double.isFinite(grams) && grams / GRAMS_PER_KILOGRAM > 0)) {
+            return Checked.rejected("a ball weighs a positive, finite number of grams, not " + grams);
+        }
+        if (!(inertiaFactor > 0 && inertiaFactor <= THIN_SHELL)) {
+            return Checked.rejected("a sphere's moment of inertia is more than 0 and at most 2/3 of m r^2, the thin"
+                    + " shell's, so its inertia factor is not " + inertiaFactor);
+        }
+        return Checked.ok(new Ball(radius, grams / GRAMS_PER_KILOGRAM, inertiaFactor));
+    }
+
     public double radius() {
         return radius.inches();
     }

@@ -30,7 +30,6 @@ public class LaunchSimIsStrictTest {
             "Drivetrain",
             "Encoder",
             "Field",
-            "Flight",
             "Heading",
             "Launch",
             "Nest",
