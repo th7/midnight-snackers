@@ -464,6 +464,28 @@ public class ShotTest {
     }
 
     @Test
+    public void aPieceNamedWithAHashIsAcceptedAndKnockedAboutAsOneUnderAnyOtherNameIs() {
+        List<Shot.Finished> shots = new ArrayList<>();
+        for (String named : List.of("#1 Pollen", "Pollen <1>")) {
+            World.Piece piece =
+                    new World.Piece(named, Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(20, 0, R), false);
+            World world = Valid.value(
+                    World.of(WALLS, Air.vacuum(), floorOf(0.5, 0.5, 0.2), seconds(1e-4), seconds(3), List.of(piece)));
+            shots.add(flown(world, new Vec3(0, 0, R + 0.5), new Vec3(60, 0, 0), Vec3.zero()));
+        }
+
+        assertEquals("#1 Pollen", shots.get(0).story().pieces().get(0).piece().name());
+        assertEquals(shots.get(1).story().work(), shots.get(0).story().work());
+        assertEquals(shots.get(1).story().frames(), shots.get(0).story().frames());
+        assertEquals(
+                shots.get(1).story().pieces().get(0).samples(),
+                shots.get(0).story().pieces().get(0).samples());
+        assertTrue(
+                "it was knocked about",
+                shots.get(0).story().pieces().get(0).samples().size() > 1);
+    }
+
+    @Test
     public void everyPieceHasANameOfItsOwnAndIsSomewhereOnTheField() {
         World.Piece one =
                 new World.Piece("Pollen <1>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(0, 0, R), false);
@@ -478,7 +500,7 @@ public class ShotTest {
                     .fold(world -> "accepted", rule -> rule));
         }
 
-        assertTrue(said.get(0), said.get(0).contains("every piece has a name of its own, and ' ' is not one"));
+        assertTrue(said.get(0), said.get(0).contains("a body has a name, not ' '"));
         assertTrue(said.get(1), said.get(1).contains("every piece has a name of its own, and 'Pollen <1>' is not one"));
         assertTrue(said.get(2), said.get(2).contains("Pollen <2> is somewhere on the field, not at"));
     }

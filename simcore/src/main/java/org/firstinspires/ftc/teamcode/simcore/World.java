@@ -56,7 +56,6 @@ public final class World {
     private static Checked<Bodies.Entry> entryOf(Piece piece) {
         Bodies.Start start = piece.fixed() ? new Bodies.Start.Fixed() : new Bodies.Start.Asleep();
         return Bodies.Name.of(piece.name())
-                .fold(Checked::ok, rule -> World.<Bodies.Name>notItsOwn(piece))
                 .then(name -> Bodies.Motion.of(piece.at(), Vec3.zero(), Vec3.zero())
                         .fold(
                                 motion -> Checked.ok(new Bodies.Entry(name, piece.shape(), motion, start)),

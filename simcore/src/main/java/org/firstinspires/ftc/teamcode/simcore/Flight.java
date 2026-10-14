@@ -391,7 +391,7 @@ public final class Flight<K> {
                                     ball,
                                     kind,
                                     radius,
-                                    name.text(),
+                                    name.key(),
                                     Optional.empty(),
                                     false,
                                     start.life() == Bodies.Life.AWAKE,

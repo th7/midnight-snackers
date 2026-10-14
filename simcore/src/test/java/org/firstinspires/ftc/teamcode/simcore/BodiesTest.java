@@ -109,13 +109,28 @@ public class BodiesTest {
     }
 
     @Test
-    public void aNameTheEngineNumbersIsOneNoNamedBodyCanTake() {
-        String taken = rejection(Bodies.Name.of(Bodies.Name.numbered(7).text()));
+    public void aNameTheEngineNumbersNeverMeetsAGivenNameEvenOneThatReadsTheSame() {
+        Bodies.Name given = name(Bodies.Name.numbered(7).text());
+        Bodies bodies = unwatched();
+        add(bodies, given.text(), new Vec3(0, 0, R), Vec3.zero(), AWAKE);
 
-        assertTrue(taken, taken.contains("a name starting '#' is one the engine numbers"));
+        String numbered =
+                rejection(bodies.add(Bodies.Name.numbered(7), POLLEN, motion(new Vec3(10, 0, R), Vec3.zero()), AWAKE));
+
+        assertEquals("accepted", numbered);
+        assertFalse(given.equals(Bodies.Name.numbered(7)));
         assertEquals(Bodies.Name.numbered(7), Bodies.Name.numbered(7));
         assertFalse(Bodies.Name.numbered(7).equals(Bodies.Name.numbered(8)));
-        assertFalse(Bodies.Name.numbered(7).text().isBlank());
+        assertEquals("#7", Bodies.Name.numbered(7).text());
+        assertEquals(2, bodies.seen().size());
+        for (long number : List.of(0L, 7L, 1_234_567_890L, -1L, Long.MIN_VALUE)) {
+            assertTrue(
+                    "a key no given name, never blank, can have",
+                    Bodies.Name.numbered(number).key().isBlank());
+            assertFalse(Bodies.Name.numbered(number)
+                    .key()
+                    .equals(Bodies.Name.numbered(number + 1).key()));
+        }
     }
 
     @Test

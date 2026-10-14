@@ -67,51 +67,94 @@ final class Bodies {
         }
     }
 
-    static final class Name {
-        static final String NUMBERED = "#";
+    sealed interface Name permits Name.Given, Name.Numbered {
+        String key();
 
-        private final String text;
-
-        private Name(String text) {
-            this.text = text;
-        }
+        String text();
 
         static Checked<Name> of(String text) {
             if (text.isBlank()) {
                 return Checked.rejected("a body has a name, not '" + text + "'");
             }
-            if (text.startsWith(NUMBERED)) {
-                return Checked.rejected("a name starting '" + NUMBERED
-                        + "' is one the engine numbers, so a body cannot take '" + text + "'");
-            }
-            return Checked.ok(new Name(text));
+            return Checked.ok(new Given(text));
         }
 
         static Name launched() {
-            return new Name(Shot.LAUNCHED);
+            return new Given(Shot.LAUNCHED);
         }
 
         static Name numbered(long number) {
-            return new Name(NUMBERED + number);
+            return new Numbered(number);
         }
 
-        String text() {
-            return text;
+        final class Given implements Name {
+            private final String text;
+
+            private Given(String text) {
+                this.text = text;
+            }
+
+            @Override
+            public String key() {
+                return text;
+            }
+
+            @Override
+            public String text() {
+                return text;
+            }
+
+            @Override
+            public boolean equals(Object other) {
+                return other instanceof Given that && text.equals(that.text);
+            }
+
+            @Override
+            public int hashCode() {
+                return text.hashCode();
+            }
+
+            @Override
+            public String toString() {
+                return text;
+            }
         }
 
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof Name that && text.equals(that.text);
-        }
+        record Numbered(long number) implements Name {
+            @Override
+            public String key() {
+                StringBuilder blank = new StringBuilder();
+                for (char digit : Long.toString(number).toCharArray()) {
+                    blank.append(blankFor(digit));
+                }
+                return blank.toString();
+            }
 
-        @Override
-        public int hashCode() {
-            return text.hashCode();
-        }
+            private static char blankFor(char digit) {
+                return switch (digit) {
+                    case '0' -> '\u2000';
+                    case '1' -> '\u2001';
+                    case '2' -> '\u2002';
+                    case '3' -> '\u2003';
+                    case '4' -> '\u2004';
+                    case '5' -> '\u2005';
+                    case '6' -> '\u2006';
+                    case '7' -> '\u2008';
+                    case '8' -> '\u2009';
+                    case '9' -> '\u200A';
+                    default -> '\u3000';
+                };
+            }
 
-        @Override
-        public String toString() {
-            return text;
+            @Override
+            public String text() {
+                return "#" + number;
+            }
+
+            @Override
+            public String toString() {
+                return text();
+            }
         }
     }
 
@@ -281,7 +324,7 @@ final class Bodies {
             Motion motion = entry.motion();
             Start start = entry.start();
             return new Body(
-                    entry.name().text(),
+                    entry.name().key(),
                     entry.shape(),
                     start instanceof Start.Awake awake ? awake.sleep() : Sleep.WHEN_RESTING,
                     motion.at(),
@@ -395,7 +438,7 @@ final class Bodies {
 
     static Bodies watching(Surroundings surroundings, Air air, Surfaces surfaces, Step step, Name name) {
         return new Bodies(
-                surroundings, air, surfaces, step, Optional.of(name.text()), new ArrayList<>(), 0, 0, 0, -1, 0);
+                surroundings, air, surfaces, step, Optional.of(name.key()), new ArrayList<>(), 0, 0, 0, -1, 0);
     }
 
     static Bodies unwatched(Surroundings surroundings, Air air, Surfaces surfaces, Step step) {
@@ -441,7 +484,7 @@ final class Bodies {
     }
 
     Checked<Seen> add(Name name, Ball shape, Motion motion, Start start) {
-        if (named(name.text()).isPresent()) {
+        if (named(name.key()).isPresent()) {
             return Checked.rejected("every body has a name of its own, and '" + name + "' is not one");
         }
         Body body = Body.of(new Entry(name, shape, motion, start));
