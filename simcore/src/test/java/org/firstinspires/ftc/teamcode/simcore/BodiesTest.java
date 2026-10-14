@@ -396,6 +396,24 @@ public class BodiesTest {
     }
 
     @Test
+    public void aBodyWhoseMotionRunsAwayInTheAirLeavesTheEngineMovingEveryOtherBody() {
+        Air air = Valid.value(Air.of(1.2041, Vec3.zero(), 0.45, 0.15, 2, 0.4, 0.012, 0.5));
+        Bodies.Step coarse = Valid.value(Bodies.Step.of(Valid.value(Seconds.of(World.LONGEST_STEP_SECONDS))));
+        Bodies bodies = Bodies.unwatched(Surroundings.still(WALLS), air, surfaces(), coarse);
+        add(bodies, "runaway", new Vec3(0, 0, 30), new Vec3(Double.MAX_VALUE, 0, 0), AWAKE);
+        add(bodies, "rolling", new Vec3(-40, -40, R), new Vec3(20, 0, 0), AWAKE);
+
+        stepFor(bodies, 10);
+
+        assertTrue(
+                seen(bodies, "runaway").velocity().toString(),
+                !seen(bodies, "runaway").velocity().isFinite());
+        assertTrue(
+                seen(bodies, "rolling").at().toString(),
+                seen(bodies, "rolling").at().x() > -40 + 1);
+    }
+
+    @Test
     public void aStepWatchingNothingSaysNothing() {
         Bodies bodies = unwatched();
         add(bodies, "ball", new Vec3(0, 0, 5), Vec3.zero(), AWAKE);

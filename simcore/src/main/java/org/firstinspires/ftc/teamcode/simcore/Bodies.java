@@ -507,6 +507,9 @@ final class Bodies {
             }
         }
         double needed = StrictMath.ceil((fastest + surroundings.sweep()) * step / Shot.MOST_TRAVEL_IN);
+        if (Double.isNaN(needed)) {
+            return Shot.MOST_PIECES_PER_STEP;
+        }
         return (int) StrictMath.max(1, StrictMath.min(Shot.MOST_PIECES_PER_STEP, needed));
     }
 
