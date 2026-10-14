@@ -127,11 +127,14 @@ final class Bores implements Surroundings.Part {
         for (Standing one : standing) {
             double apart = one.reach(centre);
             double gap = apart - radius.inches() - one.radius().inches();
-            if (apart > 0 && gap <= within) {
+            if (gap <= within) {
+                Vec3 away = centre.minus(one.centre()).times(1 / apart);
                 Surroundings.Touch.of(
                                 one.id(),
                                 Surface.PIECE,
-                                centre.minus(one.centre()).times(1 / apart),
+                                StrictMath.abs(away.dot(away) - 1) <= Surroundings.Touch.UNIT_WITHIN
+                                        ? away
+                                        : new Vec3(0, 0, 1),
                                 gap,
                                 Vec3.zero(),
                                 Vec3.zero())

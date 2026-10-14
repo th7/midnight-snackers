@@ -71,6 +71,20 @@ public class BoresTest {
     }
 
     @Test
+    public void aBallWhoseCentreIsOnAStandingBallsCentreIsPushedUpOutOfIt() {
+        List<Surroundings.Touch> inside = aStackOfTwo().near(new Vec3(AXIS.x(), AXIS.y(), ON_THE_PLATE), POLLEN, 0.5);
+        List<Surroundings.Touch> bottom = new ArrayList<>();
+        for (Surroundings.Touch touch : inside) {
+            if (touch.gap() < 0) {
+                bottom.add(touch);
+            }
+        }
+        assertEquals("the bottom pollen, and the second just touching above: " + inside, 1, bottom.size());
+        assertEquals(new Vec3(0, 0, 1), bottom.get(0).normal());
+        assertEquals(-2 * R, bottom.get(0).gap(), SAME);
+    }
+
+    @Test
     public void whatStandsInTheBoresKeepsThePartContract() {
         List<PartContract.Probe> probes = new ArrayList<>();
         for (double dx = -4; dx <= 4; dx += 0.7) {
