@@ -56,7 +56,6 @@ public class MovingSurroundingsTest {
                 POLLEN,
                 Valid.value(Bodies.Motion.of(at, velocity, Vec3.zero())),
                 start));
-        bodies.touchingAtTheStart();
     }
 
     private static Bodies.Seen seen(Bodies bodies, String name) {

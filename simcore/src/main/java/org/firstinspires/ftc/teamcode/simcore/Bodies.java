@@ -392,6 +392,12 @@ final class Bodies {
         }
         Body body = Body.of(new Entry(name, shape, motion, start));
         bodies.add(body);
+        for (Body other : bodies) {
+            if (other != body && other.life == Life.AWAKE && within(other.at, other, body.at, body, Shot.TOUCHING_IN)) {
+                other.touchingBodies.add(body.name);
+            }
+        }
+        refresh(body);
         return Checked.ok(body.seen());
     }
 
@@ -399,13 +405,20 @@ final class Bodies {
         Optional<Body> named = named(name);
         named.ifPresent(removed -> {
             bodies.remove(removed);
+            List<Body> woken = new ArrayList<>();
             for (Body body : bodies) {
                 boolean touched = body.touchingBodies.remove(name)
                         || (removed.life != Life.GONE && within(body.at, body, removed.at, removed, Shot.TOUCHING_IN));
-                if (touched && body.life == Life.ASLEEP) {
-                    body.life = Life.AWAKE;
+                if (touched && body.life != Life.GONE) {
                     body.restFor = 0;
                 }
+                if (touched && body.life == Life.ASLEEP) {
+                    body.life = Life.AWAKE;
+                    woken.add(body);
+                }
+            }
+            for (Body body : woken) {
+                refresh(body);
             }
         });
         return named.map(Body::seen);
@@ -507,13 +520,17 @@ final class Bodies {
         return awake;
     }
 
-    void touchingAtTheStart() {
+    private void touchingAtTheStart() {
         for (Body body : bodies) {
-            body.touchingColliders.clear();
-            body.touchingBodies.clear();
-            if (body.life == Life.AWAKE) {
-                touch(body);
-            }
+            refresh(body);
+        }
+    }
+
+    private void refresh(Body body) {
+        body.touchingColliders.clear();
+        body.touchingBodies.clear();
+        if (body.life == Life.AWAKE) {
+            touch(body);
         }
     }
 
@@ -749,9 +766,7 @@ final class Bodies {
         }
         List<Seen> seen = new ArrayList<>();
         for (Body body : woken) {
-            body.touchingColliders.clear();
-            body.touchingBodies.clear();
-            touch(body);
+            refresh(body);
             seen.add(body.seen());
         }
         return seen;

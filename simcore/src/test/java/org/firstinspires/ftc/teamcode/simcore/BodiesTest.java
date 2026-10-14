@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.junit.Test;
 
 public class BodiesTest {
@@ -222,7 +223,6 @@ public class BodiesTest {
         add(bodies, "resting", new Vec3(2 * R, 0, R), Vec3.zero(), ASLEEP);
         add(bodies, "leaning", new Vec3(-2 * R, 0, R), Vec3.zero(), AWAKE);
         add(bodies, "far", new Vec3(30, 0, R), Vec3.zero(), ASLEEP);
-        bodies.touchingAtTheStart();
         assertTrue(bodies.touching("leaning").orElseThrow().bodies().contains("held"));
 
         bodies.remove("held");
@@ -235,11 +235,73 @@ public class BodiesTest {
     }
 
     @Test
+    public void aBodyWokenByARemovalKnowsWhatItRestsOnSoItsNextStepIsAStepAtRest() {
+        Bodies bodies = unwatched();
+        add(bodies, "held", new Vec3(0, 0, R), Vec3.zero(), ASLEEP);
+        add(bodies, "resting", new Vec3(2 * R, 0, R), Vec3.zero(), ASLEEP);
+
+        bodies.remove("held");
+
+        assertEquals(Bodies.Life.AWAKE, seen(bodies, "resting").life());
+        assertEquals(Set.of("Floor"), bodies.touching("resting").orElseThrow().colliders());
+        long before = bodies.work();
+        bodies.step();
+        long first = bodies.work() - before;
+        bodies.step();
+        long second = bodies.work() - before - first;
+        assertTrue("the first step after the removal took " + first + " and the next " + second, first <= second);
+    }
+
+    @Test
+    public void aBodyRestingOnTwoOthersStartsItsRestAgainWhenOneOfThemIsRemoved() {
+        Bodies bodies = unwatched();
+        add(bodies, "left", new Vec3(0, -R, R), Vec3.zero(), new Bodies.Start.Fixed());
+        add(bodies, "right", new Vec3(0, R, R), Vec3.zero(), new Bodies.Start.Fixed());
+        add(bodies, "top", new Vec3(0, 0, R + Math.sqrt(3) * R), Vec3.zero(), AWAKE);
+        for (int i = 0;
+                i < Shot.REST_SECONDS / STEP && seen(bodies, "top").restFor() < Shot.REST_SECONDS - 0.001;
+                i++) {
+            bodies.step();
+        }
+        assertEquals(Bodies.Life.AWAKE, seen(bodies, "top").life());
+        assertTrue(seen(bodies, "top").restFor() >= Shot.REST_SECONDS - 0.001);
+
+        bodies.remove("left");
+        assertEquals(0, seen(bodies, "top").restFor(), 0);
+        stepFor(bodies, (int) (0.01 / STEP));
+
+        Bodies.Seen top = seen(bodies, "top");
+        assertEquals(Bodies.Life.AWAKE, top.life());
+        assertTrue(top.velocity().toString(), Math.sqrt(top.velocity().dot(top.velocity())) > Shot.REST_SPEED_IN_PER_S);
+    }
+
+    @Test
+    public void aBodyAddedAwakeKnowsAtOnceWhatItTouchesAndWhatItTouchesKnowsIt() {
+        Bodies bodies = unwatched();
+        add(bodies, "first", new Vec3(0, 0, R), Vec3.zero(), AWAKE);
+        add(bodies, "second", new Vec3(2 * R, 0, R), Vec3.zero(), AWAKE);
+        add(bodies, "sleeping", new Vec3(-2 * R, 0, R), Vec3.zero(), ASLEEP);
+
+        Bodies.Touching first = bodies.touching("first").orElseThrow();
+        Bodies.Touching second = bodies.touching("second").orElseThrow();
+
+        assertEquals(Set.of("Floor"), first.colliders());
+        assertEquals(Set.of("second", "sleeping"), first.bodies());
+        assertEquals(Set.of("Floor"), second.colliders());
+        assertEquals(Set.of("first"), second.bodies());
+        long before = bodies.work();
+        bodies.step();
+        long once = bodies.work() - before;
+        bodies.step();
+        long again = bodies.work() - before - once;
+        assertTrue("the first step took " + once + " and the next " + again, once <= again);
+    }
+
+    @Test
     public void aBodyThatMayNeverSleepStaysAwakeAtRestWhileOneThatMayFallsAsleep() {
         Bodies bodies = unwatched();
         add(bodies, "restless", new Vec3(0, 0, R), Vec3.zero(), new Bodies.Start.Awake(Bodies.Sleep.NEVER));
         add(bodies, "sleepy", new Vec3(20, 0, R), Vec3.zero(), AWAKE);
-        bodies.touchingAtTheStart();
         assertTrue(bodies.anyAwakeBut("restless"));
 
         stepFor(bodies, (int) (2 * Shot.REST_SECONDS / STEP));
@@ -259,7 +321,6 @@ public class BodiesTest {
         add(bodies, "struck", new Vec3(0, 0, R), Vec3.zero(), AWAKE);
         add(bodies, "behind", new Vec3(2 * R, 0, R), Vec3.zero(), AWAKE);
         add(bodies, "beyond", new Vec3(4 * R, 0, R), Vec3.zero(), ASLEEP);
-        bodies.touchingAtTheStart();
         stepFor(bodies, 1000);
         Bodies copy = bodies.copy();
         List<Bodies.Seen> then = copy.seen();
@@ -311,7 +372,6 @@ public class BodiesTest {
                 new Vec3(0, 0, R + 0.002),
                 new Vec3(10, 0, -100),
                 new Bodies.Start.Awake(Bodies.Sleep.NEVER));
-        bodies.touchingAtTheStart();
         Bodies.Seen start = seen(bodies, "ball");
 
         List<Bodies.Span> spans = bodies.step();
