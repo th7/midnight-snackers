@@ -329,6 +329,47 @@ public class LauncherTest {
         assertThrownAsTheLauncherThrows("once spun up", launch.throwsIt(), wheel(CLOSE_LAUNCH));
     }
 
+    private static Launcher.Course onwardFrom(long steps, Launcher.Frame from, Launcher.Frame to) {
+        Bodies.Step step = Valid.value(Flight.stepping());
+        return Valid.value(Launcher.Course.of(
+                from,
+                GridTime.at(steps, step),
+                to,
+                GridTime.at(steps + StrictMath.round(COURSE_SECONDS / STEP_SECONDS), step)));
+    }
+
+    @Test
+    public void
+            anEngineIdlesThroughABallAsleepInAStillLauncherAsSteppingWouldAndNotOnceALauncherThatMovesTakesItsPlace() {
+        Feeding held = Feeding.fed(Launcher.placed(faces(), still(), wheel(0)), flightsAir());
+        held.advance(HELD_FOR_SECONDS);
+        assertEquals(Bodies.Life.ASLEEP, held.ball().life());
+        long now = held.bodies.steps(), later = now + StrictMath.round(HELD_FOR_SECONDS / STEP_SECONDS);
+
+        Bodies jumping = held.bodies.copy();
+        assertTrue("idles while the launcher is still", jumping.idleThrough(later));
+        Bodies stepping = held.bodies.copy();
+        while (stepping.steps() < later) {
+            stepping.step();
+        }
+        assertEquals(stepping.body("pollen"), jumping.body("pollen"));
+        assertEquals(stepping.work(), jumping.work());
+
+        Launcher.Frame at = frame(-25, -35, 0);
+        for (Launcher moving : List.of(
+                Launcher.placed(faces(), onwardFrom(now, at, at), wheel(CLOSE_LAUNCH)),
+                Launcher.placed(faces(), onwardFrom(now, at, frame(-24.9, -35, 0)), wheel(0)),
+                Launcher.placed(faces(), onwardFrom(now, at, frame(-25, -35, 0.01)), wheel(0)))) {
+            Bodies woken = held.bodies.copy();
+            woken.surroundedBy(Valid.value(woken.surroundings().replacing(moving)));
+            assertEquals(
+                    moving.toString(),
+                    Bodies.Life.AWAKE,
+                    woken.body("pollen").map(Bodies.Seen::life).orElseThrow());
+            assertTrue(moving.toString(), !woken.idleThrough(later));
+        }
+    }
+
     @Test
     public void aReversedWheelThrowsNothing() {
         Feeding launch = Feeding.fed(Launcher.placed(faces(), still(), wheel(-CLOSE_LAUNCH)), flightsAir());
