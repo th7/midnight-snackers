@@ -1753,7 +1753,9 @@ another ball. A surface's *bounce* setting is its restitution at 244 in/s. Class
 **Shot's colliders** — The field as a shot meets it: the floor, the four walls as
 boxes an inch thick with tops a ball can clip, every field element as a convex solid
 (each checked convex and closed before it is used), and each hive's parts and its
-cells' walls and back, at its rest tilt or tipped. They are what the **colliders**
+cells' walls and back, at its rest tilt or tipped. Each is named apart from every
+other, since a shot tells what a ball touches by its name, so a field in which two
+share a name is refused. They are what the **colliders**
 view of the launch page draws, from the shot's own list rather than drawn again on
 the page, so the drawing cannot drift from the physics. The robot's obstacle
 footprints and the tape are not among them. Class: `Colliders`, `Collider`, in the
