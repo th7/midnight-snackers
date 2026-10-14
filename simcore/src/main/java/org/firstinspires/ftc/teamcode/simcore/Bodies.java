@@ -293,6 +293,7 @@ final class Bodies {
         private Kin start;
         private Kin trial;
         private boolean touched;
+        private boolean squeezed;
         private boolean carried;
         private final Set<String> touchingColliders = new HashSet<>();
         private final Set<String> touchingBodies = new HashSet<>();
@@ -956,6 +957,7 @@ final class Bodies {
         List<Body> awake = awake();
         for (Body body : awake) {
             body.touched = false;
+            body.squeezed = false;
             body.carried = false;
         }
         for (Body body : awake) {
@@ -967,6 +969,13 @@ final class Bodies {
                         !body.touchingColliders.contains(near.id())));
                 body.touched = true;
                 body.carried = body.carried || near.moves();
+            }
+            if (surroundings.squeezes() && surroundings.squeezeReaches(body.at, body.radius())) {
+                work++;
+                for (Surroundings.Squeeze squeeze : surroundings.squeezing(body.at, body.reach())) {
+                    body.squeezed = true;
+                    body.carried = body.carried || squeeze.moves();
+                }
             }
             boolean past = false;
             for (Body other : bodies) {
@@ -1109,6 +1118,20 @@ final class Bodies {
                         return true;
                     }
                 }
+                if (part.squeezes() && squeezedByWhatMoves(part, body, within)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean squeezedByWhatMoves(Surroundings.Held part, Body body, double within) {
+        work++;
+        Length reach = Length.of(body.radius() + within).orElse(body.reach());
+        for (Surroundings.Squeeze squeeze : part.squeezing(body.at, reach)) {
+            if (squeeze.moves()) {
+                return true;
             }
         }
         return false;
@@ -1173,8 +1196,9 @@ final class Bodies {
         for (Body body : awake()) {
             double moving = StrictMath.sqrt(body.velocity.dot(body.velocity))
                     + body.radius() * StrictMath.sqrt(body.spin.dot(body.spin));
-            body.restFor =
-                    body.touched && !body.carried && moving < Shot.REST_SPEED_IN_PER_S ? body.restFor + covered : 0;
+            body.restFor = (body.touched || body.squeezed) && !body.carried && moving < Shot.REST_SPEED_IN_PER_S
+                    ? body.restFor + covered
+                    : 0;
             if (body.sleep == Sleep.WHEN_RESTING
                     && body.restFor >= Shot.REST_SECONDS
                     && !reachedByWhatMoves(body, surroundings, step)) {

@@ -9,21 +9,31 @@ final class CompliantPlate implements Surroundings.Part {
     private final Vec3 normal;
     private final Compliance compliance;
     private final Vec3 sliding;
+    private final double stops;
+    private final double seconds;
 
-    private CompliantPlate(String id, Vec3 point, Vec3 normal, Compliance compliance, Vec3 sliding) {
+    private CompliantPlate(
+            String id, Vec3 point, Vec3 normal, Compliance compliance, Vec3 sliding, double stops, double seconds) {
         this.id = id;
         this.point = point;
         this.normal = normal;
         this.compliance = compliance;
         this.sliding = sliding.minus(normal.times(sliding.dot(normal)));
+        this.stops = stops;
+        this.seconds = seconds;
     }
 
     static CompliantPlate still(String id, Vec3 point, Vec3 normal, Compliance compliance) {
-        return new CompliantPlate(id, point, normal, compliance, Vec3.zero());
+        return new CompliantPlate(id, point, normal, compliance, Vec3.zero(), 0, 0);
     }
 
     static CompliantPlate sliding(String id, Vec3 point, Vec3 normal, Compliance compliance, Vec3 velocity) {
-        return new CompliantPlate(id, point, normal, compliance, velocity);
+        return slidingUntil(id, point, normal, compliance, velocity, Double.POSITIVE_INFINITY);
+    }
+
+    static CompliantPlate slidingUntil(
+            String id, Vec3 point, Vec3 normal, Compliance compliance, Vec3 velocity, double stops) {
+        return new CompliantPlate(id, point, normal, compliance, velocity, stops, 0);
     }
 
     private double above(Vec3 centre) {
@@ -47,7 +57,7 @@ final class CompliantPlate implements Surroundings.Part {
 
     @Override
     public boolean moving() {
-        return sliding.dot(sliding) > 0;
+        return seconds < stops && sliding.dot(sliding) > 0;
     }
 
     @Override
@@ -65,13 +75,14 @@ final class CompliantPlate implements Surroundings.Part {
         List<Surroundings.Squeeze> squeezes = new ArrayList<>();
         double depth = radius.inches() - above(centre);
         if (depth > 0) {
-            squeezes.add(Valid.value(Surroundings.Squeeze.of(id, compliance, normal, depth, sliding)));
+            squeezes.add(Valid.value(
+                    Surroundings.Squeeze.of(id, compliance, normal, depth, moving() ? sliding : Vec3.zero())));
         }
         return squeezes;
     }
 
     @Override
     public Surroundings.Part at(GridTime time) {
-        return this;
+        return new CompliantPlate(id, point, normal, compliance, sliding, stops, time.seconds());
     }
 }

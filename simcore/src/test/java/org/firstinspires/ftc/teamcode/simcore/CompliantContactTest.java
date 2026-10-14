@@ -500,4 +500,82 @@ public class CompliantContactTest {
             assertEquals("asked at " + asked, 8 * STEP, seconds, 0);
         }
     }
+
+    @Test
+    public void aBallSqueezedBetweenStillSupportsAtTheFullSqueezeFallsAsleepAndThenStaysPutExactly() {
+        Bodies held = heldAt(launcher(STEP, 0));
+
+        double asleepAfter = 0;
+        while (ball(held).life() == Bodies.Life.AWAKE && asleepAfter < 1) {
+            held.step();
+            asleepAfter += STEP;
+        }
+        Bodies.Seen asleep = ball(held);
+        stepFor(held, 0.5, STEP);
+
+        assertEquals("after " + asleepAfter + " s: " + asleep, Bodies.Life.ASLEEP, asleep.life());
+        assertTrue("squeezed asleep", !squeezing(held).isEmpty());
+        assertEquals(asleep, ball(held));
+        assertEquals(
+                Double.doubleToRawLongBits(asleep.at().x()),
+                Double.doubleToRawLongBits(ball(held).at().x()));
+        assertEquals(
+                Double.doubleToRawLongBits(asleep.at().z()),
+                Double.doubleToRawLongBits(ball(held).at().z()));
+    }
+
+    @Test
+    public void
+            aBallSqueezedByASupportThatMovesNeverFallsAsleepEvenSlowerThanTheRestSpeedAndRestsOnlyFromWhenItStops() {
+        double u = 0.8 * Shot.REST_SPEED_IN_PER_S, stops = 1;
+        double floor = 20, squeeze = 1.0 * MILLIMETRE;
+        Bodies pinch = among(
+                STEP,
+                CompliantPlate.still("plate", new Vec3(0, 0, floor), new Vec3(0, 0, 1), HOOD),
+                CompliantPlate.slidingUntil(
+                        "belt",
+                        new Vec3(0, 0, floor + 2 * R - squeeze),
+                        new Vec3(0, 0, -1),
+                        WHEEL,
+                        new Vec3(u, 0, 0),
+                        stops));
+        add(pinch, new Vec3(-30, 0, floor + R - squeeze / 2), Vec3.zero());
+
+        stepFor(pinch, stops - 0.05, STEP);
+        Bodies.Seen rolling = ball(pinch);
+        stepFor(pinch, 0.05 + 0.8 * Shot.REST_SECONDS, STEP);
+        Bodies.Seen stopping = ball(pinch);
+        stepFor(pinch, 0.4 * Shot.REST_SECONDS, STEP);
+
+        assertEquals(Bodies.Life.AWAKE, rolling.life());
+        assertTrue(
+                "slower than the rest speed: " + rolling,
+                speed(rolling.velocity()) + R * speed(rolling.spin()) < Shot.REST_SPEED_IN_PER_S);
+        assertEquals(
+                "rolling along at " + rolling.velocity(),
+                u / 2,
+                rolling.velocity().x(),
+                0.02 * u / 2);
+        assertEquals("resting since it stopped: " + stopping, Bodies.Life.AWAKE, stopping.life());
+        assertEquals("rested since it stopped", Bodies.Life.ASLEEP, ball(pinch).life());
+    }
+
+    @Test
+    public void spinningTheWheelUpWakesABallAsleepInItsSqueezeAndThrowsItUpward() {
+        double starts = 0.6;
+        Bodies held = heldAt(among(
+                STEP,
+                CompliantArc.spinningUp("wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, starts, 0.05, WHEEL_SPEED),
+                hood()));
+
+        stepFor(held, starts - 0.05, STEP);
+        assertEquals("before the wheel turns", Bodies.Life.ASLEEP, ball(held).life());
+        stepFor(held, 0.05 + 2 * STEP, STEP);
+        assertEquals("once the wheel turns", Bodies.Life.AWAKE, ball(held).life());
+        Exit exit = thrown(held, STEP);
+
+        double rim = WHEEL_SPEED * WHEEL_RADIUS;
+        assertTrue("thrown at " + exit.speed() + " in/s", exit.speed() > 0.3 * rim);
+        assertTrue("thrown " + exit.degreesUp() + " degrees up", exit.degreesUp() > 45);
+    }
 }
