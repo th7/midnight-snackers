@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.junit.Test;
 
@@ -19,58 +21,88 @@ public class LaunchSimIsStrictTest {
                     + " shot comes out the same bit for bit wherever it is simulated:"
                     + " https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/StrictMath.html";
 
-    private static final List<String> THE_LAUNCH_SIM = List.of(
-            "Ball",
-            "Surface",
-            "Turn",
-            "ShotSetting",
-            "ShotSettings",
-            "Air",
-            "WheelPair",
-            "Colliders",
-            "Collider",
-            "Contacts",
-            "Bounce",
-            "Surfaces",
-            "World",
-            "Shot",
-            "ShotRun",
-            "ShotSetup",
-            "Islands");
+    private static final List<String> REACH_FOR_JAVA_LANG_MATH = List.of(
+            "Chassis",
+            "ConvexPolygon",
+            "Drivetrain",
+            "Encoder",
+            "Field",
+            "Flight",
+            "Heading",
+            "Hives",
+            "Launch",
+            "Lean",
+            "Nest",
+            "Noise",
+            "Placement",
+            "Power",
+            "Seconds",
+            "Stack",
+            "Tilt",
+            "Traction",
+            "Turntable",
+            "Vec3");
 
-    private static List<Path> classFilesOf(String type) throws IOException, URISyntaxException {
-        Path directory = Path.of(Shot.class.getResource("Shot.class").toURI()).getParent();
+    private static Map<String, Boolean> reachingForJavaLangMath() throws IOException, URISyntaxException {
+        byte[] math = "java/lang/Math".getBytes(StandardCharsets.UTF_8);
+        Path root = Path.of(Shot.class.getResource("Shot.class").toURI()).getParent();
         List<Path> files = new ArrayList<>();
-        try (Stream<Path> listed = Files.list(directory)) {
-            listed.filter(file -> {
-                        String name = file.getFileName().toString();
-                        return name.equals(type + ".class") || name.startsWith(type + "$");
-                    })
+        try (Stream<Path> walked = Files.walk(root)) {
+            walked.filter(file -> file.getFileName().toString().endsWith(".class"))
                     .forEach(files::add);
         }
-        return files;
+        Map<String, Boolean> reaching = new TreeMap<>();
+        for (Path file : files) {
+            String type = topLevelClassOf(root.relativize(file));
+            reaching.merge(type, contains(Files.readAllBytes(file), math), Boolean::logicalOr);
+        }
+        return reaching;
+    }
+
+    private static String topLevelClassOf(Path relative) {
+        String name = relative.toString().replace(relative.getFileSystem().getSeparator(), ".");
+        int nested = name.indexOf('$');
+        return nested >= 0 ? name.substring(0, nested) : name.substring(0, name.length() - ".class".length());
     }
 
     @Test
-    public void noClassOfTheLaunchSimReachesForJavaLangMath() throws IOException, URISyntaxException {
-        byte[] math = "java/lang/Math".getBytes(StandardCharsets.UTF_8);
-        for (String type : THE_LAUNCH_SIM) {
-            List<Path> files = classFilesOf(type);
-            assertFalse(type + " has no class file beside Shot's", files.isEmpty());
-            for (Path file : files) {
-                assertFalse(file.getFileName() + ": " + BIT_FOR_BIT, contains(Files.readAllBytes(file), math));
-            }
+    public void theScanReadsTheClassFilesOfTheWholeCoreFromItsPackageRootDown() throws IOException, URISyntaxException {
+        Map<String, Boolean> scanned = reachingForJavaLangMath();
+
+        assertTrue("the scan read " + scanned.keySet() + ", which has no Shot", scanned.containsKey("Shot"));
+        assertTrue("the scan read " + scanned.keySet() + ", which has no ShotRun", scanned.containsKey("ShotRun"));
+        assertTrue("the scan read " + scanned.keySet() + ", which has no Field", scanned.containsKey("Field"));
+    }
+
+    @Test
+    public void noClassOffTheListReachesForJavaLangMath() throws IOException, URISyntaxException {
+        for (Map.Entry<String, Boolean> scanned : reachingForJavaLangMath().entrySet()) {
+            String type = scanned.getKey();
+            assertFalse(
+                    type + " reaches for java.lang.Math and is not listed as a class that may: " + BIT_FOR_BIT,
+                    scanned.getValue() && !REACH_FOR_JAVA_LANG_MATH.contains(type));
+        }
+    }
+
+    @Test
+    public void everyClassOnTheListStillReachesForJavaLangMath() throws IOException, URISyntaxException {
+        Map<String, Boolean> scanned = reachingForJavaLangMath();
+
+        for (String type : REACH_FOR_JAVA_LANG_MATH) {
+            assertTrue(
+                    type + " is listed as reaching for java.lang.Math but has no class file",
+                    scanned.containsKey(type));
+            assertTrue(
+                    type + " no longer reaches for java.lang.Math, so take it off the list of classes that may",
+                    scanned.get(type));
         }
     }
 
     @Test
     public void theCheckSeesJavaLangMathWhereItIs() throws IOException, URISyntaxException {
-        byte[] math = "java/lang/Math".getBytes(StandardCharsets.UTF_8);
-        boolean seen = false;
-        for (Path file : classFilesOf("Field")) {
-            seen |= contains(Files.readAllBytes(file), math);
-        }
-        assertTrue("Field turns its hives with java.lang.Math, so the scan must find it there", seen);
+        assertTrue(
+                "Field turns its hives with java.lang.Math, so the scan must find it there",
+                reachingForJavaLangMath().getOrDefault("Field", false));
     }
 
     private static boolean contains(byte[] haystack, byte[] needle) {

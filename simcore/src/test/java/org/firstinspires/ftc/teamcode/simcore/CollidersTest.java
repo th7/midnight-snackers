@@ -468,6 +468,31 @@ public class CollidersTest {
     }
 
     @Test
+    public void twoCellsOfOneNameAreRefusedByTheNameTheirPanelsWouldShare() {
+        Field.Hive blue = hive(
+                "Blue",
+                "#0000ff",
+                BLUE_PIVOT,
+                REST_TILT,
+                new Field.CellShape("Blue Cell (Audience)", "Scoring", section(10), section(2), wallsBetween(2, 10)));
+
+        String said = rejection(Colliders.of(fieldOf(List.of(), blue), List.of()));
+
+        assertTrue(said, said.contains("'Blue Cell (Audience) / wall <1>'"));
+        assertTrue(said, said.contains("name of its own"));
+    }
+
+    @Test
+    public void anElementNamedAsACellsPanelIsRefusedByThatName() {
+        Field.Element impostor = box("Blue Cell (Scoring)", "wall", new Vec3(20, 0, 5), new Vec3(1, 1, 1));
+
+        String said = rejection(Colliders.of(fieldOf(List.of(impostor), blueHive(REST_TILT)), List.of()));
+
+        assertTrue(said, said.contains("'Blue Cell (Scoring) / wall <1>'"));
+        assertTrue(said, said.contains("name of its own"));
+    }
+
+    @Test
     public void onlyAnAllianceWithAHiveCanHaveItTipped() {
         String said = rejection(Colliders.of(field(REST_TILT), List.of("Blue", "Green")));
 

@@ -2,10 +2,12 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class Colliders {
     public static final double WALL_THICKNESS_IN = 1;
@@ -156,7 +158,19 @@ public final class Colliders {
             bores.add(boreOf(flower, field.elements()));
         }
         return allOf(made)
+                .then(Colliders::namedApart)
                 .then(colliders -> allOf(baskets).map(cells -> new Colliders(field, colliders, tilts, cells, bores)));
+    }
+
+    private static Checked<List<Collider>> namedApart(List<Collider> colliders) {
+        Set<String> named = new HashSet<>();
+        for (Collider collider : colliders) {
+            if (!named.add(collider.name())) {
+                return Checked.rejected(
+                        "every collider has a name of its own, and '" + collider.name() + "' is not one");
+            }
+        }
+        return Checked.ok(colliders);
     }
 
     private static List<Checked<Collider>> walls(double half, double height) {
