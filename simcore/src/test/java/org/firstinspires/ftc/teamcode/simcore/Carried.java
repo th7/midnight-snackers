@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class Carried implements Surroundings.Part {
+    private static final double ACROSS_WITHIN = 1e-24;
+
     private final List<Collider> colliders;
     private final Vec3 pivot;
     private final Vec3 velocity;
@@ -142,7 +144,7 @@ final class Carried implements Surroundings.Part {
             }
             Vec3 normal = turned(near.normal(), rate() * elapsed());
             Vec3 contact = centre.along(normal, -(r + near.gap()));
-            boolean moving = moving();
+            boolean moving = moving() && (!inPlace || acrossTheAxis(normal));
             touches.add(Valid.value(Surroundings.Touch.of(
                     collider.name(),
                     collider.surface(),
@@ -152,6 +154,11 @@ final class Carried implements Surroundings.Part {
                     moving ? spin : Vec3.zero())));
         }
         return touches;
+    }
+
+    private boolean acrossTheAxis(Vec3 normal) {
+        Vec3 off = normal.cross(spin);
+        return off.dot(off) <= ACROSS_WITHIN * spin.dot(spin);
     }
 
     @Override

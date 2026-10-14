@@ -155,6 +155,21 @@ public class PartContractTest {
     }
 
     @Test
+    public void aCarriedPartSpinningInPlaceKeepsThePartContractWithItsRimStill() {
+        Surroundings.Part platter = Carried.spinningInPlace(TRAY, PIVOT, new Vec3(0, 0, 5), 0.1);
+
+        PartContract.assertKept(
+                "spinning in place",
+                platter,
+                probes(),
+                TIMES,
+                (seconds, touch) -> StrictMath.abs(touch.normal().z()) < 1 - 1e-12);
+        List<Surroundings.Touch> top = platter.at(1).near(new Vec3(2, 1, 10.5 + R), Valid.length(R), 1e-6);
+        assertEquals(new Vec3(-5, 10, 0), top.get(0).velocity());
+        assertEquals(new Vec3(0, 0, 5), top.get(0).spin());
+    }
+
+    @Test
     public void partsJoinedIntoOneKeepThePartContractWithTheFacesOfTheStillOneStill() {
         Collider blue = Carried.box("blue", new Vec3(-33, -3, 10), new Vec3(-27, 3, 10.5));
         Collider red = Carried.box("red", new Vec3(27, -3, 10), new Vec3(33, 3, 10.5));
