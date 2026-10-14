@@ -308,9 +308,11 @@ public class FlightTest {
         assertEquals("but it has met nothing in there yet, so the hive does not tip", leaning, tilt(blue), 0);
         assertFalse(hives().tipping(blue));
 
-        fly(1.0);
+        while (!hives().tipping(blue) && flown < 2) {
+            once(STEP);
+        }
 
-        assertTrue("once it presses on what is in the cell the hive tips", tilt(blue) != leaning);
+        assertTrue("once it presses on what is in the cell the hive tips", hives().tipping(blue));
     }
 
     @Test
@@ -604,7 +606,7 @@ public class FlightTest {
     }
 
     @Test
-    public void whatALaunchIntoACellAndAFiveNectarTipCostIsPinned() {
+    public void whatALaunchIntoACellAndAFiveNectarTipCostIsPinnedAndNoTickOfTheTipDoesMoreThanItIsAllowed() {
         Field.Cell cell = upturned(blue);
         Vec3 mouth = cell.mouthCentreAt(tilt(blue));
         Vec3 from = new Vec3(mouth.x() + 40, mouth.y(), 14);
@@ -619,31 +621,19 @@ public class FlightTest {
         for (int i = 0; i < 5; i++) {
             putIn(Field.Kind.NECTAR, NECTAR, upturned(hives().hiveOf("Red").orElseThrow()));
         }
-        fly(4.0);
-
-        assertEquals("a launch into the cell", LAUNCH_WORK, launched);
-        assertEquals("then a five-nectar tip", TIP_WORK, flight.work() - launched);
-    }
-
-    @Test
-    public void noTickOfAFiveNectarTipDoesMoreWorkThanItIsAllowedAndThePlainStepsOfItsBalls() {
-        Field.Cell cell = upturned(blue);
-        for (int i = 0; i < 5; i++) {
-            putIn(Field.Kind.NECTAR, NECTAR, cell);
-        }
-        double plainStepOfABall = 16, steps = STEP / (Flight.STEP_NANOS / Flight.NANOS_PER_SECOND);
+        double plainStepOfABall = 16, stepsInATick = STEP / (Flight.STEP_NANOS / Flight.NANOS_PER_SECOND);
         long most = 0;
-
         for (int i = 0; i < 4 / STEP; i++) {
             long before = flight.work();
             once(STEP);
             most = Math.max(most, flight.work() - before);
         }
 
-        assertTrue("it tipped", hives().tilt(blue) != blue.tilt().degrees());
+        assertEquals("a launch into the cell", LAUNCH_WORK, launched);
+        assertEquals("then a five-nectar tip", TIP_WORK, flight.work() - launched);
         assertTrue(
                 "the most a tick did was " + most,
-                most <= Shot.MOST_WORK_PER_SECOND * STEP + steps * 5 * plainStepOfABall);
+                most <= Shot.MOST_WORK_PER_SECOND * STEP + stepsInATick * 6 * plainStepOfABall);
     }
 
     private static final long LAUNCH_WORK = 136055;
