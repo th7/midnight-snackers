@@ -93,9 +93,10 @@ final class CompliantArc implements Surroundings.Part {
         Arc.Nearest nearest = arc.nearestTo(centre);
         double depth = radius.inches() - nearest.distance();
         if (depth > 0) {
-            Vec3 velocity =
-                    arc.axis().times(radiansPerSecond()).cross(nearest.point().minus(arc.centre()));
-            squeezes.add(Valid.value(Surroundings.Squeeze.of(id, compliance, nearest.normal(), depth, velocity)));
+            Surroundings.Support turning = Valid.value(Surroundings.Support.of(
+                    arc.centre(), Vec3.zero(), arc.axis().times(radiansPerSecond())));
+            squeezes.add(Valid.value(
+                    Surroundings.Squeeze.of(id, compliance, centre, radius, nearest.normal(), depth, turning)));
         }
         return squeezes;
     }

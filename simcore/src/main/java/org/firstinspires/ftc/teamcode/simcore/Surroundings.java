@@ -91,30 +91,95 @@ final class Surroundings {
         }
     }
 
+    static final class Support {
+        private final Vec3 point;
+        private final Vec3 velocity;
+        private final Vec3 spin;
+
+        private Support(Vec3 point, Vec3 velocity, Vec3 spin) {
+            this.point = point;
+            this.velocity = velocity;
+            this.spin = spin;
+        }
+
+        static Checked<Support> of(Vec3 point, Vec3 velocity, Vec3 spin) {
+            if (!(point.isFinite() && velocity.isFinite() && spin.isFinite())) {
+                return Checked.rejected("a support moves as a point of it goes and as it spins, each finite, not a"
+                        + " point at " + point + " going at " + velocity + " and a spin of " + spin);
+            }
+            return Checked.ok(new Support(point, velocity, spin));
+        }
+
+        static Support still() {
+            return new Support(Vec3.zero(), Vec3.zero(), Vec3.zero());
+        }
+
+        Vec3 velocityAt(Vec3 where) {
+            return velocity.plus(spin.cross(where.minus(point)));
+        }
+
+        Vec3 spin() {
+            return spin;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Support that
+                    && point.equals(that.point)
+                    && velocity.equals(that.velocity)
+                    && spin.equals(that.spin);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(point, velocity, spin);
+        }
+
+        @Override
+        public String toString() {
+            return "Support[point=" + point + ", velocity=" + velocity + ", spin=" + spin + "]";
+        }
+    }
+
     static final class Squeeze {
         private final String id;
         private final Compliance compliance;
         private final Vec3 normal;
         private final double depth;
+        private final Vec3 arm;
         private final Vec3 velocity;
+        private final Vec3 spin;
 
-        private Squeeze(String id, Compliance compliance, Vec3 normal, double depth, Vec3 velocity) {
+        private Squeeze(
+                String id, Compliance compliance, Vec3 normal, double depth, Vec3 arm, Vec3 velocity, Vec3 spin) {
             this.id = id;
             this.compliance = compliance;
             this.normal = normal;
             this.depth = depth;
+            this.arm = arm;
             this.velocity = velocity;
+            this.spin = spin;
         }
 
-        static Checked<Squeeze> of(String id, Compliance compliance, Vec3 normal, double depth, Vec3 velocity) {
+        static Checked<Squeeze> of(
+                String id,
+                Compliance compliance,
+                Vec3 centre,
+                Length radius,
+                Vec3 normal,
+                double depth,
+                Support support) {
+            Vec3 arm = normal.times(-(radius.inches() - depth / 2));
+            Vec3 velocity = support.velocityAt(centre.plus(arm));
             if (!(StrictMath.abs(normal.dot(normal) - 1) <= Touch.UNIT_WITHIN
                     && depth > 0
                     && Double.isFinite(depth)
                     && velocity.isFinite())) {
-                return Checked.rejected("a squeeze has a unit normal, a finite depth more than 0 and a finite velocity,"
-                        + " not a normal of " + normal + ", a depth of " + depth + " and a velocity of " + velocity);
+                return Checked.rejected("a squeeze has a unit normal, a finite depth more than 0 and a finite velocity"
+                        + " where the ball meets what squeezes it, not a normal of " + normal + ", a depth of " + depth
+                        + " and a velocity of " + velocity + " at " + centre.plus(arm));
             }
-            return Checked.ok(new Squeeze(id, compliance, normal, depth, velocity));
+            return Checked.ok(new Squeeze(id, compliance, normal, depth, arm, velocity, support.spin()));
         }
 
         String id() {
@@ -133,12 +198,20 @@ final class Surroundings {
             return depth;
         }
 
+        Vec3 arm() {
+            return arm;
+        }
+
         Vec3 velocity() {
             return velocity;
         }
 
+        Vec3 spin() {
+            return spin;
+        }
+
         boolean moves() {
-            return velocity.dot(velocity) > 0;
+            return velocity.dot(velocity) > 0 || spin.dot(spin) > 0;
         }
 
         @Override
@@ -148,18 +221,20 @@ final class Surroundings {
                     && compliance.equals(that.compliance)
                     && normal.equals(that.normal)
                     && Double.compare(depth, that.depth) == 0
-                    && velocity.equals(that.velocity);
+                    && arm.equals(that.arm)
+                    && velocity.equals(that.velocity)
+                    && spin.equals(that.spin);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, compliance, normal, depth, velocity);
+            return Objects.hash(id, compliance, normal, depth, arm, velocity, spin);
         }
 
         @Override
         public String toString() {
             return "Squeeze[id=" + id + ", compliance=" + compliance + ", normal=" + normal + ", depth=" + depth
-                    + ", velocity=" + velocity + "]";
+                    + ", arm=" + arm + ", velocity=" + velocity + ", spin=" + spin + "]";
         }
     }
 

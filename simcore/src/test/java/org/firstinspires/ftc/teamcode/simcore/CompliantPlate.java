@@ -75,8 +75,10 @@ final class CompliantPlate implements Surroundings.Part {
         List<Surroundings.Squeeze> squeezes = new ArrayList<>();
         double depth = radius.inches() - above(centre);
         if (depth > 0) {
-            squeezes.add(Valid.value(
-                    Surroundings.Squeeze.of(id, compliance, normal, depth, moving() ? sliding : Vec3.zero())));
+            Surroundings.Support support = moving()
+                    ? Valid.value(Surroundings.Support.of(point, sliding, Vec3.zero()))
+                    : Surroundings.Support.still();
+            squeezes.add(Valid.value(Surroundings.Squeeze.of(id, compliance, centre, radius, normal, depth, support)));
         }
         return squeezes;
     }

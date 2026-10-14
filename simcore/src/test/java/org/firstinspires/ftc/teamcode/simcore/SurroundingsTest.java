@@ -142,7 +142,8 @@ public class SurroundingsTest {
     private static final Compliance SOFT = Valid.value(Compliance.of(40, 0.6, 0.6, 0.02));
 
     private static Surroundings.Squeeze squeeze(String id, double depth) {
-        return Valid.value(Surroundings.Squeeze.of(id, SOFT, new Vec3(0, 0, 1), depth, Vec3.zero()));
+        return Valid.value(Surroundings.Squeeze.of(
+                id, SOFT, Vec3.zero(), R, new Vec3(0, 0, 1), depth, Surroundings.Support.still()));
     }
 
     private static Surroundings with(Surroundings.Part... parts) {
@@ -415,30 +416,48 @@ public class SurroundingsTest {
             assertEquals("at " + seconds, around.at(then).squeezing(beside, R), around.squeezingAt(then, beside, R));
         }
         Vec3 rim = around.squeezingAt(Valid.time(0.25), beside, R).get(0).velocity();
+        double depth = R.inches() - (5.2 - 4);
         assertEquals(0, rim.x(), 0);
         assertEquals(0, rim.y(), 0);
-        assertEquals(4 * 50 * 0.25, rim.z(), 1e-12);
+        assertEquals((5.2 - R.inches() + depth / 2) * 50 * 0.25, rim.z(), 1e-12);
+    }
+
+    private static Checked<Surroundings.Squeeze> squeezeOf(Vec3 normal, double depth, Surroundings.Support support) {
+        return Surroundings.Squeeze.of("wheel", SOFT, new Vec3(0, 0, 30), R, normal, depth, support);
+    }
+
+    private static void assertSameVec(String what, Vec3 expected, Vec3 actual) {
+        assertEquals(what + ": x of " + actual, expected.x(), actual.x(), 1e-12);
+        assertEquals(what + ": y of " + actual, expected.y(), actual.y(), 1e-12);
+        assertEquals(what + ": z of " + actual, expected.z(), actual.z(), 1e-12);
     }
 
     @Test
-    public void aSqueezeHasAUnitNormalAFiniteDepthMoreThanNothingAndAFiniteVelocity() {
+    public void aSqueezeHasAUnitNormalAFiniteDepthMoreThanNothingAndAFiniteVelocityWhereTheBallMeetsWhatSqueezesIt() {
         Vec3 up = new Vec3(0, 0, 1), unknown = new Vec3(Double.NaN, 0, 0);
-        String rule = "a squeeze has a unit normal, a finite depth more than 0 and a finite velocity, not ";
+        Surroundings.Support still = Surroundings.Support.still();
+        Surroundings.Support huge = Valid.value(Surroundings.Support.of(
+                Vec3.zero(), new Vec3(Double.MAX_VALUE, 0, 0), new Vec3(0, Double.MAX_VALUE, 0)));
+        String rule =
+                "a squeeze has a unit normal, a finite depth more than 0 and a finite velocity where the ball meets"
+                        + " what squeezes it, not ";
 
         for (Checked<Surroundings.Squeeze> refused : List.of(
-                Surroundings.Squeeze.of("wheel", SOFT, new Vec3(0, 0, 2), 0.1, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, Vec3.zero(), 0.1, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, unknown, 0.1, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, up, 0, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, up, -0.1, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, up, Double.NaN, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, up, Double.POSITIVE_INFINITY, Vec3.zero()),
-                Surroundings.Squeeze.of("wheel", SOFT, up, 0.1, unknown))) {
+                squeezeOf(new Vec3(0, 0, 2), 0.1, still),
+                squeezeOf(Vec3.zero(), 0.1, still),
+                squeezeOf(unknown, 0.1, still),
+                squeezeOf(up, 0, still),
+                squeezeOf(up, -0.1, still),
+                squeezeOf(up, Double.NaN, still),
+                squeezeOf(up, Double.POSITIVE_INFINITY, still),
+                squeezeOf(up, 0.1, huge),
+                Surroundings.Squeeze.of("wheel", SOFT, unknown, R, up, 0.1, still))) {
             String said = rejection(refused);
             assertTrue(said, said.startsWith(rule));
         }
         Vec3 slanted = new Vec3(0.6, 0, 0.8), velocity = new Vec3(1, 2, 3);
-        Surroundings.Squeeze squeeze = Valid.value(Surroundings.Squeeze.of("wheel", SOFT, slanted, 0.05, velocity));
+        Surroundings.Squeeze squeeze = Valid.value(
+                squeezeOf(slanted, 0.05, Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero()))));
         assertEquals("wheel", squeeze.id());
         assertEquals(SOFT, squeeze.compliance());
         assertEquals(slanted, squeeze.normal());
@@ -446,5 +465,48 @@ public class SurroundingsTest {
         assertEquals(velocity, squeeze.velocity());
         assertTrue(squeeze.moves());
         assertEquals(false, squeeze("wheel", 0.1).moves());
+    }
+
+    @Test
+    public void aSupportMovesAsAFinitePointOfItGoesAndAsItSpins() {
+        Vec3 unknown = new Vec3(Double.NaN, 0, 0), endless = new Vec3(0, Double.POSITIVE_INFINITY, 0);
+        String rule = "a support moves as a point of it goes and as it spins, each finite, not ";
+
+        for (Checked<Surroundings.Support> refused : List.of(
+                Surroundings.Support.of(unknown, Vec3.zero(), Vec3.zero()),
+                Surroundings.Support.of(Vec3.zero(), endless, Vec3.zero()),
+                Surroundings.Support.of(Vec3.zero(), Vec3.zero(), unknown))) {
+            String said = rejection(refused);
+            assertTrue(said, said.startsWith(rule));
+        }
+        Vec3 pivot = new Vec3(1, 2, 3), going = new Vec3(4, 0, -1), spin = new Vec3(0, 2, 0);
+        Surroundings.Support support = Valid.value(Surroundings.Support.of(pivot, going, spin));
+        Vec3 elsewhere = new Vec3(-2, 7, 5);
+        assertSameVec("going", going.plus(spin.cross(elsewhere.minus(pivot))), support.velocityAt(elsewhere));
+        assertSameVec("at its point", going, support.velocityAt(pivot));
+        assertSameVec("still", Vec3.zero(), Surroundings.Support.still().velocityAt(elsewhere));
+    }
+
+    @Test
+    public void
+            aSqueezesVelocityIsItsSupportsWhereTheBallMeetsItMidwayThroughTheirOverlapAndItMovesWhileItsSupportGoesOrTurns() {
+        Vec3 up = new Vec3(0, 0, 1), centre = new Vec3(0, 0, 30), turning = new Vec3(0, 0, 4);
+        double depth = 0.2;
+        Vec3 arm = up.times(-(R.inches() - depth / 2));
+        Vec3 meets = centre.plus(arm), hub = meets.plus(new Vec3(-3, 0, 0));
+        Surroundings.Squeeze wheel = Valid.value(
+                squeezeOf(up, depth, Valid.value(Surroundings.Support.of(hub, new Vec3(0, 5, 0), turning))));
+        Surroundings.Squeeze aboutWhereItMeets =
+                Valid.value(squeezeOf(up, depth, Valid.value(Surroundings.Support.of(meets, Vec3.zero(), turning))));
+
+        assertSameVec("the arm", arm, wheel.arm());
+        assertSameVec("the wheel", new Vec3(0, 5 + 4 * 3, 0), wheel.velocity());
+        assertSameVec("the wheel's spin", turning, wheel.spin());
+        assertTrue(wheel.moves());
+        assertSameVec("turning about where it meets", Vec3.zero(), aboutWhereItMeets.velocity());
+        assertTrue(aboutWhereItMeets.moves());
+        assertEquals(
+                false,
+                Valid.value(squeezeOf(up, depth, Surroundings.Support.still())).moves());
     }
 }

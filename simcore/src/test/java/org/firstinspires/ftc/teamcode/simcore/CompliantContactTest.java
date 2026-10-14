@@ -321,7 +321,14 @@ public class CompliantContactTest {
     }
 
     private static Surroundings.Squeeze pressing(Compliance compliance, Vec3 normal, double depth, Vec3 velocity) {
-        return Valid.value(Surroundings.Squeeze.of("plate", compliance, normal, depth, velocity));
+        return Valid.value(Surroundings.Squeeze.of(
+                "plate",
+                compliance,
+                Vec3.zero(),
+                POLLEN.radiusLength(),
+                normal,
+                depth,
+                Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero()))));
     }
 
     private static CompliantContact.Push push(Vec3 velocity, Vec3 spin, Surroundings.Squeeze... squeezes) {
@@ -398,6 +405,26 @@ public class CompliantContactTest {
                 new Vec3(0, -HOOD.friction() * lightly / 4, lightly),
                 creeping.acceleration().times(newtons(1)),
                 1e-9);
+    }
+
+    @Test
+    public void aBallWhoseSurfaceMovesAsATurningSupportDoesWhereTheyMeetMidwayThroughTheirOverlapIsNotRubbed() {
+        double depth = 1.0 * MILLIMETRE, angle = -20 * DEGREE;
+        Vec3 out = new Vec3(-StrictMath.cos(angle), 0, StrictMath.sin(angle));
+        Vec3 centre = HUB.plus(out.times(WHEEL_RADIUS + R - depth));
+        double meets = WHEEL_RADIUS - depth / 2, lever = R - depth / 2;
+        Vec3 rolling = AXLE.times(-WHEEL_SPEED * meets / lever);
+        List<Surroundings.Squeeze> squeezes = CompliantArc.spinning(
+                        "wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, WHEEL_SPEED)
+                .squeezing(centre, POLLEN.radiusLength());
+
+        assertEquals(1, squeezes.size());
+        CompliantContact.Push pushed = push(Vec3.zero(), rolling, squeezes.get(0));
+
+        double pushing = pushed.acceleration().dot(out);
+        assertTrue("pushed out at " + pushed.acceleration(), pushing > 0);
+        assertVec("rubbed", out.times(pushing), pushed.acceleration(), 1e-9 * pushing);
+        assertVec("turned", Vec3.zero(), pushed.spinRate(), 1e-9 * pushing / R);
     }
 
     @Test

@@ -38,7 +38,7 @@ final class CompliantContact {
         for (Pressed each : pressed) {
             Surroundings.Squeeze squeeze = each.squeeze();
             Vec3 normal = squeeze.normal();
-            Vec3 arm = normal.times(-(ball.radius() - squeeze.depth() / 2));
+            Vec3 arm = squeeze.arm();
             Vec3 slip = velocity.plus(spin.cross(arm)).minus(squeeze.velocity());
             Vec3 across = slip.minus(normal.times(slip.dot(normal))).times(inch);
             double regularised = StrictMath.max(squeeze.compliance().regularisation(), stable);

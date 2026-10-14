@@ -210,8 +210,16 @@ public class PartContractTest {
                 if (lie == Squeezing.DIFFERENTLY_WHERE_IT_WAS) {
                     depth = depth + seconds * 1e-3;
                 }
+                Surroundings.Support support =
+                        Valid.value(Surroundings.Support.of(centre.plus(squeeze.arm()), velocity, squeeze.spin()));
                 told.add(Valid.value(Surroundings.Squeeze.of(
-                        id, Valid.value(Compliance.of(40, 0.6, 0.6, 0.02)), squeeze.normal(), depth, velocity)));
+                        id,
+                        Valid.value(Compliance.of(40, 0.6, 0.6, 0.02)),
+                        centre,
+                        asked,
+                        squeeze.normal(),
+                        depth,
+                        support)));
             }
             return told;
         }

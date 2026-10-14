@@ -1866,7 +1866,12 @@ as they tip. Class: `Surroundings`, in the **core**.
 **Compliant contact** — How a ball meets a surface that gives, as Reginald's flywheel
 and hood will: by a force while it is squeezed, never by an impulse. A compliant touch
 is the name of what squeezes, its surface's **compliance**, a unit normal, a depth
-more than nothing and the velocity of what squeezes there. A compliance is the whole
+more than nothing and the velocity of what squeezes where the ball meets it, midway
+through their overlap: the ball's centre less its radius less half the depth along the
+normal. A part says how what squeezes moves, as a point of it goes and as it spins,
+each finite, and the touch takes the velocity there itself, so no part can take it
+anywhere else; a touch moves while that velocity or that spin is not nothing. A
+compliance is the whole
 surface's stiffness in newtons a millimetre, shared evenly by the rings it is sampled
 by, a restitution more than 0 and at most 1, a friction coefficient not below 0 and a
 regularisation speed more than 0; anything else is refused, saying which. The
@@ -1879,8 +1884,8 @@ push ends once it reaches nothing, before the depth does; the damping is the one
 which a ball of its mass striking the whole surface alone comes back at the
 restitution, as such a spring and dashpot does, to within what the damping pushes in a
 step; and against the slip of its surface
-over what squeezes it (its velocity and its spin across the arm to the contact, less
-the velocity of what squeezes, along the surface) by the friction coefficient times
+over what squeezes it (its velocity and its spin across the arm to where they meet,
+less the velocity of what squeezes there, along the surface) by the friction coefficient times
 that push, in proportion below the regularisation speed, turning it about its centre.
 A ball's regularisation speed is never below 2·h·Σμ·N·(1/m + r²/I) ÷ 2.785 over what
 squeezes it, twice the least at which RK4 holds a grip stable at the engine's step h,
