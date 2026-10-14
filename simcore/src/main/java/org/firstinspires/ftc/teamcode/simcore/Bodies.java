@@ -109,25 +109,13 @@ final class Bodies {
         }
     }
 
-    private static final class Glimpse {
-        private final Body body;
-        private final Vec3 from;
-        private Seen before;
-        private Seen atResolve;
-
-        Glimpse(Body body) {
-            this.body = body;
-            this.from = body.at;
-            this.before = body.seen();
-            this.atResolve = before;
+    private record Glimpse(Body body, Vec3 from) {
+        static Glimpse of(Body body) {
+            return new Glimpse(body, body.at);
         }
 
-        void beforeResolving() {
-            before = body.seen();
-        }
-
-        void resolved() {
-            atResolve = body.seen();
+        Seen seen() {
+            return body.seen();
         }
 
         Span span(
@@ -136,6 +124,8 @@ final class Bodies {
                 double now,
                 List<Contacts.Pressing> pressing,
                 Optional<Contacts.Resolved> resolved,
+                Seen before,
+                Seen atResolve,
                 List<Seen> woken,
                 List<Seen> slept) {
             return new Span(
@@ -371,7 +361,7 @@ final class Bodies {
             for (Body body : awake) {
                 body.start = new Kin(body.at, body.velocity, body.spin);
             }
-            Optional<Glimpse> glimpse = watched().map(Glimpse::new);
+            Optional<Glimpse> glimpse = watched().map(Glimpse::of);
             integrate(awake, span);
             double covered = span;
             if (events < Shot.MOST_EVENTS_PER_PIECE && overlapsSomethingNew(awake, span)) {
@@ -402,14 +392,16 @@ final class Bodies {
             surroundings = surroundings.at(now);
             List<Seen> woken = wake();
             List<Contacts.Pressing> pressing = pressings();
-            glimpse.ifPresent(Glimpse::beforeResolving);
+            Optional<Seen> before = glimpse.map(Glimpse::seen);
             Optional<Contacts.Resolved> resolved = resolve(pressing);
-            glimpse.ifPresent(Glimpse::resolved);
+            Optional<Seen> atResolve = glimpse.map(Glimpse::seen);
             project();
             List<Seen> slept = settle(covered);
             touchingAtTheStart();
             double ended = now;
-            glimpse.ifPresent(seen -> spans.add(seen.span(began, took, ended, pressing, resolved, woken, slept)));
+            glimpse.flatMap(watched -> before.flatMap(pressed -> atResolve.map(
+                            held -> watched.span(began, took, ended, pressing, resolved, pressed, held, woken, slept))))
+                    .ifPresent(stretch -> spans.add(stretch));
         }
     }
 
