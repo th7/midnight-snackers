@@ -145,11 +145,12 @@ public class FlightTest {
     public void aBallThrownHardAtTheSideOfAHiveBouncesBackOffItAndComesDownOnTheSideItWasThrownFrom() {
         Vec3 onTheWall = onBluesWall();
         double thrownFrom = onTheWall.y() + 6;
-        throwIt(Field.Kind.POLLEN, POLLEN, new Vec3(onTheWall.x(), thrownFrom, onTheWall.z()), new Vec3(0, -200, 0));
+        throwIt(Field.Kind.POLLEN, POLLEN, new Vec3(onTheWall.x(), thrownFrom, onTheWall.z()), new Vec3(0, -150, 0));
 
         fly(Falling.settledAfter(onTheWall.z()));
 
         assertEquals("it came down", 1, landed.size());
+        assertTrue("on the field: " + landed.get(0), landed.get(0) instanceof Flight.OnTheFloor);
         assertTrue(
                 "back past where it was thrown from: y=" + landed.get(0).at().y(),
                 landed.get(0).at().y() > thrownFrom);
@@ -171,9 +172,11 @@ public class FlightTest {
             }
         }
 
-        assertEquals("it came down", 1, landed.size());
+        assertEquals("it is out of flight", 1, landed.size());
         double clear = landed.get(0).at().y() - wall;
-        assertTrue("it came down on the side it was thrown from: " + clear, clear >= POLLEN_RADIUS - CONTACT);
+        assertTrue(
+                "on the side it was thrown from, on the field or beyond its wall: " + clear,
+                clear >= POLLEN_RADIUS - CONTACT);
     }
 
     @Test
@@ -451,15 +454,24 @@ public class FlightTest {
 
     @Test
     public void aBallThrownAtAFlowersPipeBouncesOffIt() {
+        Field.Flower flower = field.flowers().get(0);
         Vec3 pipe = new Vec3(66.36, 21.72, 12);
+        double face = lowestXOf(flower.name(), "Flower HIPS Pipe");
         double from = pipe.x() - 10;
-        throwIt(Field.Kind.POLLEN, POLLEN, new Vec3(from, pipe.y(), pipe.z()), new Vec3(150, 0, 0));
+        Object ball = throwIt(Field.Kind.POLLEN, POLLEN, new Vec3(from, pipe.y(), pipe.z()), new Vec3(150, 0, 0));
 
-        fly(Falling.settledAfter(pipe.z()) + 1);
+        double farthest = from;
+        while (flight.holds(ball) && flown < Falling.settledAfter(pipe.z()) + 1) {
+            once(STEP);
+            farthest = flight.holds(ball) ? Math.max(farthest, at(ball).x()) : farthest;
+        }
 
+        assertTrue(
+                "it reached the pipe's face and went no further: x=" + farthest,
+                farthest > face - POLLEN_RADIUS - 0.5 && farthest <= face - POLLEN_RADIUS + 0.05);
         assertEquals(1, landed.size());
         assertTrue(
-                "it came back off the pipe: x=" + landed.get(0).at().x(),
+                "and came back off it: x=" + landed.get(0).at().x(),
                 landed.get(0).at().x() < from);
     }
 
