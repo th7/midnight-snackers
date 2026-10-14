@@ -220,6 +220,10 @@ final class Surroundings {
         return moving;
     }
 
+    int placements() {
+        return parts.size();
+    }
+
     double sweep() {
         return sweep;
     }

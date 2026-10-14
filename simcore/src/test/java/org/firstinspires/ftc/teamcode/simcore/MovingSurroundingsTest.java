@@ -243,7 +243,7 @@ public class MovingSurroundingsTest {
     }
 
     @Test
-    public void aBallAsleepFarFromAMovingPartStaysAsleepAndCostsTheEngineNoQuery() {
+    public void aBallAsleepFarFromAMovingPartStaysAsleepAndCostsTheEngineOnlyItsBoundsChecksAndPlacingThePart() {
         Surroundings.Part sliding = Carried.sliding(
                 Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(10, 0, 0), 0);
         Vec3 far = new Vec3(40, 40, R), lane = new Vec3(0, -40, R), rolling = new Vec3(20, 0, 0);
@@ -260,10 +260,11 @@ public class MovingSurroundingsTest {
         stepFor(moving, 0.1, STEP);
         stepFor(still, 0.1, STEP);
 
+        int boundsChecks = 1, placements = 2, placementsForTheRollingBallsTrial = 1;
         assertEquals(Bodies.Life.ASLEEP, seen(alone, "far").life());
-        assertEquals(0, alone.work());
+        assertEquals(alone.steps() * (boundsChecks + placements), alone.work());
         assertEquals(Bodies.Life.ASLEEP, seen(moving, "far").life());
-        assertEquals(still.work(), moving.work());
+        assertEquals(still.work() + alone.work() + moving.steps() * placementsForTheRollingBallsTrial, moving.work());
         assertEquals(still.seen(), moving.seen());
     }
 

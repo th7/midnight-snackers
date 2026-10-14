@@ -383,7 +383,7 @@ final class Bodies {
     }
 
     void surroundedBy(Surroundings surroundings) {
-        this.surroundings = surroundings.at(now);
+        this.surroundings = placed(surroundings, now);
     }
 
     Checked<Seen> add(Name name, Ball shape, Motion motion, Start start) {
@@ -481,7 +481,7 @@ final class Bodies {
         }
         steps++;
         now = steps * step;
-        surroundings = surroundings.at(now);
+        surroundings = placed(surroundings, now);
         return Collections.unmodifiableList(spans);
     }
 
@@ -600,7 +600,7 @@ final class Bodies {
             double began = now;
             double took = covered;
             now = covered == span ? target : now + covered;
-            surroundings = surroundings.at(now);
+            surroundings = placed(surroundings, now);
             List<Seen> woken = wake();
             List<Contacts.Pressing> pressing = pressings();
             Optional<Seen> before = glimpse.map(Glimpse::seen);
@@ -658,7 +658,10 @@ final class Bodies {
     }
 
     private boolean overlapsSomethingNew(List<Body> awake, double over) {
-        Surroundings then = surroundings.at(now + over);
+        if (awake.isEmpty()) {
+            return false;
+        }
+        Surroundings then = placed(surroundings, now + over);
         for (Body body : awake) {
             for (Surroundings.Touch near : near(then, body.trial.at(), body.reach(), 0)) {
                 if (near.gap() < 0 && !body.touchingColliders.contains(near.id())) {
@@ -733,6 +736,16 @@ final class Bodies {
         return around.near(at, reach, within);
     }
 
+    private List<Surroundings.Touch> near(Surroundings.Held part, Vec3 at, Length reach, double within) {
+        work++;
+        return part.near(at, reach, within);
+    }
+
+    private Surroundings placed(Surroundings around, double seconds) {
+        work += around.placements();
+        return around.at(seconds);
+    }
+
     private List<Seen> wake() {
         List<Seen> woken = wokenByWhatMoves();
         List<Islands.Node> nodes = new ArrayList<>();
@@ -778,9 +791,9 @@ final class Bodies {
     private boolean reachedByWhatMoves(Body body) {
         for (Surroundings.Held part : surroundings.moving()) {
             double within = Shot.TOUCHING_IN + part.sweep() * step;
+            work++;
             if (part.reaches(body.at, body.radius() + within)) {
-                work++;
-                for (Surroundings.Touch touch : part.near(body.at, body.reach(), within)) {
+                for (Surroundings.Touch touch : near(part, body.at, body.reach(), within)) {
                     if (touch.moves()) {
                         return true;
                     }
