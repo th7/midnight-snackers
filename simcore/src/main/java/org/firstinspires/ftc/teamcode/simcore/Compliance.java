@@ -67,8 +67,8 @@ final class Compliance {
         return stiffness * MILLIMETRES_PER_METRE / rings;
     }
 
-    double dampingFor(double kilograms) {
-        return 2 * dampingRatio * StrictMath.sqrt(stiffness * MILLIMETRES_PER_METRE * kilograms) / rings;
+    double dampingFor(Ball ball) {
+        return 2 * dampingRatio * StrictMath.sqrt(stiffness * MILLIMETRES_PER_METRE * ball.kilograms()) / rings;
     }
 
     double friction() {

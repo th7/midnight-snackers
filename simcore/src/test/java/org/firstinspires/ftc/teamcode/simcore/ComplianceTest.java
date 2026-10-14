@@ -62,11 +62,11 @@ public class ComplianceTest {
     public void aSurfaceSampledByRingsSharesItsStiffnessAndItsDampingAmongThemAndIsSharedByAtLeastOne() {
         Compliance whole = compliance(0.6);
         Compliance fifth = Valid.value(whole.sharedBy(5));
-        double kilograms = 0.0249;
+        Ball pollen = Valid.value(Ball.of(2.78, 24.9, 0.634));
 
         assertEquals(40_000, whole.newtonsPerMetre(), 1e-9);
         assertEquals(8_000, fifth.newtonsPerMetre(), 1e-9);
-        assertEquals(whole.dampingFor(kilograms) / 5, fifth.dampingFor(kilograms), 1e-15);
+        assertEquals(whole.dampingFor(pollen) / 5, fifth.dampingFor(pollen), 1e-15);
         assertEquals(whole.friction(), fifth.friction(), 0);
         assertEquals(whole.regularisation(), fifth.regularisation(), 0);
         assertEquals("a compliant surface is shared by at least one ring, not 0", rejection(whole.sharedBy(0)));
@@ -75,10 +75,11 @@ public class ComplianceTest {
 
     @Test
     public void aSurfacesDampingIsWhatMakesABallOfItsMassStrikingItAloneComeBackAtItsRestitution() {
-        double kilograms = 0.0249;
+        Ball pollen = Valid.value(Ball.of(2.78, 24.9, 0.634));
+        double kilograms = pollen.kilograms();
         for (double restitution : new double[] {0.2, 0.6, 0.9, 1}) {
             Compliance surface = compliance(restitution);
-            double k = surface.newtonsPerMetre(), c = surface.dampingFor(kilograms);
+            double k = surface.newtonsPerMetre(), c = surface.dampingFor(pollen);
             double ratio = c / (2 * StrictMath.sqrt(k * kilograms));
             double decayed = StrictMath.exp(-StrictMath.PI * ratio / StrictMath.sqrt(1 - ratio * ratio));
             assertEquals("a linear spring and dashpot of damping ratio " + ratio, restitution, decayed, 1e-12);

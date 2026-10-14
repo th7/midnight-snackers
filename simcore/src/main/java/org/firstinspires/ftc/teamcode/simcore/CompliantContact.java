@@ -25,7 +25,7 @@ final class CompliantContact {
             Compliance compliance = squeeze.compliance();
             double closing = -velocity.minus(squeeze.velocity()).dot(squeeze.normal()) * inch;
             double newtons =
-                    compliance.newtonsPerMetre() * squeeze.depth() * inch + compliance.dampingFor(kilograms) * closing;
+                    compliance.newtonsPerMetre() * squeeze.depth() * inch + compliance.dampingFor(ball) * closing;
             if (newtons > 0) {
                 pressed.add(new Pressed(squeeze, newtons));
                 gripping += compliance.friction() * newtons;

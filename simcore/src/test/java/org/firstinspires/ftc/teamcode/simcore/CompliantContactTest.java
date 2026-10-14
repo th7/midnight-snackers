@@ -319,7 +319,7 @@ public class CompliantContactTest {
     public void aSqueezePushesTheBallAlongItsNormalAsItsDepthAndHowFastItClosesSayAndNeverPullsIt() {
         Vec3 up = new Vec3(0, 0, 1);
         double depth = 0.5 * MILLIMETRE;
-        double k = HOOD.newtonsPerMetre(), c = HOOD.dampingFor(POLLEN.kilograms());
+        double k = HOOD.newtonsPerMetre(), c = HOOD.dampingFor(POLLEN);
         double spring = k * depth * Length.METRES_PER_INCH;
 
         CompliantContact.Push resting = push(Vec3.zero(), Vec3.zero(), pressing(HOOD, up, depth, Vec3.zero()));
