@@ -200,12 +200,25 @@ final class Surroundings {
         return new Surroundings(still, then);
     }
 
-    Surroundings replacing(Part part) {
-        List<Held> replaced = new ArrayList<>();
-        for (Held held : parts) {
-            replaced.add(held.part().ids().equals(part.ids()) ? new Held(part, held.ids) : held);
+    Checked<Surroundings> replacing(Part part) {
+        Set<String> names = new HashSet<>();
+        for (String id : part.ids()) {
+            if (!names.add(id)) {
+                return Checked.rejected("every collider has a name of its own, and '" + id + "' is not one");
+            }
         }
-        return new Surroundings(still, replaced);
+        List<Held> replaced = new ArrayList<>();
+        boolean found = false;
+        for (Held held : parts) {
+            boolean same = held.ids.equals(names);
+            found = found || same;
+            replaced.add(same ? new Held(part, held.ids) : held);
+        }
+        if (!found) {
+            return Checked.rejected("a part takes the place of one the surroundings hold under exactly its names, and "
+                    + part.ids() + " are not the names of any");
+        }
+        return Checked.ok(new Surroundings(still, replaced));
     }
 
     List<Touch> near(Vec3 centre, Length radius, double within) {

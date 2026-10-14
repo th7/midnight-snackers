@@ -1796,7 +1796,9 @@ footprints and the tape are not among them. Class: `Colliders`, `Collider`, in t
 colliders**, which never move, and the parts that may, each listed by itself under
 the names it gives when it comes in, with where it reaches, how fast its shape sweeps
 through space (nothing for a part that only spins about its own axis, as a flywheel
-does) and whether it is moving. A part is placed at a time given as the engine's
+does) and whether it is moving. A part takes the place of the one held under exactly
+its names, in any order; one under any other names is refused, saying so. A part is
+placed at a time given as the engine's
 whole steps and a part of a step, so a part that moves for so many steps does so
 wherever on the steps it starts. Whatever a ball touches says how fast the surface
 goes there and how it spins, so a ball rides what carries it and is dragged along by

@@ -216,19 +216,37 @@ public class SurroundingsTest {
     }
 
     @Test
-    public void aPartIsReplacedByOneUnderTheSameNamesAndAPartUnderNamesTheSurroundingsDoNotHoldChangesNothing() {
+    public void aPartIsReplacedByOneUnderTheSameNamesInAnyOrder() {
         Surroundings.Part was =
                 new Answering(List.of("arm", "hand"), List.of(touch("arm", 0.5)), List.of("arm", "hand"));
-        Surroundings.Part now =
-                new Answering(List.of("arm", "hand"), List.of(touch("hand", -0.5)), List.of("arm", "hand"));
         Surroundings around = with(new Stated("post", 0, false), was);
 
-        Surroundings replaced = around.replacing(now);
-        Surroundings unchanged =
-                around.replacing(new Answering(List.of("arm"), List.of(touch("arm", -1)), List.of("arm")));
+        for (List<String> names : List.of(List.of("arm", "hand"), List.of("hand", "arm"))) {
+            Surroundings replaced =
+                    Valid.value(around.replacing(new Answering(names, List.of(touch("hand", -0.5)), names)));
 
-        assertEquals(List.of("Floor", "hand"), ids(replaced.near(Vec3.zero(), R, 1)));
-        assertEquals(List.of("Floor", "arm"), ids(unchanged.near(Vec3.zero(), R, 1)));
+            assertEquals(names.toString(), List.of("Floor", "hand"), ids(replaced.near(Vec3.zero(), R, 1)));
+        }
+    }
+
+    @Test
+    public void aPartWhoseNamesAreNotExactlyThoseOfAPartTheSurroundingsHoldIsRefusedNamingTheRule() {
+        Surroundings.Part was =
+                new Answering(List.of("arm", "hand"), List.of(touch("arm", 0.5)), List.of("arm", "hand"));
+        Surroundings around = with(new Stated("post", 0, false), was);
+
+        for (List<String> names :
+                List.of(List.of("arm"), List.of("arm", "hand", "finger"), List.of("hand", "post"), List.of("leg"))) {
+            String said = rejection(around.replacing(new Answering(names, List.of(touch("arm", -1)), names)));
+
+            assertTrue(
+                    said,
+                    said.contains("a part takes the place of one the surroundings hold under exactly its names, and "
+                            + names + " are not the names of any"));
+        }
+        String twice = rejection(around.replacing(new Answering(
+                List.of("arm", "hand", "arm"), List.of(touch("arm", -1)), List.of("arm", "hand", "arm"))));
+        assertTrue(twice, twice.contains("every collider has a name of its own, and 'arm' is not one"));
     }
 
     @Test

@@ -498,9 +498,17 @@ public final class Flight<K> {
         private void tip(Field.Hive hive) {
             catchUp();
             Bodies engine = engine();
-            hives = hives.at(engine.time()).tipped(hive);
-            engine.surroundedBy(physics.around().replacing(hives.part()));
-            seeAll();
+            Hives tipped = hives.at(engine.time()).tipped(hive);
+            physics.around()
+                    .replacing(tipped.part())
+                    .fold(
+                            around -> {
+                                hives = tipped;
+                                engine.surroundedBy(around);
+                                seeAll();
+                                return true;
+                            },
+                            rule -> false);
         }
 
         private void afterAStep(boolean hivesMoved) {
