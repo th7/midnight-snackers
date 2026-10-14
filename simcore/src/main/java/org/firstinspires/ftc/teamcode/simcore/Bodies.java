@@ -54,6 +54,7 @@ final class Bodies {
         private Kin start;
         private Kin trial;
         private boolean touched;
+        private boolean carried;
         private final Set<String> touchingColliders = new HashSet<>();
         private final Set<String> touchingBodies = new HashSet<>();
 
@@ -195,6 +196,11 @@ final class Bodies {
         return new Bodies(world, surroundings, watching, copied, steps, now, work);
     }
 
+    Bodies surroundedBy(Surroundings surroundings) {
+        this.surroundings = surroundings.at(now);
+        return this;
+    }
+
     Checked<Bodies> add(String name, Ball shape, Vec3 at, Vec3 velocity, Vec3 spin, Life life, Sleep sleep) {
         if (name.isBlank() || named(name).isPresent()) {
             return Checked.rejected("every body has a name of its own, and '" + name + "' is not one");
@@ -281,6 +287,7 @@ final class Bodies {
         }
         steps++;
         now = steps * step;
+        surroundings = surroundings.at(now);
         return Collections.unmodifiableList(spans);
     }
 
@@ -305,7 +312,7 @@ final class Bodies {
                 fastest = StrictMath.max(fastest, StrictMath.sqrt(body.velocity.dot(body.velocity)));
             }
         }
-        double needed = StrictMath.ceil(fastest * step / Shot.MOST_TRAVEL_IN);
+        double needed = StrictMath.ceil((fastest + surroundings.sweep()) * step / Shot.MOST_TRAVEL_IN);
         return (int) StrictMath.max(1, StrictMath.min(Shot.MOST_PIECES_PER_STEP, needed));
     }
 
@@ -367,12 +374,13 @@ final class Bodies {
             Optional<Glimpse> glimpse = watched().map(Glimpse::new);
             integrate(awake, span);
             double covered = span;
-            if (events < Shot.MOST_EVENTS_PER_PIECE && overlapsSomethingNew(awake)) {
+            if (events < Shot.MOST_EVENTS_PER_PIECE && overlapsSomethingNew(awake, span)) {
                 double lo = 0, hi = 1;
                 for (int i = 0; i < Shot.BISECTIONS; i++) {
                     double mid = (lo + hi) / 2;
-                    integrate(awake, mid * span);
-                    if (overlapsSomethingNew(awake)) {
+                    double over = mid * span;
+                    integrate(awake, over);
+                    if (overlapsSomethingNew(awake, over)) {
                         hi = mid;
                     } else {
                         lo = mid;
@@ -391,6 +399,7 @@ final class Bodies {
             double began = now;
             double took = covered;
             now = covered == span ? target : now + covered;
+            surroundings = surroundings.at(now);
             List<Seen> woken = wake();
             List<Contacts.Pressing> pressing = pressings();
             glimpse.ifPresent(Glimpse::beforeResolving);
@@ -446,9 +455,10 @@ final class Bodies {
         return a.plus(b.times(2)).plus(c.times(2)).plus(d);
     }
 
-    private boolean overlapsSomethingNew(List<Body> awake) {
+    private boolean overlapsSomethingNew(List<Body> awake, double over) {
+        Surroundings then = surroundings.at(now + over);
         for (Body body : awake) {
-            for (Surroundings.Touch near : near(surroundings, body.trial.at(), body.reach(), 0)) {
+            for (Surroundings.Touch near : near(then, body.trial.at(), body.reach(), 0)) {
                 if (near.gap() < 0 && !body.touchingColliders.contains(near.id())) {
                     return true;
                 }
@@ -471,6 +481,7 @@ final class Bodies {
         List<Body> awake = awake();
         for (Body body : awake) {
             body.touched = false;
+            body.carried = false;
         }
         for (Body body : awake) {
             for (Surroundings.Touch near : near(surroundings, body.at, body.reach(), Shot.TOUCHING_IN)) {
@@ -480,6 +491,7 @@ final class Bodies {
                         near.normal(),
                         !body.touchingColliders.contains(near.id())));
                 body.touched = true;
+                body.carried = body.carried || near.moves();
             }
             boolean past = false;
             for (Body other : bodies) {
@@ -520,6 +532,7 @@ final class Bodies {
     }
 
     private List<Seen> wake() {
+        List<Seen> woken = wokenByWhatMoves();
         List<Islands.Node> nodes = new ArrayList<>();
         for (Body body : bodies) {
             if (body.life == Life.GONE) {
@@ -533,7 +546,6 @@ final class Bodies {
             nodes.add(new Islands.Node(body.name, state, body.at, body.radius(), body.touchingBodies));
         }
         Set<String> waking = Islands.toWake(nodes, Shot.TOUCHING_IN);
-        List<Seen> woken = new ArrayList<>();
         for (Body body : bodies) {
             if (body.life == Life.ASLEEP && waking.contains(body.name)) {
                 body.life = Life.AWAKE;
@@ -542,6 +554,38 @@ final class Bodies {
             }
         }
         return woken;
+    }
+
+    private List<Seen> wokenByWhatMoves() {
+        List<Body> woken = new ArrayList<>();
+        for (Body body : bodies) {
+            if (body.life == Life.ASLEEP && reachedByWhatMoves(body)) {
+                body.life = Life.AWAKE;
+                body.restFor = 0;
+                woken.add(body);
+            }
+        }
+        List<Seen> seen = new ArrayList<>();
+        for (Body body : woken) {
+            body.touchingColliders.clear();
+            body.touchingBodies.clear();
+            touch(body);
+            seen.add(body.seen());
+        }
+        return seen;
+    }
+
+    private boolean reachedByWhatMoves(Body body) {
+        for (Surroundings.Part part : surroundings.moving()) {
+            double within = Shot.TOUCHING_IN + surroundings.sweepOf(part) * step;
+            if (part.reaches(body.at, body.radius() + within)) {
+                work++;
+                if (!part.near(body.at, body.reach(), within).isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private Optional<Contacts.Resolved> resolve(List<Contacts.Pressing> pressing) {
@@ -603,7 +647,8 @@ final class Bodies {
         for (Body body : awake()) {
             double moving = StrictMath.sqrt(body.velocity.dot(body.velocity))
                     + body.radius() * StrictMath.sqrt(body.spin.dot(body.spin));
-            body.restFor = body.touched && moving < Shot.REST_SPEED_IN_PER_S ? body.restFor + covered : 0;
+            body.restFor =
+                    body.touched && !body.carried && moving < Shot.REST_SPEED_IN_PER_S ? body.restFor + covered : 0;
             if (body.sleep == Sleep.WHEN_RESTING && body.restFor >= Shot.REST_SECONDS) {
                 body.life = Life.ASLEEP;
                 body.velocity = Vec3.zero();

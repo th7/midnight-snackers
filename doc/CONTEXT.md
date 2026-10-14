@@ -1759,13 +1759,28 @@ the page, so the drawing cannot drift from the physics. The robot's obstacle
 footprints and the tape are not among them. Class: `Colliders`, `Collider`, in the
 **core**.
 
+**Surroundings** — What the balls of a shot or of the realtime simulation meet
+besides one another: the **shot's colliders**, which never move, and the parts that
+may, each listed by itself with its own names, where it reaches, how fast its shape
+sweeps through space (nothing for a part that only spins about its own axis, as a
+flywheel does) and whether it is moving. Whatever a ball touches says how fast the
+surface goes there and how it spins, so a ball rides what carries it and is dragged
+along by what slides or turns under it. A step is cut finer while a part sweeps
+fast, and each new contact with a part is found where its face meets the ball, so no
+part passes through a ball. In a shot nothing moves. Class: `Surroundings`, in the
+**core**.
+
 **Asleep** and **awake** — Of a piece in a shot: the loose pollen and the nectar in
 the cells lie **asleep** where a match starts them until something moving touches
 them, and are **awake** from then until they come to rest again; the pollen standing
 in the flowers are held in their bores and never move. A moving body wakes every
 piece it reaches through pieces touching one another, passing through any that are
 awake but resting, and a piece it was holding up; a body at rest wakes nothing, so
-pieces resting against each other stay asleep. Class: `Islands`, in the **core**.
+pieces resting against each other stay asleep. A part of the **surroundings** that
+moves or spins wakes what rests against it and what it could reach within a step,
+and a body pressed against a surface that moves or spins never falls asleep; a part
+that moves nowhere near a sleeping body costs it nothing. Classes: `Islands`,
+`Bodies`, in the **core**.
 
 **Shot settings** — Every number a launch is made from, each with its group, label,
 unit, range, default and a sentence saying what it does, and checked whole: the
