@@ -139,6 +139,26 @@ public class LauncherAsAPartTest {
     }
 
     @Test
+    public void itsFacesAreTheCadsWithTheHoodAndTheLeadInAsTheTeamAllowedThemChanged() {
+        assertEquals(Launcher.CAD_SOURCE, 217 - 204, Launcher.AXLE_BEHIND_CENTRE_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 180, Launcher.AXLE_UP_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 75.2886, Launcher.WHEEL_TORUS_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 35.56, Launcher.WHEEL_TUBE_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 72.341, Launcher.HOOD_TORUS_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 36, Launcher.HOOD_TUBE_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 12.5, Launcher.RING_APART_MM, 0);
+        assertEquals(Launcher.CAD_SOURCE, 5, Launcher.RINGS);
+        assertEquals(Launcher.CAD_SOURCE, HOOD_FROM, Launcher.HOOD_FROM_DEGREES, 0);
+        assertEquals(Launcher.CAD_SOURCE, 20, Launcher.HOOD_TO_DEGREES, 0);
+        assertEquals(Launcher.CAD_SOURCE, EXTENSION_FROM, Launcher.EXTENSION_FROM_DEGREES, 0);
+        assertEquals(Launcher.CAD_SOURCE, 0.25, Launcher.LEAD_IN_SQUEEZE_MM, 0);
+        assertEquals(Launcher.POLLEN_SOURCE, R, Launcher.POLLEN_RADIUS_IN, 0);
+        assertTrue(
+                Launcher.STOP_SOURCE,
+                still(0).near(still(0).entry(POLLEN), POLLEN, 0).get(0).surface() == Surface.FRAME);
+    }
+
+    @Test
     public void itsNamesAreItsFiveFlywheelRingsItsFiveHoodRingsAndItsStopEachOnce() {
         Set<String> expected = new HashSet<>();
         for (double ring : RINGS_MM) {
