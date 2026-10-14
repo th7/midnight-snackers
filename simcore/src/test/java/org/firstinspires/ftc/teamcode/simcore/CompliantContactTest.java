@@ -232,18 +232,41 @@ public class CompliantContactTest {
         }
     }
 
+    private static double mostGainedInAStep(Bodies bodies, double seconds) {
+        double before = joules(bodies), gained = 0;
+        for (long i = 0; i < StrictMath.round(seconds / STEP); i++) {
+            bodies.step();
+            double now = joules(bodies);
+            gained = StrictMath.max(gained, now - before);
+            before = now;
+        }
+        return gained;
+    }
+
     @Test
-    public void aBallAgainstStillSupportsNeverGainsEnergyOverASecondHeldOrThrownIntoThem() {
-        for (Vec3 thrown : List.of(Vec3.zero(), alongThePath(HELD_AT, -20), alongThePath(HELD_AT, 40))) {
-            Bodies held = heldAt(launcher(STEP, 0), thrown);
-            double before = joules(held), gained = 0;
-            for (int i = 0; i < 10_000; i++) {
-                held.step();
-                double now = joules(held);
-                gained = StrictMath.max(gained, now - before);
-                before = now;
+    public void aBallAgainstStillSupportsNeverGainsEnergyOverASecondHeldOrSlidAlongThem() {
+        for (Vec3 sliding : List.of(Vec3.zero(), alongThePath(HELD_AT, -20), alongThePath(HELD_AT, 40))) {
+            double gained = mostGainedInAStep(heldAt(launcher(STEP, 0), sliding), 1);
+            assertTrue("sliding at " + sliding + ", a step gained " + gained + " J", gained <= 1e-12);
+        }
+    }
+
+    @Test
+    public void aBallArrivingAtAStillCompliantSurfaceFromBeyondItsReachWithinAStepNeverGainsEnergyOverASecond() {
+        double floor = 20;
+        for (double speed : new double[] {20, 100, 300, 600}) {
+            for (double partOfAStep : new double[] {0.1, 0.5, 0.9}) {
+                double gap = partOfAStep * speed * STEP;
+                Bodies arriving =
+                        among(STEP, CompliantPlate.still("plate", new Vec3(0, 0, floor), new Vec3(0, 0, 1), HOOD));
+                add(arriving, new Vec3(0, 0, floor + R + gap), new Vec3(0, 0, -speed));
+
+                assertTrue("beyond its reach", squeezing(arriving).isEmpty());
+                double gained = mostGainedInAStep(arriving, 1);
+                assertTrue(
+                        "arriving at " + speed + " in/s from " + gap + " in away, a step gained " + gained + " J",
+                        gained <= 1e-12);
             }
-            assertTrue("thrown at " + thrown + ", a step gained " + gained + " J", gained <= 1e-12);
         }
     }
 

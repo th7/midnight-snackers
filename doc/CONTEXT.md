@@ -1891,7 +1891,8 @@ A ball's regularisation speed is never below 2·h·Σμ·N·(1/m + r²/I) ÷ 2.7
 squeezes it, twice the least at which RK4 holds a grip stable at the engine's step h,
 and is the surface's own wherever that already holds. So a ball pinched between a
 still plate and one sliding along rolls at half the slide's speed, never gains energy
-against supports that are still, and is thrown the same to within a half of a percent
+against supports that are still, held in them, sliding along them or arriving at them
+from beyond their reach within a piece, and is thrown the same to within a half of a percent
 and a fifth of a degree at half the step. A compliant touch is never a hit or a press,
 never among what a body touches, never part of an island or of a **flight**'s landing,
 and never pushes a ball out of a face. A ball squeezed by supports that are all still
