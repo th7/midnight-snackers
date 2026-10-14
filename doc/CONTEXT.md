@@ -1884,20 +1884,28 @@ named beside where it came from. A ball within a piece's travel, a tenth of an i
 of where a compliant part reaches is pushed inside each stage of its integration, with
 the parts placed at that stage's own time: along each normal by the stiffness times
 the depth plus a damping times how fast the depth grows, never pulling, so that the
-push ends once it reaches nothing, before the depth does; the damping is the one at
-which a ball of its mass striking the whole surface alone comes back at the
-restitution, as such a spring and dashpot does, to within what the damping pushes in a
-step; and against the slip of its surface
+push ends once it reaches nothing, before the depth does; the damping c is the one at
+which a ball of its mass m striking the whole surface alone comes back at the
+restitution, as such a spring and dashpot does, and the engine returns it so to within
+c·h/m + k·h²/(12·m) at a step h, what the damping pushes in a step and what RK4 misses
+of the spring k as the squeeze begins and as it ends, at any restitution, 1 included,
+while c·h/m is at most 1 and k·h²/m at most 2; and against the slip of its surface
 over what squeezes it (its velocity and its spin across the arm to where they meet,
 less the velocity of what squeezes there, along the surface) by the friction coefficient times
 that push, in proportion below the regularisation speed, turning it about its centre.
 A ball's regularisation speed is never below 2·h·Σμ·N·(1/m + r²/I) ÷ 2.785 over what
 squeezes it, twice the least at which RK4 holds a grip stable at the engine's step h,
 and is the surface's own wherever that already holds. So a ball pinched between a
-still plate and one sliding along rolls at half the slide's speed, never gains energy
-against supports that are still, held in them, sliding along them or arriving at them
-from beyond their reach within a piece, and is thrown the same to within a half of a percent
-and a fifth of a degree at half the step. A compliant touch is never a hit or a press,
+still plate and one sliding along rolls at half the slide's speed. Where the step
+resolves what squeezes a ball, each surface damped at least half its stiffness times
+the step (c ≥ k·h/2) and all of them together at most its mass over the step
+(Σc·h ≤ m), as the launcher's five rings on the wheel and five on the hood are for
+the pollen at a **flight**'s 0.1 ms, it never gains energy against supports that are
+still, held in them, sliding along them or arriving at them from beyond their reach
+within a piece; one damped less may gain a little as it arrives, since RK4's last
+stage alone sees a squeeze begun within half a step of its end. A wheel and hood
+with the launcher's surfaces throw a ball the same to within a half of a percent and
+a fifth of a degree at half the step. A compliant touch is never a hit or a press,
 never among what a body touches, never part of an island or of a **flight**'s landing,
 and never pushes a ball out of a face. A ball squeezed by supports that are all still
 rests as one on a still face does, falls asleep, and then stays put exactly; one

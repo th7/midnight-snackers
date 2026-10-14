@@ -58,6 +58,15 @@ public class CompliantContactTest {
     private static final double FASTEST_THROW = 0.584;
     private static final double THROWN_WITHIN_DEGREES = 3;
     private static final double LEFT_WITHIN_DEGREES = 10;
+    private static final String ONSET_SOURCE = "a squeeze that begins a time s before a step ends, under half a step,"
+            + " is seen by RK4's last stage alone, which pushes k v s h / 6 where the spring pushes k v s^2 / 2: the"
+            + " ball keeps up to k v^2 h^2 / 24 more energy than the spring stores, at s = h / 2, against the"
+            + " c v^2 h / 6 that stage's damping takes, and leaves out by up to k v h^2 / (24 m) as a squeeze begins"
+            + " and again as it ends, besides the damping's c v h / m; so an arrival gains nothing while c is at"
+            + " least k h / 4, and twice that also covers what lies past the first order, as far as c h / m = 1";
+    private static final double ONSET_EACH_END = 24;
+    private static final double ONSET_DAMPING_PER_STIFFNESS_STEP = 0.25;
+    private static final double ONSET_SAFETY = 2;
 
     private static Surfaces surfaces() {
         Bounce bounce = Valid.value(Bounce.of(0.55, 0.5, 0.2));
@@ -107,14 +116,22 @@ public class CompliantContactTest {
     }
 
     private static CompliantArc hood() {
+        return hood(HOOD);
+    }
+
+    private static CompliantArc hood(Compliance surface) {
         return CompliantArc.still(
                 "hood",
                 Valid.value(Arc.of(HUB, AXLE, HOOD_RADIUS, Valid.value(Arc.Span.of(HOOD_FROM, HOOD_TO - HOOD_FROM)))),
-                HOOD);
+                surface);
     }
 
     private static Bodies launcher(double step, double wheelSpeed) {
-        return among(step, CompliantArc.spinning("wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, wheelSpeed), hood());
+        return launcher(step, wheelSpeed, WHEEL, HOOD);
+    }
+
+    private static Bodies launcher(double step, double wheelSpeed, Compliance wheel, Compliance hood) {
+        return among(step, CompliantArc.spinning("wheel", HUB, AXLE, WHEEL_RADIUS, wheel, wheelSpeed), hood(hood));
     }
 
     private static Bodies fedAt(Bodies launcher) {
@@ -214,25 +231,100 @@ public class CompliantContactTest {
         }
     }
 
+    private record Surface(double newtonsPerMillimetre, double friction) {
+        Compliance at(double restitution) {
+            return Valid.value(
+                    Compliance.of(newtonsPerMillimetre, restitution, friction, Compliance.REGULARISATION_M_PER_S));
+        }
+
+        double leastBouncyDampedAtMost(double newtonSecondsPerMetre) {
+            double low = 0, high = 1;
+            for (int halvings = 0; halvings < 200; halvings++) {
+                double middle = low + (high - low) / 2;
+                if (at(middle).dampingFor(POLLEN) <= newtonSecondsPerMetre) {
+                    high = middle;
+                } else {
+                    low = middle;
+                }
+            }
+            return high;
+        }
+
+        double mostBouncyDampedAtLeast(double newtonSecondsPerMetre) {
+            double low = 0, high = 1;
+            for (int halvings = 0; halvings < 200; halvings++) {
+                double middle = low + (high - low) / 2;
+                if (at(middle).dampingFor(POLLEN) >= newtonSecondsPerMetre) {
+                    low = middle;
+                } else {
+                    high = middle;
+                }
+            }
+            return low;
+        }
+    }
+
+    private static double stiffestWithin(double stiffnessTimesStepSquaredPerMass, double step) {
+        double m = POLLEN.kilograms();
+        double stiffness = stiffnessTimesStepSquaredPerMass * m / (step * step) / Compliance.MILLIMETRES_PER_METRE;
+        while (new Surface(stiffness, 0).at(1).newtonsPerMetre() * step * step / m > stiffnessTimesStepSquaredPerMass) {
+            stiffness = StrictMath.nextDown(stiffness);
+        }
+        return stiffness;
+    }
+
+    private static double leastDamping(Compliance surface, double step) {
+        return ONSET_SAFETY * ONSET_DAMPING_PER_STIFFNESS_STEP * surface.newtonsPerMetre() * step;
+    }
+
+    private static Bodies.Seen leftAfterStriking(Bodies struck, double step) {
+        boolean squeezed = false;
+        for (long i = 0; i < StrictMath.round(1 / step); i++) {
+            struck.step();
+            boolean now = !squeezing(struck).isEmpty();
+            if (squeezed && !now) {
+                return ball(struck);
+            }
+            squeezed = squeezed || now;
+        }
+        throw new AssertionError("never left the wall: " + ball(struck) + ", squeezed " + squeezed);
+    }
+
     @Test
-    public void aBallStrikingALoneStillCompliantSurfaceComesBackAtItsRestitutionToWithinWhatItsDampingPushesInAStep() {
-        double step = STEP / 10;
-        for (double restitution : new double[] {0.2, 0.6, 0.9}) {
-            Compliance surface = Valid.value(
-                    Compliance.of(Compliance.STIFFNESS_N_PER_MM, restitution, 0, Compliance.REGULARISATION_M_PER_S));
-            double withinAStep = surface.dampingFor(POLLEN) * step / POLLEN.kilograms();
-            for (double speed : new double[] {4, 40, 200}) {
-                Bodies struck = among(step, CompliantPlate.still("wall", Vec3.zero(), new Vec3(1, 0, 0), surface));
-                add(struck, new Vec3(R + 0.01, 0, 30), new Vec3(-speed, 0, 0));
+    public void aBallStrikingALoneStillCompliantSurfaceComesBackAtItsRestitutionToWithinWhatAStepMissesOfItsPush() {
+        double m = POLLEN.kilograms();
+        for (double step : new double[] {STEP, STEP / 10}) {
+            for (double stiffness : new double[] {Compliance.STIFFNESS_N_PER_MM, stiffestWithin(2, step)}) {
+                Surface wall = new Surface(stiffness, 0);
+                double least = wall.leastBouncyDampedAtMost(m / step);
+                List<Double> restitutions = new ArrayList<>(List.of(least));
+                for (double restitution : new double[] {1, 0.9, 0.6, 0.2}) {
+                    if (restitution > least) {
+                        restitutions.add(restitution);
+                    }
+                }
+                for (double restitution : restitutions) {
+                    Compliance surface = wall.at(restitution);
+                    double c = surface.dampingFor(POLLEN), k = surface.newtonsPerMetre();
+                    assertTrue(
+                            "a damping of " + c + " N s/m and a stiffness of " + k + " N/m at a step of " + step,
+                            c * step / m <= 1 && k * step * step / m <= 2);
+                    double within = c * step / m + 2 * k * step * step / (ONSET_EACH_END * m);
+                    for (double speed : new double[] {4, 40, 200}) {
+                        Bodies struck =
+                                among(step, CompliantPlate.still("wall", Vec3.zero(), new Vec3(1, 0, 0), surface));
+                        add(struck, new Vec3(R + 0.01, 0, 30), new Vec3(-speed, 0, 0));
 
-                stepFor(struck, 0.03, step);
+                        Bodies.Seen left = leftAfterStriking(struck, step);
 
-                assertTrue("left the wall", squeezing(struck).isEmpty());
-                assertEquals(
-                        "struck at " + speed + " in/s with a restitution of " + restitution,
-                        restitution,
-                        ball(struck).velocity().x() / speed,
-                        withinAStep);
+                        assertEquals(
+                                ONSET_SOURCE + ": struck at " + speed + " in/s against " + surface + " at a step of "
+                                        + step,
+                                restitution,
+                                left.velocity().x() / speed,
+                                within);
+                    }
+                }
             }
         }
     }
@@ -276,30 +368,87 @@ public class CompliantContactTest {
     }
 
     @Test
-    public void aBallAgainstStillSupportsNeverGainsEnergyOverASecondHeldOrSlidAlongThem() {
-        for (Vec3 sliding : List.of(Vec3.zero(), alongThePath(HELD_AT, -20), alongThePath(HELD_AT, 40))) {
-            double gained = mostGainedInAStep(heldAt(launcher(STEP, 0), sliding), 1);
-            assertTrue("sliding at " + sliding + ", a step gained " + gained + " J", gained <= 1e-12);
+    public void aBallAgainstStillSupportsTheStepResolvesNeverGainsEnergyOverASecondHeldOrSlidAlongThem() {
+        double m = POLLEN.kilograms();
+        Surface wheels = new Surface(Compliance.STIFFNESS_N_PER_MM, Compliance.WHEEL_FRICTION),
+                hoods = new Surface(Compliance.STIFFNESS_N_PER_MM, Compliance.HOOD_FRICTION),
+                stiffWheels = new Surface(stiffestWithin(0.5, STEP), Compliance.WHEEL_FRICTION),
+                stiffHoods = new Surface(stiffestWithin(0.5, STEP), Compliance.HOOD_FRICTION);
+        double leastDamped = leastDamping(HOOD, STEP), stiffDamped = leastDamping(stiffHoods.at(1), STEP);
+        for (List<Compliance> supports : List.of(
+                List.of(WHEEL, HOOD),
+                List.of(
+                        wheels.at(wheels.mostBouncyDampedAtLeast(leastDamped)),
+                        hoods.at(hoods.mostBouncyDampedAtLeast(leastDamped))),
+                List.of(
+                        wheels.at(wheels.leastBouncyDampedAtMost(m / STEP / 2)),
+                        hoods.at(hoods.leastBouncyDampedAtMost(m / STEP / 2))),
+                List.of(
+                        stiffWheels.at(stiffWheels.mostBouncyDampedAtLeast(stiffDamped)),
+                        stiffHoods.at(stiffHoods.mostBouncyDampedAtLeast(stiffDamped))),
+                List.of(
+                        stiffWheels.at(stiffWheels.leastBouncyDampedAtMost(m / STEP / 2)),
+                        stiffHoods.at(stiffHoods.leastBouncyDampedAtMost(m / STEP / 2))))) {
+            Compliance wheel = supports.get(0), hood = supports.get(1);
+            double together = wheel.dampingFor(POLLEN) + hood.dampingFor(POLLEN);
+            assertTrue(
+                    ONSET_SOURCE + ": " + supports,
+                    wheel.dampingFor(POLLEN) >= leastDamping(wheel, STEP)
+                            && hood.dampingFor(POLLEN) >= leastDamping(hood, STEP)
+                            && together * STEP / m <= 1);
+            for (Vec3 sliding : List.of(Vec3.zero(), alongThePath(HELD_AT, -20), alongThePath(HELD_AT, 40))) {
+                double gained = mostGainedInAStep(heldAt(launcher(STEP, 0, wheel, hood), sliding), 1);
+                assertTrue(
+                        "against " + supports + ", sliding at " + sliding + ", a step gained " + gained + " J",
+                        gained <= 1e-12);
+            }
         }
     }
 
     @Test
-    public void aBallArrivingAtAStillCompliantSurfaceFromBeyondItsReachWithinAStepNeverGainsEnergyOverASecond() {
-        double floor = 20;
-        for (double speed : new double[] {20, 100, 300, 600}) {
-            for (double partOfAStep : new double[] {0.1, 0.5, 0.9}) {
-                double gap = partOfAStep * speed * STEP;
-                Bodies arriving =
-                        among(STEP, CompliantPlate.still("plate", new Vec3(0, 0, floor), new Vec3(0, 0, 1), HOOD));
-                add(arriving, new Vec3(0, 0, floor + R + gap), new Vec3(0, 0, -speed));
+    public void aBallArrivingFromBeyondItsReachWithinAStepNeverGainsEnergyOverASecondAgainstASurfaceTheStepResolves() {
+        double floor = 20, m = POLLEN.kilograms();
+        List<Compliance> surfaces = new ArrayList<>(List.of(HOOD));
+        for (double stiffness : new double[] {Compliance.STIFFNESS_N_PER_MM, stiffestWithin(1, STEP)}) {
+            Surface plate = new Surface(stiffness, 0);
+            surfaces.add(plate.at(plate.mostBouncyDampedAtLeast(leastDamping(plate.at(1), STEP))));
+            surfaces.add(plate.at(plate.leastBouncyDampedAtMost(m / STEP)));
+        }
+        for (Compliance surface : surfaces) {
+            double c = surface.dampingFor(POLLEN);
+            assertTrue(
+                    ONSET_SOURCE + ": a damping of " + c + " N s/m",
+                    c >= leastDamping(surface, STEP) && c * STEP / m <= 1);
+            for (double speed : new double[] {20, 100, 300, 600}) {
+                for (double partOfAStep : new double[] {0.1, 0.501, 0.505, 0.9}) {
+                    double gap = partOfAStep * speed * STEP;
+                    Bodies arriving = among(
+                            STEP, CompliantPlate.still("plate", new Vec3(0, 0, floor), new Vec3(0, 0, 1), surface));
+                    add(arriving, new Vec3(0, 0, floor + R + gap), new Vec3(0, 0, -speed));
 
-                assertTrue("beyond its reach", squeezing(arriving).isEmpty());
-                double gained = mostGainedInAStep(arriving, 1);
-                assertTrue(
-                        "arriving at " + speed + " in/s from " + gap + " in away, a step gained " + gained + " J",
-                        gained <= 1e-12);
+                    assertTrue("beyond its reach", squeezing(arriving).isEmpty());
+                    double gained = mostGainedInAStep(arriving, 1);
+                    assertTrue(
+                            ONSET_SOURCE + ": against " + surface + ", arriving at " + speed + " in/s from " + gap
+                                    + " in away, a step gained " + gained + " J",
+                            gained <= 1e-12);
+                }
             }
         }
+    }
+
+    @Test
+    public void theLaunchersSurfacesSampledByFiveRingsEachAreResolvedForThePollenAtAFlightsStep() {
+        double step = Flight.STEP_NANOS / Flight.NANOS_PER_SECOND, m = POLLEN.kilograms();
+        Compliance wheel = Valid.value(WHEEL.sharedBy(5)), hood = Valid.value(HOOD.sharedBy(5));
+        double damping = 0, stiffness = 0;
+        for (Compliance ring : List.of(wheel, wheel, wheel, wheel, wheel, hood, hood, hood, hood, hood)) {
+            assertTrue(ONSET_SOURCE + ": a ring of " + ring, ring.dampingFor(POLLEN) >= leastDamping(ring, step));
+            damping += ring.dampingFor(POLLEN);
+            stiffness += ring.newtonsPerMetre();
+        }
+        assertTrue("all its rings damp " + damping + " N s/m", damping * step / m <= 1);
+        assertTrue("all its rings are " + stiffness + " N/m", stiffness * step * step / m <= 2);
     }
 
     @Test
