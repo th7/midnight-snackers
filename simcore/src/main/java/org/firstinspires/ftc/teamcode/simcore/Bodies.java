@@ -473,6 +473,10 @@ final class Bodies {
                 surroundings, air, surfaces, stepping, watching, copied, steps, now, work, window, windowBegan);
     }
 
+    Surroundings surroundings() {
+        return surroundings;
+    }
+
     List<Seen> surroundedBy(Surroundings surroundings) {
         this.surroundings = placed(surroundings, time());
         List<Seen> woken = new ArrayList<>();

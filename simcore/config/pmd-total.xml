@@ -21,6 +21,26 @@
         </properties>
     </rule>
 
+    <rule name="NoDroppedChecked" language="java"
+          message="A Checked nothing looks at drops its refusal: fold it, map it or return it"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+//ExpressionStatement/*[1][self::MethodCall or self::ConstructorCall][pmd-java:typeIs('org.firstinspires.ftc.teamcode.simcore.Checked')]
+|
+//LambdaExpression
+    [pmd-java:typeIs('java.util.function.Consumer')
+     or pmd-java:typeIs('java.util.function.BiConsumer')
+     or pmd-java:typeIs('java.util.function.IntConsumer')
+     or pmd-java:typeIs('java.util.function.LongConsumer')
+     or pmd-java:typeIs('java.util.function.DoubleConsumer')
+     or pmd-java:typeIs('java.lang.Runnable')]
+    /*[last()][not(self::Block)][pmd-java:typeIs('org.firstinspires.ftc.teamcode.simcore.Checked')]
+]]></value></property>
+        </properties>
+    </rule>
+
     <rule name="NoIntegerDivision" language="java"
           message="Integer division throws on zero: divide by a nonzero literal, or divide doubles"
           class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">

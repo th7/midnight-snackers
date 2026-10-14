@@ -198,12 +198,18 @@ public final class Flight<K> {
                     "a ball comes into flight at most " + MOST_SPEED_IN_PER_S + " in/s, not at " + velocity);
         }
         return Bodies.Motion.of(at, velocity, Vec3.zero())
-                .then(motion -> ballOf(kind, radius).map(shape -> {
+                .then(motion -> ballOf(kind, radius).then(shape -> {
                     Work<K> work = new Work<>(this);
                     work.catchUp();
                     work.remove(ball);
-                    work.add(ball, kind, radius, shape, motion, new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING));
-                    return work.checked();
+                    return work.add(
+                                    ball,
+                                    kind,
+                                    radius,
+                                    shape,
+                                    motion,
+                                    new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING))
+                            .then(seen -> work.checked());
                 }));
     }
 
@@ -214,10 +220,8 @@ public final class Flight<K> {
                     work.catchUp();
                     work.remove(ball);
                     return Bodies.Motion.of(work.bodies.clearOf(placed.at(), radius), Vec3.zero(), Vec3.zero())
-                            .map(cleared -> {
-                                work.add(ball, kind, radius, shape, cleared, new Bodies.Start.Asleep());
-                                return work.checked();
-                            });
+                            .then(cleared -> work.add(ball, kind, radius, shape, cleared, new Bodies.Start.Asleep())
+                                    .then(seen -> work.checked()));
                 }));
     }
 
@@ -228,10 +232,15 @@ public final class Flight<K> {
             work.remove(ball);
             for (Vec3 spot : work.hives.restingSpots(cell, radius)) {
                 if (work.clear(spot, radius)) {
-                    return Bodies.Motion.of(spot, Vec3.zero(), Vec3.zero()).map(motion -> {
-                        work.add(ball, kind, radius, shape, motion, new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING));
-                        return work.checked();
-                    });
+                    return Bodies.Motion.of(spot, Vec3.zero(), Vec3.zero())
+                            .then(motion -> work.add(
+                                            ball,
+                                            kind,
+                                            radius,
+                                            shape,
+                                            motion,
+                                            new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING))
+                                    .then(seen -> work.checked()));
                 }
             }
             return Checked.rejected("there is no room left in " + cell.name() + " for another " + kind.named());
@@ -245,12 +254,12 @@ public final class Flight<K> {
         }
         Work<K> work = new Work<>(this);
         work.catchUp();
-        return work.surround(work.hives, now).map(around -> work.checked());
+        return work.surround(work.hives, now).then(around -> work.checked());
     }
 
-    public Flight<K> without(K ball) {
+    public Checked<Flight<K>> without(K ball) {
         if (!holds(ball)) {
-            return this;
+            return Checked.ok(this);
         }
         Work<K> work = new Work<>(this);
         work.catchUp();
@@ -309,16 +318,16 @@ public final class Flight<K> {
         return out;
     }
 
-    public Stepped<K> step(Tick tick) {
+    public Checked<Stepped<K>> step(Tick tick) {
         long more = StrictMath.round(tick.seconds().value() * NANOS_PER_SECOND);
         long then = more > Long.MAX_VALUE - nanos ? Long.MAX_VALUE : nanos + more;
         Work<K> work = new Work<>(this);
         work.tipWhatIsFull();
         if (!work.bodies.anyAwake() && !work.hives.moving()) {
-            return new Stepped<>(work.at(then), List.of());
+            return work.unlessRefused(new Stepped<>(work.at(then), List.of()));
         }
         work.advanceTo(stepsTo(then));
-        return new Stepped<>(work.at(then), Collections.unmodifiableList(work.landings));
+        return work.unlessRefused(new Stepped<>(work.at(then), Collections.unmodifiableList(work.landings)));
     }
 
     private static long stepsTo(long nanos) {
@@ -336,6 +345,7 @@ public final class Flight<K> {
         private Bodies bodies;
         private long named;
         private boolean copied;
+        private Optional<String> refused = Optional.empty();
 
         Work(Flight<K> flight) {
             this.physics = flight.physics;
@@ -366,10 +376,14 @@ public final class Flight<K> {
             });
         }
 
-        Flight<K> checked() {
+        Checked<Flight<K>> checked() {
             seeAll();
             tipWhatIsFull();
-            return at(nanos);
+            return unlessRefused(at(nanos));
+        }
+
+        <T> Checked<T> unlessRefused(T value) {
+            return refused.<Checked<T>>map(Checked::rejected).orElseGet(() -> Checked.ok(value));
         }
 
         private Bodies engine() {
@@ -389,7 +403,7 @@ public final class Flight<K> {
 
         void advanceTo(long target) {
             Bodies engine = engine();
-            while (engine.steps() < target) {
+            while (engine.steps() < target && refused.isEmpty()) {
                 boolean wasMoving = hives.moving();
                 if (!engine.anyAwake() && engine.idleThrough(target)) {
                     hives = hives.at(engine.time());
@@ -415,22 +429,23 @@ public final class Flight<K> {
             });
         }
 
-        void add(K ball, Field.Kind kind, Length radius, Ball shape, Bodies.Motion motion, Bodies.Start start) {
+        Checked<Bodies.Seen> add(
+                K ball, Field.Kind kind, Length radius, Ball shape, Bodies.Motion motion, Bodies.Start start) {
             named++;
             Bodies.Name name = Bodies.Name.numbered(named);
-            engine().add(name, shape, motion, start)
-                    .fold(
-                            seen -> flying.add(new Flying<>(
-                                    ball,
-                                    kind,
-                                    radius,
-                                    name.key(),
-                                    Optional.empty(),
-                                    false,
-                                    start.life() == Bodies.Life.AWAKE,
-                                    false,
-                                    Optional.empty())),
-                            rule -> false);
+            return engine().add(name, shape, motion, start).map(seen -> {
+                flying.add(new Flying<>(
+                        ball,
+                        kind,
+                        radius,
+                        name.key(),
+                        Optional.empty(),
+                        false,
+                        start.life() == Bodies.Life.AWAKE,
+                        false,
+                        Optional.empty()));
+                return seen;
+            });
         }
 
         boolean clear(Vec3 spot, Length radius) {
@@ -525,7 +540,7 @@ public final class Flight<K> {
 
         void tipWhatIsFull() {
             for (Field.Hive hive : hives.field().hives()) {
-                if (hives.tipping(hive)) {
+                if (refused.isPresent() || hives.tipping(hive)) {
                     continue;
                 }
                 Optional<Field.Cell> up = hives.upturnedCell(hive);
@@ -543,7 +558,23 @@ public final class Flight<K> {
 
         private void tip(Field.Hive hive) {
             catchUp();
-            surround(hives.at(engine().time()).tipped(hive), bores);
+            if (refused.isPresent()) {
+                return;
+            }
+            Hives tipped = hives.at(engine().time()).tipped(hive);
+            engine().surroundings()
+                    .replacing(tipped.part())
+                    .fold(
+                            around -> {
+                                hives = tipped;
+                                engine().surroundedBy(around);
+                                seeAll();
+                                return true;
+                            },
+                            rule -> {
+                                refused = Optional.of("the hive " + hive.name() + " is full but cannot tip: " + rule);
+                                return false;
+                            });
         }
 
         private void afterAStep(boolean hivesMoved) {

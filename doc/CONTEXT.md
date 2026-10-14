@@ -1528,8 +1528,12 @@ three million a second; once the work done since a window's first step reaches
 that, contacts in the rest of the window are resolved at the ends of pieces
 without being located, and the next window locates them again. So ticks that add
 up to the same nanoseconds leave a flight the same to the bit, however they are
-cut: every landing, every ball still flying and the work counted. A flight is a
-value.
+cut: every landing, every ball still flying and the work counted. A hive tips by
+its tipped self taking the hives' place in the surroundings under the same names,
+so what stands in the bores stays as it was. Were the surroundings to refuse a
+tip, or the engine a ball, the flight says so to whatever stepped it or put the
+ball in, and a run stops there saying why, rather than a full cell staying
+upturned or a ball going missing. A flight is a value.
 Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
 tells the flight what the floor's own world has in the bores each step.
 

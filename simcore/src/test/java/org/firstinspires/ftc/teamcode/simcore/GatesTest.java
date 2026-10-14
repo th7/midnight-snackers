@@ -155,6 +155,46 @@ public class GatesTest {
         assertTrue(pmd("    public static double f(double a, int b) {\n        return a / b;\n    }\n").passed);
     }
 
+    private Gates.Verdict pmdBesideAChecked(String body) {
+        return Gates.pmd(
+                dir(),
+                "Breach",
+                inTheCore(HALF + body)
+                        + "\ninterface Checked<T> {}\n\nrecord Ok<T>(T value) implements Checked<T> {}\n");
+    }
+
+    private static final String HALF =
+            "    static Checked<Double> half(double x) {\n        return new Ok<>(x * 0.5);\n    }\n\n";
+
+    @Test
+    public void aCheckedNothingLooksAtIsRefused() {
+        assertRefused(
+                "NoDroppedChecked", pmdBesideAChecked("    static void f(double x) {\n        half(x);\n    }\n"));
+        assertRefused(
+                "NoDroppedChecked", pmdBesideAChecked("    static void f(double x) {\n        new Ok<>(x);\n    }\n"));
+        assertRefused(
+                "NoDroppedChecked",
+                pmdBesideAChecked("    static void f(java.util.List<Double> xs) {\n"
+                        + "        xs.forEach(x -> half(x));\n"
+                        + "    }\n"));
+        assertRefused(
+                "NoDroppedChecked",
+                pmdBesideAChecked("    static void f(java.util.Optional<Double> x) {\n"
+                        + "        x.ifPresent(y -> {\n            half(y);\n        });\n"
+                        + "    }\n"));
+        Gates.Verdict kept = pmdBesideAChecked("    static Checked<Double> f(double x) {\n"
+                + "        Checked<Double> kept = half(x);\n"
+                + "        kept = half(x + 1);\n"
+                + "        return kept;\n"
+                + "    }\n");
+        assertTrue("a Checked kept in a variable and returned: " + kept, kept.passed);
+        Gates.Verdict mapped =
+                pmdBesideAChecked("    static java.util.Optional<Checked<Double>> f(java.util.Optional<Double> x) {\n"
+                        + "        return x.map(y -> half(y));\n"
+                        + "    }\n");
+        assertTrue("a Checked a lambda gives back: " + mapped, mapped.passed);
+    }
+
     @Test
     public void indexingIsRefused() {
         assertRefused("NoIndexing", pmd("    public static double f(double[] xs) {\n        return xs[0];\n    }\n"));

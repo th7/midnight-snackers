@@ -39,7 +39,7 @@ public class FlightTraceTest {
         for (long sample = Math.round(duration / (STEP * STEPS_PER_SAMPLE)); sample > 0; sample--) {
             for (int i = 0; i < STEPS_PER_SAMPLE; i++) {
                 Flight.Stepped<Object> stepped =
-                        flight.step(Valid.value(Flight.Tick.of(Valid.value(Seconds.of(STEP)))));
+                        Valid.value(flight.step(Valid.value(Flight.Tick.of(Valid.value(Seconds.of(STEP))))));
                 flight = stepped.flight();
                 for (Flight.Landing<Object> landing : stepped.landings()) {
                     Vec2 velocity =

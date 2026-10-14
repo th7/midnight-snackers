@@ -649,7 +649,7 @@ public class SimRobot {
             world.removeBody(ball.body);
         }
         if (ball.where == Where.FLYING) {
-            flight = flight.without(ball);
+            flight = refusedIfNot(flight.without(ball));
         }
         if (ball.where == Where.IN_FLOWER) {
             stacks.put(ball.flower, stacks.get(ball.flower).without(ball));
@@ -941,7 +941,7 @@ public class SimRobot {
     }
 
     private void flyTheBalls(Seconds dt) {
-        Flight.Stepped<Ball> stepped = flight.step(Valid.value(Flight.Tick.of(dt)));
+        Flight.Stepped<Ball> stepped = refusedIfNot(flight.step(Valid.value(Flight.Tick.of(dt))));
         flight = stepped.flight();
         for (Flight.Landing<Ball> landing : stepped.landings()) {
             Ball ball = landing.ball();

@@ -64,7 +64,7 @@ public class FlightTest {
     }
 
     private List<Flight.Landing<Object>> once(double seconds) {
-        Flight.Stepped<Object> stepped = flight.step(tick(seconds));
+        Flight.Stepped<Object> stepped = Valid.value(flight.step(tick(seconds)));
         flight = stepped.flight();
         landed.addAll(stepped.landings());
         flown += seconds;
@@ -740,9 +740,9 @@ public class FlightTest {
         Flight<Object> fine = flight, coarse = flight;
         for (int i = 0; i < 100; i++) {
             for (int j = 0; j < 4; j++) {
-                fine = fine.step(tick(0.005)).flight();
+                fine = Valid.value(fine.step(tick(0.005))).flight();
             }
-            coarse = coarse.step(tick(0.02)).flight();
+            coarse = Valid.value(coarse.step(tick(0.02))).flight();
         }
 
         assertTrue(start != fine);
@@ -762,7 +762,7 @@ public class FlightTest {
         long most = 0;
         for (long i = Math.round(seconds / tick); i > 0; i--) {
             long before = flying.work();
-            Flight.Stepped<Object> stepped = flying.step(tick(tick));
+            Flight.Stepped<Object> stepped = Valid.value(flying.step(tick(tick)));
             flying = stepped.flight();
             landings.addAll(stepped.landings());
             most = Math.max(most, flying.work() - before);
@@ -880,18 +880,18 @@ public class FlightTest {
     public void aFlightWithNothingAwakeJumpsToWhereFlyingThereStepByStepWouldLeaveIt() {
         Flight<Object> waited = flight, stepped = flight;
         for (int i = 0; i < 2; i++) {
-            waited = waited.step(tick(0.25)).flight();
+            waited = Valid.value(waited.step(tick(0.25))).flight();
         }
         for (int i = 0; i < 500; i++) {
-            stepped = stepped.step(tick(0.001)).flight();
+            stepped = Valid.value(stepped.step(tick(0.001))).flight();
         }
         Object ball = new Object();
         Vec3 from = aboveTheMouthOf(upturned(blue), 10);
         waited = Valid.value(waited.with(ball, Field.Kind.POLLEN, POLLEN, from, Vec3.zero()));
         stepped = Valid.value(stepped.with(ball, Field.Kind.POLLEN, POLLEN, from, Vec3.zero()));
         for (int i = 0; i < 100; i++) {
-            waited = waited.step(tick(0.01)).flight();
-            stepped = stepped.step(tick(0.01)).flight();
+            waited = Valid.value(waited.step(tick(0.01))).flight();
+            stepped = Valid.value(stepped.step(tick(0.01))).flight();
         }
 
         assertEquals(stepped.at(ball), waited.at(ball));
