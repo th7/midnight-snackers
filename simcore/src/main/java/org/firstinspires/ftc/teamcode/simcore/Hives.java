@@ -109,36 +109,46 @@ public final class Hives {
         }
     }
 
+    private record Tip(Tilt from, Tilt to, long began) {
+        Lean at(GridTime time) {
+            if (time.steps() < began) {
+                return new Lean.Tipping(from, to, Seconds.zero());
+            }
+            return Seconds.of(time.secondsSince(began))
+                    .map(elapsed -> new Lean.Tipping(from, to, elapsed).after(Seconds.zero()))
+                    .orElse(new Lean.Resting(to));
+        }
+    }
+
     private static final class Held {
         private final Field.Hive hive;
         private final Shape shape;
         private final Lean lean;
-        private final double began;
+        private final Optional<Tip> tip;
         private final Turned turned;
         private final Vec3 spin;
 
-        private Held(Field.Hive hive, Shape shape, Lean lean, double began) {
+        private Held(Field.Hive hive, Shape shape, Lean lean, Optional<Tip> tip) {
             this.hive = hive;
             this.shape = shape;
             this.lean = lean;
-            this.began = began;
+            this.tip = tip;
             this.turned = Turned.by(hive.pivot(), lean.degrees());
             this.spin = lean instanceof Lean.Tipping
                     ? new Vec3(0, -StrictMath.toRadians(lean.degreesPerSecond()), 0)
                     : Vec3.zero();
         }
 
-        Held at(double seconds) {
-            if (!(lean instanceof Lean.Tipping tipping)) {
-                return this;
-            }
-            Seconds elapsed = Seconds.of(seconds - began).orElse(Seconds.zero());
-            return new Held(
-                    hive, shape, new Lean.Tipping(tipping.from(), tipping.to(), elapsed).after(Seconds.zero()), began);
+        Held at(GridTime time) {
+            return tip.map(one -> new Held(hive, shape, one.at(time), tip)).orElse(this);
         }
 
-        Held tipped(double seconds) {
-            return lean instanceof Lean.Tipping ? this : new Held(hive, shape, lean.tipped(), seconds);
+        Held tipped(GridTime time) {
+            if (!(lean instanceof Lean.Resting resting)) {
+                return this;
+            }
+            Tip one = new Tip(resting.tilt(), resting.tilt().opposite(), time.steps());
+            return new Held(hive, shape, one.at(time), Optional.of(one));
         }
 
         boolean moving() {
@@ -248,17 +258,17 @@ public final class Hives {
         }
 
         @Override
-        public Surroundings.Part at(double seconds) {
-            return new AsAPart(hives.at(seconds));
+        public Surroundings.Part at(GridTime time) {
+            return new AsAPart(hives.at(time));
         }
     }
 
     private final Field field;
     private final List<Held> hives;
     private final List<String> ids;
-    private final double now;
+    private final GridTime now;
 
-    private Hives(Field field, List<Held> hives, List<String> ids, double now) {
+    private Hives(Field field, List<Held> hives, List<String> ids, GridTime now) {
         this.field = field;
         this.hives = Collections.unmodifiableList(hives);
         this.ids = ids;
@@ -266,21 +276,22 @@ public final class Hives {
     }
 
     public static Checked<Hives> of(Field field) {
-        return Colliders.inTheirHivesFrames(field).map(framed -> {
-            List<Held> hives = new ArrayList<>();
-            List<String> ids = new ArrayList<>();
-            for (Colliders.Framed hive : framed) {
-                hives.add(new Held(
-                        hive.hive(),
-                        Shape.of(hive.hive(), hive.colliders(), hive.panels()),
-                        new Lean.Resting(hive.hive().tilt()),
-                        0));
-                for (Collider collider : hive.colliders()) {
-                    ids.add(collider.name());
-                }
-            }
-            return new Hives(field, hives, Collections.unmodifiableList(ids), 0);
-        });
+        return Flight.stepping()
+                .then(step -> Colliders.inTheirHivesFrames(field).map(framed -> {
+                    List<Held> hives = new ArrayList<>();
+                    List<String> ids = new ArrayList<>();
+                    for (Colliders.Framed hive : framed) {
+                        hives.add(new Held(
+                                hive.hive(),
+                                Shape.of(hive.hive(), hive.colliders(), hive.panels()),
+                                new Lean.Resting(hive.hive().tilt()),
+                                Optional.empty()));
+                        for (Collider collider : hive.colliders()) {
+                            ids.add(collider.name());
+                        }
+                    }
+                    return new Hives(field, hives, Collections.unmodifiableList(ids), GridTime.at(0, step));
+                }));
     }
 
     public Field field() {
@@ -368,15 +379,15 @@ public final class Hives {
     }
 
     public Hives after(Seconds seconds) {
-        return at(now + seconds.value());
+        return at(now.after(seconds));
     }
 
-    Hives at(double seconds) {
+    Hives at(GridTime time) {
         List<Held> then = new ArrayList<>();
         for (Held held : hives) {
-            then.add(held.at(seconds));
+            then.add(held.at(time));
         }
-        return new Hives(field, then, ids, seconds);
+        return new Hives(field, then, ids, time);
     }
 
     boolean moving() {

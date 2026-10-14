@@ -356,6 +356,7 @@ final class Bodies {
 
     private final Air air;
     private final Surfaces surfaces;
+    private final Step stepping;
     private final double step;
     private final Optional<String> watching;
     private final List<Body> bodies;
@@ -370,7 +371,7 @@ final class Bodies {
             Surroundings surroundings,
             Air air,
             Surfaces surfaces,
-            double step,
+            Step stepping,
             Optional<String> watching,
             List<Body> bodies,
             long steps,
@@ -381,7 +382,8 @@ final class Bodies {
         this.surroundings = surroundings;
         this.air = air;
         this.surfaces = surfaces;
-        this.step = step;
+        this.stepping = stepping;
+        this.step = stepping.seconds().value();
         this.watching = watching;
         this.bodies = bodies;
         this.steps = steps;
@@ -393,32 +395,11 @@ final class Bodies {
 
     static Bodies watching(Surroundings surroundings, Air air, Surfaces surfaces, Step step, Name name) {
         return new Bodies(
-                surroundings,
-                air,
-                surfaces,
-                step.seconds().value(),
-                Optional.of(name.text()),
-                new ArrayList<>(),
-                0,
-                0,
-                0,
-                -1,
-                0);
+                surroundings, air, surfaces, step, Optional.of(name.text()), new ArrayList<>(), 0, 0, 0, -1, 0);
     }
 
     static Bodies unwatched(Surroundings surroundings, Air air, Surfaces surfaces, Step step) {
-        return new Bodies(
-                surroundings,
-                air,
-                surfaces,
-                step.seconds().value(),
-                Optional.empty(),
-                new ArrayList<>(),
-                0,
-                0,
-                0,
-                -1,
-                0);
+        return new Bodies(surroundings, air, surfaces, step, Optional.empty(), new ArrayList<>(), 0, 0, 0, -1, 0);
     }
 
     static Bodies launchedAmong(
@@ -434,18 +415,8 @@ final class Bodies {
         for (Entry piece : pieces.entries) {
             bodies.add(Body.of(piece));
         }
-        Bodies engine = new Bodies(
-                surroundings,
-                air,
-                surfaces,
-                step.seconds().value(),
-                Optional.of(Shot.LAUNCHED),
-                bodies,
-                0,
-                0,
-                0,
-                -1,
-                0);
+        Bodies engine =
+                new Bodies(surroundings, air, surfaces, step, Optional.of(Shot.LAUNCHED), bodies, 0, 0, 0, -1, 0);
         engine.touchingAtTheStart();
         return engine;
     }
@@ -455,13 +426,14 @@ final class Bodies {
         for (Body body : bodies) {
             copied.add(body.copy());
         }
-        return new Bodies(surroundings, air, surfaces, step, watching, copied, steps, now, work, window, windowBegan);
+        return new Bodies(
+                surroundings, air, surfaces, stepping, watching, copied, steps, now, work, window, windowBegan);
     }
 
     List<Seen> surroundedBy(Surroundings surroundings) {
-        this.surroundings = placed(surroundings, now);
+        this.surroundings = placed(surroundings, time());
         List<Seen> woken = new ArrayList<>();
-        for (Body body : reachedAhead(placed(surroundings, (steps + 1) * step))) {
+        for (Body body : reachedAhead(placed(surroundings, GridTime.at(steps + 1, stepping)))) {
             woken.add(body.seen());
         }
         touchingAtTheStart();
@@ -603,6 +575,10 @@ final class Bodies {
         return now;
     }
 
+    GridTime time() {
+        return GridTime.at(steps, stepping);
+    }
+
     long work() {
         return work;
     }
@@ -629,7 +605,7 @@ final class Bodies {
             windowBegan = began;
         }
         long until = allowance.until(windowBegan);
-        Surroundings ahead = placed(surroundings, (steps + 1) * step);
+        Surroundings ahead = placed(surroundings, GridTime.at(steps + 1, stepping));
         List<Seen> early = new ArrayList<>();
         for (Body body : reachedAhead(ahead)) {
             refresh(body);
@@ -638,7 +614,7 @@ final class Bodies {
         boolean moves = anyAwake();
         int pieces = piecesOfThisStep(ahead);
         for (int i = 1; i <= pieces; i++) {
-            aPiece((steps + (double) i / pieces) * step, until, spans, i == 1 ? early : List.of());
+            aPiece(i, pieces, until, spans, i == 1 ? early : List.of());
         }
         steps++;
         now = steps * step;
@@ -665,7 +641,7 @@ final class Bodies {
             }
         }
         double horizon = (stepTarget - steps) * step;
-        Surroundings then = placed(surroundings, stepTarget * step);
+        Surroundings then = placed(surroundings, GridTime.at(stepTarget, stepping));
         for (Body body : bodies) {
             if (body.life == Life.ASLEEP
                     && (reachedByWhatMoves(body, surroundings, horizon) || reachedByWhatMoves(body, then, horizon))) {
@@ -758,7 +734,9 @@ final class Bodies {
         return watching.flatMap(this::named);
     }
 
-    private void aPiece(double target, long until, List<Span> spans, List<Seen> early) {
+    private void aPiece(int piece, int pieces, long until, List<Span> spans, List<Seen> early) {
+        double target = (steps + (double) piece / pieces) * step;
+        double into = (double) (piece - 1) / pieces;
         int events = 0;
         List<Seen> pending = early;
         while (now < target) {
@@ -770,13 +748,15 @@ final class Bodies {
             Optional<Glimpse> glimpse = watched().map(Glimpse::of);
             integrate(awake, span);
             double covered = span;
-            if (events < Shot.MOST_EVENTS_PER_PIECE && work < until && overlapsSomethingNew(awake, span)) {
+            if (events < Shot.MOST_EVENTS_PER_PIECE
+                    && work < until
+                    && overlapsSomethingNew(awake, (double) piece / pieces)) {
                 double lo = 0, hi = 1;
                 for (int i = 0; i < Shot.BISECTIONS; i++) {
                     double mid = (lo + hi) / 2;
                     double over = mid * span;
                     integrate(awake, over);
-                    if (overlapsSomethingNew(awake, over)) {
+                    if (overlapsSomethingNew(awake, into + over / step)) {
                         hi = mid;
                     } else {
                         lo = mid;
@@ -795,7 +775,8 @@ final class Bodies {
             double began = now;
             double took = covered;
             now = covered == span ? target : now + covered;
-            surroundings = placed(surroundings, now);
+            into = covered == span ? (double) piece / pieces : into + covered / step;
+            surroundings = placedPartWay(surroundings, into);
             List<Seen> woken = wake(pending);
             pending = List.of();
             List<Contacts.Pressing> pressing = pressings();
@@ -853,11 +834,11 @@ final class Bodies {
         return a.plus(b.times(2)).plus(c.times(2)).plus(d);
     }
 
-    private boolean overlapsSomethingNew(List<Body> awake, double over) {
+    private boolean overlapsSomethingNew(List<Body> awake, double into) {
         if (awake.isEmpty()) {
             return false;
         }
-        Surroundings then = placed(surroundings, now + over);
+        Surroundings then = placedPartWay(surroundings, into);
         for (Body body : awake) {
             for (Surroundings.Touch near : near(then, body.trial.at(), body.reach(), 0)) {
                 if (near.gap() < 0 && !body.touchingColliders.contains(near.id())) {
@@ -954,9 +935,20 @@ final class Bodies {
         return part.near(at, reach, within);
     }
 
-    private Surroundings placed(Surroundings around, double seconds) {
+    private Surroundings placedPartWay(Surroundings around, double into) {
+        if (around.placements() == 0) {
+            return around;
+        }
+        return placed(
+                around,
+                GridTime.PartOfAStep.of(into)
+                        .map(part -> GridTime.partWay(steps, part, stepping))
+                        .orElse(GridTime.at(steps + 1, stepping)));
+    }
+
+    private Surroundings placed(Surroundings around, GridTime time) {
         work += around.placements();
-        return around.at(seconds);
+        return around.at(time);
     }
 
     private List<Seen> wake(List<Seen> early) {

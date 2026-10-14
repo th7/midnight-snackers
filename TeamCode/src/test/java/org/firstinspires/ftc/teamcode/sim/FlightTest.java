@@ -287,6 +287,30 @@ public class FlightTest {
     }
 
     @Test
+    public void aTipBegunAtAnyStepOnTheGridEndsExactlyTipSecondsOfStepsLater() {
+        double oneStep = Flight.STEP_NANOS / Flight.NANOS_PER_SECOND;
+        long stepsOfATip = Math.round(Lean.TIP_SECONDS / oneStep);
+        Flight<Object> fresh = flight;
+        for (long began : List.of(0L, 45L, 46L, 66L, 187L, 1235L)) {
+            flight = fresh;
+            once(began * oneStep);
+            Field.Cell cell = upturned(blue);
+            for (int i = 0; i < 5; i++) {
+                putIn(Field.Kind.NECTAR, NECTAR, cell);
+            }
+            assertTrue("begun at step " + began, hives().tipping(blue));
+
+            for (long left = stepsOfATip - 1; left > 0; left -= Math.min(left, 2000)) {
+                once(Math.min(left, 2000) * oneStep);
+            }
+            assertTrue("still tipping a step short of its end, begun at step " + began, hives().tipping(blue));
+            once(oneStep);
+
+            assertFalse("over, begun at step " + began + ": " + hives().lean(blue), hives().tipping(blue));
+        }
+    }
+
+    @Test
     public void aBallCrossingTheMouthInTheAirDoesNotTipTheHiveThoughItsLoadReadsFull() {
         Field.Cell cell = upturned(blue);
         double leaning = tilt(blue);
@@ -753,7 +777,7 @@ public class FlightTest {
     }
 
     private static final long LAUNCH_WORK = 136054;
-    private static final long TIP_WORK = 1251364;
+    private static final long TIP_WORK = 1251376;
 
     private static Ring<Vec3> floorOf(Field.Cell cell) {
         Ring<Vec3> lowest = cell.walls().get(0);

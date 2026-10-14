@@ -50,7 +50,7 @@ final class PartContract {
         }
         double before = Double.NaN;
         for (double t : times) {
-            Surroundings.Part then = part.at(t);
+            Surroundings.Part then = part.at(Valid.time(t));
             if (!then.ids().equals(ids)) {
                 breaches.add("the part's names change with time: " + ids + " at first and " + then.ids() + " at " + t);
             }
@@ -62,7 +62,7 @@ final class PartContract {
                     breaches.add("the part answers differently when asked again" + where);
                 }
                 if (!Double.isNaN(before)
-                        && !touches.equals(near(part.at(before).at(t), probe))) {
+                        && !touches.equals(near(part.at(Valid.time(before)).at(Valid.time(t)), probe))) {
                     breaches.add("the part answers differently placed at " + before + " s and then" + where);
                 }
                 if (!touches.isEmpty()
@@ -140,8 +140,8 @@ final class PartContract {
     private static List<String> rateBreaches(
             Surroundings.Part part, double t, Probe probe, Surroundings.Touch touch, double sweep, String said) {
         List<String> breaches = new ArrayList<>();
-        Optional<Surroundings.Touch> earlier = same(near(part.at(t - DT), widened(probe)), touch);
-        Optional<Surroundings.Touch> later = same(near(part.at(t + DT), widened(probe)), touch);
+        Optional<Surroundings.Touch> earlier = same(near(part.at(Valid.time(t - DT)), widened(probe)), touch);
+        Optional<Surroundings.Touch> later = same(near(part.at(Valid.time(t + DT)), widened(probe)), touch);
         if (earlier.isEmpty() || later.isEmpty()) {
             return breaches;
         }
@@ -160,7 +160,7 @@ final class PartContract {
         if (StrictMath.abs(rate) > sweep + tolerance) {
             breaches.add("the part's gap changes at " + rate + " in/s, faster than its sweep of " + sweep + said);
         }
-        if (flat(part.at(t), probe, touch)
+        if (flat(part.at(Valid.time(t)), probe, touch)
                 && closeTo(earlier.get().normal(), touch.normal(), 1e-3)
                 && closeTo(later.get().normal(), touch.normal(), 1e-3)) {
             Vec3 turning = later.get().normal().minus(earlier.get().normal()).times(1 / (2 * DT));
@@ -190,7 +190,7 @@ final class PartContract {
     private static double sweepAround(Surroundings.Part part, double t) {
         double sweep = 0;
         for (double when : new double[] {t - DT, t, t + DT}) {
-            Surroundings.Part then = part.at(when);
+            Surroundings.Part then = part.at(Valid.time(when));
             if (then.moving()) {
                 double said = then.sweep();
                 sweep = StrictMath.max(sweep, said >= 0 ? said : Double.POSITIVE_INFINITY);

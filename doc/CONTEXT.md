@@ -1649,11 +1649,13 @@ degrees above level, is all that says where that is on the field. The
 field is set up with the blue hive leaning 30 degrees toward its scoring
 cell and the red hive 30 degrees the other way; a hive that **tips** turns
 over to lean the same 30 degrees the other side of level. A tip takes a
-second: it starts from rest, is fastest as the hive passes level and comes
+second, the ten thousand steps of a flight's engine after the step it began on,
+wherever on the steps that was: it starts from rest, is fastest as the hive passes level and comes
 to rest again, so it throws nothing, and whatever the hive touches it
 carries along as it turns, at the speed that part of the hive moves. A hive
-finishes a tip before it can start another, and a tip is timed from the
-moment it began, never by adding up the times since. In a run's **flight**
+finishes a tip before it can start another, and a tip is timed by the whole
+steps since the step it began on and the part of a step since, never by adding
+up the times since or by taking one reading of a clock from another. In a run's **flight**
 the hives are turned in their own frame and meet a ball under the same names
 and with the same gaps as the **shot's colliders**, at rest and tipped. Every tick says where each hive has got to, so a replay or a live
 view shows it turning. Classes: `Field.Hive`; `Hives`; `Lean`, in the **core**.
@@ -1791,7 +1793,9 @@ footprints and the tape are not among them. Class: `Colliders`, `Collider`, in t
 colliders**, which never move, and the parts that may, each listed by itself under
 the names it gives when it comes in, with where it reaches, how fast its shape sweeps
 through space (nothing for a part that only spins about its own axis, as a flywheel
-does) and whether it is moving. Whatever a ball touches says how fast the surface
+does) and whether it is moving. A part is placed at a time given as the engine's
+whole steps and a part of a step, so a part that moves for so many steps does so
+wherever on the steps it starts. Whatever a ball touches says how fast the surface
 goes there and how it spins, so a ball rides what carries it and is dragged along by
 what slides or turns under it; a face of a moving part that does not itself move says
 it is still. A touch has a unit normal and a finite gap, velocity and spin, and a

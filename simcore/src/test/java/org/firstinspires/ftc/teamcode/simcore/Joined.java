@@ -66,10 +66,10 @@ final class Joined implements Surroundings.Part {
     }
 
     @Override
-    public Surroundings.Part at(double seconds) {
+    public Surroundings.Part at(GridTime time) {
         List<Surroundings.Part> then = new ArrayList<>();
         for (Surroundings.Part part : parts) {
-            then.add(part.at(seconds));
+            then.add(part.at(time));
         }
         return new Joined(then);
     }

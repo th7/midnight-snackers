@@ -102,7 +102,7 @@ final class Surroundings {
 
         List<Touch> near(Vec3 centre, Length radius, double within);
 
-        Part at(double seconds);
+        Part at(GridTime time);
     }
 
     static final class Held {
@@ -141,8 +141,8 @@ final class Surroundings {
             return kept;
         }
 
-        Held at(double seconds) {
-            return new Held(part.at(seconds), ids);
+        Held at(GridTime time) {
+            return new Held(part.at(time), ids);
         }
     }
 
@@ -189,13 +189,13 @@ final class Surroundings {
         return Checked.ok(new Surroundings(still, held));
     }
 
-    Surroundings at(double seconds) {
+    Surroundings at(GridTime time) {
         if (parts.isEmpty()) {
             return this;
         }
         List<Held> then = new ArrayList<>();
         for (Held part : parts) {
-            then.add(part.at(seconds));
+            then.add(part.at(time));
         }
         return new Surroundings(still, then);
     }

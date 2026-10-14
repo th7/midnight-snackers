@@ -122,8 +122,7 @@ public final class Flight<K> {
                 .then(still -> Surroundings.of(still, List.of(hives.part()))
                         .then(around -> ShotSetup.air(defaults)
                                 .then(air -> ShotSetup.surfaces(defaults)
-                                        .then(surfaces -> Seconds.of(STEP_NANOS / NANOS_PER_SECOND)
-                                                .then(Bodies.Step::of)
+                                        .then(surfaces -> stepping()
                                                 .then(step -> Bodies.Allowance.perWindow(WINDOW_STEPS, WINDOW_WORK)
                                                         .map(allowance -> new Flight<K>(
                                                                 new Physics(
@@ -140,6 +139,10 @@ public final class Flight<K> {
                                                                 new ArrayList<>(),
                                                                 0,
                                                                 0)))))));
+    }
+
+    static Checked<Bodies.Step> stepping() {
+        return Seconds.of(STEP_NANOS / NANOS_PER_SECOND).then(Bodies.Step::of);
     }
 
     private static Set<String> floorsOf(Colliders still) {
@@ -343,12 +346,12 @@ public final class Flight<K> {
             while (engine.steps() < target) {
                 boolean wasMoving = hives.moving();
                 if (!engine.anyAwake() && engine.idleThrough(target)) {
-                    hives = hives.at(engine.now());
+                    hives = hives.at(engine.time());
                     seeAll();
                     continue;
                 }
                 engine.step(physics.allowance());
-                hives = hives.at(engine.now());
+                hives = hives.at(engine.time());
                 afterAStep(wasMoving || hives.moving());
             }
         }
@@ -491,7 +494,7 @@ public final class Flight<K> {
         private void tip(Field.Hive hive) {
             catchUp();
             Bodies engine = engine();
-            hives = hives.at(engine.now()).tipped(hive);
+            hives = hives.at(engine.time()).tipped(hive);
             engine.surroundedBy(physics.around().replacing(hives.part()));
             seeAll();
         }

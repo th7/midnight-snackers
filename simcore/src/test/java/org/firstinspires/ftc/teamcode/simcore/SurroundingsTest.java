@@ -44,7 +44,7 @@ public class SurroundingsTest {
         }
 
         @Override
-        public Surroundings.Part at(double seconds) {
+        public Surroundings.Part at(GridTime time) {
             return this;
         }
     }
@@ -72,7 +72,7 @@ public class SurroundingsTest {
         }
 
         @Override
-        public Surroundings.Part at(double seconds) {
+        public Surroundings.Part at(GridTime time) {
             return new Answering(later, answer, later);
         }
     }
@@ -129,7 +129,7 @@ public class SurroundingsTest {
                 }
 
                 assertEquals(at + " within " + within, expected, still.near(at, R, within));
-                assertEquals(at + " later", expected, still.at(5).near(at, R, within));
+                assertEquals(at + " later", expected, still.at(Valid.time(5)).near(at, R, within));
             }
         }
         assertEquals(Double.doubleToRawLongBits(0.0), Double.doubleToRawLongBits(still.sweep()));
@@ -197,10 +197,11 @@ public class SurroundingsTest {
         assertEquals(List.of(touch("plate", 0.5), touch("rim", -3)), around.near(above, R, 0.5));
         assertEquals(List.of(touch("rim", -3)), around.near(above, R, 0.4));
         assertEquals(
-                List.of(touch("plate", 0.5), touch("rim", -3)), around.at(1).near(above, R, 0.5));
+                List.of(touch("plate", 0.5), touch("rim", -3)),
+                around.at(Valid.time(1)).near(above, R, 0.5));
         assertEquals(
                 List.of(touch("plate", 0.5), touch("rim", -3)),
-                around.at(1).at(2).near(above, R, 0.5));
+                around.at(Valid.time(1)).at(Valid.time(2)).near(above, R, 0.5));
     }
 
     @Test
@@ -264,16 +265,30 @@ public class SurroundingsTest {
 
         double top = 11 + 1.4;
         assertEquals(0, around.near(new Vec3(0, 0, top), R, 1e-6).get(0).gap(), 1e-12);
-        assertEquals(0, around.at(0.5).near(new Vec3(0, 0, top), R, 1e-6).get(0).gap(), 1e-12);
         assertEquals(
-                0, around.at(3).near(new Vec3(0, 0, top + 4), R, 1e-6).get(0).gap(), 1e-12);
+                0,
+                around.at(Valid.time(0.5))
+                        .near(new Vec3(0, 0, top), R, 1e-6)
+                        .get(0)
+                        .gap(),
+                1e-12);
         assertEquals(
-                around.at(3).near(new Vec3(0, 0, top + 4), R, 1e-6),
-                around.at(2).at(3).near(new Vec3(0, 0, top + 4), R, 1e-6));
-        assertEquals(List.of(), around.at(0.5).moving());
-        assertEquals(1, around.at(3).moving().size());
+                0,
+                around.at(Valid.time(3))
+                        .near(new Vec3(0, 0, top + 4), R, 1e-6)
+                        .get(0)
+                        .gap(),
+                1e-12);
+        assertEquals(
+                around.at(Valid.time(3)).near(new Vec3(0, 0, top + 4), R, 1e-6),
+                around.at(Valid.time(2)).at(Valid.time(3)).near(new Vec3(0, 0, top + 4), R, 1e-6));
+        assertEquals(List.of(), around.at(Valid.time(0.5)).moving());
+        assertEquals(1, around.at(Valid.time(3)).moving().size());
         assertEquals(
                 new Vec3(0, 0, 2),
-                around.at(3).near(new Vec3(0, 0, top + 4), R, 1e-6).get(0).velocity());
+                around.at(Valid.time(3))
+                        .near(new Vec3(0, 0, top + 4), R, 1e-6)
+                        .get(0)
+                        .velocity());
     }
 }

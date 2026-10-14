@@ -11,6 +11,10 @@ final class Valid {
         });
     }
 
+    static GridTime time(double seconds) {
+        return value(Flight.stepping().then(step -> GridTime.of(seconds, step)));
+    }
+
     static Length length(double inches) {
         return value(Length.of(inches));
     }

@@ -100,9 +100,9 @@ public class PartContractTest {
         }
 
         @Override
-        public Surroundings.Part at(double then) {
-            double when = lie == Lie.TIME_FROM_WHERE_IT_WAS ? seconds + then : then;
-            return new Lying(inner.at(when), lie, when, asked);
+        public Surroundings.Part at(GridTime then) {
+            GridTime when = lie == Lie.TIME_FROM_WHERE_IT_WAS ? Valid.time(seconds + then.seconds()) : then;
+            return new Lying(inner.at(when), lie, when.seconds(), asked);
         }
     }
 
@@ -164,7 +164,7 @@ public class PartContractTest {
                 probes(),
                 TIMES,
                 (seconds, touch) -> StrictMath.abs(touch.normal().z()) < 1 - 1e-12);
-        List<Surroundings.Touch> top = platter.at(1).near(new Vec3(2, 1, 10.5 + R), Valid.length(R), 1e-6);
+        List<Surroundings.Touch> top = platter.at(Valid.time(1)).near(new Vec3(2, 1, 10.5 + R), Valid.length(R), 1e-6);
         assertEquals(new Vec3(-5, 10, 0), top.get(0).velocity());
         assertEquals(new Vec3(0, 0, 5), top.get(0).spin());
     }

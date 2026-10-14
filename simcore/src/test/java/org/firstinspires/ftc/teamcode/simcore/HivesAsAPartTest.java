@@ -14,14 +14,21 @@ public class HivesAsAPartTest {
     private static final double SAME = 1e-9;
     private static final Length BALL = Valid.length(1.4);
     private static final double WITHIN = 0.5;
-    private static final double TIPPED_AT = 0.2;
+    private static final double STEP = Flight.STEP_NANOS / Flight.NANOS_PER_SECOND;
+    private static final long TIPPED_AT_STEP = 2000;
+    private static final double TIPPED_AT = TIPPED_AT_STEP * STEP;
+    private static final long STEPS_OF_A_TIP = Math.round(Lean.TIP_SECONDS / STEP);
     private static final Field FIELD = CollidersTest.field(REST_TILT);
     private static final Hives AT_REST = Valid.value(Hives.of(FIELD));
     private static final Field.Hive BLUE = AT_REST.hiveOf("Blue").orElseThrow();
     private static final Field.Hive RED = AT_REST.hiveOf("Red").orElseThrow();
 
+    private static GridTime onTheGrid(long steps) {
+        return GridTime.at(steps, Valid.value(Flight.stepping()));
+    }
+
     private static Hives tippingBlue() {
-        return AT_REST.at(TIPPED_AT).tipped(BLUE);
+        return AT_REST.at(onTheGrid(TIPPED_AT_STEP)).tipped(BLUE);
     }
 
     private static List<String> panels(String cell) {
@@ -90,7 +97,7 @@ public class HivesAsAPartTest {
         expected.addAll(panels("Red Cell (Audience)"));
 
         assertEquals(expected, AT_REST.part().ids());
-        assertEquals(expected, tippingBlue().part().at(0.7).ids());
+        assertEquals(expected, tippingBlue().part().at(Valid.time(0.7)).ids());
     }
 
     @Test
@@ -102,7 +109,7 @@ public class HivesAsAPartTest {
 
     @Test
     public void aHiveThatHasTippedMeetsABallUnderEachNameExactlyAsTheShotsCollidersTippedDo() {
-        Hives tipped = tippingBlue().at(TIPPED_AT + Lean.TIP_SECONDS + 0.01);
+        Hives tipped = tippingBlue().at(Valid.time(TIPPED_AT + Lean.TIP_SECONDS + 0.01));
 
         assertFalse("the tip is over", tipped.part().moving());
         int compared = assertMeetsABallAsTheCollidersDo(tipped, Valid.value(Colliders.of(FIELD, List.of("Blue"))));
@@ -133,7 +140,7 @@ public class HivesAsAPartTest {
         Vec3 inward = up.mouthCentre().minus(up.back().first()).unit();
         Vec3 local = up.back().first().along(inward, 1.0).plus(new Vec3(0, 1.5, 1.5));
         double t = TIPPED_AT + 0.4, dt = 1e-5;
-        Hives then = tippingBlue().at(t);
+        Hives then = tippingBlue().at(Valid.time(t));
         double tilt = then.tilt(BLUE);
         Vec3 at = BLUE.at(tilt, local);
 
@@ -149,8 +156,8 @@ public class HivesAsAPartTest {
         assertEquals(new Vec3(0, -rate, 0), back.spin());
         Vec3 contact = at.along(back.normal(), -(back.gap() + BALL.inches()));
         Vec3 fixed = unturned(BLUE, tilt, contact);
-        Vec3 moving = BLUE.at(tippingBlue().at(t + dt).tilt(BLUE), fixed)
-                .minus(BLUE.at(tippingBlue().at(t - dt).tilt(BLUE), fixed))
+        Vec3 moving = BLUE.at(tippingBlue().at(Valid.time(t + dt)).tilt(BLUE), fixed)
+                .minus(BLUE.at(tippingBlue().at(Valid.time(t - dt)).tilt(BLUE), fixed))
                 .times(1 / (2 * dt));
         assertEquals(
                 "as fast as that point of the hive: " + moving,
@@ -182,19 +189,26 @@ public class HivesAsAPartTest {
         double fastest = StrictMath.toRadians(2 * REST_TILT * StrictMath.PI / (2 * Lean.TIP_SECONDS));
 
         for (double t : List.of(TIPPED_AT, 0.6, 1.1)) {
-            Surroundings.Part part = tippingBlue().part().at(t);
+            Surroundings.Part part = tippingBlue().part().at(Valid.time(t));
             assertTrue("moving at " + t, part.moving());
             assertEquals("at " + t, fastest * farthest, part.sweep(), 1e-9);
         }
         assertFalse(AT_REST.part().moving());
         assertEquals(0, AT_REST.part().sweep(), 0);
-        assertFalse(tippingBlue().part().at(TIPPED_AT + Lean.TIP_SECONDS).moving());
+        assertFalse(tippingBlue()
+                .part()
+                .at(onTheGrid(TIPPED_AT_STEP + STEPS_OF_A_TIP))
+                .moving());
     }
 
     @Test
     public void aTipIsTimedFromWhenItBeganWhereverTheHivesArePlacedFrom() {
-        Hives placedOnce = tippingBlue().at(0.9);
-        Hives placedOften = tippingBlue().at(0.3).at(0.45).at(0.61).at(0.9);
+        Hives placedOnce = tippingBlue().at(onTheGrid(9000));
+        Hives placedOften = tippingBlue()
+                .at(onTheGrid(3000))
+                .at(Valid.time(0.45))
+                .at(onTheGrid(6100))
+                .at(onTheGrid(9000));
 
         assertEquals(placedOnce.lean(BLUE), placedOften.lean(BLUE));
         assertEquals(new Lean.Resting(Valid.value(Tilt.of(-REST_TILT))), placedOften.lean(RED));
@@ -204,16 +218,35 @@ public class HivesAsAPartTest {
                 new Lean.Tipping(
                         Valid.value(Tilt.of(REST_TILT)),
                         Valid.value(Tilt.of(-REST_TILT)),
-                        Valid.value(Seconds.of(0.9 - TIPPED_AT))),
+                        Valid.value(Seconds.of((9000 - TIPPED_AT_STEP) * STEP))),
                 placedOnce.lean(BLUE));
     }
 
     @Test
+    public void aTipBegunAtAnyStepOnTheGridEndsExactlyTipSecondsOfStepsLater() {
+        for (long began : List.of(0L, 45L, 46L, 66L, 187L, 1235L)) {
+            Hives tipped = AT_REST.at(onTheGrid(began)).tipped(BLUE);
+
+            assertTrue(
+                    "a step short, begun at " + began,
+                    tipped.at(onTheGrid(began + STEPS_OF_A_TIP - 1)).tipping(BLUE));
+            assertFalse(
+                    "over, begun at " + began,
+                    tipped.at(onTheGrid(began + STEPS_OF_A_TIP)).tipping(BLUE));
+            assertFalse(
+                    "and still, begun at " + began,
+                    tipped.at(onTheGrid(began + STEPS_OF_A_TIP)).part().moving());
+        }
+    }
+
+    @Test
     public void aHiveThatIsAlreadyTippingIsNotStartedAgain() {
-        Hives tipping = tippingBlue().at(0.5);
+        Hives tipping = tippingBlue().at(Valid.time(0.5));
 
         assertEquals(tipping.lean(BLUE), tipping.tipped(BLUE).lean(BLUE));
-        assertEquals(tipping.at(0.8).lean(BLUE), tipping.tipped(BLUE).at(0.8).lean(BLUE));
+        assertEquals(
+                tipping.at(Valid.time(0.8)).lean(BLUE),
+                tipping.tipped(BLUE).at(Valid.time(0.8)).lean(BLUE));
     }
 
     @Test

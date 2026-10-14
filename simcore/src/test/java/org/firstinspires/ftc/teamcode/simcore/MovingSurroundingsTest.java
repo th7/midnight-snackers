@@ -60,7 +60,7 @@ public class MovingSurroundingsTest {
         }
 
         @Override
-        public Surroundings.Part at(double seconds) {
+        public Surroundings.Part at(GridTime time) {
             return this;
         }
     }
@@ -510,7 +510,7 @@ public class MovingSurroundingsTest {
         for (int i = 0; i < 3 / STEP; i++) {
             bodies.step();
             Vec3 at = seen(bodies, "ball").at();
-            for (Surroundings.Touch touch : surroundings.at(bodies.now()).near(at, POLLEN.radiusLength(), 1)) {
+            for (Surroundings.Touch touch : surroundings.at(bodies.time()).near(at, POLLEN.radiusLength(), 1)) {
                 if (touch.id().equals("tray")) {
                     deepest = StrictMath.min(deepest, touch.gap());
                 }

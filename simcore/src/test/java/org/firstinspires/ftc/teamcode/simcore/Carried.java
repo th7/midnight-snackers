@@ -162,7 +162,7 @@ final class Carried implements Surroundings.Part {
     }
 
     @Override
-    public Surroundings.Part at(double seconds) {
-        return new Carried(colliders, pivot, velocity, spin, starts, stops, inPlace, seconds);
+    public Surroundings.Part at(GridTime time) {
+        return new Carried(colliders, pivot, velocity, spin, starts, stops, inPlace, time.seconds());
     }
 }
