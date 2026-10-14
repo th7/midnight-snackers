@@ -336,6 +336,33 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void aBallAsleepOnAStillFaceOfAPartThatMovesElsewhereSleepsOnWhileTheBallOnTheMovingFaceWakes() {
+        Collider blue = Carried.box("blue", new Vec3(-33, -3, 10), new Vec3(-27, 3, 10.5));
+        Collider red = Carried.box("red", new Vec3(27, -3, 10), new Vec3(33, 3, 10.5));
+        Surroundings.Part hives = Joined.of(
+                Carried.turning(blue, new Vec3(-30, 0, 10.5), new Vec3(0, 1.645, 0), 0.1),
+                Carried.sliding(red, Vec3.zero(), 0));
+        Bodies bodies = watching("resting", STEP, hives);
+        add(bodies, "resting", new Vec3(30, 0, 10.5 + R), Vec3.zero(), ASLEEP);
+        add(bodies, "tipped", new Vec3(-30, 0, 10.5 + R), Vec3.zero(), ASLEEP);
+
+        List<Bodies.Span> spans = stepFor(bodies, 1.1, STEP);
+
+        List<String> woken = new ArrayList<>(), slept = new ArrayList<>();
+        for (Bodies.Span span : spans) {
+            for (Bodies.Seen seen : span.woken()) {
+                woken.add(seen.name());
+            }
+            for (Bodies.Seen seen : span.slept()) {
+                slept.add(seen.name());
+            }
+        }
+        assertEquals(List.of("tipped"), woken);
+        assertTrue(slept.toString(), !slept.contains("resting"));
+        assertEquals(Bodies.Life.ASLEEP, seen(bodies, "resting").life());
+    }
+
+    @Test
     public void surroundingsGivenToAnEngineAreWhereTheyAreAtTheEnginesTime() {
         Bodies bodies = among(STEP);
         stepFor(bodies, 0.2, STEP);

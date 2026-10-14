@@ -780,8 +780,10 @@ final class Bodies {
             double within = Shot.TOUCHING_IN + part.sweep() * step;
             if (part.reaches(body.at, body.radius() + within)) {
                 work++;
-                if (!part.near(body.at, body.reach(), within).isEmpty()) {
-                    return true;
+                for (Surroundings.Touch touch : part.near(body.at, body.reach(), within)) {
+                    if (touch.moves()) {
+                        return true;
+                    }
                 }
             }
         }
