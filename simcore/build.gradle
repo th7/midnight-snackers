@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'java-test-fixtures'
     id 'pmd'
     id 'com.diffplug.spotless'
     id 'net.ltgt.errorprone'
@@ -52,6 +53,10 @@ tasks.named('compileTestJava') {
     options.errorprone.enabled = false
 }
 
+tasks.named('compileTestFixturesJava') {
+    options.errorprone.enabled = false
+}
+
 pmd {
     toolVersion = pmdVersion
     ruleSets = []
@@ -59,12 +64,14 @@ pmd {
     consoleOutput = true
 }
 tasks.named('pmdTest') { enabled = false }
+tasks.named('pmdTestFixtures') { enabled = false }
 
 forbiddenApis {
     bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-internal', 'jdk-non-portable', 'jdk-reflection']
     signaturesFiles = files('config/forbidden-apis.txt')
 }
 tasks.named('forbiddenApisTest') { enabled = false }
+tasks.named('forbiddenApisTestFixtures') { enabled = false }
 
 spotless {
     java {

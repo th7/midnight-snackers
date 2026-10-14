@@ -4,8 +4,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,8 +47,17 @@ public class LaunchSimIsStrictTest {
             "Vec3");
 
     private static Map<String, Boolean> reachingForJavaLangMath() throws IOException, URISyntaxException {
+        URI shot = Shot.class.getResource("Shot.class").toURI();
+        if (shot.getScheme().equals("jar")) {
+            try (FileSystem jar = FileSystems.newFileSystem(shot, Map.of())) {
+                return reachingForJavaLangMathUnder(jar.provider().getPath(shot).getParent());
+            }
+        }
+        return reachingForJavaLangMathUnder(Path.of(shot).getParent());
+    }
+
+    private static Map<String, Boolean> reachingForJavaLangMathUnder(Path root) throws IOException {
         byte[] math = "java/lang/Math".getBytes(StandardCharsets.UTF_8);
-        Path root = Path.of(Shot.class.getResource("Shot.class").toURI()).getParent();
         List<Path> files = new ArrayList<>();
         try (Stream<Path> walked = Files.walk(root)) {
             walked.filter(file -> file.getFileName().toString().endsWith(".class"))

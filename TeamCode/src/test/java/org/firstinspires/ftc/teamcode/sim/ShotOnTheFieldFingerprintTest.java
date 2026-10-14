@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import java.util.EnumMap;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Fingerprint;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Shot;
 import org.firstinspires.ftc.teamcode.simcore.ShotSetting;

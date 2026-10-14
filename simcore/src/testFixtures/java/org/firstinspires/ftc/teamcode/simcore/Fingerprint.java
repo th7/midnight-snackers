@@ -1,14 +1,8 @@
-package org.firstinspires.ftc.teamcode.sim;
+package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.List;
-import org.firstinspires.ftc.teamcode.simcore.Colliders;
-import org.firstinspires.ftc.teamcode.simcore.Contacts;
-import org.firstinspires.ftc.teamcode.simcore.Seconds;
-import org.firstinspires.ftc.teamcode.simcore.Shot;
-import org.firstinspires.ftc.teamcode.simcore.Turn;
-import org.firstinspires.ftc.teamcode.simcore.Vec3;
 
-record Fingerprint(
+public record Fingerprint(
         long work,
         String frames,
         String impacts,
@@ -18,7 +12,7 @@ record Fingerprint(
         String tracks,
         String finish) {
 
-    static Fingerprint of(Shot shot) {
+    public static Fingerprint of(Shot shot) {
         Shot.Story story = shot.story();
         Fold frames = new Fold();
         for (Shot.Frame frame : story.frames()) {
