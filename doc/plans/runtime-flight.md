@@ -22,8 +22,9 @@ engine. `WheelPair` stays in the Launch Sim. The rest of Reginald's insides
 (the roller, the scoop, the feeder, the ramp, the flywheel's inertia) are
 `reginald-internals.md`'s.
 
-Stages 1 to 3 are built, and so is the first part of stage 4: the arcs and
-the compliant contact the launcher is made of. The rest of stage 4 is
+Stages 1 to 3 are built, and so are the first two parts of stage 4: the
+arcs and the compliant contact the launcher is made of, and the launcher
+itself, tested on its own. The rest of stage 4, the launcher in a run, is
 planned here. Every stage keeps the
 Launch Sim's results bit for bit: its fingerprint tests pin the exact work
 and the raw bits of every field of every story, in the simulator's core and
@@ -119,6 +120,70 @@ hives are a part that moves while one tips.
   at 215.5 in/s and 72.8° up, and the same to 0.05 % and 0.01° at half the
   step.
 
+**Stage 4b · the launcher, tested on its own.** Nothing in a run uses it yet.
+- `Flywheel.TicksPerTurn` is 18 to 10,000 ticks of the motor to a turn of
+  the flywheel; any other count, one that is not a number included, is
+  refused, naming the rule. `Flywheel.AngularSpeed.from` turns a command
+  into radians a second: the command clamped as `turnsAt` clamps it, times
+  2π over the ticks per turn, signed, positive when the back of the wheel
+  moves up, about +y in the launcher's frame. It is total and bounded by the
+  motor's top speed over 18 ticks a turn, 977 rad/s.
+- `Launcher.Frame` is a place within 10,000 in of the field's centre either
+  way and a finite yaw. `Launcher.Course` holds the frames a step begins and
+  ends at, with their `GridTime`s, and places the frame as *The launcher's
+  frame* below says; equal frames give exactly no velocity and no turn. A
+  course whose faces would sweep faster than a flight takes a ball (its
+  speed plus its turn times the 5.26 in the farthest face is from the
+  turning axis) is refused, so whatever frames and wheel speeds the types
+  admit, what squeezes a ball within the launcher's reach moves at a finite
+  velocity where it meets it, and no squeeze is dropped.
+- `Launcher` is a part of the surroundings with the faces in the tables
+  above. A hood ring is its arc and its lead-in, answered as one by
+  whichever is nearer, so a ball is squeezed once by each ring. The lead-in
+  takes the hood extension's place: an arc of the hood ring's radius about a
+  centre of its own for each ring, from −64.8° down to −73°, 8.2°, where
+  its radial gap to the groove bottom is the pollen's diameter less 0.25 mm.
+  Its normal turns by 6.4° to 7.1° where it meets the hood, an edge the
+  ball rolls over. The stop is a rigid face across the path one pollen's
+  radius below the entry, from the flange out to the lead-in's lower end
+  and across the hood's groove, answered through `near` as the frame's
+  metal. A wheel ring moves as the frame does at the hub, its velocity plus
+  its turn across the hub's arm, and spins at the frame's turn about the
+  upright plus the wheel's about the axle; a hood ring and the stop move
+  with the frame alone. A still frame with a stopped wheel squeezes and
+  touches with exactly nothing moving. It reaches where some face is within
+  the distance asked and nowhere else, so a ball elsewhere on the field
+  moves and costs as if the launcher squeezed nothing. It keeps the part
+  contract still, sliding, turning and across ±π, with its wheel stopped,
+  spinning and reversed, densely across the lead-in's join and the stop.
+- The entry is at −73°, the ball's centre one radius off the groove bottom,
+  touching the stop; the feed is the frame's velocity there plus 0.1 m/s up
+  the path. The ball overlaps the lead-in there by more than 0.25 mm, since
+  the lead-in slopes across the radius it is measured along.
+- In a world built as `Flight` builds its own, at 1050 ticks/s and T 24.2, a
+  fed ball leaves at 227.7 in/s, 0.424 of u50, and 71.0° up; the first
+  sample with nothing of the launcher touching it is 8.5° past the hood's
+  upper end, at (−3.11, 0, 8.49) in in the frame, 31.2 ms after the feed and
+  5,615 units of work later. It spins back at 171.5 rad/s about the axle, a
+  spin ratio of 1.05. The loads peak at 33 N on the wheel and 38 N on the
+  hood, where the stick floor reaches 0.21 m/s. The hood's upper end stays
+  at +20°: 71.0° is within the degree that would have moved it.
+- The throw hardly depends on friction: 227.4 to 228.5 in/s for μ 0.3 to
+  1.0 on the wheel and 0.05 to 0.8 on the hood, though a frictionless hood
+  throws 208 in/s. A smoother hood carries the ball faster through the
+  groove, spinning less for its speed (223.5 against 223.1 in/s, S 1.083
+  against 1.085, at μ 0.15 and 0.3). Past the hood's upper end the release
+  turns that by a tenth of a percent: at the first sample with no contact
+  the smoother hood's ball is the slower, 227.5 against 227.7 in/s.
+- In a vacuum, a frame moving at a constant velocity throws as a still one
+  does with that velocity added, to 2·10⁻¹¹ in/s. In air the robot's velocity
+  is also the ball's through the still air: at 180 in/s it moves the throw
+  by a further 0.05 in/s. At T 18 and 2,800 ticks/s the ball leaves at
+  420 in/s, and at 516 off the fastest robot along the throw.
+- With its wheel stopped the launcher holds a fed ball against the stop,
+  where it falls asleep; a wheel that then spins up throws it. Without the
+  stop a reversed wheel would drive the ball out of the lead-in's lower end.
+
 `doc/CONTEXT.md` defines each of these terms as built.
 
 ---
@@ -158,7 +223,7 @@ pollen that fits.
 |---|---|---|
 | The hood's groove | tube 36.0 mm; groove bottom at r 108.341 (R 72.341) | 2.0 mm of squeeze on the simulated 70.61 mm pollen (2.5 mm on the CAD's 71.12 mm one), so the wheel grips |
 | The hood's upper end | +20°, not +41.9° | A ball leaving tangentially at +20° leaves at 70°. Exit centre about (−3.26, 0, 8.09) in. The robot's top is 9.084 in after the trim |
-| A lead-in | one eccentric arc per ring, opening from the main arc at −64.8° to a gap of the pollen's diameter less 0.25 mm at its lower end, over at least 5° | Opened to the full 2.0 mm, a pollen fed slower than 0.15 m/s is not drawn in, and with the wheel stopped it drops through the robot. Opened to 0.25 mm it is drawn in from a feed of 0, and held while the wheel is stopped |
+| A lead-in | one eccentric arc per ring, in the hood extension's place: opening from the main arc at −64.8° to a gap of the pollen's diameter less 0.25 mm at its lower end, −73°, over 8.2° | Opened to the full 2.0 mm, a pollen fed slower than 0.15 m/s is not drawn in, and with the wheel stopped it drops through the robot. Opened to 0.25 mm it is drawn in from a feed of 0, and held while the wheel is stopped |
 | A stop | rigid, at the extension's lower end, −73° | With the wheel stopped a fed ball stays in the launcher, inside the robot and off the floor |
 | The feed | 0.1 m/s along the path, at the lead-in's lower end, the ball's centre one radius off the wheel's groove bottom | Stands in for the ramp, which `reginald-internals.md` simulates |
 
@@ -237,8 +302,8 @@ construction.
 
 **The flywheel's speed.** Stage 3's `Flywheel` already clamps a command to
 the motor's 2,800 ticks a second and reads NaN as 0. It gains:
-- `TicksPerTurn.of(constants)`, refusing a value outside the constant's
-  range;
+- `TicksPerTurn.of(ticks)`, refusing a value outside the constant's
+  range, 18 to 10000;
 - a total `AngularSpeed` from that clamped command: signed, positive when
   the back of the wheel moves up (the motor's direction).
 
@@ -259,9 +324,9 @@ chambered and tries again the next substep.
   the throw and spin follow from the simulated hood."
 - Its least value keeps the fastest throw within the 1,000 in/s a flight
   takes, as stage 3's bound on `LAUNCH_THROW` did. The throw is about
-  5474 ÷ T in/s at 1050 ticks/s and grows more slowly than the wheel, so at
-  T 18 and 2,800 ticks/s it is at most about 810 in/s. Off the fastest
-  robot that is at most about 990.
+  5511 ÷ T in/s at 1050 ticks/s and grows more slowly than the wheel: at
+  T 18 and 2,800 ticks/s it is 420 in/s, and 516 off the fastest robot
+  along the throw.
 - `Constant.Retired` lists `LAUNCH_THROW`, with its label and why it went.
   `Constant.named` refuses a retired name, saying it is no longer a
   simulation constant and what replaced it.
@@ -292,7 +357,7 @@ commit. `SimRobotTest`'s uses of the launch height and reach restate as
 
 ### Calibration
 
-The throw is about 5474 ÷ T in/s at 1050 ticks/s, for T ticks per turn, so
+The throw is about 5511 ÷ T in/s at 1050 ticks/s, for T ticks per turn, so
 the scan is in T: steps of at most 0.11 % of T (about 0.25 in/s), over
 stage 3's acceptance set: both alliances' close shots, the ball at rest
 against the back, the shot after a tip, one launch, and four at their real
@@ -336,7 +401,9 @@ T, and is calibrated again.
      contact is at θ 20–30°.
    - Its spin is backspin, antiparallel to the wheel's, with 0.9 ≤ S ≤ 1.2.
    - A faster wheel throws strictly faster, with more spin. A lower μ on the
-     hood throws faster, with less spin. No fixed ratio of throw to wheel
+     hood carries it faster through the groove, spinning less for its speed;
+     at the first sample with no contact the release past the hood's edge
+     turns that by a tenth of a percent. No fixed ratio of throw to wheel
      speed is asserted: the hood's grip falls as the wheel speeds up.
    - With the wheel stopped, the ball stays in the launcher, inside the
      robot and off the floor, and is thrown once the wheel spins up.
