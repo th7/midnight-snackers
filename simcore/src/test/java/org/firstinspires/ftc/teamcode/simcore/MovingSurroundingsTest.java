@@ -340,6 +340,29 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void aBallThatComesToRestWithinAStepsReachOfAnApproachingPartStaysAwakeAndIsStruckNotCarried() {
+        double speed = 40, gapWhenRested = 0.002, face = -gapWhenRested - speed * Shot.REST_SECONDS;
+        assertTrue(gapWhenRested < speed * STEP);
+        Collider closing = Carried.box("paddle", new Vec3(face - 1, -10, 0.5), new Vec3(face, 10, 8));
+        Bodies bodies = watching("ball", STEP, Carried.sliding(closing, new Vec3(speed, 0, 0), 0));
+        add(bodies, "ball", new Vec3(R, 0, R), Vec3.zero(), AWAKE);
+
+        List<Bodies.Span> spans = stepFor(bodies, 0.3, STEP);
+
+        List<Vec3> thrown = new ArrayList<>();
+        for (Bodies.Span span : spans) {
+            assertTrue("asleep at " + span.now(), span.slept().isEmpty());
+            if (!hits(List.of(span), "paddle").isEmpty()) {
+                thrown.add(span.atResolve().velocity());
+            }
+        }
+        List<Contacts.Hit> struck = hits(spans, "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+        assertTrue(thrown.toString(), thrown.get(0).x() > speed);
+    }
+
+    @Test
     public void aPartThatOnlySpinsAddsNoPiecesToAStepAndKeepsWhatRestsOnItAwake() {
         Bodies bodies =
                 watching("ball", STEP, Carried.spinningInPlace(TRAY, new Vec3(0, 0, 11), new Vec3(0, 0, 100), 0));

@@ -886,7 +886,9 @@ final class Bodies {
                     + body.radius() * StrictMath.sqrt(body.spin.dot(body.spin));
             body.restFor =
                     body.touched && !body.carried && moving < Shot.REST_SPEED_IN_PER_S ? body.restFor + covered : 0;
-            if (body.sleep == Sleep.WHEN_RESTING && body.restFor >= Shot.REST_SECONDS) {
+            if (body.sleep == Sleep.WHEN_RESTING
+                    && body.restFor >= Shot.REST_SECONDS
+                    && !reachedByWhatMoves(body, surroundings, step)) {
                 body.life = Life.ASLEEP;
                 body.velocity = Vec3.zero();
                 body.spin = Vec3.zero();
