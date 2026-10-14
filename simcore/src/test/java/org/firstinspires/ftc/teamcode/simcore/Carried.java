@@ -136,13 +136,13 @@ final class Carried implements Surroundings.Part {
             Vec3 normal = turned(near.normal(), rate() * elapsed());
             Vec3 contact = centre.along(normal, -(r + near.gap()));
             boolean moving = moving();
-            touches.add(new Surroundings.Touch(
+            touches.add(Valid.value(Surroundings.Touch.of(
                     collider.name(),
                     collider.surface(),
                     normal,
                     near.gap(),
                     moving ? velocity.plus(spin.cross(contact.minus(pivot.plus(offset())))) : Vec3.zero(),
-                    moving ? spin : Vec3.zero()));
+                    moving ? spin : Vec3.zero())));
         }
         return touches;
     }

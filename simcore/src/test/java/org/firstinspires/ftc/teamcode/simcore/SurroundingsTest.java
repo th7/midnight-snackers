@@ -79,13 +79,13 @@ public class SurroundingsTest {
             for (double within : new double[] {0, 1e-6, 2}) {
                 List<Surroundings.Touch> expected = new ArrayList<>();
                 for (Colliders.Near near : WALLS.near(at, R, within)) {
-                    expected.add(new Surroundings.Touch(
+                    expected.add(Valid.value(Surroundings.Touch.of(
                             near.collider().name(),
                             near.collider().surface(),
                             near.normal(),
                             near.gap(),
                             Vec3.zero(),
-                            Vec3.zero()));
+                            Vec3.zero())));
                 }
 
                 assertEquals(at + " within " + within, expected, still.near(at, R, within));
@@ -98,14 +98,45 @@ public class SurroundingsTest {
 
     @Test
     public void aPartIsAskedOnlyWhereItReachesAndItsTouchesComeAfterTheColliders() {
-        Surroundings.Touch made =
-                new Surroundings.Touch("nowhere", Surface.FRAME, new Vec3(0, 0, 1), 0, Vec3.zero(), Vec3.zero());
+        Surroundings.Touch made = Valid.value(
+                Surroundings.Touch.of("nowhere", Surface.FRAME, new Vec3(0, 0, 1), 0, Vec3.zero(), Vec3.zero()));
         Surroundings around =
                 with(Carried.sliding(PLATE, new Vec3(3, 0, 0), 0), new Stated("liar", 0, true, List.of(made)));
 
         assertEquals(List.of("Floor", "plate"), ids(around.near(new Vec3(9, 0, 1.4), R, 9)));
         assertEquals(List.of("Floor"), ids(around.near(new Vec3(30, 0, 1.4), R, 9)));
         assertEquals(List.of("plate"), ids(around.near(new Vec3(0, 0, 12.4), R, 1e-6)));
+    }
+
+    @Test
+    public void aTouchHasAUnitNormalAndAFiniteGapVelocityAndSpin() {
+        Vec3 up = new Vec3(0, 0, 1),
+                unknown = new Vec3(Double.NaN, 0, 0),
+                endless = new Vec3(0, Double.POSITIVE_INFINITY, 0);
+
+        List<String> said = List.of(
+                rejection(
+                        Surroundings.Touch.of("plate", Surface.FRAME, new Vec3(0, 0, 2), 0, Vec3.zero(), Vec3.zero())),
+                rejection(Surroundings.Touch.of("plate", Surface.FRAME, Vec3.zero(), 0, Vec3.zero(), Vec3.zero())),
+                rejection(Surroundings.Touch.of("plate", Surface.FRAME, unknown, 0, Vec3.zero(), Vec3.zero())),
+                rejection(Surroundings.Touch.of("plate", Surface.FRAME, up, Double.NaN, Vec3.zero(), Vec3.zero())),
+                rejection(Surroundings.Touch.of(
+                        "plate", Surface.FRAME, up, Double.NEGATIVE_INFINITY, Vec3.zero(), Vec3.zero())),
+                rejection(Surroundings.Touch.of("plate", Surface.FRAME, up, 0, unknown, Vec3.zero())),
+                rejection(Surroundings.Touch.of("plate", Surface.FRAME, up, 0, Vec3.zero(), endless)));
+
+        for (String rule : said) {
+            assertTrue(rule, rule.contains("a touch has a unit normal and a finite gap, velocity and spin"));
+        }
+        Vec3 slanted = new Vec3(0.6, 0, 0.8), velocity = new Vec3(1, 2, 3), spin = new Vec3(0, 0, 4);
+        Surroundings.Touch touch =
+                Valid.value(Surroundings.Touch.of("plate", Surface.CELL, slanted, -0.5, velocity, spin));
+        assertEquals("plate", touch.id());
+        assertEquals(Surface.CELL, touch.surface());
+        assertEquals(slanted, touch.normal());
+        assertEquals(-0.5, touch.gap(), 0);
+        assertEquals(velocity, touch.velocity());
+        assertEquals(spin, touch.spin());
     }
 
     @Test
