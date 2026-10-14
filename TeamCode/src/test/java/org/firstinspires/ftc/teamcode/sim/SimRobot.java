@@ -53,7 +53,6 @@ import org.firstinspires.ftc.teamcode.simcore.Feedforward;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
-import org.firstinspires.ftc.teamcode.simcore.Hives;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Nest;
@@ -326,7 +325,7 @@ public class SimRobot {
         chassis.setAngularDamping(0);
         world.addBody(chassis);
 
-        flight = Valid.value(Hives.of(FIELD).then(Flight::<Ball>over));
+        flight = Valid.value(Flight.<Ball>over(FIELD));
         for (Field.Flower flower : FIELD.flowers()) {
             stacks.put(flower, Stack.in(flower));
             seats.put(flower, Seat.seated());

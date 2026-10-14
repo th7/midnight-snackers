@@ -21,7 +21,7 @@ public class FlightTraceTest {
     private static final int STEPS_PER_SAMPLE = 4;
 
     private final Field field = SimPlacement.FIELD;
-    private Flight<Object> flight = Valid.value(Hives.of(field).then(Flight::<Object>over));
+    private Flight<Object> flight = Valid.value(Flight.<Object>over(field));
     private final List<Object> balls = new ArrayList<>();
     private final Map<Object, String> landed = new IdentityHashMap<>();
     private final FlightTrace trace = new FlightTrace();

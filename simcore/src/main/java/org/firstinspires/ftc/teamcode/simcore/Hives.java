@@ -112,7 +112,7 @@ public final class Hives {
     private record Tip(Tilt from, Tilt to, long began) {
         Lean at(GridTime time) {
             if (time.steps() < began) {
-                return new Lean.Tipping(from, to, Seconds.zero());
+                return new Lean.Resting(from);
             }
             return Seconds.of(time.secondsSince(began))
                     .map(elapsed -> new Lean.Tipping(from, to, elapsed).after(Seconds.zero()))

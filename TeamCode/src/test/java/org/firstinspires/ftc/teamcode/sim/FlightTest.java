@@ -17,6 +17,7 @@ import org.firstinspires.ftc.teamcode.simcore.Ring;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Shot;
 import org.firstinspires.ftc.teamcode.simcore.Surface;
+import org.firstinspires.ftc.teamcode.simcore.Tilt;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.junit.Test;
 
@@ -31,7 +32,7 @@ public class FlightTest {
     private static final double POLLEN_INERTIA = 0.634;
 
     private final Field field = SimPlacement.FIELD;
-    private Flight<Object> flight = Valid.value(Hives.of(field).then(Flight::<Object>over));
+    private Flight<Object> flight = Valid.value(Flight.<Object>over(field));
     private final Field.Hive blue = flight.hives().hiveOf("Blue").orElseThrow();
     private final List<Flight.Landing<Object>> landed = new ArrayList<>();
     private double flown = 0;
@@ -284,6 +285,25 @@ public class FlightTest {
                             + landing.at().x(),
                     landing.at().x() * mouthSide > 0);
         }
+    }
+
+    @Test
+    public void aFlightsHivesBeginAtRestOnItsOwnClockAndATipItBeginsRunsFromItsStart() {
+        Hives atRest = Valid.value(Hives.of(field));
+        assertEquals(atRest.tilts(), hives().tilts());
+        assertFalse(hives().tipping(blue));
+        double leaning = tilt(blue);
+        fly(0.5);
+        Field.Cell cell = upturned(blue);
+        for (int i = 0; i < 5; i++) {
+            putIn(Field.Kind.NECTAR, NECTAR, cell);
+        }
+
+        once(0.01);
+
+        Lean aHundredthIn = new Lean.Tipping(
+                Valid.value(Tilt.of(leaning)), Valid.value(Tilt.of(-leaning)), Valid.value(Seconds.of(0.01)));
+        assertEquals("a hundredth of a second into its tip", aHundredthIn.degrees(), tilt(blue), 1e-9);
     }
 
     @Test

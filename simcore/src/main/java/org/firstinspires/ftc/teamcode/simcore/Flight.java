@@ -116,7 +116,11 @@ public final class Flight<K> {
         this.nanos = nanos;
     }
 
-    public static <K> Checked<Flight<K>> over(Hives hives) {
+    public static <K> Checked<Flight<K>> over(Field field) {
+        return Hives.of(field).then(Flight::<K>over);
+    }
+
+    private static <K> Checked<Flight<K>> over(Hives hives) {
         ShotSettings defaults = ShotSettings.defaults();
         return Colliders.withoutHives(hives.field())
                 .then(still -> Surroundings.of(still, List.of(hives.part()))

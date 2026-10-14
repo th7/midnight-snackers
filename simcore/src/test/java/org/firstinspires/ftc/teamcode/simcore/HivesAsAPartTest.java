@@ -240,6 +240,18 @@ public class HivesAsAPartTest {
     }
 
     @Test
+    public void aHivePlacedAtATimeBeforeItsTipBeganRestsAtTheTiltItTipsFromAndDoesNotMove() {
+        Hives before = tippingBlue().at(onTheGrid(TIPPED_AT_STEP - 1));
+
+        assertEquals(new Lean.Resting(Valid.value(Tilt.of(REST_TILT))), before.lean(BLUE));
+        assertFalse(before.tipping(BLUE));
+        assertFalse(before.part().moving());
+        assertTrue(
+                "and tips from the step it began on",
+                before.at(onTheGrid(TIPPED_AT_STEP + 1)).tipping(BLUE));
+    }
+
+    @Test
     public void aHiveThatIsAlreadyTippingIsNotStartedAgain() {
         Hives tipping = tippingBlue().at(Valid.time(0.5));
 

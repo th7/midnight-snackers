@@ -1480,7 +1480,9 @@ most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `Launch` and `Turntable`, in the **core**.
 
 **Flight** — A ball off the floor during a run: launched, falling, or in or on
-a hive or a flower. It flies on the **Launch Sim**'s engine, with what a **shot**
+a hive or a flower. A flight is made over a field, with the field's hives at rest
+and their clock and its own starting together, so it is never given hives part
+way through a tip. It flies on the **Launch Sim**'s engine, with what a **shot**
 has by default: the same air, bounce, grip and rolling on every surface, steps of
 0.1 ms with each new contact found where it happens, and the same sleeping and
 waking. A ball is the size of the piece it is, a pollen 24.9 g and a nectar
@@ -1655,7 +1657,8 @@ to rest again, so it throws nothing, and whatever the hive touches it
 carries along as it turns, at the speed that part of the hive moves. A hive
 finishes a tip before it can start another, and a tip is timed by the whole
 steps since the step it began on and the part of a step since, never by adding
-up the times since or by taking one reading of a clock from another. In a run's **flight**
+up the times since or by taking one reading of a clock from another; before
+that step the hive rests where it was. In a run's **flight**
 the hives are turned in their own frame and meet a ball under the same names
 and with the same gaps as the **shot's colliders**, at rest and tipped. Every tick says where each hive has got to, so a replay or a live
 view shows it turning. Classes: `Field.Hive`; `Hives`; `Lean`, in the **core**.
