@@ -2390,13 +2390,44 @@ public class CodingServerTest {
         Files.createDirectories(stateDir());
         Files.write(
                 stateDir().resolve("settings.json"),
-                "{\"constants\": {\"launch_throw\": 5}}".getBytes(StandardCharsets.UTF_8));
+                "{\"constants\": {\"launch_throw\": \"hard\"}}".getBytes(StandardCharsets.UTF_8));
 
         IllegalStateException refused = assertThrows(IllegalStateException.class, this::server);
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("settings"));
-        assertTrue(refused.getMessage(), refused.getMessage().contains("Launcher throw"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("Launcher throw is a number"));
         server = null;
+    }
+
+    @Test
+    public void aThrowSavedPastWhereItMayNowGoStillLetsTheServerStartAtTheNearerEndAndTheAdminSeesWhatWasSaved()
+            throws IOException {
+        Files.createDirectories(stateDir());
+        Files.write(
+                stateDir().resolve("settings.json"),
+                "{\"constants\": {\"launch_throw\": 0.5}}".getBytes(StandardCharsets.UTF_8));
+        List<java.util.function.Supplier<Constants>> handed = new ArrayList<>();
+        serverWith((worktree, robot, constants) -> {
+            handed.add(constants);
+            return bench();
+        });
+
+        JsonObject listed = constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW);
+        assertEquals(Constant.LAUNCH_THROW.most(), listed.get("value").getAsDouble(), 0);
+        assertEquals("what was saved", 0.5, listed.get("saved").getAsDouble(), 0);
+        String ada = approvedUser("ada");
+        user("GET", "/sim/catalog", ada);
+        assertEquals(
+                "and every run is made at the nearer end",
+                Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, Constant.LAUNCH_THROW.most()))),
+                handed.get(0).get());
+
+        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+        restart();
+
+        JsonObject saved = constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW);
+        assertEquals(0.25, saved.get("value").getAsDouble(), 0);
+        assertFalse("once the admin saves them, nothing is past its range: " + saved, saved.has("saved"));
     }
 
     @Test

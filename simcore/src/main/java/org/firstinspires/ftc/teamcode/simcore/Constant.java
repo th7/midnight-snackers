@@ -191,6 +191,13 @@ public enum Constant {
         return String.join(", ", names);
     }
 
+    Checked<Double> nearestAdmitted(double value) {
+        if (!Double.isFinite(value) || admits(value) instanceof Checked.Ok<Double>) {
+            return admits(value);
+        }
+        return Checked.ok(value < least ? least : most);
+    }
+
     Checked<Double> admits(double value) {
         if (!(value >= least && value <= most)) {
             return Checked.rejected(label + " is from " + least + " to " + most + " " + unit + ", not " + value);

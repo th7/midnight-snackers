@@ -40,6 +40,7 @@ import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Robots;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -243,6 +244,7 @@ public final class CodingServer {
     private volatile FieldAssets.Resolution drawnByDefault = FieldAssets.Resolution.DEFAULT;
 
     private volatile Constants constants = Constants.defaults();
+    private volatile Map<Constant, Double> savedPastTheirRange = Map.of();
 
     private final Store assetStore = new OnDiskStore();
     private final Assets assets;
@@ -1779,8 +1781,8 @@ public final class CodingServer {
         return Response.json(GSON.toJson(assetsFetched()));
     }
 
-    private String constantsListed() {
-        return GSON.toJson(SimConstants.listing(constants));
+    private synchronized String constantsListed() {
+        return GSON.toJson(SimConstants.listing(constants, savedPastTheirRange));
     }
 
     private Response setConstants(String body) {
@@ -1798,6 +1800,7 @@ public final class CodingServer {
                         set -> {
                             synchronized (this) {
                                 constants = set;
+                                savedPastTheirRange = Map.of();
                                 saveSettings();
                             }
                             return Response.json(constantsListed());
@@ -1815,9 +1818,12 @@ public final class CodingServer {
                 drawnByDefault =
                         FieldAssets.theOneNamed(stored.get("defaultResolution").getAsString());
             }
-            constants = SimConstants.fromJson(stored.get("constants")).fold(read -> read, rule -> {
-                throw new IllegalArgumentException(rule);
-            });
+            Constants.Restored restored = SimConstants.restoredFromJson(stored.get("constants"))
+                    .fold(read -> read, rule -> {
+                        throw new IllegalArgumentException(rule);
+                    });
+            constants = restored.constants();
+            savedPastTheirRange = restored.pastTheirRange();
         } catch (RuntimeException e) {
             throw new IllegalStateException(
                     "could not read the settings in " + stateDir.resolve(SETTINGS_FILE) + ": " + e, e);

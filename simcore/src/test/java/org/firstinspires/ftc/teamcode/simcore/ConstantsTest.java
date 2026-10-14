@@ -179,6 +179,59 @@ public class ConstantsTest {
     }
 
     @Test
+    public void aSavedValuePastItsRangeIsRestoredAtTheNearerEndAndWhatWasSavedIsKeptToSay() {
+        Constants.Restored restored = Valid.value(Constants.restored(
+                set(Constant.LAUNCH_THROW, 0.5, Constant.MOTOR_SPREAD, -0.1, Constant.HICCUP_CHANCE, 0.5)));
+
+        assertEquals(Constant.LAUNCH_THROW.most(), restored.constants().value(Constant.LAUNCH_THROW), 0);
+        assertEquals(Constant.MOTOR_SPREAD.least(), restored.constants().value(Constant.MOTOR_SPREAD), 0);
+        assertEquals(0.5, restored.constants().value(Constant.HICCUP_CHANCE), 0);
+        assertEquals(set(Constant.MOTOR_SPREAD, -0.1, Constant.LAUNCH_THROW, 0.5), restored.pastTheirRange());
+        assertEquals(
+                List.of(Constant.MOTOR_SPREAD, Constant.LAUNCH_THROW),
+                List.copyOf(restored.pastTheirRange().keySet()));
+    }
+
+    @Test
+    public void savedValuesWithinTheirRangesAreRestoredAsTheyWereSavedAndNothingIsSaidOfThem() {
+        Map<Constant, Double> saved = set(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0);
+
+        Constants.Restored restored = Valid.value(Constants.restored(saved));
+
+        assertEquals(Valid.value(Constants.of(saved)), restored.constants());
+        assertTrue(
+                restored.pastTheirRange().toString(), restored.pastTheirRange().isEmpty());
+        assertEquals(
+                Constants.defaults(), Valid.value(Constants.restored(set())).constants());
+        assertTrue(
+                "the least end itself, however it is signed",
+                Valid.value(Constants.restored(set(Constant.MOTOR_SPREAD, -0.0)))
+                        .pastTheirRange()
+                        .isEmpty());
+    }
+
+    @Test
+    public void aSavedValueThatIsNoNumberOrPutsARangesEndsTheWrongWayRoundIsNotRestoredAndSaysWhy() {
+        for (double wrong : List.of(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)) {
+            Checked<Constants.Restored> refused = Constants.restored(set(Constant.LAUNCH_THROW, wrong));
+            assertRejected(Constant.LAUNCH_THROW.label(), refused);
+            assertRejected(String.valueOf(wrong), refused);
+        }
+        assertRejected(
+                "Least traction may not be more than most traction",
+                Constants.restored(set(Constant.LEAST_TRACTION_G, 0.9)));
+    }
+
+    @Test
+    public void whatARestoredSetSaysWasSavedIsNotWhatItHolds() {
+        Constants.Restored restored = Valid.value(Constants.restored(set(Constant.LAUNCH_THROW, 0.5)));
+
+        restored.pastTheirRange().put(Constant.LAUNCH_THROW, 0.7);
+
+        assertEquals(set(Constant.LAUNCH_THROW, 0.5), restored.pastTheirRange());
+    }
+
+    @Test
     public void theFastestBallTheLauncherThrowConstantAllowsFromTheFastestRobotIsOneAFlightTakes() {
         assertTrue(
                 Constant.LAUNCH_THROW.most() + " in/s per tick/s",

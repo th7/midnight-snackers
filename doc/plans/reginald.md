@@ -427,7 +427,8 @@ Then implement, and update `doc/CONTEXT.md`: remove **Turntable**; update
   - About 0.2 is 45 % of a 100 mm wheel's surface speed on a 28-tick motor
     at 1:1, at the top of what hooded wheels are reported to throw.
   - `LAUNCH_THROW`'s built value moves. An admin who set it keeps what they
-    set.
+    set, as far as its range now lets it go: one saved past that is used at
+    the nearer end and shown on the admin page beside what was saved.
 
 Tests first:
 

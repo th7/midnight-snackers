@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
@@ -103,6 +104,36 @@ public class SimConstantsTest {
         assertRefused(
                 "Flattest battery may not be more than freshest battery",
                 SimConstants.fromJson(json("{\"flattest_volts\": 14}")));
+    }
+
+    @Test
+    public void savedConstantsPastTheirRangeAreReadAtTheNearerEndAndListedWithWhatWasSaved() {
+        Constants.Restored restored =
+                Valid.value(SimConstants.restoredFromJson(json("{\"launch_throw\": 0.5, \"hiccup_chance\": 0}")));
+
+        assertEquals(Constant.LAUNCH_THROW.most(), restored.constants().value(Constant.LAUNCH_THROW), 0);
+        assertEquals(0, restored.constants().value(Constant.HICCUP_CHANCE), 0);
+        JsonArray listed = SimConstants.listing(restored.constants(), restored.pastTheirRange())
+                .getAsJsonArray("constants");
+        JsonObject launchThrow = listed.get(Constant.LAUNCH_THROW.ordinal()).getAsJsonObject();
+        assertEquals(Constant.LAUNCH_THROW.most(), launchThrow.get("value").getAsDouble(), 0);
+        assertEquals(0.5, launchThrow.get("saved").getAsDouble(), 0);
+        for (JsonElement other : listed) {
+            if (other != launchThrow) {
+                assertFalse(other.toString(), other.getAsJsonObject().has("saved"));
+            }
+        }
+        assertEquals(
+                Constants.defaults(),
+                Valid.value(SimConstants.restoredFromJson(null)).constants());
+        assertTrue(
+                "saved as a number is still the rule",
+                SimConstants.restoredFromJson(json("{\"launch_throw\": \"fast\"}"))
+                        .fold(read -> "accepted " + read, rule -> rule)
+                        .contains("Launcher throw is a number"));
+        assertFalse(
+                "a listing of constants set on the page says nothing was saved past its range",
+                SimConstants.listing(restored.constants()).toString().contains("saved"));
     }
 
     @Test

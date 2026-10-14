@@ -15,6 +15,10 @@ public final class SimConstants {
     private SimConstants() {}
 
     public static JsonObject listing(Constants constants) {
+        return listing(constants, Map.of());
+    }
+
+    public static JsonObject listing(Constants constants, Map<Constant, Double> pastTheirRange) {
         JsonArray groups = new JsonArray();
         for (Constant.Group group : Constant.Group.values()) {
             JsonObject one = new JsonObject();
@@ -35,6 +39,9 @@ public final class SimConstants {
             one.addProperty("most", constant.most());
             one.addProperty("byDefault", constant.byDefault());
             one.addProperty("value", constants.value(constant));
+            if (pastTheirRange.containsKey(constant)) {
+                one.addProperty("saved", pastTheirRange.get(constant));
+            }
             listed.add(one);
         }
         JsonObject listing = new JsonObject();
@@ -52,8 +59,16 @@ public final class SimConstants {
     }
 
     public static Checked<Constants> fromJson(JsonElement element) {
+        return numbersByName(element).then(Constants::of);
+    }
+
+    public static Checked<Constants.Restored> restoredFromJson(JsonElement element) {
+        return numbersByName(element).then(Constants::restored);
+    }
+
+    private static Checked<Map<Constant, Double>> numbersByName(JsonElement element) {
         if (element == null || element.isJsonNull()) {
-            return Checked.ok(Constants.defaults());
+            return Checked.ok(Map.of());
         }
         if (!element.isJsonObject()) {
             return Checked.rejected("the simulation constants are an object of numbers by name, not " + element);
@@ -71,7 +86,7 @@ public final class SimConstants {
             }
             set.put(constant, value.getAsDouble());
         }
-        return Constants.of(set);
+        return Checked.ok(set);
     }
 
     public static String described(Constants constants) {

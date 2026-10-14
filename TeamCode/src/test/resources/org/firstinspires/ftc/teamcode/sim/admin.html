@@ -121,6 +121,8 @@
   .constant .unit { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
   .constant .built { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
   .constant:not(.changed) .built { display: none; }
+  .constant.past { box-shadow: inset 3px 0 0 var(--warn); }
+  .constant .saved { grid-column: 1 / -1; color: var(--warn); font-size: 12px; }
   .constants-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
   .constants-actions .result { flex: 1 1 12em; }
 </style>
@@ -320,13 +322,21 @@
       constantsEl.appendChild(head);
       constantsListed.filter(function (constant) { return constant.group === group.name; }).forEach(function (constant) {
         var row = document.createElement('label');
-        row.className = 'constant' + (constant.value !== constant.byDefault ? ' changed' : '');
+        var past = constant.saved !== undefined;
+        row.className = 'constant' + (constant.value !== constant.byDefault ? ' changed' : '') + (past ? ' past' : '');
         row.title = constant.says + ' From ' + constant.least + ' to ' + constant.most + ' ' + constant.unit + '.';
         row.innerHTML = '<span class="name"></span><input class="mono" type="number" step="any"><span class="unit"></span>'
           + '<span class="built mono"></span>';
         row.querySelector('.name').textContent = constant.label;
         row.querySelector('.unit').textContent = constant.unit;
         row.querySelector('.built').textContent = 'built ' + constant.byDefault;
+        if (past) {
+          var saved = document.createElement('span');
+          saved.className = 'saved';
+          saved.textContent = 'saved ' + constant.saved + ', past where it may now go, ' + constant.least + ' to '
+            + constant.most + ' ' + constant.unit + ': runs use ' + constant.value + ' until you save';
+          row.appendChild(saved);
+        }
         var input = row.querySelector('input');
         input.dataset.name = constant.name;
         input.min = constant.least;

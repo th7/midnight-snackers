@@ -88,14 +88,20 @@ const BUILT = [
     says: 'How fast a ball leaves the launcher.', least: 0.01, most: 0.29, byDefault: 0.189 }
 ];
 
-let set = { launch_throw: 0.25 };
+let set = { launch_throw: 0.29 };
+
+let savedPastTheirRange = { launch_throw: 0.5 };
 
 const PUTS = [];
 
 function constantsListed() {
   return {
     groups: GROUPS,
-    constants: BUILT.map((c) => ({ ...c, value: c.name in set ? set[c.name] : c.byDefault }))
+    constants: BUILT.map((c) => ({
+      ...c,
+      value: c.name in set ? set[c.name] : c.byDefault,
+      ...(c.name in savedPastTheirRange ? { saved: savedPastTheirRange[c.name] } : {})
+    }))
   };
 }
 
@@ -111,6 +117,7 @@ function constantsAsked(request, response) {
       return;
     }
     set = asked;
+    savedPastTheirRange = {};
     answer(response, constantsListed());
   });
 }
@@ -301,7 +308,13 @@ async function main() {
       check(panel.includes(saying), `the constants panel does not say ${saying}: ${JSON.stringify(panel)}`);
     }
     const throwInput = page.locator('#constants input[data-name="launch_throw"]');
-    check(await throwInput.inputValue() === '0.25', `the launcher throw shows ${await throwInput.inputValue()}, not 0.25`);
+    check(await throwInput.inputValue() === '0.29', `the launcher throw shows ${await throwInput.inputValue()}, not 0.29`);
+    const pastTheirRange = await page.locator('#constants .constant.past').allInnerTexts();
+    check(pastTheirRange.length === 1 && pastTheirRange[0].includes('Launcher throw')
+        && pastTheirRange[0].includes('saved 0.5') && pastTheirRange[0].includes('0.01 to 0.29')
+        && pastTheirRange[0].includes('runs use 0.29'),
+        `a throw saved past where it may now go is not shown with what was saved and what runs use: `
+        + JSON.stringify(pastTheirRange));
     const changedRows = await page.locator('#constants .constant.changed').allInnerTexts();
     check(changedRows.length === 1 && changedRows[0].includes('Launcher throw'),
         `the constants marked as changed are ${JSON.stringify(changedRows)} rather than the launcher throw alone`);
@@ -314,12 +327,14 @@ async function main() {
           { timeout: 10_000 }),
       page.click('#save-constants')
     ]);
-    check(JSON.stringify(JSON.parse(PUTS[PUTS.length - 1])) === JSON.stringify({ hiccup_chance: 0, launch_throw: 0.25 }),
+    check(JSON.stringify(JSON.parse(PUTS[PUTS.length - 1])) === JSON.stringify({ hiccup_chance: 0, launch_throw: 0.29 }),
         `Save sent ${PUTS[PUTS.length - 1]} rather than every constant that differs from how it was built`);
     await page.waitForFunction(() => document.getElementById('constants-said').textContent.length > 0, null,
         { timeout: 10_000 }).catch(() => {});
     check((await page.locator('#constants-said').innerText()).includes('next run'),
         'saving does not say when the constants take effect');
+    check(await page.locator('#constants .constant.past').count() === 0,
+        'once saved, a constant is still shown as saved past where it may go');
 
     await page.fill('#constants input[data-name="launch_throw"]', '5');
     await Promise.all([
@@ -365,7 +380,8 @@ async function main() {
       + 'picks files for one robot at a time, '
       + 'shows each robot\'s own package as always editable and never offers it, '
       + 'deletes a user, '
-      + 'and shows the simulation constants, saves those that differ from how they were built, '
+      + 'and shows the simulation constants and any saved past where it may now go, '
+      + 'saves those that differ from how they were built, '
       + 'says why a set is refused, and puts them back as built.');
 }
 
