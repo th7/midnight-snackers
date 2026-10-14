@@ -382,8 +382,14 @@ final class Bodies {
         return new Bodies(surroundings, air, surfaces, step, watching, copied, steps, now, work);
     }
 
-    void surroundedBy(Surroundings surroundings) {
+    List<Seen> surroundedBy(Surroundings surroundings) {
         this.surroundings = placed(surroundings, now);
+        List<Seen> woken = new ArrayList<>();
+        for (Body body : reachedAhead(placed(surroundings, (steps + 1) * step))) {
+            woken.add(body.seen());
+        }
+        touchingAtTheStart();
+        return Collections.unmodifiableList(woken);
     }
 
     Checked<Seen> add(Name name, Ball shape, Motion motion, Start start) {

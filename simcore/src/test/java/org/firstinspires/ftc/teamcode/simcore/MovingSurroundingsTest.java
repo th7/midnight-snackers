@@ -510,6 +510,40 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void surroundingsGivenWithAPartAlreadyMovingWakeAtOnceWhatItCouldReachWithinTheComingStepAndStrikeIt() {
+        double step = World.LONGEST_STEP_SECONDS, speed = 600;
+        Collider paddle = Carried.box("paddle", new Vec3(-1, -10, 0.5), new Vec3(0, 10, 8));
+        Bodies bodies = watching("ball", step, Carried.sliding(paddle, Vec3.zero(), 0));
+        add(bodies, "ball", new Vec3(0.05 + R, 0, R), Vec3.zero(), ASLEEP);
+        stepFor(bodies, 0.05, step);
+        Bodies.Seen resting = seen(bodies, "ball");
+
+        List<Bodies.Seen> woken =
+                bodies.surroundedBy(around(Carried.sliding(paddle, new Vec3(speed, 0, 0), bodies.now())));
+
+        assertEquals(Bodies.Life.AWAKE, seen(bodies, "ball").life());
+        assertEquals(List.of("ball"), List.of(woken.get(0).name()));
+        assertEquals(resting.at(), woken.get(0).at());
+        assertEquals(Set.of("Floor"), bodies.touching("ball").orElseThrow().colliders());
+        List<Contacts.Hit> struck = hits(stepFor(bodies, 0.03, step), "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+    }
+
+    @Test
+    public void surroundingsGivenToAnEngineAreWhatItsAwakeBodiesKnowTheyTouchAtOnce() {
+        Collider plate = Carried.box("plate", new Vec3(-30, -30, 10), new Vec3(30, 30, 11));
+        Bodies bodies = among(STEP, Carried.sliding(TRAY, Vec3.zero(), 0));
+        add(bodies, "ball", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), AWAKE);
+        assertEquals(Set.of("tray"), bodies.touching("ball").orElseThrow().colliders());
+
+        List<Bodies.Seen> woken = bodies.surroundedBy(around(Carried.sliding(plate, Vec3.zero(), 0)));
+
+        assertTrue(woken.isEmpty());
+        assertEquals(Set.of("plate"), bodies.touching("ball").orElseThrow().colliders());
+    }
+
+    @Test
     public void aCopyAmongMovingPartsGoesOnExactlyAsTheOriginal() {
         Collider tray = Carried.box("tray", new Vec3(-3, -3, 10), new Vec3(3, 3, 10.5));
         Bodies bodies = among(STEP, Carried.turning(tray, new Vec3(0, 0, 10.5), new Vec3(0, 3, 0), 0.1));
