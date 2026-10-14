@@ -9,7 +9,7 @@ public final class Stack<K> {
     private final Field.Flower flower;
     private final List<Standing<K>> fromTheBottom;
 
-    private record Standing<K>(K key, Length radius, double z, double vz) {
+    record Standing<K>(K key, Length radius, double z, double vz) {
         double top() {
             return z + radius.inches();
         }
@@ -32,6 +32,10 @@ public final class Stack<K> {
 
     public int size() {
         return fromTheBottom.size();
+    }
+
+    List<Standing<K>> standing() {
+        return fromTheBottom;
     }
 
     public List<K> fromTheBottom() {

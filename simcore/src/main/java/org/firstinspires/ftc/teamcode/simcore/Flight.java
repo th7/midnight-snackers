@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,7 +63,6 @@ public final class Flight<K> {
 
     private record Physics(
             Colliders still,
-            Surroundings around,
             Set<String> floors,
             double floorsTop,
             Surfaces surfaces,
@@ -103,14 +103,17 @@ public final class Flight<K> {
 
     private final Physics physics;
     private final Hives hives;
+    private final Bores bores;
     private final Bodies bodies;
     private final List<Flying<K>> flying;
     private final long named;
     private final long nanos;
 
-    private Flight(Physics physics, Hives hives, Bodies bodies, List<Flying<K>> flying, long named, long nanos) {
+    private Flight(
+            Physics physics, Hives hives, Bores bores, Bodies bodies, List<Flying<K>> flying, long named, long nanos) {
         this.physics = physics;
         this.hives = hives;
+        this.bores = bores;
         this.bodies = bodies;
         this.flying = Collections.unmodifiableList(flying);
         this.named = named;
@@ -133,7 +136,6 @@ public final class Flight<K> {
                                                         .map(allowance -> new Flight<K>(
                                                                 new Physics(
                                                                         still,
-                                                                        around,
                                                                         floors,
                                                                         topOf(floors, still),
                                                                         surfaces,
@@ -142,6 +144,7 @@ public final class Flight<K> {
                                                                         defaults.value(ShotSetting.NECTAR_MASS),
                                                                         defaults.value(ShotSetting.INERTIA)),
                                                                 hives,
+                                                                Bores.of(hives.field()),
                                                                 Bodies.unwatched(around, air, surfaces, step),
                                                                 new ArrayList<>(),
                                                                 0,
@@ -153,7 +156,10 @@ public final class Flight<K> {
     }
 
     private static Set<String> floorsOf(Field field) {
-        Set<String> floors = new HashSet<>(Colliders.basePlatesOf(field));
+        Set<String> floors = new HashSet<>();
+        for (Colliders.BasePlate plate : Colliders.basePlatesOf(field).values()) {
+            floors.add(plate.name());
+        }
         floors.add(Colliders.FLOOR);
         return Collections.unmodifiableSet(floors);
     }
@@ -230,6 +236,16 @@ public final class Flight<K> {
             }
             return Checked.rejected("there is no room left in " + cell.name() + " for another " + kind.named());
         });
+    }
+
+    public <J> Checked<Flight<K>> amid(Collection<Stack<J>> stacks, List<Rolling<J>> rolling) {
+        Bores now = bores.holding(stacks, rolling);
+        if (now.standsAsIn(bores)) {
+            return Checked.ok(this);
+        }
+        Work<K> work = new Work<>(this);
+        work.catchUp();
+        return work.surround(work.hives, now).map(around -> work.checked());
     }
 
     public Flight<K> without(K ball) {
@@ -316,6 +332,7 @@ public final class Flight<K> {
         private final List<Landing<K>> landings = new ArrayList<>();
         private final long nanos;
         private Hives hives;
+        private Bores bores;
         private Bodies bodies;
         private long named;
         private boolean copied;
@@ -325,12 +342,28 @@ public final class Flight<K> {
             this.flying = new ArrayList<>(flight.flying);
             this.nanos = flight.nanos;
             this.hives = flight.hives;
+            this.bores = flight.bores;
             this.bodies = flight.bodies;
             this.named = flight.named;
         }
 
         Flight<K> at(long then) {
-            return new Flight<>(physics, hives, bodies, flying, named, then);
+            return new Flight<>(physics, hives, bores, bodies, flying, named, then);
+        }
+
+        Checked<Surroundings> surround(Hives by, Bores amid) {
+            List<Surroundings.Part> parts = new ArrayList<>();
+            parts.add(by.part());
+            if (!amid.empty()) {
+                parts.add(amid);
+            }
+            return Surroundings.of(physics.still(), parts).map(around -> {
+                hives = by;
+                bores = amid;
+                engine().surroundedBy(around);
+                seeAll();
+                return around;
+            });
         }
 
         Flight<K> checked() {
@@ -510,18 +543,7 @@ public final class Flight<K> {
 
         private void tip(Field.Hive hive) {
             catchUp();
-            Bodies engine = engine();
-            Hives tipped = hives.at(engine.time()).tipped(hive);
-            physics.around()
-                    .replacing(tipped.part())
-                    .fold(
-                            around -> {
-                                hives = tipped;
-                                engine.surroundedBy(around);
-                                seeAll();
-                                return true;
-                            },
-                            rule -> false);
+            surround(hives.at(engine().time()).tipped(hive), bores);
         }
 
         private void afterAStep(boolean hivesMoved) {
@@ -642,11 +664,12 @@ public final class Flight<K> {
                 return true;
             }
             return StrictMath.abs(touch.normal().z()) <= SIDE_ON
-                    && hives.field()
-                            .obstacle(touch.id())
-                            .map(obstacle ->
-                                    obstacle.clears() < 2 * ball.radius().inches())
-                            .orElse(false);
+                    && (bores.ids().contains(touch.id())
+                            || hives.field()
+                                    .obstacle(touch.id())
+                                    .map(obstacle -> obstacle.clears()
+                                            < 2 * ball.radius().inches())
+                                    .orElse(false));
         }
 
         private void replace(Flying<K> was, Flying<K> now) {

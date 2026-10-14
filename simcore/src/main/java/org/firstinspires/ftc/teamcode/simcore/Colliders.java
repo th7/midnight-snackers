@@ -174,23 +174,24 @@ public final class Colliders {
         return made;
     }
 
-    static Set<String> basePlatesOf(Field field) {
+    record BasePlate(String name, double top) {}
+
+    static Map<String, BasePlate> basePlatesOf(Field field) {
         Map<String, Integer> seen = new LinkedHashMap<>();
-        Map<String, String> plates = new LinkedHashMap<>();
-        Map<String, Double> lowest = new LinkedHashMap<>();
+        Map<String, BasePlate> plates = new LinkedHashMap<>();
         for (Field.Element element : field.elements()) {
             String name = numbered(element, seen);
             for (Field.Flower flower : field.flowers()) {
                 double top = topOf(element);
+                BasePlate lowest = plates.get(flower.name());
                 if (element.group().equals(flower.name())
                         && over(element, flower.axis())
-                        && top < lowest.getOrDefault(flower.name(), Double.POSITIVE_INFINITY)) {
-                    lowest.put(flower.name(), top);
-                    plates.put(flower.name(), name);
+                        && (lowest == null || top < lowest.top())) {
+                    plates.put(flower.name(), new BasePlate(name, top));
                 }
             }
         }
-        return Collections.unmodifiableSet(new HashSet<>(plates.values()));
+        return Collections.unmodifiableMap(plates);
     }
 
     private static double topOf(Field.Element element) {

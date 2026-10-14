@@ -1047,14 +1047,44 @@ public class SimRobotTest {
         assertTrue("nested at the flower's axis: " + Arrays.toString(at), fromTheAxis(flower, at) < CONTACT);
     }
 
+    private static final double TOUCHING_WITHIN = 0.01;
+
     @Test
-    public void aBallLaunchedOntoAFlowersBasePlateBesideItsStackEndsUpRollingOnTheFloorAndTheStackStands() {
+    public void aBallLaunchedUnderAFlowerOntoItsBasePlateMeetsTheStackInItsBoreAndNeverMovesIt() {
         Field.Flower flower = SimPlacement.FIELD.flowers().get(0);
+        Map<SimRobot.Piece, double[]> standing = new IdentityHashMap<>();
+        for (SimRobot.Piece pollen : pollenOf(flower)) {
+            standing.put(pollen, sim.placeOf(pollen).clone());
+        }
+        SimRobot.Piece launched = thePreloadOf(sim);
+        sim.setPose(new Pose2d(-26.50, 40.06, Math.toRadians(-10)));
+        readyToLaunch(900);
+        sim.bottomGate.position = BOTTOM_GATE_OPEN;
 
-        double[] at = launchedIntoTheBaseOf(flower);
+        double nearest = Double.POSITIVE_INFINITY, moved = 0;
+        for (int step = 0; step < 2000; step++) {
+            sim.step(0.005);
+            double[] ball = sim.placeOf(launched);
+            for (Map.Entry<SimRobot.Piece, double[]> pollen : standing.entrySet()) {
+                double[] now = sim.placeOf(pollen.getKey());
+                moved = Math.max(moved, distance(now, pollen.getValue()));
+                if (ball != null) {
+                    nearest = Math.min(nearest, distance(now, ball));
+                }
+            }
+        }
 
+        assertTrue(
+                "the launched ball came within " + nearest + " in of a stacked pollen's centre",
+                nearest >= 2 * BALL - TOUCHING_WITHIN);
+        assertTrue("a stacked pollen moved " + moved + " in", moved <= TOUCHING_WITHIN);
+        double[] at = sim.placeOf(launched);
         assertEquals("rolling on the floor, not held in flight above it: " + Arrays.toString(at), BALL, at[2], 0);
         assertStandingIn(flower, 4);
+    }
+
+    private static double distance(double[] a, double[] b) {
+        return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
     }
 
     @Test

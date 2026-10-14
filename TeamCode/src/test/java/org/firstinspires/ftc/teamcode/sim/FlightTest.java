@@ -14,8 +14,10 @@ import org.firstinspires.ftc.teamcode.simcore.Hives;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Ring;
+import org.firstinspires.ftc.teamcode.simcore.Rolling;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Shot;
+import org.firstinspires.ftc.teamcode.simcore.Stack;
 import org.firstinspires.ftc.teamcode.simcore.Surface;
 import org.firstinspires.ftc.teamcode.simcore.Tilt;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
@@ -501,6 +503,123 @@ public class FlightTest {
             assertEquals(spot.y(), landed.get(0).at().y(), 0.2);
             assertEquals(POLLEN_RADIUS, landed.get(0).at().z(), 0);
         }
+    }
+
+    private static final double TOUCHING_WITHIN = 0.01;
+
+    private static Stack<Object> threeStandingOnTheNestedPollen(Field.Flower flower) {
+        Stack<Object> stack = Stack.in(flower);
+        for (int above = 1; above <= 3; above++) {
+            stack = stack.with(new Object(), POLLEN, (2 * above + 1) * POLLEN_RADIUS);
+        }
+        return stack;
+    }
+
+    private static List<Rolling<Object>> nestedIn(Field.Flower flower) {
+        return List.of(new Rolling<>(new Object(), flower.axis(), POLLEN));
+    }
+
+    private static List<Vec3[]> rollsOntoTheBasePlateOf(Field.Flower flower) {
+        double x = flower.axis().x(), y = flower.axis().y();
+        return List.of(
+                new Vec3[] {new Vec3(x - 7, y, POLLEN_RADIUS), new Vec3(50, 0, 0)},
+                new Vec3[] {new Vec3(x, y + 7, POLLEN_RADIUS), new Vec3(0, -50, 0)});
+    }
+
+    private double nearestTo(Vec3 point, Object ball) {
+        double nearest = Double.POSITIVE_INFINITY;
+        for (double rolled = 0; flight.holds(ball) && rolled < 5; rolled += STEP) {
+            once(STEP);
+            if (flight.holds(ball)) {
+                Vec3 apart = at(ball).minus(point);
+                nearest = Math.min(nearest, Math.sqrt(apart.dot(apart)));
+            }
+        }
+        return nearest;
+    }
+
+    @Test
+    public void aPollenRolledOntoAFlowersBasePlateMeetsTheStackStandingInItsBoreAndLandsClearOfIt() {
+        Field.Flower flower = field.flowers().get(0);
+        double x = flower.axis().x(), y = flower.axis().y();
+        Vec3 nested = new Vec3(x, y, highestOf(flower.name(), "Flower Layer X") + POLLEN_RADIUS);
+        Flight<Object> amidTheStack =
+                Valid.value(flight.amid(List.of(threeStandingOnTheNestedPollen(flower)), nestedIn(flower)));
+        for (Vec3[] roll : rollsOntoTheBasePlateOf(flower)) {
+            flight = amidTheStack;
+            landed.clear();
+            Object ball = throwIt(Field.Kind.POLLEN, POLLEN, roll[0], roll[1]);
+
+            double nearest = nearestTo(nested, ball);
+
+            String rolled = "rolled from " + roll[0] + " at " + roll[1];
+            assertTrue(
+                    rolled + ": it came within " + nearest + " in of the nested pollen's centre",
+                    nearest >= 2 * POLLEN_RADIUS - TOUCHING_WITHIN);
+            assertEquals(rolled, 1, landed.size());
+            assertTrue(rolled, landed.get(0) instanceof Flight.OnTheFloor);
+            double clear =
+                    Math.hypot(landed.get(0).at().x() - x, landed.get(0).at().y() - y);
+            assertTrue(
+                    rolled + ": it landed " + clear + " in from the axis",
+                    clear >= 2 * POLLEN_RADIUS - TOUCHING_WITHIN);
+        }
+    }
+
+    @Test
+    public void aPollenSetDownOnABasePlateAgainstTheSideOfAStackLandsThereTouchingIt() {
+        Field.Flower flower = field.flowers().get(0);
+        double x = flower.axis().x(), y = flower.axis().y();
+        double plate = highestOf(flower.name(), "Flower Layer X");
+        flight = Valid.value(flight.amid(List.of(threeStandingOnTheNestedPollen(flower)), nestedIn(flower)));
+        Object ball = drop(Field.Kind.POLLEN, POLLEN, new Vec3(x, y - 2 * POLLEN_RADIUS, plate + POLLEN_RADIUS));
+
+        fly(1.0);
+
+        assertEquals("it landed", 1, landed.size());
+        assertTrue(landed.get(0) instanceof Flight.OnTheFloor);
+        assertTrue(landed.get(0).ball() == ball);
+        assertEquals(
+                "against the nested pollen",
+                2 * POLLEN_RADIUS,
+                Math.hypot(landed.get(0).at().x() - x, landed.get(0).at().y() - y),
+                TOUCHING_WITHIN);
+    }
+
+    @Test
+    public void aStackStandsInItsBoreThroughAHivesTip() {
+        Field.Flower flower = field.flowers().get(0);
+        Vec3 nested = new Vec3(
+                flower.axis().x(), flower.axis().y(), highestOf(flower.name(), "Flower Layer X") + POLLEN_RADIUS);
+        flight = Valid.value(flight.amid(List.of(threeStandingOnTheNestedPollen(flower)), nestedIn(flower)));
+        for (int i = 0; i < 5; i++) {
+            putIn(Field.Kind.NECTAR, NECTAR, upturned(blue));
+        }
+        fly(0.05);
+        assertTrue("the hive has begun to tip", hives().tipping(blue));
+        Vec3[] roll = rollsOntoTheBasePlateOf(flower).get(0);
+        Object ball = throwIt(Field.Kind.POLLEN, POLLEN, roll[0], roll[1]);
+
+        double nearest = nearestTo(nested, ball);
+
+        assertTrue(
+                "it came within " + nearest + " in of the nested pollen's centre",
+                nearest >= 2 * POLLEN_RADIUS - TOUCHING_WITHIN);
+    }
+
+    @Test
+    public void aBallTheFloorNoLongerHasInABoreNoLongerStandsThereInFlight() {
+        Field.Flower flower = field.flowers().get(0);
+        Vec3 nested = new Vec3(
+                flower.axis().x(), flower.axis().y(), highestOf(flower.name(), "Flower Layer X") + POLLEN_RADIUS);
+        flight = Valid.value(flight.amid(List.of(threeStandingOnTheNestedPollen(flower)), nestedIn(flower)));
+        flight = Valid.value(flight.amid(List.of(Stack.in(flower)), List.of()));
+        Vec3[] roll = rollsOntoTheBasePlateOf(flower).get(0);
+        Object ball = throwIt(Field.Kind.POLLEN, POLLEN, roll[0], roll[1]);
+
+        double nearest = nearestTo(nested, ball);
+
+        assertTrue("it rolled in over the empty nest: " + nearest, nearest < POLLEN_RADIUS);
     }
 
     @Test

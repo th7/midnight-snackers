@@ -1495,15 +1495,22 @@ has by default: the same air, bounce, grip and rolling on every surface, steps o
 waking. A ball is the size of the piece it is, a pollen 24.9 g and a nectar
 41.3 g. It meets the field as a shot does, except that the hives are a part of
 its **surroundings** that turns as one tips, carrying and spinning what it
-touches; the robot and the balls on the floor are not in it. A ball **lands**,
+touches, and what the floor's own world has standing in a flower's bore, its
+**stack** and any ball on the floor whose centre is in the bore, is another part:
+each a still ball standing on the bore's base plate where that world has it,
+moved there once it has moved more than 0.02 in from where the flight has it.
+The robot and the other balls on the floor are not in it. A ball **lands**,
 back on the floor with the robot, once it presses on the floor rather than
 striking it, rolls there without slipping or has fallen asleep there, and
 touches nothing the floor's own world lacks: a wall, the side of an obstacle
-standing on the floor and another ball landing with it are all it may touch,
-so balls that come to rest together land together. A flower's base plate, the
-floor of its bore with the **nest**'s ring in it, is floor here as it is to the
-floor's own world, so a ball that comes to rest on it lands there and the nest,
-seat and stack take it. A ball resting on another ball, on top of any other
+standing on the floor, the side of a ball standing in a bore and another ball
+landing with it are all it may touch, so balls that come to rest together land
+together. A flower's base plate, the floor of its bore with the **nest**'s ring
+in it, is floor here as it is to the floor's own world. A ball rolled along it
+into a bore that holds a stack meets the stack's bottom pollen there, as it
+would the real one, and lands clear of it, so no stacked pollen is moved; one
+that comes to rest on the plate of an empty bore lands there and the nest takes
+it. A ball resting on another ball, on top of any other
 element or on a flower's top stays in flight; a flower's top closes its bore from
 above, so a ball gets into a bore only under the flower's layers, along its base
 plate. A ball whose centre is past a wall's outer face is out. A
@@ -1523,7 +1530,8 @@ without being located, and the next window locates them again. So ticks that add
 up to the same nanoseconds leave a flight the same to the bit, however they are
 cut: every landing, every ball still flying and the work counted. A flight is a
 value.
-Class: `Flight`, in the **core**.
+Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
+tells the flight what the floor's own world has in the bores each step.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
 real robot does, drawn once per run from a **seed**: the same robot for

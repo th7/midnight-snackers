@@ -143,6 +143,20 @@ public class CollidersTest {
         return fieldOf(List.of(block(new Vec3(20, 0, 5)), block(new Vec3(-20, 0, 5)), pipe()), blueHive(blueTilt));
     }
 
+    static final double BASE_PLATE_TOP = 0.36;
+
+    static Field fieldWithABasePlate() {
+        return fieldOf(
+                List.of(
+                        pipe(),
+                        box(
+                                "Flower Assembly <1>",
+                                "Flower Layer X",
+                                new Vec3(40, 0, BASE_PLATE_TOP / 2),
+                                new Vec3(3, 3, BASE_PLATE_TOP / 2))),
+                blueHive(REST_TILT));
+    }
+
     private static Colliders colliders(double blueTilt) {
         return Valid.value(Colliders.of(field(blueTilt), List.of()));
     }

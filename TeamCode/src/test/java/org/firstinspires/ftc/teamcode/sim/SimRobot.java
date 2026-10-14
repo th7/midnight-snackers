@@ -352,6 +352,7 @@ public class SimRobot {
             }
         }
         restTheFlowers();
+        standInTheBores();
     }
 
     private static double largestBallRadius() {
@@ -687,6 +688,10 @@ public class SimRobot {
         }
     }
 
+    private void standInTheBores() {
+        flight = refusedIfNot(flight.amid(stacks.values(), rolling()));
+    }
+
     private void settle(Stack.Settled<Ball> settled) {
         Field.Flower flower = settled.stack().flower();
         stacks.put(flower, settled.stack());
@@ -807,6 +812,7 @@ public class SimRobot {
         world.step(1, dt.value());
         intakeTheBalls();
         fallInTheFlowers(dt);
+        standInTheBores();
         flyTheBalls(dt);
         readTheSensors();
     }
