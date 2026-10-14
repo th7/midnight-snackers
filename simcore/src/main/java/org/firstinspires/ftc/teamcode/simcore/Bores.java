@@ -150,7 +150,7 @@ final class Bores implements Surroundings.Part {
     }
 
     @Override
-    public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+    public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
         return List.of();
     }
 

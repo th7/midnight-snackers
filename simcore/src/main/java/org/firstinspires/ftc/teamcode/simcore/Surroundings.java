@@ -141,6 +141,71 @@ final class Surroundings {
         }
     }
 
+    static final class Overlap {
+        private final String id;
+        private final Compliance compliance;
+        private final Vec3 normal;
+        private final double depth;
+        private final Support support;
+
+        private Overlap(String id, Compliance compliance, Vec3 normal, double depth, Support support) {
+            this.id = id;
+            this.compliance = compliance;
+            this.normal = normal;
+            this.depth = depth;
+            this.support = support;
+        }
+
+        static Checked<Overlap> of(String id, Compliance compliance, Vec3 normal, double depth, Support support) {
+            if (!(StrictMath.abs(normal.dot(normal) - 1) <= Touch.UNIT_WITHIN && depth > 0 && Double.isFinite(depth))) {
+                return Checked.rejected("an overlap has a unit normal and a finite depth more than 0, not a normal of "
+                        + normal + " and a depth of " + depth);
+            }
+            return Checked.ok(new Overlap(id, compliance, normal, depth, support));
+        }
+
+        String id() {
+            return id;
+        }
+
+        Compliance compliance() {
+            return compliance;
+        }
+
+        Vec3 normal() {
+            return normal;
+        }
+
+        double depth() {
+            return depth;
+        }
+
+        Support support() {
+            return support;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Overlap that
+                    && id.equals(that.id)
+                    && compliance.equals(that.compliance)
+                    && normal.equals(that.normal)
+                    && Double.compare(depth, that.depth) == 0
+                    && support.equals(that.support);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, compliance, normal, depth, support);
+        }
+
+        @Override
+        public String toString() {
+            return "Overlap[id=" + id + ", compliance=" + compliance + ", normal=" + normal + ", depth=" + depth
+                    + ", support=" + support + "]";
+        }
+    }
+
     static final class Squeeze {
         private final String id;
         private final Compliance compliance;
@@ -161,25 +226,22 @@ final class Surroundings {
             this.spin = spin;
         }
 
-        static Checked<Squeeze> of(
-                String id,
-                Compliance compliance,
-                Vec3 centre,
-                Length radius,
-                Vec3 normal,
-                double depth,
-                Support support) {
-            Vec3 arm = normal.times(-(radius.inches() - depth / 2));
-            Vec3 velocity = support.velocityAt(centre.plus(arm));
-            if (!(StrictMath.abs(normal.dot(normal) - 1) <= Touch.UNIT_WITHIN
-                    && depth > 0
-                    && Double.isFinite(depth)
-                    && velocity.isFinite())) {
-                return Checked.rejected("a squeeze has a unit normal, a finite depth more than 0 and a finite velocity"
-                        + " where the ball meets what squeezes it, not a normal of " + normal + ", a depth of " + depth
-                        + " and a velocity of " + velocity + " at " + centre.plus(arm));
+        static Checked<Squeeze> of(Overlap overlap, Vec3 centre, Length radius) {
+            Vec3 arm = overlap.normal().times(-(radius.inches() - overlap.depth() / 2));
+            Vec3 meets = centre.plus(arm);
+            Vec3 velocity = overlap.support().velocityAt(meets);
+            if (!(meets.isFinite() && velocity.isFinite())) {
+                return Checked.rejected("a squeeze meets the ball at a finite point and takes a finite velocity there,"
+                        + " not a velocity of " + velocity + " at " + meets);
             }
-            return Checked.ok(new Squeeze(id, compliance, normal, depth, arm, velocity, support.spin()));
+            return Checked.ok(new Squeeze(
+                    overlap.id(),
+                    overlap.compliance(),
+                    overlap.normal(),
+                    overlap.depth(),
+                    arm,
+                    velocity,
+                    overlap.support().spin()));
         }
 
         String id() {
@@ -251,7 +313,7 @@ final class Surroundings {
 
         boolean squeezes();
 
-        List<Squeeze> squeezing(Vec3 centre, Length radius);
+        List<Overlap> squeezing(Vec3 centre, Length radius);
 
         Part at(GridTime time);
     }
@@ -298,9 +360,9 @@ final class Surroundings {
 
         List<Squeeze> squeezing(Vec3 centre, Length radius) {
             List<Squeeze> kept = new ArrayList<>();
-            for (Squeeze squeeze : part.squeezing(centre, radius)) {
-                if (ids.contains(squeeze.id())) {
-                    kept.add(squeeze);
+            for (Overlap overlap : part.squeezing(centre, radius)) {
+                if (ids.contains(overlap.id())) {
+                    Squeeze.of(overlap, centre, radius).fold(squeeze -> kept.add(squeeze), rule -> false);
                 }
             }
             return kept;

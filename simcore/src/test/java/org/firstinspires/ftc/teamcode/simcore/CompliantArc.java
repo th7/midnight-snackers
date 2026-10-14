@@ -88,17 +88,16 @@ final class CompliantArc implements Surroundings.Part {
     }
 
     @Override
-    public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
-        List<Surroundings.Squeeze> squeezes = new ArrayList<>();
+    public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
+        List<Surroundings.Overlap> overlaps = new ArrayList<>();
         Arc.Nearest nearest = arc.nearestTo(centre);
         double depth = radius.inches() - nearest.distance();
         if (depth > 0) {
             Surroundings.Support turning = Valid.value(Surroundings.Support.of(
                     arc.centre(), Vec3.zero(), arc.axis().times(radiansPerSecond())));
-            squeezes.add(Valid.value(
-                    Surroundings.Squeeze.of(id, compliance, centre, radius, nearest.normal(), depth, turning)));
+            overlaps.add(Valid.value(Surroundings.Overlap.of(id, compliance, nearest.normal(), depth, turning)));
         }
-        return squeezes;
+        return overlaps;
     }
 
     @Override

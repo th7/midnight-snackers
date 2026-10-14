@@ -362,7 +362,7 @@ public class CompliantContactTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             asked.add(seconds);
             return inner.squeezing(centre, radius);
         }
@@ -374,14 +374,13 @@ public class CompliantContactTest {
     }
 
     private static Surroundings.Squeeze pressing(Compliance compliance, Vec3 normal, double depth, Vec3 velocity) {
-        return Valid.value(Surroundings.Squeeze.of(
-                "plate",
-                compliance,
-                Vec3.zero(),
-                POLLEN.radiusLength(),
-                normal,
-                depth,
-                Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero()))));
+        return Valid.value(Surroundings.Overlap.of(
+                        "plate",
+                        compliance,
+                        normal,
+                        depth,
+                        Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero())))
+                .then(overlap -> Surroundings.Squeeze.of(overlap, Vec3.zero(), POLLEN.radiusLength())));
     }
 
     private static CompliantContact.Push push(Vec3 velocity, Vec3 spin, Surroundings.Squeeze... squeezes) {
@@ -467,8 +466,8 @@ public class CompliantContactTest {
         Vec3 centre = HUB.plus(out.times(WHEEL_RADIUS + R - depth));
         double meets = WHEEL_RADIUS - depth / 2, lever = R - depth / 2;
         Vec3 rolling = AXLE.times(-WHEEL_SPEED * meets / lever);
-        List<Surroundings.Squeeze> squeezes = CompliantArc.spinning(
-                        "wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, WHEEL_SPEED)
+        List<Surroundings.Squeeze> squeezes = Valid.value(Surroundings.of(
+                        FIELD, List.of(CompliantArc.spinning("wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, WHEEL_SPEED))))
                 .squeezing(centre, POLLEN.radiusLength());
 
         assertEquals(1, squeezes.size());
@@ -785,7 +784,7 @@ public class CompliantContactTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             return List.of();
         }
 

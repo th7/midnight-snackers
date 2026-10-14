@@ -71,16 +71,16 @@ final class CompliantPlate implements Surroundings.Part {
     }
 
     @Override
-    public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
-        List<Surroundings.Squeeze> squeezes = new ArrayList<>();
+    public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
+        List<Surroundings.Overlap> overlaps = new ArrayList<>();
         double depth = radius.inches() - above(centre);
         if (depth > 0) {
             Surroundings.Support support = moving()
                     ? Valid.value(Surroundings.Support.of(point, sliding, Vec3.zero()))
                     : Surroundings.Support.still();
-            squeezes.add(Valid.value(Surroundings.Squeeze.of(id, compliance, centre, radius, normal, depth, support)));
+            overlaps.add(Valid.value(Surroundings.Overlap.of(id, compliance, normal, depth, support)));
         }
-        return squeezes;
+        return overlaps;
     }
 
     @Override

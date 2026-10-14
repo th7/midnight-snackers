@@ -49,7 +49,7 @@ public class SurroundingsTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             return List.of();
         }
 
@@ -59,7 +59,7 @@ public class SurroundingsTest {
         }
     }
 
-    private record Squeezer(String id, boolean squeezes, boolean reaching, List<Surroundings.Squeeze> answer)
+    private record Squeezer(String id, boolean squeezes, boolean reaching, List<Surroundings.Overlap> answer)
             implements Surroundings.Part {
         @Override
         public List<String> ids() {
@@ -87,7 +87,7 @@ public class SurroundingsTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             return answer;
         }
 
@@ -125,7 +125,7 @@ public class SurroundingsTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             return List.of();
         }
 
@@ -141,9 +141,16 @@ public class SurroundingsTest {
 
     private static final Compliance SOFT = Valid.value(Compliance.of(40, 0.6, 0.6, 0.02));
 
-    private static Surroundings.Squeeze squeeze(String id, double depth) {
-        return Valid.value(Surroundings.Squeeze.of(
-                id, SOFT, Vec3.zero(), R, new Vec3(0, 0, 1), depth, Surroundings.Support.still()));
+    private static Surroundings.Overlap overlap(String id, double depth) {
+        return Valid.value(Surroundings.Overlap.of(id, SOFT, new Vec3(0, 0, 1), depth, Surroundings.Support.still()));
+    }
+
+    private static List<Surroundings.Squeeze> meeting(Vec3 centre, List<Surroundings.Overlap> overlaps) {
+        List<Surroundings.Squeeze> squeezes = new ArrayList<>();
+        for (Surroundings.Overlap overlap : overlaps) {
+            squeezes.add(Valid.value(Surroundings.Squeeze.of(overlap, centre, R)));
+        }
+        return squeezes;
     }
 
     private static Surroundings with(Surroundings.Part... parts) {
@@ -381,13 +388,13 @@ public class SurroundingsTest {
                 "wheel",
                 true,
                 true,
-                List.of(squeeze("wheel", 0.1), squeeze("Floor", 0.2), squeeze("nowhere", 0.3), squeeze("wheel", 2)));
-        Squeezer liar = new Squeezer("liar", false, true, List.of(squeeze("liar", 0.1)));
-        Squeezer far = new Squeezer("far", true, false, List.of(squeeze("far", 0.1)));
+                List.of(overlap("wheel", 0.1), overlap("Floor", 0.2), overlap("nowhere", 0.3), overlap("wheel", 2)));
+        Squeezer liar = new Squeezer("liar", false, true, List.of(overlap("liar", 0.1)));
+        Squeezer far = new Squeezer("far", true, false, List.of(overlap("far", 0.1)));
         Vec3 here = new Vec3(0, 0, 30);
 
         assertEquals(
-                List.of(squeeze("wheel", 0.1), squeeze("wheel", 2)),
+                meeting(here, List.of(overlap("wheel", 0.1), overlap("wheel", 2))),
                 with(wheel, liar, far).squeezing(here, R));
         assertEquals(List.of(), with(liar, far).squeezing(here, R));
         assertEquals(List.of(), with(liar).near(here, R, 5));
@@ -408,10 +415,11 @@ public class SurroundingsTest {
 
         for (double seconds : new double[] {0, 0.25, 0.5, 2}) {
             GridTime then = Valid.time(seconds);
-            assertEquals("at " + seconds, wheel.at(then).squeezing(beside, R), around.squeezingAt(then, beside, R));
+            List<Surroundings.Squeeze> met = meeting(beside, wheel.at(then).squeezing(beside, R));
+            assertEquals("at " + seconds, met, around.squeezingAt(then, beside, R));
             assertEquals(
                     "at " + seconds + " from later",
-                    wheel.at(then).squeezing(beside, R),
+                    met,
                     around.at(Valid.time(3)).squeezingAt(then, beside, R));
             assertEquals("at " + seconds, around.at(then).squeezing(beside, R), around.squeezingAt(then, beside, R));
         }
@@ -422,8 +430,34 @@ public class SurroundingsTest {
         assertEquals((5.2 - R.inches() + depth / 2) * 50 * 0.25, rim.z(), 1e-12);
     }
 
+    @Test
+    public void
+            theSurroundingsMeetABallMidwayThroughItsOverlapFromTheCentreAndRadiusTheyWereAskedAboutWhateverAPartSays() {
+        Vec3 up = new Vec3(0, 0, 1),
+                centre = new Vec3(4, -2, 30),
+                hub = new Vec3(1, 0, 25),
+                turning = new Vec3(0, 3, 0);
+        Length asked = Valid.length(2.0);
+        double depth = 0.2;
+        Surroundings.Support support = Valid.value(Surroundings.Support.of(hub, new Vec3(0, 5, 0), turning));
+        Squeezer wheel = new Squeezer(
+                "wheel", true, true, List.of(Valid.value(Surroundings.Overlap.of("wheel", SOFT, up, depth, support))));
+
+        List<Surroundings.Squeeze> met = with(wheel).squeezing(centre, asked);
+
+        assertEquals(1, met.size());
+        Vec3 arm = up.times(-(asked.inches() - depth / 2));
+        assertSameVec("the arm", arm, met.get(0).arm());
+        assertSameVec(
+                "the velocity where they meet",
+                support.velocityAt(centre.plus(arm)),
+                met.get(0).velocity());
+        assertSameVec("the spin", turning, met.get(0).spin());
+    }
+
     private static Checked<Surroundings.Squeeze> squeezeOf(Vec3 normal, double depth, Surroundings.Support support) {
-        return Surroundings.Squeeze.of("wheel", SOFT, new Vec3(0, 0, 30), R, normal, depth, support);
+        return Surroundings.Overlap.of("wheel", SOFT, normal, depth, support)
+                .then(overlap -> Surroundings.Squeeze.of(overlap, new Vec3(0, 0, 30), R));
     }
 
     private static void assertSameVec(String what, Vec3 expected, Vec3 actual) {
@@ -433,38 +467,61 @@ public class SurroundingsTest {
     }
 
     @Test
-    public void aSqueezeHasAUnitNormalAFiniteDepthMoreThanNothingAndAFiniteVelocityWhereTheBallMeetsWhatSqueezesIt() {
+    public void anOverlapHasAUnitNormalAndAFiniteDepthMoreThanNothing() {
         Vec3 up = new Vec3(0, 0, 1), unknown = new Vec3(Double.NaN, 0, 0);
         Surroundings.Support still = Surroundings.Support.still();
-        Surroundings.Support huge = Valid.value(Surroundings.Support.of(
-                Vec3.zero(), new Vec3(Double.MAX_VALUE, 0, 0), new Vec3(0, Double.MAX_VALUE, 0)));
-        String rule =
-                "a squeeze has a unit normal, a finite depth more than 0 and a finite velocity where the ball meets"
-                        + " what squeezes it, not ";
+        String rule = "an overlap has a unit normal and a finite depth more than 0, not ";
 
-        for (Checked<Surroundings.Squeeze> refused : List.of(
-                squeezeOf(new Vec3(0, 0, 2), 0.1, still),
-                squeezeOf(Vec3.zero(), 0.1, still),
-                squeezeOf(unknown, 0.1, still),
-                squeezeOf(up, 0, still),
-                squeezeOf(up, -0.1, still),
-                squeezeOf(up, Double.NaN, still),
-                squeezeOf(up, Double.POSITIVE_INFINITY, still),
-                squeezeOf(up, 0.1, huge),
-                Surroundings.Squeeze.of("wheel", SOFT, unknown, R, up, 0.1, still))) {
+        for (Checked<Surroundings.Overlap> refused : List.of(
+                Surroundings.Overlap.of("wheel", SOFT, new Vec3(0, 0, 2), 0.1, still),
+                Surroundings.Overlap.of("wheel", SOFT, Vec3.zero(), 0.1, still),
+                Surroundings.Overlap.of("wheel", SOFT, unknown, 0.1, still),
+                Surroundings.Overlap.of("wheel", SOFT, up, 0, still),
+                Surroundings.Overlap.of("wheel", SOFT, up, -0.1, still),
+                Surroundings.Overlap.of("wheel", SOFT, up, Double.NaN, still),
+                Surroundings.Overlap.of("wheel", SOFT, up, Double.POSITIVE_INFINITY, still))) {
             String said = rejection(refused);
             assertTrue(said, said.startsWith(rule));
         }
         Vec3 slanted = new Vec3(0.6, 0, 0.8), velocity = new Vec3(1, 2, 3);
+        Surroundings.Support going = Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero()));
+        Surroundings.Overlap overlap = Valid.value(Surroundings.Overlap.of("wheel", SOFT, slanted, 0.05, going));
+        assertEquals("wheel", overlap.id());
+        assertEquals(SOFT, overlap.compliance());
+        assertEquals(slanted, overlap.normal());
+        assertEquals(0.05, overlap.depth(), 0);
+        assertEquals(going, overlap.support());
+    }
+
+    @Test
+    public void aSqueezeMeetsTheBallAtAFinitePointAndTakesAFiniteVelocityThereAndTheSurroundingsMakeNoOtherSqueeze() {
+        Vec3 up = new Vec3(0, 0, 1), unknown = new Vec3(Double.NaN, 0, 0);
+        Surroundings.Support still = Surroundings.Support.still();
+        Surroundings.Support huge = Valid.value(Surroundings.Support.of(
+                Vec3.zero(), new Vec3(Double.MAX_VALUE, 0, 0), new Vec3(0, Double.MAX_VALUE, 0)));
+        String rule = "a squeeze meets the ball at a finite point and takes a finite velocity there, not ";
+        Surroundings.Overlap overlap = Valid.value(Surroundings.Overlap.of("wheel", SOFT, up, 0.1, huge));
+
+        for (Checked<Surroundings.Squeeze> refused : List.of(
+                squeezeOf(up, 0.1, huge),
+                Surroundings.Squeeze.of(
+                        Valid.value(Surroundings.Overlap.of("wheel", SOFT, up, 0.1, still)), unknown, R))) {
+            String said = rejection(refused);
+            assertTrue(said, said.startsWith(rule));
+        }
+        assertEquals(
+                List.of(),
+                with(new Squeezer("wheel", true, true, List.of(overlap))).squeezing(new Vec3(0, 0, 30), R));
+        Vec3 velocity = new Vec3(1, 2, 3);
         Surroundings.Squeeze squeeze = Valid.value(
-                squeezeOf(slanted, 0.05, Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero()))));
+                squeezeOf(up, 0.05, Valid.value(Surroundings.Support.of(Vec3.zero(), velocity, Vec3.zero()))));
         assertEquals("wheel", squeeze.id());
         assertEquals(SOFT, squeeze.compliance());
-        assertEquals(slanted, squeeze.normal());
+        assertEquals(up, squeeze.normal());
         assertEquals(0.05, squeeze.depth(), 0);
         assertEquals(velocity, squeeze.velocity());
         assertTrue(squeeze.moves());
-        assertEquals(false, squeeze("wheel", 0.1).moves());
+        assertEquals(false, Valid.value(squeezeOf(up, 0.1, still)).moves());
     }
 
     @Test

@@ -1855,23 +1855,27 @@ it says it reaches, a gap that changes as the face's velocity along its normal s
 and no faster than its sweep, a normal that turns as its spin says, and nothing moving
 while it says it is not moving or on a face that is still) is checked by a test helper
 that every part is run through. A part may also squeeze: it says so, and answers what
-squeezes a ball (`squeezing`) with compliant touches (**compliant contact**), under
-names it never touches by; the surroundings ask only the parts that squeeze, and only
+squeezes a ball (`squeezing`) with overlaps, under names it never touches by, which
+the surroundings make into compliant touches (**compliant contact**) where the ball
+they were asked about meets each; they ask only the parts that squeeze, and only
 where they reach. Every part so far squeezes nothing, and the same helper holds a part
 to squeezing only where it says it reaches, under its own names, only if it says it
-squeezes, with a depth that shrinks along its normal and changes as the face's
-velocity along it says. In a shot nothing moves; in a run's **flight** the hives do,
+squeezes, with what moves at a finite velocity where the ball meets it, and with a
+depth that shrinks along its normal and changes as the face's velocity along it
+says. In a shot nothing moves; in a run's **flight** the hives do,
 as they tip. Class: `Surroundings`, in the **core**.
 
 **Compliant contact** — How a ball meets a surface that gives, as Reginald's flywheel
-and hood will: by a force while it is squeezed, never by an impulse. A compliant touch
-is the name of what squeezes, its surface's **compliance**, a unit normal, a depth
-more than nothing and the velocity of what squeezes where the ball meets it, midway
-through their overlap: the ball's centre less its radius less half the depth along the
-normal. A part says how what squeezes moves, as a point of it goes and as it spins,
-each finite, and the touch takes the velocity there itself, so no part can take it
-anywhere else; a touch moves while that velocity or that spin is not nothing. A
-compliance is the whole
+and hood will: by a force while it is squeezed, never by an impulse. A part answers
+what squeezes a ball with an overlap: the name of what squeezes, its surface's
+**compliance**, a unit normal, a depth more than nothing, and how what squeezes moves,
+as a point of it goes and as it spins, each finite; an overlap says nothing of where
+the ball meets it. The surroundings make each overlap a compliant touch for the ball
+they were asked about, at the centre and radius they were asked with: it meets the
+ball midway through their overlap, the centre less the radius less half the depth
+along the normal, and takes the velocity of what squeezes there, finite or no touch
+at all, so no part can choose where a ball is met. A touch moves while that velocity
+or that spin is not nothing. A compliance is the whole
 surface's stiffness in newtons a millimetre, shared evenly by the rings it is sampled
 by, a restitution more than 0 and at most 1, a friction coefficient not below 0 and a
 regularisation speed more than 0; anything else is refused, saying which. The

@@ -105,7 +105,7 @@ public class PartContractTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             return inner.squeezing(centre, radius);
         }
 
@@ -130,7 +130,8 @@ public class PartContractTest {
         DEPTH_TWICE_AS_DEEP,
         FORGETFUL,
         PUSHING_IN_WITHOUT_GOING_DEEPER,
-        DIFFERENTLY_WHERE_IT_WAS
+        DIFFERENTLY_WHERE_IT_WAS,
+        BEYOND_ANY_SPEED
     }
 
     private static final class LyingSqueezer implements Surroundings.Part {
@@ -175,12 +176,12 @@ public class PartContractTest {
         public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
             List<Surroundings.Touch> touches = new ArrayList<>();
             if (lie == Squeezing.ALSO_TOUCHES) {
-                for (Surroundings.Squeeze squeeze : inner.squeezing(centre, radius)) {
+                for (Surroundings.Overlap overlap : inner.squeezing(centre, radius)) {
                     touches.add(Valid.value(Surroundings.Touch.of(
-                            squeeze.id(),
+                            overlap.id(),
                             Surface.FRAME,
-                            squeeze.normal(),
-                            -squeeze.depth(),
+                            overlap.normal(),
+                            -overlap.depth(),
                             Vec3.zero(),
                             Vec3.zero())));
                 }
@@ -194,15 +195,15 @@ public class PartContractTest {
         }
 
         @Override
-        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+        public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
             Length asked = lie == Squeezing.FURTHER_THAN_IT_REACHES ? Valid.length(radius.inches() + 5) : radius;
-            List<Surroundings.Squeeze> told = new ArrayList<>();
-            for (Surroundings.Squeeze squeeze : inner.squeezing(centre, asked)) {
-                String id = lie == Squeezing.UNDER_ANOTHER_NAME ? "elsewhere" : squeeze.id();
-                double depth = lie == Squeezing.DEPTH_TWICE_AS_DEEP ? 2 * squeeze.depth() : squeeze.depth();
-                Vec3 velocity = lie == Squeezing.PUSHING_IN_WITHOUT_GOING_DEEPER
-                        ? squeeze.velocity().along(squeeze.normal(), 3)
-                        : squeeze.velocity();
+            List<Surroundings.Overlap> told = new ArrayList<>();
+            for (Surroundings.Overlap overlap : inner.squeezing(centre, asked)) {
+                String id = lie == Squeezing.UNDER_ANOTHER_NAME ? "elsewhere" : overlap.id();
+                double depth = lie == Squeezing.DEPTH_TWICE_AS_DEEP ? 2 * overlap.depth() : overlap.depth();
+                Vec3 going = overlap.support().velocityAt(centre);
+                Vec3 velocity =
+                        lie == Squeezing.PUSHING_IN_WITHOUT_GOING_DEEPER ? going.along(overlap.normal(), 3) : going;
                 if (lie == Squeezing.FORGETFUL) {
                     this.asked.add(this.asked.size());
                     depth = depth + this.asked.size() * 1e-9;
@@ -210,16 +211,15 @@ public class PartContractTest {
                 if (lie == Squeezing.DIFFERENTLY_WHERE_IT_WAS) {
                     depth = depth + seconds * 1e-3;
                 }
-                Surroundings.Support support =
-                        Valid.value(Surroundings.Support.of(centre.plus(squeeze.arm()), velocity, squeeze.spin()));
-                told.add(Valid.value(Surroundings.Squeeze.of(
-                        id,
-                        Valid.value(Compliance.of(40, 0.6, 0.6, 0.02)),
-                        centre,
-                        asked,
-                        squeeze.normal(),
-                        depth,
-                        support)));
+                Surroundings.Support support = lie == Squeezing.BEYOND_ANY_SPEED
+                        ? Valid.value(Surroundings.Support.of(
+                                centre,
+                                overlap.normal().cross(AXLE).times(Double.MAX_VALUE),
+                                AXLE.times(Double.MAX_VALUE)))
+                        : Valid.value(Surroundings.Support.of(
+                                centre, velocity, overlap.support().spin()));
+                told.add(Valid.value(Surroundings.Overlap.of(
+                        id, Valid.value(Compliance.of(40, 0.6, 0.6, 0.02)), overlap.normal(), depth, support)));
             }
             return told;
         }
@@ -393,6 +393,8 @@ public class PartContractTest {
         assertSqueezeBreached("faster than its sweep", Squeezing.PUSHING_IN_WITHOUT_GOING_DEEPER);
         assertSqueezeBreached("squeezes differently when asked again", Squeezing.FORGETFUL);
         assertSqueezeBreached("squeezes differently placed at", Squeezing.DIFFERENTLY_WHERE_IT_WAS);
+        assertSqueezeBreached(
+                "squeezes with what moves at no finite velocity where the ball meets it", Squeezing.BEYOND_ANY_SPEED);
     }
 
     @Test

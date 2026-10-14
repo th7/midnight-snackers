@@ -76,14 +76,14 @@ final class Joined implements Surroundings.Part {
     }
 
     @Override
-    public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
-        List<Surroundings.Squeeze> squeezes = new ArrayList<>();
+    public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
+        List<Surroundings.Overlap> overlaps = new ArrayList<>();
         for (Surroundings.Part part : parts) {
             if (part.squeezes() && part.reaches(centre, radius.inches())) {
-                squeezes.addAll(part.squeezing(centre, radius));
+                overlaps.addAll(part.squeezing(centre, radius));
             }
         }
-        return squeezes;
+        return overlaps;
     }
 
     @Override

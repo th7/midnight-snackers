@@ -75,7 +75,7 @@ final class PartContract {
                     touchedUnder.add(touch.id());
                     breaches.addAll(touchBreaches(part, then, t, probe, touch, named, still, where));
                 }
-                List<Surroundings.Squeeze> squeezes = then.squeezing(probe.centre(), probe.radius());
+                List<Surroundings.Overlap> squeezes = then.squeezing(probe.centre(), probe.radius());
                 if (!squeezes.equals(then.squeezing(probe.centre(), probe.radius()))) {
                     breaches.add("the part squeezes differently when asked again" + where);
                 }
@@ -92,9 +92,9 @@ final class PartContract {
                         && !then.reaches(probe.centre(), probe.radius().inches())) {
                     breaches.add("the part squeezes beyond where it says it reaches" + where);
                 }
-                for (Surroundings.Squeeze squeeze : squeezes) {
-                    squeezedUnder.add(squeeze.id());
-                    breaches.addAll(squeezeBreaches(part, then, t, probe, squeeze, named, where));
+                for (Surroundings.Overlap overlap : squeezes) {
+                    squeezedUnder.add(overlap.id());
+                    breaches.addAll(squeezeBreaches(part, then, t, probe, overlap, named, where));
                 }
             }
             before = t;
@@ -112,40 +112,47 @@ final class PartContract {
             Surroundings.Part then,
             double t,
             Probe probe,
-            Surroundings.Squeeze squeeze,
+            Surroundings.Overlap overlap,
             Set<String> named,
             String where) {
         List<String> breaches = new ArrayList<>();
-        String said = " (" + squeeze + ")" + where;
-        if (!named.contains(squeeze.id())) {
+        String said = " (" + overlap + ")" + where;
+        if (!named.contains(overlap.id())) {
             breaches.add("the part squeezes under a name it does not have" + said);
         }
+        Optional<Surroundings.Squeeze> met = Surroundings.Squeeze.of(overlap, probe.centre(), probe.radius())
+                .fold(squeeze -> Optional.of(squeeze), rule -> Optional.empty());
+        if (met.isEmpty()) {
+            breaches.add("the part squeezes with what moves at no finite velocity where the ball meets it" + said);
+            return breaches;
+        }
+        Surroundings.Squeeze squeeze = met.get();
         if (!then.moving() && squeeze.moves()) {
             breaches.add("the part moves a squeezing face while it says it is not moving" + said);
         }
-        Vec3 n = squeeze.normal();
+        Vec3 n = overlap.normal();
         double sweep = sweepAround(part, t);
         double along = squeeze.velocity().dot(n);
         if (StrictMath.abs(along) > sweep * (1 + RATE_WITHIN) + RATE_WITHIN) {
             breaches.add("the part moves a squeezing face along its normal at " + along
                     + " in/s, faster than its sweep of " + sweep + said);
         }
-        Optional<Surroundings.Squeeze> nudged =
-                sameSqueeze(then.squeezing(probe.centre().along(n, NUDGE_IN), probe.radius()), squeeze);
+        Optional<Surroundings.Overlap> nudged =
+                sameOverlap(then.squeezing(probe.centre().along(n, NUDGE_IN), probe.radius()), overlap);
         if (nudged.isPresent() && closeTo(nudged.get().normal(), n, FLAT_WITHIN)) {
-            double shrank = squeeze.depth() - nudged.get().depth();
+            double shrank = overlap.depth() - nudged.get().depth();
             if (StrictMath.abs(shrank - NUDGE_IN) > NUDGE_IN * RATE_WITHIN) {
                 breaches.add("the part's normal is not the way its depth shrinks: moving the ball " + NUDGE_IN
                         + " in along it shrinks the depth by " + shrank + said);
             }
         }
-        Optional<Surroundings.Squeeze> earlier =
-                sameSqueeze(part.at(Valid.time(t - DT)).squeezing(probe.centre(), probe.radius()), squeeze);
-        Optional<Surroundings.Squeeze> later =
-                sameSqueeze(part.at(Valid.time(t + DT)).squeezing(probe.centre(), probe.radius()), squeeze);
+        Optional<Surroundings.Overlap> earlier =
+                sameOverlap(part.at(Valid.time(t - DT)).squeezing(probe.centre(), probe.radius()), overlap);
+        Optional<Surroundings.Overlap> later =
+                sameOverlap(part.at(Valid.time(t + DT)).squeezing(probe.centre(), probe.radius()), overlap);
         if (earlier.isPresent() && later.isPresent()) {
-            double behind = (squeeze.depth() - earlier.get().depth()) / DT,
-                    ahead = (later.get().depth() - squeeze.depth()) / DT;
+            double behind = (overlap.depth() - earlier.get().depth()) / DT,
+                    ahead = (later.get().depth() - overlap.depth()) / DT;
             double tolerance = RATE_WITHIN * (1 + sweep);
             double rate = (later.get().depth() - earlier.get().depth()) / (2 * DT);
             if (StrictMath.abs(ahead - behind) <= tolerance && StrictMath.abs(rate - along) > tolerance) {
@@ -156,10 +163,10 @@ final class PartContract {
         return breaches;
     }
 
-    private static Optional<Surroundings.Squeeze> sameSqueeze(
-            List<Surroundings.Squeeze> squeezes, Surroundings.Squeeze squeeze) {
-        for (Surroundings.Squeeze other : squeezes) {
-            if (other.id().equals(squeeze.id())) {
+    private static Optional<Surroundings.Overlap> sameOverlap(
+            List<Surroundings.Overlap> overlaps, Surroundings.Overlap overlap) {
+        for (Surroundings.Overlap other : overlaps) {
+            if (other.id().equals(overlap.id())) {
                 return Optional.of(other);
             }
         }
