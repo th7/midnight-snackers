@@ -90,23 +90,19 @@ final class ShotRun {
     }
 
     static Checked<ShotRun> starting(World world, Ball pollen, WheelPair.Launched launched) {
-        Checked<Bodies> added = Bodies.watching(
-                        Surroundings.still(world.colliders()),
-                        world.air(),
-                        world.surfaces(),
-                        world.stepping(),
-                        Shot.LAUNCHED)
-                .add(
-                        Shot.LAUNCHED,
-                        pollen,
-                        launched.at(),
-                        launched.velocity(),
-                        launched.spin(),
-                        Bodies.Life.AWAKE,
-                        Bodies.Sleep.NEVER);
+        Bodies bodies = Bodies.watching(
+                Surroundings.still(world.colliders()), world.air(), world.surfaces(), world.stepping(), Shot.LAUNCHED);
+        Checked<Bodies.Seen> added = bodies.add(
+                Shot.LAUNCHED,
+                pollen,
+                launched.at(),
+                launched.velocity(),
+                launched.spin(),
+                Bodies.Life.AWAKE,
+                Bodies.Sleep.NEVER);
         Map<String, History> pieces = new LinkedHashMap<>();
         for (World.Piece piece : world.pieces()) {
-            added = added.then(bodies -> bodies.add(
+            added = added.then(previous -> bodies.add(
                     piece.name(),
                     piece.shape(),
                     piece.at(),
@@ -129,7 +125,7 @@ final class ShotRun {
                 Turn.identity(),
                 Bodies.Life.AWAKE,
                 0);
-        return added.map(bodies -> {
+        return added.map(last -> {
             bodies.touchingAtTheStart();
             ShotRun run = new ShotRun(
                     world,

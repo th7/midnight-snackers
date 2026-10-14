@@ -214,12 +214,11 @@ final class Bodies {
         return new Bodies(surroundings, air, surfaces, step, watching, copied, steps, now, work);
     }
 
-    Bodies surroundedBy(Surroundings surroundings) {
+    void surroundedBy(Surroundings surroundings) {
         this.surroundings = surroundings.at(now);
-        return this;
     }
 
-    Checked<Bodies> add(String name, Ball shape, Vec3 at, Vec3 velocity, Vec3 spin, Life life, Sleep sleep) {
+    Checked<Seen> add(String name, Ball shape, Vec3 at, Vec3 velocity, Vec3 spin, Life life, Sleep sleep) {
         if (name.isBlank() || named(name).isPresent()) {
             return Checked.rejected("every body has a name of its own, and '" + name + "' is not one");
         }
@@ -230,12 +229,14 @@ final class Bodies {
         if (life == Life.GONE) {
             return Checked.rejected(name + " comes in awake, asleep or fixed, not gone");
         }
-        bodies.add(new Body(name, shape, sleep, at, velocity, spin, Turn.identity(), life, 0));
-        return Checked.ok(this);
+        Body body = new Body(name, shape, sleep, at, velocity, spin, Turn.identity(), life, 0);
+        bodies.add(body);
+        return Checked.ok(body.seen());
     }
 
-    void remove(String name) {
-        named(name).ifPresent(removed -> {
+    Optional<Seen> remove(String name) {
+        Optional<Body> named = named(name);
+        named.ifPresent(removed -> {
             bodies.remove(removed);
             for (Body body : bodies) {
                 boolean touched = body.touchingBodies.remove(name)
@@ -246,6 +247,7 @@ final class Bodies {
                 }
             }
         });
+        return named.map(Body::seen);
     }
 
     Optional<Seen> body(String name) {

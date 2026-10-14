@@ -38,7 +38,7 @@ public class BodiesTest {
         return Bodies.watching(Surroundings.still(WALLS), Air.vacuum(), surfaces(), STEPPING, name);
     }
 
-    private static Bodies with(Bodies bodies, String name, Vec3 at, Vec3 velocity, Bodies.Life life) {
+    private static Bodies.Seen add(Bodies bodies, String name, Vec3 at, Vec3 velocity, Bodies.Life life) {
         return Valid.value(bodies.add(name, POLLEN, at, velocity, Vec3.zero(), life, Bodies.Sleep.WHEN_RESTING));
     }
 
@@ -83,7 +83,8 @@ public class BodiesTest {
 
     @Test
     public void aBodyIsAddedOnlyUnderANameOfItsOwn() {
-        Bodies bodies = with(unwatched(), "one", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
+        Bodies bodies = unwatched();
+        add(bodies, "one", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
 
         String blank = rejection(bodies.add(
                 " ", POLLEN, new Vec3(10, 0, R), Vec3.zero(), Vec3.zero(), Bodies.Life.AWAKE, Bodies.Sleep.NEVER));
@@ -128,7 +129,8 @@ public class BodiesTest {
     @Test
     public void aBodyIsReadByItsNameAndANameNoBodyHasReadsNothing() {
         Vec3 at = new Vec3(3, 4, 5), velocity = new Vec3(6, 7, 8);
-        Bodies bodies = with(unwatched(), "one", at, velocity, Bodies.Life.ASLEEP);
+        Bodies bodies = unwatched();
+        add(bodies, "one", at, velocity, Bodies.Life.ASLEEP);
 
         Bodies.Seen one = seen(bodies, "one");
 
@@ -141,7 +143,7 @@ public class BodiesTest {
     public void bodiesAreKeptInTheOrderTheyCameIn() {
         Bodies bodies = unwatched();
         for (String name : List.of("c", "a", "b")) {
-            bodies = with(bodies, name, new Vec3(names(bodies).size() * 10, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+            add(bodies, name, new Vec3(names(bodies).size() * 10, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
         }
 
         bodies.remove("a");
@@ -151,21 +153,51 @@ public class BodiesTest {
 
     @Test
     public void removingANameNoBodyHasChangesNothing() {
-        Bodies bodies = with(unwatched(), "one", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        Bodies bodies = unwatched();
+        add(bodies, "one", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
         List<Bodies.Seen> before = bodies.seen();
 
-        bodies.remove("two");
+        assertTrue(bodies.remove("two").isEmpty());
+        assertEquals(before, bodies.seen());
+    }
 
+    @Test
+    public void addingAndRemovingSayWhatCameAndWhatWent() {
+        Bodies bodies = unwatched();
+        Vec3 at = new Vec3(3, 4, R), velocity = new Vec3(6, 7, 8);
+
+        Bodies.Seen came = add(bodies, "one", at, velocity, Bodies.Life.AWAKE);
+        Bodies.Seen there = seen(bodies, "one");
+        Bodies.Seen went = bodies.remove("one").orElseThrow();
+
+        assertEquals(new Bodies.Seen("one", at, velocity, Vec3.zero(), Turn.identity(), Bodies.Life.AWAKE, 0), came);
+        assertEquals(there, went);
+        assertTrue(bodies.seen().isEmpty());
+    }
+
+    @Test
+    public void addingToOrRemovingFromACopyLeavesTheOriginalAsItWas() {
+        Bodies bodies = unwatched();
+        add(bodies, "one", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "two", new Vec3(2 * R, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        List<Bodies.Seen> before = bodies.seen();
+        Bodies copy = bodies.copy();
+
+        add(copy, "three", new Vec3(-2 * R, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
+        copy.remove("one");
+
+        assertEquals(List.of("two", "three"), names(copy));
+        assertEquals(Bodies.Life.AWAKE, seen(copy, "two").life());
         assertEquals(before, bodies.seen());
     }
 
     @Test
     public void removingABodyWakesWhatRestedAgainstItAndForgetsItsName() {
         Bodies bodies = unwatched();
-        bodies = with(bodies, "held", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
-        bodies = with(bodies, "resting", new Vec3(2 * R, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
-        bodies = with(bodies, "leaning", new Vec3(-2 * R, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
-        bodies = with(bodies, "far", new Vec3(30, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "held", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "resting", new Vec3(2 * R, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "leaning", new Vec3(-2 * R, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "far", new Vec3(30, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
         bodies.touchingAtTheStart();
         assertTrue(bodies.touching("leaning").orElseThrow().bodies().contains("held"));
 
@@ -180,23 +212,16 @@ public class BodiesTest {
 
     @Test
     public void aBodyThatMayNeverSleepStaysAwakeAtRestWhileOneThatMayFallsAsleep() {
-        Bodies bodies = Valid.value(unwatched()
-                .add(
-                        "restless",
-                        POLLEN,
-                        new Vec3(0, 0, R),
-                        Vec3.zero(),
-                        Vec3.zero(),
-                        Bodies.Life.AWAKE,
-                        Bodies.Sleep.NEVER)
-                .then(more -> more.add(
-                        "sleepy",
-                        POLLEN,
-                        new Vec3(20, 0, R),
-                        Vec3.zero(),
-                        Vec3.zero(),
-                        Bodies.Life.AWAKE,
-                        Bodies.Sleep.WHEN_RESTING)));
+        Bodies bodies = unwatched();
+        Valid.value(bodies.add(
+                "restless",
+                POLLEN,
+                new Vec3(0, 0, R),
+                Vec3.zero(),
+                Vec3.zero(),
+                Bodies.Life.AWAKE,
+                Bodies.Sleep.NEVER));
+        add(bodies, "sleepy", new Vec3(20, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
         bodies.touchingAtTheStart();
         assertTrue(bodies.anyAwakeBut("restless"));
 
@@ -213,10 +238,10 @@ public class BodiesTest {
     @Test
     public void aCopyGoesOnExactlyAsTheOriginalAndLeavesItWhereItWas() {
         Bodies bodies = unwatched();
-        bodies = with(bodies, "thrown", new Vec3(-20, 0, 6), new Vec3(150, 0, 20), Bodies.Life.AWAKE);
-        bodies = with(bodies, "struck", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
-        bodies = with(bodies, "behind", new Vec3(2 * R, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
-        bodies = with(bodies, "beyond", new Vec3(4 * R, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "thrown", new Vec3(-20, 0, 6), new Vec3(150, 0, 20), Bodies.Life.AWAKE);
+        add(bodies, "struck", new Vec3(0, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "behind", new Vec3(2 * R, 0, R), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "beyond", new Vec3(4 * R, 0, R), Vec3.zero(), Bodies.Life.ASLEEP);
         bodies.touchingAtTheStart();
         stepFor(bodies, 1000);
         Bodies copy = bodies.copy();
@@ -245,10 +270,10 @@ public class BodiesTest {
     @Test
     public void onlyAwakeBodiesBeyondAWallAreGoneAndTheOneSparedIsNot() {
         Bodies bodies = unwatched();
-        bodies = with(bodies, "over", new Vec3(80, 0, 20), Vec3.zero(), Bodies.Life.AWAKE);
-        bodies = with(bodies, "spared", new Vec3(0, 80, 20), Vec3.zero(), Bodies.Life.AWAKE);
-        bodies = with(bodies, "sleeping", new Vec3(-80, 0, 20), Vec3.zero(), Bodies.Life.ASLEEP);
-        bodies = with(bodies, "inside", new Vec3(0, 0, 20), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "over", new Vec3(80, 0, 20), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "spared", new Vec3(0, 80, 20), Vec3.zero(), Bodies.Life.AWAKE);
+        add(bodies, "sleeping", new Vec3(-80, 0, 20), Vec3.zero(), Bodies.Life.ASLEEP);
+        add(bodies, "inside", new Vec3(0, 0, 20), Vec3.zero(), Bodies.Life.AWAKE);
 
         List<Bodies.Gone> gone = bodies.goneOver("spared");
 
@@ -262,15 +287,15 @@ public class BodiesTest {
 
     @Test
     public void aStepSaysHowTheWatchedBodyCameThroughEachStretchOfItInTurn() {
-        Bodies bodies = Valid.value(watching("ball")
-                .add(
-                        "ball",
-                        POLLEN,
-                        new Vec3(0, 0, R + 0.002),
-                        new Vec3(10, 0, -100),
-                        Vec3.zero(),
-                        Bodies.Life.AWAKE,
-                        Bodies.Sleep.NEVER));
+        Bodies bodies = watching("ball");
+        Valid.value(bodies.add(
+                "ball",
+                POLLEN,
+                new Vec3(0, 0, R + 0.002),
+                new Vec3(10, 0, -100),
+                Vec3.zero(),
+                Bodies.Life.AWAKE,
+                Bodies.Sleep.NEVER));
         bodies.touchingAtTheStart();
         Bodies.Seen start = seen(bodies, "ball");
 
@@ -297,7 +322,8 @@ public class BodiesTest {
 
     @Test
     public void aStepWatchingNothingSaysNothing() {
-        Bodies bodies = with(unwatched(), "ball", new Vec3(0, 0, 5), Vec3.zero(), Bodies.Life.AWAKE);
+        Bodies bodies = unwatched();
+        add(bodies, "ball", new Vec3(0, 0, 5), Vec3.zero(), Bodies.Life.AWAKE);
 
         assertTrue(bodies.step().isEmpty());
         assertEquals(1, bodies.steps());
