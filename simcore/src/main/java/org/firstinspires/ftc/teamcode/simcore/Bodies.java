@@ -476,9 +476,14 @@ final class Bodies {
     List<Span> step() {
         List<Span> spans = new ArrayList<>();
         Surroundings ahead = placed(surroundings, (steps + 1) * step);
+        List<Seen> early = new ArrayList<>();
+        for (Body body : reachedAhead(ahead)) {
+            refresh(body);
+            early.add(body.seen());
+        }
         int pieces = piecesOfThisStep(ahead);
         for (int i = 1; i <= pieces; i++) {
-            aPiece((steps + (double) i / pieces) * step, spans);
+            aPiece((steps + (double) i / pieces) * step, spans, i == 1 ? early : List.of());
         }
         steps++;
         now = steps * step;
@@ -565,8 +570,9 @@ final class Bodies {
         return watching.flatMap(this::named);
     }
 
-    private void aPiece(double target, List<Span> spans) {
+    private void aPiece(double target, List<Span> spans, List<Seen> early) {
         int events = 0;
+        List<Seen> pending = early;
         while (now < target) {
             List<Body> awake = awake();
             double span = target - now;
@@ -602,7 +608,8 @@ final class Bodies {
             double took = covered;
             now = covered == span ? target : now + covered;
             surroundings = placed(surroundings, now);
-            List<Seen> woken = wake();
+            List<Seen> woken = wake(pending);
+            pending = List.of();
             List<Contacts.Pressing> pressing = pressings();
             Optional<Seen> before = glimpse.map(Glimpse::seen);
             Optional<Contacts.Resolved> resolved = resolve(pressing);
@@ -747,8 +754,9 @@ final class Bodies {
         return around.at(seconds);
     }
 
-    private List<Seen> wake() {
-        List<Seen> woken = wokenByWhatMoves();
+    private List<Seen> wake(List<Seen> early) {
+        List<Seen> woken = new ArrayList<>(early);
+        woken.addAll(wokenByWhatMoves());
         List<Islands.Node> nodes = new ArrayList<>();
         for (Body body : bodies) {
             if (body.life == Life.GONE) {
@@ -775,7 +783,7 @@ final class Bodies {
     private List<Seen> wokenByWhatMoves() {
         List<Body> woken = new ArrayList<>();
         for (Body body : bodies) {
-            if (body.life == Life.ASLEEP && reachedByWhatMoves(body)) {
+            if (body.life == Life.ASLEEP && reachedByWhatMoves(body, surroundings, step)) {
                 body.life = Life.AWAKE;
                 body.restFor = 0;
                 woken.add(body);
@@ -789,9 +797,22 @@ final class Bodies {
         return seen;
     }
 
-    private boolean reachedByWhatMoves(Body body) {
-        for (Surroundings.Held part : surroundings.moving()) {
-            double within = Shot.TOUCHING_IN + part.sweep() * step;
+    private List<Body> reachedAhead(Surroundings ahead) {
+        List<Body> reached = new ArrayList<>();
+        for (Body body : bodies) {
+            if (body.life == Life.ASLEEP
+                    && (reachedByWhatMoves(body, surroundings, step) || reachedByWhatMoves(body, ahead, step))) {
+                body.life = Life.AWAKE;
+                body.restFor = 0;
+                reached.add(body);
+            }
+        }
+        return reached;
+    }
+
+    private boolean reachedByWhatMoves(Body body, Surroundings around, double horizon) {
+        for (Surroundings.Held part : around.moving()) {
+            double within = Shot.TOUCHING_IN + part.sweep() * horizon;
             work++;
             if (part.reaches(body.at, body.radius() + within)) {
                 for (Surroundings.Touch touch : near(part, body.at, body.reach(), within)) {

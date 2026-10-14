@@ -265,6 +265,64 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void aPartThatStartsMovingInsideAStepWakesASleepingBallItWillReachBeforeTheStepMovesAndMeetsItAtItsFace() {
+        double step = World.LONGEST_STEP_SECONDS, speed = 600, starts = 0.00105;
+        Vec3 resting = new Vec3(-38 + 0.05 + R, 0, R);
+        Bodies bodies = watching("ball", step, Carried.sliding(paddle(), new Vec3(speed, 0, 0), starts));
+        add(bodies, "ball", resting, Vec3.zero(), ASLEEP);
+
+        List<Bodies.Span> spans = stepFor(bodies, 0.03, step);
+
+        List<Bodies.Span> waking = new ArrayList<>();
+        for (Bodies.Span span : spans) {
+            if (!span.woken().isEmpty()) {
+                waking.add(span);
+            }
+        }
+        List<Contacts.Hit> struck = hits(spans, "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(1, waking.size());
+        assertEquals(0, waking.get(0).began(), 0);
+        assertEquals(resting, waking.get(0).woken().get(0).at());
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+        Bodies.Seen ball = seen(bodies, "ball");
+        assertTrue(
+                ball.at() + " is not ahead of the paddle", ball.at().x() > -38 + speed * (bodies.now() - starts) + R);
+        assertTrue(
+                ball.velocity() + " is not going faster than the paddle",
+                ball.velocity().x() > speed);
+    }
+
+    @Test
+    public void aPartThatStopsMovingInsideAStepWakesASleepingBallItWillReachBeforeTheStepMovesAndMeetsItAtItsFace() {
+        double step = World.LONGEST_STEP_SECONDS, speed = 600, stops = 0.009;
+        Bodies bodies = watching("ball", step, Carried.slidingUntil(paddle(), new Vec3(speed, 0, 0), 0, stops));
+        add(bodies, "ball", new Vec3(-38 + 0.05 + R, 0, R), Vec3.zero(), ASLEEP);
+
+        List<Bodies.Span> spans = stepFor(bodies, 0.03, step);
+
+        List<Contacts.Hit> struck = hits(spans, "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+        assertEquals(1, spans.get(0).woken().size());
+    }
+
+    @Test
+    public void aPartMovingOnlyBetweenTheEndsOfAStepCutFinerThanItsMotionWakesASleepingBallAtAPiecesEndAndMeetsIt() {
+        double step = World.LONGEST_STEP_SECONDS, speed = 100;
+        Bodies bodies = watching("ball", step, Carried.slidingUntil(paddle(), new Vec3(speed, 0, 0), 0.0021, 0.0079));
+        add(bodies, "ball", new Vec3(-38 + 0.2 + R, 0, R), Vec3.zero(), ASLEEP);
+        add(bodies, "fast", new Vec3(0, 40, 20), new Vec3(600, 0, 0), new Bodies.Start.Awake(Bodies.Sleep.NEVER));
+
+        List<Bodies.Span> spans = stepFor(bodies, 0.03, step);
+
+        List<Contacts.Hit> struck = hits(spans, "paddle");
+        assertEquals(struck.toString(), 1, struck.size());
+        assertEquals(speed, struck.get(0).approach(), 1e-6);
+    }
+
+    @Test
     public void aPartThatStopsMovingInsideAStepMeetsAnAwakeBallAtItsFace() {
         double step = World.LONGEST_STEP_SECONDS, speed = 600, stops = 0.009;
         assertTrue(speed * stops > 0.5 + 2 * R + 1);
@@ -314,7 +372,7 @@ public class MovingSurroundingsTest {
         stepFor(moving, 0.1, STEP);
         stepFor(still, 0.1, STEP);
 
-        int boundsChecks = 1, placements = 2, placementsForTheRollingBallsTrial = 1;
+        int boundsChecks = 3, placements = 2, placementsForTheRollingBallsTrial = 1;
         assertEquals(Bodies.Life.ASLEEP, seen(alone, "far").life());
         assertEquals(alone.steps() * (boundsChecks + placements), alone.work());
         assertEquals(Bodies.Life.ASLEEP, seen(moving, "far").life());
