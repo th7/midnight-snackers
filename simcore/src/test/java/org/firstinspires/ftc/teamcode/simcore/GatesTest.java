@@ -182,9 +182,28 @@ public class GatesTest {
                 pmdBesideAChecked("    static void f(java.util.Optional<Double> x) {\n"
                         + "        x.ifPresent(y -> {\n            half(y);\n        });\n"
                         + "    }\n"));
+        assertRefused(
+                "NoMethodReferenceForAnEffect",
+                pmdBesideAChecked("    static void f(java.util.List<Double> xs) {\n"
+                        + "        xs.forEach(Breach::half);\n"
+                        + "    }\n"));
+        assertRefused(
+                "NoMethodReferenceForAnEffect",
+                pmdBesideAChecked("    static void f(java.util.Optional<Double> x) {\n"
+                        + "        x.ifPresent(Breach::half);\n"
+                        + "    }\n"));
+        assertRefused(
+                "NoDroppedChecked",
+                pmdBesideAChecked("    enum Side {\n        A,\n        B\n    }\n\n"
+                        + "    static void f(Side side, double x) {\n"
+                        + "        switch (side) {\n"
+                        + "            case A -> half(x);\n"
+                        + "            case B -> half(-x);\n"
+                        + "        }\n"
+                        + "    }\n"));
         Gates.Verdict kept = pmdBesideAChecked("    static Checked<Double> f(double x) {\n"
                 + "        Checked<Double> kept = half(x);\n"
-                + "        kept = half(x + 1);\n"
+                + "        kept = kept.then(y -> half(y + 1));\n"
                 + "        return kept;\n"
                 + "    }\n");
         assertTrue("a Checked kept in a variable and returned: " + kept, kept.passed);
@@ -193,6 +212,19 @@ public class GatesTest {
                         + "        return x.map(y -> half(y));\n"
                         + "    }\n");
         assertTrue("a Checked a lambda gives back: " + mapped, mapped.passed);
+        Gates.Verdict chosen = pmdBesideAChecked("    enum Side {\n        A,\n        B\n    }\n\n"
+                + "    static Checked<Double> f(Side side, double x) {\n"
+                + "        return switch (side) {\n"
+                + "            case A -> half(x);\n"
+                + "            case B -> half(-x);\n"
+                + "        };\n"
+                + "    }\n");
+        assertTrue("a Checked a switch expression chooses: " + chosen, chosen.passed);
+        Gates.Verdict referred =
+                pmdBesideAChecked("    static java.util.Optional<Checked<Double>> f(java.util.Optional<Double> x) {\n"
+                        + "        return x.map(Breach::half);\n"
+                        + "    }\n");
+        assertTrue("a method reference whose Checked is given back: " + referred, referred.passed);
     }
 
     @Test

@@ -32,11 +32,37 @@
 //LambdaExpression
     [pmd-java:typeIs('java.util.function.Consumer')
      or pmd-java:typeIs('java.util.function.BiConsumer')
+     or pmd-java:typeIs('java.util.function.ObjIntConsumer')
+     or pmd-java:typeIs('java.util.function.ObjLongConsumer')
+     or pmd-java:typeIs('java.util.function.ObjDoubleConsumer')
      or pmd-java:typeIs('java.util.function.IntConsumer')
      or pmd-java:typeIs('java.util.function.LongConsumer')
      or pmd-java:typeIs('java.util.function.DoubleConsumer')
      or pmd-java:typeIs('java.lang.Runnable')]
     /*[last()][not(self::Block)][pmd-java:typeIs('org.firstinspires.ftc.teamcode.simcore.Checked')]
+|
+//SwitchStatement/SwitchArrowBranch
+    /*[last()][self::MethodCall or self::ConstructorCall][pmd-java:typeIs('org.firstinspires.ftc.teamcode.simcore.Checked')]
+]]></value></property>
+        </properties>
+    </rule>
+
+    <rule name="NoMethodReferenceForAnEffect" language="java"
+          message="A method reference where nothing is returned hides whether it drops a Checked: write it as a lambda"
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <priority>1</priority>
+        <properties>
+            <property name="xpath"><value><![CDATA[
+//MethodReference
+    [pmd-java:typeIs('java.util.function.Consumer')
+     or pmd-java:typeIs('java.util.function.BiConsumer')
+     or pmd-java:typeIs('java.util.function.ObjIntConsumer')
+     or pmd-java:typeIs('java.util.function.ObjLongConsumer')
+     or pmd-java:typeIs('java.util.function.ObjDoubleConsumer')
+     or pmd-java:typeIs('java.util.function.IntConsumer')
+     or pmd-java:typeIs('java.util.function.LongConsumer')
+     or pmd-java:typeIs('java.util.function.DoubleConsumer')
+     or pmd-java:typeIs('java.lang.Runnable')]
 ]]></value></property>
         </properties>
     </rule>
