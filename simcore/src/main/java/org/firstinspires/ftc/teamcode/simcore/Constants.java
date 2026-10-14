@@ -53,12 +53,23 @@ public final class Constants {
             this.pastTheirRange = pastTheirRange;
         }
 
+        public static Restored asSet(Constants constants) {
+            return new Restored(constants, new EnumMap<>(Constant.class));
+        }
+
         public Constants constants() {
             return constants;
         }
 
         public Map<Constant, Double> pastTheirRange() {
             return new EnumMap<>(pastTheirRange);
+        }
+
+        public Map<Constant, Double> asSaved() {
+            EnumMap<Constant, Double> saved = new EnumMap<>(Constant.class);
+            saved.putAll(constants.changed());
+            saved.putAll(pastTheirRange);
+            return saved;
         }
     }
 

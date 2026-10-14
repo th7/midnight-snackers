@@ -137,6 +137,19 @@ public class SimConstantsTest {
     }
 
     @Test
+    public void constantsRestoredPastTheirRangeAreWrittenAsTheyWereSavedAndReadBackAsTheSame() {
+        Constants.Restored restored =
+                Valid.value(SimConstants.restoredFromJson(json("{\"launch_throw\": 0.5, \"hiccup_chance\": 0}")));
+
+        JsonObject written = SimConstants.saved(restored);
+
+        assertEquals("{\"hiccup_chance\":0.0,\"launch_throw\":0.5}", written.toString());
+        Constants.Restored again = Valid.value(SimConstants.restoredFromJson(written));
+        assertEquals(restored.constants(), again.constants());
+        assertEquals(restored.pastTheirRange(), again.pastTheirRange());
+    }
+
+    @Test
     public void aRunsLogSaysWhichConstantsWereChangedAndFromWhat() {
         assertEquals("as built", SimConstants.described(Constants.defaults()));
 

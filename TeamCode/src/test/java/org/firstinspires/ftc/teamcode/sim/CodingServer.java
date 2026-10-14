@@ -40,7 +40,6 @@ import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
-import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Robots;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -243,8 +242,7 @@ public final class CodingServer {
      */
     private volatile FieldAssets.Resolution drawnByDefault = FieldAssets.Resolution.DEFAULT;
 
-    private volatile Constants constants = Constants.defaults();
-    private volatile Map<Constant, Double> savedPastTheirRange = Map.of();
+    private volatile Constants.Restored restored = Constants.Restored.asSet(Constants.defaults());
 
     private final Store assetStore = new OnDiskStore();
     private final Assets assets;
@@ -474,7 +472,7 @@ public final class CodingServer {
         synchronized (benchByWork) {
             SimBench bench = benchByWork.get(work);
             if (bench == null) {
-                bench = benches.create(worktreeOf(work).path, work.robot(), () -> constants);
+                bench = benches.create(worktreeOf(work).path, work.robot(), () -> restored.constants());
                 benchByWork.put(work, bench);
                 benchRoutesByWork.put(work, bench.routes(work.username()));
             }
@@ -1781,8 +1779,9 @@ public final class CodingServer {
         return Response.json(GSON.toJson(assetsFetched()));
     }
 
-    private synchronized String constantsListed() {
-        return GSON.toJson(SimConstants.listing(constants, savedPastTheirRange));
+    private String constantsListed() {
+        Constants.Restored listed = restored;
+        return GSON.toJson(SimConstants.listing(listed.constants(), listed.pastTheirRange()));
     }
 
     private Response setConstants(String body) {
@@ -1799,8 +1798,7 @@ public final class CodingServer {
                 .fold(
                         set -> {
                             synchronized (this) {
-                                constants = set;
-                                savedPastTheirRange = Map.of();
+                                restored = Constants.Restored.asSet(set);
                                 saveSettings();
                             }
                             return Response.json(constantsListed());
@@ -1818,12 +1816,9 @@ public final class CodingServer {
                 drawnByDefault =
                         FieldAssets.theOneNamed(stored.get("defaultResolution").getAsString());
             }
-            Constants.Restored restored = SimConstants.restoredFromJson(stored.get("constants"))
-                    .fold(read -> read, rule -> {
-                        throw new IllegalArgumentException(rule);
-                    });
-            constants = restored.constants();
-            savedPastTheirRange = restored.pastTheirRange();
+            restored = SimConstants.restoredFromJson(stored.get("constants")).fold(read -> read, rule -> {
+                throw new IllegalArgumentException(rule);
+            });
         } catch (RuntimeException e) {
             throw new IllegalStateException(
                     "could not read the settings in " + stateDir.resolve(SETTINGS_FILE) + ": " + e, e);
@@ -1833,7 +1828,7 @@ public final class CodingServer {
     private synchronized void saveSettings() {
         JsonObject body = new JsonObject();
         body.addProperty("defaultResolution", drawnByDefault.asked);
-        body.add("constants", SimConstants.changed(constants));
+        body.add("constants", SimConstants.saved(restored));
         StateStore.save(stateDir.resolve(SETTINGS_FILE), body);
     }
 

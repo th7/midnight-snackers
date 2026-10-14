@@ -1577,7 +1577,9 @@ settings, so a restart runs what was set, and a settings file it cannot read
 stops it from starting. A saved constant that is a number past where its range
 now lets it go, as a throw saved before the throw's range was narrowed is, does
 not stop the server: it is used at the nearer end of its range, and the admin
-page shows it beside what was saved until the admin saves the constants again. Every run a user starts is made on the constants as
+page shows it beside what was saved until the admin saves the constants again.
+Saving any other setting, as the field the pages draw is, keeps it saved as it
+was, so it is still shown after a restart. Every run a user starts is made on the constants as
 they were when it was started: its child is told the ones that were changed on
 its start line, its log names them, and `/status` says which they were. The
 core's calls that draw a seeded robot, launch a ball or turn the turntable

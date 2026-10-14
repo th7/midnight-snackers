@@ -2431,6 +2431,36 @@ public class CodingServerTest {
     }
 
     @Test
+    public void savingAnotherSettingKeepsAThrowSavedPastWhereItMayNowGoAsItWasSavedThroughARestart()
+            throws IOException {
+        Files.createDirectories(stateDir());
+        Path settings = stateDir().resolve("settings.json");
+        Files.write(settings, "{\"constants\": {\"launch_throw\": 0.5}}".getBytes(StandardCharsets.UTF_8));
+        server();
+
+        assertEquals(200, admin("POST", "/admin/assets/default?resolution=medium").status);
+
+        JsonObject onDisk =
+                new Gson().fromJson(new String(Files.readAllBytes(settings), StandardCharsets.UTF_8), JsonObject.class);
+        assertEquals(
+                "the setting that was saved: " + onDisk,
+                "medium",
+                onDisk.get("defaultResolution").getAsString());
+        assertEquals(
+                "and the throw as it was saved: " + onDisk,
+                0.5,
+                onDisk.getAsJsonObject("constants").get("launch_throw").getAsDouble(),
+                0);
+        restart();
+
+        JsonObject listed = constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW);
+        assertEquals(Constant.LAUNCH_THROW.most(), listed.get("value").getAsDouble(), 0);
+        assertTrue("the admin still sees what was saved: " + listed, listed.has("saved"));
+        assertEquals(0.5, listed.get("saved").getAsDouble(), 0);
+        assertTrue(admin("GET", "/admin/assets").body.contains("\"defaultResolution\":\"medium\""));
+    }
+
+    @Test
     public void theAdminPageShowsAndSetsTheConstants() throws IOException {
         String page = admin("GET", "/admin").body;
 

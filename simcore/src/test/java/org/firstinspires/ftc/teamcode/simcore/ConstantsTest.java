@@ -227,8 +227,34 @@ public class ConstantsTest {
         Constants.Restored restored = Valid.value(Constants.restored(set(Constant.LAUNCH_THROW, 0.5)));
 
         restored.pastTheirRange().put(Constant.LAUNCH_THROW, 0.7);
+        restored.asSaved().put(Constant.LAUNCH_THROW, 0.7);
 
         assertEquals(set(Constant.LAUNCH_THROW, 0.5), restored.pastTheirRange());
+        assertEquals(set(Constant.LAUNCH_THROW, 0.5), restored.asSaved());
+    }
+
+    @Test
+    public void aRestoredSetSavesWhatWasSavedSoWhatItSavesIsRestoredAsTheSameSet() {
+        Map<Constant, Double> saved =
+                set(Constant.MOTOR_SPREAD, -0.1, Constant.HICCUP_CHANCE, 0.5, Constant.LAUNCH_THROW, 0.5);
+        Constants.Restored restored = Valid.value(Constants.restored(saved));
+
+        assertEquals(saved, restored.asSaved());
+        Constants.Restored again = Valid.value(Constants.restored(restored.asSaved()));
+        assertEquals(restored.constants(), again.constants());
+        assertEquals(restored.pastTheirRange(), again.pastTheirRange());
+    }
+
+    @Test
+    public void aSetSetAsItIsSavesWhatDiffersFromHowItWasBuiltAndHasNothingSavedPastItsRange() {
+        Constants set = Valid.value(of(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0));
+
+        Constants.Restored asSet = Constants.Restored.asSet(set);
+
+        assertEquals(set, asSet.constants());
+        assertTrue(asSet.pastTheirRange().toString(), asSet.pastTheirRange().isEmpty());
+        assertEquals(set(Constant.HICCUP_CHANCE, 0, Constant.LAUNCH_THROW, 0.25), asSet.asSaved());
+        assertTrue(Constants.Restored.asSet(Constants.defaults()).asSaved().isEmpty());
     }
 
     @Test

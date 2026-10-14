@@ -51,11 +51,19 @@ public final class SimConstants {
     }
 
     public static JsonObject changed(Constants constants) {
-        JsonObject changed = new JsonObject();
-        for (Map.Entry<Constant, Double> entry : constants.changed().entrySet()) {
-            changed.addProperty(entry.getKey().asked(), entry.getValue());
+        return numbersByName(constants.changed());
+    }
+
+    public static JsonObject saved(Constants.Restored restored) {
+        return numbersByName(restored.asSaved());
+    }
+
+    private static JsonObject numbersByName(Map<Constant, Double> numbers) {
+        JsonObject byName = new JsonObject();
+        for (Map.Entry<Constant, Double> entry : numbers.entrySet()) {
+            byName.addProperty(entry.getKey().asked(), entry.getValue());
         }
-        return changed;
+        return byName;
     }
 
     public static Checked<Constants> fromJson(JsonElement element) {
