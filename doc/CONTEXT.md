@@ -1460,8 +1460,9 @@ refuse would stop the run saying why. The model is planar apart from flight and 
 stacks: only the robot's footprint collides, nothing goes over a wall or
 under a hive by being low, and a ball in flight meets what a **shot**'s
 ball meets — the floor, the walls, every element of the field, the hives
-as they turn and the other balls in flight — but never the robot or the
-balls on the floor. What a body on the floor
+as they turn and the other balls in flight — and what stands in a flower's
+bore, its stack and any ball on the floor whose centre is in the bore, but
+never the robot or the other balls on the floor. What a body on the floor
 meets is what it can **reach**: a
 ball rolls under an obstacle whose underside clears it — a flower's pipes
 begin four inches up — and the robot, being eighteen inches tall, runs into

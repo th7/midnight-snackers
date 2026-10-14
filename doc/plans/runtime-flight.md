@@ -78,9 +78,10 @@ hives are a part that moves while one tips.
 - A constant saved past where its range now lets it go no longer stops the
   server: runs use the nearer end of its range, and the admin page shows
   what was saved (`Constants.Restored`) until the constants are saved again.
-- No refusal is dropped. The core's PMD gate refuses a `Checked` that
-  nothing looks at, and a tip or a ball the engine refuses stops the run,
-  saying why.
+- The core's PMD gate refuses a `Checked` that nothing looks at, used as a
+  statement, as what a lambda or an arrow arm does for its effect, or behind
+  a method reference where nothing is returned. A tip or a ball the engine
+  refuses stops the run, saying why.
 - `LAUNCH_THROW` was calibrated again for air and contacts: the widest band
   at which every scored shot the tests ask for goes in and stays ran from
   192 to 206.75 in/s, and its middle, 0.1899 in/s per tick/s (199.4 in/s at

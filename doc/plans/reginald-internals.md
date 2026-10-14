@@ -50,7 +50,10 @@ It builds on two plans and does not repeat them:
     back in dyn4j, parts placed at `GridTime`s on the engine's step grid, a
     work allowance of 15,000 units each window of 50 steps on that grid, and
     the idle jump, `Bodies.idleThrough`, which is no work. A tip replaces the
-    hives' part alone (`Surroundings.replacing`), and no refusal is dropped.
+    hives' part alone (`Surroundings.replacing`). The core's PMD gate refuses
+    a `Checked` that nothing looks at, and a tip or a ball the engine refuses
+    stops the run, saying why. `Flight.with` takes a ball's place and
+    velocity, and starts it with no spin.
   - **Stage 4:** the launcher. The arc collider (`Arc`). Compliant surfaces,
     answered by a separate `squeezing` query and pushed inside RK4 at the
     engine's 0.1 ms step, with no sub-steps. The launcher frame that `Flight`
@@ -597,7 +600,7 @@ Tested in batches 3a, 3b and 4.
 
 | From | To | Where | What passes |
 |---|---|---|---|
-| dyn4j (the floor) | the engine | the intake box | position, velocity, rolling spin, and dyn4j's spin about z, as a `Motion` through stage 3's `Flight.with` |
+| dyn4j (the floor) | the engine | the intake box | position, velocity, rolling spin, and dyn4j's spin about z, through `Flight.with`, which batch 5 gives a spin |
 | the engine | the engine | everywhere inside the robot, and out through the hood | nothing: one body from the box to the cell |
 | the engine | dyn4j | on the floor outside the box, by stage 3's landing rule | (x, y) and (vx, vy). Spin about a level axis is dropped, as in stage 3 |
 
@@ -1258,9 +1261,12 @@ Then implement, and update `doc/CONTEXT.md`:
 - **The intake box** replaces today's rule at the front (*Handoffs*). Every
   ball whose centre enters it goes to the engine: pollen or nectar, intake on
   or off.
-- **Into the engine:** through stage 3's `Flight.with`, as a `Motion`: the
-  ball's position on the floor, its velocity, the spin of rolling without
-  slipping, and dyn4j's spin about z. It starts awake.
+- **Into the engine:** through `Flight.with`, which gains a spin. Stage 3's
+  takes a place and a velocity and starts the ball with no spin; the spin
+  goes through the same check as the rest of a `Motion`, so one that is not
+  finite is refused, naming the rule. The ball comes in at its position on
+  the floor, with its velocity, the spin of rolling without slipping and
+  dyn4j's spin about z. It starts awake.
 - **Back to dyn4j:** stage 3's landing rule, with the ball's centre outside
   the box and no compliant touch.
 - A dyn4j ball that touches a ball the engine holds in the box is handed over
@@ -1270,7 +1276,10 @@ Then implement, and update `doc/CONTEXT.md`:
 
 Tests first:
 
-1. `SimRobotTest`, the handoff:
+1. `FlightTest`: a ball handed in with a spin carries it into its first
+   step, less only what the air takes, and one whose spin is not finite is
+   refused, naming the rule.
+2. `SimRobotTest`, the handoff:
    - A pollen rolling at the mouth is handed over before dyn4j touches it, at
      the same position and velocity, rolling.
    - A pollen outside the mouth, or straddling its edge, is pushed by dyn4j as
@@ -1281,7 +1290,7 @@ Tests first:
      box.
    - A dyn4j ball that rolls into a ball the engine holds in the box is handed
      over, and the two meet.
-2. `IntakeSimTest`:
+3. `IntakeSimTest`:
    - Driven onto a pollen at 1.3 times the lip's threshold, and at least
      12 in/s, with the intake on, Reginald takes it over the lip, under the
      roller, over the crest, into the V and into a pocket. It arrives
@@ -1290,13 +1299,13 @@ Tests first:
    - With the intake off, a pollen that gets over the lip stops under the
      still roller and goes no further.
    - Four pollen, as in batch 4.
-3. `SimRobotTest`:
+4. `SimRobotTest`:
    - A ball wider than the feeder's gap, a nectar, driven into the mouth never
      enters a pocket.
    - A pollen pinned between the mouth and a wall never passes through either.
    - The pushing tests outside the mouth pass unchanged.
-4. Cost: pin the work of one pollen taken at 30 in/s.
-5. Golden traces: read the diffs, then regenerate.
+5. Cost: pin the work of one pollen taken at 30 in/s.
+6. Golden traces: read the diffs, then regenerate.
 
 Then implement, and update `doc/CONTEXT.md`:
 - new entry: **Intake box**
