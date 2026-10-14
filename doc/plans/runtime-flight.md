@@ -22,7 +22,9 @@ engine. `WheelPair` stays in the Launch Sim. The rest of Reginald's insides
 (the roller, the scoop, the feeder, the ramp, the flywheel's inertia) are
 `reginald-internals.md`'s.
 
-Stages 1 to 3 are built. Stage 4 is planned here. Every stage keeps the
+Stages 1 to 3 are built, and so is the first part of stage 4: the arcs and
+the compliant contact the launcher is made of. The rest of stage 4 is
+planned here. Every stage keeps the
 Launch Sim's results bit for bit: its fingerprint tests pin the exact work
 and the raw bits of every field of every story, in the simulator's core and
 on the field, and no stage changes them.
@@ -88,6 +90,35 @@ hives are a part that moves while one tips.
   1050 ticks/s), is built in. Tests hold the built throw and 2.1 in/s either
   side of it for every shot in that set.
 
+**Stage 4a · arcs and compliant contact.** Nothing in a run uses them yet.
+- `Arc` is an arc of a circle, whole or a part of a turn, nearest any point
+  on its circle within its span and at its nearer end outside it; one whose
+  radius, axis or span could not be one is refused, naming the rule.
+- `Compliance` is a surface's validated stiffness, restitution, friction and
+  regularisation speed, with the launcher's from the table below, each named
+  beside its source. Its damping is the one at which a spring and dashpot
+  that never pulls returns a ball at the restitution.
+- A part answers `squeezing` with overlaps: a name, a compliance, a unit
+  normal, a depth and how what squeezes moves (`Support`). An overlap names
+  no point: the surroundings meet the ball midway through it, at the centre
+  and radius they were asked about. The part contract holds a depth to the
+  ball's overlap, shrinking as the ball moves out along the normal and
+  growing as its radius does, and holds a part to squeezing only within its
+  reach, under its own names and never under a name it touches by.
+- A ball within a tenth of an inch of a compliant part's reach is pushed
+  inside each RK4 stage, with the parts placed at that stage's own time; any
+  other ball is integrated exactly as before. Each evaluation and each
+  asking of what squeezes is a unit of work.
+- The stick floor and the rest rules below are built as written. A ball
+  never gains energy against still supports where each surface is damped at
+  least k·h/2 and all of them together at most m/h, as the launcher's ten
+  rings are for the pollen at 0.1 ms. A lone still surface returns a ball at
+  its restitution to within c·h/m + k·h²/(12·m), while c·h/m ≤ 1 and
+  k·h²/m ≤ 2.
+- In a world of one spinning ring and the still hood, a fed ball is thrown
+  at 215.5 in/s and 72.8° up, and the same to 0.05 % and 0.01° at half the
+  step.
+
 `doc/CONTEXT.md` defines each of these terms as built.
 
 ---
@@ -148,16 +179,17 @@ end outside it, across the ±π seam. It is total:
   direction is the normal, as `Collider.away` does at zero distance.
 
 **Compliant surfaces.** Only the launcher's surfaces are compliant, and they
-answer a separate query, `squeezing`: the touch's id, surface, normal, depth
-and the support's velocity at the contact. `near`, `over` and `crossed`
+answer a separate query, `squeezing`, with overlaps, as stage 4a built it.
+`near`, `over` and `crossed`
 never return them, and a compliant touch never enters the impulses, the
 impacts, the touching sets, the islands, the landing rule or the projection.
 - The force acts inside RK4, each stage placing the frame at its own time:
   normal k·δ + c·δ̇, never pulling; friction opposing the tangential part of
   (v + ω × arm) − (the support's velocity at the contact), of size
   μ·F_n·min(1, |slip| ÷ v_reg), with torque arm × F on the ball.
-- A body with no compliant touch goes through the existing RK4 unchanged.
-  Adding a zero force is not unchanged: −0.0 + 0.0 is +0.0.
+- A body beyond a tenth of an inch of every compliant part's reach goes
+  through the existing RK4 unchanged. Adding a zero force is not unchanged:
+  −0.0 + 0.0 is +0.0.
 - No sub-steps: compliant bodies integrate in the engine's 0.1 ms pieces.
   The normal springs are stable to about 19,000 N/mm there, and the launch
   is the same from 5 to 100 µs.
