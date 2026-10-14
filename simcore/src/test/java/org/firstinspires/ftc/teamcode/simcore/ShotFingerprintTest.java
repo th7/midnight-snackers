@@ -11,6 +11,7 @@ public class ShotFingerprintTest {
     private static final Ball NECTAR = Valid.value(Ball.of(3.6, 41.3, 0.634));
     private static final double R = POLLEN.radius();
     private static final String NOTHING = "0:cbf29ce484222325";
+    private static final String NO_BOUNCE = "1:f8bb92ce26585846";
     private static final Colliders WALLS = Valid.value(Colliders.of(
             Valid.value(Field.of(
                     Valid.length(141.17),
@@ -47,7 +48,22 @@ public class ShotFingerprintTest {
     }
 
     private static World world(Air air, Surfaces surfaces, double longest, List<World.Piece> pieces) {
-        return Valid.value(World.of(WALLS, air, surfaces, seconds(1e-4), seconds(longest), pieces));
+        return world(air, surfaces, 1e-4, longest, pieces);
+    }
+
+    private static World world(Air air, Surfaces surfaces, double step, double longest, List<World.Piece> pieces) {
+        return Valid.value(World.of(WALLS, air, surfaces, seconds(step), seconds(longest), pieces));
+    }
+
+    private static List<World.Piece> aPollenRestingOnTwoNectar() {
+        World.Piece left = new World.Piece(
+                "Blue Nectar <1>", Field.Kind.NECTAR, Optional.of("Blue"), NECTAR, new Vec3(40, 0, 1.8), false);
+        World.Piece right = new World.Piece(
+                "Blue Nectar <2>", Field.Kind.NECTAR, Optional.of("Blue"), NECTAR, new Vec3(40, 3.6, 1.8), false);
+        double above = StrictMath.sqrt((1.8 + R) * (1.8 + R) - 1.8 * 1.8);
+        World.Piece top = new World.Piece(
+                "Pollen <3>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40, 1.8, 1.8 + above), false);
+        return List.of(left, right, top);
     }
 
     private static Shot.Flying launch(World world, Vec3 at, Vec3 velocity, Vec3 spin) {
@@ -91,15 +107,8 @@ public class ShotFingerprintTest {
 
     @Test
     public void aPieceRestingOnAnotherThatComesDownComesOutTheSameToTheBit() {
-        World.Piece left = new World.Piece(
-                "Blue Nectar <1>", Field.Kind.NECTAR, Optional.of("Blue"), NECTAR, new Vec3(40, 0, 1.8), false);
-        World.Piece right = new World.Piece(
-                "Blue Nectar <2>", Field.Kind.NECTAR, Optional.of("Blue"), NECTAR, new Vec3(40, 3.6, 1.8), false);
-        double above = StrictMath.sqrt((1.8 + R) * (1.8 + R) - 1.8 * 1.8);
-        World.Piece top = new World.Piece(
-                "Pollen <3>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40, 1.8, 1.8 + above), false);
         Shot shot = launch(
-                        world(Air.vacuum(), plainFloor(), 4, List.of(left, right, top)),
+                        world(Air.vacuum(), plainFloor(), 4, aPollenRestingOnTwoNectar()),
                         new Vec3(65, 3.6, R),
                         new Vec3(-120, 0, 0),
                         new Vec3(0, -120 / R, 0))
@@ -115,6 +124,80 @@ public class ShotFingerprintTest {
                         "6:fb0744a10650fe2d",
                         "23074:0c309e3a4614cfcd",
                         "36:87f0613df9146bd9"),
+                Fingerprint.of(shot));
+    }
+
+    @Test
+    public void piecesThatComeToRestAndFallAsleepOnRealisticSurfacesComeOutTheSameToTheBit() {
+        Shot shot = launch(
+                        world(air(), realistic(), 4, aPollenRestingOnTwoNectar()),
+                        new Vec3(65, 3.6, R),
+                        new Vec3(-120, 0, 0),
+                        new Vec3(0, -120 / R, 0))
+                .advance(seconds(4));
+
+        assertEquals(
+                new Fingerprint(
+                        406551,
+                        "14135:a6522fdfa0e2ffb2",
+                        "428:3284b07145063b23",
+                        NOTHING,
+                        "21:9dc8ba04552de452",
+                        "6:ac22c842ff2420f1",
+                        "8690:9d73d600dbe803ea",
+                        "56:695ce0e77b3abd8f"),
+                Fingerprint.of(shot));
+    }
+
+    @Test
+    public void aFastShotOnACoarseStepCutIntoPiecesComesOutTheSameToTheBit() {
+        Shot shot = launch(
+                        world(air(), realistic(), 2e-3, 3, aPollenRestingOnTwoNectar()),
+                        new Vec3(-20, 1.8, 3),
+                        new Vec3(400, 0, 0),
+                        new Vec3(0, -60, 0))
+                .advance(seconds(3));
+
+        assertEquals(
+                new Fingerprint(
+                        42040,
+                        "15744:25ab2237ccffab7f",
+                        "433:63e4561d92c12266",
+                        NOTHING,
+                        "21:3652c510452d86b6",
+                        "6:28dcaebf2ce77aec",
+                        "12402:51751443040c8038",
+                        "56:6f8cf1996b244fe0"),
+                Fingerprint.of(shot));
+    }
+
+    @Test
+    public void aPollenRattlingBetweenFixedPiecesUntilAPieceOfTimeRunsOutOfEventsComesOutTheSameToTheBit() {
+        Bounce lively = bounce(0.95, 0.3, 0.15);
+        Surfaces bouncy = Valid.value(Surfaces.of(lively, lively, lively, lively, lively, lively, 0, 1, 0, 0, 0));
+        double apart = R + 1.8 + 1e-4;
+        List<World.Piece> pieces = List.of(
+                new World.Piece("Left", Field.Kind.NECTAR, Optional.empty(), NECTAR, new Vec3(-apart, 0, 5), true),
+                new World.Piece("Right", Field.Kind.NECTAR, Optional.empty(), NECTAR, new Vec3(apart, 0, 5), true),
+                new World.Piece(
+                        "Under", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(0, 0, 5 - 2 * R - 1e-4), true));
+        Shot shot = launch(
+                        world(Air.vacuum(), bouncy, 0.5, pieces),
+                        new Vec3(0, 0, 5),
+                        new Vec3(300, 0, -100),
+                        new Vec3(0, 50, 0))
+                .advance(seconds(0.5));
+
+        assertEquals(
+                new Fingerprint(
+                        31240,
+                        "6246:79c2cb9704cfd948",
+                        "6435:df3cb673473a941b",
+                        NOTHING,
+                        "21:ccba5de31ab23dd6",
+                        NO_BOUNCE,
+                        "80:b698ee7df4c915ea",
+                        "46:10464072ee49e9e8"),
                 Fingerprint.of(shot));
     }
 

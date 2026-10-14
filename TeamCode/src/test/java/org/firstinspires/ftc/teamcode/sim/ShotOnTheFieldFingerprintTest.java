@@ -97,6 +97,21 @@ public class ShotOnTheFieldFingerprintTest {
     }
 
     @Test
+    public void theDefaultShotOnACoarseStepCutIntoPiecesComesOutTheSameToTheBit() {
+        assertEquals(
+                new Fingerprint(
+                        20878,
+                        "9912:8a1cb79d42668206",
+                        "924:446348b761878756",
+                        "40:58040981811494a5",
+                        "21:f7a3f20abe3ca7f3",
+                        NO_BOUNCE,
+                        "3096:864deebbc2d78c94",
+                        "152:d11996c5aa07bca1"),
+                Fingerprint.of(flown(with(ShotSetting.STEP, 2))));
+    }
+
+    @Test
     public void aPollenThatClearsAWallComesOutTheSameToTheBit() {
         Shot shot = flown(with(
                 ShotSetting.X,
