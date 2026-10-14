@@ -1473,12 +1473,14 @@ as a count of the hub's 16-bit overflows, so anything finer is read as
 tens of inches a second). The
 launcher's throw and the turntable's speed are guesses until measured on
 the robot. The throw, a ball's speed for each tick a second the flywheel
-turns, leaves the launcher with no spin and is calibrated to the middle of
-the widest band of throws at which every shot the tests score from the
-launch distance goes in and stays — for both alliances, against the back,
-after a tip and four in a row — which at the code's close launch of 1050
-ticks a second ran from 192 to 206.75 in/s; the throw is a steep one, into
-a mouth a hive holds five feet up. Both are **simulation constants**,
+turns, leaves the launcher with no spin. It is built at 199.4 in/s for the
+code's close launch of 1050 ticks a second, and that throw and one 2.1 in/s
+slower or faster each score and stay in every shot the tests score from the
+launch distance: a close shot for each alliance, one that comes to rest
+against the back of the cell, the shot after a tip, and the preload's four
+launches at the code's own cadence into an empty cell, all four coming to
+rest in it. The throw is a steep one, into a mouth a hive holds five feet
+up. Both are **simulation constants**,
 so whoever measures them sets them on the admin page. The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,

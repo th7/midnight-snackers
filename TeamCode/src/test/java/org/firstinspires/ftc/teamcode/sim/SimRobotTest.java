@@ -899,6 +899,10 @@ public class SimRobotTest {
     }
 
     private Map<SimRobot.Piece, double[]> whereEverythingIs() {
+        return whereEverythingIs(sim);
+    }
+
+    private static Map<SimRobot.Piece, double[]> whereEverythingIs(SimRobot sim) {
         Map<SimRobot.Piece, double[]> out = new IdentityHashMap<>();
         for (SimRobot.Piece ball : sim.balls()) {
             out.put(ball, sim.placeOf(ball));
@@ -949,6 +953,10 @@ public class SimRobotTest {
     }
 
     private void readyToLaunch(double flywheelVelocity) {
+        readyToLaunch(sim, flywheelVelocity);
+    }
+
+    private static void readyToLaunch(SimRobot sim, double flywheelVelocity) {
         sim.topGate.position = TOP_GATE_OPEN;
         sim.bottomGate.position = BOTTOM_GATE_CLOSED;
         sim.launcher.commandedVelocity = flywheelVelocity;
@@ -1263,18 +1271,24 @@ public class SimRobotTest {
     }
 
     @Test
-    public void aCloseShotStillScoresAndStaysThrownTwoInchesASecondSlowerOrFasterThanItIsCalibratedTo() {
-        double twoInchesASecond = 2.1 / CLOSE_LAUNCH_VELOCITY;
-        for (double throwing : new double[] {
-            Launch.IN_PER_S_PER_TICK_PER_S - twoInchesASecond, Launch.IN_PER_S_PER_TICK_PER_S + twoInchesASecond
-        }) {
+    public void everyShotTheThrowIsCalibratedForStillScoresAndStaysThrownTwoInchesASecondSlowerOrFaster() {
+        for (double throwing : TWO_INCHES_A_SECOND_EITHER_SIDE) {
+            String said = " throwing " + throwing * CLOSE_LAUNCH_VELOCITY + " in/s";
             for (String alliance : new String[] {"Blue", "Red"}) {
-                assertScoresAndStays(
-                        new SimRobot(TeamRobot.REGINALD, SimNoise.NONE, constants(Constant.LAUNCH_THROW, throwing)),
-                        alliance,
-                        alliance + " throwing " + throwing * CLOSE_LAUNCH_VELOCITY + " in/s");
+                assertScoresAndStays(throwing(throwing), alliance, alliance + said);
             }
+            assertComesToRestAgainstTheBack(throwing(throwing), "against the back" + said);
+            assertTheCellThatComesUpAfterATipTakesABall(throwing(throwing), "after a tip" + said);
         }
+    }
+
+    static final double[] TWO_INCHES_A_SECOND_EITHER_SIDE = {
+        Launch.IN_PER_S_PER_TICK_PER_S - 2.1 / CLOSE_LAUNCH_VELOCITY,
+        Launch.IN_PER_S_PER_TICK_PER_S + 2.1 / CLOSE_LAUNCH_VELOCITY
+    };
+
+    static SimRobot throwing(double inPerSPerTickPerS) {
+        return new SimRobot(TeamRobot.REGINALD, SimNoise.NONE, constants(Constant.LAUNCH_THROW, inPerSPerTickPerS));
     }
 
     private static void assertScoresAndStays(SimRobot sim, String alliance, String said) {
@@ -1435,6 +1449,10 @@ public class SimRobotTest {
 
     @Test
     public void aHiveThatTipsDropsWhatWasInItAndHoldsUpItsOtherCell() {
+        assertTheCellThatComesUpAfterATipTakesABall(sim, "as built");
+    }
+
+    private static void assertTheCellThatComesUpAfterATipTakesABall(SimRobot sim, String said) {
         Field.Cell was = sim.upturnedCell("Blue");
         List<SimRobot.Piece> pollen = ballsOf(sim, Field.Kind.POLLEN);
         for (int i = 0; i < 4; i++) {
@@ -1443,12 +1461,12 @@ public class SimRobotTest {
 
         sim.step(Lean.TIP_SECONDS + Falling.settledAfter(was.hive().pivot().z()));
 
-        assertEquals("nothing is left in the hive", 0, sim.scored("Blue"));
+        assertEquals(said + ": nothing is left in the hive", 0, sim.scored("Blue"));
         assertEquals(0, sim.load("Blue"), DELTA);
         Field.Cell now = sim.upturnedCell("Blue");
         assertTrue("the other cell is up now", now != was);
         assertEquals("the hive's cells swapped ends", was.hive(), now.hive());
-        Map<SimRobot.Piece, double[]> pieces = whereEverythingIs();
+        Map<SimRobot.Piece, double[]> pieces = whereEverythingIs(sim);
         for (int i = 0; i < 4; i++) {
             assertEquals("a pollen that was in it is on the floor", BALL, pieces.get(pollen.get(i))[2], DELTA);
         }
@@ -1456,26 +1474,24 @@ public class SimRobotTest {
             assertEquals("so is the nectar it held", BALL_NECTAR, pieces.get(nectarItHeld)[2], DELTA);
         }
 
-        SimRobot after = sim;
-        after.setPose(facing(after, now, LAUNCH_DISTANCE_INCHES));
-        after.topGate.position = TOP_GATE_OPEN;
-        after.bottomGate.position = BOTTOM_GATE_CLOSED;
-        after.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
-        after.step(0.1);
-        after.topGate.position = TOP_GATE_CLOSED;
-        after.step(0.05);
-        after.bottomGate.position = BOTTOM_GATE_OPEN;
-        after.step(2.0);
+        sim.setPose(facing(sim, now, LAUNCH_DISTANCE_INCHES));
+        readyToLaunch(sim, CLOSE_LAUNCH_VELOCITY);
+        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        sim.step(2.0);
 
-        assertEquals("and the cell that came up takes a ball", 1, after.scored("Blue"));
-        assertTrue(within(after, now, after.placeOf(thePreloadOf(after))));
+        assertEquals(said + ": and the cell that came up takes a ball", 1, sim.scored("Blue"));
+        assertTrue(said, within(sim, now, sim.placeOf(thePreloadOf(sim))));
     }
 
     @Test
     public void aShotThatGoesInMovesIntoTheCellAndComesToRestAgainstItsBack() {
+        assertComesToRestAgainstTheBack(sim, "as built");
+    }
+
+    private static void assertComesToRestAgainstTheBack(SimRobot sim, String said) {
         Field.Cell cell = sim.upturnedCell("Blue");
         sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
-        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
+        readyToLaunch(sim, CLOSE_LAUNCH_VELOCITY);
         sim.bottomGate.position = BOTTOM_GATE_OPEN;
 
         double farthest = 0;
@@ -1489,12 +1505,16 @@ public class SimRobotTest {
             was = now;
         }
 
-        assertEquals("it went in", 4, sim.scored("Blue"));
+        assertEquals(said + ": it went in", 4, sim.scored("Blue"));
         assertTrue("it moved no faster than it flies: " + farthest + " inches in 5 ms", farthest < 2);
         double tilt = sim.tilt("Blue");
-        assertTrue("it is inside the cell", inside(cell, tilt, was));
+        assertTrue(said + ": it is inside the cell", inside(cell, tilt, was));
         double[][] back = Points.arrays(cell.hive().at(tilt, cell.back()));
-        assertEquals("and rests against its back", BALL, Math.abs(side(Points.normal(back), back[0], was)), CONTACT);
+        assertEquals(
+                said + ": and rests against its back",
+                BALL,
+                Math.abs(side(Points.normal(back), back[0], was)),
+                CONTACT);
     }
 
     @Test

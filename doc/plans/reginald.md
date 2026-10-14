@@ -415,8 +415,12 @@ Then implement, and update `doc/CONTEXT.md`: remove **Turntable**; update
   a tip, one launch and four at their real cadence) goes in and stays, its
   middle built in.
   - From today's launch point, with drag and no spin, that band ran from 192
-    to 206.75 in/s at 1050 ticks/s, so 0.1899 in/s per tick/s is built in
-    (0.189 before balls flew through air).
+    to 206.75 in/s at 1050 ticks/s when balls first flew through air, so
+    0.1899 in/s per tick/s is built in (0.189 before). The band's edges are
+    history; what a test holds is that the built throw and 2.1 in/s either
+    side of it score and stay for every one of those shots, the four launches
+    at their cadence going into an empty cell and all coming to rest in it.
+    The rebuilt launch keeps a test of that shape.
   - The 2-D check's 0.204 in/s per tick/s (band 0.195–0.212) was worked out
     in a vacuum for the hood's exit and no longer holds: the hood's exit has
     to be scanned again.
