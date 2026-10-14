@@ -156,13 +156,22 @@ final class Bodies {
     private final double step;
     private final Optional<String> watching;
     private final List<Body> bodies;
+    private Surroundings surroundings;
     private long steps;
     private double now;
     private long work;
 
-    private Bodies(World world, Optional<String> watching, List<Body> bodies, long steps, double now, long work) {
+    private Bodies(
+            World world,
+            Surroundings surroundings,
+            Optional<String> watching,
+            List<Body> bodies,
+            long steps,
+            double now,
+            long work) {
         this.world = world;
         this.step = world.step().value();
+        this.surroundings = surroundings;
         this.watching = watching;
         this.bodies = bodies;
         this.steps = steps;
@@ -171,11 +180,11 @@ final class Bodies {
     }
 
     static Bodies watching(World world, String name) {
-        return new Bodies(world, Optional.of(name), new ArrayList<>(), 0, 0, 0);
+        return new Bodies(world, Surroundings.still(world.colliders()), Optional.of(name), new ArrayList<>(), 0, 0, 0);
     }
 
     static Bodies unwatched(World world) {
-        return new Bodies(world, Optional.empty(), new ArrayList<>(), 0, 0, 0);
+        return new Bodies(world, Surroundings.still(world.colliders()), Optional.empty(), new ArrayList<>(), 0, 0, 0);
     }
 
     Bodies copy() {
@@ -183,7 +192,7 @@ final class Bodies {
         for (Body body : bodies) {
             copied.add(body.copy());
         }
-        return new Bodies(world, watching, copied, steps, now, work);
+        return new Bodies(world, surroundings, watching, copied, steps, now, work);
     }
 
     Checked<Bodies> add(String name, Ball shape, Vec3 at, Vec3 velocity, Vec3 spin, Life life, Sleep sleep) {
@@ -281,7 +290,7 @@ final class Bodies {
             if (body.name.equals(spared) || body.life != Life.AWAKE) {
                 continue;
             }
-            world.colliders().over(body.at, body.reach()).ifPresent(side -> {
+            surroundings.over(body.at, body.reach()).ifPresent(side -> {
                 body.life = Life.GONE;
                 gone.add(new Gone(body.name, side, body.at, body.turn));
             });
@@ -314,18 +323,19 @@ final class Bodies {
         for (Body body : bodies) {
             body.touchingColliders.clear();
             body.touchingBodies.clear();
-            if (body.life != Life.AWAKE) {
-                continue;
+            if (body.life == Life.AWAKE) {
+                touch(body);
             }
-            for (Colliders.Near near : near(body.at, body.reach(), Shot.TOUCHING_IN)) {
-                body.touchingColliders.add(near.collider().name());
-            }
-            for (Body other : bodies) {
-                if (other != body
-                        && other.life != Life.GONE
-                        && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
-                    body.touchingBodies.add(other.name);
-                }
+        }
+    }
+
+    private void touch(Body body) {
+        for (Surroundings.Touch near : near(surroundings, body.at, body.reach(), Shot.TOUCHING_IN)) {
+            body.touchingColliders.add(near.id());
+        }
+        for (Body other : bodies) {
+            if (other != body && other.life != Life.GONE && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
+                body.touchingBodies.add(other.name);
             }
         }
     }
@@ -438,9 +448,8 @@ final class Bodies {
 
     private boolean overlapsSomethingNew(List<Body> awake) {
         for (Body body : awake) {
-            for (Colliders.Near near : near(body.trial.at(), body.reach(), 0)) {
-                if (near.gap() < 0
-                        && !body.touchingColliders.contains(near.collider().name())) {
+            for (Surroundings.Touch near : near(surroundings, body.trial.at(), body.reach(), 0)) {
+                if (near.gap() < 0 && !body.touchingColliders.contains(near.id())) {
                     return true;
                 }
             }
@@ -464,13 +473,12 @@ final class Bodies {
             body.touched = false;
         }
         for (Body body : awake) {
-            for (Colliders.Near near : near(body.at, body.reach(), Shot.TOUCHING_IN)) {
+            for (Surroundings.Touch near : near(surroundings, body.at, body.reach(), Shot.TOUCHING_IN)) {
                 pressing.add(new Contacts.Pressing(
                         body.contact(),
-                        new Contacts.Against.Fixed(
-                                near.collider().name(), near.collider().surface()),
+                        new Contacts.Against.Fixed(near.id(), near.surface(), near.velocity(), near.spin()),
                         near.normal(),
-                        !body.touchingColliders.contains(near.collider().name())));
+                        !body.touchingColliders.contains(near.id())));
                 body.touched = true;
             }
             boolean past = false;
@@ -506,9 +514,9 @@ final class Bodies {
         return pressing;
     }
 
-    private List<Colliders.Near> near(Vec3 at, Length reach, double within) {
+    private List<Surroundings.Touch> near(Surroundings around, Vec3 at, Length reach, double within) {
         work++;
-        return world.colliders().near(at, reach, within);
+        return around.near(at, reach, within);
     }
 
     private List<Seen> wake() {
@@ -563,7 +571,7 @@ final class Bodies {
         for (int pass = 0; pass < Shot.PROJECTIONS && moved; pass++) {
             moved = false;
             for (Body body : touched) {
-                for (Colliders.Near near : near(body.at, body.reach(), 0)) {
+                for (Surroundings.Touch near : near(surroundings, body.at, body.reach(), 0)) {
                     if (near.gap() < 0) {
                         body.at = body.at.along(near.normal(), -near.gap());
                         moved = true;

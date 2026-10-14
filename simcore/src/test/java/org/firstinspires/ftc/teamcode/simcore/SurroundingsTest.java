@@ -1,0 +1,166 @@
+package org.firstinspires.ftc.teamcode.simcore;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.Test;
+
+public class SurroundingsTest {
+    private static final Length R = Valid.length(1.4);
+    private static final Colliders WALLS = Valid.value(Colliders.of(
+            Valid.value(Field.of(
+                    Valid.length(141.17),
+                    Valid.length(11.64),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of())),
+            List.of()));
+    private static final Collider PLATE = Carried.box("plate", new Vec3(-10, -10, 10), new Vec3(10, 10, 11));
+
+    private record Stated(String id, double sweep, boolean moving, List<Surroundings.Touch> answer)
+            implements Surroundings.Part {
+        Stated(String id, double sweep, boolean moving) {
+            this(id, sweep, moving, List.of());
+        }
+
+        @Override
+        public List<String> ids() {
+            return List.of(id);
+        }
+
+        @Override
+        public boolean reaches(Vec3 centre, double by) {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+            return answer;
+        }
+
+        @Override
+        public Surroundings.Part at(double seconds) {
+            return this;
+        }
+    }
+
+    private static Surroundings with(Surroundings.Part... parts) {
+        return Valid.value(Surroundings.of(WALLS, List.of(parts)));
+    }
+
+    private static String rejection(Checked<?> checked) {
+        return checked.fold(value -> "accepted", rule -> rule);
+    }
+
+    private static List<String> ids(List<Surroundings.Touch> touches) {
+        List<String> ids = new ArrayList<>();
+        for (Surroundings.Touch touch : touches) {
+            ids.add(touch.id());
+        }
+        return ids;
+    }
+
+    @Test
+    public void stillSurroundingsTouchWhatTheirCollidersDoAndNeitherMoveNorSpin() {
+        Surroundings still = Surroundings.still(WALLS);
+        List<Vec3> places = List.of(
+                new Vec3(0, 0, 1.4),
+                new Vec3(70, 0, 1),
+                new Vec3(-70.2, 70.2, 5),
+                new Vec3(10, 3, 12),
+                new Vec3(0, 0, -1));
+
+        for (Vec3 at : places) {
+            for (double within : new double[] {0, 1e-6, 2}) {
+                List<Surroundings.Touch> expected = new ArrayList<>();
+                for (Colliders.Near near : WALLS.near(at, R, within)) {
+                    expected.add(new Surroundings.Touch(
+                            near.collider().name(),
+                            near.collider().surface(),
+                            near.normal(),
+                            near.gap(),
+                            Vec3.zero(),
+                            Vec3.zero()));
+                }
+
+                assertEquals(at + " within " + within, expected, still.near(at, R, within));
+                assertEquals(at + " later", expected, still.at(5).near(at, R, within));
+            }
+        }
+        assertEquals(Double.doubleToRawLongBits(0.0), Double.doubleToRawLongBits(still.sweep()));
+        assertTrue(still.moving().isEmpty());
+    }
+
+    @Test
+    public void aPartIsAskedOnlyWhereItReachesAndItsTouchesComeAfterTheColliders() {
+        Surroundings.Touch made =
+                new Surroundings.Touch("nowhere", Surface.FRAME, new Vec3(0, 0, 1), 0, Vec3.zero(), Vec3.zero());
+        Surroundings around =
+                with(Carried.sliding(PLATE, new Vec3(3, 0, 0), 0), new Stated("liar", 0, true, List.of(made)));
+
+        assertEquals(List.of("Floor", "plate"), ids(around.near(new Vec3(9, 0, 1.4), R, 9)));
+        assertEquals(List.of("Floor"), ids(around.near(new Vec3(30, 0, 1.4), R, 9)));
+        assertEquals(List.of("plate"), ids(around.near(new Vec3(0, 0, 12.4), R, 1e-6)));
+    }
+
+    @Test
+    public void everyIdAmongTheCollidersAndThePartsIsItsOwn() {
+        String floor = rejection(Surroundings.of(WALLS, List.of(new Stated("Floor", 0, false))));
+        String twice =
+                rejection(Surroundings.of(WALLS, List.of(new Stated("arm", 0, false), new Stated("arm", 1, true))));
+
+        assertTrue(floor, floor.contains("every collider has a name of its own, and 'Floor' is not one"));
+        assertTrue(twice, twice.contains("'arm'"));
+        assertEquals("accepted", rejection(Surroundings.of(WALLS, List.of(new Stated("arm", 0, false)))));
+    }
+
+    @Test
+    public void theSweepIsTheFastestMovingPartsAndAPartThatIsStillAddsNone() {
+        Stated slow = new Stated("slow", 3, true),
+                still = new Stated("still", 7, false),
+                fast = new Stated("fast", 5, true);
+
+        Surroundings around = with(slow, still, fast);
+
+        assertEquals(5, around.sweep(), 0);
+        assertEquals(List.of(slow, fast), around.moving());
+        assertEquals(
+                Double.doubleToRawLongBits(0.0),
+                Double.doubleToRawLongBits(with(still).sweep()));
+        assertEquals(0, around.sweepOf(new Stated("spinning", 0, true)), 0);
+    }
+
+    @Test
+    public void aPartThatCannotSayHowFastItSweepsIsTakenToSweepAsFastAsCanBe() {
+        for (double said : new double[] {Double.NaN, -1}) {
+            Stated unsure = new Stated("unsure", said, true);
+
+            assertEquals(Double.POSITIVE_INFINITY, with(unsure).sweep(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, with(unsure).sweepOf(unsure), 0);
+        }
+    }
+
+    @Test
+    public void theSurroundingsAtATimeHaveEveryPartWhereItIsThenWhateverTimeTheyWereAt() {
+        Surroundings around = with(Carried.sliding(PLATE, new Vec3(0, 0, 2), 1));
+
+        double top = 11 + 1.4;
+        assertEquals(0, around.near(new Vec3(0, 0, top), R, 1e-6).get(0).gap(), 1e-12);
+        assertEquals(0, around.at(0.5).near(new Vec3(0, 0, top), R, 1e-6).get(0).gap(), 1e-12);
+        assertEquals(
+                0, around.at(3).near(new Vec3(0, 0, top + 4), R, 1e-6).get(0).gap(), 1e-12);
+        assertEquals(
+                around.at(3).near(new Vec3(0, 0, top + 4), R, 1e-6),
+                around.at(2).at(3).near(new Vec3(0, 0, top + 4), R, 1e-6));
+        assertEquals(List.of(), around.at(0.5).moving());
+        assertEquals(1, around.at(3).moving().size());
+        assertEquals(
+                new Vec3(0, 0, 2),
+                around.at(3).near(new Vec3(0, 0, top + 4), R, 1e-6).get(0).velocity());
+    }
+}
