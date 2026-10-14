@@ -143,6 +143,18 @@ final class Bodies {
 
     record Entry(Name name, Ball shape, Motion motion, Start start) {}
 
+    static final class Allowance {
+        private final long until;
+
+        private Allowance(long until) {
+            this.until = until;
+        }
+
+        static Allowance unlimited() {
+            return new Allowance(Long.MAX_VALUE);
+        }
+    }
+
     static final class Pieces {
         private final List<Entry> entries;
 
@@ -481,7 +493,18 @@ final class Bodies {
         return Optional.empty();
     }
 
+    Checked<Allowance> allowing(long units) {
+        if (units < 0) {
+            return Checked.rejected("an engine is allowed no less than no work, not " + units);
+        }
+        return Checked.ok(new Allowance(units > Long.MAX_VALUE - work ? Long.MAX_VALUE : work + units));
+    }
+
     List<Span> step() {
+        return step(Allowance.unlimited());
+    }
+
+    List<Span> step(Allowance allowance) {
         List<Span> spans = new ArrayList<>();
         Surroundings ahead = placed(surroundings, (steps + 1) * step);
         List<Seen> early = new ArrayList<>();
@@ -491,7 +514,7 @@ final class Bodies {
         }
         int pieces = piecesOfThisStep(ahead);
         for (int i = 1; i <= pieces; i++) {
-            aPiece((steps + (double) i / pieces) * step, spans, i == 1 ? early : List.of());
+            aPiece((steps + (double) i / pieces) * step, allowance, spans, i == 1 ? early : List.of());
         }
         steps++;
         now = steps * step;
@@ -601,7 +624,7 @@ final class Bodies {
         return watching.flatMap(this::named);
     }
 
-    private void aPiece(double target, List<Span> spans, List<Seen> early) {
+    private void aPiece(double target, Allowance allowance, List<Span> spans, List<Seen> early) {
         int events = 0;
         List<Seen> pending = early;
         while (now < target) {
@@ -613,7 +636,7 @@ final class Bodies {
             Optional<Glimpse> glimpse = watched().map(Glimpse::of);
             integrate(awake, span);
             double covered = span;
-            if (events < Shot.MOST_EVENTS_PER_PIECE && overlapsSomethingNew(awake, span)) {
+            if (events < Shot.MOST_EVENTS_PER_PIECE && work < allowance.until && overlapsSomethingNew(awake, span)) {
                 double lo = 0, hi = 1;
                 for (int i = 0; i < Shot.BISECTIONS; i++) {
                     double mid = (lo + hi) / 2;

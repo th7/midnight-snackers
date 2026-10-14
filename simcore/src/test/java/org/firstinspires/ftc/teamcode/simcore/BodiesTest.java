@@ -445,6 +445,65 @@ public class BodiesTest {
     }
 
     @Test
+    public void anEngineIsAllowedNoLessThanNoWork() {
+        Bodies bodies = unwatched();
+
+        String less = rejection(bodies.allowing(-1));
+
+        assertTrue(less, less.contains("an engine is allowed no less than no work, not -1"));
+        assertEquals("accepted", rejection(bodies.allowing(0)));
+        assertEquals("accepted", rejection(bodies.allowing(Long.MAX_VALUE)));
+    }
+
+    @Test
+    public void anEngineThatHasSpentItsAllowanceResolvesContactsAtTheEndsOfPiecesWithoutLocatingThem() {
+        Bodies located = watching("ball");
+        add(located, "ball", new Vec3(0, 0, R + 0.002), new Vec3(10, 0, -100), AWAKE);
+        Bodies unlocated = located.copy();
+        Bodies.Allowance none = Valid.value(unlocated.allowing(0));
+
+        List<Bodies.Span> cut = located.step();
+        List<Bodies.Span> whole = unlocated.step(none);
+
+        assertTrue(cut.toString(), cut.size() >= 2);
+        assertEquals(1, whole.size());
+        assertEquals(unlocated.now(), whole.get(0).now(), 0);
+        assertEquals(
+                "Floor", whole.get(0).resolved().orElseThrow().hits().get(0).against());
+        assertTrue(seen(unlocated, "ball").velocity().z() > 0);
+    }
+
+    @Test
+    public void anAllowanceLastsAcrossStepsUntilTheEnginesWorkReachesItAndTheSameAllowanceGivesTheSameShot() {
+        Bodies unlimited = watching("ball");
+        add(unlimited, "ball", new Vec3(0, 0, 10), new Vec3(30, 0, 0), AWAKE);
+        Bodies limited = unlimited.copy(), again = unlimited.copy(), ample = unlimited.copy();
+        Bodies.Allowance allowance = Valid.value(limited.allowing(12000)),
+                same = Valid.value(again.allowing(12000)),
+                never = Valid.value(ample.allowing(Long.MAX_VALUE));
+        long until = limited.work() + 12000;
+        int cutBefore = 0, cutAfter = 0;
+
+        for (int i = 0; i < 1.5 / STEP; i++) {
+            long before = limited.work();
+            int cut = limited.step(allowance).size() - 1;
+            cutBefore += before < until ? cut : 0;
+            cutAfter += before < until ? 0 : cut;
+            unlimited.step();
+            again.step(same);
+            ample.step(never);
+        }
+
+        assertTrue(cutBefore > 0);
+        assertEquals(0, cutAfter);
+        assertEquals(limited.seen(), again.seen());
+        assertEquals(limited.work(), again.work());
+        assertEquals(unlimited.seen(), ample.seen());
+        assertEquals(unlimited.work(), ample.work());
+        assertTrue(!unlimited.seen().equals(limited.seen()));
+    }
+
+    @Test
     public void aStepWatchingNothingSaysNothing() {
         Bodies bodies = unwatched();
         add(bodies, "ball", new Vec3(0, 0, 5), Vec3.zero(), AWAKE);
