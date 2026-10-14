@@ -1821,28 +1821,80 @@ the page, so the drawing cannot drift from the physics. The robot's obstacle
 footprints and the tape are not among them. Class: `Colliders`, `Collider`, in the
 **core**.
 
+**Arc** — A circle of some radius about a centre and a unit axis, whole or a part of a
+turn from an angle over a width more than nothing and less than a whole turn. One
+whose radius is not positive and finite, whose axis is not a unit vector, whose centre
+or starting angle is not finite, or whose width is outside that, is refused, saying
+which. Its angles run about the axis from the level way across it (straight back for
+an axle along the robot's y) toward the axis crossed with that (up), and from x for an
+upright axis. Every point has a point of it nearest: on the circle straight out from
+the axis while that is within the span, and the end nearer round the circle once it is
+not, across the seam at ±π as anywhere else. A point on the axis is nearest the start
+(a whole circle's angle 0), as far from it as √(h² + r²); the normal runs from the
+nearest point to the point, and for a point on the circle itself straight out from the
+axis in the circle's plane. Class: `Arc`, in the **core**.
+
 **Surroundings** — What the balls of a shot meet besides one another: the **shot's
-colliders**, which never move, and the parts that may, each listed by itself under
-the names it gives when it comes in, with where it reaches, how fast its shape sweeps
+colliders**, which never move, and the parts that may, each listed by itself under the
+names it gives when it comes in, with where it reaches, how fast its shape sweeps
 through space (nothing for a part that only spins about its own axis, as a flywheel
 does) and whether it is moving. A part takes the place of the one held under exactly
 its names, in any order; one under any other names is refused, saying so. A part is
-placed at a time given as the engine's
-whole steps and a part of a step, so a part that moves for so many steps does so
-wherever on the steps it starts. Whatever a ball touches says how fast the surface
-goes there and how it spins, so a ball rides what carries it and is dragged along by
-what slides or turns under it; a face of a moving part that does not itself move says
-it is still. A touch has a unit normal and a finite gap, velocity and spin, and a
-part's touch is kept only within the reach asked for and under one of the names the
-part came in with. A step is cut finer while a part sweeps fast at the step's start
-or at its end, and each new contact with a part is found where its face meets the
-ball, so a part that is moving at either end of a step passes through no ball. What a
-part promises the engine (its names given once and the same wherever it is placed,
-the same answers however it was placed, touches only where it says it reaches, a gap
-that changes as the face's velocity along its normal says and no faster than its
-sweep, a normal that turns as its spin says, and nothing moving while it says it is
-not moving or on a face that is still) is checked by a test helper that every part is
-run through. In a shot nothing moves; in a run's **flight** the hives do, as they tip. Class: `Surroundings`, in the **core**.
+placed at a time given as the engine's whole steps and a part of a step, so a part
+that moves for so many steps does so wherever on the steps it starts. Whatever a ball
+touches says how fast the surface goes there and how it spins, so a ball rides what
+carries it and is dragged along by what slides or turns under it; a face of a moving
+part that does not itself move says it is still. A touch has a unit normal and a
+finite gap, velocity and spin, and a part's touch is kept only within the reach asked
+for and under one of the names the part came in with. A step is cut finer while a part
+sweeps fast at the step's start or at its end, and each new contact with a part is
+found where its face meets the ball, so a part that is moving at either end of a step
+passes through no ball. What a part promises the engine (its names given once and the
+same wherever it is placed, the same answers however it was placed, touches only where
+it says it reaches, a gap that changes as the face's velocity along its normal says
+and no faster than its sweep, a normal that turns as its spin says, and nothing moving
+while it says it is not moving or on a face that is still) is checked by a test helper
+that every part is run through. A part may also squeeze: it says so, and answers what
+squeezes a ball (`squeezing`) with compliant touches (**compliant contact**), under
+names it never touches by; the surroundings ask only the parts that squeeze, and only
+where they reach. Every part so far squeezes nothing, and the same helper holds a part
+to squeezing only where it says it reaches, under its own names, only if it says it
+squeezes, with a depth that shrinks along its normal and changes as the face's
+velocity along it says. In a shot nothing moves; in a run's **flight** the hives do,
+as they tip. Class: `Surroundings`, in the **core**.
+
+**Compliant contact** — How a ball meets a surface that gives, as Reginald's flywheel
+and hood will: by a force while it is squeezed, never by an impulse. A compliant touch
+is the name of what squeezes, its surface's **compliance**, a unit normal, a depth
+more than nothing and the velocity of what squeezes there. A compliance is the whole
+surface's stiffness in newtons a millimetre, shared evenly by the rings it is sampled
+by, a restitution more than 0 and at most 1, a friction coefficient not below 0 and a
+regularisation speed more than 0; anything else is refused, saying which. The
+launcher's are 40 N/mm, 0.6, 0.6 on the wheel and 0.3 on the hood, and 0.02 m/s, each
+named beside where it came from. A ball within a piece's travel, a tenth of an inch,
+of where a compliant part reaches is pushed inside each stage of its integration, with
+the parts placed at that stage's own time: along each normal by the stiffness times
+the depth plus a damping times how fast the depth grows, the damping that makes a ball
+of its mass come back at the restitution, never pulling; and against the slip of its surface
+over what squeezes it (its velocity and its spin across the arm to the contact, less
+the velocity of what squeezes, along the surface) by the friction coefficient times
+that push, in proportion below the regularisation speed, turning it about its centre.
+A ball's regularisation speed is never below 2·h·Σμ·N·(1/m + r²/I) ÷ 2.785 over what
+squeezes it, twice the least at which RK4 holds a grip stable at the engine's step h,
+and is the surface's own wherever that already holds. So a ball pinched between a
+still plate and one sliding along rolls at half the slide's speed, never gains energy
+against supports that are still, and is thrown the same to within a half of a percent
+and a fifth of a degree at half the step. A compliant touch is never a hit or a press,
+never among what a body touches, never part of an island or of a **flight**'s landing,
+and never pushes a ball out of a face. A ball squeezed by supports that are all still
+rests as one on a still face does, falls asleep, and then stays put exactly; one
+squeezed by a support that moves or turns never rests, and rests only from when it
+stops; and a sleeping one wakes when a support squeezing it moves or turns, so a wheel
+that spins up throws the ball it held. Each evaluation in the integration of a ball so
+near a compliant part is a unit of work, and so is each asking of what squeezes a
+ball; a ball further from every compliant part moves and costs exactly as it did
+before there were any. Classes: `Compliance`, `CompliantContact`, `Surroundings`,
+`Bodies`, in the **core**.
 
 **Asleep** and **awake** — Of a piece in a shot, or a ball in a run's **flight**: the
 loose pollen and the nectar in the cells lie **asleep** where a match starts them until
@@ -1865,18 +1917,19 @@ sleeping body wakes nothing. Classes: `Islands`, `Bodies`, in the **core**.
 **Idle** and **allowance** — Of the engine a shot moves its balls on: it is **idle**
 through to a later step when nothing is awake and no moving face could reach a
 sleeping body before then, and it then goes there at once, exactly where stepping
-there would leave it. Its work counts every integration, every query of its
-surroundings, every check of a moving part's bounds and every placing of the parts
-in a step in which some body is awake once what the moving parts reach ahead of the
-step is woken; going idle, and a step in which nothing is then awake, are no work,
-so whether an engine idles through a stretch or steps through it never changes its
-work. A step can be given an **allowance**: so many units of work in each window of
-so many steps, the windows lying end to end from the first step. Once the work done
-since the first step the engine took in a window reaches its allowance, contacts in
-the rest of that window are resolved at the ends of pieces without being located, as
-they are once a piece has used up its events, and the next window locates them
-again. A shot's engine is allowed work without limit. Class: `Bodies`, in the
-**core**.
+there would leave it. Its work counts every integration (every evaluation in one, for
+a ball near enough a compliant part to be pushed by it, as **compliant contact**
+says), every query of its surroundings (asking what squeezes a ball among them), every
+check of a moving part's bounds and every placing of the parts in a step in which some
+body is awake once what the moving parts reach ahead of the step is woken; going idle,
+and a step in which nothing is then awake, are no work, so whether an engine idles
+through a stretch or steps through it never changes its work. A step can be given an
+**allowance**: so many units of work in each window of so many steps, the windows
+lying end to end from the first step. Once the work done since the first step the
+engine took in a window reaches its allowance, contacts in the rest of that window are
+resolved at the ends of pieces without being located, as they are once a piece has
+used up its events, and the next window locates them again. A shot's engine is allowed
+work without limit. Class: `Bodies`, in the **core**.
 
 **Shot settings** — Every number a launch is made from, each with its group, label,
 unit, range, default and a sentence saying what it does, and checked whole: the
