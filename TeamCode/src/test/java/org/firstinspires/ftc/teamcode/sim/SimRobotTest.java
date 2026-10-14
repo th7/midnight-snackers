@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1013,6 +1014,39 @@ public class SimRobotTest {
         assertEquals("on the floor", BALL, ball[2], DELTA);
         assertTrue(
                 "just ahead of the robot: x=" + ball[0], ball[0] > -60 && ball[0] < -60 + SimPlacement.ROBOT_SIZE_IN);
+    }
+
+    private double[] launchedIntoTheBaseOf(Field.Flower flower) {
+        sim.setPose(new Pose2d(-26.50, 40.06, Math.toRadians(-10)));
+        readyToLaunch(900);
+        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        sim.step(10.0);
+        return sim.placeOf(thePreloadOf(sim));
+    }
+
+    @Test
+    public void aBallLaunchedOntoAnEmptyFlowersBasePlateEndsUpRollingThereAndNested() {
+        Field.Flower flower = SimPlacement.FIELD.flowers().get(0);
+        int aside = 0;
+        for (SimRobot.Piece pollen : pollenOf(flower)) {
+            sim.place(pollen, -60, -60 + 4 * aside++);
+        }
+        sim.step(0.5);
+
+        double[] at = launchedIntoTheBaseOf(flower);
+
+        assertEquals("rolling on the floor, not held in flight above it: " + Arrays.toString(at), BALL, at[2], 0);
+        assertTrue("nested at the flower's axis: " + Arrays.toString(at), fromTheAxis(flower, at) < CONTACT);
+    }
+
+    @Test
+    public void aBallLaunchedOntoAFlowersBasePlateBesideItsStackEndsUpRollingOnTheFloorAndTheStackStands() {
+        Field.Flower flower = SimPlacement.FIELD.flowers().get(0);
+
+        double[] at = launchedIntoTheBaseOf(flower);
+
+        assertEquals("rolling on the floor, not held in flight above it: " + Arrays.toString(at), BALL, at[2], 0);
+        assertStandingIn(flower, 4);
     }
 
     @Test

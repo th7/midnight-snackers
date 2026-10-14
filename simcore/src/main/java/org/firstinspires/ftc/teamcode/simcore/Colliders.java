@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class Colliders {
+    public static final String FLOOR = "Floor";
     public static final double WALL_THICKNESS_IN = 1;
     public static final double CONVEX_TOLERANCE_IN = 0.02;
 
@@ -164,13 +165,52 @@ public final class Colliders {
 
     private static List<Checked<Collider>> floorWallsAndElements(Field field, Map<String, Integer> seen) {
         List<Checked<Collider>> made = new ArrayList<>();
-        made.add(Checked.ok(Collider.floor("Floor")));
+        made.add(Checked.ok(Collider.floor(FLOOR)));
         made.addAll(walls(field.size() / 2, field.wallHeight()));
         for (Field.Element element : field.elements()) {
             Surface surface = element.group().startsWith("Flower") ? Surface.FLOWER : Surface.FRAME;
             made.add(Collider.solid(numbered(element, seen), surface, element.faces()));
         }
         return made;
+    }
+
+    static Set<String> basePlatesOf(Field field) {
+        Map<String, Integer> seen = new LinkedHashMap<>();
+        Map<String, String> plates = new LinkedHashMap<>();
+        Map<String, Double> lowest = new LinkedHashMap<>();
+        for (Field.Element element : field.elements()) {
+            String name = numbered(element, seen);
+            for (Field.Flower flower : field.flowers()) {
+                double top = topOf(element);
+                if (element.group().equals(flower.name())
+                        && over(element, flower.axis())
+                        && top < lowest.getOrDefault(flower.name(), Double.POSITIVE_INFINITY)) {
+                    lowest.put(flower.name(), top);
+                    plates.put(flower.name(), name);
+                }
+            }
+        }
+        return Collections.unmodifiableSet(new HashSet<>(plates.values()));
+    }
+
+    private static double topOf(Field.Element element) {
+        double top = Double.NEGATIVE_INFINITY;
+        for (Vec3 vertex : element.vertices()) {
+            top = StrictMath.max(top, vertex.z());
+        }
+        return top;
+    }
+
+    private static boolean over(Field.Element element, Vec2 axis) {
+        double lx = Double.POSITIVE_INFINITY, ly = Double.POSITIVE_INFINITY;
+        double mx = Double.NEGATIVE_INFINITY, my = Double.NEGATIVE_INFINITY;
+        for (Vec3 vertex : element.vertices()) {
+            lx = StrictMath.min(lx, vertex.x());
+            ly = StrictMath.min(ly, vertex.y());
+            mx = StrictMath.max(mx, vertex.x());
+            my = StrictMath.max(my, vertex.y());
+        }
+        return lx <= axis.x() && axis.x() <= mx && ly <= axis.y() && axis.y() <= my;
     }
 
     private static List<Bore> boresOf(Field field) {

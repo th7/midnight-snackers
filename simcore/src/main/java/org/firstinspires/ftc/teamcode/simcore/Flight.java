@@ -64,6 +64,7 @@ public final class Flight<K> {
             Colliders still,
             Surroundings around,
             Set<String> floors,
+            double floorsTop,
             Surfaces surfaces,
             Bodies.Allowance allowance,
             double pollenGrams,
@@ -122,6 +123,7 @@ public final class Flight<K> {
 
     private static <K> Checked<Flight<K>> over(Hives hives) {
         ShotSettings defaults = ShotSettings.defaults();
+        Set<String> floors = floorsOf(hives.field());
         return Colliders.withoutHives(hives.field())
                 .then(still -> Surroundings.of(still, List.of(hives.part()))
                         .then(around -> ShotSetup.air(defaults)
@@ -132,7 +134,8 @@ public final class Flight<K> {
                                                                 new Physics(
                                                                         still,
                                                                         around,
-                                                                        floorsOf(still),
+                                                                        floors,
+                                                                        topOf(floors, still),
                                                                         surfaces,
                                                                         allowance,
                                                                         defaults.value(ShotSetting.MASS),
@@ -149,14 +152,20 @@ public final class Flight<K> {
         return Seconds.of(STEP_NANOS / NANOS_PER_SECOND).then(Bodies.Step::of);
     }
 
-    private static Set<String> floorsOf(Colliders still) {
-        Set<String> floors = new HashSet<>();
+    private static Set<String> floorsOf(Field field) {
+        Set<String> floors = new HashSet<>(Colliders.basePlatesOf(field));
+        floors.add(Colliders.FLOOR);
+        return Collections.unmodifiableSet(floors);
+    }
+
+    private static double topOf(Set<String> floors, Colliders still) {
+        double top = 0;
         for (Collider collider : still.all()) {
-            if (collider.surface() == Surface.FLOOR) {
-                floors.add(collider.name());
+            if (floors.contains(collider.name())) {
+                top = StrictMath.max(top, collider.most().z());
             }
         }
-        return Collections.unmodifiableSet(floors);
+        return top;
     }
 
     public Hives hives() {
@@ -474,7 +483,11 @@ public final class Flight<K> {
                 }
                 return false;
             }
-            return now.seen().at().z() - one.radius().inches() <= Shot.TOUCHING_IN;
+            return lowEnough(now.seen().at(), one.radius());
+        }
+
+        private boolean lowEnough(Vec3 at, Length radius) {
+            return at.z() - radius.inches() <= physics.floorsTop() + Shot.TOUCHING_IN;
         }
 
         void tipWhatIsFull() {
@@ -588,9 +601,7 @@ public final class Flight<K> {
                 if (ball.lying().isPresent()) {
                     return ball.lying().orElse(Footing.none());
                 }
-                Footing footing = seen.at().z() - ball.radius().inches() <= Shot.TOUCHING_IN
-                        ? footingAround(ball, seen)
-                        : Footing.none();
+                Footing footing = lowEnough(seen.at(), ball.radius()) ? footingAround(ball, seen) : Footing.none();
                 replace(ball, ball.lyingOn(footing));
                 return footing;
             }

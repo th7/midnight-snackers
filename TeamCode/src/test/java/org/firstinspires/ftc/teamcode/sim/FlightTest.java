@@ -464,6 +464,34 @@ public class FlightTest {
     }
 
     @Test
+    public void aPollenThatComesToRestOnAFlowersBasePlateLandsThere() {
+        Field.Flower flower = field.flowers().get(0);
+        double x = flower.axis().x(), y = flower.axis().y(), under = 2.3;
+        Flight<Object> fresh = flight;
+        for (Vec3 spot : List.of(
+                new Vec3(x, y, under),
+                new Vec3(x - 1.0, y + 0.5, under),
+                new Vec3(x - flower.bore() - 0.15, y, under))) {
+            flight = fresh;
+            landed.clear();
+            Object ball = drop(Field.Kind.POLLEN, POLLEN, spot);
+
+            fly(Falling.settledAfter(under) + 1);
+
+            assertEquals("let go at " + spot, 1, landed.size());
+            assertTrue(landed.get(0) instanceof Flight.OnTheFloor);
+            assertTrue(landed.get(0).ball() == ball);
+            assertEquals(
+                    "where it came to rest, let go at " + spot,
+                    spot.x(),
+                    landed.get(0).at().x(),
+                    0.2);
+            assertEquals(spot.y(), landed.get(0).at().y(), 0.2);
+            assertEquals(POLLEN_RADIUS, landed.get(0).at().z(), 0);
+        }
+    }
+
+    @Test
     public void aBallLetGoOnAFlowersTopComesToRestThereAboveItsBoreAndStaysInFlight() {
         Field.Flower flower = field.flowers().get(0);
         double top = highestOf(flower.name(), "Flower Layer C");

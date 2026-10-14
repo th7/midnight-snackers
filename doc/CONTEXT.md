@@ -1498,9 +1498,13 @@ back on the floor with the robot, once it presses on the floor rather than
 striking it, rolls there without slipping or has fallen asleep there, and
 touches nothing the floor's own world lacks: a wall, the side of an obstacle
 standing on the floor and another ball landing with it are all it may touch,
-so balls that come to rest together land together. A ball resting on another
-ball, on top of an element or on a flower's top stays in flight; no ball gets
-into a flower's bore. A ball whose centre is past a wall's outer face is out. A
+so balls that come to rest together land together. A flower's base plate, the
+floor of its bore with the **nest**'s ring in it, is floor here as it is to the
+floor's own world, so a ball that comes to rest on it lands there and the nest,
+seat and stack take it. A ball resting on another ball, on top of any other
+element or on a flower's top stays in flight; a flower's top closes its bore from
+above, so a ball gets into a bore only under the flower's layers, along its base
+plate. A ball whose centre is past a wall's outer face is out. A
 ball counts toward tipping a hive only while it presses on its upturned cell's
 walls or back or on a ball in the cell, never while it crosses the mouth in the
 air. The nectar a hive is set up with lie asleep where the field puts them,
