@@ -71,10 +71,12 @@ public class LauncherSimTest {
     }
 
     @Test
-    public void thePreloadsFourLaunchesAtTheirCadenceAllComeToRestInAnEmptyCellThrownTwoInchesASecondEitherSide() {
+    public void fourLaunchesAtTheirCadenceAllComeToRestInAnEmptyCellAtTheBuiltThrowAndTwoInchesASecondEitherSide() {
         double twoInchesASecond = 2.1 / CODES_CLOSE_LAUNCH_TICKS_PER_SECOND;
         for (double throwing : new double[] {
-            Launch.IN_PER_S_PER_TICK_PER_S - twoInchesASecond, Launch.IN_PER_S_PER_TICK_PER_S + twoInchesASecond
+            Launch.IN_PER_S_PER_TICK_PER_S,
+            Launch.IN_PER_S_PER_TICK_PER_S - twoInchesASecond,
+            Launch.IN_PER_S_PER_TICK_PER_S + twoInchesASecond
         }) {
             String said = "throwing " + throwing * CODES_CLOSE_LAUNCH_TICKS_PER_SECOND + " in/s";
             SimRobot thrower = new SimRobot(TeamRobot.REGINALD, SimNoise.NONE, constants(throwing));
