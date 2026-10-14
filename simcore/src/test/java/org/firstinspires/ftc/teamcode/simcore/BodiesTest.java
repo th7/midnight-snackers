@@ -109,6 +109,16 @@ public class BodiesTest {
     }
 
     @Test
+    public void aNameTheEngineNumbersIsOneNoNamedBodyCanTake() {
+        String taken = rejection(Bodies.Name.of(Bodies.Name.numbered(7).text()));
+
+        assertTrue(taken, taken.contains("a name starting '#' is one the engine numbers"));
+        assertEquals(Bodies.Name.numbered(7), Bodies.Name.numbered(7));
+        assertFalse(Bodies.Name.numbered(7).equals(Bodies.Name.numbered(8)));
+        assertFalse(Bodies.Name.numbered(7).text().isBlank());
+    }
+
+    @Test
     public void aBodyIsAddedOnlyUnderANameOfItsOwn() {
         Bodies bodies = unwatched();
         add(bodies, "one", new Vec3(0, 0, R), Vec3.zero(), AWAKE);
@@ -501,6 +511,92 @@ public class BodiesTest {
         assertEquals(unlimited.seen(), ample.seen());
         assertEquals(unlimited.work(), ample.work());
         assertTrue(!unlimited.seen().equals(limited.seen()));
+    }
+
+    @Test
+    public void anAllowanceForATimeIsTheWorkAShotMayDoInThatTime() {
+        Bodies byUnits = watching("ball");
+        add(byUnits, "ball", new Vec3(0, 0, 10), new Vec3(30, 0, 0), AWAKE);
+        Bodies byTime = byUnits.copy(), forEver = byUnits.copy(), unlimited = byUnits.copy();
+        Bodies.Allowance units = Valid.value(byUnits.allowing(Shot.MOST_WORK_PER_SECOND / 250));
+        Bodies.Allowance time = byTime.allowingFor(Valid.value(Seconds.of(0.004)));
+        Bodies.Allowance ever = forEver.allowingFor(Valid.value(Seconds.of(Double.MAX_VALUE)));
+
+        for (int i = 0; i < 1.5 / STEP; i++) {
+            byUnits.step(units);
+            byTime.step(time);
+            forEver.step(ever);
+            unlimited.step();
+        }
+
+        assertEquals(byUnits.seen(), byTime.seen());
+        assertEquals(byUnits.work(), byTime.work());
+        assertEquals(unlimited.seen(), forEver.seen());
+        assertTrue(!unlimited.seen().equals(byTime.seen()));
+    }
+
+    @Test
+    public void anEngineSaysWhetherAnyBodyIsAwake() {
+        Bodies bodies = unwatched();
+        add(bodies, "asleep", new Vec3(10, 0, R), Vec3.zero(), ASLEEP);
+
+        assertFalse(bodies.anyAwake());
+        add(bodies, "awake", new Vec3(0, 0, R), Vec3.zero(), AWAKE);
+        assertTrue(bodies.anyAwake());
+    }
+
+    @Test
+    public void theEngineSaysOfEveryBodyInTurnWhatItTouchedWhenItLastLookedAndAsleepThatIsNothing() {
+        Bodies bodies = unwatched();
+        add(bodies, "left", new Vec3(0, 0, R), Vec3.zero(), AWAKE);
+        add(bodies, "right", new Vec3(2 * R, 0, R), Vec3.zero(), AWAKE);
+        add(bodies, "lying", new Vec3(20, 0, R), Vec3.zero(), ASLEEP);
+
+        List<Bodies.Touched> touched = bodies.touched();
+
+        assertEquals(3, touched.size());
+        assertEquals(seen(bodies, "left"), touched.get(0).seen());
+        assertEquals(Set.of("Floor"), touched.get(0).colliders());
+        assertEquals(Set.of("right"), touched.get(0).bodies());
+        assertEquals(Set.of("left"), touched.get(1).bodies());
+        assertEquals(Set.of(), touched.get(2).colliders());
+        assertEquals(
+                bodies.touching("left").orElseThrow().colliders(),
+                touched.get(0).colliders());
+    }
+
+    @Test
+    public void whatABodyTouchesNowIsFoundWhenAskedAwakeOrAsleepWithEachSurfacesNormalAndCostsAQuery() {
+        Bodies bodies = unwatched();
+        add(bodies, "lying", new Vec3(0, 0, R), Vec3.zero(), ASLEEP);
+        add(bodies, "beside", new Vec3(2 * R, 0, R), Vec3.zero(), ASLEEP);
+        add(bodies, "far", new Vec3(30, 0, R + 5), Vec3.zero(), ASLEEP);
+        long work = bodies.work();
+
+        Bodies.Around around = bodies.around("lying").orElseThrow();
+
+        assertEquals(work + 1, bodies.work());
+        assertEquals(1, around.touches().size());
+        assertEquals("Floor", around.touches().get(0).id());
+        assertEquals(new Vec3(0, 0, 1), around.touches().get(0).normal());
+        assertEquals(List.of("beside"), around.bodies());
+        assertTrue(bodies.around("far").orElseThrow().touches().isEmpty());
+        assertTrue(bodies.around("nobody").isEmpty());
+    }
+
+    @Test
+    public void aPlaceIsClearedOfWhatItOverlapsAsTheShotsSetUpClearsAPieceAmongOnesThatStay() {
+        Bodies bodies = unwatched();
+        add(bodies, "there", new Vec3(0, 0, R), Vec3.zero(), ASLEEP);
+        Vec3 overlapping = new Vec3(2 * R - 0.02, 0, R - 0.03);
+
+        Vec3 cleared = bodies.clearOf(overlapping, POLLEN.radiusLength());
+
+        assertEquals(new Vec3(0, 0, R), seen(bodies, "there").at());
+        assertTrue("off the floor: " + cleared, cleared.z() - R >= -1e-9);
+        assertTrue("apart: " + cleared, cleared.minus(new Vec3(0, 0, R)).length() >= 2 * R - 1e-9);
+        Vec3 clear = new Vec3(20, 0, R + 1);
+        assertEquals(clear, bodies.clearOf(clear, POLLEN.radiusLength()));
     }
 
     @Test

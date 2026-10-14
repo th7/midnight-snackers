@@ -215,6 +215,22 @@ public class SurroundingsTest {
     }
 
     @Test
+    public void aPartIsReplacedByOneUnderTheSameNamesAndAPartUnderNamesTheSurroundingsDoNotHoldChangesNothing() {
+        Surroundings.Part was =
+                new Answering(List.of("arm", "hand"), List.of(touch("arm", 0.5)), List.of("arm", "hand"));
+        Surroundings.Part now =
+                new Answering(List.of("arm", "hand"), List.of(touch("hand", -0.5)), List.of("arm", "hand"));
+        Surroundings around = with(new Stated("post", 0, false), was);
+
+        Surroundings replaced = around.replacing(now);
+        Surroundings unchanged =
+                around.replacing(new Answering(List.of("arm"), List.of(touch("arm", -1)), List.of("arm")));
+
+        assertEquals(List.of("Floor", "hand"), ids(replaced.near(Vec3.zero(), R, 1)));
+        assertEquals(List.of("Floor", "arm"), ids(unchanged.near(Vec3.zero(), R, 1)));
+    }
+
+    @Test
     public void theSweepIsTheFastestMovingPartsAndAPartThatIsStillAddsNone() {
         Stated slow = new Stated("slow", 3, true),
                 still = new Stated("still", 7, false),

@@ -200,6 +200,14 @@ final class Surroundings {
         return new Surroundings(still, then);
     }
 
+    Surroundings replacing(Part part) {
+        List<Held> replaced = new ArrayList<>();
+        for (Held held : parts) {
+            replaced.add(held.part().ids().equals(part.ids()) ? new Held(part, held.ids) : held);
+        }
+        return new Surroundings(still, replaced);
+    }
+
     List<Touch> near(Vec3 centre, Length radius, double within) {
         List<Touch> touches = new ArrayList<>();
         for (Colliders.Near near : still.near(centre, radius, within)) {

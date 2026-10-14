@@ -68,6 +68,8 @@ final class Bodies {
     }
 
     static final class Name {
+        static final String NUMBERED = "#";
+
         private final String text;
 
         private Name(String text) {
@@ -78,11 +80,19 @@ final class Bodies {
             if (text.isBlank()) {
                 return Checked.rejected("a body has a name, not '" + text + "'");
             }
+            if (text.startsWith(NUMBERED)) {
+                return Checked.rejected("a name starting '" + NUMBERED
+                        + "' is one the engine numbers, so a body cannot take '" + text + "'");
+            }
             return Checked.ok(new Name(text));
         }
 
         static Name launched() {
             return new Name(Shot.LAUNCHED);
+        }
+
+        static Name numbered(long number) {
+            return new Name(NUMBERED + number);
         }
 
         String text() {
@@ -185,6 +195,10 @@ final class Bodies {
     record Touching(Set<String> colliders, Set<String> bodies) {}
 
     record Gone(String name, Colliders.Side side, Vec3 at, Turn turn) {}
+
+    record Touched(Seen seen, Set<String> colliders, Set<String> bodies) {}
+
+    record Around(List<Surroundings.Touch> touches, List<String> bodies) {}
 
     record Span(
             double began,
@@ -472,6 +486,67 @@ final class Bodies {
         return false;
     }
 
+    boolean anyAwake() {
+        for (Body body : bodies) {
+            if (body.life == Life.AWAKE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    List<Touched> touched() {
+        List<Touched> touched = new ArrayList<>();
+        for (Body body : bodies) {
+            touched.add(new Touched(
+                    body.seen(),
+                    Collections.unmodifiableSet(body.touchingColliders),
+                    Collections.unmodifiableSet(body.touchingBodies)));
+        }
+        return Collections.unmodifiableList(touched);
+    }
+
+    Optional<Around> around(String name) {
+        return named(name).map(body -> {
+            List<String> touching = new ArrayList<>();
+            for (Body other : bodies) {
+                if (other != body
+                        && other.life != Life.GONE
+                        && within(body.at, body, other.at, other, Shot.TOUCHING_IN)) {
+                    touching.add(other.name);
+                }
+            }
+            return new Around(
+                    near(surroundings, body.at, body.reach(), Shot.TOUCHING_IN),
+                    Collections.unmodifiableList(touching));
+        });
+    }
+
+    Vec3 clearOf(Vec3 at, Length reach) {
+        Vec3 cleared = at;
+        double r = reach.inches();
+        boolean moved = true;
+        for (int pass = 0; pass < ShotSetup.SETTING_DOWN_PASSES && moved; pass++) {
+            moved = false;
+            for (Surroundings.Touch near : near(surroundings, cleared, reach, 0)) {
+                if (near.gap() < -ShotSetup.SET_DOWN_IN) {
+                    cleared = cleared.along(near.normal(), -near.gap());
+                    moved = true;
+                }
+            }
+            for (Body other : bodies) {
+                Vec3 apart = cleared.minus(other.at);
+                double distance = StrictMath.sqrt(apart.dot(apart));
+                double over = r + other.radius() - distance;
+                if (other.life != Life.GONE && distance > 0 && over > ShotSetup.SET_DOWN_IN) {
+                    cleared = cleared.along(apart.times(1 / distance), over);
+                    moved = true;
+                }
+            }
+        }
+        return cleared;
+    }
+
     long steps() {
         return steps;
     }
@@ -497,7 +572,15 @@ final class Bodies {
         if (units < 0) {
             return Checked.rejected("an engine is allowed no less than no work, not " + units);
         }
-        return Checked.ok(new Allowance(units > Long.MAX_VALUE - work ? Long.MAX_VALUE : work + units));
+        return Checked.ok(allowingMore(units));
+    }
+
+    private Allowance allowingMore(long units) {
+        return new Allowance(units > Long.MAX_VALUE - work ? Long.MAX_VALUE : work + units);
+    }
+
+    Allowance allowingFor(Seconds seconds) {
+        return allowingMore((long) StrictMath.ceil(Shot.MOST_WORK_PER_SECOND * seconds.value()));
     }
 
     List<Span> step() {
