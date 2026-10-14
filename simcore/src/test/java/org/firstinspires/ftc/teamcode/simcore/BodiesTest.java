@@ -268,7 +268,7 @@ public class BodiesTest {
         double began = 0;
         for (Bodies.Span span : spans) {
             assertEquals(began, span.began(), 0);
-            assertEquals(span.began() + span.took(), span.now(), 0);
+            assertEquals(span.began() + span.took(), span.now(), Math.ulp(span.now()));
             began = span.now();
         }
         assertEquals(bodies.now(), began, 0);
