@@ -42,6 +42,8 @@ public final class Colliders {
 
     public record InCell(String cell, String alliance, boolean upturned) {}
 
+    record Framed(Field.Hive hive, List<Collider> colliders, Map<String, Field.Cell> panels) {}
+
     public record Crossing(
             String cell,
             String alliance,
@@ -160,6 +162,31 @@ public final class Colliders {
         return allOf(made)
                 .then(Colliders::namedApart)
                 .then(colliders -> allOf(baskets).map(cells -> new Colliders(field, colliders, tilts, cells, bores)));
+    }
+
+    static Checked<List<Framed>> inTheirHivesFrames(Field field) {
+        Map<String, Integer> seen = new LinkedHashMap<>();
+        for (Field.Element element : field.elements()) {
+            numbered(element, seen);
+        }
+        List<Checked<Framed>> framed = new ArrayList<>();
+        for (Field.Hive hive : field.hives()) {
+            List<Checked<Collider>> made = new ArrayList<>();
+            Map<String, Field.Cell> panels = new LinkedHashMap<>();
+            for (Field.Element part : hive.parts()) {
+                made.add(Collider.solid(numbered(part, seen), Surface.FRAME, part.faces()));
+            }
+            for (Field.Cell cell : hive.cells()) {
+                for (Map.Entry<String, Ring<Vec3>> panel : panelsOf(cell).entrySet()) {
+                    made.add(Collider.plate(panel.getKey(), Surface.CELL, panel.getValue()));
+                    panels.put(panel.getKey(), cell);
+                }
+            }
+            framed.add(allOf(made)
+                    .map(colliders -> new Framed(
+                            hive, Collections.unmodifiableList(colliders), Collections.unmodifiableMap(panels))));
+        }
+        return allOf(framed);
     }
 
     private static Checked<List<Collider>> namedApart(List<Collider> colliders) {

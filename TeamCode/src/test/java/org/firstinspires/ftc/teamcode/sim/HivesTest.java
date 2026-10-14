@@ -21,9 +21,10 @@ public class HivesTest {
     private static final double POLLEN_RADIUS = 1.39;
     private static final Length POLLEN = Valid.value(Length.of(POLLEN_RADIUS));
     private static final double STEP = 0.01;
+    private static final double WITHIN = 0.02;
 
     private final Field field = SimPlacement.FIELD;
-    private Hives hives = Hives.of(field);
+    private Hives hives = Valid.value(Hives.of(field));
     private final Field.Hive blue = hives.hiveOf("Blue").orElseThrow();
     private final Field.Hive red = hives.hiveOf("Red").orElseThrow();
 
@@ -167,11 +168,12 @@ public class HivesTest {
         Vec3 inward = cell.mouthCentre().minus(centreOf(cell.back())).unit();
         Vec3 local = centreOf(cell.back()).along(inward, 1.0);
 
-        List<Hives.Touch> touches = hives.touching(inBlue(local), POLLEN);
+        List<Hives.Touch> touches = hives.near(inBlue(local), POLLEN, WITHIN);
 
         assertEquals("the back and nothing else", 1, touches.size());
         Hives.Touch touch = touches.get(0);
-        assertEquals(POLLEN_RADIUS - 1.0, touch.depth(), DELTA);
+        assertEquals(cell.name() + " / back", touch.id());
+        assertEquals(1.0 - POLLEN_RADIUS, touch.gap(), DELTA);
         assertVector("away from the back, toward the mouth", blue.direction(tilt(blue), inward), touch.normal());
         assertVector("a hive at rest is still", Vec3.zero(), touch.velocity());
     }
@@ -180,15 +182,16 @@ public class HivesTest {
     public void theMouthOfACellIsOpen() {
         Field.Cell cell = upturned(blue);
 
-        assertEquals(0, hives.touching(cell.mouthCentreAt(tilt(blue)), POLLEN).size());
+        assertEquals(
+                0, hives.near(cell.mouthCentreAt(tilt(blue)), POLLEN, WITHIN).size());
     }
 
     @Test
     public void aWallIsSolidFromOutsideTooAndKeepsABallItsRadiusAway() {
-        List<Hives.Touch> touches = hives.touching(inBlue(new Vec3(15, 10.03 + 0.7, 3)), POLLEN);
+        List<Hives.Touch> touches = hives.near(inBlue(new Vec3(15, 10.03 + 0.7, 3)), POLLEN, WITHIN);
 
         assertEquals(1, touches.size());
-        assertEquals(POLLEN_RADIUS - 0.7, touches.get(0).depth(), 0.01);
+        assertEquals(0.7 - POLLEN_RADIUS, touches.get(0).gap(), 0.01);
         assertVector(
                 "straight out from the wall, which the CAD stands all but upright",
                 new Vec3(0, 1, 0),
@@ -201,10 +204,10 @@ public class HivesTest {
         Vec3 lip = new Vec3(21.46, 5, -1.42);
         Vec3 beyond = new Vec3(lip.x() + 0.6, lip.y(), lip.z() - 0.6);
 
-        List<Hives.Touch> touches = hives.touching(inBlue(beyond), POLLEN);
+        List<Hives.Touch> touches = hives.near(inBlue(beyond), POLLEN, WITHIN);
 
         assertEquals(1, touches.size());
-        assertEquals(POLLEN_RADIUS - Math.hypot(0.6, 0.6), touches.get(0).depth(), 0.01);
+        assertEquals(Math.hypot(0.6, 0.6) - POLLEN_RADIUS, touches.get(0).gap(), 0.01);
         assertVector(
                 "from the edge to the ball, not square to the wall",
                 blue.direction(tilt(blue), new Vec3(0.6, 0, -0.6).unit()),
@@ -213,18 +216,19 @@ public class HivesTest {
 
     @Test
     public void theHivesOtherPartsAreSolidToo() {
-        List<Hives.Touch> touches = hives.touching(inBlue(new Vec3(15, 0, -2.71 - 1.0)), POLLEN);
+        List<Hives.Touch> touches = hives.near(inBlue(new Vec3(15, 0, -2.71 - 1.0)), POLLEN, WITHIN);
 
         assertEquals("the base tube, which nothing else is near", 1, touches.size());
-        assertEquals(POLLEN_RADIUS - 1.0, touches.get(0).depth(), DELTA);
+        assertEquals(1.0 - POLLEN_RADIUS, touches.get(0).gap(), DELTA);
         assertVector(
                 blue.direction(tilt(blue), new Vec3(0, 0, -1)), touches.get(0).normal());
     }
 
     @Test
     public void aBallFarFromEveryHiveTouchesNothing() {
-        assertEquals(0, hives.touching(new Vec3(0, 0, POLLEN_RADIUS), POLLEN).size());
-        assertEquals(0, hives.touching(new Vec3(60, 60, 50), POLLEN).size());
+        assertEquals(
+                0, hives.near(new Vec3(0, 0, POLLEN_RADIUS), POLLEN, WITHIN).size());
+        assertEquals(0, hives.near(new Vec3(60, 60, 50), POLLEN, WITHIN).size());
     }
 
     @Test
@@ -236,7 +240,7 @@ public class HivesTest {
         advance(Lean.TIP_SECONDS / 2);
 
         double before = tilt(blue);
-        Hives.Touch touch = hives.touching(inBlue(local), POLLEN).get(0);
+        Hives.Touch touch = hives.near(inBlue(local), POLLEN, WITHIN).get(0);
         Vec3 touched = blue.at(before, centreOf(cell.back()));
         advance(0.001);
         Vec3 after = blue.at(tilt(blue), centreOf(cell.back()));

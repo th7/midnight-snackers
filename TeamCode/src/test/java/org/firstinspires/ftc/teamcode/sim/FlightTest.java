@@ -27,7 +27,7 @@ public class FlightTest {
     private static final double STEP = 0.005;
 
     private final Field field = SimPlacement.FIELD;
-    private Flight<Object> flight = Flight.over(Hives.of(field));
+    private Flight<Object> flight = Flight.over(Valid.value(Hives.of(field)));
     private final Field.Hive blue = flight.hives().hiveOf("Blue").orElseThrow();
     private final List<Flight.Landing<Object>> landed = new ArrayList<>();
 

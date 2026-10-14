@@ -326,7 +326,7 @@ public class SimRobot {
         chassis.setAngularDamping(0);
         world.addBody(chassis);
 
-        flight = Flight.over(Hives.of(FIELD));
+        flight = Flight.over(Valid.value(Hives.of(FIELD)));
         for (Field.Flower flower : FIELD.flowers()) {
             stacks.put(flower, Stack.in(flower));
             seats.put(flower, Seat.seated());

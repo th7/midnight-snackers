@@ -9,6 +9,8 @@ public sealed interface Lean permits Lean.Resting, Lean.Tipping {
 
     double degreesPerSecond();
 
+    double fastestDegreesPerSecond();
+
     Lean after(Seconds elapsed);
 
     Lean tipped();
@@ -23,6 +25,11 @@ public sealed interface Lean permits Lean.Resting, Lean.Tipping {
 
         @Override
         public double degreesPerSecond() {
+            return 0;
+        }
+
+        @Override
+        public double fastestDegreesPerSecond() {
             return 0;
         }
 
@@ -46,13 +53,21 @@ public sealed interface Lean permits Lean.Resting, Lean.Tipping {
         @Override
         public double degrees() {
             double a = from.degrees(), b = to.degrees();
-            return a + (b - a) * (1 - Math.cos(Math.PI * elapsed.value() / TIP_SECONDS)) / 2;
+            return a + (b - a) * (1 - StrictMath.cos(StrictMath.PI * elapsed.value() / TIP_SECONDS)) / 2;
         }
 
         @Override
         public double degreesPerSecond() {
             double a = from.degrees(), b = to.degrees();
-            return (b - a) * Math.PI / (2 * TIP_SECONDS) * Math.sin(Math.PI * elapsed.value() / TIP_SECONDS);
+            return (b - a)
+                    * StrictMath.PI
+                    / (2 * TIP_SECONDS)
+                    * StrictMath.sin(StrictMath.PI * elapsed.value() / TIP_SECONDS);
+        }
+
+        @Override
+        public double fastestDegreesPerSecond() {
+            return StrictMath.abs(to.degrees() - from.degrees()) * StrictMath.PI / (2 * TIP_SECONDS);
         }
 
         @Override

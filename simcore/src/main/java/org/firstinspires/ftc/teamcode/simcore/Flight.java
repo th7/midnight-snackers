@@ -395,7 +395,7 @@ public final class Flight<K> {
         for (Field.Hive hive : hives.field().hives()) {
             boolean moving = hives.tipping(hive);
             for (Moving<K> ball : balls) {
-                moving |= ball.slowFor < REST_SECONDS && hives.near(hive, ball.at, ball.radius + NEIGHBOURHOOD_IN);
+                moving |= ball.slowFor < REST_SECONDS && hives.reaches(hive, ball.at, ball.radius + NEIGHBOURHOOD_IN);
             }
             if (moving) {
                 stirring.add(hive);
@@ -404,7 +404,7 @@ public final class Flight<K> {
         for (Moving<K> ball : balls) {
             boolean nearAny = false, nearStirring = false;
             for (Field.Hive hive : hives.field().hives()) {
-                if (hives.near(hive, ball.at, ball.radius + NEIGHBOURHOOD_IN)) {
+                if (hives.reaches(hive, ball.at, ball.radius + NEIGHBOURHOOD_IN)) {
                     nearAny = true;
                     nearStirring |= stirring.contains(hive);
                 }
@@ -423,7 +423,7 @@ public final class Flight<K> {
             if (!ball.awake) {
                 continue;
             }
-            for (Hives.Touch touch : hives.touching(ball.at, ball.length)) {
+            for (Hives.Touch touch : hives.near(ball.at, ball.length, CONTACT_TOLERANCE_IN)) {
                 contacts.add(new AgainstAHive<>(ball, touch.normal(), touch.velocity()).bouncing());
             }
         }
@@ -447,14 +447,14 @@ public final class Flight<K> {
                     continue;
                 }
                 Optional<Hives.Touch> deepest = Optional.empty();
-                for (Hives.Touch touch : hives.touching(ball.at, ball.length)) {
-                    if (deepest.map(d -> touch.depth() > d.depth()).orElse(true)) {
+                for (Hives.Touch touch : hives.near(ball.at, ball.length, CONTACT_TOLERANCE_IN)) {
+                    if (deepest.map(d -> touch.gap() < d.gap()).orElse(true)) {
                         deepest = Optional.of(touch);
                     }
                 }
                 deepest.ifPresent(d -> {
-                    if (d.depth() > CONTACT_TOLERANCE_IN) {
-                        ball.move(d.normal(), d.depth() - CONTACT_TOLERANCE_IN);
+                    if (-d.gap() > CONTACT_TOLERANCE_IN) {
+                        ball.move(d.normal(), -d.gap() - CONTACT_TOLERANCE_IN);
                     }
                 });
             }

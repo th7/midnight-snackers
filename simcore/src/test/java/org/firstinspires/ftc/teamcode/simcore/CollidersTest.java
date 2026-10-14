@@ -139,7 +139,7 @@ public class CollidersTest {
                 tape()));
     }
 
-    private static Field field(double blueTilt) {
+    static Field field(double blueTilt) {
         return fieldOf(List.of(block(new Vec3(20, 0, 5)), block(new Vec3(-20, 0, 5)), pipe()), blueHive(blueTilt));
     }
 

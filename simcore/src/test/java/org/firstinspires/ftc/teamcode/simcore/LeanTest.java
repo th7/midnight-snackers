@@ -41,6 +41,17 @@ public class LeanTest {
     }
 
     @Test
+    public void aTipIsAtItsFastestAsTheHivePassesLevelAndAHiveAtRestHasNoPaceAtAll() {
+        Lean tipping = new Lean.Resting(THIRTY).tipped();
+        double fastest = 60 * StrictMath.PI / (2 * Lean.TIP_SECONDS);
+
+        assertEquals(fastest, tipping.fastestDegreesPerSecond(), 1e-12);
+        assertEquals(fastest, tipping.after(seconds(0.3)).fastestDegreesPerSecond(), 1e-12);
+        assertEquals(-fastest, tipping.after(seconds(Lean.TIP_SECONDS / 2)).degreesPerSecond(), 1e-9);
+        assertEquals(0, new Lean.Resting(THIRTY).fastestDegreesPerSecond(), 0);
+    }
+
+    @Test
     public void aHiveThatIsTippingIsNotTippedAgain() {
         Lean tipping = new Lean.Resting(THIRTY).tipped().after(seconds(0.3));
 

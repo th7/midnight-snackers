@@ -13,7 +13,9 @@ import org.firstinspires.ftc.teamcode.simcore.Collider;
 import org.firstinspires.ftc.teamcode.simcore.Colliders;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Hives;
+import org.firstinspires.ftc.teamcode.simcore.Lean;
 import org.firstinspires.ftc.teamcode.simcore.Length;
+import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Surface;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.junit.Test;
@@ -144,45 +146,123 @@ public class SeasonCollidersTest {
         }
     }
 
-    @Test
-    public void aLaunchedBallMeetsEachHiveExactlyWhereABallInARunDoes() {
-        Field field = SimPlacement.FIELD;
-        Hives hives = Hives.of(field);
-        Colliders colliders = Valid.value(Colliders.of(field, List.of()));
-        Length radius = Valid.value(Length.of(1.4));
-        int compared = 0;
-        for (Field.Hive hive : field.hives()) {
-            List<String> mine = new ArrayList<>(List.of(hive.name() + " / "));
-            for (Field.Cell cell : hive.cells()) {
-                mine.add(cell.name() + " / ");
-            }
-            for (double dx = -26; dx <= 26; dx += 1.3) {
-                for (double dy = -12; dy <= 12; dy += 1.7) {
-                    for (double dz = -16; dz <= 18; dz += 1.1) {
-                        Vec3 at = hive.pivot().plus(new Vec3(dx, dy, dz));
-                        double deepest = -Double.MAX_VALUE;
-                        for (Hives.Touch touch : hives.touching(at, radius)) {
-                            deepest = Math.max(deepest, touch.depth());
-                        }
-                        double least = Double.MAX_VALUE;
-                        for (Collider collider : colliders.all()) {
-                            if (mine.stream().anyMatch(collider.name()::startsWith)) {
-                                least = Math.min(least, colliders.gap(collider, at, radius));
-                            }
-                        }
-                        if (deepest > -Double.MAX_VALUE) {
-                            assertEquals("at " + at, -deepest, least, 1e-6);
-                            compared++;
-                        } else {
-                            assertTrue(
-                                    "at " + at + " a run's ball touches nothing, and a launched one is " + least
-                                            + " in from it",
-                                    least > 0.02 - 1e-6);
-                        }
-                    }
+    private static final Length A_BALL = Valid.value(Length.of(1.4));
+    private static final double WITHIN = 0.02;
+    private static final double SAME = 1e-6;
+
+    private static List<Vec3> around(Field.Hive hive) {
+        List<Vec3> points = new ArrayList<>();
+        for (double dx = -26; dx <= 26; dx += 1.7) {
+            for (double dy = -12; dy <= 12; dy += 2.1) {
+                for (double dz = -16; dz <= 18; dz += 1.5) {
+                    points.add(hive.pivot().plus(new Vec3(dx, dy, dz)));
                 }
             }
         }
-        assertTrue("compared " + compared + " places where a ball touches a hive", compared > 500);
+        return points;
+    }
+
+    private List<String> partsAndPanelsOf(Field.Hive hive) {
+        List<String> mine = new ArrayList<>(List.of(hive.name() + " / "));
+        for (Field.Cell cell : hive.cells()) {
+            mine.add(cell.name() + " / ");
+        }
+        return mine;
+    }
+
+    private Map<String, Colliders.Near> hivesIn(Colliders colliders, Vec3 at) {
+        Map<String, Colliders.Near> near = new LinkedHashMap<>();
+        for (Colliders.Near one : colliders.near(at, A_BALL, WITHIN)) {
+            for (Field.Hive hive : field.hives()) {
+                if (partsAndPanelsOf(hive).stream().anyMatch(one.collider().name()::startsWith)) {
+                    near.put(one.collider().name(), one);
+                }
+            }
+        }
+        return near;
+    }
+
+    private static Hives tipped(Hives hives, Field field) {
+        Hives tipped = hives;
+        for (Field.Hive hive : field.hives()) {
+            tipped = tipped.tipped(hive);
+        }
+        return tipped.after(Valid.value(Seconds.of(Lean.TIP_SECONDS + 0.01)));
+    }
+
+    private int assertMeetsABallAsTheCollidersDo(Hives hives, Colliders colliders) {
+        int compared = 0;
+        for (Field.Hive hive : field.hives()) {
+            for (Vec3 at : around(hive)) {
+                Map<String, Colliders.Near> expected = hivesIn(colliders, at);
+                List<String> named = new ArrayList<>();
+                for (Hives.Touch touch : hives.near(at, A_BALL, WITHIN)) {
+                    named.add(touch.id());
+                    Colliders.Near near = expected.get(touch.id());
+                    assertTrue(touch.id() + " at " + at + " is not among " + expected.keySet(), near != null);
+                    assertEquals(touch.id() + " at " + at, near.gap(), touch.gap(), SAME);
+                    assertEquals(
+                            touch.id() + " at " + at,
+                            0,
+                            near.normal().minus(touch.normal()).length(),
+                            SAME);
+                    compared++;
+                }
+                assertEquals("at " + at, new ArrayList<>(expected.keySet()), named);
+            }
+        }
+        return compared;
+    }
+
+    @Test
+    public void eachHiveMeetsABallUnderEachNameExactlyAsTheShotsCollidersDoAtRestAndTipped() {
+        Hives hives = Valid.value(Hives.of(field));
+        List<String> both = new ArrayList<>();
+        for (Field.Hive hive : field.hives()) {
+            both.add(hive.alliance());
+        }
+
+        int still = assertMeetsABallAsTheCollidersDo(hives, atRest);
+        int over = assertMeetsABallAsTheCollidersDo(tipped(hives, field), Valid.value(Colliders.of(field, both)));
+
+        assertTrue("compared " + still + " touches at rest", still > 500);
+        assertTrue("compared " + over + " touches tipped", over > 500);
+    }
+
+    @Test
+    public void aHivePartWayThroughATipMeetsABallAsItWouldAtRestWithTheBallTurnedBackAboutItsAxle() {
+        Hives hives = Valid.value(Hives.of(field));
+        Field.Hive blue = hives.hiveOf("Blue").orElseThrow();
+        double rest = hives.tilt(blue);
+        int compared = 0;
+        for (double seconds : List.of(0.2, 0.5, 0.8)) {
+            Hives tipping = hives.tipped(blue).after(Valid.value(Seconds.of(seconds)));
+            double tilt = tipping.tilt(blue);
+            for (Vec3 at : around(blue)) {
+                Vec3 local = unturned(blue, tilt, at);
+                List<Hives.Touch> expected = hives.near(blue.at(rest, local), A_BALL, WITHIN);
+                List<Hives.Touch> touches = tipping.near(at, A_BALL, WITHIN);
+                assertEquals("at " + at + " tilted " + tilt, expected.size(), touches.size());
+                for (int i = 0; i < touches.size(); i++) {
+                    Hives.Touch was = expected.get(i), is = touches.get(i);
+                    String what = is.id() + " at " + at + " tilted " + tilt;
+                    assertEquals(what, was.id(), is.id());
+                    assertEquals(what, was.gap(), is.gap(), SAME);
+                    Vec3 turned = blue.direction(tilt, unturnedDirection(rest, was.normal()));
+                    assertEquals(what, 0, turned.minus(is.normal()).length(), SAME);
+                    compared++;
+                }
+            }
+        }
+        assertTrue("compared " + compared + " touches", compared > 500);
+    }
+
+    private static Vec3 unturned(Field.Hive hive, double tilt, Vec3 point) {
+        return unturnedDirection(tilt, point.minus(hive.pivot()));
+    }
+
+    private static Vec3 unturnedDirection(double tilt, Vec3 direction) {
+        double c = Math.cos(Math.toRadians(tilt)), s = Math.sin(Math.toRadians(tilt));
+        return new Vec3(direction.x() * c + direction.z() * s, direction.y(), -direction.x() * s + direction.z() * c);
     }
 }
