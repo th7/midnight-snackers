@@ -1901,8 +1901,9 @@ squeezed by a support that moves or turns never rests, and rests only from when 
 stops; and a sleeping one wakes when a support squeezing it moves or turns, so a wheel
 that spins up throws the ball it held. Each evaluation in the integration of a ball so
 near a compliant part is a unit of work, and so is each asking of what squeezes a
-ball; a ball further from every compliant part moves and costs exactly as it did
-before there were any. Classes: `Compliance`, `CompliantContact`, `Surroundings`,
+ball, as in each check of whether what squeezes a sleeping ball moves; a ball further
+from every compliant part moves and costs exactly as it did before there were any.
+Classes: `Compliance`, `CompliantContact`, `Surroundings`,
 `Bodies`, in the **core**.
 
 **Asleep** and **awake** — Of a piece in a shot, or a ball in a run's **flight**: the

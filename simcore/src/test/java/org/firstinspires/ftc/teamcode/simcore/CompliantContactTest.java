@@ -726,4 +726,85 @@ public class CompliantContactTest {
         assertEquals(Bodies.Life.AWAKE, ball(held).life());
         assertTrue("moved from " + asleep.at(), !ball(held).at().equals(asleep.at()));
     }
+
+    private static final class SqueezingNothing implements Surroundings.Part {
+        private final Surroundings.Part inner;
+
+        private SqueezingNothing(Surroundings.Part inner) {
+            this.inner = inner;
+        }
+
+        @Override
+        public List<String> ids() {
+            return inner.ids();
+        }
+
+        @Override
+        public boolean reaches(Vec3 centre, double by) {
+            return inner.reaches(centre, by);
+        }
+
+        @Override
+        public double sweep() {
+            return inner.sweep();
+        }
+
+        @Override
+        public boolean moving() {
+            return inner.moving();
+        }
+
+        @Override
+        public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+            return inner.near(centre, radius, within);
+        }
+
+        @Override
+        public boolean squeezes() {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Squeeze> squeezing(Vec3 centre, Length radius) {
+            return List.of();
+        }
+
+        @Override
+        public Surroundings.Part at(GridTime time) {
+            return new SqueezingNothing(inner.at(time));
+        }
+    }
+
+    @Test
+    public void eachAskingOfWhatSqueezesABallAsleepWithinReachOfAMovingCompliantPartIsAUnitOfWork() {
+        double floor = 20;
+        Surroundings.Part moving = Joined.of(
+                CompliantArc.spinning("wheel", new Vec3(40, 0, 30), AXLE, WHEEL_RADIUS, WHEEL, WHEEL_SPEED),
+                CompliantPlate.still("plate", new Vec3(0, 0, floor), new Vec3(0, 0, 1), HOOD));
+        List<Double> asked = new ArrayList<>();
+        Bodies squeezing = among(STEP, new Counted(moving, asked, 0)),
+                rigid = among(STEP, new SqueezingNothing(moving));
+        for (Bodies bodies : List.of(squeezing, rigid)) {
+            Valid.value(bodies.add(
+                    Valid.value(Bodies.Name.of("resting")),
+                    POLLEN,
+                    Valid.value(
+                            Bodies.Motion.of(new Vec3(0, 0, floor + R - 0.5 * MILLIMETRE), Vec3.zero(), Vec3.zero())),
+                    new Bodies.Start.Asleep()));
+            Valid.value(bodies.add(
+                    Valid.value(Bodies.Name.of("flying")),
+                    POLLEN,
+                    Valid.value(Bodies.Motion.of(new Vec3(-30, 0, 60), new Vec3(0, 0, 10), Vec3.zero())),
+                    AWAKE));
+            stepFor(bodies, 100 * STEP, STEP);
+            assertEquals(
+                    Bodies.Life.ASLEEP,
+                    bodies.body("resting")
+                            .orElseThrow(() -> new AssertionError("no resting ball"))
+                            .life());
+        }
+
+        assertTrue("asked " + asked.size() + " times", asked.size() >= 100);
+        assertEquals("asked " + asked.size() + " times", rigid.work() + asked.size(), squeezing.work());
+    }
 }
