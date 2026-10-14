@@ -254,20 +254,42 @@ public class ShotTest {
         World world = world(air(), floorOf(0.55, 0.5, 0.2), 1e-4, 3, List.of());
         WheelPair.Launched launch = launched(new Vec3(50, 50, 5), new Vec3(300, 280, -50), new Vec3(100, -80, 200));
         Shot once = Valid.value(Shot.launch(world, POLLEN, launch)).advance(seconds(3));
-        Shot tenths = inChunks(Valid.value(Shot.launch(world, POLLEN, launch)), 0.1);
-        Shot odd = inChunks(Valid.value(Shot.launch(world, POLLEN, launch)), 0.037);
+        Shot tenths = inChunks(Valid.value(Shot.launch(world, POLLEN, launch)), 0.1, 3);
+        Shot odd = inChunks(Valid.value(Shot.launch(world, POLLEN, launch)), 0.037, 3);
 
         assertSameFrames(once, tenths);
         assertSameFrames(once, odd);
         assertSameFrames(once, Valid.value(Shot.launch(world, POLLEN, launch)).advance(seconds(3)));
     }
 
-    private static Shot inChunks(Shot.Flying flying, double chunk) {
+    @Test
+    public void aShotAmongPiecesIsTheSameEveryTimeHoweverItIsAdvanced() {
+        Ball nectar = Valid.value(Ball.of(3.6, 41.3, 0.634));
+        World.Piece left = new World.Piece(
+                "Blue Nectar <1>", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(40, 0, 1.8), false);
+        World.Piece right = new World.Piece(
+                "Blue Nectar <2>", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(40, 3.6, 1.8), false);
+        double above = Math.sqrt((1.8 + R) * (1.8 + R) - 1.8 * 1.8);
+        World.Piece top = new World.Piece(
+                "Pollen <3>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40, 1.8, 1.8 + above), false);
+        World world = world(air(), realistic(), 1e-4, 4, List.of(left, right, top));
+        WheelPair.Launched launch = launched(new Vec3(65, 3.6, R), new Vec3(-120, 0, 0), new Vec3(0, -120 / R, 0));
+        Shot once = Valid.value(Shot.launch(world, POLLEN, launch)).advance(seconds(4));
+        Shot tenths = inChunks(Valid.value(Shot.launch(world, POLLEN, launch)), 0.1, 4);
+        Shot odd = inChunks(Valid.value(Shot.launch(world, POLLEN, launch)), 0.037, 4);
+
+        assertTrue(once.story().impacts().size() > 3);
+        assertTrue(once.story().pieces().get(2).samples().size() > 10);
+        assertEquals(Fingerprint.of(once), Fingerprint.of(tenths));
+        assertEquals(Fingerprint.of(once), Fingerprint.of(odd));
+    }
+
+    private static Shot inChunks(Shot.Flying flying, double chunk, double longest) {
         Shot shot = flying;
         double until = 0;
-        while (shot instanceof Shot.Flying still && until < 3) {
+        while (shot instanceof Shot.Flying still && until < longest) {
             until += chunk;
-            shot = still.advance(seconds(Math.min(until, 3)));
+            shot = still.advance(seconds(Math.min(until, longest)));
         }
         return shot;
     }
