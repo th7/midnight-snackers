@@ -793,7 +793,7 @@ final class Bodies {
                 body.start = new Kin(body.at, body.velocity, body.spin);
             }
             Optional<Glimpse> glimpse = watched().map(Glimpse::of);
-            integrate(awake, span);
+            integrate(awake, span, into);
             double covered = span;
             if (events < Shot.MOST_EVENTS_PER_PIECE
                     && work < until
@@ -802,14 +802,14 @@ final class Bodies {
                 for (int i = 0; i < Shot.BISECTIONS; i++) {
                     double mid = (lo + hi) / 2;
                     double over = mid * span;
-                    integrate(awake, over);
+                    integrate(awake, over, into);
                     if (overlapsSomethingNew(awake, into + over / step)) {
                         hi = mid;
                     } else {
                         lo = mid;
                     }
                 }
-                integrate(awake, lo * span);
+                integrate(awake, lo * span, into);
                 covered = lo * span;
                 events++;
             }
@@ -840,11 +840,56 @@ final class Bodies {
         }
     }
 
-    private void integrate(List<Body> awake, double over) {
+    private void integrate(List<Body> awake, double over, double into) {
         for (Body body : awake) {
-            body.trial = rk4(body, body.start, over);
-            work++;
+            if (surroundings.squeezes()
+                    && surroundings.squeezeReaches(body.start.at(), body.radius() + Shot.MOST_TRAVEL_IN)) {
+                body.trial = squeezedRk4(body, body.start, over, into);
+            } else {
+                body.trial = rk4(body, body.start, over);
+                work++;
+            }
         }
+    }
+
+    private Kin squeezedRk4(Body body, Kin from, double dt, double into) {
+        double half = into + dt / 2 / step;
+        Kin k1 = squeezedRate(body, from, into);
+        Kin k2 = squeezedRate(body, along(from, k1, dt / 2), half);
+        Kin k3 = squeezedRate(body, along(from, k2, dt / 2), half);
+        Kin k4 = squeezedRate(body, along(from, k3, dt), into + dt / step);
+        double sixth = dt / 6;
+        return new Kin(
+                from.at().plus(weighted(k1.at(), k2.at(), k3.at(), k4.at()).times(sixth)),
+                from.velocity()
+                        .plus(weighted(k1.velocity(), k2.velocity(), k3.velocity(), k4.velocity())
+                                .times(sixth)),
+                from.spin()
+                        .plus(weighted(k1.spin(), k2.spin(), k3.spin(), k4.spin())
+                                .times(sixth)));
+    }
+
+    private Kin squeezedRate(Body body, Kin state, double into) {
+        Air.Motion moved = air.motion(body.shape, state.velocity(), state.spin());
+        work++;
+        List<Surroundings.Squeeze> squeezes = squeezing(body, state.at(), into);
+        if (squeezes.isEmpty()) {
+            return new Kin(state.velocity(), moved.acceleration(), moved.spinRate());
+        }
+        CompliantContact.Push pushed =
+                CompliantContact.push(body.shape, state.velocity(), state.spin(), squeezes, stepping);
+        return new Kin(
+                state.velocity(),
+                moved.acceleration().plus(pushed.acceleration()),
+                moved.spinRate().plus(pushed.spinRate()));
+    }
+
+    private List<Surroundings.Squeeze> squeezing(Body body, Vec3 at, double into) {
+        work++;
+        GridTime then = GridTime.PartOfAStep.of(into)
+                .map(part -> GridTime.partWay(steps, part, stepping))
+                .orElse(GridTime.at(steps + 1, stepping));
+        return surroundings.squeezingAt(then, at, body.reach());
     }
 
     private Kin rk4(Body body, Kin from, double dt) {
