@@ -498,6 +498,29 @@ final class Bodies {
         return Collections.unmodifiableList(spans);
     }
 
+    boolean idleThrough(long stepTarget) {
+        if (stepTarget <= steps) {
+            return stepTarget == steps;
+        }
+        for (Body body : bodies) {
+            if (body.life == Life.AWAKE) {
+                return false;
+            }
+        }
+        double horizon = (stepTarget - steps) * step;
+        Surroundings then = placed(surroundings, stepTarget * step);
+        for (Body body : bodies) {
+            if (body.life == Life.ASLEEP
+                    && (reachedByWhatMoves(body, surroundings, horizon) || reachedByWhatMoves(body, then, horizon))) {
+                return false;
+            }
+        }
+        steps = stepTarget;
+        now = steps * step;
+        surroundings = then;
+        return true;
+    }
+
     List<Gone> goneOver(String spared) {
         List<Gone> gone = new ArrayList<>();
         for (Body body : bodies) {

@@ -637,6 +637,105 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void anEngineWithNothingAwakeIdlesThroughToALaterStepExactlyWhereSteppingWouldLeaveItForLessWork() {
+        Surroundings.Part far = Carried.sliding(
+                Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(10, 0, 0), 0);
+        Bodies stepped = among(STEP, far, Carried.sliding(TRAY, Vec3.zero(), 0));
+        add(stepped, "resting", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), ASLEEP);
+        add(stepped, "lying", new Vec3(40, 40, R), Vec3.zero(), ASLEEP);
+        add(stepped, "held", new Vec3(40, 0, R), Vec3.zero(), new Bodies.Start.Fixed());
+        stepFor(stepped, 0.01, STEP);
+        Bodies idled = stepped.copy();
+        long target = stepped.steps() + 2000, before = stepped.work();
+
+        stepFor(stepped, 0.2, STEP);
+        boolean idle = idled.idleThrough(target);
+
+        assertTrue(idle);
+        assertEquals(stepped.seen(), idled.seen());
+        assertEquals(stepped.steps(), idled.steps());
+        assertEquals(Double.doubleToRawLongBits(stepped.now()), Double.doubleToRawLongBits(idled.now()));
+        for (String name : List.of("resting", "lying", "held")) {
+            assertEquals(name, stepped.touching(name), idled.touching(name));
+        }
+        long jumping = idled.work() - before, stepping = stepped.work() - before;
+        assertTrue(jumping + " against " + stepping, 0 < jumping && jumping * 100 < stepping);
+        stepFor(stepped, 0.01, STEP);
+        stepFor(idled, 0.01, STEP);
+        assertEquals(stepped.seen(), idled.seen());
+    }
+
+    @Test
+    public void anEngineWithABodyAwakeDoesNotIdleAndIsLeftAsItWas() {
+        Bodies bodies = among(STEP);
+        add(bodies, "rolling", new Vec3(0, 0, R), new Vec3(1, 0, 0), AWAKE);
+        add(bodies, "lying", new Vec3(40, 40, R), Vec3.zero(), ASLEEP);
+        List<Bodies.Seen> before = bodies.seen();
+
+        assertTrue(!bodies.idleThrough(bodies.steps() + 10));
+        assertEquals(before, bodies.seen());
+        assertEquals(0, bodies.steps());
+        assertEquals(0, bodies.now(), 0);
+    }
+
+    @Test
+    public void anEngineDoesNotIdleThroughStepsInWhichAMovingFaceCouldReachASleepingBody() {
+        double speed = 10, gap = 1;
+        Collider closing = Carried.box("paddle", new Vec3(-gap - 1, -10, 0.5), new Vec3(-gap, 10, 8));
+        Bodies bodies = among(STEP, Carried.sliding(closing, new Vec3(speed, 0, 0), 0));
+        add(bodies, "ball", new Vec3(R, 0, R), Vec3.zero(), ASLEEP);
+
+        assertTrue(bodies.idleThrough((long) (0.4 * gap / speed / STEP)));
+        long reached = bodies.steps();
+        assertTrue(!bodies.idleThrough(reached + (long) (0.7 * gap / speed / STEP)));
+        assertTrue(!bodies.idleThrough(reached + (long) ((gap + 2 * R + 1) / speed / STEP)));
+        assertEquals(reached, bodies.steps());
+        assertEquals(Bodies.Life.ASLEEP, seen(bodies, "ball").life());
+    }
+
+    @Test
+    public void anEngineDoesNotIdleThroughStepsInWhichAPartStartsOrStopsMovingWithinReachOfASleepingBody() {
+        Collider near = Carried.box("paddle", new Vec3(-1.1, -10, 0.5), new Vec3(-0.1, 10, 8));
+        Bodies starting = among(STEP, Carried.sliding(near, new Vec3(10, 0, 0), 0.05));
+        add(starting, "ball", new Vec3(R, 0, R), Vec3.zero(), ASLEEP);
+        Bodies stopping = among(STEP, Carried.slidingUntil(near, new Vec3(-10, 0, 0), 0, 0.05));
+        add(stopping, "ball", new Vec3(R, 0, R), Vec3.zero(), ASLEEP);
+
+        assertTrue(!starting.idleThrough(1000));
+        assertTrue(!stopping.idleThrough(1000));
+        assertTrue(starting.idleThrough(400));
+    }
+
+    @Test
+    public void anEngineIdlesThroughABallAsleepOnAStillFaceOfAMovingPart() {
+        Collider blue = Carried.box("blue", new Vec3(-33, -3, 10), new Vec3(-27, 3, 10.5));
+        Collider red = Carried.box("red", new Vec3(27, -3, 10), new Vec3(33, 3, 10.5));
+        Bodies bodies = among(
+                STEP,
+                Joined.of(
+                        Carried.turning(blue, new Vec3(-30, 0, 10.5), new Vec3(0, 1.645, 0), 0),
+                        Carried.sliding(red, Vec3.zero(), 0)));
+        add(bodies, "resting", new Vec3(30, 0, 10.5 + R), Vec3.zero(), ASLEEP);
+
+        assertTrue(bodies.idleThrough(1000));
+        assertEquals(1000, bodies.steps());
+    }
+
+    @Test
+    public void anEngineIdlesThroughToWhereItIsAlreadyAndNeverBack() {
+        Bodies bodies = among(STEP);
+        add(bodies, "rolling", new Vec3(0, 0, R), new Vec3(1, 0, 0), AWAKE);
+        stepFor(bodies, 0.001, STEP);
+        long steps = bodies.steps();
+        double now = bodies.now();
+
+        assertTrue(bodies.idleThrough(steps));
+        assertTrue(!bodies.idleThrough(steps - 1));
+        assertEquals(steps, bodies.steps());
+        assertEquals(now, bodies.now(), 0);
+    }
+
+    @Test
     public void aCopyAmongMovingPartsGoesOnExactlyAsTheOriginal() {
         Collider tray = Carried.box("tray", new Vec3(-3, -3, 10), new Vec3(3, 3, 10.5));
         Bodies bodies = among(STEP, Carried.turning(tray, new Vec3(0, 0, 10.5), new Vec3(0, 3, 0), 0.1));
