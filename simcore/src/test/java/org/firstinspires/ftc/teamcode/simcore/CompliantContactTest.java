@@ -46,6 +46,18 @@ public class CompliantContactTest {
     private static final double WHEEL_SPEED = 1050 * 2 * StrictMath.PI / 24.2;
     private static final double FEED = 0.1 / Length.METRES_PER_INCH;
     private static final double HELD_AT = -20 * DEGREE;
+    private static final double HELD_FOR = 0.1;
+    private static final double SPINS_UP_AT = 0.6;
+    private static final double SPINNING_UP_FOR = STEP;
+    private static final double FLANGE_RADIUS = 50 * MILLIMETRE;
+    private static final String THROW_SOURCE = "doc/plans/runtime-flight.md, stage 4: the launcher throws at 0.366 to"
+            + " 0.584 of the surface speed at the 100 mm diameter, from hood drag spread over the groove to a ball"
+            + " riding the groove's edges, at 70 +- 3 degrees up, 90 less the hood's upper end, the first sample with"
+            + " no launcher contact being 0 to 10 degrees past that end";
+    private static final double SLOWEST_THROW = 0.366;
+    private static final double FASTEST_THROW = 0.584;
+    private static final double THROWN_WITHIN_DEGREES = 3;
+    private static final double LEFT_WITHIN_DEGREES = 10;
 
     private static Surfaces surfaces() {
         Bounce bounce = Valid.value(Bounce.of(0.55, 0.5, 0.2));
@@ -151,6 +163,19 @@ public class CompliantContactTest {
         }
     }
 
+    private static void assertThrownAsTheLaunchersHoodThrows(Exit exit) {
+        double flange = WHEEL_SPEED * FLANGE_RADIUS;
+        Vec3 off = exit.at().minus(HUB);
+        double leftAt = StrictMath.atan2(off.z(), -off.x());
+        assertTrue(
+                THROW_SOURCE + ": thrown at " + exit.speed() + " in/s, " + exit.speed() / flange + " of " + flange,
+                exit.speed() >= SLOWEST_THROW * flange && exit.speed() <= FASTEST_THROW * flange);
+        assertEquals(THROW_SOURCE, 90 - HOOD_TO / DEGREE, exit.degreesUp(), THROWN_WITHIN_DEGREES);
+        assertTrue(
+                THROW_SOURCE + ": left at " + leftAt / DEGREE + " degrees",
+                leftAt >= HOOD_TO && leftAt <= HOOD_TO + LEFT_WITHIN_DEGREES * DEGREE);
+    }
+
     private static Exit thrown(Bodies launcher, double step) {
         boolean squeezed = false;
         for (long i = 1; i <= StrictMath.round(0.2 / step); i++) {
@@ -213,14 +238,21 @@ public class CompliantContactTest {
     }
 
     @Test
-    public void aBallHeldInAStillSqueezeIsHeldThereWithoutAHitAPressOrATouch() {
+    public void aBallHeldInAStillSqueezeIsHeldThereSlowerThanABallAtRestWithoutAHitAPressOrATouch() {
         Bodies held = heldAt(launcher(STEP, 0));
         Vec3 was = ball(held).at();
 
-        List<Bodies.Span> spans = stepFor(held, 0.1, STEP);
+        List<Bodies.Span> spans = new ArrayList<>();
+        double fastest = 0;
+        for (long i = 0; i < StrictMath.round(HELD_FOR / STEP); i++) {
+            spans.addAll(held.step());
+            Bodies.Seen ball = ball(held);
+            fastest = StrictMath.max(fastest, speed(ball.velocity()) + R * speed(ball.spin()));
+        }
 
         Vec3 moved = ball(held).at().minus(was);
-        assertTrue("moved " + moved, speed(moved) < 0.01);
+        assertTrue("as fast as " + fastest + " in/s", fastest < Shot.REST_SPEED_IN_PER_S);
+        assertTrue("moved " + moved, speed(moved) < Shot.REST_SPEED_IN_PER_S * HELD_FOR);
         assertTrue("still squeezed", !squeezing(held).isEmpty());
         assertTrue("stepped", !spans.isEmpty());
         for (Bodies.Span span : spans) {
@@ -274,10 +306,8 @@ public class CompliantContactTest {
     public void aSpinningWheelThrowsABallFedIntoItsHoodUpwardAndHalvingTheStepChangesTheThrowByLessThanAHalfPercent() {
         Exit coarse = thrown(fedAt(launcher(STEP, WHEEL_SPEED)), STEP);
         Exit fine = thrown(fedAt(launcher(STEP / 2, WHEEL_SPEED)), STEP / 2);
-        double rim = WHEEL_SPEED * WHEEL_RADIUS;
 
-        assertTrue("thrown at " + coarse.speed() + " in/s", coarse.speed() > 0.3 * rim);
-        assertTrue("thrown " + coarse.degreesUp() + " degrees up", coarse.degreesUp() > 45);
+        assertThrownAsTheLaunchersHoodThrows(coarse);
         assertEquals(
                 "thrown at " + coarse.speed() + " and then " + fine.speed() + " in/s",
                 0,
@@ -634,26 +664,16 @@ public class CompliantContactTest {
     }
 
     @Test
-    public void spinningTheWheelUpWakesABallAsleepInItsSqueezeAndThrowsItUpward() {
-        double starts = 0.6;
-        Bodies held = heldAt(among(
-                STEP,
-                CompliantArc.spinningUp("wheel", HUB, AXLE, WHEEL_RADIUS, WHEEL, starts, 0.05, WHEEL_SPEED),
-                hood()));
+    public void spinningTheWheelUpWakesABallAsleepInItsSqueezeAndThrowsItAsTheLaunchersHoodThrows() {
+        Bodies held = heldAt(among(STEP, wheelSpinningUp(), hood()));
 
-        stepFor(held, starts - 0.05, STEP);
+        stepFor(held, SPINS_UP_AT - SPINNING_UP_FOR, STEP);
         assertEquals("before the wheel turns", Bodies.Life.ASLEEP, ball(held).life());
-        stepFor(held, 0.05 + 2 * STEP, STEP);
+        stepFor(held, SPINNING_UP_FOR + 2 * STEP, STEP);
         assertEquals("once the wheel turns", Bodies.Life.AWAKE, ball(held).life());
-        Exit exit = thrown(held, STEP);
 
-        double rim = WHEEL_SPEED * WHEEL_RADIUS;
-        assertTrue("thrown at " + exit.speed() + " in/s", exit.speed() > 0.3 * rim);
-        assertTrue("thrown " + exit.degreesUp() + " degrees up", exit.degreesUp() > 45);
+        assertThrownAsTheLaunchersHoodThrows(thrown(held, STEP));
     }
-
-    private static final double SPINS_UP_AT = 0.6;
-    private static final double SPINNING_UP_FOR = 0.05;
 
     private static CompliantArc wheelSpinningUp() {
         return CompliantArc.spinningUp(
@@ -712,7 +732,7 @@ public class CompliantContactTest {
         assertEquals(Bodies.Life.ASLEEP, ball(held).life());
 
         Bodies.Seen asleep = ball(held);
-        while (ball(held).life() == Bodies.Life.ASLEEP && held.steps() * STEP < SPINS_UP_AT + SPINNING_UP_FOR) {
+        while (ball(held).life() == Bodies.Life.ASLEEP && held.steps() * STEP < SPINS_UP_AT + 0.1) {
             asleep = ball(held);
             held.step();
         }
