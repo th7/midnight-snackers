@@ -284,6 +284,29 @@ public class ShotTest {
         assertEquals(Fingerprint.of(once), Fingerprint.of(odd));
     }
 
+    @Test
+    public void aShotAmongPiecesAdvancedTwiceFromWhereItIsComesOutTheSameAndStaysWhereItWas() {
+        Ball nectar = Valid.value(Ball.of(3.6, 41.3, 0.634));
+        World.Piece left = new World.Piece(
+                "Blue Nectar <1>", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(40, 0, 1.8), false);
+        World.Piece right = new World.Piece(
+                "Blue Nectar <2>", Field.Kind.NECTAR, Optional.of("Blue"), nectar, new Vec3(40, 3.6, 1.8), false);
+        double above = Math.sqrt((1.8 + R) * (1.8 + R) - 1.8 * 1.8);
+        World.Piece top = new World.Piece(
+                "Pollen <3>", Field.Kind.POLLEN, Optional.empty(), POLLEN, new Vec3(40, 1.8, 1.8 + above), false);
+        World world = world(air(), realistic(), 1e-4, 4, List.of(left, right, top));
+        Shot.Flying flying = Valid.value(Shot.launch(
+                world, POLLEN, launched(new Vec3(65, 3.6, R), new Vec3(-120, 0, 0), new Vec3(0, -120 / R, 0))));
+        Fingerprint before = Fingerprint.of(flying);
+
+        Shot first = flying.advance(seconds(1));
+        Shot second = flying.advance(seconds(1));
+
+        assertTrue(first.story().impacts().size() > 3);
+        assertEquals(Fingerprint.of(first), Fingerprint.of(second));
+        assertEquals(before, Fingerprint.of(flying));
+    }
+
     private static Shot inChunks(Shot.Flying flying, double chunk, double longest) {
         Shot shot = flying;
         double until = 0;
