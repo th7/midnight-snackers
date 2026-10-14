@@ -105,20 +105,61 @@ final class Surroundings {
         Part at(double seconds);
     }
 
+    static final class Held {
+        private final Part part;
+        private final Set<String> ids;
+
+        private Held(Part part, Set<String> ids) {
+            this.part = part;
+            this.ids = ids;
+        }
+
+        Part part() {
+            return part;
+        }
+
+        boolean moving() {
+            return part.moving();
+        }
+
+        boolean reaches(Vec3 centre, double by) {
+            return part.reaches(centre, by);
+        }
+
+        double sweep() {
+            double said = part.sweep();
+            return said >= 0 ? said : Double.POSITIVE_INFINITY;
+        }
+
+        List<Touch> near(Vec3 centre, Length radius, double within) {
+            List<Touch> kept = new ArrayList<>();
+            for (Touch touch : part.near(centre, radius, within)) {
+                if (touch.gap() <= within && ids.contains(touch.id())) {
+                    kept.add(touch);
+                }
+            }
+            return kept;
+        }
+
+        Held at(double seconds) {
+            return new Held(part.at(seconds), ids);
+        }
+    }
+
     private final Colliders still;
-    private final List<Part> parts;
-    private final List<Part> moving;
+    private final List<Held> parts;
+    private final List<Held> moving;
     private final double sweep;
 
-    private Surroundings(Colliders still, List<Part> parts) {
+    private Surroundings(Colliders still, List<Held> parts) {
         this.still = still;
         this.parts = Collections.unmodifiableList(new ArrayList<>(parts));
-        List<Part> moving = new ArrayList<>();
+        List<Held> moving = new ArrayList<>();
         double sweep = 0;
-        for (Part part : parts) {
+        for (Held part : parts) {
             if (part.moving()) {
                 moving.add(part);
-                sweep = StrictMath.max(sweep, sweepOf(part));
+                sweep = StrictMath.max(sweep, part.sweep());
             }
         }
         this.moving = Collections.unmodifiableList(moving);
@@ -134,22 +175,26 @@ final class Surroundings {
         for (Collider collider : still.all()) {
             named.add(collider.name());
         }
+        List<Held> held = new ArrayList<>();
         for (Part part : parts) {
+            Set<String> ids = new HashSet<>();
             for (String id : part.ids()) {
                 if (!named.add(id)) {
                     return Checked.rejected("every collider has a name of its own, and '" + id + "' is not one");
                 }
+                ids.add(id);
             }
+            held.add(new Held(part, Collections.unmodifiableSet(ids)));
         }
-        return Checked.ok(new Surroundings(still, parts));
+        return Checked.ok(new Surroundings(still, held));
     }
 
     Surroundings at(double seconds) {
         if (parts.isEmpty()) {
             return this;
         }
-        List<Part> then = new ArrayList<>();
-        for (Part part : parts) {
+        List<Held> then = new ArrayList<>();
+        for (Held part : parts) {
             then.add(part.at(seconds));
         }
         return new Surroundings(still, then);
@@ -163,7 +208,7 @@ final class Surroundings {
                     .fold(touch -> touches.add(touch), rule -> false);
         }
         double reach = radius.inches() + within;
-        for (Part part : parts) {
+        for (Held part : parts) {
             if (part.reaches(centre, reach)) {
                 touches.addAll(part.near(centre, radius, within));
             }
@@ -171,17 +216,12 @@ final class Surroundings {
         return touches;
     }
 
-    List<Part> moving() {
+    List<Held> moving() {
         return moving;
     }
 
     double sweep() {
         return sweep;
-    }
-
-    double sweepOf(Part part) {
-        double said = part.sweep();
-        return said >= 0 ? said : Double.POSITIVE_INFINITY;
     }
 
     Optional<Colliders.Side> over(Vec3 centre, Length radius) {

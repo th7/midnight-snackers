@@ -28,6 +28,43 @@ public class MovingSurroundingsTest {
     private static final Collider TRAY = Carried.box("tray", new Vec3(-30, -30, 10), new Vec3(30, 30, 11));
     private static final double ON_THE_TRAY = 11 + R;
 
+    private record Unfiltered(boolean moving, Vec3 velocity, List<String> names) implements Surroundings.Part {
+        @Override
+        public List<String> ids() {
+            return List.of("plate");
+        }
+
+        @Override
+        public boolean reaches(Vec3 centre, double by) {
+            return StrictMath.abs(centre.x()) <= 10 + by && StrictMath.abs(centre.y()) <= 10 + by;
+        }
+
+        @Override
+        public double sweep() {
+            return 0;
+        }
+
+        @Override
+        public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+            List<Surroundings.Touch> touches = new ArrayList<>();
+            for (String name : names) {
+                touches.add(Valid.value(Surroundings.Touch.of(
+                        name,
+                        Surface.FRAME,
+                        new Vec3(0, 0, 1),
+                        centre.z() - 10 - radius.inches(),
+                        velocity,
+                        Vec3.zero())));
+            }
+            return touches;
+        }
+
+        @Override
+        public Surroundings.Part at(double seconds) {
+            return this;
+        }
+    }
+
     private static Surfaces surfaces() {
         Bounce bounce = Valid.value(Bounce.of(0.55, 0.5, 0.2));
         return Valid.value(Surfaces.of(bounce, bounce, bounce, bounce, bounce, bounce, 0, 4, 0, 0, 0));
@@ -269,6 +306,33 @@ public class MovingSurroundingsTest {
         assertEquals(Bodies.Life.AWAKE, ball.life());
         assertTrue(ball.velocity().toString(), ball.velocity().y() > 1);
         assertTrue(ball.at().toString(), ball.at().y() > 0.1);
+    }
+
+    @Test
+    public void aBallLetGoAboveAPartThatAnswersBeyondTheReachAskedForFallsUntilItRestsOnIt() {
+        Bodies bodies = among(STEP, new Unfiltered(false, Vec3.zero(), List.of("plate")));
+        add(bodies, "ball", new Vec3(0, 0, 10 + R + 5), Vec3.zero(), AWAKE);
+
+        stepFor(bodies, 1.5, STEP);
+
+        Bodies.Seen ball = seen(bodies, "ball");
+        assertEquals(10 + R, ball.at().z(), 1e-3);
+        assertEquals(Bodies.Life.ASLEEP, ball.life());
+    }
+
+    @Test
+    public void aBallAsleepIsNotWokenByAMovingPartsTouchBeyondItsReachOrUnderANameThePartNeverGave() {
+        Vec3 rising = new Vec3(0, 0, 3);
+        Bodies beyond = among(STEP, new Unfiltered(true, rising, List.of("plate")));
+        add(beyond, "ball", new Vec3(0, 0, 10 + R + 5), Vec3.zero(), ASLEEP);
+        Bodies misnamed = among(STEP, new Unfiltered(true, rising, List.of("Floor")));
+        add(misnamed, "ball", new Vec3(0, 0, 10 + R), Vec3.zero(), ASLEEP);
+
+        stepFor(beyond, 0.1, STEP);
+        stepFor(misnamed, 0.1, STEP);
+
+        assertEquals(Bodies.Life.ASLEEP, seen(beyond, "ball").life());
+        assertEquals(Bodies.Life.ASLEEP, seen(misnamed, "ball").life());
     }
 
     @Test

@@ -49,12 +49,52 @@ public class SurroundingsTest {
         }
     }
 
+    private record Answering(List<String> ids, List<Surroundings.Touch> answer, List<String> later)
+            implements Surroundings.Part {
+        @Override
+        public boolean reaches(Vec3 centre, double by) {
+            return true;
+        }
+
+        @Override
+        public double sweep() {
+            return 0;
+        }
+
+        @Override
+        public boolean moving() {
+            return false;
+        }
+
+        @Override
+        public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+            return answer;
+        }
+
+        @Override
+        public Surroundings.Part at(double seconds) {
+            return new Answering(later, answer, later);
+        }
+    }
+
+    private static Surroundings.Touch touch(String id, double gap) {
+        return Valid.value(Surroundings.Touch.of(id, Surface.FRAME, new Vec3(0, 0, 1), gap, Vec3.zero(), Vec3.zero()));
+    }
+
     private static Surroundings with(Surroundings.Part... parts) {
         return Valid.value(Surroundings.of(WALLS, List.of(parts)));
     }
 
     private static String rejection(Checked<?> checked) {
         return checked.fold(value -> "accepted", rule -> rule);
+    }
+
+    private static List<Surroundings.Part> parts(List<Surroundings.Held> held) {
+        List<Surroundings.Part> parts = new ArrayList<>();
+        for (Surroundings.Held part : held) {
+            parts.add(part.part());
+        }
+        return parts;
     }
 
     private static List<String> ids(List<Surroundings.Touch> touches) {
@@ -140,6 +180,30 @@ public class SurroundingsTest {
     }
 
     @Test
+    public void aPartsTouchIsKeptOnlyWithinTheReachAskedForAndUnderANameThePartGaveWhenItCameIn() {
+        Surroundings.Part answering = new Answering(
+                List.of("plate", "rim"),
+                List.of(
+                        touch("plate", 0.5),
+                        touch("rim", 0.5000001),
+                        touch("Floor", 0),
+                        touch("nowhere", 0),
+                        touch("rim", -3),
+                        touch("renamed", 0)),
+                List.of("plate", "rim", "renamed"));
+        Surroundings around = with(answering);
+        Vec3 above = new Vec3(0, 0, 30);
+
+        assertEquals(List.of(touch("plate", 0.5), touch("rim", -3)), around.near(above, R, 0.5));
+        assertEquals(List.of(touch("rim", -3)), around.near(above, R, 0.4));
+        assertEquals(
+                List.of(touch("plate", 0.5), touch("rim", -3)), around.at(1).near(above, R, 0.5));
+        assertEquals(
+                List.of(touch("plate", 0.5), touch("rim", -3)),
+                around.at(1).at(2).near(above, R, 0.5));
+    }
+
+    @Test
     public void everyIdAmongTheCollidersAndThePartsIsItsOwn() {
         String floor = rejection(Surroundings.of(WALLS, List.of(new Stated("Floor", 0, false))));
         String twice =
@@ -159,11 +223,11 @@ public class SurroundingsTest {
         Surroundings around = with(slow, still, fast);
 
         assertEquals(5, around.sweep(), 0);
-        assertEquals(List.of(slow, fast), around.moving());
+        assertEquals(List.of(slow, fast), parts(around.moving()));
         assertEquals(
                 Double.doubleToRawLongBits(0.0),
                 Double.doubleToRawLongBits(with(still).sweep()));
-        assertEquals(0, around.sweepOf(new Stated("spinning", 0, true)), 0);
+        assertEquals(0, with(new Stated("spinning", 0, true)).sweep(), 0);
     }
 
     @Test
@@ -172,7 +236,9 @@ public class SurroundingsTest {
             Stated unsure = new Stated("unsure", said, true);
 
             assertEquals(Double.POSITIVE_INFINITY, with(unsure).sweep(), 0);
-            assertEquals(Double.POSITIVE_INFINITY, with(unsure).sweepOf(unsure), 0);
+            for (Surroundings.Held held : with(unsure).moving()) {
+                assertEquals(Double.POSITIVE_INFINITY, held.sweep(), 0);
+            }
         }
     }
 

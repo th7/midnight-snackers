@@ -773,8 +773,8 @@ final class Bodies {
     }
 
     private boolean reachedByWhatMoves(Body body) {
-        for (Surroundings.Part part : surroundings.moving()) {
-            double within = Shot.TOUCHING_IN + surroundings.sweepOf(part) * step;
+        for (Surroundings.Held part : surroundings.moving()) {
+            double within = Shot.TOUCHING_IN + part.sweep() * step;
             if (part.reaches(body.at, body.radius() + within)) {
                 work++;
                 if (!part.near(body.at, body.reach(), within).isEmpty()) {
