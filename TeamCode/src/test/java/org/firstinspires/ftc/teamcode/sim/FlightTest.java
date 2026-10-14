@@ -548,6 +548,131 @@ public class FlightTest {
         assertEquals(fine.work(), coarse.work());
     }
 
+    private record Flown(
+            List<Flight.Landing<Object>> landings, List<Optional<Vec3>> at, List<Optional<Vec3>> velocity, long work) {}
+
+    private record Ticked(Flown flown, long mostInATick) {}
+
+    private static Ticked flownIn(double tick, Flight<Object> start, List<Object> balls, double seconds) {
+        Flight<Object> flying = start;
+        List<Flight.Landing<Object>> landings = new ArrayList<>();
+        long most = 0;
+        for (long i = Math.round(seconds / tick); i > 0; i--) {
+            long before = flying.work();
+            Flight.Stepped<Object> stepped = flying.step(tick(tick));
+            flying = stepped.flight();
+            landings.addAll(stepped.landings());
+            most = Math.max(most, flying.work() - before);
+        }
+        List<Optional<Vec3>> at = new ArrayList<>(), velocity = new ArrayList<>();
+        for (Object ball : balls) {
+            at.add(flying.at(ball));
+            velocity.add(flying.velocity(ball));
+        }
+        return new Ticked(new Flown(landings, at, velocity, flying.work()), most);
+    }
+
+    private Flight<Object> crowd(List<Object> balls) {
+        Flight<Object> crowd = flight;
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 4; j++) {
+                Object ball = new Object();
+                balls.add(ball);
+                crowd = Valid.value(crowd.with(
+                        ball, Field.Kind.POLLEN, POLLEN, new Vec3(-10 + 2.9 * i, -50 + 2.9 * j, 3), Vec3.zero()));
+            }
+        }
+        Object thrown = new Object();
+        balls.add(thrown);
+        return Valid.value(crowd.with(thrown, Field.Kind.POLLEN, POLLEN, new Vec3(-30, -47, 3), new Vec3(400, 0, 0)));
+    }
+
+    private Flight<Object> heap(List<Object> balls) {
+        Flight<Object> heap = flight;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                for (int k = 0; k < 4; k++) {
+                    Object ball = new Object();
+                    balls.add(ball);
+                    heap = Valid.value(heap.with(
+                            ball,
+                            Field.Kind.POLLEN,
+                            POLLEN,
+                            new Vec3(-30 + 2.9 * i, -50 + 2.9 * j, 10 + 2.9 * k),
+                            new Vec3(0, 0, -150)));
+                }
+            }
+        }
+        return heap;
+    }
+
+    @Test
+    public void aCrowdAndAHeapThatSpendTheirAllowanceFlyTheSameToTheBitInTicksOfAnyLength() {
+        List<Object> crowded = new ArrayList<>(), heaped = new ArrayList<>();
+        Flight<Object> crowd = crowd(crowded), heap = heap(heaped);
+
+        Ticked crowdInWindows = flownIn(WINDOW_SECONDS, crowd, crowded, 4),
+                heapInWindows = flownIn(WINDOW_SECONDS, heap, heaped, 1);
+
+        assertTrue(
+                "the crowd spends a window's allowance: " + crowdInWindows.mostInATick(),
+                crowdInWindows.mostInATick() > WINDOW_WORK);
+        assertTrue("and so does the heap: " + heapInWindows.mostInATick(), heapInWindows.mostInATick() > WINDOW_WORK);
+        assertEquals("what the crowd cost", CROWD_WORK, crowdInWindows.flown().work());
+        assertEquals("what the heap cost", HEAP_WORK, heapInWindows.flown().work());
+        for (double tick : List.of(0.001, 0.0025, 0.02)) {
+            assertEquals(
+                    "the crowd in ticks of " + tick + " s",
+                    crowdInWindows.flown(),
+                    flownIn(tick, crowd, crowded, 4).flown());
+            assertEquals(
+                    "the heap in ticks of " + tick + " s",
+                    heapInWindows.flown(),
+                    flownIn(tick, heap, heaped, 1).flown());
+        }
+    }
+
+    @Test
+    public void aWindowOfWorkIsFiveMillisecondsOfStepsAllowedWhatAShotMayDoInThatTime() {
+        assertEquals(0.005, Flight.WINDOW_STEPS * Flight.STEP_NANOS / Flight.NANOS_PER_SECOND, 0);
+        assertEquals(0.005, Flight.WINDOW_SECONDS, 0);
+        assertEquals(Shot.MOST_WORK_PER_SECOND * Flight.WINDOW_SECONDS, Flight.WINDOW_WORK, 0);
+    }
+
+    @Test
+    public void aStepThatBeginsWithItsWindowsAllowanceSpentLocatesNoContactAndWhatAHeapCostsIsPinned() {
+        List<Object> balls = new ArrayList<>();
+        flight = heap(balls);
+        double oneStep = Flight.STEP_NANOS / Flight.NANOS_PER_SECOND;
+        long windowBegan = flight.work();
+        int unlocated = 0;
+
+        for (long step = 0; step < Math.round(1 / oneStep); step++) {
+            if (step % Flight.WINDOW_STEPS == 0) {
+                windowBegan = flight.work();
+            }
+            long inFlight = balls.stream().filter(flight::holds).count();
+            long before = flight.work();
+            once(oneStep);
+            if (before - windowBegan >= WINDOW_WORK) {
+                unlocated++;
+                long cost = flight.work() - before;
+                assertTrue(
+                        "step " + step + " began with its window's allowance spent and cost " + cost
+                                + ", as much as locating a contact among " + inFlight + " balls would",
+                        cost < Shot.BISECTIONS * inFlight);
+            }
+        }
+
+        assertTrue("steps that began with their window's allowance spent: " + unlocated, unlocated > 0);
+        assertEquals("what the heap cost", HEAP_WORK, flight.work());
+    }
+
+    private static final double WINDOW_SECONDS = Flight.WINDOW_SECONDS;
+    private static final long WINDOW_WORK = Flight.WINDOW_WORK;
+    private static final long CROWD_WORK = 538639;
+    private static final long HEAP_WORK = 1437391;
+
     @Test
     public void aFlightWithNothingAwakeJumpsToWhereFlyingThereStepByStepWouldLeaveIt() {
         Flight<Object> waited = flight, stepped = flight;
@@ -606,7 +731,7 @@ public class FlightTest {
     }
 
     @Test
-    public void whatALaunchIntoACellAndAFiveNectarTipCostIsPinnedAndNoTickOfTheTipDoesMoreThanItIsAllowed() {
+    public void whatALaunchIntoACellAndAFiveNectarTipCostIsPinned() {
         Field.Cell cell = upturned(blue);
         Vec3 mouth = cell.mouthCentreAt(tilt(blue));
         Vec3 from = new Vec3(mouth.x() + 40, mouth.y(), 14);
@@ -621,23 +746,14 @@ public class FlightTest {
         for (int i = 0; i < 5; i++) {
             putIn(Field.Kind.NECTAR, NECTAR, upturned(hives().hiveOf("Red").orElseThrow()));
         }
-        double plainStepOfABall = 16, stepsInATick = STEP / (Flight.STEP_NANOS / Flight.NANOS_PER_SECOND);
-        long most = 0;
-        for (int i = 0; i < 4 / STEP; i++) {
-            long before = flight.work();
-            once(STEP);
-            most = Math.max(most, flight.work() - before);
-        }
+        fly(4);
 
         assertEquals("a launch into the cell", LAUNCH_WORK, launched);
         assertEquals("then a five-nectar tip", TIP_WORK, flight.work() - launched);
-        assertTrue(
-                "the most a tick did was " + most,
-                most <= Shot.MOST_WORK_PER_SECOND * STEP + stepsInATick * 6 * plainStepOfABall);
     }
 
-    private static final long LAUNCH_WORK = 136055;
-    private static final long TIP_WORK = 1251366;
+    private static final long LAUNCH_WORK = 136054;
+    private static final long TIP_WORK = 1251364;
 
     private static Ring<Vec3> floorOf(Field.Cell cell) {
         Ring<Vec3> lowest = cell.walls().get(0);

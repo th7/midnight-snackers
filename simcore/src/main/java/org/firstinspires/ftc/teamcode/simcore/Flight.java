@@ -20,7 +20,9 @@ public final class Flight<K> {
     public static final double MOST_SPEED_IN_PER_S = 1000;
     public static final long STEP_NANOS = 100_000;
     public static final double NANOS_PER_SECOND = 1e9;
-    public static final double LEAST_SECONDS_OF_WORK = 0.005;
+    public static final long WINDOW_STEPS = 50;
+    public static final double WINDOW_SECONDS = WINDOW_STEPS * STEP_NANOS / NANOS_PER_SECOND;
+    public static final long WINDOW_WORK = Shot.MOST_WORK_PER_SECOND * WINDOW_STEPS * STEP_NANOS / 1_000_000_000L;
     private static final double SIDE_ON = 0.5;
     private static final double CLEAR_WITHIN_IN = 0.02;
 
@@ -63,7 +65,7 @@ public final class Flight<K> {
             Surroundings around,
             Set<String> floors,
             Surfaces surfaces,
-            Seconds leastOfWork,
+            Bodies.Allowance allowance,
             double pollenGrams,
             double nectarGrams,
             double inertia) {}
@@ -122,14 +124,14 @@ public final class Flight<K> {
                                 .then(air -> ShotSetup.surfaces(defaults)
                                         .then(surfaces -> Seconds.of(STEP_NANOS / NANOS_PER_SECOND)
                                                 .then(Bodies.Step::of)
-                                                .then(step -> Seconds.of(LEAST_SECONDS_OF_WORK)
-                                                        .map(least -> new Flight<K>(
+                                                .then(step -> Bodies.Allowance.perWindow(WINDOW_STEPS, WINDOW_WORK)
+                                                        .map(allowance -> new Flight<K>(
                                                                 new Physics(
                                                                         still,
                                                                         around,
                                                                         floorsOf(still),
                                                                         surfaces,
-                                                                        least,
+                                                                        allowance,
                                                                         defaults.value(ShotSetting.MASS),
                                                                         defaults.value(ShotSetting.NECTAR_MASS),
                                                                         defaults.value(ShotSetting.INERTIA)),
@@ -283,8 +285,7 @@ public final class Flight<K> {
         if (!work.bodies.anyAwake() && !work.hives.moving()) {
             return new Stepped<>(work.at(then), List.of());
         }
-        Seconds allowed = tick.seconds().value() < LEAST_SECONDS_OF_WORK ? physics.leastOfWork() : tick.seconds();
-        work.advanceTo(stepsTo(then), work.bodies.allowingFor(allowed));
+        work.advanceTo(stepsTo(then));
         return new Stepped<>(work.at(then), Collections.unmodifiableList(work.landings));
     }
 
@@ -333,11 +334,11 @@ public final class Flight<K> {
         void catchUp() {
             Bodies engine = engine();
             if (engine.steps() < stepsTo(nanos)) {
-                advanceTo(stepsTo(nanos), engine.allowingFor(physics.leastOfWork()));
+                advanceTo(stepsTo(nanos));
             }
         }
 
-        void advanceTo(long target, Bodies.Allowance allowance) {
+        void advanceTo(long target) {
             Bodies engine = engine();
             while (engine.steps() < target) {
                 boolean wasMoving = hives.moving();
@@ -346,7 +347,7 @@ public final class Flight<K> {
                     seeAll();
                     continue;
                 }
-                engine.step(allowance);
+                engine.step(physics.allowance());
                 hives = hives.at(engine.now());
                 afterAStep(wasMoving || hives.moving());
             }

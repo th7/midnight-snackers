@@ -1500,11 +1500,16 @@ air. The nectar a hive is set up with lie asleep where the field puts them,
 cleared of what they overlap; a ball put in a cell is awake and falls asleep as
 any ball does; and a flight with nothing awake and no hive tipping does no work
 however long it waits, going on at once to where stepping would have left it.
-Its time is counted in whole nanoseconds and its steps in whole numbers, so a
-run comes out the same however its time is cut into ticks, and a tick is at most
-a quarter of a second. A tick may do three million units of the engine's work a
-second of its own time (five milliseconds' worth at least); past that, contacts
-are resolved at the ends of pieces without being located. A flight is a value.
+Its time is counted in whole nanoseconds and its steps in whole numbers, and a
+tick is at most a quarter of a second. Its work is allowed by the steps, not by
+the ticks: each window of fifty steps (five milliseconds), the windows lying end
+to end from its first step, may do fifteen thousand units of the engine's work,
+three million a second; once the work done since a window's first step reaches
+that, contacts in the rest of the window are resolved at the ends of pieces
+without being located, and the next window locates them again. So ticks that add
+up to the same nanoseconds leave a flight the same to the bit, however they are
+cut: every landing, every ball still flying and the work counted. A flight is a
+value.
 Class: `Flight`, in the **core**.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
@@ -1823,11 +1828,17 @@ sleeping body wakes nothing. Classes: `Islands`, `Bodies`, in the **core**.
 through to a later step when nothing is awake and no moving face could reach a
 sleeping body before then, and it then goes there at once, exactly where stepping
 there would leave it. Its work counts every integration, every query of its
-surroundings, every check of a moving part's bounds and every placing of the parts,
-so an engine among moving parts never reads as doing nothing. A step can be given an
-**allowance** of that work, which lasts across steps; once the work reaches it,
-contacts are resolved at the ends of pieces without being located, as they are once
-a piece has used up its events. Class: `Bodies`, in the **core**.
+surroundings, every check of a moving part's bounds and every placing of the parts
+in a step in which some body is awake once what the moving parts reach ahead of the
+step is woken; going idle, and a step in which nothing is then awake, are no work,
+so whether an engine idles through a stretch or steps through it never changes its
+work. A step can be given an **allowance**: so many units of work in each window of
+so many steps, the windows lying end to end from the first step. Once the work done
+since the first step the engine took in a window reaches its allowance, contacts in
+the rest of that window are resolved at the ends of pieces without being located, as
+they are once a piece has used up its events, and the next window locates them
+again. A shot's engine is allowed work without limit. Class: `Bodies`, in the
+**core**.
 
 **Shot settings** — Every number a launch is made from, each with its group, label,
 unit, range, default and a sentence saying what it does, and checked whole: the

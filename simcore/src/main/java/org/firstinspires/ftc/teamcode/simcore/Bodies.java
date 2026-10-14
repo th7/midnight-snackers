@@ -154,14 +154,34 @@ final class Bodies {
     record Entry(Name name, Ball shape, Motion motion, Start start) {}
 
     static final class Allowance {
-        private final long until;
+        private final long steps;
+        private final long units;
 
-        private Allowance(long until) {
-            this.until = until;
+        private Allowance(long steps, long units) {
+            this.steps = steps;
+            this.units = units;
         }
 
         static Allowance unlimited() {
-            return new Allowance(Long.MAX_VALUE);
+            return new Allowance(1, Long.MAX_VALUE);
+        }
+
+        static Checked<Allowance> perWindow(long steps, long units) {
+            if (steps < 1) {
+                return Checked.rejected("a window of the engine's work is at least one step long, not " + steps);
+            }
+            if (units < 0) {
+                return Checked.rejected("an engine is allowed no less than no work in a window, not " + units);
+            }
+            return Checked.ok(new Allowance(steps, units));
+        }
+
+        long windowOf(long step) {
+            return (long) StrictMath.floor((double) step / steps);
+        }
+
+        long until(long began) {
+            return units > Long.MAX_VALUE - began ? Long.MAX_VALUE : began + units;
         }
     }
 
@@ -343,6 +363,8 @@ final class Bodies {
     private long steps;
     private double now;
     private long work;
+    private long window;
+    private long windowBegan;
 
     private Bodies(
             Surroundings surroundings,
@@ -353,7 +375,9 @@ final class Bodies {
             List<Body> bodies,
             long steps,
             double now,
-            long work) {
+            long work,
+            long window,
+            long windowBegan) {
         this.surroundings = surroundings;
         this.air = air;
         this.surfaces = surfaces;
@@ -363,6 +387,8 @@ final class Bodies {
         this.steps = steps;
         this.now = now;
         this.work = work;
+        this.window = window;
+        this.windowBegan = windowBegan;
     }
 
     static Bodies watching(Surroundings surroundings, Air air, Surfaces surfaces, Step step, Name name) {
@@ -375,12 +401,24 @@ final class Bodies {
                 new ArrayList<>(),
                 0,
                 0,
+                0,
+                -1,
                 0);
     }
 
     static Bodies unwatched(Surroundings surroundings, Air air, Surfaces surfaces, Step step) {
         return new Bodies(
-                surroundings, air, surfaces, step.seconds().value(), Optional.empty(), new ArrayList<>(), 0, 0, 0);
+                surroundings,
+                air,
+                surfaces,
+                step.seconds().value(),
+                Optional.empty(),
+                new ArrayList<>(),
+                0,
+                0,
+                0,
+                -1,
+                0);
     }
 
     static Bodies launchedAmong(
@@ -397,7 +435,17 @@ final class Bodies {
             bodies.add(Body.of(piece));
         }
         Bodies engine = new Bodies(
-                surroundings, air, surfaces, step.seconds().value(), Optional.of(Shot.LAUNCHED), bodies, 0, 0, 0);
+                surroundings,
+                air,
+                surfaces,
+                step.seconds().value(),
+                Optional.of(Shot.LAUNCHED),
+                bodies,
+                0,
+                0,
+                0,
+                -1,
+                0);
         engine.touchingAtTheStart();
         return engine;
     }
@@ -407,7 +455,7 @@ final class Bodies {
         for (Body body : bodies) {
             copied.add(body.copy());
         }
-        return new Bodies(surroundings, air, surfaces, step, watching, copied, steps, now, work);
+        return new Bodies(surroundings, air, surfaces, step, watching, copied, steps, now, work, window, windowBegan);
     }
 
     List<Seen> surroundedBy(Surroundings surroundings) {
@@ -568,43 +616,46 @@ final class Bodies {
         return Optional.empty();
     }
 
-    Checked<Allowance> allowing(long units) {
-        if (units < 0) {
-            return Checked.rejected("an engine is allowed no less than no work, not " + units);
-        }
-        return Checked.ok(allowingMore(units));
-    }
-
-    private Allowance allowingMore(long units) {
-        return new Allowance(units > Long.MAX_VALUE - work ? Long.MAX_VALUE : work + units);
-    }
-
-    Allowance allowingFor(Seconds seconds) {
-        return allowingMore((long) StrictMath.ceil(Shot.MOST_WORK_PER_SECOND * seconds.value()));
-    }
-
     List<Span> step() {
         return step(Allowance.unlimited());
     }
 
     List<Span> step(Allowance allowance) {
         List<Span> spans = new ArrayList<>();
+        long began = work;
+        long thisWindow = allowance.windowOf(steps);
+        if (thisWindow != window) {
+            window = thisWindow;
+            windowBegan = began;
+        }
+        long until = allowance.until(windowBegan);
         Surroundings ahead = placed(surroundings, (steps + 1) * step);
         List<Seen> early = new ArrayList<>();
         for (Body body : reachedAhead(ahead)) {
             refresh(body);
             early.add(body.seen());
         }
+        boolean moves = anyAwake();
         int pieces = piecesOfThisStep(ahead);
         for (int i = 1; i <= pieces; i++) {
-            aPiece((steps + (double) i / pieces) * step, allowance, spans, i == 1 ? early : List.of());
+            aPiece((steps + (double) i / pieces) * step, until, spans, i == 1 ? early : List.of());
         }
         steps++;
         now = steps * step;
+        if (!moves) {
+            work = began;
+        }
         return Collections.unmodifiableList(spans);
     }
 
     boolean idleThrough(long stepTarget) {
+        long began = work;
+        boolean idle = idlesThrough(stepTarget);
+        work = began;
+        return idle;
+    }
+
+    private boolean idlesThrough(long stepTarget) {
         if (stepTarget <= steps) {
             return stepTarget == steps;
         }
@@ -707,7 +758,7 @@ final class Bodies {
         return watching.flatMap(this::named);
     }
 
-    private void aPiece(double target, Allowance allowance, List<Span> spans, List<Seen> early) {
+    private void aPiece(double target, long until, List<Span> spans, List<Seen> early) {
         int events = 0;
         List<Seen> pending = early;
         while (now < target) {
@@ -719,7 +770,7 @@ final class Bodies {
             Optional<Glimpse> glimpse = watched().map(Glimpse::of);
             integrate(awake, span);
             double covered = span;
-            if (events < Shot.MOST_EVENTS_PER_PIECE && work < allowance.until && overlapsSomethingNew(awake, span)) {
+            if (events < Shot.MOST_EVENTS_PER_PIECE && work < until && overlapsSomethingNew(awake, span)) {
                 double lo = 0, hi = 1;
                 for (int i = 0; i < Shot.BISECTIONS; i++) {
                     double mid = (lo + hi) / 2;

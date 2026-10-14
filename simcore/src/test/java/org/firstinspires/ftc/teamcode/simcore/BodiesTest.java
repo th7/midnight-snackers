@@ -455,14 +455,14 @@ public class BodiesTest {
     }
 
     @Test
-    public void anEngineIsAllowedNoLessThanNoWork() {
-        Bodies bodies = unwatched();
+    public void anAllowanceIsForWindowsOfAtLeastOneStepAndNoLessThanNoWorkInEach() {
+        String shorter = rejection(Bodies.Allowance.perWindow(0, 100));
+        String less = rejection(Bodies.Allowance.perWindow(50, -1));
 
-        String less = rejection(bodies.allowing(-1));
-
-        assertTrue(less, less.contains("an engine is allowed no less than no work, not -1"));
-        assertEquals("accepted", rejection(bodies.allowing(0)));
-        assertEquals("accepted", rejection(bodies.allowing(Long.MAX_VALUE)));
+        assertTrue(shorter, shorter.contains("a window of the engine's work is at least one step long, not 0"));
+        assertTrue(less, less.contains("an engine is allowed no less than no work in a window, not -1"));
+        assertEquals("accepted", rejection(Bodies.Allowance.perWindow(1, 0)));
+        assertEquals("accepted", rejection(Bodies.Allowance.perWindow(Long.MAX_VALUE, Long.MAX_VALUE)));
     }
 
     @Test
@@ -470,7 +470,7 @@ public class BodiesTest {
         Bodies located = watching("ball");
         add(located, "ball", new Vec3(0, 0, R + 0.002), new Vec3(10, 0, -100), AWAKE);
         Bodies unlocated = located.copy();
-        Bodies.Allowance none = Valid.value(unlocated.allowing(0));
+        Bodies.Allowance none = Valid.value(Bodies.Allowance.perWindow(1, 0));
 
         List<Bodies.Span> cut = located.step();
         List<Bodies.Span> whole = unlocated.step(none);
@@ -484,55 +484,36 @@ public class BodiesTest {
     }
 
     @Test
-    public void anAllowanceLastsAcrossStepsUntilTheEnginesWorkReachesItAndTheSameAllowanceGivesTheSameShot() {
+    public void aWindowsAllowanceLastsAcrossItsStepsUntilItsWorkReachesItAndTheNextWindowLocatesContactsAgain() {
         Bodies unlimited = watching("ball");
         add(unlimited, "ball", new Vec3(0, 0, 10), new Vec3(30, 0, 0), AWAKE);
-        Bodies limited = unlimited.copy(), again = unlimited.copy(), ample = unlimited.copy();
-        Bodies.Allowance allowance = Valid.value(limited.allowing(12000)),
-                same = Valid.value(again.allowing(12000)),
-                never = Valid.value(ample.allowing(Long.MAX_VALUE));
-        long until = limited.work() + 12000;
-        int cutBefore = 0, cutAfter = 0;
+        Bodies limited = unlimited.copy(), again = unlimited.copy();
+        long window = 1000, units = 2000;
+        Bodies.Allowance allowance = Valid.value(Bodies.Allowance.perWindow(window, units));
+        long windowBegan = limited.work();
+        int locatedWhileAllowed = 0, locatedOnceSpent = 0, locatedAfterAWindowWasSpent = 0;
+        boolean aWindowWasSpent = false;
 
         for (int i = 0; i < 1.5 / STEP; i++) {
-            long before = limited.work();
-            int cut = limited.step(allowance).size() - 1;
-            cutBefore += before < until ? cut : 0;
-            cutAfter += before < until ? 0 : cut;
+            if (i % window == 0) {
+                windowBegan = limited.work();
+            }
+            long spent = limited.work() - windowBegan;
+            int located = limited.step(allowance).size() - 1;
+            locatedWhileAllowed += spent < units ? located : 0;
+            locatedOnceSpent += spent < units ? 0 : located;
+            locatedAfterAWindowWasSpent += aWindowWasSpent && spent < units ? located : 0;
+            aWindowWasSpent = aWindowWasSpent || spent >= units;
             unlimited.step();
-            again.step(same);
-            ample.step(never);
+            again.step(allowance);
         }
 
-        assertTrue(cutBefore > 0);
-        assertEquals(0, cutAfter);
+        assertTrue(locatedWhileAllowed > 0);
+        assertEquals(0, locatedOnceSpent);
+        assertTrue(locatedAfterAWindowWasSpent > 0);
         assertEquals(limited.seen(), again.seen());
         assertEquals(limited.work(), again.work());
-        assertEquals(unlimited.seen(), ample.seen());
-        assertEquals(unlimited.work(), ample.work());
         assertTrue(!unlimited.seen().equals(limited.seen()));
-    }
-
-    @Test
-    public void anAllowanceForATimeIsTheWorkAShotMayDoInThatTime() {
-        Bodies byUnits = watching("ball");
-        add(byUnits, "ball", new Vec3(0, 0, 10), new Vec3(30, 0, 0), AWAKE);
-        Bodies byTime = byUnits.copy(), forEver = byUnits.copy(), unlimited = byUnits.copy();
-        Bodies.Allowance units = Valid.value(byUnits.allowing(Shot.MOST_WORK_PER_SECOND / 250));
-        Bodies.Allowance time = byTime.allowingFor(Valid.value(Seconds.of(0.004)));
-        Bodies.Allowance ever = forEver.allowingFor(Valid.value(Seconds.of(Double.MAX_VALUE)));
-
-        for (int i = 0; i < 1.5 / STEP; i++) {
-            byUnits.step(units);
-            byTime.step(time);
-            forEver.step(ever);
-            unlimited.step();
-        }
-
-        assertEquals(byUnits.seen(), byTime.seen());
-        assertEquals(byUnits.work(), byTime.work());
-        assertEquals(unlimited.seen(), forEver.seen());
-        assertTrue(!unlimited.seen().equals(byTime.seen()));
     }
 
     @Test

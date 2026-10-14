@@ -471,7 +471,7 @@ public class MovingSurroundingsTest {
     }
 
     @Test
-    public void aBallAsleepFarFromAMovingPartStaysAsleepAndCostsTheEngineOnlyItsBoundsChecksAndPlacingThePart() {
+    public void aBallAsleepFarFromAMovingPartCostsAnEngineWithNothingAwakeNothingAndOneWithABallAwakeItsBoundsChecks() {
         Surroundings.Part sliding = Carried.sliding(
                 Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(10, 0, 0), 0);
         Vec3 far = new Vec3(40, 40, R), lane = new Vec3(0, -40, R), rolling = new Vec3(20, 0, 0);
@@ -490,9 +490,11 @@ public class MovingSurroundingsTest {
 
         int boundsChecks = 3, placements = 2, placementsForTheRollingBallsTrial = 1;
         assertEquals(Bodies.Life.ASLEEP, seen(alone, "far").life());
-        assertEquals(alone.steps() * (boundsChecks + placements), alone.work());
+        assertEquals(0, alone.work());
         assertEquals(Bodies.Life.ASLEEP, seen(moving, "far").life());
-        assertEquals(still.work() + alone.work() + moving.steps() * placementsForTheRollingBallsTrial, moving.work());
+        assertEquals(
+                still.work() + moving.steps() * (boundsChecks + placements + placementsForTheRollingBallsTrial),
+                moving.work());
         assertEquals(still.seen(), moving.seen());
     }
 
@@ -637,7 +639,7 @@ public class MovingSurroundingsTest {
     }
 
     @Test
-    public void anEngineWithNothingAwakeIdlesThroughToALaterStepExactlyWhereSteppingWouldLeaveItForLessWork() {
+    public void anEngineWithNothingAwakeIdlesThroughToALaterStepExactlyWhereSteppingWouldLeaveItAndNeitherIsWork() {
         Surroundings.Part far = Carried.sliding(
                 Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(10, 0, 0), 0);
         Bodies stepped = among(STEP, far, Carried.sliding(TRAY, Vec3.zero(), 0));
@@ -658,8 +660,8 @@ public class MovingSurroundingsTest {
         for (String name : List.of("resting", "lying", "held")) {
             assertEquals(name, stepped.touching(name), idled.touching(name));
         }
-        long jumping = idled.work() - before, stepping = stepped.work() - before;
-        assertTrue(jumping + " against " + stepping, 0 < jumping && jumping * 100 < stepping);
+        assertEquals("jumping", before, idled.work());
+        assertEquals("stepping", before, stepped.work());
         stepFor(stepped, 0.01, STEP);
         stepFor(idled, 0.01, STEP);
         assertEquals(stepped.seen(), idled.seen());
@@ -679,7 +681,7 @@ public class MovingSurroundingsTest {
     }
 
     @Test
-    public void anEngineDoesNotIdleThroughStepsInWhichAMovingFaceCouldReachASleepingBody() {
+    public void anEngineDoesNotIdleThroughStepsInWhichAMovingFaceCouldReachASleepingBodyAndAskingIsNoWork() {
         double speed = 10, gap = 1;
         Collider closing = Carried.box("paddle", new Vec3(-gap - 1, -10, 0.5), new Vec3(-gap, 10, 8));
         Bodies bodies = among(STEP, Carried.sliding(closing, new Vec3(speed, 0, 0), 0));
@@ -691,6 +693,7 @@ public class MovingSurroundingsTest {
         assertTrue(!bodies.idleThrough(reached + (long) ((gap + 2 * R + 1) / speed / STEP)));
         assertEquals(reached, bodies.steps());
         assertEquals(Bodies.Life.ASLEEP, seen(bodies, "ball").life());
+        assertEquals("idling or refusing to is no work", 0, bodies.work());
     }
 
     @Test
