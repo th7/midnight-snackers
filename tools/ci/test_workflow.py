@@ -1,8 +1,10 @@
 import base64
+import http.server
 import os
 import re
 import subprocess
 import tempfile
+import threading
 import unittest
 
 import develop_issue as issues
@@ -14,6 +16,10 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 WORKFLOW = os.path.join(REPO, '.github', 'workflows', 'tests.yml')
 FOR_DEVELOP_ONLY = "${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}"
 JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}"
+MANAGING_ENVIRONMENTS = ('https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/'
+                         'manage-environments')
+GIT_EXTRA_HEADER = 'https://git-scm.com/docs/git-config#Documentation/git-config.txt-httpextraHeader'
+GIT_CONFIG_FROM_ENVIRONMENT = 'https://git-scm.com/docs/git-config#Documentation/git-config.txt-GITCONFIGCOUNT'
 JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
                          'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
                          'SUBJECT': '${{ needs.unit-tests.outputs.subject }}'},
@@ -158,21 +164,26 @@ class WhatARunJudges(WorkflowTest):
                               **{step.step: '${{ steps.%s.outcome }}' % step.step for step in run.STEPS}),
                          self.jobs['unit-tests']['outputs'])
 
-    def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_and_the_push_token_if_there_is_one(self):
+    def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_and_the_built_in_token(self):
         self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
-                          'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0',
-                                   'token': '${{ secrets.%s || github.token }}' % run.MAIN_PUSH_TOKEN}},
+                          'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0'}},
                          steps_of(self.jobs['promote'])[0])
 
-    def test_no_step_but_the_checkout_of_the_job_that_moves_main_reads_a_secret(self):
+    def test_no_step_but_the_push_to_main_reads_a_secret(self):
         reading = [(name, step.get('name')) for name, job in self.jobs.items() for step in steps_of(job)
                    if any('secrets.' in text for text in every_text_in(step))]
         elsewhere = [text for name, job in self.jobs.items() for text in every_text_in(
             {key: value for key, value in job.items() if key != 'steps'})] + every_text_in(
             {key: value for key, value in self.workflow.items() if key != 'jobs'})
 
-        self.assertEqual([('promote', 'Check out the judged commit')], reading)
+        self.assertEqual([('promote', 'Move main to the judged commit, never by force')], reading)
         self.assertFalse([text for text in elsewhere if 'secrets.' in text])
+
+    def test_only_the_job_that_moves_main_runs_in_the_environment_that_holds_the_push_token(self):
+        self.assertEqual({'promote': 'main'},
+                         {name: job['environment'] for name, job in self.jobs.items() if 'environment' in job},
+                         'an environment secret reaches only a job that names the environment, and only from a branch '
+                         'the environment lets deploy: %s' % MANAGING_ENVIRONMENTS)
 
     def test_the_job_that_writes_the_issue_checks_out_the_commit_judged_without_keeping_a_credential(self):
         self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
@@ -188,8 +199,14 @@ class HowMainMoves(WorkflowTest):
             {'name': 'Move main to the judged commit, never by force',
              'id': 'push',
              'if': "steps.decide.outputs.decision == 'move'",
-             'env': {'JUDGED': '${{ steps.decide.outputs.commit }}'},
-             'run': 'pushed=0\n'
+             'env': {'JUDGED': '${{ steps.decide.outputs.commit }}',
+                     'PUSH_TOKEN': '${{ secrets.%s || github.token }}' % run.MAIN_PUSH_TOKEN},
+             'run': 'auth=$(printf \'x-access-token:%s\' "$PUSH_TOKEN" | base64 -w0)\n'
+                    'export GIT_CONFIG_COUNT=2\n'
+                    'export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" GIT_CONFIG_VALUE_0=\n'
+                    'export GIT_CONFIG_KEY_1="http.$GITHUB_SERVER_URL/.extraheader" '
+                    'GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $auth"\n'
+                    'pushed=0\n'
                     'git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?\n'
                     'cat "$RUNNER_TEMP/git-said"\n'
                     'said=$(base64 -w0 < "$RUNNER_TEMP/git-said")\n'
@@ -340,6 +357,86 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         self.assertEqual(run.Stay(run.Commit(run.CommitHash(judged_commit), 'A commit of develop'),
                                   self.listed((stray, 'Fix the README on main'))), decided)
+
+
+def basic(token):
+    return 'basic ' + base64.b64encode(('x-access-token:' + token).encode('ascii')).decode('ascii')
+
+
+class ARefusingServer(http.server.ThreadingHTTPServer):
+    def __init__(self, status):
+        super().__init__(('127.0.0.1', 0), Refusing)
+        self.status = status
+        self.heard = []
+
+
+class Refusing(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.server.heard.append(self.headers.get_all('Authorization') or [])
+        said = b'Permission to th7/midnight-snackers.git denied to a-user.\n'
+        self.send_response(self.server.status)
+        if self.server.status == 401:
+            self.send_header('WWW-Authenticate', 'Basic realm="GitHub"')
+        self.send_header('Content-Type', 'text/plain')
+        self.send_header('Content-Length', str(len(said)))
+        self.end_headers()
+        self.wfile.write(said)
+
+    def log_message(self, *arguments):
+        pass
+
+
+class WhatThePushToMainSendsOverHttp(WorkflowTest):
+    BUILT_IN = 'the-built-in-token'
+    SECRET = 'the-push-token'
+
+    def setUp(self):
+        super().setUp()
+        self.where = tempfile.TemporaryDirectory()
+        self.environ = {'PATH': os.environ.get('PATH', ''), 'HOME': self.where.name, 'GIT_CONFIG_NOSYSTEM': '1',
+                        'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_AUTHOR_NAME': 'Coach', 'GIT_AUTHOR_EMAIL': 'c@example.org',
+                        'GIT_COMMITTER_NAME': 'Coach', 'GIT_COMMITTER_EMAIL': 'c@example.org', 'LC_ALL': 'C'}
+        self.runner = os.path.join(self.where.name, 'runner')
+        self.git(self.where.name, 'init', '-q', '-b', 'develop', self.runner)
+        self.git(self.runner, 'commit', '--allow-empty', '-q', '-m', 'The commit judged')
+        self.judged = self.git(self.runner, 'rev-parse', 'HEAD')
+
+    def tearDown(self):
+        self.where.cleanup()
+
+    def git(self, where, *arguments):
+        return subprocess.run(['git'] + list(arguments), cwd=where, env=self.environ, check=True, capture_output=True,
+                              text=True, timeout=60).stdout.strip()
+
+    def pushed(self, status, push_token, **environ):
+        server = ARefusingServer(status)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            url = 'http://127.0.0.1:%d' % server.server_address[1]
+            self.git(self.runner, 'remote', 'add', 'origin', url + '/th7/midnight-snackers')
+            self.git(self.runner, 'config', 'http.%s/.extraheader' % url, 'AUTHORIZATION: ' + basic(self.BUILT_IN))
+            outputs = os.path.join(self.where.name, 'outputs')
+            done = subprocess.run(
+                ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
+                 step_named(self.jobs['promote'], 'push')['run']],
+                cwd=self.runner, capture_output=True, text=True, timeout=60, start_new_session=True,
+                env=dict(self.environ, GITHUB_SERVER_URL=url, GITHUB_OUTPUT=outputs, RUNNER_TEMP=self.where.name,
+                         JUDGED=self.judged, PUSH_TOKEN=push_token, **environ))
+            with open(outputs, encoding='utf-8') as written:
+                handed = dict(line.split('=', 1) for line in written.read().split('\n') if line)
+            return done, handed, server.heard
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_the_push_sends_the_token_it_was_handed_and_not_the_one_the_checkout_kept(self):
+        done, _, heard = self.pushed(401, self.SECRET)
+
+        self.assertNotEqual(0, done.returncode, done.stdout)
+        self.assertTrue(heard, done.stdout)
+        self.assertEqual([[basic(self.SECRET)]] * len(heard), heard,
+                         'an empty http.extraHeader clears the headers set before it (%s), and the environment sets '
+                         'configuration after the repository does (%s)' % (GIT_EXTRA_HEADER, GIT_CONFIG_FROM_ENVIRONMENT))
 
 
 class HowTheIssueIsWritten(WorkflowTest):

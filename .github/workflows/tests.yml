@@ -94,6 +94,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: main
     permissions:
       contents: write
     outputs:
@@ -108,7 +109,6 @@ jobs:
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
-          token: ${{ secrets.MAIN_PUSH_TOKEN || github.token }}
       - name: Find what main has that develop lacks, and what it has that the judged commit lacks
         id: main
         run: |
@@ -143,7 +143,12 @@ jobs:
         if: steps.decide.outputs.decision == 'move'
         env:
           JUDGED: ${{ steps.decide.outputs.commit }}
+          PUSH_TOKEN: ${{ secrets.MAIN_PUSH_TOKEN || github.token }}
         run: |
+          auth=$(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)
+          export GIT_CONFIG_COUNT=2
+          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" GIT_CONFIG_VALUE_0=
+          export GIT_CONFIG_KEY_1="http.$GITHUB_SERVER_URL/.extraheader" GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $auth"
           pushed=0
           git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?
           cat "$RUNNER_TEMP/git-said"
