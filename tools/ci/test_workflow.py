@@ -179,8 +179,8 @@ class WhatARunJudges(WorkflowTest):
         self.assertEqual([('promote', 'Move main to the judged commit, never by force')], reading)
         self.assertFalse([text for text in elsewhere if 'secrets.' in text])
 
-    def test_only_the_job_that_moves_main_runs_in_the_environment_that_holds_the_push_token(self):
-        self.assertEqual({'promote': 'main'},
+    def test_only_the_job_that_moves_main_runs_in_the_environment_the_issue_names_as_holding_the_push_token(self):
+        self.assertEqual({'promote': run.PUSH_ENVIRONMENT},
                          {name: job['environment'] for name, job in self.jobs.items() if 'environment' in job},
                          'an environment secret reaches only a job that names the environment, and only from a branch '
                          'the environment lets deploy: %s' % MANAGING_ENVIRONMENTS)
