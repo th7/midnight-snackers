@@ -1111,6 +1111,23 @@ public class FlightTest {
         assertTrue("fed with a ball just beyond the touching distance", flight.holds(beyond));
     }
 
+    @Test
+    public void aFeedThatWouldComeIntoFlightFasterThanAFlightTakesABallIsRefusedNamingTheRuleWhileOneSlowerGoesIn() {
+        double sweeping = 0.999 * Flight.MOST_SPEED_IN_PER_S;
+        DoubleFunction<Launcher.Frame> backward = seconds -> frame(ROBOT_X - sweeping * seconds, ROBOT_Y, ROBOT_YAW);
+        DoubleFunction<Launcher.Frame> forward = seconds -> frame(ROBOT_X + sweeping * seconds, ROBOT_Y, ROBOT_YAW);
+
+        carryALauncher(backward);
+        carry(STEP, backward, wheel(0));
+        String withTheFeed = rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
+        carryALauncher(forward);
+        carry(STEP, forward, wheel(0));
+        Object againstTheFeed = feed();
+
+        assertTrue(withTheFeed, withTheFeed.contains("a ball comes into flight at most 1000.0 in/s"));
+        assertTrue("fed while sweeping against the feed", flight.holds(againstTheFeed));
+    }
+
     private static Flight<Object> lyingAbove(Flight<Object> flight, Vec3 entry, double apart) {
         Object ball = new Object();
         Flight<Object> lying = Valid.value(flight.with(

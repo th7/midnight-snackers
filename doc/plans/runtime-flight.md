@@ -338,9 +338,12 @@ gives is a `Feeding`: `Fed`, with the flight the ball is in, or
 `EntryNotClear`, a wait that says why ("the launcher's entry is not
 clear") while a ball lies within its own radius and the fed ball's, plus
 the touching distance, of the entry spot. `SimRobot` then keeps the ball
-chambered and tries again the next substep. Only a ball that is not a
-pollen of the launcher's 1.39 in, or a flight with no robot, is refused,
-naming the rule.
+chambered and tries again the next substep. A feed is refused, naming the
+rule, for a ball that is not a pollen of the launcher's 1.39 in, for a
+flight with no robot, and for a ball that would come into flight faster
+than a flight takes one (`Flight.MOST_SPEED_IN_PER_S`, 1,000 in/s): the
+frame's velocity at the entry and the feed's 0.1 m/s up the path together
+pass that while the launcher sweeps near its bound the way the feed goes.
 
 **Constants and the run stream.** The throw is no longer a constant.
 - `Constant.FLYWHEEL_TICKS_PER_TURN` (`flywheel_ticks_per_turn`), a
@@ -492,9 +495,10 @@ they score.
 4. `FlightTest`: `fed` waits, saying why, while a ball lies just within
    the two radii and the touching distance of the entry, and feeds once it
    lies just beyond; it is refused for a nectar or a ball of another size,
-   naming the rule. With both gates open, balls leave one at a time and
-   never overlap. A ball in the launcher stays where it was through a
-   hive's tip and through a change in what stands in the bores.
+   and for a feed faster than a flight takes a ball while one just slower
+   goes in, naming the rule. With both gates open, balls leave one at a
+   time and never overlap. A ball in the launcher stays where it was
+   through a hive's tip and through a change in what stands in the bores.
    Until stage 4c builds T in, `FlightTest` turns the launcher's wheel at
    T 24.2 and 1050 ticks/s, as stage 4b's tests do: a wheel speed that
    exercises the flight, not Reginald's.

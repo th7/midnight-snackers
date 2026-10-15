@@ -1661,10 +1661,12 @@ did, is not replaced, so while its robot rests a flight comes out the same to th
 bit however its time is cut. Its motion wakes nothing it does not reach and costs
 nothing while nothing is awake, so a flight idles ahead past a robot driving where
 no ball is near its launcher. A ball is fed into it only if it is a pollen of the
-launcher's 1.39 in, and only while no ball lies within the two radii and the
-touching distance of the entry ("the launcher's entry is not clear"); it goes in
-at the entry with the feed and no spin, so balls fed as fast as that allows are
-thrown one at a time and never overlap. A teleport carries the launcher to its new
+launcher's 1.39 in that would come into flight no faster than a flight takes a
+ball, which the frame's velocity at the entry and the feed together can pass while
+the launcher sweeps near its bound the way the feed goes, and only while no ball
+lies within the two radii and the touching distance of the entry ("the launcher's
+entry is not clear"); it goes in at the entry with the feed and no spin, so balls
+fed as fast as that allows are thrown one at a time and never overlap. A teleport carries the launcher to its new
 frame at once, with no sweep, and the balls it holds go with it, lying and moving
 in it as they did; a tick that would sweep it there faster than a flight takes a
 ball is refused. Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
