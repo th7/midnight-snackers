@@ -50,4 +50,22 @@ public class TurntableTest {
         assertEquals(100 + 3400, quicker.turned(100, Power.clamped(1), seconds(1)));
         assertEquals(100 - 1700, quicker.turned(100, Power.clamped(-0.5), seconds(1)));
     }
+
+    @Test
+    public void theLaunchersFrameIsTheRobotsPlaceFacingItsHeadingTurnedByTheTurntable() {
+        Launcher.Frame quarter = Valid.value(TURNTABLE.launcherFrame(new Vec2(10, -20), 0.5, TICKS_PER_REVOLUTION / 4));
+        Launcher.Frame back = Valid.value(TURNTABLE.launcherFrame(new Vec2(10, -20), 0.5, -TICKS_PER_REVOLUTION / 2));
+
+        assertEquals(Valid.value(Launcher.Frame.of(10, -20, 0.5 + Math.PI / 2)), quarter);
+        assertEquals(Valid.value(Launcher.Frame.of(10, -20, 0.5 - Math.PI)), back);
+    }
+
+    @Test
+    public void aRobotWhosePlaceOrHeadingNoFrameCouldHaveGivesNoLaunchersFrameAndTheRefusalNamesTheFramesRule() {
+        String far = String.valueOf(TURNTABLE.launcherFrame(new Vec2(20000, 0), 0, 0));
+        String turning = String.valueOf(TURNTABLE.launcherFrame(new Vec2(10, -20), Double.NaN, 0));
+
+        assertTrue(far, far.contains("a launcher's frame is within"));
+        assertTrue(turning, turning.contains("a launcher's frame faces a finite yaw"));
+    }
 }

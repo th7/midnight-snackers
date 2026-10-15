@@ -26,4 +26,8 @@ public final class Turntable {
     public double radians(int ticks) {
         return (double) ticks / ticksPerRevolution * 2 * Math.PI;
     }
+
+    public Checked<Launcher.Frame> launcherFrame(Vec2 robotAt, double headingRadians, int ticks) {
+        return Launcher.Frame.of(robotAt.x(), robotAt.y(), headingRadians + radians(ticks));
+    }
 }
