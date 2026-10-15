@@ -177,16 +177,16 @@ class SayingWhatTheRunFound(unittest.TestCase):
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=none\n', done.stdout)
-        self.assertIn("but main moved since this run's push left it there, and now stands at `%s`, so this run writes "
-                      'nothing to the issue' % STRAY, done.stderr)
+        self.assertIn("but main moved since this run's push left it there, and now stands at `%s`, so this job says "
+                      'nothing for the issue' % STRAY, done.stderr)
 
     def test_a_run_whose_mover_found_main_moved_since_the_look_hands_the_workflow_nothing_to_do_and_says_why_in_the_log(self):
         done = self.report('[]', PUSHED='skipped', MAIN_TIP=STRAY)
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=none\n', done.stdout)
-        self.assertIn('but main moved since the job that looks found it at `%s`, and now stands at `%s`, so this run '
-                      'writes nothing to the issue' % (MAIN, STRAY), done.stderr)
+        self.assertIn('but main moved since the job that looks found it at `%s`, and now stands at `%s`, so this job '
+                      'says nothing for the issue' % (MAIN, STRAY), done.stderr)
 
     def test_a_held_run_says_main_stays_where_the_job_that_says_read_its_tip_not_where_the_look_found_it(self):
         done = self.report('[]', LOOKING_ENDED='failure', PUSHED='skipped', PROMOTING_ENDED='failure', MAIN_TIP=STRAY,

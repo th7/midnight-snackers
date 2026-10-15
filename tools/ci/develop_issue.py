@@ -144,8 +144,8 @@ def where_this_run_left_main(found):
 
 
 def main_moved_log(found):
-    return ('develop was judged green at %s, but main moved since %s, and now stands at %s, so this run writes nothing '
-            'to the issue: a run that looks at main again, for a new push to develop or re-running all of this '
+    return ('develop was judged green at %s, but main moved since %s, and now stands at %s, so this job says nothing for '
+            'the issue: a run that looks at main again, for a new push to develop or re-running all of this '
             "run's jobs, speaks for develop." % (run.named(found.commit), where_this_run_left_main(found),
                                                  run.code_span(found.main_tip.text)))
 

@@ -112,20 +112,20 @@ class WhichIssueIsTouched(unittest.TestCase):
                                        % (JUDGED, SUBJECT, LATER, RUN)),
                          action)
 
-    def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_writes_nothing_to_the_issue_and_says_why_in_the_log(self):
+    def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_says_nothing_for_the_issue_and_logs_why(self):
         for listed in ((issue(41), issue(12)), ()):
             for develop in (JUDGED, LATER):
                 for found in (MAIN, JUDGED):
                     self.assertEqual(
                         LeaveAloneSinceMainMoved(
                             "develop was judged green at `%s` `%s`, but main moved since this run's push left it there, "
-                            "and now stands at `%s`, so this run writes nothing to the issue: a run that looks at main "
+                            "and now stands at `%s`, so this job says nothing for the issue: a run that looks at main "
                             "again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
                             % (JUDGED, SUBJECT, STRAY)),
                         issues.issue_action(judged(), looked(main=STRAY, develop=develop, found=found), listed, link()),
                         (listed, develop, found))
 
-    def test_a_run_that_pushed_nothing_to_a_main_moved_since_its_look_writes_nothing_to_the_issue_and_says_why_in_the_log(self):
+    def test_a_run_that_pushed_nothing_to_a_main_moved_since_its_look_says_nothing_for_the_issue_and_logs_why(self):
         later = commit(STRAY, 'A later commit of develop')
         for promoting in (looked(pushed=Outcome.SKIPPED, ended=Outcome.SUCCESS, main=LATER),
                           looked(pushed=Outcome.SKIPPED, ahead=(later,), ended=Outcome.SUCCESS, main=LATER),
@@ -134,7 +134,7 @@ class WhichIssueIsTouched(unittest.TestCase):
                 self.assertEqual(
                     LeaveAloneSinceMainMoved(
                         'develop was judged green at `%s` `%s`, but main moved since the job that looks found it at `%s`, '
-                        'and now stands at `%s`, so this run writes nothing to the issue: a run that looks at main again, '
+                        'and now stands at `%s`, so this job says nothing for the issue: a run that looks at main again, '
                         "for a new push to develop or re-running all of this run's jobs, speaks for develop."
                         % (JUDGED, SUBJECT, MAIN, LATER)),
                     issues.issue_action(judged(), promoting, listed, link()), (promoting, listed))
