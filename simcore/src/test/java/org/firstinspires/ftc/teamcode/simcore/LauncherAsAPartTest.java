@@ -325,8 +325,13 @@ public class LauncherAsAPartTest {
         assertEquals(1, stop.normal().dot(up), WITHIN);
         Vec3 down = entry.minus(up.times(0.1));
         assertEquals(-0.1, launcher.near(down, POLLEN, 0).get(0).gap(), WITHIN);
-        assertEquals(0, depthOn(launcher, entry, wheelId(0)), WITHIN);
-        assertTrue(depthOn(launcher, entry, hoodId(0)) > LEAD_IN_SQUEEZE);
+        for (double ring : RINGS_MM) {
+            assertEquals(
+                    "the flywheel's ring at " + ring + " mm squeezes the fed ball",
+                    Optional.empty(),
+                    named(launcher.squeezing(entry, POLLEN), wheelId(ring)));
+        }
+        assertTrue("the lead-in squeezes the fed ball", depthOn(launcher, entry, hoodId(0)) > 0);
         assertEquals(List.of(), launcher.near(entry.plus(up.times(0.2)), POLLEN, Shot.TOUCHING_IN));
     }
 
