@@ -171,6 +171,12 @@ public final class SimDriverStation {
         }
     }
 
+    public static final class CannotStart extends IllegalArgumentException {
+        CannotStart(String why) {
+            super(why);
+        }
+    }
+
     private final State[] states = {State.NEUTRAL, State.NEUTRAL};
     private volatile boolean stopRequested = false;
     private final CountDownLatch placed = new CountDownLatch(1);
@@ -260,15 +266,7 @@ public final class SimDriverStation {
 
     public void accept(JsonObject line) {
         if (line.has("start")) {
-            if (!line.get("start").isJsonObject()) {
-                throw new IllegalArgumentException("not a start pose: " + line.get("start"));
-            }
-            Pose2d pose = StartPoses.fromJson(line.getAsJsonObject("start"));
-            Long seed = StartPoses.seedFromJson(line.get("seed"));
-            Constants constants = SimConstants.fromJson(line.get("constants")).fold(read -> read, rule -> {
-                throw new IllegalArgumentException("not simulation constants: " + rule);
-            });
-            place(pose, seed, constants);
+            start(line);
             return;
         }
         if (line.has("gamepad") && line.has("state")) {
@@ -282,6 +280,24 @@ public final class SimDriverStation {
             return;
         }
         throw new IllegalArgumentException("not a driver station line: " + line);
+    }
+
+    private void start(JsonObject line) {
+        if (!line.get("start").isJsonObject()) {
+            throw new CannotStart("not a start pose: " + line.get("start"));
+        }
+        Pose2d pose;
+        Long seed;
+        try {
+            pose = StartPoses.fromJson(line.getAsJsonObject("start"));
+            seed = StartPoses.seedFromJson(line.get("seed"));
+        } catch (RuntimeException e) {
+            throw new CannotStart(e.getMessage() == null ? e.toString() : e.getMessage());
+        }
+        Constants constants = SimConstants.fromJson(line.get("constants")).fold(read -> read, rule -> {
+            throw new CannotStart("not simulation constants: " + rule);
+        });
+        place(pose, seed, constants);
     }
 
     private static int index(int gamepad) {

@@ -236,12 +236,12 @@ public class SimDriverStationTest {
         SimDriverStation station = new SimDriverStation();
 
         IllegalArgumentException unknown = assertThrows(
-                IllegalArgumentException.class,
+                SimDriverStation.CannotStart.class,
                 () -> station.accept(
                         json("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"gravity\": 1}}")));
         assertTrue(unknown.getMessage(), unknown.getMessage().contains("'gravity'"));
         IllegalArgumentException outOfRange = assertThrows(
-                IllegalArgumentException.class,
+                SimDriverStation.CannotStart.class,
                 () -> station.accept(json(
                         "{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"launch_throw\": 5}}")));
         assertTrue(outOfRange.getMessage(), outOfRange.getMessage().contains("Launcher throw"));
@@ -262,11 +262,11 @@ public class SimDriverStationTest {
         SimDriverStation station = new SimDriverStation();
 
         IllegalArgumentException e = assertThrows(
-                IllegalArgumentException.class,
+                SimDriverStation.CannotStart.class,
                 () -> station.accept(json("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"seed\": \"lucky\"}")));
         assertTrue(e.getMessage(), e.getMessage().contains("lucky"));
         assertThrows(
-                IllegalArgumentException.class,
+                SimDriverStation.CannotStart.class,
                 () -> station.accept(json("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"seed\": 1.5}")));
     }
 
@@ -283,12 +283,12 @@ public class SimDriverStationTest {
         SimDriverStation station = new SimDriverStation();
 
         IllegalArgumentException missing = assertThrows(
-                IllegalArgumentException.class, () -> station.accept(json("{\"start\": {\"x\": 1, \"y\": 2}}")));
+                SimDriverStation.CannotStart.class, () -> station.accept(json("{\"start\": {\"x\": 1, \"y\": 2}}")));
         assertTrue(missing.getMessage(), missing.getMessage().contains("heading"));
         IllegalArgumentException notANumber = assertThrows(
-                IllegalArgumentException.class,
+                SimDriverStation.CannotStart.class,
                 () -> station.accept(json("{\"start\": {\"x\": \"far\", \"y\": 2, \"heading\": 0}}")));
         assertTrue(notANumber.getMessage(), notANumber.getMessage().contains("far"));
-        assertThrows(IllegalArgumentException.class, () -> station.accept(json("{\"start\": 7}")));
+        assertThrows(SimDriverStation.CannotStart.class, () -> station.accept(json("{\"start\": 7}")));
     }
 }

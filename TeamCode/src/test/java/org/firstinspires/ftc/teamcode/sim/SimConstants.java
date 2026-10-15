@@ -101,8 +101,12 @@ public final class SimConstants {
         if (constants.asBuilt()) {
             return "as built";
         }
+        return described(constants.changed());
+    }
+
+    public static String described(Map<Constant, Double> changed) {
         List<String> changes = new ArrayList<>();
-        for (Map.Entry<Constant, Double> entry : constants.changed().entrySet()) {
+        for (Map.Entry<Constant, Double> entry : changed.entrySet()) {
             Constant constant = entry.getKey();
             changes.add(constant.label() + " " + entry.getValue() + " " + constant.unit() + " (built "
                     + constant.byDefault() + ")");

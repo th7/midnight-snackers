@@ -410,6 +410,26 @@ public class SimChildTest {
     }
 
     @Test
+    public void aStartLineTheChildCannotTakeEndsTheRunWithAnOutcomeOfItsOwnSayingWhy() throws Exception {
+        Process child = JvmChild.launchOnThisClasspath(
+                "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
+        Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
+        in.write("{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"a_later_constant\": 1}}\n");
+        in.flush();
+
+        Output output = run(child);
+
+        assertEquals(output.stderr, 0, output.exitCode);
+        String outcome = new Gson()
+                .fromJson(output.stdout.get(output.stdout.size() - 1), JsonObject.class)
+                .get("outcome")
+                .getAsString();
+        assertTrue(outcome, outcome.startsWith(SimRunStream.Outcome.cannotStart("")));
+        assertTrue(outcome, outcome.contains("'a_later_constant'"));
+        assertFalse(outcome, outcome.startsWith(SimRunStream.Outcome.badDriverStation("")));
+    }
+
+    @Test
     public void stopBeforePlacementEndsTheRunStopped() throws Exception {
         Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());

@@ -1094,7 +1094,17 @@ to pull `nugget-develop` — or, when that is older too, for the coach to merge
 constants** the admin changed, and only those; an older child runs on the
 constants it was built with, so the bench lets it run when none were changed
 and refuses it by name, with the fix, when any were: pull the robot's develop
-branch, or have the coach put the constants back as built. A tick's
+branch, or have the coach put the constants back as built. From version 7 the
+child's hello lists the names of the constants it reads and of the ones it
+retired, so a constant can come or go without another version; a version 6
+child reads the seventeen it read before the list. The bench refuses a run on a
+changed constant the child does not read, naming it and whose the fix is: pull
+the robot's develop branch when the child's sources are older, restart the
+server from newer code when the child retired it, or either way have the coach
+put the constants back as built. A hello of version 7 or later without lists it
+can read is refused by name, and a start line the child cannot take ends the
+run with an outcome of its own, *could not take the start line*, saying why,
+rather than as a driver station it could not read. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Every one of those decisions —

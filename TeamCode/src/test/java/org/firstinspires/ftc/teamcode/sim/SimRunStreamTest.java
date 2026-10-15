@@ -9,6 +9,9 @@ import static org.junit.Assert.fail;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Pose2d;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
@@ -318,6 +321,8 @@ public class SimRunStreamTest {
         assertTrue(Outcome.killed(1.3, "the op mode did not return").startsWith("killed after 1.3s"));
         assertTrue(Outcome.killedAfterStop(2.0).startsWith("killed 2.0s after Stop"));
         assertTrue(Outcome.noOpModeNamed("org.example.Nope").contains("org.example.Nope"));
+        assertTrue(Outcome.cannotStart("not a start pose").startsWith("could not take the start line: "));
+        assertTrue(Outcome.cannotStart("not a start pose").endsWith("not a start pose"));
     }
 
     @Test
@@ -505,5 +510,179 @@ public class SimRunStreamTest {
 
         assertEquals(4, refused.childProtocol);
         assertTrue(refused.getMessage(), refused.getMessage().contains("Pull nugget-develop"));
+    }
+
+    private static Constants set(Constant constant, double value) {
+        return Valid.value(Constants.of(java.util.Map.of(constant, value)));
+    }
+
+    private static List<String> everyConstantBut(String left) {
+        List<String> names = new ArrayList<>();
+        for (Constant constant : Constant.values()) {
+            if (!constant.asked().equals(left)) {
+                names.add(constant.asked());
+            }
+        }
+        return names;
+    }
+
+    private static List<String> strings(JsonArray array) {
+        List<String> out = new ArrayList<>();
+        for (JsonElement element : array) {
+            out.add(element.getAsString());
+        }
+        return out;
+    }
+
+    @Test
+    public void aChildThatListsTheConstantsItReadsAndTheOnesItRetiredSpeaksProtocolSeven() {
+        assertEquals(7, SimRunStream.CONSTANTS_LISTED_PROTOCOL);
+        assertTrue(SimRunStream.CONSTANTS_LISTED_PROTOCOL > SimRunStream.CONSTANTS_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.CONSTANTS_LISTED_PROTOCOL);
+    }
+
+    @Test
+    public void theHelloOfThisVersionListsEveryConstantItReadsInTheirOrderAndEveryOneItRetired() {
+        JsonObject hello = new Gson().fromJson(SimRunStream.hello(), JsonObject.class);
+
+        assertEquals(SimRunStream.PROTOCOL, hello.get("protocol").getAsInt());
+        assertEquals(everyConstantBut(""), strings(hello.getAsJsonArray("reads")));
+        assertEquals(List.of(), strings(hello.getAsJsonArray("retired")));
+        assertEquals(
+                "a child of this version says exactly this",
+                SimRunStream.hello(),
+                SimRunStream.helloOf(SimRunStream.PROTOCOL));
+    }
+
+    @Test
+    public void aVersionSixChildReadsTheSeventeenConstantsItReadBeforeTheList() {
+        assertEquals(
+                List.of(
+                        "motor_spread",
+                        "flattest_volts",
+                        "freshest_volts",
+                        "sag_volts_per_power",
+                        "drain_volts_per_second",
+                        "least_traction_g",
+                        "most_traction_g",
+                        "set_down_inches",
+                        "set_down_degrees",
+                        "loop_seconds",
+                        "loop_spread",
+                        "least_loop_seconds",
+                        "hiccup_chance",
+                        "shortest_hiccup_seconds",
+                        "longest_hiccup_seconds",
+                        "launch_throw",
+                        "turntable_speed"),
+                SimRunStream.READ_BEFORE_THE_LIST);
+
+        Constants quicker = set(Constant.TURNTABLE_SPEED, 2000);
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.CONSTANTS_PROTOCOL),
+                new Pose2d(12, 0, 0),
+                3L,
+                TeamRobot.REGINALD,
+                quicker);
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, quicker), handshake.startLine);
+    }
+
+    @Test
+    public void aVersionSixChildIsRefusedARunOnAConstantItDoesNotReadByNameAndToldToPullTheRobotsDevelop() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.CONSTANTS_PROTOCOL),
+                StartPoses.ORIGIN,
+                null,
+                TeamRobot.NUGGET,
+                set(Constant.FLYWHEEL_TICKS_PER_TURN, 30));
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.doesNotRead(List.of(Constant.FLYWHEEL_TICKS_PER_TURN)), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.contains("Flywheel ticks per turn"));
+        assertTrue(handshake.message, handshake.message.contains("Flywheel ticks per turn 30.0"));
+        assertTrue(handshake.message, handshake.message.contains("the sources are older than the server"));
+        assertTrue(handshake.message, handshake.message.contains("Pull nugget-develop"));
+        assertTrue(handshake.message, handshake.message.contains("put the simulation constants back"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsRefusedARunOnAConstantItDoesNotListAsReadAndToldToPullDevelop() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.PROTOCOL, everyConstantBut("hiccup_chance"), List.of()),
+                StartPoses.ORIGIN,
+                null,
+                TeamRobot.REGINALD,
+                set(Constant.HICCUP_CHANCE, 0));
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.doesNotRead(List.of(Constant.HICCUP_CHANCE)), handshake.outcome);
+        assertTrue(handshake.message, handshake.message.contains("Hiccup chance"));
+        assertTrue(handshake.message, handshake.message.contains("the sources are older than the server"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    @Test
+    public void aChildThatRetiredAConstantTheAdminSetIsRefusedARunOnItByNameAndToldTheServerIsOlder() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(
+                        SimRunStream.PROTOCOL, everyConstantBut("hiccup_chance"), List.of("hiccup_chance")),
+                StartPoses.ORIGIN,
+                null,
+                TeamRobot.REGINALD,
+                set(Constant.HICCUP_CHANCE, 0));
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.retired(List.of(Constant.HICCUP_CHANCE)), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.contains("Hiccup chance"));
+        assertTrue(handshake.message, handshake.message.contains("Hiccup chance 0.0"));
+        assertTrue(handshake.message, handshake.message.contains("the server is older than the sources"));
+        assertTrue(handshake.message, handshake.message.contains("Restart the server"));
+        assertFalse(handshake.message, handshake.message.contains("Pull"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    @Test
+    public void aChildOfThisVersionRunsWhenItReadsEveryConstantTheAdminChangedWhateverElseItDoesNotRead() {
+        Constants spread = set(Constant.MOTOR_SPREAD, 0.2);
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(
+                        SimRunStream.PROTOCOL, everyConstantBut("hiccup_chance"), List.of("a_constant_long_gone")),
+                new Pose2d(12, 0, 0),
+                3L,
+                TeamRobot.REGINALD,
+                spread);
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, spread), handshake.startLine);
+    }
+
+    @Test
+    public void aHelloOfThisVersionWithoutAReadableListOfTheConstantsIsRefusedByName() {
+        for (String hello : List.of(
+                "{\"protocol\":7}",
+                "{\"protocol\":7,\"reads\":[\"motor_spread\"]}",
+                "{\"protocol\":7,\"retired\":[]}",
+                "{\"protocol\":7,\"reads\":\"motor_spread\",\"retired\":[]}",
+                "{\"protocol\":7,\"reads\":[1],\"retired\":[]}",
+                "{\"protocol\":7,\"reads\":[null],\"retired\":[]}",
+                "{\"protocol\":7,\"reads\":[[\"motor_spread\"]],\"retired\":[]}",
+                "{\"protocol\":7,\"reads\":[],\"retired\":{}}")) {
+            SimRunStream.Handshake handshake =
+                    SimRunStream.handshake(hello, StartPoses.ORIGIN, null, TeamRobot.REGINALD, Constants.defaults());
+
+            assertTrue(hello, handshake.refused());
+            assertEquals(hello, Outcome.unlistedConstants(7), handshake.outcome);
+            assertTrue(handshake.message, handshake.message.contains("protocol 7"));
+            assertTrue(handshake.message, handshake.message.contains(hello));
+            assertNull("a refused run is sent nothing", handshake.startLine);
+            SimRunStream.WrongProtocol listing = assertThrows(
+                    SimRunStream.WrongProtocol.class, () -> SimRunStream.afterHello(hello, TeamRobot.REGINALD));
+            assertEquals(7, listing.childProtocol);
+            assertEquals(handshake.message, listing.getMessage());
+        }
     }
 }

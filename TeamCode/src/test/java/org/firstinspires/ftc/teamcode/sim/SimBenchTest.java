@@ -455,6 +455,26 @@ public class SimBenchTest {
     }
 
     @Test
+    public void aChildThatDoesNotReadAConstantTheAdminSetIsRefusedARunOnItAndSaysWhy() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.CONSTANTS_LISTED_PROTOCOL - 1);
+        AtomicReference<Constants> admin = new AtomicReference<>(Constants.defaults());
+        bench = benchTunedBy(child, admin);
+        SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
+
+        admin.set(Valid.value(Constants.of(java.util.Map.of(Constant.TURNTABLE_SPEED, 2000.0))));
+        SimBench.Run read = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
+        assertEquals(read.message(), "done", read.outcome());
+
+        admin.set(Valid.value(Constants.of(java.util.Map.of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.0))));
+        SimBench.Run unread = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
+
+        assertEquals(SimRunStream.Outcome.doesNotRead(List.of(Constant.FLYWHEEL_TICKS_PER_TURN)), unread.outcome());
+        assertTrue(unread.message(), unread.message().contains("Pull develop"));
+        assertEquals(0, unread.ticks().size());
+        assertNull(bench.current());
+    }
+
+    @Test
     public void savedEditsTakeEffectOnTheNextRunWithoutARestart() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempPlans(2));
         bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);

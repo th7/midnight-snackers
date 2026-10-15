@@ -17,9 +17,14 @@ import com.google.gson.stream.JsonWriter;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -105,6 +110,31 @@ public final class SimRunStream {
             return "could not build " + name + ": " + e;
         }
 
+        public static String doesNotRead(Collection<Constant> unread) {
+            return "the simulator does not read " + labelsOf(unread) + ", which the admin page set";
+        }
+
+        public static String retired(Collection<Constant> retired) {
+            return "the simulator retired " + labelsOf(retired) + ", which the admin page set";
+        }
+
+        public static String unlistedConstants(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and does not list the constants it reads and the ones it retired";
+        }
+
+        public static String cannotStart(String problem) {
+            return "could not take the start line: " + problem;
+        }
+
+        private static String labelsOf(Collection<Constant> constants) {
+            List<String> labels = new ArrayList<>();
+            for (Constant constant : constants) {
+                labels.add(constant.label());
+            }
+            return String.join(", ", labels);
+        }
+
         public static String badDriverStation(String problem) {
             return "could not read the driver station: " + problem;
         }
@@ -159,7 +189,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 6;
+    public static final int PROTOCOL = 7;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -170,6 +200,27 @@ public final class SimRunStream {
     public static final int ROBOTS_PROTOCOL = 5;
 
     public static final int CONSTANTS_PROTOCOL = 6;
+
+    public static final int CONSTANTS_LISTED_PROTOCOL = 7;
+
+    public static final List<String> READ_BEFORE_THE_LIST = List.of(
+            "motor_spread",
+            "flattest_volts",
+            "freshest_volts",
+            "sag_volts_per_power",
+            "drain_volts_per_second",
+            "least_traction_g",
+            "most_traction_g",
+            "set_down_inches",
+            "set_down_degrees",
+            "loop_seconds",
+            "loop_spread",
+            "least_loop_seconds",
+            "hiccup_chance",
+            "shortest_hiccup_seconds",
+            "longest_hiccup_seconds",
+            "launch_throw",
+            "turntable_speed");
 
     public static final String ROBOT_OPTION = "--robot=";
 
@@ -197,9 +248,70 @@ public final class SimRunStream {
      * child writes its hello with this, so the line it is handed is the line one would print.
      */
     public static String helloOf(int protocol) {
+        if (protocol >= CONSTANTS_LISTED_PROTOCOL) {
+            return helloOf(protocol, everyConstantRead(), everyConstantRetired());
+        }
         JsonObject line = new JsonObject();
         line.addProperty("protocol", protocol);
         return GSON.toJson(line);
+    }
+
+    public static String helloOf(int protocol, List<String> reads, List<String> retired) {
+        JsonObject line = new JsonObject();
+        line.addProperty("protocol", protocol);
+        line.add("reads", GSON.toJsonTree(reads));
+        line.add("retired", GSON.toJsonTree(retired));
+        return GSON.toJson(line);
+    }
+
+    private static List<String> everyConstantRead() {
+        List<String> names = new ArrayList<>();
+        for (Constant constant : Constant.values()) {
+            names.add(constant.asked());
+        }
+        return names;
+    }
+
+    private static List<String> everyConstantRetired() {
+        return List.of();
+    }
+
+    private record Listed(List<String> reads, List<String> retired) {}
+
+    private static Optional<Listed> listedBy(int protocol, String firstLine) {
+        if (protocol < CONSTANTS_PROTOCOL) {
+            return Optional.of(new Listed(List.of(), List.of()));
+        }
+        if (protocol < CONSTANTS_LISTED_PROTOCOL) {
+            return Optional.of(new Listed(READ_BEFORE_THE_LIST, List.of()));
+        }
+        JsonObject hello = GSON.fromJson(firstLine, JsonObject.class);
+        Optional<List<String>> reads = namesIn(hello.get("reads"));
+        Optional<List<String>> retired = namesIn(hello.get("retired"));
+        if (reads.isEmpty() || retired.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new Listed(reads.get(), retired.get()));
+    }
+
+    private static Optional<List<String>> namesIn(JsonElement element) {
+        if (element == null || !element.isJsonArray()) {
+            return Optional.empty();
+        }
+        List<String> names = new ArrayList<>();
+        for (JsonElement name : element.getAsJsonArray()) {
+            if (!name.isJsonPrimitive() || !name.getAsJsonPrimitive().isString()) {
+                return Optional.empty();
+            }
+            names.add(name.getAsString());
+        }
+        return Optional.of(names);
+    }
+
+    private static String unlistedMessage(int protocol, String firstLine) {
+        return "the simulator in these sources speaks protocol " + protocol + " but its hello, " + firstLine
+                + ", does not list the names of the constants it reads and of the ones it retired, as every"
+                + " child from protocol " + CONSTANTS_LISTED_PROTOCOL + " on does";
     }
 
     public static List<String> robotArguments(TeamRobot robot) {
@@ -211,6 +323,9 @@ public final class SimRunStream {
 
     public static String afterHello(String firstLine, TeamRobot robot) {
         int protocol = protocolOf(firstLine);
+        if (listedBy(protocol, firstLine).isEmpty()) {
+            throw new WrongProtocol(protocol, unlistedMessage(protocol, firstLine));
+        }
         if (!simulates(protocol, robot)) {
             throw new WrongProtocol(protocol, cannotSimulateMessage(protocol, robot));
         }
@@ -285,6 +400,11 @@ public final class SimRunStream {
     public static Handshake handshake(String firstLine, Pose2d start, Long seed, TeamRobot robot, Constants constants) {
         int protocol = protocolOf(firstLine);
         String content = protocol == 1 ? firstLine : null;
+        Optional<Listed> listed = listedBy(protocol, firstLine);
+        if (listed.isEmpty()) {
+            return new Handshake(
+                    protocol, content, null, Outcome.unlistedConstants(protocol), unlistedMessage(protocol, firstLine));
+        }
         if (!simulates(protocol, robot)) {
             return new Handshake(
                     protocol,
@@ -321,6 +441,25 @@ public final class SimRunStream {
                             + robot.develop()
                             + ", or ask your coach to put the simulation constants back as they were built.");
         }
+        Map<Constant, Double> retiredByTheChild = new EnumMap<>(Constant.class);
+        Map<Constant, Double> unread = new EnumMap<>(Constant.class);
+        for (Map.Entry<Constant, Double> changed : constants.changed().entrySet()) {
+            String name = changed.getKey().asked();
+            if (!listed.get().reads().contains(name)) {
+                (listed.get().retired().contains(name) ? retiredByTheChild : unread)
+                        .put(changed.getKey(), changed.getValue());
+            }
+        }
+        if (!retiredByTheChild.isEmpty() || !unread.isEmpty()) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    retiredByTheChild.isEmpty()
+                            ? Outcome.doesNotRead(unread.keySet())
+                            : Outcome.retired(retiredByTheChild.keySet()),
+                    unreadMessage(retiredByTheChild, unread, robot));
+        }
         if (protocol >= PLACED_PROTOCOL) {
             return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, constants), null, null);
         }
@@ -339,6 +478,22 @@ public final class SimRunStream {
                         + PLACED_PROTOCOL
                         + ": the sources are older than the server. Pull develop, or place the robot"
                         + " back at the origin.");
+    }
+
+    private static String unreadMessage(
+            Map<Constant, Double> retiredByTheChild, Map<Constant, Double> unread, TeamRobot robot) {
+        List<String> said = new ArrayList<>();
+        if (!retiredByTheChild.isEmpty()) {
+            said.add("the simulator in these sources retired " + SimConstants.described(retiredByTheChild)
+                    + ", which the admin page set: the server is older than the sources. Restart the server from a"
+                    + " checkout with the newer code");
+        }
+        if (!unread.isEmpty()) {
+            said.add("the simulator in these sources does not read " + SimConstants.described(unread)
+                    + ", which the admin page set: the sources are older than the server. Pull " + robot.develop());
+        }
+        return String.join("; and ", said)
+                + ", or ask your coach to put the simulation constants back as they were built.";
     }
 
     public static String started() {

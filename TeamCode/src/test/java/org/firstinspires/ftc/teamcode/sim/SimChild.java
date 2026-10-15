@@ -132,6 +132,10 @@ public final class SimChild {
                 }
                 try {
                     driverStation.accept(GSON.fromJson(line, JsonObject.class));
+                } catch (SimDriverStation.CannotStart e) {
+                    recording.finish(SimRunStream.Outcome.cannotStart(e.getMessage()));
+                    driverStation.stop();
+                    return;
                 } catch (RuntimeException e) {
                     recording.finish(SimRunStream.Outcome.badDriverStation(e.getMessage()));
                     driverStation.stop();
