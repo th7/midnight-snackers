@@ -16,11 +16,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.firstinspires.ftc.reginald.Localizer;
+import org.firstinspires.ftc.reginald.Robot;
 import org.firstinspires.ftc.reginald.Turntable;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
+import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -41,7 +44,7 @@ public class SimRobotTest {
             / MecanumDrive.PARAMS.kVVoltSecondsPerTick
             * MecanumDrive.PARAMS.inPerTick;
 
-    private static final double CLOSE_LAUNCH_VELOCITY = 1050;
+    private static final double CLOSE_LAUNCH_VELOCITY = 1220;
 
     private static final double LAUNCH_DISTANCE_INCHES = 40;
 
@@ -1382,6 +1385,16 @@ public class SimRobotTest {
             }
         }
         return out;
+    }
+
+    @Test
+    public void theCloseLaunchTheseShotsAreTakenAtIsTheOneReginaldsCodeCommands() {
+        Robot reginald = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+
+        reginald.launcher.setCloseLaunchPower();
+        reginald.launcher.loop();
+
+        assertEquals(CLOSE_LAUNCH_VELOCITY, sim.launcher.commandedVelocity, 0);
     }
 
     @Test

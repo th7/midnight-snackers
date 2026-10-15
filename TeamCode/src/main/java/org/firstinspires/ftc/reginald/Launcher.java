@@ -25,7 +25,7 @@ public class Launcher implements Loopable {
     private final double topGateClosedPosition = 0.6;
     private final double bottomGateOpenPosition = 0.5;
     private final double bottomGateClosedPosition = 0.4;
-    private final double closeLauncherPower = 1050d;
+    private final double closeLauncherPower = 1220d;
     private final DcMotorEx launcher;
     private final Servo topGate;
     private final Servo bottomGate;

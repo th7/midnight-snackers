@@ -15,7 +15,7 @@ public class LauncherTest {
     private static final double TOP_GATE_OPEN = 1;
     private static final double TOP_GATE_CLOSED = 0.6;
     private static final double BOTTOM_GATE_CLOSED = 0.4;
-    private static final double CLOSE_LAUNCH_VELOCITY = 1050;
+    private static final double CLOSE_LAUNCH_VELOCITY = 1220;
 
     private final SimDevices devices = new SimDevices();
     private final Launcher launcher = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry()).launcher;

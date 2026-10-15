@@ -8,6 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.DoubleFunction;
+import org.firstinspires.ftc.reginald.Robot;
+import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -973,7 +976,7 @@ public class FlightTest {
     private static final long LAUNCH_WORK = 136054;
     private static final long TIP_WORK = 1251376;
 
-    private static final double CLOSE_LAUNCH = 1050;
+    private static final double CLOSE_LAUNCH = 1220;
     private static final String ROBOT_TOP_SOURCE =
             "doc/plans/runtime-flight.md, stage 4, What we change, the hood's upper end: the robot's top is 9.084 in"
                     + " after the trim";
@@ -1050,6 +1053,17 @@ public class FlightTest {
     private static Vec3 turned(Vec3 v, double radians) {
         double cos = Math.cos(radians), sin = Math.sin(radians);
         return new Vec3(cos * v.x() - sin * v.y(), sin * v.x() + cos * v.y(), v.z());
+    }
+
+    @Test
+    public void theCloseLaunchTheseLaunchersTurnAtIsTheOneReginaldsCodeCommands() {
+        SimDevices devices = new SimDevices();
+        Robot reginald = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+
+        reginald.launcher.setCloseLaunchPower();
+        reginald.launcher.loop();
+
+        assertEquals(CLOSE_LAUNCH, devices.launcher.commandedVelocity, 0);
     }
 
     @Test

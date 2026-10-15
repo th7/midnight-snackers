@@ -19,7 +19,7 @@ public class LauncherAsAPartTest {
     private static final Vec3 HUB = new Vec3(-13 * MILLIMETRE, 0, 180 * MILLIMETRE);
     private static final List<Double> RINGS_MM = List.of(-25.0, -12.5, 0.0, 12.5, 25.0);
     private static final double TICKS_PER_TURN = 24.2;
-    private static final double CLOSE_LAUNCH = 1050;
+    private static final double LAUNCH = 1050;
     private static final double BEGINS = 0.1;
     private static final double ENDS = 0.105;
     private static final List<Double> TIMES = List.of(0.0, 0.09, BEGINS, 0.1025, ENDS, 0.12);
@@ -170,7 +170,7 @@ public class LauncherAsAPartTest {
             expected.add(hoodId(ring));
         }
         expected.add(STOP);
-        List<String> ids = still(CLOSE_LAUNCH).ids();
+        List<String> ids = still(LAUNCH).ids();
 
         assertEquals(11, ids.size());
         assertEquals(expected, new HashSet<>(ids));
@@ -179,7 +179,7 @@ public class LauncherAsAPartTest {
 
     @Test
     public void itsRingsSampleTheFlywheelsAndTheHoodsGroovesAcrossTheirWidthAsThePlansTablesGiveThem() {
-        Launcher launcher = still(CLOSE_LAUNCH);
+        Launcher launcher = still(LAUNCH);
         for (double degrees : new double[] {-60, -41.3, -20, 0, 7.5, 19}) {
             for (double sideways : new double[] {0, 0.13, -0.31}) {
                 for (double nearer : new double[] {0, 0.5, 1.5}) {
@@ -304,7 +304,7 @@ public class LauncherAsAPartTest {
 
     @Test
     public void aBallFedAtTheEntrySitsOneRadiusOffTheGrooveBottomTouchingTheStopBelowItAndGoesUpThePathAtTheFeed() {
-        Launcher launcher = still(CLOSE_LAUNCH);
+        Launcher launcher = still(LAUNCH);
         Vec3 entry = onThePath(EXTENSION_FROM, wheelRing(0) + R);
         assertEquals(entry.x(), launcher.entry(POLLEN).x(), WITHIN);
         assertEquals(entry.y(), launcher.entry(POLLEN).y(), WITHIN);
@@ -393,9 +393,9 @@ public class LauncherAsAPartTest {
     @Test
     public void aWheelRingMovesWithTheFrameAndTurnsWithTheWheelAboutTheHubAndAHoodRingMovesWithTheFrameAlone() {
         Launcher.Course course = course(frame(-20, 30, 3.0), frame(-19.6, 30.3, -3.1));
-        double omega = wheel(CLOSE_LAUNCH).radiansPerSecond();
+        double omega = wheel(LAUNCH).radiansPerSecond();
         for (double t : new double[] {BEGINS, 0.1031, ENDS, 0.13}) {
-            Launcher launcher = launcher(course, wheel(CLOSE_LAUNCH)).at(Valid.time(t));
+            Launcher launcher = launcher(course, wheel(LAUNCH)).at(Valid.time(t));
             Launcher.Placed placed = course.at(Valid.time(t));
             Vec3 frameSpin = new Vec3(0, 0, course.turning());
             Vec3 hub = placedAt(placed, HUB);
@@ -428,12 +428,12 @@ public class LauncherAsAPartTest {
     public void
             aBallRollingWithTheWheelInAMovingTurningFrameIsNotRubbedByItAndOneCarriedWithTheFrameIsNotRubbedByTheHood() {
         Launcher.Course course = course(frame(12, -40, 1.0), frame(12.3, -40.2, 1.12));
-        Launcher launcher = launcher(course, wheel(CLOSE_LAUNCH)).at(Valid.time(0.1037));
+        Launcher launcher = launcher(course, wheel(LAUNCH)).at(Valid.time(0.1037));
         Launcher.Placed placed = course.at(Valid.time(0.1037));
         Vec3 frameSpin = new Vec3(0, 0, course.turning());
         Vec3 hub = placedAt(placed, HUB);
-        Vec3 wheelSpin = frameSpin.plus(turned(new Vec3(0, 1, 0), placed.yaw())
-                .times(wheel(CLOSE_LAUNCH).radiansPerSecond()));
+        Vec3 wheelSpin = frameSpin.plus(
+                turned(new Vec3(0, 1, 0), placed.yaw()).times(wheel(LAUNCH).radiansPerSecond()));
         for (double degrees : new double[] {-50, -10, 15}) {
             Vec3 centre = placedAt(placed, onThePath(degrees, wheelRing(0) + R - 0.7 * MILLIMETRE));
             List<Surroundings.Squeeze> onTheWheel = new ArrayList<>(), onTheHood = new ArrayList<>();
@@ -514,7 +514,7 @@ public class LauncherAsAPartTest {
     public void itKeepsThePartContractStillWithItsWheelStoppedSpinningAndReversed() {
         Launcher.Course still = course(frame(10, -20, 0.4), frame(10, -20, 0.4));
         assertKept("still, stopped", launcher(still, wheel(0)), true);
-        assertKept("still, spinning", launcher(still, wheel(CLOSE_LAUNCH)), true);
+        assertKept("still, spinning", launcher(still, wheel(LAUNCH)), true);
         assertKept("still, reversed", launcher(still, wheel(-Flywheel.TOP_TICKS_PER_SECOND, 18)), true);
     }
 
@@ -522,8 +522,8 @@ public class LauncherAsAPartTest {
     public void itKeepsThePartContractSlidingAndTurningWithItsWheelStoppedSpinningAndReversed() {
         Launcher.Frame from = frame(10, -20, 0.4);
         assertKept("sliding", launcher(course(from, frame(10.5, -20.3, 0.4)), wheel(0)), false);
-        assertKept("turning", launcher(course(from, frame(10, -20, 0.55)), wheel(CLOSE_LAUNCH)), false);
-        assertKept("sliding and turning", launcher(course(from, frame(9.4, -19.7, 0.3)), wheel(-CLOSE_LAUNCH)), false);
+        assertKept("turning", launcher(course(from, frame(10, -20, 0.55)), wheel(LAUNCH)), false);
+        assertKept("sliding and turning", launcher(course(from, frame(9.4, -19.7, 0.3)), wheel(-LAUNCH)), false);
         assertKept(
                 "crossing half a turn",
                 launcher(
@@ -535,14 +535,14 @@ public class LauncherAsAPartTest {
                 Launcher.placed(
                         faces(),
                         Valid.value(Launcher.Course.of(from, Valid.time(BEGINS), frame(3, 2, 1), Valid.time(BEGINS))),
-                        wheel(CLOSE_LAUNCH)),
+                        wheel(LAUNCH)),
                 true);
     }
 
     @Test
     public void placedAtAnyTimeItsWheelTurnsAsItWasGivenAndItsFrameMovesAsItsCourseSays() {
         Launcher.Course course = course(frame(1, 2, 0.1), frame(1.4, 2.2, 0.2));
-        Launcher launcher = launcher(course, wheel(CLOSE_LAUNCH));
+        Launcher launcher = launcher(course, wheel(LAUNCH));
         for (double t : new double[] {0, BEGINS, 0.103, ENDS, 0.5, 30}) {
             Launcher then = launcher.at(Valid.time(t));
             assertEquals(course.sweep(), then.sweep(), 0);
@@ -569,7 +569,7 @@ public class LauncherAsAPartTest {
 
     @Test
     public void itReachesWhereSomeFaceIsWithinTheDistanceAskedAndNowhereElse() {
-        Launcher launcher = launcher(course(frame(-3, 4, 2), frame(-3, 4, 2)), wheel(CLOSE_LAUNCH));
+        Launcher launcher = launcher(course(frame(-3, 4, 2), frame(-3, 4, 2)), wheel(LAUNCH));
         Launcher.Placed placed = launcher.where();
         int reached = 0;
         for (double degrees = -180; degrees < 180; degrees += 11.3) {
@@ -671,7 +671,7 @@ public class LauncherAsAPartTest {
 
     @Test
     public void aBallElsewhereOnTheFieldMovesAndCostsExactlyAsItWouldWereTheLauncherToSqueezeNothing() {
-        Launcher launcher = launcher(course(frame(0, 0, 0), frame(0.2, 0.1, 0.03)), wheel(CLOSE_LAUNCH));
+        Launcher launcher = launcher(course(frame(0, 0, 0), frame(0.2, 0.1, 0.03)), wheel(LAUNCH));
         Vec3 from = new Vec3(-10, 30, 20), velocity = new Vec3(40, -60, 10);
         Bodies among = flying(launcher, from, velocity);
         Bodies amongNothing = flying(new SqueezingNothing(launcher), from, velocity);
@@ -777,7 +777,7 @@ public class LauncherAsAPartTest {
         assertEquals(Double.MIN_VALUE, next.seconds() - first.seconds(), 0);
         Launcher.Frame at = frame(-25, -35, 0.7);
         Launcher.Course instant = Valid.value(Launcher.Course.of(at, first, at, next));
-        Launcher began = launcher(instant, wheel(CLOSE_LAUNCH));
+        Launcher began = launcher(instant, wheel(LAUNCH));
         Vec3 entry = began.entry(POLLEN);
         for (GridTime time : List.of(next, GridTime.at(1, step), Valid.time(BEGINS), Valid.time(250))) {
             Launcher then = began.at(time);

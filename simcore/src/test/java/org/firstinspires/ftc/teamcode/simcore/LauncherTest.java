@@ -8,12 +8,11 @@ import java.util.Optional;
 import org.junit.Test;
 
 public class LauncherTest {
-    private static final String TICKS_PER_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the core"
-            + " launcher is tested at T 24.2, as in stage 4b, a wheel speed that exercises the launcher, not Reginald's";
+    private static final String TESTED_AT_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the core"
+            + " launcher is tested at 1050 ticks a second and T 24.2, as in stage 4b, a wheel speed that exercises the"
+            + " launcher, not Reginald's";
     private static final double TICKS_PER_TURN = 24.2;
-    private static final String CLOSE_LAUNCH_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the"
-            + " launcher is held to its throw at the code's close launch of 1050 ticks a second";
-    private static final double CLOSE_LAUNCH = 1050;
+    private static final double LAUNCH = 1050;
     private static final String THROW_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the launcher"
             + " throws at 0.366 to 0.584 of u50, the surface speed at the 100 mm diameter, from hood drag spread over"
             + " the groove to a ball riding the groove's edges, at 70 +- 3 degrees, the first sample with no launcher"
@@ -216,7 +215,7 @@ public class LauncherTest {
         }
     }
 
-    private static Exit closeLaunch(Launcher.Faces faces, double ticksPerSecond) {
+    private static Exit fedAndThrown(Launcher.Faces faces, double ticksPerSecond) {
         return Feeding.fed(Launcher.placed(faces, still(), wheel(ticksPerSecond)), flightsAir())
                 .throwsIt();
     }
@@ -235,12 +234,12 @@ public class LauncherTest {
     }
 
     @Test
-    public void aWheelAtTheCloseLaunchThrowsAFedBallUpAtSeventyDegreesWithBackspinAsThePlanSays() {
-        assertEquals(TICKS_PER_TURN_SOURCE, 24.2, TICKS_PER_TURN, 0);
-        assertEquals(CLOSE_LAUNCH_SOURCE, 1050, CLOSE_LAUNCH, 0);
-        Exit exit = closeLaunch(faces(), CLOSE_LAUNCH);
+    public void aWheelAtTheLaunchItIsTestedAtThrowsAFedBallUpAtSeventyDegreesWithBackspinAsThePlanSays() {
+        assertEquals(TESTED_AT_SOURCE, 24.2, TICKS_PER_TURN, 0);
+        assertEquals(TESTED_AT_SOURCE, 1050, LAUNCH, 0);
+        Exit exit = fedAndThrown(faces(), LAUNCH);
 
-        assertThrownAsTheLauncherThrows("at the close launch", exit, wheel(CLOSE_LAUNCH));
+        assertThrownAsTheLauncherThrows("at the launch it is tested at", exit, wheel(LAUNCH));
         Vec3 axle = new Vec3(0, 1, 0);
         double about = exit.spin().dot(axle);
         Vec3 across = exit.spin().minus(axle.times(about));
@@ -255,27 +254,27 @@ public class LauncherTest {
 
     @Test
     public void aBallIsDrawnInFromAFeedOfNothingAndWithLessGripOnTheWheelAndMoreOnTheHood() {
-        Launcher launcher = Launcher.placed(faces(), still(), wheel(CLOSE_LAUNCH));
+        Launcher launcher = Launcher.placed(faces(), still(), wheel(LAUNCH));
         Exit unfed = new Feeding(launcher, flightsAir()).feeding(Vec3.zero()).throwsIt();
-        assertThrownAsTheLauncherThrows("fed at nothing", unfed, wheel(CLOSE_LAUNCH));
+        assertThrownAsTheLauncherThrows("fed at nothing", unfed, wheel(LAUNCH));
 
-        Exit slipping = closeLaunch(faces(LESS_GRIP_ON_THE_WHEEL, MORE_GRIP_ON_THE_HOOD), CLOSE_LAUNCH);
-        assertThrownAsTheLauncherThrows(FRICTION_SOURCE, slipping, wheel(CLOSE_LAUNCH));
+        Exit slipping = fedAndThrown(faces(LESS_GRIP_ON_THE_WHEEL, MORE_GRIP_ON_THE_HOOD), LAUNCH);
+        assertThrownAsTheLauncherThrows(FRICTION_SOURCE, slipping, wheel(LAUNCH));
     }
 
     @Test
     public void aFasterWheelThrowsStrictlyFasterWithMoreSpin() {
-        Exit close = closeLaunch(faces(), CLOSE_LAUNCH);
-        Exit faster = closeLaunch(faces(), FASTER_LAUNCH);
+        Exit tested = fedAndThrown(faces(), LAUNCH);
+        Exit faster = fedAndThrown(faces(), FASTER_LAUNCH);
 
-        assertTrue(faster.speed() + " against " + close.speed(), faster.speed() > close.speed());
+        assertTrue(faster.speed() + " against " + tested.speed(), faster.speed() > tested.speed());
         assertTrue(
-                faster.spin() + " against " + close.spin(),
-                faster.spin().dot(faster.spin()) > close.spin().dot(close.spin()));
+                faster.spin() + " against " + tested.spin(),
+                faster.spin().dot(faster.spin()) > tested.spin().dot(tested.spin()));
     }
 
     private static Bodies.Seen straightBack(Launcher.Faces faces) {
-        Feeding feeding = Feeding.fed(Launcher.placed(faces, still(), wheel(CLOSE_LAUNCH)), flightsAir());
+        Feeding feeding = Feeding.fed(Launcher.placed(faces, still(), wheel(LAUNCH)), flightsAir());
         for (long i = 0;
                 i < StrictMath.round(THROWN_WITHIN_SECONDS / STEP_SECONDS) && feeding.degreesAbout() < 0;
                 i++) {
@@ -325,8 +324,8 @@ public class LauncherTest {
                 GridTime.at(now, Valid.value(Flight.stepping())),
                 frame(-25, -35, 0),
                 GridTime.at(now + 50, Valid.value(Flight.stepping()))));
-        launch.spinUp(Launcher.placed(faces(), onwards, wheel(CLOSE_LAUNCH)));
-        assertThrownAsTheLauncherThrows("once spun up", launch.throwsIt(), wheel(CLOSE_LAUNCH));
+        launch.spinUp(Launcher.placed(faces(), onwards, wheel(LAUNCH)));
+        assertThrownAsTheLauncherThrows("once spun up", launch.throwsIt(), wheel(LAUNCH));
     }
 
     private static Launcher.Course onwardFrom(long steps, Launcher.Frame from, Launcher.Frame to) {
@@ -357,7 +356,7 @@ public class LauncherTest {
 
         Launcher.Frame at = frame(-25, -35, 0);
         for (Launcher moving : List.of(
-                Launcher.placed(faces(), onwardFrom(now, at, at), wheel(CLOSE_LAUNCH)),
+                Launcher.placed(faces(), onwardFrom(now, at, at), wheel(LAUNCH)),
                 Launcher.placed(faces(), onwardFrom(now, at, frame(-24.9, -35, 0)), wheel(0)),
                 Launcher.placed(faces(), onwardFrom(now, at, frame(-25, -35, 0.01)), wheel(0)))) {
             Bodies woken = held.bodies.copy();
@@ -372,7 +371,7 @@ public class LauncherTest {
 
     @Test
     public void aReversedWheelThrowsNothing() {
-        Feeding launch = Feeding.fed(Launcher.placed(faces(), still(), wheel(-CLOSE_LAUNCH)), flightsAir());
+        Feeding launch = Feeding.fed(Launcher.placed(faces(), still(), wheel(-LAUNCH)), flightsAir());
         for (int i = 0; i < 100; i++) {
             launch.advance(0.005);
             Bodies.Seen ball = launch.ball();
@@ -408,12 +407,12 @@ public class LauncherTest {
     @Test
     public void theRobotsVelocityCarriesIntoTheThrowExactlyInAVacuum() {
         Vec3 robot = new Vec3(0.6, -0.8, 0).times(Chassis.MOST_ROBOT_SPEED_IN_PER_S);
-        Exit still = thrownBy(still(), wheel(CLOSE_LAUNCH), Air.vacuum());
+        Exit still = thrownBy(still(), wheel(LAUNCH), Air.vacuum());
         Exit moving = thrownBy(
                 course(
                         frame(-25, -35, 0),
                         frame(-25 + robot.x() * COURSE_SECONDS, -35 + robot.y() * COURSE_SECONDS, 0)),
-                wheel(CLOSE_LAUNCH),
+                wheel(LAUNCH),
                 Air.vacuum());
 
         assertEquals(still.seconds(), moving.seconds(), 0);
@@ -423,10 +422,9 @@ public class LauncherTest {
 
     @Test
     public void turningTheFrameTurnsTheThrowAsMuchAboutTheUpright() {
-        Exit facing = thrownBy(still(), wheel(CLOSE_LAUNCH), flightsAir());
+        Exit facing = thrownBy(still(), wheel(LAUNCH), flightsAir());
         for (double yaw : new double[] {0.7, -2.5, StrictMath.PI}) {
-            Exit turned =
-                    thrownBy(course(frame(-25, -35, yaw), frame(-25, -35, yaw)), wheel(CLOSE_LAUNCH), flightsAir());
+            Exit turned = thrownBy(course(frame(-25, -35, yaw), frame(-25, -35, yaw)), wheel(LAUNCH), flightsAir());
             assertEquals(facing.seconds(), turned.seconds(), 0);
             assertVec(
                     ROUNDING_SOURCE + ", turned by " + yaw,
@@ -445,10 +443,10 @@ public class LauncherTest {
     public void aFrameWhoseYawCrossesHalfATurnThrowsAsOneTurningAsFastThatDoesNot() {
         double half = StrictMath.PI, turn = 0.01;
         Exit crossing = thrownBy(
-                course(frame(-25, -35, half - turn), frame(-25, -35, -half + turn)), wheel(CLOSE_LAUNCH), flightsAir());
+                course(frame(-25, -35, half - turn), frame(-25, -35, -half + turn)), wheel(LAUNCH), flightsAir());
         Exit quarter = thrownBy(
                 course(frame(-25, -35, half / 2 - turn), frame(-25, -35, half / 2 + turn)),
-                wheel(CLOSE_LAUNCH),
+                wheel(LAUNCH),
                 flightsAir());
 
         assertEquals(quarter.seconds(), crossing.seconds(), 0);

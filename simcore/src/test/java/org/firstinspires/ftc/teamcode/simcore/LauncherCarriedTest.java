@@ -8,7 +8,7 @@ import org.junit.Test;
 
 public class LauncherCarriedTest {
     private static final double TICKS_PER_TURN = 24.2;
-    private static final double CLOSE_LAUNCH = 1050;
+    private static final double LAUNCH = 1050;
     private static final double WITHIN = 1e-9;
     private static final Length POLLEN = Valid.length(Launcher.POLLEN_RADIUS_IN);
 
@@ -75,8 +75,8 @@ public class LauncherCarriedTest {
         Launcher.Frame third = frame(-28.9, -45.5, -3.05);
         Launcher standing = standing(first, 0.1);
 
-        Launcher onward = Valid.value(standing.onward(second, Valid.time(0.105), wheel(CLOSE_LAUNCH)));
-        Launcher further = Valid.value(onward.onward(third, Valid.time(0.1083), wheel(-CLOSE_LAUNCH)));
+        Launcher onward = Valid.value(standing.onward(second, Valid.time(0.105), wheel(LAUNCH)));
+        Launcher further = Valid.value(onward.onward(third, Valid.time(0.1083), wheel(-LAUNCH)));
 
         assertAt("as the first course begins", first, onward.at(Valid.time(0.1)));
         assertAt("as it ends", second, onward.at(Valid.time(0.105)));
@@ -87,7 +87,7 @@ public class LauncherCarriedTest {
                 "turning the short way across half a turn: " + onward.sweep(),
                 onward.sweep() < 0.6 / 0.005 + 0.1 / 0.005 * Launcher.FARTHEST_IN);
         Launcher stillAndStopped = Valid.value(standing.onward(first, Valid.time(0.105), wheel(0)));
-        Launcher stillAndSpinning = Valid.value(standing.onward(first, Valid.time(0.105), wheel(CLOSE_LAUNCH)));
+        Launcher stillAndSpinning = Valid.value(standing.onward(first, Valid.time(0.105), wheel(LAUNCH)));
         assertTrue(!stillAndStopped.moving());
         assertTrue(stillAndSpinning.moving());
         assertEquals(0, stillAndSpinning.sweep(), 0);
@@ -101,7 +101,7 @@ public class LauncherCarriedTest {
     public void aLauncherCarriedToAFrameIsThereAtOnceAtRestHoweverFarWithItsWheelAsItWasAndTheNextCourseBeginsThere() {
         Launcher.Frame from = frame(-30, -45, 0), far = frame(60, 50, -2);
         Launcher spinning =
-                Valid.value(standing(from, 0).onward(frame(-29.5, -45, 0.01), Valid.time(0.005), wheel(CLOSE_LAUNCH)));
+                Valid.value(standing(from, 0).onward(frame(-29.5, -45, 0.01), Valid.time(0.005), wheel(LAUNCH)));
 
         Launcher carried = Valid.value(spinning.carriedTo(far));
         Launcher stopped = Valid.value(standing(from, 0).carriedTo(far));
@@ -113,7 +113,7 @@ public class LauncherCarriedTest {
         }
         assertTrue("its wheel spins on", carried.moving());
         assertTrue(!stopped.moving());
-        Launcher next = Valid.value(carried.onward(frame(60.5, 50, -2), Valid.time(0.01), wheel(CLOSE_LAUNCH)));
+        Launcher next = Valid.value(carried.onward(frame(60.5, 50, -2), Valid.time(0.01), wheel(LAUNCH)));
         assertAt("the next course begins there", far, next.at(Valid.time(0.005)));
         String sooner = rejection(carried.onward(far, Valid.time(0.004), wheel(0)));
         assertTrue(
@@ -126,8 +126,8 @@ public class LauncherCarriedTest {
         Launcher standing = standing(frame(-30, -45, 1), 0);
 
         Launcher again = Valid.value(standing.onward(frame(-30, -45, 1), Valid.time(0.005), wheel(0)));
-        Launcher spinning = Valid.value(standing.onward(frame(-30, -45, 1), Valid.time(0.005), wheel(CLOSE_LAUNCH)));
-        Launcher spinningOn = Valid.value(spinning.onward(frame(-30, -45, 1), Valid.time(0.01), wheel(CLOSE_LAUNCH)));
+        Launcher spinning = Valid.value(standing.onward(frame(-30, -45, 1), Valid.time(0.005), wheel(LAUNCH)));
+        Launcher spinningOn = Valid.value(spinning.onward(frame(-30, -45, 1), Valid.time(0.01), wheel(LAUNCH)));
         Launcher moved = Valid.value(standing.onward(frame(-29.9, -45, 1), Valid.time(0.005), wheel(0)));
         Launcher stoppedThere = Valid.value(moved.onward(frame(-29.9, -45, 1), Valid.time(0.01), wheel(0)));
         Launcher carried = Valid.value(standing.carriedTo(frame(-29.9, -45, 1)));
@@ -170,7 +170,7 @@ public class LauncherCarriedTest {
             aBallCarriedFromOneLauncherToAnotherLiesInItAsItLayInTheFirstAndMovesThroughItAsItMovedThroughTheFirst() {
         Launcher.Frame began = frame(-30, -45, 0.3), ends = frame(-29.5, -45.2, 0.35);
         Launcher.Course course = Valid.value(Launcher.Course.of(began, Valid.time(0), ends, Valid.time(0.005)));
-        Launcher moving = Valid.value(standing(began, 0).onward(ends, Valid.time(0.005), wheel(CLOSE_LAUNCH)))
+        Launcher moving = Valid.value(standing(began, 0).onward(ends, Valid.time(0.005), wheel(LAUNCH)))
                 .at(Valid.time(0.004));
         Launcher there = Valid.value(moving.carriedTo(frame(60, 50, -2)));
         Vec3 turning = new Vec3(0, 0, course.turning());
