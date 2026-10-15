@@ -11,6 +11,8 @@ public class LauncherCourseTest {
     private static final double BEGINS = 0.1;
     private static final double ENDS = 0.105;
     private static final double STEP_SECONDS = ENDS - BEGINS;
+    private static final double STEP_ON_WHICH_TIMES_SUBTRACT_EXACTLY_SECONDS = 1.0 / 8192;
+    private static final long STEPS_ACROSS = 41;
 
     private static Launcher.Frame frame(double x, double y, double yaw) {
         return Valid.value(Launcher.Frame.of(x, y, yaw));
@@ -39,6 +41,32 @@ public class LauncherCourseTest {
     private static void assertExactly(String what, Launcher.Frame frame, Launcher.Placed placed) {
         assertEquals(what, new Vec3(frame.x(), frame.y(), 0), placed.origin());
         assertEquals(what, Double.doubleToRawLongBits(frame.yaw()), Double.doubleToRawLongBits(placed.yaw()));
+    }
+
+    private static void assertExactly(String what, Launcher.Placed expected, Launcher.Placed placed) {
+        assertEquals(what, expected.origin(), placed.origin());
+        assertEquals(what, Double.doubleToRawLongBits(expected.yaw()), Double.doubleToRawLongBits(placed.yaw()));
+    }
+
+    private static boolean isExactly(Launcher.Frame frame, double x, double y, double yaw) {
+        return Double.doubleToRawLongBits(frame.x()) == Double.doubleToRawLongBits(x)
+                && Double.doubleToRawLongBits(frame.y()) == Double.doubleToRawLongBits(y)
+                && Double.doubleToRawLongBits(frame.yaw()) == Double.doubleToRawLongBits(yaw);
+    }
+
+    private static boolean carriedAcrossLands(
+            Launcher.Frame frame, double seconds, Launcher.Course course, Launcher.Frame other) {
+        return isExactly(
+                other,
+                frame.x() + seconds * course.velocity().x(),
+                frame.y() + seconds * course.velocity().y(),
+                frame.yaw() + seconds * course.turning());
+    }
+
+    private static List<Launcher.Frame[]> framesThatCarryingEitherAcrossMisses() {
+        return List.of(
+                new Launcher.Frame[] {frame(1.377, 0, 0), frame(4.997, 0, 0)},
+                new Launcher.Frame[] {frame(34.92, -1.76, -2.95), frame(34.55, 0.11, -3.25)});
     }
 
     @Test
@@ -155,7 +183,7 @@ public class LauncherCourseTest {
     }
 
     @Test
-    public void aCoursePlacesItsFrameAtItsVelocityAndTurnFromItsNearerEndSoItIsFiniteWhereverItIsPlacedHoweverShort() {
+    public void aCourseCarriesItsFrameAtItsBoundedVelocityAndTurnSoItIsFiniteWhereverItIsPlacedHoweverShort() {
         Bodies.Step step = Valid.value(Flight.stepping());
         GridTime began = GridTime.at(0, step);
         GridTime soon = GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-310)), step);
@@ -179,6 +207,46 @@ public class LauncherCourseTest {
                 assertTrue(
                         "over " + course + ", at step " + steps + ": " + placed,
                         placed.origin().isFinite() && Double.isFinite(placed.yaw()));
+            }
+        }
+    }
+
+    @Test
+    public void aMovingCourseIsExactlyEachOfItsFramesAtItsTimeWhereCarryingEitherAcrossWouldMiss() {
+        double across = Valid.time(ENDS).seconds() - Valid.time(BEGINS).seconds();
+        for (Launcher.Frame[] frames : framesThatCarryingEitherAcrossMisses()) {
+            Launcher.Frame from = frames[0], to = frames[1];
+            Launcher.Course course = course(from, BEGINS, to, ENDS);
+
+            assertTrue(
+                    "carried across " + course + " from either end at its velocity and turn, it misses the other",
+                    !carriedAcrossLands(from, across, course, to) && !carriedAcrossLands(to, -across, course, from));
+            assertTrue(course.moving());
+            assertExactly("as " + course + " begins", from, placed(course, BEGINS));
+            assertExactly("as " + course + " ends", to, placed(course, ENDS));
+        }
+    }
+
+    @Test
+    public void aCourseRunTheOtherWayIsPlacedExactlyAsItIsRunForwardEitherSideOfItsMiddle() {
+        Bodies.Step step = Valid.value(
+                Seconds.of(STEP_ON_WHICH_TIMES_SUBTRACT_EXACTLY_SECONDS).then(Bodies.Step::of));
+        GridTime began = GridTime.at(0, step);
+        GridTime ends = GridTime.at(STEPS_ACROSS, step);
+        for (Launcher.Frame[] frames : framesThatCarryingEitherAcrossMisses()) {
+            Launcher.Course forward = Valid.value(Launcher.Course.of(frames[0], began, frames[1], ends));
+            Launcher.Course backward = Valid.value(Launcher.Course.of(frames[1], began, frames[0], ends));
+            for (long steps = -STEPS_ACROSS; 2 * steps < STEPS_ACROSS; steps++) {
+                GridTime early = GridTime.at(steps, step);
+                GridTime late = GridTime.at(STEPS_ACROSS - steps, step);
+                assertExactly(
+                        forward + " at " + early + " against " + backward + " at " + late,
+                        forward.at(early),
+                        backward.at(late));
+                assertExactly(
+                        backward + " at " + early + " against " + forward + " at " + late,
+                        backward.at(early),
+                        forward.at(late));
             }
         }
     }
