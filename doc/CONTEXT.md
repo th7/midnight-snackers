@@ -547,8 +547,10 @@ the files the commits change, a renamed one by its old name and its new, apart
 from those whose copy alone differs, as after a merge of `main` that keeps
 `develop`'s copy, of which it says that a push of the judged commit replaces
 `main`'s copy with its own. No commit to `develop` and no session can clear
-that: it waits on a maintainer, who pushes `main` to the judged commit by hand,
-never forced, and re-runs the failed jobs of the run. The judged commit's own
+that: it waits on a maintainer, who fetches and then pushes `main` to the judged
+commit by hand, never forced, since a clone that has `main`'s tip but not the
+judged commit is told, without the fetch, that the push needs force, which it
+does not, and re-runs the failed jobs of the run. The judged commit's own
 core decides whether `main` moves, in a job whose token may only read and whose
 checkout keeps no credential, and that job fails unless `main` moves or stays,
 so re-running the failed jobs looks at `main` again. The job that pushes runs
