@@ -42,6 +42,7 @@ import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
 import org.firstinspires.ftc.teamcode.simcore.Drawn;
@@ -54,7 +55,7 @@ import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Flywheel;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
-import org.firstinspires.ftc.teamcode.simcore.Launch;
+import org.firstinspires.ftc.teamcode.simcore.Launcher;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Nest;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
@@ -135,8 +136,9 @@ public class SimRobot {
     private final MecanumKinematics kinematics =
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private final Drivetrain drivetrain;
-    private final Constants constants;
     private final Turntable turntable;
+    private final Flywheel.TicksPerTurn ticksPerTurn;
+    private int turntableTicksOfTheFrame;
     private final World<Body> world = new World<>();
     private final Body chassis;
 
@@ -276,9 +278,9 @@ public class SimRobot {
             case NUGGET -> new Nugget(devices, new FakeDcMotorEx(), new FakeDcMotorEx());
         };
         this.noise = noise;
-        this.constants = constants;
         this.turntable =
                 Valid.value(Turntable.of(org.firstinspires.ftc.reginald.Turntable.TICKS_PER_REVOLUTION, constants));
+        this.ticksPerTurn = refusedIfNot(Flywheel.TicksPerTurn.of(constants.value(Constant.FLYWHEEL_TICKS_PER_TURN)));
         this.draws = noise.draws();
         this.drivetrain = Valid.value(Drivetrain.of(
                 teamRobot.drivebase(),
@@ -326,7 +328,8 @@ public class SimRobot {
         chassis.setAngularDamping(0);
         world.addBody(chassis);
 
-        flight = Valid.value(Flight.<Ball>over(FIELD));
+        turntableTicksOfTheFrame = turnTable.currentPosition;
+        flight = refusedIfNot(build.flightAt(launcherFrame()));
         for (Field.Flower flower : FIELD.flowers()) {
             stacks.put(flower, Stack.in(flower));
             seats.put(flower, Seat.seated());
@@ -418,6 +421,13 @@ public class SimRobot {
         void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode);
 
         void sense(DriveEncoders encoders, Twist perSecond);
+
+        Checked<Flight<Ball>> flightAt(Launcher.Frame at);
+
+        Checked<Flight.Stepped<Ball>> flown(
+                Flight<Ball> flight, Flight.Tick tick, Launcher.Frame endsAt, Flywheel.AngularSpeed wheel);
+
+        Checked<Flight<Ball>> carried(Flight<Ball> flight, Launcher.Frame to);
     }
 
     private record Reginald(SimDevices devices) implements Build {
@@ -452,6 +462,22 @@ public class SimRobot {
 
         @Override
         public void sense(DriveEncoders encoders, Twist perSecond) {}
+
+        @Override
+        public Checked<Flight<Ball>> flightAt(Launcher.Frame at) {
+            return Flight.carryingALauncher(FIELD, at);
+        }
+
+        @Override
+        public Checked<Flight.Stepped<Ball>> flown(
+                Flight<Ball> flight, Flight.Tick tick, Launcher.Frame endsAt, Flywheel.AngularSpeed wheel) {
+            return flight.step(tick, endsAt, wheel);
+        }
+
+        @Override
+        public Checked<Flight<Ball>> carried(Flight<Ball> flight, Launcher.Frame to) {
+            return flight.carriedTo(to);
+        }
     }
 
     private record Nugget(SimDevices devices, FakeDcMotorEx left, FakeDcMotorEx right) implements Build {
@@ -491,6 +517,22 @@ public class SimRobot {
             left.measuredVelocity = read.left().velocity();
             right.currentPosition = read.right().position();
             right.measuredVelocity = read.right().velocity();
+        }
+
+        @Override
+        public Checked<Flight<Ball>> flightAt(Launcher.Frame at) {
+            return Flight.over(FIELD);
+        }
+
+        @Override
+        public Checked<Flight.Stepped<Ball>> flown(
+                Flight<Ball> flight, Flight.Tick tick, Launcher.Frame endsAt, Flywheel.AngularSpeed wheel) {
+            return flight.step(tick);
+        }
+
+        @Override
+        public Checked<Flight<Ball>> carried(Flight<Ball> flight, Launcher.Frame to) {
+            return Checked.ok(flight);
         }
     }
 
@@ -552,8 +594,19 @@ public class SimRobot {
         chassis.clearForce();
         chassis.clearTorque();
         world.addBody(chassis);
+        carryTheLauncher();
         previous = pose();
         imu.yawRadians = previous.heading.toDouble();
+    }
+
+    private void carryTheLauncher() {
+        turntableTicksOfTheFrame = turnTable.currentPosition;
+        flight = refusedIfNot(build.carried(flight, launcherFrame()));
+    }
+
+    private Launcher.Frame launcherFrame() {
+        Transform at = chassis.getTransform();
+        return refusedIfNot(turntable.launcherFrame(inches(at), at.getRotationAngle(), turnTable.currentPosition));
     }
 
     public void setDown(Pose2d pose) {
@@ -626,6 +679,13 @@ public class SimRobot {
 
     public void place(Piece piece, Field.Cell cell) {
         putInCell((Ball) piece, cell);
+    }
+
+    public void place(Piece piece, Vec3 at, Vec3 velocity) {
+        Ball ball = (Ball) piece;
+        take(ball);
+        flight = refusedIfNot(flight.with(ball, ball.kind, ball.length, at, velocity));
+        ball.where = Where.FLYING;
     }
 
     private void setDown(Ball ball, double x, double y) {
@@ -800,8 +860,12 @@ public class SimRobot {
     }
 
     private void substep(Seconds dt) {
+        if (turnTable.currentPosition != turntableTicksOfTheFrame) {
+            carryTheLauncher();
+        }
         launcher.measuredVelocity = Flywheel.turnsAt(launcher.commandedVelocity);
         turnTable.currentPosition = turntable.turned(turnTable.currentPosition, Power.clamped(turnTable.power), dt);
+        turntableTicksOfTheFrame = turnTable.currentPosition;
         PerWheel<Drivetrain.Setting> wheels = build.wheels();
         voltageSensor.voltage =
                 noise.battery().volts(Valid.value(Seconds.of(nanoTime() / 1e9)), wheels.map(Drivetrain.Setting::power));
@@ -916,24 +980,17 @@ public class SimRobot {
             chambered = hopper.poll();
         }
         if (bottomGate.position >= BOTTOM_GATE_OPENS_AT && chambered != null) {
-            launch(chambered);
-            chambered = null;
+            feed(chambered);
         }
     }
 
-    private void launch(Ball ball) {
-        Pose2d pose = pose();
-        Vector2 robotVelocity = chassis.getLinearVelocity();
-        Launch launch = Launch.from(
-                new Vec2(pose.position.x, pose.position.y),
-                pose.heading.toDouble(),
-                turntable.radians(turnTable.currentPosition),
-                launcher.measuredVelocity,
-                new Vec2(robotVelocity.x / IN, robotVelocity.y / IN),
-                constants);
-        flight = refusedIfNot(flight.with(ball, ball.kind, ball.length, launch.at(), launch.velocity()));
-        take(ball);
-        ball.where = Where.FLYING;
+    private void feed(Ball ball) {
+        Flight.Feeding<Ball> feeding = refusedIfNot(flight.fed(ball, ball.kind, ball.length));
+        if (feeding instanceof Flight.Fed<Ball> fed) {
+            flight = fed.flight();
+            take(ball);
+            ball.where = Where.FLYING;
+        }
     }
 
     public long flightWork() {
@@ -941,7 +998,11 @@ public class SimRobot {
     }
 
     private void flyTheBalls(Seconds dt) {
-        Flight.Stepped<Ball> stepped = refusedIfNot(flight.step(Valid.value(Flight.Tick.of(dt))));
+        Flight.Stepped<Ball> stepped = refusedIfNot(build.flown(
+                flight,
+                Valid.value(Flight.Tick.of(dt)),
+                launcherFrame(),
+                Flywheel.AngularSpeed.from(launcher.commandedVelocity, ticksPerTurn)));
         flight = stepped.flight();
         for (Flight.Landing<Ball> landing : stepped.landings()) {
             Ball ball = landing.ball();

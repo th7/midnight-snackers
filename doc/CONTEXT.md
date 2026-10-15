@@ -1575,16 +1575,29 @@ room for another, so a robot that starts preloaded takes nothing in until it
 has launched. A nectar is the bigger ball and no intake of ours takes one, so
 a nectar the robot meets, and a pollen it meets with the intake off or with
 no room, is a ball it pushes.
-The launcher is on the turntable, and its gates feed it as the robot
-code drives them: with the top gate open a ball drops from the hopper
-into the **chamber**, and with the bottom gate open the chambered ball
-drops into the flywheel and leaves at a speed set by the flywheel's, in
-**flight**. The flywheel turns as fast as the code commands it, up to its
-motor's top speed of 2,800 ticks a second either way (a goBILDA 5203 at 6,000
-rpm with no load, 28 ticks a turn), and the throw is never set so high that the
-fastest ball it throws from there, off the fastest robot the noise allows, is
-one a flight refuses: so every launch leaves the robot, and one a flight did
-refuse would stop the run saying why. The model is planar apart from flight and the flowers'
+The launcher is on the turntable, and its gates feed it as the robot code
+drives them: with the top gate open a ball drops from the hopper into the
+**chamber**, and with the bottom gate open the chambered ball is fed into
+Reginald's simulated flywheel and hood, the **launcher**, which its **flight**
+carries: put at the foot of the hood's lead-in, the ball is the engine's from
+there, so where, how fast and with what spin it leaves come out of the physics,
+not a formula. While the launcher's entry is not clear of the ball before it,
+the chambered ball waits in the chamber and is fed the first step it is. The
+launcher's frame is the robot's pose turned by the turntable's encoder, handed
+to the flight at the end of every step; placing the robot, or writing the
+turntable's encoder from outside between steps as a test does, carries the
+launcher there at once with the balls it holds, rather than sweeping it there.
+The flywheel turns as fast as the code commands it, up to its motor's top speed
+of 2,800 ticks a second either way (a goBILDA 5203 at 6,000 rpm with no load, 28
+ticks a turn), over the flywheel's **ticks per turn**, which is 28 because the
+team says the flywheel is direct drive, 1:1 on the motor. With the flywheel
+stopped a fed ball stays in the launcher, inside the robot and off the floor,
+and is thrown once the flywheel spins up; a robot at rest holding one keeps its
+pose to the bit, so the ball sleeps and the flight costs no work. Even the
+fastest wheel the constants allow, off the fastest robot the noise allows,
+throws a ball a flight takes, and a course or a feed the flight does refuse,
+other than the wait for the entry, stops the run saying why. Nugget has no
+launcher, and its flight carries none. The model is planar apart from flight and the flowers'
 stacks: only the robot's footprint collides, nothing goes over a wall or
 under a hive by being low, and a ball in flight meets what a **shot**'s
 ball meets — the floor, the walls, every element of the field, the hives
@@ -1599,21 +1612,14 @@ sensor noise, ever: the sensors read exactly what the robot did, as the
 hub would report it, which for an encoder's velocity is to the nearest
 20 ticks per second (Road Runner's encoder wrapper reads the remainder
 as a count of the hub's 16-bit overflows, so anything finer is read as
-tens of inches a second). The
-launcher's throw and the turntable's speed are guesses until measured on
-the robot. The throw, a ball's speed for each tick a second the flywheel
-turns, leaves the launcher with no spin. It is built at 199.4 in/s for the
-code's close launch of 1050 ticks a second, and that throw and one 2.1 in/s
-slower or faster each score and stay in every shot the tests score from the
-launch distance: a close shot for each alliance, one that comes to rest
-against the back of the cell, the shot after a tip, and the preload's four
-launches at the code's own cadence into an empty cell, all four coming to
-rest in it. The throw is a steep one, into a mouth a hive holds five feet
-up. Both are **simulation constants**,
-so whoever measures them sets them on the admin page. The world moves in steps of at
+tens of inches a second). The turntable's speed is a guess until measured on the robot, and it and the
+flywheel's ticks per turn are **simulation constants**, so whoever measures the
+one or regears the other sets it on the admin page. Whether the code's own
+launch commands score at the built ticks per turn is open, and the team's to
+decide. The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
-`Launch` and `Turntable`, in the **core**.
+`Turntable`, `Flywheel` and `Launcher`, in the **core**.
 
 **Flight** — A ball off the floor during a run: launched, falling, or in or on
 a hive or a flower. A flight is made over a field, with the field's hives at rest
