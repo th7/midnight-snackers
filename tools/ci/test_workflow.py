@@ -18,6 +18,8 @@ FOR_DEVELOP_ONLY = "${{ !cancelled() && github.event_name == 'push' && github.re
 JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}"
 CHECKOUT_KEEPS_ITS_TOKEN = 'https://github.com/actions/checkout/blob/v4/src/git-auth-helper.ts'
 SECRETS_CONTEXT = 'https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context'
+CONTEXT_NAMES_IGNORE_CASE = ('https://github.com/actions/runner/blob/796cc18ffaaafd5cea525d6231f5a8c93c11c603/'
+                             'src/Sdk/DTExpressions2/Expressions2/ExpressionParser.cs#L427')
 JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
                          'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
                          'SUBJECT': '${{ needs.unit-tests.outputs.subject }}'},
@@ -169,9 +171,27 @@ class WhatARunJudges(WorkflowTest):
 
     def test_nothing_in_the_workflow_reads_a_secret_in_any_form(self):
         with open(WORKFLOW, encoding='utf-8') as text:
-            self.assertEqual([], re.findall(r'.*\bsecrets\b.*', text.read()),
+            self.assertEqual([], re.findall(r'.*\bsecrets\b.*', text.read(), re.IGNORECASE),
                              'no step reads a secret, and an expression reaches the secrets context as secrets.NAME, '
-                             "as secrets['NAME'] or whole (%s)" % SECRETS_CONTEXT)
+                             "as secrets['NAME'] or whole (%s), its name spelled in any case (%s)"
+                             % (SECRETS_CONTEXT, CONTEXT_NAMES_IGNORE_CASE))
+
+    def test_the_jobs_that_move_main_and_write_the_issue_hold_exactly_these_steps_so_none_is_added_unseen(self):
+        self.assertEqual(
+            {'promote': [(None, 'Check out the judged commit'),
+                         ('main', 'Find what main has that develop or the judged commit lacks, and the workflow files '
+                                  'the commits since main change'),
+                         ('decide', 'Decide whether main moves'),
+                         ('push', 'Move main to the judged commit, never by force'),
+                         (None, 'Hold main where it was')],
+             'report': [(None, 'Check out the judged commit'),
+                        (None, 'List the open issues'),
+                        ('say', 'Say what the run found'),
+                        (None, 'Open the issue'),
+                        (None, 'Comment on the open issue'),
+                        (None, 'Close the issue, saying main now stands at the judged commit')]},
+            {name: [(step.get('id'), step.get('name')) for step in steps_of(self.jobs[name])]
+             for name in ('promote', 'report')})
 
     def test_the_workflow_and_each_job_hold_exactly_their_keys_so_no_env_or_environment_is_added_unseen(self):
         self.assertEqual(['name', 'on', 'concurrency', 'permissions', 'defaults', 'jobs'], list(self.workflow))
