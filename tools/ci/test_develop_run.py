@@ -5,7 +5,7 @@ import develop_run as run
 from develop_run import (Green, Hold, JudgingEnded, Judged, Looked, StepDidNotPass, StepsEnded,
                          MainHasWhatDevelopLacks, MainRefusedThePush, Move, NeverJudged, NeverLooked,
                          NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed,
-                         MainRefusedOverWorkflows, MainNeedsAMaintainerForWorkflows, WorkflowFiles)
+                         MainNeedsAMaintainerForWorkflows, WorkflowFiles)
 
 JUDGED = 'a' * 40
 MAIN = 'b' * 40
@@ -13,23 +13,16 @@ STRAY = 'c' * 40
 SUBJECT = 'A ball comes back from a lone still compliant surface at its restitution'
 NO_WORKFLOWS = WorkflowFiles(())
 TESTS_YML = WorkflowFiles(('.github/workflows/tests.yml',))
-CREDENTIAL_REFUSED = (
-    "fatal: could not read Username for 'https://github.com': No such device or address\n",
+REFUSALS = (
+    ' ! [remote rejected] %s -> main (protected branch hook declined)\n' % JUDGED,
+    ' ! [rejected]        %s -> main (fetch first)\n' % JUDGED,
     "fatal: Authentication failed for 'https://github.com/th7/midnight-snackers/'\n",
-    'remote: Permission to th7/midnight-snackers.git denied to a-user.\n'
-    "fatal: unable to access 'https://github.com/th7/midnight-snackers/': The requested URL returned error: 403\n")
-REFUSED_OVER_WORKFLOWS = (
-    'To https://github.com/th7/midnight-snackers\n'
     ' ! [remote rejected] %s -> main (refusing to allow a GitHub App to create or update workflow '
-    '`.github/workflows/tests.yml` without `workflows` permission)\n'
-    "error: failed to push some refs to 'https://github.com/th7/midnight-snackers'\n" % JUDGED)
+    '`.github/workflows/tests.yml` without `workflows` permission)\n' % JUDGED)
 
 
 GITHUB_TOKEN_PERMISSIONS = 'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions'
 PARTIAL_RERUNS = 'https://github.blog/2022-03-16-save-time-partial-re-runs-github-actions/'
-REFUSED_A_GITHUB_APP = 'https://github.com/actions/create-github-app-token/issues/301'
-REFUSED_AN_OAUTH_APP = 'https://jira.atlassian.com/browse/SRCTREEWIN-14170'
-REFUSED_A_PERSONAL_ACCESS_TOKEN = 'https://kuroco.app/docs/faq/i-get-an-error-message-when-i-push-to-the-github-repository'
 
 
 def b64(text):
@@ -191,39 +184,12 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
         self.assertEqual(Red((MainRefusedThePush(commit(), said),), looked(pushed=Outcome.FAILURE, said=said)),
                          run.verdict(judged(), looked(pushed=Outcome.FAILURE, said=said)))
 
-    def test_a_run_whose_push_main_refused_over_workflow_permission_is_red_for_that_with_what_git_said(self):
-        promoting = looked(pushed=Outcome.FAILURE, said=REFUSED_OVER_WORKFLOWS, ended=Outcome.FAILURE)
-
-        self.assertEqual(Red((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS),), promoting),
-                         run.verdict(judged(), promoting))
-
-    def test_a_push_refused_for_its_credential_is_a_refused_push_with_what_git_said(self):
-        for said in CREDENTIAL_REFUSED:
+    def test_a_push_main_refused_is_a_refused_push_with_git_s_own_words_whatever_they_are(self):
+        for said in REFUSALS:
             promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
 
             self.assertEqual(Red((MainRefusedThePush(commit(), said),), promoting), run.verdict(judged(), promoting),
                              said)
-
-    def test_every_way_github_has_been_seen_to_word_a_refusal_over_workflow_permission_is_one(self):
-        for refusal, seen in (('refusing to allow a GitHub App to create or update workflow '
-                               '`.github/workflows/tests.yml` without `workflows` permission', REFUSED_A_GITHUB_APP),
-                              ('refusing to allow an OAuth App to create or update workflow '
-                               '`.github/workflows/tests.yml` without `workflow` scope', REFUSED_AN_OAUTH_APP),
-                              ('refusing to allow a Personal Access Token to create or update workflow '
-                               '`.github/workflows/tests.yml` without `workflow` scope',
-                               REFUSED_A_PERSONAL_ACCESS_TOKEN)):
-            said = ' ! [remote rejected] %s -> main (%s)\n' % (JUDGED, refusal)
-            promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
-
-            self.assertEqual(Red((MainRefusedOverWorkflows(commit(), said),), promoting),
-                             run.verdict(judged(), promoting),
-                             'GitHub does not document this refusal; it is worded so at %s' % seen)
-
-    def test_a_push_refused_for_anything_else_is_not_one_over_workflow_permission(self):
-        said = ' ! [rejected]        %s -> main (fetch first)\n' % JUDGED
-        promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
-
-        self.assertEqual(Red((MainRefusedThePush(commit(), said),), promoting), run.verdict(judged(), promoting))
 
     def test_a_run_that_held_main_is_red_for_the_reasons_it_held(self):
         promoting = looked(pushed=Outcome.SKIPPED)
@@ -283,23 +249,6 @@ class WhatTheReasonsSay(unittest.TestCase):
 
         self.assertIn('main refused the push of `%s`' % JUDGED, said)
         self.assertIn('```\n' + git_said + '```', said)
-
-    def test_a_push_refused_over_workflow_permission_is_said_to_wait_on_a_maintainer_who_moves_main_by_hand(self):
-        said = run.reasons((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS),))
-
-        self.assertIn('main refused the push of `%s`' % JUDGED, said)
-        self.assertIn('change a file under `.github/workflows`', said)
-        self.assertIn('the built-in token the job that moves main pushed with may not update workflows', said,
-                      'no permission a workflow grants its token is one over workflows (%s), and a push it makes that '
-                      'changes one is refused (%s)' % (GITHUB_TOKEN_PERMISSIONS, REFUSED_A_GITHUB_APP))
-        self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', said)
-        self.assertIn('who moves main to `%s` by hand with a credential that may update workflows' % JUDGED, said)
-        self.assertIn('`git push origin %s:refs/heads/main`' % JUDGED, said)
-        self.assertIn('never forced', said)
-        self.assertIn('and then runs the failed jobs of this run again', said)
-        self.assertIn('```\n' + REFUSED_OVER_WORKFLOWS + '```', said)
-        for never in ('MAIN_PUSH_TOKEN', 'secret', 'environment', 'personal access token', 'expiry'):
-            self.assertNotIn(never, said)
 
     def test_a_hold_over_workflows_names_each_file_and_gives_the_maintainer_the_push_and_the_rerun_that_end_it(self):
         files = WorkflowFiles(('.github/workflows/release.yml', '.github/workflows/tests.yml'))

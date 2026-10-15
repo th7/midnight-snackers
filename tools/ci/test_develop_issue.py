@@ -127,13 +127,12 @@ class WhatTheIssueSays(unittest.TestCase):
         self.assertIn(said, body)
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
 
-    def test_a_red_run_whose_push_was_refused_over_workflow_permission_says_it_waits_on_a_maintainer(self):
+    def test_a_red_run_whose_push_github_refused_over_a_workflow_quotes_git_as_any_refused_push_does(self):
         said = (' ! [remote rejected] %s -> main (refusing to allow a GitHub App to create or update workflow '
                 '`.github/workflows/tests.yml` without `workflows` permission)\n' % JUDGED)
         body = issues.issue_action(judged(), looked(pushed=Outcome.FAILURE, said=said), (), link()).body
 
-        self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', body)
-        self.assertIn(said, body)
+        self.assertIn('main refused the push of `%s`. git said:\n\n```\n%s```' % (JUDGED, said), body)
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
 
     def test_a_red_run_held_over_workflows_gives_the_maintainer_the_push_and_says_main_stays_where_it_was(self):
