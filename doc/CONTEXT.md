@@ -578,12 +578,14 @@ closed the issue, pushes nothing, writes nothing to the issue and ends green.
 Whatever the core said, the job that writes the issue first reads `develop`'s
 tip and `main`'s as they are now and asks GitHub how they compare, and the run
 is red unless GitHub finds `develop` ahead of `main` or identical to it, an
-error or any other answer counting as no: that job still opens or comments on
-the issue as the core said, but never closes it or says where the tips stand,
-and when nothing else wrote it says on the issue only that the run is red,
-linking it. So a commit that reaches `main` by itself after the job that pushes
-read `main`, before the job that says what to write reads it or between that and
-the job that writes the issue, turns the run red, as does re-running some of the
+error or any other answer counting as no: that job still opens the issue or
+comments on it as the core said for a red run, but never closes it, says where
+the tips stand or says that `develop` moved on, which the core hands it apart
+from a red run's comment, and when neither the core's open nor its red comment
+went through it says on the issue only that the run is red, linking it. So a
+commit that reaches `main` by itself after the job that pushes read `main`,
+before the job that says what to write reads it or between that and the job
+that writes the issue, turns the run red, as does re-running some of the
 run's jobs after it, the job that writes the issue alone included; one that
 lands after that job's own read is found by the next run, which holds `main`
 naming it. Anything else is a red run, and `main` stays where it was. A red run
@@ -596,35 +598,37 @@ workflow files that hold `main` for a maintainer; or git's own words for a
 refused push — and the run; a commit that reached `main` by itself keeps every
 run red until `develop` holds it. The core says what to write in a job whose
 tokens may only read, and the job that writes the issue runs none of the judged
-commit's code; a red run for which that job carried out nothing the core said
-still opens or comments on the issue, saying only that the run is red and
-linking it. Only a run whose every job passed closes the issue: one that moves
-`main`, or finds it already at the commit it judged, as the re-run after a
-maintainer's push does, closes it, saying `main` now stands there, only when
-that commit is still both `develop`'s tip and `main`'s, as the job that says
-what to write reads them after the push and as the job that writes the issue
-reads them again before writing anything to it. When only `develop` has moved
-on, it says on the issue where `develop`'s tip stands, never that the run moved
-`main` when the look found `main` already at the judged commit, and does not
-close it; when `main` has moved off the judged commit along `develop`, its look
-is stale, and when `develop` does not hold `main`'s tip, as when a commit
-reached `main` by itself, the run is red. So re-running only some of a run's
-jobs, which reuses what the jobs that passed handed on, as after a push refused
-once or a close that failed, never closes the issue once `develop` has moved on
-or `main` has moved off the judged commit, and is red once `develop` does not
-hold `main`'s tip. A pull request is still judged, in a queue of its own, and
-never moves `main` or touches the issue. The judged commit's core decides
-whether `main` moves and what to write on the issue, and the workflow adds
-guards that do not depend on that commit's code: a red judging or a job that did
-not pass never pushes or closes the issue, a push also needs `main` to stand
-where the look found it, as the job that pushes reads it, a `main` that has
-moved since the look to a tip that job cannot find in `develop` turns the run
-red, the job that writes the issue turns the run red whenever GitHub does not
-find `develop` holding `main`'s tip as that job reads them, a close also needs
-`develop`'s tip and `main`'s, as the job that writes the issue reads them, to
-still be the judged commit, and a red run the core could not speak for still
-writes to the issue. A test holds each guard by evaluating the workflow's own
-conditions.
+commit's code; a red run for which that job carried out neither an open nor a
+red comment the core said still opens or comments on the issue, saying only that
+the run is red and linking it. Only a run whose every job passed closes the
+issue: one that moves `main`, or finds it already at the commit it judged, as
+the re-run after a maintainer's push does, closes it, saying `main` now stands
+there, only when that commit is still both `develop`'s tip and `main`'s, as the
+job that says what to write reads them after the push and as the job that writes
+the issue reads them again before writing anything to it. When only `develop`
+has moved on, it says on the issue where `develop`'s tip stands, in a comment
+the core hands apart from a red run's and the job that writes the issue carries
+out only once its reads of both tips and its check that `develop` holds `main`'s
+tip passed, never that the run moved `main` when the look found `main` already
+at the judged commit, and does not close it; when `main` has moved off the
+judged commit along `develop`, its look is stale, and when `develop` does not
+hold `main`'s tip, as when a commit reached `main` by itself, the run is red. So
+re-running only some of a run's jobs, which reuses what the jobs that passed
+handed on, as after a push refused once or a close that failed, never closes the
+issue once `develop` has moved on or `main` has moved off the judged commit, and
+is red once `develop` does not hold `main`'s tip. A pull request is still
+judged, in a queue of its own, and never moves `main` or touches the issue. The
+judged commit's core decides whether `main` moves and what to write on the
+issue, and the workflow adds guards that do not depend on that commit's code: a
+red judging or a job that did not pass never pushes or closes the issue, a push
+also needs `main` to stand where the look found it, as the job that pushes reads
+it, a `main` that has moved since the look to a tip that job cannot find in
+`develop` turns the run red, the job that writes the issue turns the run red
+whenever GitHub does not find `develop` holding `main`'s tip as that job reads
+them, a close also needs `develop`'s tip and `main`'s, as the job that writes
+the issue reads them, to still be the judged commit, and a red run the core
+could not speak for still writes to the issue. A test holds each guard by
+evaluating the workflow's own conditions.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`;
 `tools/ci/workflow_conditions.py`.
