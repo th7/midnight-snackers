@@ -142,6 +142,12 @@ class WhatARunJudges(WorkflowTest):
         self.assertEqual([(step.step, step.name) for step in run.STEPS],
                          [(each.get('id'), each.get('name')) for each in steps_of(self.jobs['unit-tests'])])
 
+    def test_a_run_for_develop_writes_the_gradle_cache_and_a_pull_request_only_reads_it(self):
+        self.assertEqual({'name': run.GRADLE.name, 'id': run.GRADLE.step, 'uses': 'gradle/actions/setup-gradle@v4',
+                          'with': {'cache-read-only': "${{ github.event_name != 'push' }}"}},
+                         step_named(self.jobs['unit-tests'], run.GRADLE.step))
+        self.assertEqual('Gradle, its cache written by runs for develop and only read by pull requests', run.GRADLE.name)
+
     def test_each_check_is_the_same_command_as_local(self):
         for check in run.CHECKS:
             self.assertEqual(check.command, step_named(self.jobs['unit-tests'], check.step)['run'])

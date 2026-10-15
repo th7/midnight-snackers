@@ -54,9 +54,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Gradle
+      - name: Gradle, its cache written by runs for develop and only read by pull requests
         id: gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name != 'push' }}
       - name: Node 22
         id: node
         uses: actions/setup-node@v4

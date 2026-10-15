@@ -85,7 +85,7 @@ class Check:
 CHECKOUT = Step('checkout', "Check out develop's tip as it is now, or the pull request")
 NAMING = Step('judged', 'Name the judged commit')
 JAVA = Step('java', 'Java 21')
-GRADLE = Step('gradle', 'Gradle')
+GRADLE = Step('gradle', 'Gradle, its cache written by runs for develop and only read by pull requests')
 NODE = Step('node', 'Node 22')
 BROWSER = Step('browser', 'Browser for the page tests, with the shared libraries Chromium needs')
 FORMATTING = Check('formatting', 'Java formatting (same command as local; fix with ./gradlew spotlessApply)',
