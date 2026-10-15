@@ -542,21 +542,15 @@ naming the commit judged and what failed — the step, a setup step or the
 report upload as much as a check; the commits `main` has that `develop` lacks,
 with the merge that brings them in; or git's own words for a refused push —
 and the run; a commit that reached `main` by itself keeps every run red until
-`develop` holds it. The built-in token may not move `main` past a change to a
-workflow file, so the push to `main`, and no other step, uses the secret
-`MAIN_PUSH_TOKEN` when there is one. It is kept in the environment `main`,
-which only the job that moves `main` names and whose only deployment branch is
-`develop`, so a run for any other branch cannot read it. A push refused because
-its token may not update workflows, or because `MAIN_PUSH_TOKEN` was not
-accepted — expired, revoked or without write access — says it waits on a
-maintainer, who moves `main` by hand or puts in `MAIN_PUSH_TOKEN` a
-fine-grained token that may, replacing it before the expiry date it was made
-with; no commit to `develop` can fix either. The next run that moves `main`,
-or finds it already at the commit it judged, closes the issue, saying `main`
-now stands at that commit. A pull request is still judged, in a queue of its
-own, and never moves `main` or touches the issue. What a run decides is the
-core's, and the workflow only gathers what the core needs and does what it
-says, which a test holds it to.
+`develop` holds it. No step reads a secret: the push to `main` uses the
+built-in token its checkout keeps, which may not move `main` past a change to
+a workflow file, so a push refused for that says it waits on a maintainer, who
+moves `main` by hand; no commit to `develop` can fix it. The next run that
+moves `main`, or finds it already at the commit it judged, closes the issue,
+saying `main` now stands at that commit. A pull request is still judged, in a
+queue of its own, and never moves `main` or touches the issue. What a run
+decides is the core's, and the workflow only gathers what the core needs and
+does what it says, which a test holds it to.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`.
 

@@ -7,15 +7,7 @@ from enum import Enum
 COMMIT_HASH = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 BASE64 = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
 LISTED_AT_MOST = 50
-MAIN_PUSH_TOKEN = 'MAIN_PUSH_TOKEN'
-PUSH_ENVIRONMENT = 'main'
-MANAGING_ENVIRONMENTS = ('https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/'
-                         'manage-environments')
-MAKING_A_FINE_GRAINED_TOKEN = ('https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/'
-                               'managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token')
 REFUSED_OVER_WORKFLOWS = re.compile(r'refusing to allow an? [^\n]+? to create or update workflow')
-CREDENTIAL_REFUSED = re.compile(r"Authentication failed for '|could not read (?:Username|Password) for '"
-                                r"|The requested URL returned error: 40[13]\b")
 SUBJECT_SHOWN = 200
 SUBJECT_SHOWN_AT_MOST = 256
 SAID_SHOWN = 4000
@@ -46,12 +38,6 @@ class Outcome(Enum):
     FAILURE = 'failure'
     CANCELLED = 'cancelled'
     SKIPPED = 'skipped'
-    UNREPORTED = ''
-
-
-class PushToken(Enum):
-    SECRET = MAIN_PUSH_TOKEN
-    BUILT_IN = 'GITHUB_TOKEN'
     UNREPORTED = ''
 
 
@@ -159,10 +145,9 @@ class Looked(Validated):
     pushed: Outcome
     said: str
     ended: Outcome
-    pushed_with: PushToken
 
     @staticmethod
-    def broken(main_tip, lacking, ahead, pushed, said, ended, pushed_with):
+    def broken(main_tip, lacking, ahead, pushed, said, ended):
         if not isinstance(main_tip, CommitHash):
             return 'a mover that looked names main\'s tip by its hash'
         if not all_of(Commit, lacking) or not all_of(Commit, ahead):
@@ -173,8 +158,6 @@ class Looked(Validated):
                 or any(unsafe_in_a_quote(character) for character in said)):
             return ('what git said is text of at most %d characters, with no control character but a newline or a '
                     'tab' % SAID_SHOWN_AT_MOST)
-        if not isinstance(pushed_with, PushToken):
-            return 'a mover says which token its push used'
         return None
 
 
@@ -212,13 +195,6 @@ class MainRefusedThePush:
 
 @dataclass(frozen=True)
 class MainRefusedOverWorkflows:
-    commit: Commit
-    said: str
-    pushed_with: PushToken
-
-
-@dataclass(frozen=True)
-class MainRefusedTheToken:
     commit: Commit
     said: str
 
@@ -314,14 +290,6 @@ def commit_hash(text):
     return CommitHash(text)
 
 
-def push_token(text):
-    for known in PushToken:
-        if known.value == text:
-            return known
-    return Rejected('the push says it used %s, %s or nothing, never %r' % (
-        PushToken.SECRET.value, PushToken.BUILT_IN.value, text))
-
-
 def commit_line(line):
     hash_text, _, subject = line.partition(' ')
     hashed = commit_hash(hash_text)
@@ -381,7 +349,7 @@ def listed_commits(lines_base64):
     return commits
 
 
-def promoting(ended_text, main_tip_text, lacking_base64, ahead_base64, pushed_text, said_base64, pushed_with_text):
+def promoting(ended_text, main_tip_text, lacking_base64, ahead_base64, pushed_text, said_base64):
     ended = outcome(ended_text)
     if isinstance(ended, Rejected):
         return ended
@@ -392,11 +360,10 @@ def promoting(ended_text, main_tip_text, lacking_base64, ahead_base64, pushed_te
     ahead = listed_commits(ahead_base64)
     pushed = outcome(pushed_text)
     said = decoded(said_base64)
-    pushed_with = push_token(pushed_with_text)
-    rejected = first_rejected(main_tip, lacking, ahead, pushed, said, pushed_with)
+    rejected = first_rejected(main_tip, lacking, ahead, pushed, said)
     if rejected is not None:
         return rejected
-    return Looked(main_tip, lacking, ahead, pushed, shown_said(said), ended, pushed_with)
+    return Looked(main_tip, lacking, ahead, pushed, shown_said(said), ended)
 
 
 def step_findings(steps):
@@ -434,12 +401,8 @@ def verdict(judgement_read, promoting_read):
         return Stayed(decided.commit)
     if promoting_read.pushed is Outcome.SUCCESS:
         return Green(decided.commit)
-    if (promoting_read.pushed is Outcome.FAILURE and promoting_read.pushed_with is PushToken.SECRET
-            and CREDENTIAL_REFUSED.search(promoting_read.said)):
-        return Red((MainRefusedTheToken(decided.commit, promoting_read.said),), promoting_read)
     if promoting_read.pushed is Outcome.FAILURE and REFUSED_OVER_WORKFLOWS.search(promoting_read.said):
-        return Red((MainRefusedOverWorkflows(decided.commit, promoting_read.said, promoting_read.pushed_with),),
-                   promoting_read)
+        return Red((MainRefusedOverWorkflows(decided.commit, promoting_read.said),), promoting_read)
     if promoting_read.pushed is Outcome.FAILURE:
         return Red((MainRefusedThePush(decided.commit, promoting_read.said),), promoting_read)
     return Red((PromotingEnded(promoting_read.ended),), promoting_read)
@@ -485,27 +448,12 @@ def described(found):
             fenced(listed),
             '\n\nand %d more.' % more if more > 0 else '',
             THE_MERGE_THAT_FIXES_IT)
-    if isinstance(found, MainRefusedOverWorkflows) and found.pushed_with is PushToken.SECRET:
-        return ('main refused the push of %s: the commits it would bring to main change a file under '
-                '`.github/workflows`, and %s, which the job that moves main pushed with, may not update workflows. '
-                '%s, who either %s, or replaces %s with %s, and then runs the failed jobs of this run again. %s '
-                'git said:\n\n%s' % (code_span(found.commit.hash.text), the_push_token(), WAITS_ON_A_MAINTAINER,
-                                     by_hand(found.commit), code_span(MAIN_PUSH_TOKEN), a_token_that_may(),
-                                     SUCH_A_TOKEN_EXPIRES, fenced(found.said)))
     if isinstance(found, MainRefusedOverWorkflows):
         return ('main refused the push of %s: the commits it would bring to main change a file under '
                 '`.github/workflows`, and the built-in token the job that moves main pushed with may not update '
-                'workflows. %s, who either %s, or keeps %s as %s, and then runs the failed jobs of this run again. %s '
-                'git said:\n\n%s' % (code_span(found.commit.hash.text), WAITS_ON_A_MAINTAINER, by_hand(found.commit),
-                                     a_token_that_may(), where_the_push_token_is_kept(), SUCH_A_TOKEN_EXPIRES,
-                                     fenced(found.said)))
-    if isinstance(found, MainRefusedTheToken):
-        return ('main refused the push of %s because it did not accept %s, which the job that moves main pushed '
-                'with: it may have expired, been revoked or lost its write access to this repository. %s, who '
-                'replaces %s with %s, or deletes it, so that the job pushes with the built-in token again, and then '
-                'runs the failed jobs of this run again. %s git said:\n\n%s' % (
-                    code_span(found.commit.hash.text), the_push_token(), WAITS_ON_A_MAINTAINER,
-                    code_span(MAIN_PUSH_TOKEN), a_token_that_may(), SUCH_A_TOKEN_EXPIRES, fenced(found.said)))
+                'workflows. %s, who %s, and then runs the failed jobs of this run again. git said:\n\n%s' % (
+                    code_span(found.commit.hash.text), WAITS_ON_A_MAINTAINER, by_hand(found.commit),
+                    fenced(found.said)))
     if isinstance(found, MainRefusedThePush):
         return 'main refused the push of %s. git said:\n\n%s' % (code_span(found.commit.hash.text),
                                                                   fenced(found.said))
@@ -513,22 +461,6 @@ def described(found):
 
 
 WAITS_ON_A_MAINTAINER = 'No commit to develop fixes this, so no session can: it waits on a maintainer'
-SUCH_A_TOKEN_EXPIRES = ('Such a token stops working on the expiry date chosen when it is made, unless it was made with '
-                        'none, and must be replaced before then.')
-
-
-def the_push_token():
-    return 'the token in the secret %s of the environment %s' % (code_span(MAIN_PUSH_TOKEN), code_span(PUSH_ENVIRONMENT))
-
-
-def where_the_push_token_is_kept():
-    return 'the secret %s of the environment %s, whose only deployment branch is `develop` (%s)' % (
-        code_span(MAIN_PUSH_TOKEN), code_span(PUSH_ENVIRONMENT), MANAGING_ENVIRONMENTS)
-
-
-def a_token_that_may():
-    return ('a fine-grained personal access token for this repository alone, with Contents and Workflows set to read '
-            'and write (%s)' % MAKING_A_FINE_GRAINED_TOKEN)
 
 
 def by_hand(commit):

@@ -16,10 +16,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 WORKFLOW = os.path.join(REPO, '.github', 'workflows', 'tests.yml')
 FOR_DEVELOP_ONLY = "${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}"
 JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}"
-MANAGING_ENVIRONMENTS = ('https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/'
-                         'manage-environments')
-GIT_EXTRA_HEADER = 'https://git-scm.com/docs/git-config#Documentation/git-config.txt-httpextraHeader'
-GIT_CONFIG_FROM_ENVIRONMENT = 'https://git-scm.com/docs/git-config#Documentation/git-config.txt-GITCONFIGCOUNT'
+CHECKOUT_KEEPS_ITS_TOKEN = 'https://github.com/actions/checkout/blob/v4/src/git-auth-helper.ts'
 JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
                          'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
                          'SUBJECT': '${{ needs.unit-tests.outputs.subject }}'},
@@ -169,21 +166,12 @@ class WhatARunJudges(WorkflowTest):
                           'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0'}},
                          steps_of(self.jobs['promote'])[0])
 
-    def test_no_step_but_the_push_to_main_reads_a_secret(self):
-        reading = [(name, step.get('name')) for name, job in self.jobs.items() for step in steps_of(job)
-                   if any('secrets.' in text for text in every_text_in(step))]
-        elsewhere = [text for name, job in self.jobs.items() for text in every_text_in(
-            {key: value for key, value in job.items() if key != 'steps'})] + every_text_in(
-            {key: value for key, value in self.workflow.items() if key != 'jobs'})
+    def test_nothing_in_the_workflow_reads_a_secret(self):
+        with open(WORKFLOW, encoding='utf-8') as text:
+            self.assertNotIn('secrets.', text.read())
 
-        self.assertEqual([('promote', 'Move main to the judged commit, never by force')], reading)
-        self.assertFalse([text for text in elsewhere if 'secrets.' in text])
-
-    def test_only_the_job_that_moves_main_runs_in_the_environment_the_issue_names_as_holding_the_push_token(self):
-        self.assertEqual({'promote': run.PUSH_ENVIRONMENT},
-                         {name: job['environment'] for name, job in self.jobs.items() if 'environment' in job},
-                         'an environment secret reaches only a job that names the environment, and only from a branch '
-                         'the environment lets deploy: %s' % MANAGING_ENVIRONMENTS)
+    def test_no_job_names_an_environment(self):
+        self.assertEqual({}, {name: job['environment'] for name, job in self.jobs.items() if 'environment' in job})
 
     def test_the_job_that_writes_the_issue_checks_out_the_commit_judged_without_keeping_a_credential(self):
         self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
@@ -199,17 +187,8 @@ class HowMainMoves(WorkflowTest):
             {'name': 'Move main to the judged commit, never by force',
              'id': 'push',
              'if': "steps.decide.outputs.decision == 'move'",
-             'env': {'JUDGED': '${{ steps.decide.outputs.commit }}',
-                     'PUSH_TOKEN': '${{ secrets.%s || github.token }}' % run.MAIN_PUSH_TOKEN,
-                     'PUSH_TOKEN_IS': "${{ secrets.%s && '%s' || '%s' }}" % (
-                         run.MAIN_PUSH_TOKEN, run.PushToken.SECRET.value, run.PushToken.BUILT_IN.value)},
-             'run': 'echo "token=$PUSH_TOKEN_IS" >> "$GITHUB_OUTPUT"\n'
-                    'auth=$(printf \'x-access-token:%s\' "$PUSH_TOKEN" | base64 -w0)\n'
-                    'export GIT_CONFIG_COUNT=2\n'
-                    'export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" GIT_CONFIG_VALUE_0=\n'
-                    'export GIT_CONFIG_KEY_1="http.$GITHUB_SERVER_URL/.extraheader" '
-                    'GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $auth"\n'
-                    'pushed=0\n'
+             'env': {'JUDGED': '${{ steps.decide.outputs.commit }}'},
+             'run': 'pushed=0\n'
                     'git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?\n'
                     'cat "$RUNNER_TEMP/git-said"\n'
                     'said=$(base64 -w0 < "$RUNNER_TEMP/git-said")\n'
@@ -242,7 +221,6 @@ class HowMainMoves(WorkflowTest):
                           'lacking': '${{ steps.main.outputs.lacking }}',
                           'main-ahead': '${{ steps.main.outputs.ahead }}',
                           'pushed': '${{ steps.push.outcome }}',
-                          'pushed-with': '${{ steps.push.outputs.token }}',
                           'git-said': '${{ steps.push.outputs.said }}'},
                          self.jobs['promote']['outputs'])
 
@@ -392,7 +370,6 @@ class Refusing(http.server.BaseHTTPRequestHandler):
 
 class WhatThePushToMainSendsOverHttp(WorkflowTest):
     BUILT_IN = 'the-built-in-token'
-    SECRET = 'the-push-token'
 
     def setUp(self):
         super().setUp()
@@ -412,8 +389,7 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
         return subprocess.run(['git'] + list(arguments), cwd=where, env=self.environ, check=True, capture_output=True,
                               text=True, timeout=60).stdout.strip()
 
-    def pushed(self, status, push_token, credential_helper=None, **environ):
-        environ.setdefault('PUSH_TOKEN_IS', 'GITHUB_TOKEN')
+    def pushed(self, status):
         server = ARefusingServer(status)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         runner = os.path.join(self.where.name, 'runner-%d' % server.server_address[1])
@@ -422,49 +398,26 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
             self.git(self.where.name, 'clone', '-q', self.runner, runner)
             self.git(runner, 'remote', 'set-url', 'origin', url + '/th7/midnight-snackers')
             self.git(runner, 'config', 'http.%s/.extraheader' % url, 'AUTHORIZATION: ' + basic(self.BUILT_IN))
-            if credential_helper is not None:
-                self.git(runner, 'config', 'credential.helper', credential_helper)
             outputs = os.path.join(runner, 'outputs')
             done = subprocess.run(
                 ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
                  step_named(self.jobs['promote'], 'push')['run']],
                 cwd=runner, capture_output=True, text=True, timeout=60, start_new_session=True,
                 env=dict(self.environ, GITHUB_SERVER_URL=url, GITHUB_OUTPUT=outputs, RUNNER_TEMP=runner,
-                         JUDGED=self.judged, PUSH_TOKEN=push_token, **environ))
-            with open(outputs, encoding='utf-8') as written:
-                handed = dict(line.split('=', 1) for line in written.read().split('\n') if line)
-            return done, handed, server.heard
+                         JUDGED=self.judged))
+            return done, server.heard
         finally:
             server.shutdown()
             server.server_close()
 
-    def test_the_push_sends_the_token_it_was_handed_and_not_the_one_the_checkout_kept(self):
-        done, _, heard = self.pushed(401, self.SECRET)
+    def test_the_push_sends_the_built_in_token_the_checkout_kept_and_no_other(self):
+        done, heard = self.pushed(403)
 
         self.assertNotEqual(0, done.returncode, done.stdout)
         self.assertTrue(heard, done.stdout)
-        self.assertEqual([[basic(self.SECRET)]] * len(heard), heard,
-                         'an empty http.extraHeader clears the headers set before it (%s), and the environment sets '
-                         'configuration after the repository does (%s)' % (GIT_EXTRA_HEADER, GIT_CONFIG_FROM_ENVIRONMENT))
-
-    def test_the_push_says_which_token_it_used(self):
-        for token_is in ('MAIN_PUSH_TOKEN', 'GITHUB_TOKEN'):
-            _, handed, _ = self.pushed(403, self.SECRET, PUSH_TOKEN_IS=token_is)
-
-            self.assertEqual(token_is, handed.get('token'))
-
-    def test_git_words_a_push_refused_for_its_credential_as_the_core_reads_it(self):
-        judgement = run.judgement('success', self.judged, base64.b64encode(b'The commit judged\n').decode('ascii'),
-                                  tuple('success' for _ in run.STEPS))
-        for status, credential_helper in ((401, None), (401, '!f() { echo username=a-user; echo password=wrong; }; f'),
-                                          (403, None)):
-            done, handed, _ = self.pushed(status, self.SECRET, credential_helper, PUSH_TOKEN_IS='MAIN_PUSH_TOKEN')
-            read = run.promoting('failure', 'b' * 40, '', '', 'failure', handed['said'], 'MAIN_PUSH_TOKEN')
-            found = run.verdict(judgement, read)
-
-            self.assertEqual([run.MainRefusedTheToken], [type(each) for each in found.findings],
-                             'answered %d%s, git said: %s' % (status, ' to a credential helper' if credential_helper
-                                                              else '', done.stdout))
+        self.assertEqual([[basic(self.BUILT_IN)]] * len(heard), heard,
+                         'the checkout keeps the built-in token as the http.extraheader of the server it fetched from '
+                         '(%s), which a plain push sends' % CHECKOUT_KEEPS_ITS_TOKEN)
 
 
 class HowTheIssueIsWritten(WorkflowTest):
@@ -483,7 +436,6 @@ class HowTheIssueIsWritten(WorkflowTest):
                               LACKING='${{ needs.promote.outputs.lacking }}',
                               MAIN_AHEAD='${{ needs.promote.outputs.main-ahead }}',
                               PUSHED='${{ needs.promote.outputs.pushed }}',
-                              PUSHED_WITH='${{ needs.promote.outputs.pushed-with }}',
                               GIT_SAID='${{ needs.promote.outputs.git-said }}'),
                          saying['env'])
         self.assertEqual(set(cli.JUDGEMENT) | set(cli.PROMOTING), set(saying['env']))

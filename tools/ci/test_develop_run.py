@@ -24,8 +24,6 @@ REFUSED_OVER_WORKFLOWS = (
 
 
 GITHUB_TOKEN_PERMISSIONS = 'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions'
-FINE_GRAINED_TOKENS = ('https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/'
-                       'managing-your-personal-access-tokens')
 REFUSED_A_GITHUB_APP = 'https://github.com/actions/create-github-app-token/issues/301'
 REFUSED_AN_OAUTH_APP = 'https://jira.atlassian.com/browse/SRCTREEWIN-14170'
 REFUSED_A_PERSONAL_ACCESS_TOKEN = 'https://kuroco.app/docs/faq/i-get-an-error-message-when-i-push-to-the-github-repository'
@@ -53,8 +51,8 @@ def judged(ended=Outcome.SUCCESS, **outcomes):
     return Judged(commit(), ended, steps_ended(**outcomes))
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ended=Outcome.SUCCESS, ahead=(), token='GITHUB_TOKEN'):
-    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), pushed, said, ended, run.push_token(token))
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ended=Outcome.SUCCESS, ahead=()):
+    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), pushed, said, ended)
 
 
 class WhetherMainMoves(unittest.TestCase):
@@ -169,26 +167,10 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
     def test_a_run_whose_push_main_refused_over_workflow_permission_is_red_for_that_with_what_git_said(self):
         promoting = looked(pushed=Outcome.FAILURE, said=REFUSED_OVER_WORKFLOWS, ended=Outcome.FAILURE)
 
-        self.assertEqual(Red((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS, run.push_token('GITHUB_TOKEN')),),
-                             promoting),
+        self.assertEqual(Red((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS),), promoting),
                          run.verdict(judged(), promoting))
 
-    def test_a_push_with_the_push_token_refused_over_workflow_permission_is_red_for_that_naming_the_token(self):
-        promoting = looked(pushed=Outcome.FAILURE, said=REFUSED_OVER_WORKFLOWS, ended=Outcome.FAILURE,
-                           token='MAIN_PUSH_TOKEN')
-
-        self.assertEqual(Red((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS,
-                                                       run.push_token('MAIN_PUSH_TOKEN')),), promoting),
-                         run.verdict(judged(), promoting))
-
-    def test_a_push_with_the_push_token_that_git_says_was_refused_for_its_credential_is_red_for_the_token(self):
-        for said in CREDENTIAL_REFUSED:
-            promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE, token='MAIN_PUSH_TOKEN')
-
-            self.assertEqual(Red((run.MainRefusedTheToken(commit(), said),), promoting),
-                             run.verdict(judged(), promoting), said)
-
-    def test_a_push_with_the_built_in_token_refused_for_its_credential_is_a_refused_push(self):
+    def test_a_push_refused_for_its_credential_is_a_refused_push_with_what_git_said(self):
         for said in CREDENTIAL_REFUSED:
             promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
 
@@ -206,7 +188,7 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
             said = ' ! [remote rejected] %s -> main (%s)\n' % (JUDGED, refusal)
             promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
 
-            self.assertEqual(Red((MainRefusedOverWorkflows(commit(), said, run.push_token('GITHUB_TOKEN')),), promoting),
+            self.assertEqual(Red((MainRefusedOverWorkflows(commit(), said),), promoting),
                              run.verdict(judged(), promoting),
                              'GitHub does not document this refusal; it is worded so at %s' % seen)
 
@@ -275,8 +257,8 @@ class WhatTheReasonsSay(unittest.TestCase):
         self.assertIn('main refused the push of `%s`' % JUDGED, said)
         self.assertIn('```\n' + git_said + '```', said)
 
-    def test_a_push_refused_over_workflow_permission_is_said_to_wait_on_a_maintainer_who_has_two_ways_to_end_it(self):
-        said = run.reasons((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS, run.push_token('GITHUB_TOKEN')),))
+    def test_a_push_refused_over_workflow_permission_is_said_to_wait_on_a_maintainer_who_moves_main_by_hand(self):
+        said = run.reasons((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS),))
 
         self.assertIn('main refused the push of `%s`' % JUDGED, said)
         self.assertIn('change a file under `.github/workflows`', said)
@@ -284,43 +266,13 @@ class WhatTheReasonsSay(unittest.TestCase):
                       'no permission a workflow grants its token is one over workflows (%s), and a push it makes that '
                       'changes one is refused (%s)' % (GITHUB_TOKEN_PERMISSIONS, REFUSED_A_GITHUB_APP))
         self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', said)
-        self.assertIn('moves main to `%s` by hand' % JUDGED, said)
+        self.assertIn('who moves main to `%s` by hand with a credential that may update workflows' % JUDGED, said)
         self.assertIn('`git push origin %s:refs/heads/main`' % JUDGED, said)
         self.assertIn('never forced', said)
-        self.assertIn('the secret `MAIN_PUSH_TOKEN` of the environment `main`, whose only deployment branch is '
-                      '`develop`', said)
-        self.assertIn('a fine-grained personal access token for this repository alone, with Contents and Workflows '
-                      'set to read and write', said)
-        self.assertIn('stops working on the expiry date chosen when it is made, unless it was made with none', said,
-                      'a fine-grained token expires as chosen when it is made, and may be made with no expiry where '
-                      'no policy forbids it: %s' % FINE_GRAINED_TOKENS)
-        self.assertIn('runs the failed jobs of this run again', said)
+        self.assertIn('and then runs the failed jobs of this run again', said)
         self.assertIn('```\n' + REFUSED_OVER_WORKFLOWS + '```', said)
-        self.assertNotIn('repository secret', said)
-
-    def test_a_push_with_the_push_token_refused_over_workflow_permission_says_the_maintainer_replaces_that_token(self):
-        said = run.reasons((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS, run.push_token('MAIN_PUSH_TOKEN')),))
-
-        self.assertIn('the token in the secret `MAIN_PUSH_TOKEN` of the environment `main`, which the job that moves '
-                      'main pushed with, may not update workflows', said)
-        self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', said)
-        self.assertIn('moves main to `%s` by hand' % JUDGED, said)
-        self.assertIn('replaces `MAIN_PUSH_TOKEN` with a fine-grained personal access token', said)
-        self.assertIn('runs the failed jobs of this run again', said)
-        self.assertIn('```\n' + REFUSED_OVER_WORKFLOWS + '```', said)
-
-    def test_a_push_token_refused_for_its_credential_is_said_to_wait_on_a_maintainer_who_replaces_it(self):
-        said = run.reasons((run.MainRefusedTheToken(commit(), CREDENTIAL_REFUSED[0]),))
-
-        self.assertIn('main refused the push of `%s`' % JUDGED, said)
-        self.assertIn('did not accept the token in the secret `MAIN_PUSH_TOKEN` of the environment `main`', said)
-        self.assertIn('it may have expired, been revoked or lost its write access to this repository', said)
-        self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', said)
-        self.assertIn('replaces `MAIN_PUSH_TOKEN` with a fine-grained personal access token', said)
-        self.assertIn('stops working on the expiry date chosen when it is made, unless it was made with none', said)
-        self.assertIn('or deletes it, so that the job pushes with the built-in token again', said)
-        self.assertIn('runs the failed jobs of this run again', said)
-        self.assertIn('```\n' + CREDENTIAL_REFUSED[0] + '```', said)
+        for never in ('MAIN_PUSH_TOKEN', 'secret', 'environment', 'personal access token', 'expiry'):
+            self.assertNotIn(never, said)
 
     def test_a_run_that_judged_nothing_says_so(self):
         self.assertIn('No commit was judged', run.reasons((NothingJudged(Outcome.FAILURE),)))
@@ -396,13 +348,12 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
 
     def test_what_git_said_ends_its_lines_where_a_carriage_return_did_and_shows_other_control_characters_escaped(self):
-        read = run.promoting('failure', MAIN, '', '', 'failure', b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'),
-                             'GITHUB_TOKEN')
+        read = run.promoting('failure', MAIN, '', '', 'failure', b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'))
 
         self.assertEqual('remote: one\nremote: two\nthree\\x00\\x1b[0m\tok\n', read.said)
 
     def test_what_git_said_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
-        read = run.promoting('failure', MAIN, '', '', 'failure', b64('z' * 70000), 'GITHUB_TOKEN')
+        read = run.promoting('failure', MAIN, '', '', 'failure', b64('z' * 70000))
 
         self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
 
@@ -442,25 +393,17 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertIsInstance(run.listed_commits(b64('Fix the README on main\n')), Rejected)
 
     def test_a_mover_that_named_no_main_tip_never_looked_at_main(self):
-        self.assertEqual(NeverLooked(Outcome.FAILURE), run.promoting('failure', '', '', '', '', '', ''))
+        self.assertEqual(NeverLooked(Outcome.FAILURE), run.promoting('failure', '', '', '', '', ''))
 
     def test_a_mover_that_looked_reads_what_main_lacks_and_what_git_said(self):
         self.assertEqual(looked(pushed=Outcome.FAILURE, said='refused\n', ended=Outcome.FAILURE),
-                         run.promoting('failure', MAIN, '', '', 'failure', b64('refused\n'), 'GITHUB_TOKEN'))
-
-    def test_a_mover_that_looked_reads_which_token_its_push_used_if_it_pushed(self):
-        self.assertEqual([run.PushToken.SECRET, run.PushToken.BUILT_IN, run.PushToken.UNREPORTED],
-                         [run.promoting('failure', MAIN, '', '', 'failure', '', token).pushed_with
-                          for token in ('MAIN_PUSH_TOKEN', 'GITHUB_TOKEN', '')])
-        self.assertEqual(Rejected("the push says it used MAIN_PUSH_TOKEN, GITHUB_TOKEN or nothing, never 'a PAT'"),
-                         run.promoting('failure', MAIN, '', '', 'failure', '', 'a PAT'))
+                         run.promoting('failure', MAIN, '', '', 'failure', b64('refused\n')))
 
     def test_a_mover_that_looked_reads_what_main_has_beyond_the_judged_commit(self):
         later = commit(STRAY, 'A later commit of develop')
 
-        self.assertEqual(looked(ahead=(later,), pushed=Outcome.SKIPPED, token=''),
-                         run.promoting('success', MAIN, '', b64('%s A later commit of develop\n' % STRAY), 'skipped', '',
-                                       ''))
+        self.assertEqual(looked(ahead=(later,), pushed=Outcome.SKIPPED),
+                         run.promoting('success', MAIN, '', b64('%s A later commit of develop\n' % STRAY), 'skipped', ''))
 
 
 class MakingAValueDirectly(unittest.TestCase):
@@ -479,20 +422,18 @@ class MakingAValueDirectly(unittest.TestCase):
         self.assertIsInstance(run.Commit(JUDGED, SUBJECT), Rejected)
         self.assertIsInstance(run.Commit(run.CommitHash(JUDGED), None), Rejected)
 
-    def test_what_a_mover_saw_made_directly_is_held_to_a_main_tip_commits_outcomes_text_and_a_token(self):
-        built_in = run.push_token('GITHUB_TOKEN')
+    def test_what_a_mover_saw_made_directly_is_held_to_a_main_tip_commits_outcomes_and_text(self):
         tip = run.CommitHash(MAIN)
-        for wrong in ((MAIN, (), (), Outcome.SUCCESS, '', Outcome.SUCCESS, built_in),
-                      (tip, (STRAY,), (), Outcome.SUCCESS, '', Outcome.SUCCESS, built_in),
-                      (tip, [], (), Outcome.SUCCESS, '', Outcome.SUCCESS, built_in),
-                      (tip, (), (STRAY,), Outcome.SUCCESS, '', Outcome.SUCCESS, built_in),
-                      (tip, (), (), 'success', '', Outcome.SUCCESS, built_in),
-                      (tip, (), (), Outcome.SUCCESS, None, Outcome.SUCCESS, built_in),
-                      (tip, (), (), Outcome.SUCCESS, 'x' * (run.SAID_SHOWN_AT_MOST + 1), Outcome.SUCCESS, built_in),
-                      (tip, (), (), Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS, built_in),
-                      (tip, (), (), Outcome.SUCCESS, '', Outcome.SUCCESS, 'GITHUB_TOKEN')):
+        for wrong in ((MAIN, (), (), Outcome.SUCCESS, '', Outcome.SUCCESS),
+                      (tip, (STRAY,), (), Outcome.SUCCESS, '', Outcome.SUCCESS),
+                      (tip, [], (), Outcome.SUCCESS, '', Outcome.SUCCESS),
+                      (tip, (), (STRAY,), Outcome.SUCCESS, '', Outcome.SUCCESS),
+                      (tip, (), (), 'success', '', Outcome.SUCCESS),
+                      (tip, (), (), Outcome.SUCCESS, None, Outcome.SUCCESS),
+                      (tip, (), (), Outcome.SUCCESS, 'x' * (run.SAID_SHOWN_AT_MOST + 1), Outcome.SUCCESS),
+                      (tip, (), (), Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS)):
             self.assertIsInstance(Looked(*wrong), Rejected, wrong)
-        self.assertIsInstance(Looked(tip, (), (), Outcome.SUCCESS, '', Outcome.SUCCESS, built_in), Looked)
+        self.assertIsInstance(Looked(tip, (), (), Outcome.SUCCESS, '', Outcome.SUCCESS), Looked)
 
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
         self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, steps_ended()), Rejected)
