@@ -719,9 +719,9 @@ before and after in the telemetry store.
 
 ## Facts in reginald.md that are now known to be wrong
 
-Stage 4 writes the corrections it lists into `reginald.md`: the mouth, the
-height, the exit, the hood's squeeze, the retired throw and batches 5, 6
-and 7. Batch 1 writes the rest.
+Stage 4 wrote the corrections it lists into `reginald.md`: the mouth, the
+height, the exit, the hood's squeeze, the retired throw, and batches 5
+(`Launch` gone), 6 and 7 (superseded). Batch 1 writes the rest.
 
 | `reginald.md` says | Now known | Source |
 |---|---|---|

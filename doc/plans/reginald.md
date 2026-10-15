@@ -37,10 +37,10 @@ conversion is `x = (204 − Y)/25.4`, `y = X/25.4`, `z = Z/25.4`.
 | Cross rail | one 248 mm C-channel at `MidCtoFront` = 10.25 in | x −1.6…−2.2 |
 | Floor | three 280 mm flat plates, starting at `PlateToFront` and spaced `PlateSpacing` apart | z 0.51–0.63 |
 | Intake roller | two 90 mm grip wheels joined by 12 rubber-band strips. Axle `IntakeToFront` = 1 in behind the front and `IntakeHeight` = 4.5 in up. Overall width `IntakeWidth` = 8.625 in | axle at x 7.03, z 4.5; front edge at x 8.80; y ±4.31 |
-| Funnel | *Part 40*, a scoop on the floor that narrows toward the middle. Its mouth is 245 mm wide | mouth at x 7.89, y ±4.83, z 0.18–1.97 |
+| Funnel | *Part 40*, a scoop on the floor that narrows toward the middle. Its mouth is 240 mm wide (240.00 mm in `reginald-internals.md`; first read here as 245) | mouth at x 7.89, y ±4.72, z 0.18–1.97 |
 | Feeder | *FeederBottom* and *FeederTop*: two coaxial discs of diameter `2·PollenDiameter + 25 mm` = 6.58 in, set one pollen + 5 mm apart (`FeederHeight` ≈ 75 mm). They sit on a servo hub and a bearing block, and are tilted about 17° so they rise toward the back. The top disc has a notch at the back, under the flywheel. `FeederRadius` = 55 mm | axis near x +1.3 |
 | Flywheel | *FlywheelInner* and *FlywheelOuter*: `FlywheelDiameter` 100 mm, `FlywheelWidth` 50 mm, on the centreline. Its axle runs across the robot, 217 mm behind the front and 180 mm up | axle at x −0.51, z 7.09 |
-| Hood | *Hood*: a grooved arc behind the flywheel, from 64.8° below horizontal to 41.9° above. The ball's centre travels 75.3 mm from the axle, 10 mm closer than the free pollen's | top at z 10.26; back at x −6.41 |
+| Hood | *Hood*: a grooved arc behind the flywheel, from 64.8° below horizontal to 41.9° above. The ball's centre travels 75.3 mm from the axle. The 10 mm by which that is closer than the free pollen's is the groove's depth, not a squeeze: the groove bottom squeezes the CAD's 71.12 mm pollen by 0.29 mm, too little to grip (`runtime-flight.md`, stage 4) | top at z 10.26; back at x −6.41 |
 | Launcher mount | one REV 420 mm 15 mm extrusion and one bearing block, on the left side only | y +1.65…+2.24, z 7.3–7.9 |
 | Reference pieces | four pollen, each made of two *Pollen Half* parts: three on the floor at the front and one on the plates | not robot |
 
@@ -76,7 +76,7 @@ Answered on 13 October.
 
 | Question | Decision | What follows |
 |---|---|---|
-| Launch angle | **70°, as today.** The 48° the hood draws is not the robot's angle. | The ball leaves where a 70° throw leaves Reginald's own flywheel: its centre 75.3 mm from the axle, 20° above horizontal behind it, which is **(−3.30, 0, 8.10) in**. A 2-D check against the upturned cell's mouth scores from `Nav.LAUNCH_DISTANCE_INCHES` = 40 at 205–223 in/s, so the launch distance stays. |
+| Launch angle | **70°, as today.** The 48° the hood draws is not the robot's angle. | The ball leaves where a 70° throw leaves Reginald's own flywheel: its centre 75.3 mm from the axle, 20° above horizontal behind it, which is **(−3.30, 0, 8.10) in**. Stage 4 of `runtime-flight.md` gives the hood's exit centre as about **(−3.26, 0, 8.09) in**. A 2-D check against the upturned cell's mouth scores from `Nav.LAUNCH_DISTANCE_INCHES` = 40 at 205–223 in/s, so the launch distance stays. |
 | Turntable | **None.** | The robot aims by turning. `Turntable`, its motor, its simulation constant and the camera "on the turntable" all go. |
 | Feeder | **Four pockets. It replaces both gates.** A second servo, under the feeder and the flywheel, lifts a ramp that puts a passing pollen into the flywheel. | The ramp is the trigger. The gates let one ball through at a time; now a ball is thrown when the ramp is up while one pocket passes. |
 | Drive | **75 mm mecanum, outside the rails.** | The robot is ≈16.8 × 14.8 in. |
@@ -89,7 +89,7 @@ Answered on 13 October.
 | **The wheels' axles are 38.4 mm up, on the rails' outside faces** | A rail whose bottom is at `Clearance` has its centreline at 15.9 + 22.5 = 38.4 mm, which is a 75 mm wheel's axle on the floor. Wheels there put the track near Road Runner's tuned 13.55 in (`trackWidthTicks · inPerTick`). | high |
 | **≈16.8 in long and ≈14.8 in wide**: the rails, the roller ahead of them, and the wheels' outer faces at about y ±7.4 | Follows from the line above | high |
 | **The centre is the midpoint of the rails**, on the centreline | Nothing in the CAD says where the drivetrain's centre is | low; only the dead-wheel offsets would show the difference |
-| **Height 10.26 in** (the top of the hood) | Measured from the CAD | high, for what is drawn |
+| **Height 10.26 in** (the top of the hood), **9.084 in after the trim** | Measured from the CAD. Stage 4 of `runtime-flight.md` ends the hood at +20°, not +41.9°, which leaves the robot's top at 9.084 in | high, for what is drawn |
 | **The feeder's servo turns continuously** | Pollen ride round the feeder and pass the flywheel again and again, and four pockets need more than a turn. A positional servo stops short of one turn. | medium-high |
 | **Pollen go in at the front and come out at the back** | The funnel meets the feeder's low front. The flywheel's axle is 1.8 in behind the feeder's axis, over a pocket 55 mm behind it. | high |
 | **The four pockets sit at `FeederRadius` = 55 mm** | Four pollen there fit with 6.7 mm between them | medium |
@@ -371,7 +371,9 @@ This batch changes the robot code as well as the simulator.
   the goal (gamepad 1's cross and circle), and the nudges (gamepad 2's d-pad
   left and right). `OpMode`'s channel toggle loses `Turntable`.
 - `Launch.from` loses its turntable angle. The throw leaves along the
-  heading.
+  heading. (`Launch` is gone since stage 4 of `runtime-flight.md`: the
+  launcher's frame is the robot's pose turned by the turntable, and with no
+  turntable it is the robot's pose.)
 - `TURNTABLE_SPEED` leaves the simulation constants. A settings file that
   names it must still load: a settings file the server cannot read stops it
   from starting, and a retired constant is not unreadable. The server drops
@@ -383,7 +385,8 @@ Tests first:
    - A settings file naming `turntable_speed` loads, drops it and says so.
    - A name that was never a constant is still refused.
 2. `LaunchTest`: the throw leaves along the heading, from 6 in ahead of the
-   pose. That is still today's point; batch 6 moves it.
+   pose. That is still today's point; batch 6 moves it. (`LaunchTest` is
+   gone with `Launch`; its four turntable tests stand in `TurntableTest`.)
 3. `BrainTest`:
    - A sighting becomes the robot's pose as the camera saw it, not turned.
    - The auto-shoot plans turn the robot to face the target.
@@ -401,6 +404,13 @@ Then implement, and update `doc/CONTEXT.md`: remove **Turntable**; update
 
 ## Batch 6 · Reginald throws from his hood, at 70°
 
+**Superseded** by stage 4 of `runtime-flight.md`. A ball the bottom gate
+lets go is fed into the simulated flywheel and hood, and how it leaves comes
+out of their physics, not a formula from an exit. `Launch` is gone, and
+`LAUNCH_THROW` is retired: naming it where a constant is set is refused, and
+a value in the saved settings is set aside and shown as dropped. What
+follows is the batch as it was planned.
+
 - `robot.json` gains the launch from batch 2's reduction: the exit at
   (−3.30, 8.10) and 70°.
 - In the core, **`LaunchExit`** is part of the `Chassis`. An angle that is
@@ -417,19 +427,20 @@ Then implement, and update `doc/CONTEXT.md`: remove **Turntable**; update
   - From today's launch point, with drag and no spin, that band ran from 192
     to 206.75 in/s at 1050 ticks/s when balls first flew through air, so
     0.1899 in/s per tick/s is built in (0.189 before). The band's edges are
-    history; what a test holds is that the built throw and 2.1 in/s either
-    side of it score and stay for every one of those shots, the four launches
-    at their cadence going into an empty cell and all coming to rest in it.
-    The rebuilt launch keeps a test of that shape.
+    history; a test held that the built throw and 2.1 in/s either side of
+    it score and stay for every one of those shots, the four launches at
+    their cadence going into an empty cell and all coming to rest in it.
+    That test went with the throw in stage 4, and no band test holds the
+    launch today.
   - The 2-D check's 0.204 in/s per tick/s (band 0.195–0.212) was worked out
     in a vacuum for the hood's exit and no longer holds: the hood's exit has
     to be scanned again.
   - About 0.2 is 45 % of a 100 mm wheel's surface speed on a 28-tick motor
     at 1:1, at the top of what hooded wheels are reported to throw.
-  - `LAUNCH_THROW`'s built value moves. An admin who set it keeps what they
-    set, as far as its range now lets it go: one saved past that is used at
-    the nearer end and shown on the admin page beside what was saved, and
-    stays saved as it was until the admin saves the constants again.
+  - `LAUNCH_THROW`'s built value was to move, an admin who set it keeping
+    what they set as far as its range let it go. Stage 4 retired it instead:
+    setting it is refused, and a saved value is set aside, used by no run,
+    and listed on the admin page as dropped from the saved settings.
 
 Tests first:
 
@@ -449,6 +460,10 @@ Then implement, and update `doc/CONTEXT.md`: **Simulated robot** (the launch
 point and the throw) and **Simulation constants**.
 
 ## Batch 7 · the feeder and the ramp
+
+**Superseded** by `reginald-internals.md`: the abstract `Feeder` is never
+built, and the robot-code half moves into its batch 4. What follows is the
+batch as it was planned.
 
 This batch changes the robot code as well as the simulator.
 

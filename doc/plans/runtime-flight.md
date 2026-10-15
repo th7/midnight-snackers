@@ -22,13 +22,14 @@ engine. `WheelPair` stays in the Launch Sim. The rest of Reginald's insides
 (the roller, the scoop, the feeder, the ramp, the flywheel's inertia) are
 `reginald-internals.md`'s.
 
-Stages 1 to 3 are built, and so are the first two parts of stage 4: the
-arcs and the compliant contact the launcher is made of, and the launcher
-itself, tested on its own. So is the launcher in a flight: a flight may
-carry it, step it with each tick, feed it and take it along in a teleport,
-though no run gives a flight one yet. The rest of stage 4, the launcher in
-a run, is stage 4c's runtime; it is planned here, and it waits until the
-team reduces the hood's backspin (*Calibration*). Every stage keeps the
+Stages 1 to 3 are built, and so is stage 4: the arcs and the compliant
+contact the launcher is made of, the launcher itself, tested on its own,
+the launcher in a flight, which a flight may carry, step with each tick,
+feed and take along in a teleport, and the launcher in a run, stage 4c's
+runtime, which carries it in Reginald's flight from the start of every
+run. With it in the run the two shots into an empty cell are red, so
+stage 4c's runtime waits off `develop` until the team reduces the hood's
+backspin (*Calibration*). Every stage keeps the
 Launch Sim's results bit for bit: its fingerprint tests pin the exact work
 and the raw bits of every field of every story, in the simulator's core and
 on the field, and no stage changes them.
@@ -77,10 +78,10 @@ hives are a part that moves while one tips.
   tip is timed in whole steps, so it lasts exactly its second wherever it
   begins.
 - `Flywheel` clamps a command to the motor's top speed, 2,800 ticks a
-  second, and reads one that is not a number as 0. `LAUNCH_THROW` is held
-  to at most 0.29, so the fastest throw off the fastest robot (180 in/s) is
-  within the 1,000 in/s a flight takes. A launch the flight refuses stops
-  the run, saying why.
+  second, and reads one that is not a number as 0. `LAUNCH_THROW` was held
+  to at most 0.29, so the fastest throw off the fastest robot (180 in/s) was
+  within the 1,000 in/s a flight takes; stage 4 retired it. A launch the
+  flight refuses stops the run, saying why.
 - A constant saved past where its range now lets it go no longer stops the
   server: runs use the nearer end of its range, and the admin page shows
   what was saved (`Constants.Restored`) until the constants are saved again.
@@ -91,8 +92,10 @@ hives are a part that moves while one tips.
 - `LAUNCH_THROW` was calibrated again for air and contacts: the widest band
   at which every scored shot the tests ask for goes in and stays ran from
   192 to 206.75 in/s, and its middle, 0.1899 in/s per tick/s (199.4 in/s at
-  1050 ticks/s), is built in. Tests hold the built throw and 2.1 in/s either
-  side of it for every shot in that set.
+  1050 ticks/s), was built in, and tests held the built throw and 2.1 in/s
+  either side of it for every shot in that set. Stage 4 retired the throw
+  and the formula, and their band test with them: no band test holds the
+  launch today.
 
 **Stage 4a · arcs and compliant contact.** Nothing in a run uses them yet.
 - `Arc` is an arc of a circle, whole or a part of a turn, nearest any point
@@ -316,8 +319,12 @@ construction.
 - The yaw change is `StrictMath.IEEEremainder(yawEnd − yawStart, 2π)`, so
   crossing ±π never spins the hood. The frame's spin is the yaw's rate.
 - A step of no time gives the end frame at rest.
-- `Flight.carriedTo(frame)` is for teleports (`SimRobot.setPose`): no sweep,
-  and the balls in the launcher move with it.
+- `Flight.carriedTo(frame)` is for a placed robot (`SimRobot.setPose`): no
+  sweep, the launcher at rest there, and the balls in the launcher move
+  with it. `Flight.carriedMovingAsItWasTo(frame)` is for the turntable's
+  encoder written while the robot drives: no sweep either, and the launcher
+  keeps the velocity and turn it had, so the balls it holds keep the
+  robot's speed and lie in it as they did.
 - The launcher is a part of its own, so its motion never wakes the hives and
   never stops the idle jump while nothing is near it. It is held beside the
   hives and the bores: `amid` keeps it when it rebuilds the surroundings,
@@ -405,11 +412,11 @@ and four at their real cadence with all four at rest in an empty cell.
 **What stage 4c's runs found.** The code's close launch was 1050 ticks/s,
 tuned in October 2025 on an earlier launcher. Through the simulated
 launcher at T 28 it throws about 198 in/s, and every shot in the set falls
-short. Run at every whole command from 1000
-to 1400 ticks/s at T 28, the shots into a cell holding nectar (both close
-shots, the ball at rest against the back, one launch) pass from 1211 to
-1231 ticks/s, and in shorter runs below and above that, and the preload that
-tips the hive from 1218 to 1227. The two shots into an empty cell pass
+short. Run at every whole command from 1000 to 1400 ticks/s at T 28, the
+shots into a cell holding nectar (both close shots, the ball at rest
+against the back, one launch) pass from 1211 to 1231 ticks/s, and in
+shorter runs below and above that, and the preload that tips the hive from
+1218 to 1227. The two shots into an empty cell pass
 elsewhere: the shot after a tip in short runs, 1148 to 1150, 1195 to 1202
 and 1263 to 1267, and at 1282; the four at their cadence only at 1148, 1200,
 1202 and 1267. So the whole set passes only at isolated commands near 1148
@@ -513,6 +520,8 @@ they score.
    - `withTheFlywheelStoppedTheBallJustDropsOutOfTheRobot` becomes "with the
      flywheel stopped the ball stays in the launcher and is thrown once the
      flywheel spins up".
+   - A ball held in the launcher stays where it lies in it when the
+     turntable's encoder is written while the robot drives.
    - The acceptance set is held at T 28 and the code's own commands, with
      no band around it, and passes there but for its two shots into an
      empty cell, which stay as written and red (*Calibration*). The close
@@ -525,6 +534,11 @@ they score.
    `LAUNCH_THROW` names the new constant. The tests of a constant saved past
    its range use another constant, and a saved `launch_throw` is set aside as
    retired, whatever finite number it is, and refused as 1e999 or -1e999.
+   Each constant the child's hello lists as read changes a run of the robot
+   the child builds from it (`SimChildTest`), a child of the first version
+   to list them runs on each it reads, from the hello it printed
+   (`SimRunStreamTest`), and a run refused both a retired and an unread
+   constant names both in its outcome.
 8. `TurntableTest`: `LaunchTest`'s four turntable tests, unchanged.
 9. Both Flight goldens and the wheel-power traces stay byte-identical:
    `FlightTraceTest` has no robot. The Launch Sim's fingerprints pass
