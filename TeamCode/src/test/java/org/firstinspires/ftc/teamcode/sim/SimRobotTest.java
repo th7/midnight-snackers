@@ -53,7 +53,8 @@ public class SimRobotTest {
     private static final double OUT_OF_THE_LAUNCHER_SECONDS = 0.5;
 
     private static final String ROBOT_TOP_SOURCE =
-            "doc/plans/reginald.md: Reginald stands 9.084 in high after the trim";
+            "doc/plans/runtime-flight.md, stage 4, What we change, the hood's upper end: the robot's top is 9.084 in"
+                    + " after the trim";
 
     private static final double ROBOT_TOP_IN = 9.084;
 
