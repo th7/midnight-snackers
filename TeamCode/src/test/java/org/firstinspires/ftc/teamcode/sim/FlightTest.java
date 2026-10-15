@@ -1095,6 +1095,32 @@ public class FlightTest {
     }
 
     @Test
+    public void aFeedWaitsWhileABallLiesWithinTheTwoRadiiAndTheTouchingDistanceOfTheEntryAndGoesInOnceItLiesBeyond() {
+        carryALauncher(FlightTest::resting);
+        Flight<Object> empty = flight;
+        Vec3 entry = at(feed());
+        double reach = 2 * POLLEN_RADIUS + Shot.TOUCHING_IN;
+
+        String within = waiting(
+                lyingAbove(empty, entry, reach - Shot.TOUCHING_IN / 2).fed(new Object(), Field.Kind.POLLEN, POLLEN));
+        flight = lyingAbove(empty, entry, reach + Shot.TOUCHING_IN / 2);
+        Object beyond = feed();
+
+        assertTrue(within, within.contains("the launcher's entry is not clear"));
+        assertTrue("fed with a ball just beyond the touching distance", flight.holds(beyond));
+    }
+
+    private static Flight<Object> lyingAbove(Flight<Object> flight, Vec3 entry, double apart) {
+        Object ball = new Object();
+        Flight<Object> lying = Valid.value(flight.with(
+                ball, Field.Kind.POLLEN, POLLEN, new Vec3(entry.x(), entry.y(), entry.z() + apart), Vec3.zero()));
+        Vec3 at = lying.at(ball).orElseThrow();
+        assertEquals(
+                "the ball lies where it was put, " + at, apart, at.minus(entry).length(), Shot.TOUCHING_IN / 4);
+        return lying;
+    }
+
+    @Test
     public void withBothGatesOpenBallsAreFedOneAtATimeAsTheEntryClearsAndEachIsThrownWithNoTwoEverOverlapping() {
         carryALauncher(FlightTest::resting);
         List<Object> fed = new ArrayList<>();
