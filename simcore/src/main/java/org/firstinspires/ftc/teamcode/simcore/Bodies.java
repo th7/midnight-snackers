@@ -497,6 +497,18 @@ final class Bodies {
         return woken;
     }
 
+    Optional<Seen> moved(String name, Motion motion) {
+        return named(name).map(body -> {
+            body.at = motion.at();
+            body.velocity = motion.velocity();
+            body.spin = motion.spin();
+            body.start = new Kin(body.at, body.velocity, body.spin);
+            body.trial = body.start;
+            refresh(body);
+            return body.seen();
+        });
+    }
+
     Checked<Seen> add(Name name, Ball shape, Motion motion, Start start) {
         if (named(name.key()).isPresent()) {
             return Checked.rejected("every body has a name of its own, and '" + name + "' is not one");

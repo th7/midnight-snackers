@@ -724,6 +724,31 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void aBodyMovedToANewPlaceVelocityAndSpinLiesThereAsItWasAwakeOrAsleepAndTouchesWhatIsThere() {
+        Bodies bodies = among(STEP, Carried.sliding(TRAY, Vec3.zero(), 0));
+        add(bodies, "asleep", new Vec3(40, 40, R), Vec3.zero(), ASLEEP);
+        add(bodies, "awake", new Vec3(40, -40, R), Vec3.zero(), AWAKE);
+        Bodies.Motion onTheTray =
+                Valid.value(Bodies.Motion.of(new Vec3(10, 0, ON_THE_TRAY), new Vec3(1, 0, 0), new Vec3(0, 2, 0)));
+        Bodies.Motion elsewhere = Valid.value(Bodies.Motion.of(new Vec3(-40, 40, R), Vec3.zero(), Vec3.zero()));
+
+        Bodies.Seen awake = bodies.moved("awake", onTheTray).orElseThrow();
+        Bodies.Seen asleep = bodies.moved("asleep", elsewhere).orElseThrow();
+
+        assertEquals(new Vec3(10, 0, ON_THE_TRAY), awake.at());
+        assertEquals(new Vec3(1, 0, 0), awake.velocity());
+        assertEquals(new Vec3(0, 2, 0), awake.spin());
+        assertEquals(Bodies.Life.AWAKE, awake.life());
+        assertEquals(Set.of("tray"), bodies.touching("awake").orElseThrow().colliders());
+        assertEquals(new Vec3(-40, 40, R), asleep.at());
+        assertEquals(Bodies.Life.ASLEEP, asleep.life());
+        assertEquals(asleep, seen(bodies, "asleep"));
+        assertTrue(bodies.moved("nobody", elsewhere).isEmpty());
+        bodies.step();
+        assertTrue(seen(bodies, "awake").toString(), seen(bodies, "awake").at().x() > 10);
+    }
+
+    @Test
     public void anEngineWithABodyAwakeDoesNotIdleAndIsLeftAsItWas() {
         Bodies bodies = among(STEP);
         add(bodies, "rolling", new Vec3(0, 0, R), new Vec3(1, 0, 0), AWAKE);
