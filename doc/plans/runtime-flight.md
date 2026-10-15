@@ -392,14 +392,13 @@ There is no scan in T. The team settled the flywheel's ticks per turn: "The
 flywheel is direct drive, 1:1 on the motor." Its motor counts 28 ticks a
 turn (`Flywheel.MOTOR_TICKS_PER_TURN`: a 6,000 rpm 28-tick motor like a
 goBILDA 5203, as the code's F of 12.9 implies), so T is 28, a fact and not a
-calibration parameter. Stage 4c builds `Constant.FLYWHEEL_TICKS_PER_TURN` at
-28 and keeps it a constant, 18 to 10000, so a regeared robot can say so.
+calibration parameter. `Constant.FLYWHEEL_TICKS_PER_TURN` is built at 28 and
+stays a constant, 18 to 10000, so a regeared robot can say so.
 
-Stage 4c holds stage 3's acceptance set at T 28 and the code's own
-commands, with no band around it: both alliances' close shots, the ball at
-rest against the back, the shot after a tip, one launch, the preload that
-tips the hive, and four at their real cadence with all four at rest in an
-empty cell.
+Stage 3's acceptance set is held at T 28 and the code's own commands, with
+no band around it: both alliances' close shots, the ball at rest against
+the back, the shot after a tip, one launch, the preload that tips the hive,
+and four at their real cadence with all four at rest in an empty cell.
 
 **What stage 4c's runs found.** The code's close launch is 1050 ticks/s
 (`Launcher.closeLauncherPower`), tuned in October 2025 on an earlier
@@ -499,9 +498,7 @@ they score.
    goes in, naming the rule. With both gates open, balls leave one at a
    time and never overlap. A ball in the launcher stays where it was
    through a hive's tip and through a change in what stands in the bores.
-   Until stage 4c builds T in, `FlightTest` turns the launcher's wheel at
-   T 24.2 and 1050 ticks/s, as stage 4b's tests do: a wheel speed that
-   exercises the flight, not Reginald's.
+   `FlightTest` turns the launcher's wheel at the built T.
 5. `FlywheelTest` gains: the `AngularSpeed` is |1050|·2π ÷ T exactly, and
    its sign follows the command. Its clamp tests stay as they are.
 6. `SimRobotTest`:
