@@ -14,6 +14,8 @@ public class LauncherCourseTest {
     private static final double STEP_ON_WHICH_TIMES_SUBTRACT_EXACTLY_SECONDS = 1.0 / 8192;
     private static final long STEPS_ACROSS = 41;
 
+    private record Between(Launcher.Frame from, GridTime began, Launcher.Frame to, GridTime ends) {}
+
     private static Launcher.Frame frame(double x, double y, double yaw) {
         return Valid.value(Launcher.Frame.of(x, y, yaw));
     }
@@ -247,6 +249,43 @@ public class LauncherCourseTest {
                         backward + " at " + early + " against " + forward + " at " + late,
                         backward.at(early),
                         forward.at(late));
+            }
+        }
+    }
+
+    @Test
+    public void aCourseThatDoesNotMoveThoughItsFramesDifferLeavesTheFrameExactlyWhereItEndsWhereverItIsPlaced() {
+        Bodies.Step step = Valid.value(Flight.stepping());
+        GridTime began = GridTime.at(0, step);
+        GridTime twoSecondsOn = GridTime.at(20000, step);
+        Launcher.Frame origin = frame(0, 0, 0);
+        for (Between between : List.of(
+                new Between(origin, began, frame(Double.MIN_VALUE, 0, 0), twoSecondsOn),
+                new Between(origin, began, frame(0, Double.MIN_VALUE, 0), twoSecondsOn),
+                new Between(origin, began, frame(0, 0, Double.MIN_VALUE), twoSecondsOn),
+                new Between(origin, began, frame(1e-310, 0, 0), GridTime.at(Long.MAX_VALUE, step)),
+                new Between(
+                        frame(0, 0, StrictMath.PI),
+                        Valid.time(BEGINS),
+                        frame(0, 0, -StrictMath.PI),
+                        Valid.time(ENDS)))) {
+            Launcher.Frame from = between.from(), to = between.to();
+            Launcher.Course course = Valid.value(Launcher.Course.of(from, between.began(), to, between.ends()));
+
+            assertTrue("the frames of " + course + " differ", !isExactly(from, to.x(), to.y(), to.yaw()));
+            assertTrue(course + " does not move", !course.moving());
+            assertEquals(Vec3.zero(), course.velocity());
+            assertEquals(0, course.turning(), 0);
+            for (GridTime time : List.of(
+                    began,
+                    twoSecondsOn,
+                    Valid.time(BEGINS),
+                    Valid.time(ENDS),
+                    Valid.time(-250),
+                    Valid.time(250),
+                    GridTime.at(Long.MAX_VALUE, step),
+                    GridTime.at(Long.MIN_VALUE, step))) {
+                assertExactly("over " + course + ", at " + time, to, course.at(time));
             }
         }
     }
