@@ -3,8 +3,9 @@ package org.firstinspires.ftc.teamcode.simcore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-final class Launcher implements Surroundings.Part {
+public final class Launcher implements Surroundings.Part {
     static final String CAD_SOURCE =
             "Reginald's CAD, the 13 October snapshot's exact faces, with the hood and the lead-in"
                     + " as the team allowed them changed: doc/plans/runtime-flight.md, stage 4, What the CAD says and What we"
@@ -47,7 +48,7 @@ final class Launcher implements Surroundings.Part {
 
     record Placed(Vec3 origin, double yaw) {}
 
-    static final class Frame {
+    public static final class Frame {
         static final String PLACE_SOURCE = "a robot is placed within the field's walls, under 72 in from the centre of"
                 + " the 141.17 in field (Placement): within 10000 in of it either way every pose a run gives is a"
                 + " frame, and a frame carried at the most a course sweeps for as long as a grid time counts stays"
@@ -64,7 +65,7 @@ final class Launcher implements Surroundings.Part {
             this.yaw = yaw;
         }
 
-        static Checked<Frame> of(double x, double y, double yaw) {
+        public static Checked<Frame> of(double x, double y, double yaw) {
             if (!(StrictMath.abs(x) <= MOST_FROM_CENTRE_IN && StrictMath.abs(y) <= MOST_FROM_CENTRE_IN)) {
                 return Checked.rejected("a launcher's frame is within " + MOST_FROM_CENTRE_IN
                         + " in of the field's centre either way, not at (" + x + ", " + y + ")");
@@ -92,6 +93,19 @@ final class Launcher implements Surroundings.Part {
 
         double yaw() {
             return yaw;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Frame that
+                    && Double.compare(x, that.x) == 0
+                    && Double.compare(y, that.y) == 0
+                    && Double.compare(yaw, that.yaw) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(x, y, yaw);
         }
 
         @Override
@@ -152,6 +166,14 @@ final class Launcher implements Surroundings.Part {
 
         GridTime began() {
             return began;
+        }
+
+        Frame endsAt() {
+            return to;
+        }
+
+        GridTime ends() {
+            return ends;
         }
 
         Vec3 velocity() {
@@ -378,6 +400,41 @@ final class Launcher implements Surroundings.Part {
         return new Launcher(faces, course, wheel, course.began());
     }
 
+    static Checked<Launcher> standing(Faces faces, Frame at, GridTime time) {
+        return Course.of(at, time, at, time).map(still -> placed(faces, still, Flywheel.AngularSpeed.stopped()));
+    }
+
+    Checked<Launcher> onward(Frame to, GridTime ends, Flywheel.AngularSpeed turning) {
+        return Course.of(course.endsAt(), course.ends(), to, ends).map(next -> placed(faces, next, turning));
+    }
+
+    Checked<Launcher> carriedTo(Frame to) {
+        return Course.of(to, course.ends(), to, course.ends()).map(still -> placed(faces, still, wheel));
+    }
+
+    boolean standsAs(Launcher other) {
+        return !course.moving()
+                && !other.course.moving()
+                && course.endsAt().equals(other.course.endsAt())
+                && wheel.radiansPerSecond() == other.wheel.radiansPerSecond();
+    }
+
+    boolean holds(Vec3 centre, Length radius) {
+        return !squeezing(centre, radius).isEmpty()
+                || !near(centre, radius, Shot.TOUCHING_IN).isEmpty();
+    }
+
+    Checked<Bodies.Motion> carried(Bodies.Seen ball, Launcher to) {
+        Vec3 within = unturned(ball.at().minus(where.origin()));
+        Vec3 moving = unturned(ball.velocity().minus(frameVelocityAt(ball.at())));
+        Vec3 spinning = unturned(ball.spin().minus(frameSpin));
+        Vec3 at = to.world(within);
+        return Bodies.Motion.of(
+                at,
+                to.turned(moving).plus(to.frameVelocityAt(at)),
+                to.turned(spinning).plus(to.frameSpin));
+    }
+
     private static double inches(double millimetres) {
         return millimetres / MILLIMETRES_PER_INCH;
     }
@@ -395,7 +452,10 @@ final class Launcher implements Surroundings.Part {
     }
 
     private Vec3 local(Vec3 world) {
-        Vec3 off = world.minus(where.origin());
+        return unturned(world.minus(where.origin()));
+    }
+
+    private Vec3 unturned(Vec3 off) {
         return new Vec3(cos * off.x() + sin * off.y(), -sin * off.x() + cos * off.y(), off.z());
     }
 

@@ -61,6 +61,10 @@ public final class Flywheel {
             return new AngularSpeed(turnsAt(commandedTicksPerSecond) * WHOLE_TURN / ticksPerTurn.value());
         }
 
+        static AngularSpeed stopped() {
+            return new AngularSpeed(0);
+        }
+
         public double radiansPerSecond() {
             return radiansPerSecond;
         }
