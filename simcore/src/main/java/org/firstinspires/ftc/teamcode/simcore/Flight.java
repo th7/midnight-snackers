@@ -101,6 +101,10 @@ public final class Flight<K> {
         Flying<K> lyingOn(Footing footing) {
             return new Flying<>(key, kind, radius, name, cell, presses, awake, onTheFloor, Optional.of(footing));
         }
+
+        Flying<K> carried() {
+            return new Flying<>(key, kind, radius, name, Optional.empty(), false, awake, false, Optional.empty());
+        }
     }
 
     private sealed interface Robot permits Robotless, Carrying {
@@ -405,6 +409,17 @@ public final class Flight<K> {
                 });
     }
 
+    public Checked<Flight<K>> carriedTo(Launcher.Frame frame) {
+        return robot.fold(
+                () -> Checked.rejected("a flight with no robot has no launcher to carry to " + frame),
+                launcher -> launcher.carriedTo(frame).then(there -> {
+                    Work<K> work = new Work<>(this);
+                    work.catchUp();
+                    work.teleport(launcher, there);
+                    return work.checked();
+                }));
+    }
+
     public Checked<Flight<K>> fed(K ball, Field.Kind kind, Length radius) {
         return robot.fold(() -> Checked.rejected("a flight with no robot has no launcher to feed"), launcher -> {
             if (kind != Field.Kind.POLLEN || !(radius.inches() == Launcher.POLLEN_RADIUS_IN)) {
@@ -536,6 +551,31 @@ public final class Flight<K> {
                                 refused = Optional.of(rule);
                                 return false;
                             });
+        }
+
+        void teleport(Launcher was, Launcher there) {
+            if (refused.isPresent()) {
+                return;
+            }
+            Launcher from = was.at(engine().time()), to = there.at(engine().time());
+            for (Flying<K> one : new ArrayList<>(flying)) {
+                engine().body(one.name())
+                        .filter(seen -> from.holds(seen.at(), one.radius()))
+                        .ifPresent(seen -> from.carried(seen, to)
+                                .fold(
+                                        motion -> {
+                                            engine().moved(one.name(), motion);
+                                            replace(one, one.carried());
+                                            return true;
+                                        },
+                                        rule -> {
+                                            refused = Optional.of(rule);
+                                            return false;
+                                        }));
+            }
+            if (refused.isEmpty()) {
+                surroundedAgainBy(there);
+            }
         }
 
         Checked<Flight<K>> feed(K ball, Field.Kind kind, Length radius, Ball shape, Launcher launcher) {

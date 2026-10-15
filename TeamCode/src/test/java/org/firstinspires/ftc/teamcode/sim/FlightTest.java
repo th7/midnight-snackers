@@ -1039,12 +1039,13 @@ public class FlightTest {
     }
 
     @Test
-    public void aFlightWithNoRobotHasNoLauncherToStepOrFeedAndOneCarryingALauncherStepsOnlyWithItsFrameAndWheel() {
+    public void aFlightWithNoRobotHasNoLauncherToStepFeedOrCarryAndOneCarryingALauncherStepsOnlyWithItsFrameAndWheel() {
         Launcher.Frame at = resting(0);
 
         List<String> robotless = List.of(
                 rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN)),
-                rejection(flight.step(tick(STEP), at, wheel(0))));
+                rejection(flight.step(tick(STEP), at, wheel(0))),
+                rejection(flight.carriedTo(at)));
         String alone = rejection(
                 Valid.value(Flight.<Object>carryingALauncher(field, at)).step(tick(STEP)));
 
@@ -1262,6 +1263,32 @@ public class FlightTest {
 
             assertVec(ROUNDING_SOURCE + ", turned by " + yaw, turned(facing, yaw), turned, ROUNDING_WITHIN);
         }
+    }
+
+    @Test
+    public void aTeleportCarriesTheLauncherAndTheBallsInItAtOnceHoweverFarThoughAStepThatFarIsRefusedForItsSweep() {
+        double toX = 30, toY = -45, toYaw = Math.PI / 2;
+        Launcher.Frame to = frame(toX, toY, toYaw);
+        carryALauncher(FlightTest::resting);
+        Object lying = new Object();
+        Field.Piece piece = field.cellPieces().get(0);
+        flight = Valid.value(flight.restingAt(lying, piece.kind(), Valid.value(Length.of(piece.radius())), piece.at()));
+        Object ball = feed();
+        carry(1.0, FlightTest::resting, wheel(0));
+        Vec3 held = at(ball), elsewhere = at(lying);
+
+        String stepped = rejection(flight.step(tick(STEP), to, wheel(0)));
+        flight = Valid.value(flight.carriedTo(to));
+
+        assertTrue(stepped, stepped.contains("a launcher's frame sweeps its faces at most 1000.0 in/s"));
+        Vec3 expected =
+                new Vec3(toX, toY, 0).plus(turned(held.minus(new Vec3(ROBOT_X, ROBOT_Y, 0)), toYaw - ROBOT_YAW));
+        assertVec("carried with the launcher", expected, at(ball), 1e-9);
+        assertEquals("what is not in the launcher stays where it was", elsewhere, at(lying));
+        DoubleFunction<Launcher.Frame> there = t -> frame(toX, toY, toYaw);
+        carry(STEP, there, wheel(0));
+        assertVec("and lies there in it", expected, at(ball), 1e-9);
+        assertTrue("thrown from there once the wheel spins up", highestWithin(0.5, ball, there) > THROWN_ABOVE_IN);
     }
 
     private static Ring<Vec3> floorOf(Field.Cell cell) {
