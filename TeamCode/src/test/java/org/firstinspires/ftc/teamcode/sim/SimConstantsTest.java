@@ -176,6 +176,14 @@ public class SimConstantsTest {
                 SimConstants.restoredFromJson(json("{\"launch_throw\": \"fast\"}"))
                         .fold(read -> "accepted " + read, rule -> rule)
                         .contains("Launcher throw is a number"));
+        for (String past : new String[] {"1e999", "-1e999"}) {
+            String said = SimConstants.restoredFromJson(json("{\"launch_throw\": " + past + "}"))
+                    .fold(read -> "accepted, listed as " + SimConstants.listing(read), rule -> rule);
+            assertTrue(
+                    "a number past any a double holds is refused, as it is for a constant the simulator has, and is"
+                            + " never listed or written back as no number at all: " + past + ": " + said,
+                    said.contains("Launcher throw is a finite number"));
+        }
         assertTrue(
                 "a name that was never a constant still stops it",
                 SimConstants.restoredFromJson(json("{\"gravity\": 1}"))

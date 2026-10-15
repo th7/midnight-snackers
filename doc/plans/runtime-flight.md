@@ -364,8 +364,10 @@ pass that while the launcher sweeps near its bound the way the feed goes.
 - Stage 3's `Constants.Restored` already restores a value saved past its
   range at the nearer end and keeps what was saved until the constants are
   saved again. It gains the retired names: loading the saved settings sets
-  them aside, whatever their value, and keeps every other rule. A name that
-  was never a constant still stops the server. A PUT and the start line stay
+  them aside, whatever finite number they are, and keeps every other rule.
+  A number no double holds, such as 1e999, stops the server as it does for
+  a current constant. A name that was never a constant still stops the
+  server. A PUT and the start line stay
   strict. `asSaved()` writes what was set aside back until a PUT succeeds,
   and the listing and the admin page say "Dropped from the saved settings".
   Nothing is printed at startup, since nothing could test it.
@@ -522,7 +524,7 @@ they score.
    rule under *Constants and the run stream*. Every test and fake that names
    `LAUNCH_THROW` names the new constant. The tests of a constant saved past
    its range use another constant, and a saved `launch_throw` is set aside as
-   retired, whatever its value.
+   retired, whatever finite number it is, and refused as 1e999 or -1e999.
 8. `TurntableTest`: `LaunchTest`'s four turntable tests, unchanged.
 9. Both Flight goldens and the wheel-power traces stay byte-identical:
    `FlightTraceTest` has no robot. The Launch Sim's fingerprints pass

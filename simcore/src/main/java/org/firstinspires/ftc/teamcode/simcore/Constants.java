@@ -104,7 +104,13 @@ public final class Constants {
             }
         }
         EnumMap<Constant.Retired, Double> setAside = new EnumMap<>(Constant.Retired.class);
-        setAside.putAll(retired);
+        for (Map.Entry<Constant.Retired, Double> entry : retired.entrySet()) {
+            double value = entry.getValue();
+            if (!Double.isFinite(value)) {
+                return Checked.rejected(entry.getKey().label() + " is a finite number, not " + value);
+            }
+            setAside.put(entry.getKey(), value);
+        }
         return of(nearest).map(constants -> new Restored(constants, pastTheirRange, setAside));
     }
 

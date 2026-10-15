@@ -369,6 +369,16 @@ public class ConstantsTest {
     }
 
     @Test
+    public void aSavedRetiredConstantThatIsNoFiniteNumberIsNotRestoredAndSaysWhyAsACurrentOneIsNot() {
+        for (double saved : List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NaN)) {
+            assertRejected(
+                    "Launcher throw is a finite number, not " + saved,
+                    Constants.restored(set(Constant.HICCUP_CHANCE, 0), retired(Constant.Retired.LAUNCH_THROW, saved)));
+            assertRejected(Constant.HICCUP_CHANCE.label(), Constants.restored(set(Constant.HICCUP_CHANCE, saved)));
+        }
+    }
+
+    @Test
     public void whatWasSetAsideIsKeptToSaveAsItWasSavedSoItIsRestoredAndSetAsideAgain() {
         Constants.Restored restored = Valid.value(
                 Constants.restored(set(Constant.HICCUP_CHANCE, 0), retired(Constant.Retired.LAUNCH_THROW, 0.25)));

@@ -1747,7 +1747,8 @@ has is **retired**, as the launcher's throw was once a ball came to be fed into
 the simulated flywheel and hood: naming it where a constant is set, on the
 admin page or a start line, is refused, saying it is no longer a simulation
 constant and what replaced it; but a retired constant in the saved settings,
-whatever its value, does not stop the server. Loading sets it aside, the admin
+whatever finite number it is, does not stop the server (a number no double
+holds, such as 1e999, stops it, as it does for any constant). Loading sets it aside, the admin
 page lists it under *Dropped from the saved settings* with what was saved and
 why it went, and it is saved back as it was until the admin saves the
 constants. A name that never was a constant still stops the server. Every run a user starts is made on the constants as
