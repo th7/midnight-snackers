@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,9 +20,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.firstinspires.ftc.reginald.hardware.Wheels;
+import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ChattyAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
@@ -407,6 +411,68 @@ public class SimChildTest {
                 output.stderr.contains(SimNoise.described(TeamRobot.REGINALD, Noise.seeded(7, grippier))));
         assertTrue(output.stderr, output.stderr.contains("traction 0.90 g"));
         assertTrue(output.stderr, output.stderr.contains("Constants: " + SimConstants.described(grippier)));
+    }
+
+    @Test
+    public void everyConstantTheChildsHelloListsAsReadChangesARunOfTheRobotItSimulatesFromTheStartLine() {
+        JsonObject hello = new Gson().fromJson(SimRunStream.hello(), JsonObject.class);
+        String asBuilt = driven(Constants.defaults());
+
+        for (JsonElement listed : hello.getAsJsonArray("reads")) {
+            Constant constant = Valid.value(Constant.named(listed.getAsString()));
+            List<Double> tried = new ArrayList<>();
+            boolean differs = false;
+            for (double value :
+                    new double[] {constant.most(), constant.least(), 2 * constant.byDefault(), constant.byDefault() / 2
+                    }) {
+                Checked<Constants> changed = Constants.of(java.util.Map.of(constant, value));
+                if (!differs && changed instanceof Checked.Ok<Constants> admitted) {
+                    tried.add(value);
+                    differs = !driven(admitted.value()).equals(asBuilt);
+                }
+            }
+            assertTrue(
+                    listed.getAsString()
+                            + " is in the child's hello as a constant it reads, but a run with it at each of " + tried
+                            + " goes exactly as one on the constants as built",
+                    differs);
+        }
+    }
+
+    private static String driven(Constants constants) {
+        SimRobot sim = SimChild.simulated(TeamRobot.REGINALD, 3L, constants);
+        sim.setDown(new Pose2d(-30, 0, 0));
+        new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront);
+        for (FakeDcMotorEx wheel : new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack}) {
+            wheel.setPower(1);
+        }
+        sim.turnTable.power = 1;
+        sim.launcher.commandedVelocity = 1220;
+        sim.topGate.position = 1;
+        StringBuilder seen = new StringBuilder();
+        for (int loop = 0; loop < 60; loop++) {
+            if (loop == 5) {
+                sim.topGate.position = 0.6;
+                sim.bottomGate.position = 0.5;
+            }
+            if (loop == 15) {
+                for (FakeDcMotorEx wheel :
+                        new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack}) {
+                    wheel.setPower(-1);
+                }
+            }
+            double seconds = sim.nextLoopSeconds();
+            sim.step(seconds);
+            seen.append(seconds)
+                    .append(' ')
+                    .append(sim.pose())
+                    .append(' ')
+                    .append(sim.turnTable.currentPosition)
+                    .append(' ')
+                    .append(java.util.Arrays.deepToString(sim.pieces()))
+                    .append('\n');
+        }
+        return seen.toString();
     }
 
     @Test

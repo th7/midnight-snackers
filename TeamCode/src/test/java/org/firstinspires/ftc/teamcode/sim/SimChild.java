@@ -102,7 +102,7 @@ public final class SimChild {
         }
         Long seed = driverStation.seed();
         Constants constants = driverStation.constants();
-        SimRobot sim = new SimRobot(robot, seed == null ? SimNoise.NONE : Noise.seeded(seed, constants), constants);
+        SimRobot sim = simulated(robot, seed, constants);
         System.err.println("Robot: " + SimNoise.described(robot, sim.noise()));
         System.err.println("Constants: " + SimConstants.described(constants));
         sim.setDown(start.get());
@@ -122,6 +122,10 @@ public final class SimChild {
         }
         flush(recording, protocol);
         return recording.outcome();
+    }
+
+    static SimRobot simulated(TeamRobot robot, Long seed, Constants constants) {
+        return new SimRobot(robot, seed == null ? SimNoise.NONE : Noise.seeded(seed, constants), constants);
     }
 
     private static void readDriverStation(SimDriverStation driverStation, SimRecording recording) {
