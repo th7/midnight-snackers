@@ -488,6 +488,15 @@ final class Bodies {
         return Collections.unmodifiableList(woken);
     }
 
+    List<Seen> surroundedWithoutWorkWhileIdleBy(Surroundings surroundings) {
+        long began = work;
+        List<Seen> woken = surroundedBy(surroundings);
+        if (!anyAwake()) {
+            work = began;
+        }
+        return woken;
+    }
+
     Checked<Seen> add(Name name, Ball shape, Motion motion, Start start) {
         if (named(name.key()).isPresent()) {
             return Checked.rejected("every body has a name of its own, and '" + name + "' is not one");

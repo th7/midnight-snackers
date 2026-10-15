@@ -678,6 +678,52 @@ public class MovingSurroundingsTest {
     }
 
     @Test
+    public void surroundingsGivenWithNothingAwakeOnceTheyAreGivenAreNoWorkAsAStepWithNothingAwakeIsNone() {
+        Surroundings.Part far = Carried.sliding(
+                Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(10, 0, 0), 0);
+        Surroundings.Part farOn = Carried.sliding(
+                Carried.box("far", new Vec3(-60, -60, 10), new Vec3(-50, -50, 11)), new Vec3(0, 10, 0), 0);
+        Bodies idle = among(STEP, far, Carried.sliding(TRAY, Vec3.zero(), 0));
+        add(idle, "resting", new Vec3(0, 0, ON_THE_TRAY), Vec3.zero(), ASLEEP);
+        add(idle, "lying", new Vec3(40, 40, R), Vec3.zero(), ASLEEP);
+        stepFor(idle, 0.01, STEP);
+        long before = idle.work();
+        Bodies charged = idle.copy();
+
+        List<Bodies.Seen> woken =
+                idle.surroundedWithoutWorkWhileIdleBy(around(farOn, Carried.sliding(TRAY, Vec3.zero(), 0)));
+        charged.surroundedBy(around(farOn, Carried.sliding(TRAY, Vec3.zero(), 0)));
+
+        assertTrue(woken.isEmpty());
+        assertEquals("given with nothing awake", before, idle.work());
+        assertTrue("given as surroundings are given: " + charged.work(), charged.work() > before);
+        assertEquals(charged.seen(), idle.seen());
+        assertTrue(idle.idleThrough(idle.steps() + 100));
+    }
+
+    @Test
+    public void surroundingsGivenWithSomethingAwakeOnceTheyAreGivenCostWhatGivingSurroundingsCosts() {
+        Collider near = Carried.box("paddle", new Vec3(-1.005, -10, 0.5), new Vec3(-0.005, 10, 8));
+        Bodies waking = among(STEP, Carried.sliding(near, Vec3.zero(), 0));
+        add(waking, "ball", new Vec3(R, 0, R), Vec3.zero(), ASLEEP);
+        Bodies rolling = among(STEP, Carried.sliding(TRAY, Vec3.zero(), 0));
+        add(rolling, "ball", new Vec3(0, 0, ON_THE_TRAY), new Vec3(1, 0, 0), AWAKE);
+        for (Bodies bodies : List.of(waking, rolling)) {
+            Surroundings given = around(Carried.sliding(near, new Vec3(100, 0, 0), bodies.now()));
+            Bodies charged = bodies.copy();
+
+            List<Bodies.Seen> woken = bodies.surroundedWithoutWorkWhileIdleBy(given);
+            List<Bodies.Seen> wokenAsEver = charged.surroundedBy(given);
+
+            assertEquals(wokenAsEver, woken);
+            assertEquals(charged.work(), bodies.work());
+            assertEquals(charged.seen(), bodies.seen());
+            assertEquals(charged.touching("ball"), bodies.touching("ball"));
+        }
+        assertEquals(Bodies.Life.AWAKE, seen(waking, "ball").life());
+    }
+
+    @Test
     public void anEngineWithABodyAwakeDoesNotIdleAndIsLeftAsItWas() {
         Bodies bodies = among(STEP);
         add(bodies, "rolling", new Vec3(0, 0, R), new Vec3(1, 0, 0), AWAKE);
