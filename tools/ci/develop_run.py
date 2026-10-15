@@ -22,7 +22,7 @@ A_PUSH_RUNS_ONLY_TO_MOVE_MAIN = ('a push runs only to move main, so never when m
 A_FAILED_PUSH_FAILS_ITS_JOB = 'a push that failed fails the job that moves main, which never ends in success'
 A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD = (
     'a mover ends in success only when its push succeeded, or when it pushed nothing because main stayed where it was '
-    'for commits of develop it already has, having nothing develop or the judged commit lacks')
+    'for commits of develop it already has, having nothing develop lacks')
 WHAT_MAIN_LACKS_NAMES_ITS_COMMITS = 'what main has that develop lacks is named as a tuple of at least one commit'
 A_REFUSED_PUSH_NAMES_ITS_COMMIT = 'a refused push names the commit it pushed'
 A_HOLD_OVER_WORKFLOWS_NAMES_THEM = ('a hold for a maintainer over workflows names the judged commit and at least one '
