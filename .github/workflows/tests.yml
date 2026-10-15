@@ -178,24 +178,29 @@ jobs:
         if: needs.unit-tests.result != 'success' || needs.look.result != 'success'
         run: exit 1
 
-  report:
+  say:
     needs: [unit-tests, look, promote]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
-      issues: write
+      issues: read
+    outputs:
+      action: ${{ steps.say.outputs.action }}
+      title: ${{ steps.say.outputs.title }}
+      issues: ${{ steps.say.outputs.issues }}
+      body: ${{ steps.say.outputs.body }}
     steps:
-      - name: Check out the judged commit
+      - name: List the open issues, before any of the judged commit is on disk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title > "$RUNNER_TEMP/open-issues.json"
+      - name: Check out the judged commit, keeping no credential
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           persist-credentials: false
-      - name: List the open issues
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title > "$RUNNER_TEMP/open-issues.json"
       - name: Say what the run found
         id: say
         env:
@@ -220,26 +225,61 @@ jobs:
           PROMOTING_ENDED: ${{ needs.promote.result }}
           PUSHED: ${{ needs.promote.outputs.pushed }}
           GIT_SAID: ${{ needs.promote.outputs.git-said }}
-        run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" "$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"
+        run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" >> "$GITHUB_OUTPUT"
+
+  report:
+    needs: [unit-tests, look, promote, say]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
       - name: Open the issue
-        if: steps.say.outputs.action == 'open'
+        id: open
+        if: needs.say.outputs.action == 'open'
         env:
           GH_TOKEN: ${{ github.token }}
-          TITLE: ${{ steps.say.outputs.title }}
-        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/issue-body.md"
-      - name: Comment on the open issue
-        if: steps.say.outputs.action == 'comment'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE: ${{ steps.say.outputs.issues }}
-        run: gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"
-      - name: Close the issue, saying main now stands at the judged commit
-        if: steps.say.outputs.action == 'close'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUES: ${{ steps.say.outputs.issues }}
+          TITLE: ${{ needs.say.outputs.title }}
+          BODY: ${{ needs.say.outputs.body }}
         run: |
+          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/issue-body.md"
+      - name: Comment on the open issue
+        id: comment
+        if: needs.say.outputs.action == 'comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.say.outputs.issues }}
+          BODY: ${{ needs.say.outputs.body }}
+        run: |
+          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
+          gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
+      - name: Close the issue, saying main now stands at the judged commit, only when every job before passed
+        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUES: ${{ needs.say.outputs.issues }}
+          BODY: ${{ needs.say.outputs.body }}
+        run: |
+          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
           for issue in $ISSUES; do
-            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"
-            gh issue close "$issue" --repo "$GITHUB_REPOSITORY"
+            gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$issue"
+            gh issue close --repo "$GITHUB_REPOSITORY" -- "$issue"
           done
+      - name: Open or comment on the issue saying only that the run is red, when nothing else did
+        if: ${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && (failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || needs.promote.result != 'success' || needs.say.result != 'success') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: 'IMPORTANT: develop CI Failures'
+        run: |
+          link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body="A run for develop is red, and the jobs that say why could not, so only the run itself says what failed: $link"
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title > "$RUNNER_TEMP/open-issues.json"
+          issue=$(jq -r --arg title "$TITLE" '[.[] | select(.title == $title) | .number] | min // empty' "$RUNNER_TEMP/open-issues.json")
+          if [ -n "$issue" ]; then
+            gh issue comment --repo "$GITHUB_REPOSITORY" --body "$body" -- "$issue"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$body"
+          fi

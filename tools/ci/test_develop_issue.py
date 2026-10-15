@@ -15,6 +15,8 @@ RUN = 'https://github.com/th7/midnight-snackers/actions/runs/123456'
 BODY_TOO_LONG = 'https://github.com/golang/go/issues/45998'
 GITHUB_LIMITS = 'https://github.com/dead-claudia/github-limits'
 GH_ISSUE_LIST = 'https://cli.github.com/manual/gh_issue_list'
+EXECVE_LIMITS = 'https://man7.org/linux/man-pages/man2/execve.2.html#NOTES'
+MAX_ARG_STRLEN = 32 * 4096
 
 
 def b64(text):
@@ -259,12 +261,24 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
 
 
 class WhatTheWorkflowIsHanded(unittest.TestCase):
-    def test_each_issue_action_hands_the_workflow_what_it_needs_to_carry_it_out(self):
-        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n',
-                         issues.action_outputs(Open(issues.TITLE, 'body')))
-        self.assertEqual('action=comment\nissues=12\n', issues.action_outputs(CommentOn(12, 'body')))
-        self.assertEqual('action=close\nissues=12 41\n', issues.action_outputs(Close((12, 41), 'body')))
+    def test_each_issue_action_hands_the_workflow_what_it_needs_to_carry_it_out_its_body_in_base64(self):
+        body = 'develop was judged red at `x` — é\n'
+
+        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\nbody=%s\n' % b64(body),
+                         issues.action_outputs(Open(issues.TITLE, body)))
+        self.assertEqual('action=comment\nissues=12\nbody=%s\n' % b64(body), issues.action_outputs(CommentOn(12, body)))
+        self.assertEqual('action=close\nissues=12 41\nbody=%s\n' % b64(body),
+                         issues.action_outputs(Close((12, 41), body)))
         self.assertEqual('action=none\n', issues.action_outputs(LeaveAlone()))
+
+    def test_the_longest_body_in_base64_fits_one_environment_string_so_the_job_that_writes_it_is_handed_it_whole(self):
+        longest = 'x' * (issues.BODY_AT_MOST - 1)
+        handed = issues.action_outputs(Open(issues.TITLE, longest)).split('\n')[2]
+
+        self.assertEqual(longest, base64.b64decode(handed[len('body='):]).decode('ascii'))
+        self.assertLess(len(('BODY=' + handed[len('body='):]).encode('ascii')) + 1, MAX_ARG_STRLEN,
+                        'Linux refuses an environment string longer than 32 pages, %d bytes with its terminating null '
+                        '(%s)' % (MAX_ARG_STRLEN, EXECVE_LIMITS))
 
 
 if __name__ == '__main__':

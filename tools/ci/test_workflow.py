@@ -1,8 +1,11 @@
 import base64
 import http.server
+import itertools
+import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -90,11 +93,13 @@ class WhatStartsARun(WorkflowTest):
             self.workflow['concurrency'])
 
     def test_only_a_push_to_develop_reaches_the_jobs_that_move_main_and_write_the_issue_judged_red_or_not(self):
-        self.assertEqual({'look': FOR_DEVELOP_ONLY, 'promote': FOR_DEVELOP_ONLY, 'report': FOR_DEVELOP_ONLY},
+        self.assertEqual({'look': FOR_DEVELOP_ONLY, 'promote': FOR_DEVELOP_ONLY, 'say': FOR_DEVELOP_ONLY,
+                          'report': FOR_DEVELOP_ONLY},
                          {name: job['if'] for name, job in self.jobs.items() if 'if' in job})
         self.assertEqual('unit-tests', self.jobs['look']['needs'])
         self.assertEqual(['unit-tests', 'look'], self.jobs['promote']['needs'])
-        self.assertEqual(['unit-tests', 'look', 'promote'], self.jobs['report']['needs'])
+        self.assertEqual(['unit-tests', 'look', 'promote'], self.jobs['say']['needs'])
+        self.assertEqual(['unit-tests', 'look', 'promote', 'say'], self.jobs['report']['needs'])
 
     def test_every_condition_in_the_workflow_is_one_the_tests_evaluate(self):
         for name, job in self.jobs.items():
@@ -124,6 +129,7 @@ class WhatEachJobMayDo(WorkflowTest):
         self.assertEqual({'unit-tests': {'contents': 'read'},
                           'look': {'contents': 'read'},
                           'promote': {'contents': 'write'},
+                          'say': {'contents': 'read', 'issues': 'read'},
                           'report': {'contents': 'read', 'issues': 'write'}},
                          {name: job['permissions'] for name, job in self.jobs.items()})
 
@@ -149,13 +155,18 @@ class WhatEachJobMayDo(WorkflowTest):
 
         self.assertEqual({'promote'}, kept)
 
-    def test_no_job_that_runs_code_it_checked_out_keeps_a_credential_and_the_job_that_pushes_runs_none(self):
-        for name, job in self.jobs.items():
-            if any(REPOSITORY_CODE.search(each) for each in runs_of(job)):
-                for step in steps_of(job):
-                    if step.get('uses', '').startswith('actions/checkout@'):
-                        self.assertEqual('false', step['with'].get('persist-credentials'), name)
-        self.assertEqual([], [each for each in runs_of(self.jobs['promote']) if REPOSITORY_CODE.search(each)])
+    def test_no_job_that_runs_code_it_checked_out_holds_a_write_permission_or_keeps_a_credential(self):
+        running = {name for name, job in self.jobs.items() if any(REPOSITORY_CODE.search(each) for each in runs_of(job))}
+
+        self.assertEqual({'unit-tests', 'look', 'say'}, running)
+        for name in running:
+            self.assertEqual({'read'}, set(self.jobs[name]['permissions'].values()), name)
+            for step in steps_of(self.jobs[name]):
+                if step.get('uses', '').startswith('actions/checkout@'):
+                    self.assertEqual('false', step['with'].get('persist-credentials'), name)
+
+    def test_the_job_that_writes_the_issue_checks_out_nothing(self):
+        self.assertEqual([], [step for step in steps_of(self.jobs['report']) if 'uses' in step])
 
 
 class WhatARunJudges(WorkflowTest):
@@ -232,30 +243,33 @@ class WhatARunJudges(WorkflowTest):
                                 'of its code'),
                          ('push', 'Move main to the judged commit, never by force'),
                          (None, 'Hold main where it was')],
-             'report': [(None, 'Check out the judged commit'),
-                        (None, 'List the open issues'),
-                        ('say', 'Say what the run found'),
-                        (None, 'Open the issue'),
-                        (None, 'Comment on the open issue'),
-                        (None, 'Close the issue, saying main now stands at the judged commit')]},
+             'say': [(None, 'List the open issues, before any of the judged commit is on disk'),
+                     (None, 'Check out the judged commit, keeping no credential'),
+                     ('say', 'Say what the run found')],
+             'report': [('open', 'Open the issue'),
+                        ('comment', 'Comment on the open issue'),
+                        (None, 'Close the issue, saying main now stands at the judged commit, only when every job '
+                               'before passed'),
+                        (None, 'Open or comment on the issue saying only that the run is red, when nothing else did')]},
             {name: [(step.get('id'), step.get('name')) for step in steps_of(self.jobs[name])]
-             for name in ('look', 'promote', 'report')})
+             for name in ('look', 'promote', 'say', 'report')})
 
     def test_the_workflow_and_each_job_hold_exactly_their_keys_so_no_env_or_environment_is_added_unseen(self):
         self.assertEqual(['name', 'on', 'concurrency', 'permissions', 'defaults', 'jobs'], list(self.workflow))
         self.assertEqual({'unit-tests': ['runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
                           'look': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
                           'promote': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
+                          'say': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
                           'report': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'steps']},
                          {name: list(job) for name, job in self.jobs.items()})
 
     def test_no_job_names_an_environment(self):
         self.assertEqual({}, {name: job['environment'] for name, job in self.jobs.items() if 'environment' in job})
 
-    def test_the_job_that_writes_the_issue_checks_out_the_commit_judged_without_keeping_a_credential(self):
-        self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
+    def test_the_job_that_says_what_to_write_checks_out_the_commit_judged_without_keeping_a_credential(self):
+        self.assertEqual({'name': 'Check out the judged commit, keeping no credential', 'uses': 'actions/checkout@v4',
                           'with': {'ref': JUDGED_OR_DEVELOP, 'persist-credentials': 'false'}},
-                         steps_of(self.jobs['report'])[0])
+                         steps_of(self.jobs['say'])[1])
 
 
 class HowMainMoves(WorkflowTest):
@@ -766,14 +780,17 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
 
 class HowTheIssueIsWritten(WorkflowTest):
     def test_the_open_issues_are_listed_asking_gh_for_as_many_as_the_core_takes_to_be_a_list_cut_short(self):
-        self.assertIn('gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit %d --json number,title '
-                      '> "$RUNNER_TEMP/open-issues.json"' % issues.LISTED_AT_MOST, runs_of(self.jobs['report']))
+        self.assertEqual({'name': 'List the open issues, before any of the judged commit is on disk',
+                          'env': {'GH_TOKEN': '${{ github.token }}'},
+                          'run': 'gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit %d --json number,title '
+                                 '> "$RUNNER_TEMP/open-issues.json"' % issues.LISTED_AT_MOST},
+                         steps_of(self.jobs['say'])[0])
 
     def test_the_core_says_what_to_write_from_everything_the_run_found(self):
-        saying = step_named(self.jobs['report'], 'say')
+        saying = step_named(self.jobs['say'], 'say')
 
-        self.assertEqual('python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" '
-                         '"$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"', saying['run'])
+        self.assertEqual('python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" >> "$GITHUB_OUTPUT"',
+                         saying['run'])
         self.assertEqual(dict(JUDGEMENT_HANDED,
                               LOOKING_ENDED='${{ needs.look.result }}',
                               MAIN_TIP='${{ needs.look.outputs.main-tip }}',
@@ -786,30 +803,194 @@ class HowTheIssueIsWritten(WorkflowTest):
                          saying['env'])
         self.assertEqual(set(cli.JUDGEMENT) | set(cli.LOOKING) | set(cli.PROMOTING), set(saying['env']))
 
+    def test_the_job_that_says_hands_on_what_the_core_said(self):
+        self.assertEqual({'action': '${{ steps.say.outputs.action }}', 'title': '${{ steps.say.outputs.title }}',
+                          'issues': '${{ steps.say.outputs.issues }}', 'body': '${{ steps.say.outputs.body }}'},
+                         self.jobs['say']['outputs'])
+
     def test_each_issue_action_the_core_hands_on_is_carried_out_by_one_step_that_does_only_that(self):
         report = self.jobs['report']
-        carried = [step for step in steps_of(report) if 'steps.say.outputs.action' in step.get('if', '')]
+        carried = [step for step in steps_of(report) if 'needs.say.outputs.action' in step.get('if', '')]
         handed = [issues.action_outputs(action).split('\n')[0].split('=')[1] for action in
                   (issues.Open(issues.TITLE, ''), issues.CommentOn(1, ''), issues.Close((1,), ''))]
+        body = 'base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"\n'
 
         self.assertEqual(
             [{'name': 'Open the issue',
-              'if': "steps.say.outputs.action == '%s'" % handed[0],
-              'env': {'GH_TOKEN': '${{ github.token }}', 'TITLE': '${{ steps.say.outputs.title }}'},
-              'run': 'gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" '
-                     '--body-file "$RUNNER_TEMP/issue-body.md"'},
+              'id': 'open',
+              'if': "needs.say.outputs.action == '%s'" % handed[0],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'TITLE': '${{ needs.say.outputs.title }}',
+                      'BODY': '${{ needs.say.outputs.body }}'},
+              'run': body + 'gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" '
+                            '--body-file "$RUNNER_TEMP/issue-body.md"\n'},
              {'name': 'Comment on the open issue',
-              'if': "steps.say.outputs.action == '%s'" % handed[1],
-              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUE': '${{ steps.say.outputs.issues }}'},
-              'run': 'gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"'},
-             {'name': 'Close the issue, saying main now stands at the judged commit',
-              'if': "steps.say.outputs.action == '%s'" % handed[2],
-              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUES': '${{ steps.say.outputs.issues }}'},
-              'run': 'for issue in $ISSUES; do\n'
-                     '  gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"\n'
-                     '  gh issue close "$issue" --repo "$GITHUB_REPOSITORY"\n'
-                     'done\n'}],
+              'id': 'comment',
+              'if': "needs.say.outputs.action == '%s'" % handed[1],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUE': '${{ needs.say.outputs.issues }}',
+                      'BODY': '${{ needs.say.outputs.body }}'},
+              'run': body + 'gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" '
+                            '-- "$ISSUE"\n'},
+             {'name': 'Close the issue, saying main now stands at the judged commit, only when every job before passed',
+              'if': "needs.say.outputs.action == '%s' && needs.unit-tests.result == 'success' && "
+                    "needs.look.result == 'success' && needs.promote.result == 'success' && "
+                    "needs.say.result == 'success'" % handed[2],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUES': '${{ needs.say.outputs.issues }}',
+                      'BODY': '${{ needs.say.outputs.body }}'},
+              'run': body + 'for issue in $ISSUES; do\n'
+                            '  gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" '
+                            '-- "$issue"\n'
+                            '  gh issue close --repo "$GITHUB_REPOSITORY" -- "$issue"\n'
+                            'done\n'}],
             carried)
+
+    def test_a_red_run_the_core_wrote_nothing_for_opens_or_comments_on_the_issue_by_a_step_that_reads_nothing_it_said(self):
+        falling_back = steps_of(self.jobs['report'])[-1]
+
+        self.assertEqual(
+            {'name': 'Open or comment on the issue saying only that the run is red, when nothing else did',
+             'if': "${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && "
+                   "(failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || "
+                   "needs.promote.result != 'success' || needs.say.result != 'success') }}",
+             'env': {'GH_TOKEN': '${{ github.token }}', 'TITLE': issues.TITLE},
+             'run': 'link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"\n'
+                    'body="A run for develop is red, and the jobs that say why could not, so only the run itself says '
+                    'what failed: $link"\n'
+                    'gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit %d --json number,title '
+                    '> "$RUNNER_TEMP/open-issues.json"\n'
+                    "issue=$(jq -r --arg title \"$TITLE\" '[.[] | select(.title == $title) | .number] | min // empty' "
+                    '"$RUNNER_TEMP/open-issues.json")\n'
+                    'if [ -n "$issue" ]; then\n'
+                    '  gh issue comment --repo "$GITHUB_REPOSITORY" --body "$body" -- "$issue"\n'
+                    'else\n'
+                    '  gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$body"\n'
+                    'fi\n' % issues.LISTED_AT_MOST},
+            falling_back)
+
+
+class WhatReachesTheIssue(WorkflowTest):
+    RESULTS = ('success', 'failure', 'cancelled', 'skipped', '')
+    ACTIONS = ('open', 'comment', 'close', 'none', '', 'anything else')
+
+    def reported(self, results, action, failing=()):
+        needs = {name: {'result': result} for name, result in zip(('unit-tests', 'look', 'promote', 'say'), results)}
+        needs['say']['outputs'] = {'action': action}
+        done = ran(self.jobs['report'], {'needs': needs, 'github': {'event_name': 'push', 'ref': 'refs/heads/develop'}},
+                   failing=failing)
+        self.assertNotIsInstance(done, conditions.Rejected)
+        steps, _ = done
+        return [steps[key] for key in ('open', 'comment', 'Close the issue, saying main now stands at the judged '
+                                       'commit, only when every job before passed', 'Open or comment on the issue '
+                                       'saying only that the run is red, when nothing else did')]
+
+    def every_red(self):
+        return [results for results in itertools.product(self.RESULTS, repeat=4) if results != ('success',) * 4]
+
+    def test_a_red_run_never_closes_the_issue_whatever_the_core_said(self):
+        for results in self.every_red():
+            self.assertEqual('skipped', self.reported(results, 'close')[2], results)
+
+    def test_a_green_run_closes_the_issue_when_the_core_says_close(self):
+        self.assertEqual(['skipped', 'skipped', 'success', 'skipped'], self.reported(('success',) * 4, 'close'))
+
+    def test_a_red_run_writes_to_the_issue_whatever_the_core_said_or_failed_to_say(self):
+        for results in self.every_red():
+            for action in self.ACTIONS:
+                for failing in ((), ('open',), ('comment',)):
+                    written = self.reported(results, action, failing)
+
+                    self.assertIn('success', (written[0], written[1], written[3]), (results, action, failing))
+
+    def test_a_red_run_whose_open_or_comment_went_through_writes_nothing_more(self):
+        for results in self.every_red():
+            self.assertEqual(['success', 'skipped', 'skipped', 'skipped'], self.reported(results, 'open'))
+            self.assertEqual(['skipped', 'success', 'skipped', 'skipped'], self.reported(results, 'comment'))
+
+    def test_a_green_run_never_says_it_is_red(self):
+        for action in self.ACTIONS:
+            self.assertEqual('skipped', self.reported(('success',) * 4, action)[3], action)
+
+    def test_a_green_run_whose_close_failed_says_it_is_red(self):
+        self.assertEqual('success', self.reported(('success',) * 4, 'close', failing=(
+            'Close the issue, saying main now stands at the judged commit, only when every job before passed',))[3])
+
+
+class WhatTheIssueStepsHandGh(WorkflowTest):
+    def setUp(self):
+        super().setUp()
+        self.where = tempfile.TemporaryDirectory()
+        self.calls = os.path.join(self.where.name, 'calls')
+        self.listed = os.path.join(self.where.name, 'listed.json')
+        bin_directory = os.path.join(self.where.name, 'bin')
+        os.makedirs(bin_directory)
+        gh = os.path.join(bin_directory, 'gh')
+        with open(gh, 'w', encoding='utf-8') as fake:
+            fake.write('#!%s\nimport json, os, sys\n'
+                       "with open(os.environ['GH_CALLS'], 'a') as calls:\n"
+                       "    sent = sys.argv[1:]\n"
+                       "    if '--body-file' in sent:\n"
+                       "        sent = sent + [open(sent[sent.index('--body-file') + 1], encoding='utf-8').read()]\n"
+                       "    calls.write(json.dumps(sent) + '\\n')\n"
+                       "if sys.argv[1:3] == ['issue', 'list']:\n"
+                       "    sys.stdout.write(open(os.environ['GH_LISTED']).read())\n" % sys.executable)
+        os.chmod(gh, 0o755)
+        self.path = bin_directory + os.pathsep + os.environ.get('PATH', '')
+
+    def tearDown(self):
+        self.where.cleanup()
+
+    def fell_back(self, listed):
+        with open(self.listed, 'w', encoding='utf-8') as written:
+            written.write(listed)
+        return self.ran(steps_of(self.jobs['report'])[-1], {})
+
+    def ran(self, step, environ):
+        done = subprocess.run(['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c', step['run']],
+                              cwd=self.where.name, capture_output=True, text=True, timeout=60,
+                              env=dict({name: text for name, text in step['env'].items() if '${{' not in text},
+                                       PATH=self.path, HOME=self.where.name, GH_CALLS=self.calls,
+                                       GH_LISTED=self.listed, RUNNER_TEMP=self.where.name, GH_TOKEN='a-token',
+                                       GITHUB_SERVER_URL='https://github.com', GITHUB_REPOSITORY='th7/midnight-snackers',
+                                       GITHUB_RUN_ID='123456', **environ))
+        self.assertEqual(0, done.returncode, done.stdout + done.stderr)
+        with open(self.calls, encoding='utf-8') as calls:
+            return [json.loads(line) for line in calls.read().split('\n') if line]
+
+    def test_it_comments_on_the_oldest_issue_so_titled_naming_the_run(self):
+        calls = self.fell_back('[{"number": 41, "title": "%s"}, {"number": 7, "title": "Launch Sim"}, '
+                               '{"number": 12, "title": "%s"}]' % (issues.TITLE, issues.TITLE))
+
+        self.assertEqual(2, len(calls))
+        self.assertEqual(['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body'], calls[1][:5])
+        self.assertEqual(['--', '12'], calls[1][-2:])
+        self.assertIn('https://github.com/th7/midnight-snackers/actions/runs/123456', calls[1][5])
+
+    def test_each_step_that_carries_out_the_core_s_action_hands_gh_the_body_the_core_wrote_as_it_wrote_it(self):
+        body = 'develop was judged red at `x` — é, so\n\n```\nremote: $(rejected)\n```\n'
+        handed = issues.action_outputs(issues.Open(issues.TITLE, body)).split('\n')[2][len('body='):]
+        report = self.jobs['report']
+
+        self.assertEqual([['issue', 'create', '--repo', 'th7/midnight-snackers', '--title', issues.TITLE, '--body-file',
+                           os.path.join(self.where.name, 'issue-body.md'), body]],
+                         self.ran(step_named(report, 'open'), {'TITLE': issues.TITLE, 'BODY': handed}))
+        os.remove(self.calls)
+        self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file',
+                           os.path.join(self.where.name, 'issue-body.md'), '--', '12', body]],
+                         self.ran(step_named(report, 'comment'), {'ISSUE': '12', 'BODY': handed}))
+        os.remove(self.calls)
+        closing = self.ran(steps_of(report)[2], {'ISSUES': '12 41', 'BODY': handed})
+        self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file',
+                           os.path.join(self.where.name, 'issue-body.md'), '--', '12', body],
+                          ['issue', 'close', '--repo', 'th7/midnight-snackers', '--', '12'],
+                          ['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file',
+                           os.path.join(self.where.name, 'issue-body.md'), '--', '41', body],
+                          ['issue', 'close', '--repo', 'th7/midnight-snackers', '--', '41']], closing)
+
+    def test_it_opens_the_issue_when_none_so_titled_is_open(self):
+        calls = self.fell_back('[{"number": 5, "title": "IMPORTANT: develop CI Failures (old)"}]')
+
+        self.assertEqual(['issue', 'create', '--repo', 'th7/midnight-snackers', '--title', issues.TITLE, '--body'],
+                         calls[1][:7])
+        self.assertIn('https://github.com/th7/midnight-snackers/actions/runs/123456', calls[1][7])
 
 
 class WhatAShellIsHanded(WorkflowTest):

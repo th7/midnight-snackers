@@ -1,3 +1,4 @@
+import base64
 import json
 import re
 from dataclasses import dataclass
@@ -129,11 +130,15 @@ def issue_action(judgement, promoting, listed, link):
     return CommentOn(ours[0], body) if ours else Open(TITLE, body)
 
 
+def body_output(body):
+    return 'body=%s\n' % base64.b64encode(body.encode('utf-8')).decode('ascii')
+
+
 def action_outputs(action):
     if isinstance(action, Open):
-        return 'action=open\ntitle=%s\n' % action.title
+        return 'action=open\ntitle=%s\n' % action.title + body_output(action.body)
     if isinstance(action, CommentOn):
-        return 'action=comment\nissues=%d\n' % action.issue
+        return 'action=comment\nissues=%d\n' % action.issue + body_output(action.body)
     if isinstance(action, Close):
-        return 'action=close\nissues=%s\n' % ' '.join(str(number) for number in action.issues)
+        return 'action=close\nissues=%s\n' % ' '.join(str(number) for number in action.issues) + body_output(action.body)
     return 'action=none\n'

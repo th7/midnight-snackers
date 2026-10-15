@@ -130,18 +130,19 @@ class SayingWhatTheRunFound(unittest.TestCase):
     def report(self, open_issues, **changed):
         with open(self.open_issues, 'w') as written:
             written.write(open_issues)
-        return called('report', reported(**changed), self.open_issues, self.body)
+        self.done = called('report', reported(**changed), self.open_issues)
+        return self.done
 
     def body_written(self):
-        with open(self.body) as read:
-            return read.read()
+        handed = dict(line.split('=', 1) for line in self.done.stdout.split('\n') if line)
+        return base64.b64decode(handed['body'], validate=True).decode('utf-8')
 
     def test_a_red_run_with_no_issue_open_hands_the_workflow_an_issue_to_open_and_writes_its_body(self):
         done = self.report('[{"number": 7, "title": "Launch Sim"}]', JUDGING_ENDED='failure',
                            STEP_UNIT_TESTS='failure', PUSHED='skipped', PROMOTING_ENDED='failure')
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertTrue(done.stdout.startswith('action=open\ntitle=IMPORTANT: develop CI Failures\nbody='), done.stdout)
         self.assertIn('develop was judged red at `%s` `A wheel throws a ball`' % JUDGED, self.body_written())
         self.assertIn('https://github.com/th7/midnight-snackers/actions/runs/123456', self.body_written())
         self.assertIn(self.body_written(), done.stderr)
@@ -150,23 +151,22 @@ class SayingWhatTheRunFound(unittest.TestCase):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]')
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertEqual('action=close\nissues=12\n', done.stdout)
+        self.assertTrue(done.stdout.startswith('action=close\nissues=12\nbody='), done.stdout)
         self.assertIn('main now stands there', self.body_written())
 
-    def test_a_run_that_left_main_where_it_was_ahead_hands_the_workflow_nothing_to_do_and_writes_no_body(self):
+    def test_a_run_that_left_main_where_it_was_ahead_hands_the_workflow_nothing_to_do_and_no_body(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
                            MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY))
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=none\n', done.stdout)
-        self.assertFalse(os.path.exists(self.body))
 
     def test_a_refused_push_reaches_the_body_with_what_git_said(self):
         done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure',
                            GIT_SAID=b64('remote: error: GH006: Protected branch update failed\n'))
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertTrue(done.stdout.startswith('action=open\ntitle=IMPORTANT: develop CI Failures\nbody='), done.stdout)
         self.assertIn('remote: error: GH006: Protected branch update failed\n', self.body_written())
 
     def test_a_run_held_over_workflows_hands_the_workflow_the_issue_to_comment_on_with_the_maintainer_s_push(self):
@@ -174,7 +174,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
                            PROMOTING_ENDED='failure', WORKFLOWS=b64('.github/workflows/tests.yml\n'))
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertEqual('action=comment\nissues=12\n', done.stdout)
+        self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
         self.assertIn('git push origin %s:refs/heads/main' % JUDGED, self.body_written())
 
     def test_a_report_not_handed_what_the_look_at_main_found_fails_naming_it_and_hands_nothing(self):
@@ -183,7 +183,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
             del environ[name]
             with open(self.open_issues, 'w') as written:
                 written.write('[]')
-            done = called('report', environ, self.open_issues, self.body)
+            done = called('report', environ, self.open_issues)
 
             self.assertEqual(2, done.returncode)
             self.assertEqual('', done.stdout)
@@ -193,7 +193,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
         done = self.report('[]', LOOKING_ENDED='failure', MAIN_TIP='', PROMOTING_ENDED='failure', PUSHED='skipped')
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertTrue(done.stdout.startswith('action=open\ntitle=IMPORTANT: develop CI Failures\nbody='), done.stdout)
         self.assertIn('The job that looks at main ended `failure` before it found where main stands.',
                       self.body_written())
 
@@ -204,12 +204,13 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertEqual('', done.stdout)
         self.assertIn('JSON', done.stderr)
 
-    def test_a_report_not_told_where_the_open_issues_and_the_body_are_fails_and_hands_nothing(self):
-        done = called('report', reported())
+    def test_a_report_not_told_where_the_open_issues_are_and_nothing_more_fails_and_hands_nothing(self):
+        for arguments in ((), (self.open_issues, self.body)):
+            done = called('report', reported(), *arguments)
 
-        self.assertEqual(2, done.returncode)
-        self.assertEqual('', done.stdout)
-        self.assertIn('open issues', done.stderr)
+            self.assertEqual(2, done.returncode)
+            self.assertEqual('', done.stdout)
+            self.assertIn('report takes where the open issues are, and nothing more', done.stderr)
 
 
 if __name__ == '__main__':

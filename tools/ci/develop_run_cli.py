@@ -45,8 +45,8 @@ def promotion(environ, arguments, stdout, stderr):
 
 
 def report(environ, arguments, stdout, stderr):
-    if len(arguments) != 2:
-        return run.Rejected('report takes where the open issues are and where to write the body, in that order')
+    if len(arguments) != 1:
+        return run.Rejected('report takes where the open issues are, and nothing more')
     inputs = handed(environ, JUDGEMENT + LOOKING + PROMOTING + RUN)
     if isinstance(inputs, run.Rejected):
         return inputs
@@ -61,8 +61,6 @@ def report(environ, arguments, stdout, stderr):
         return rejected
     action = issues.issue_action(judgement, promoting, open_issues, link)
     if not isinstance(action, issues.LeaveAlone):
-        with open(arguments[1], 'w', encoding='utf-8') as body:
-            body.write(action.body)
         print(action.body, file=stderr)
     stdout.write(issues.action_outputs(action))
     return 0
