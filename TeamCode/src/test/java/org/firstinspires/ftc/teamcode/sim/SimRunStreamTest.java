@@ -16,6 +16,7 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
@@ -690,6 +691,41 @@ public class SimRunStreamTest {
 
         assertFalse(handshake.message, handshake.refused());
         assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, spread), handshake.startLine);
+    }
+
+    private static final String FIRST_LISTED_HELLO = "{\"protocol\":7,\"reads\":[\"motor_spread\",\"flattest_volts\","
+            + "\"freshest_volts\",\"sag_volts_per_power\",\"drain_volts_per_second\",\"least_traction_g\","
+            + "\"most_traction_g\",\"set_down_inches\",\"set_down_degrees\",\"loop_seconds\",\"loop_spread\","
+            + "\"least_loop_seconds\",\"hiccup_chance\",\"shortest_hiccup_seconds\",\"longest_hiccup_seconds\","
+            + "\"flywheel_ticks_per_turn\",\"turntable_speed\"],\"retired\":[\"launch_throw\"]}";
+
+    private static Constants changedAlone(Constant constant) {
+        for (double value :
+                new double[] {constant.most(), constant.least(), 2 * constant.byDefault(), constant.byDefault() / 2}) {
+            if (Constants.of(java.util.Map.of(constant, value)) instanceof Checked.Ok<Constants> admitted) {
+                return admitted.value();
+            }
+        }
+        throw new AssertionError(constant.asked() + " may be changed alone to none of its ends, nor twice or half"
+                + " what it was built as");
+    }
+
+    @Test
+    public void aChildOfTheFirstVersionToListItsConstantsRunsOnEachOneItReadsAndIsRefusedAnyOtherTheAdminChanged() {
+        List<String> reads = strings(
+                new Gson().fromJson(FIRST_LISTED_HELLO, JsonObject.class).getAsJsonArray("reads"));
+
+        for (Constant constant : Constant.values()) {
+            SimRunStream.Handshake handshake = SimRunStream.handshake(
+                    FIRST_LISTED_HELLO, StartPoses.ORIGIN, null, TeamRobot.REGINALD, changedAlone(constant));
+
+            if (reads.contains(constant.asked())) {
+                assertFalse(constant.asked() + ": " + handshake.message, handshake.refused());
+            } else {
+                assertEquals(Outcome.doesNotRead(List.of(constant)), handshake.outcome);
+                assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+            }
+        }
     }
 
     @Test

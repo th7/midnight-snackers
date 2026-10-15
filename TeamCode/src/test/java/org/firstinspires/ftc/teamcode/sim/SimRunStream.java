@@ -248,10 +248,6 @@ public final class SimRunStream {
         return helloOf(PROTOCOL);
     }
 
-    /**
-     * What a child speaking that protocol says first. A test of what a bench does with an older
-     * child writes its hello with this, so the line it is handed is the line one would print.
-     */
     public static String helloOf(int protocol) {
         if (protocol >= CONSTANTS_LISTED_PROTOCOL) {
             return helloOf(protocol, everyConstantRead(), everyConstantRetired());
