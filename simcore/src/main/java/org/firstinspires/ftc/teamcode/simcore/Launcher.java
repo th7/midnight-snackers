@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.simcore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 final class Launcher implements Surroundings.Part {
     static final String CAD_SOURCE =
@@ -102,20 +101,17 @@ final class Launcher implements Surroundings.Part {
         private final Frame from;
         private final GridTime began;
         private final Frame to;
-        private final double seconds;
-        private final double acrossX;
-        private final double acrossY;
-        private final double turned;
+        private final GridTime ends;
+        private final Vec3 velocity;
+        private final double turning;
 
-        private Course(
-                Frame from, GridTime began, Frame to, double seconds, double acrossX, double acrossY, double turned) {
+        private Course(Frame from, GridTime began, Frame to, GridTime ends, Vec3 velocity, double turning) {
             this.from = from;
             this.began = began;
             this.to = to;
-            this.seconds = seconds;
-            this.acrossX = acrossX;
-            this.acrossY = acrossY;
-            this.turned = turned;
+            this.ends = ends;
+            this.velocity = velocity;
+            this.turning = turning;
         }
 
         static Checked<Course> of(Frame from, GridTime began, Frame to, GridTime ends) {
@@ -125,16 +121,15 @@ final class Launcher implements Surroundings.Part {
                         "a launcher's course ends no earlier than it begins, not at " + ends + " from " + began);
             }
             if (!(seconds > 0)) {
-                return Checked.ok(new Course(from, began, to, 0, 0, 0, 0));
+                return Checked.ok(new Course(from, began, to, ends, Vec3.zero(), 0));
             }
             Course course = new Course(
                     from,
                     began,
                     to,
-                    seconds,
-                    to.x - from.x,
-                    to.y - from.y,
-                    StrictMath.IEEEremainder(to.yaw - from.yaw, Flywheel.WHOLE_TURN));
+                    ends,
+                    new Vec3((to.x - from.x) / seconds, (to.y - from.y) / seconds, 0),
+                    StrictMath.IEEEremainder(to.yaw - from.yaw, Flywheel.WHOLE_TURN) / seconds);
             double sweep = course.sweep();
             if (!(sweep <= Flight.MOST_SPEED_IN_PER_S)) {
                 return Checked.rejected("a launcher's frame sweeps its faces at most " + Flight.MOST_SPEED_IN_PER_S
@@ -153,44 +148,42 @@ final class Launcher implements Surroundings.Part {
         }
 
         Vec3 velocity() {
-            if (!(seconds > 0)) {
-                return Vec3.zero();
-            }
-            return new Vec3(acrossX / seconds, acrossY / seconds, 0);
+            return velocity;
         }
 
         double turning() {
-            if (!(seconds > 0)) {
-                return 0;
-            }
-            return turned / seconds;
+            return turning;
         }
 
         double sweep() {
-            Vec3 velocity = velocity();
-            return StrictMath.sqrt(velocity.dot(velocity)) + StrictMath.abs(turning()) * FARTHEST_IN;
+            return StrictMath.sqrt(velocity.dot(velocity)) + StrictMath.abs(turning) * FARTHEST_IN;
         }
 
         boolean moving() {
-            return acrossX != 0 || acrossY != 0 || turned != 0;
+            return velocity.x() != 0 || velocity.y() != 0 || turning != 0;
         }
 
         Placed at(GridTime time) {
-            if (!(seconds > 0)) {
+            if (!moving()) {
                 return new Placed(new Vec3(to.x, to.y, 0), to.yaw);
             }
-            double part = between(began, time) / seconds;
-            if (part < 0.5) {
-                return new Placed(
-                        new Vec3(from.x + part * acrossX, from.y + part * acrossY, 0), from.yaw + part * turned);
+            double sinceBegan = between(began, time);
+            double sinceEnded = between(ends, time);
+            if (StrictMath.abs(sinceBegan) < StrictMath.abs(sinceEnded)) {
+                return carried(from, sinceBegan);
             }
-            double left = part - 1;
-            return new Placed(new Vec3(to.x + left * acrossX, to.y + left * acrossY, 0), to.yaw + left * turned);
+            return carried(to, sinceEnded);
+        }
+
+        private Placed carried(Frame frame, double seconds) {
+            return new Placed(
+                    new Vec3(frame.x + seconds * velocity.x(), frame.y + seconds * velocity.y(), 0),
+                    frame.yaw + seconds * turning);
         }
 
         @Override
         public String toString() {
-            return "from " + from + " at " + began + " to " + to + " " + seconds + " s later";
+            return "from " + from + " at " + began + " to " + to + " " + between(began, ends) + " s later";
         }
     }
 
@@ -356,8 +349,8 @@ final class Launcher implements Surroundings.Part {
     private final double cos;
     private final double sin;
     private final Vec3 frameSpin;
-    private final Optional<Surroundings.Support> wheelSupport;
-    private final Optional<Surroundings.Support> hoodSupport;
+    private final Checked<Surroundings.Support> wheelSupport;
+    private final Checked<Surroundings.Support> hoodSupport;
 
     private Launcher(Faces faces, Course course, Flywheel.AngularSpeed wheel, GridTime time) {
         this.faces = faces;
@@ -369,13 +362,9 @@ final class Launcher implements Surroundings.Part {
         this.frameSpin = new Vec3(0, 0, course.turning());
         Vec3 hub = world(hub());
         Vec3 atHub = frameVelocityAt(hub);
-        this.wheelSupport = supported(hub, atHub, frameSpin.plus(turned(axle()).times(wheel.radiansPerSecond())));
-        this.hoodSupport = supported(hub, atHub, frameSpin);
-    }
-
-    private static Optional<Surroundings.Support> supported(Vec3 point, Vec3 velocity, Vec3 spin) {
-        return Surroundings.Support.of(point, velocity, spin)
-                .fold(support -> Optional.of(support), rule -> Optional.empty());
+        this.wheelSupport = Surroundings.Support.of(
+                hub, atHub, frameSpin.plus(turned(axle()).times(wheel.radiansPerSecond())));
+        this.hoodSupport = Surroundings.Support.of(hub, atHub, frameSpin);
     }
 
     static Launcher placed(Faces faces, Course course, Flywheel.AngularSpeed wheel) {
@@ -517,11 +506,11 @@ final class Launcher implements Surroundings.Part {
             Compliance surface,
             Arc.Nearest nearest,
             Length radius,
-            Optional<Surroundings.Support> support) {
+            Checked<Surroundings.Support> support) {
         double depth = radius.inches() - nearest.distance();
         if (depth > 0) {
-            support.ifPresent(moving -> Surroundings.Overlap.of(id, surface, turned(nearest.normal()), depth, moving)
-                    .fold(made -> overlaps.add(made), rule -> false));
+            support.then(moving -> Surroundings.Overlap.of(id, surface, turned(nearest.normal()), depth, moving))
+                    .fold(made -> overlaps.add(made), rule -> false);
         }
     }
 

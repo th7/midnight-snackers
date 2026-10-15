@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.simcore;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.List;
 import org.junit.Test;
 
 public class LauncherCourseTest {
@@ -132,6 +133,53 @@ public class LauncherCourseTest {
         assertEquals(0, Double.doubleToRawLongBits(course.turning()));
         for (double seconds : new double[] {0, 0.0371, BEGINS, 0.1023, 0.1025, ENDS, 0.31, 250}) {
             assertExactly("at " + seconds, still, placed(course, seconds));
+        }
+        Bodies.Step step = Valid.value(Flight.stepping());
+        Launcher.Course instant = Valid.value(Launcher.Course.of(
+                still,
+                GridTime.at(0, step),
+                frame(-31.7, 12.25, 2.9),
+                GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-306)), step)));
+        assertEquals(Vec3.zero(), instant.velocity());
+        assertEquals(0, Double.doubleToRawLongBits(instant.turning()));
+        for (Launcher.Course stillCourse : List.of(course, instant)) {
+            for (GridTime time : List.of(
+                    GridTime.at(1, step),
+                    Valid.time(0.31),
+                    Valid.time(-250),
+                    GridTime.at(Long.MAX_VALUE, step),
+                    GridTime.at(Long.MIN_VALUE, step))) {
+                assertExactly("over " + stillCourse + ", at " + time, still, stillCourse.at(time));
+            }
+        }
+    }
+
+    @Test
+    public void aCoursePlacesItsFrameAtItsVelocityAndTurnFromItsNearerEndSoItIsFiniteWhereverItIsPlacedHoweverShort() {
+        Bodies.Step step = Valid.value(Flight.stepping());
+        GridTime began = GridTime.at(0, step);
+        GridTime soon = GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-310)), step);
+        Launcher.Course sliding = Valid.value(Launcher.Course.of(frame(0, 0, 0), began, frame(1e-312, 0, 0), soon));
+        Launcher.Course turning = Valid.value(Launcher.Course.of(frame(0, 0, 0), began, frame(0, 0, 1e-314), soon));
+
+        assertEquals(100, sliding.velocity().x(), 1e-6);
+        assertEquals(1, turning.turning(), 1e-6);
+        for (double seconds : new double[] {1, -1, 0.3, 250}) {
+            assertPlaced("sliding, at " + seconds, sliding.velocity().x() * seconds, 0, 0, placed(sliding, seconds));
+            assertPlaced("turning, at " + seconds, 0, 0, turning.turning() * seconds, placed(turning, seconds));
+        }
+        Launcher.Course fastest = course(
+                frame(-10000, 10000, StrictMath.PI),
+                BEGINS,
+                frame(-10000 + 0.99 * Flight.MOST_SPEED_IN_PER_S * STEP_SECONDS, 10000, StrictMath.PI),
+                ENDS);
+        for (Launcher.Course course : List.of(sliding, turning, fastest)) {
+            for (long steps : new long[] {Long.MAX_VALUE, Long.MIN_VALUE}) {
+                Launcher.Placed placed = course.at(GridTime.at(steps, step));
+                assertTrue(
+                        "over " + course + ", at step " + steps + ": " + placed,
+                        placed.origin().isFinite() && Double.isFinite(placed.yaw()));
+            }
         }
     }
 

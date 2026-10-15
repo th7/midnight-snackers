@@ -647,52 +647,91 @@ public class LauncherAsAPartTest {
         double most = Launcher.Frame.MOST_FROM_CENTRE_IN;
         double fastest = 0.999 * Flight.MOST_SPEED_IN_PER_S * (ENDS - BEGINS);
         double fastestTurn = 0.999 * Flight.MOST_SPEED_IN_PER_S / Launcher.FARTHEST_IN * (ENDS - BEGINS);
+        Bodies.Step step = Valid.value(Flight.stepping());
+        GridTime first = GridTime.at(0, step);
+        GridTime instant = GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-306)), step);
+        GridTime soon = GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-310)), step);
         List<Flywheel.AngularSpeed> wheels = List.of(
                 wheel(Flywheel.TOP_TICKS_PER_SECOND, 18),
                 wheel(-Flywheel.TOP_TICKS_PER_SECOND, 18),
                 wheel(Double.NaN, 18),
                 wheel(1, 10000));
-        int met = 0;
+        List<Launcher.Course> courses = new ArrayList<>();
         for (double x : new double[] {-most, 0, most}) {
             for (double y : new double[] {-most, most}) {
                 for (double yaw : new double[] {-StrictMath.PI, -1, 3, StrictMath.PI}) {
                     Launcher.Frame from = frame(x, y, yaw);
-                    List<Launcher.Course> courses = List.of(
-                            course(from, from),
-                            course(from, frame(x - StrictMath.signum(x) * fastest, y, yaw)),
-                            course(from, frame(x, y, yaw + fastestTurn)),
-                            course(from, frame(x - StrictMath.signum(x) * fastest / 2, y, yaw - fastestTurn / 2)));
-                    for (Launcher.Course course : courses) {
-                        for (Flywheel.AngularSpeed spinning : wheels) {
-                            for (double t : new double[] {-250, BEGINS, ENDS, 250}) {
-                                Launcher then = launcher(course, spinning).at(Valid.time(t));
-                                Surroundings around = Valid.value(Surroundings.of(FIELD, List.of(then)));
-                                for (double degrees = -75; degrees <= 25; degrees += 25) {
-                                    Vec3 centre = placedAt(then.where(), onThePath(degrees, wheelRing(0) + R));
-                                    assertTrue(then.reaches(centre, R));
-                                    List<Surroundings.Overlap> overlaps = then.squeezing(centre, POLLEN);
-                                    assertTrue("squeezed at " + centre, !overlaps.isEmpty());
-                                    assertEquals(
-                                            overlaps.size(),
-                                            around.squeezing(centre, POLLEN).size());
-                                    for (Surroundings.Squeeze squeeze : around.squeezing(centre, POLLEN)) {
-                                        assertTrue(squeeze.velocity().isFinite()
-                                                && squeeze.spin().isFinite());
-                                        met++;
-                                    }
-                                }
-                                Vec3 entry = then.entry(POLLEN);
-                                assertEquals(
-                                        1,
-                                        then.near(entry, POLLEN, Shot.TOUCHING_IN)
-                                                .size());
-                                assertTrue(then.feed(POLLEN).isFinite());
-                            }
+                    courses.add(course(from, from));
+                    courses.add(course(from, frame(x - StrictMath.signum(x) * fastest, y, yaw)));
+                    courses.add(course(from, frame(x, y, yaw + fastestTurn)));
+                    courses.add(course(from, frame(x - StrictMath.signum(x) * fastest / 2, y, yaw - fastestTurn / 2)));
+                    courses.add(Valid.value(Launcher.Course.of(from, first, from, instant)));
+                }
+            }
+            courses.add(Valid.value(Launcher.Course.of(frame(x, most, 0), first, frame(x + 1e-312, most, 0), soon)));
+            courses.add(Valid.value(Launcher.Course.of(frame(x, -most, 0), first, frame(x, -most, 1e-314), soon)));
+        }
+        int met = 0;
+        for (Launcher.Course course : courses) {
+            for (Flywheel.AngularSpeed spinning : wheels) {
+                for (double t : new double[] {-250, BEGINS, ENDS, 250}) {
+                    Launcher then = launcher(course, spinning).at(Valid.time(t));
+                    String on = " on " + then;
+                    Surroundings around = Valid.value(Surroundings.of(FIELD, List.of(then)));
+                    for (double degrees = -75; degrees <= 25; degrees += 25) {
+                        Vec3 centre = placedAt(then.where(), onThePath(degrees, wheelRing(0) + R));
+                        assertTrue("reaches the ball at " + centre + on, then.reaches(centre, R));
+                        List<Surroundings.Overlap> overlaps = then.squeezing(centre, POLLEN);
+                        assertTrue("squeezed at " + centre + on, !overlaps.isEmpty());
+                        assertEquals(
+                                on,
+                                overlaps.size(),
+                                around.squeezing(centre, POLLEN).size());
+                        for (Surroundings.Squeeze squeeze : around.squeezing(centre, POLLEN)) {
+                            assertTrue(
+                                    on,
+                                    squeeze.velocity().isFinite()
+                                            && squeeze.spin().isFinite());
+                            met++;
                         }
                     }
+                    Vec3 entry = then.entry(POLLEN);
+                    assertEquals(
+                            on, 1, then.near(entry, POLLEN, Shot.TOUCHING_IN).size());
+                    assertTrue(on, then.feed(POLLEN).isFinite());
+                }
+                for (long steps : new long[] {Long.MAX_VALUE, Long.MIN_VALUE}) {
+                    Launcher farthest = launcher(course, spinning).at(GridTime.at(steps, step));
+                    assertTrue(
+                            "placed at step " + steps + " on " + farthest,
+                            farthest.where().origin().isFinite()
+                                    && Double.isFinite(farthest.where().yaw())
+                                    && farthest.feed(POLLEN).isFinite());
                 }
             }
         }
         assertTrue(met > 1000);
+    }
+
+    @Test
+    public void overACourseOfTheLeastTimeTheTypesAdmitItSqueezesAndTouchesTheBallAtItsEntryAsItDoesWhereItBegan() {
+        Bodies.Step step = Valid.value(Flight.stepping());
+        GridTime first = GridTime.at(0, step);
+        Launcher.Frame at = frame(-25, -35, 0.7);
+        Launcher.Course instant = Valid.value(Launcher.Course.of(
+                at, first, at, GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-306)), step)));
+        Launcher began = launcher(instant, wheel(CLOSE_LAUNCH));
+        Vec3 entry = began.entry(POLLEN);
+        for (GridTime time : List.of(GridTime.at(1, step), Valid.time(BEGINS), Valid.time(250))) {
+            Launcher then = began.at(time);
+            assertEquals("placed at " + time, began.where(), then.where());
+            assertEquals("squeezed at " + time, began.squeezing(entry, POLLEN), then.squeezing(entry, POLLEN));
+            assertEquals(
+                    "touched at " + time,
+                    began.near(entry, POLLEN, Shot.TOUCHING_IN),
+                    then.near(entry, POLLEN, Shot.TOUCHING_IN));
+        }
+        assertTrue(!began.squeezing(entry, POLLEN).isEmpty());
+        assertEquals(1, began.near(entry, POLLEN, Shot.TOUCHING_IN).size());
     }
 }
