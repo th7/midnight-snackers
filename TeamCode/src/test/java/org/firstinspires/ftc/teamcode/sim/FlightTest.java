@@ -7,10 +7,13 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.DoubleFunction;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
+import org.firstinspires.ftc.teamcode.simcore.Flywheel;
 import org.firstinspires.ftc.teamcode.simcore.Hives;
+import org.firstinspires.ftc.teamcode.simcore.Launcher;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Ring;
@@ -955,8 +958,311 @@ public class FlightTest {
         assertEquals("then a five-nectar tip", TIP_WORK, flight.work() - launched);
     }
 
+    private static final String AIR_SOURCE = "a ball the robot carries goes through the still air at the robot's"
+            + " velocity as well as its own, so the air slows it more than it slows the same throw from a still"
+            + " robot, and by the 50 ms after the feed at which the throws are compared that has cost it less than"
+            + " 1 % of the robot's speed; in a vacuum the two differ by rounding alone (LauncherTest)";
+    private static final double AIR_TAKES_OF_THE_ROBOTS_SPEED = 0.01;
+    private static final String ROUNDING_SOURCE = "a turned frame throws as an unturned one does, turned, but for"
+            + " where the two put the ball, which differs by the rounding of a place on the field, an ulp of 100 in;"
+            + " the squeeze, ringing at about 1,800 a second, the root of its 80 N/mm over the pollen's mass, turns"
+            + " that into a velocity at each of the 600 steps from the first course to the comparison";
+    private static final double ROUNDING_WITHIN = Math.ulp(100.0) * 1800 * 600;
     private static final long LAUNCH_WORK = 136054;
     private static final long TIP_WORK = 1251376;
+
+    private static final String TICKS_PER_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4, Calibration: the"
+            + " flywheel's ticks per turn is expected near 24.2, a 1.16:1 step-up over a 28-tick motor, until the"
+            + " calibration builds it in";
+    private static final double TICKS_PER_TURN = 24.2;
+    private static final double CLOSE_LAUNCH = 1050;
+    private static final String ROBOT_TOP_SOURCE =
+            "doc/plans/reginald.md: Reginald stands 9.084 in high after the trim";
+    private static final double ROBOT_TOP_IN = 9.084;
+    private static final double THROWN_ABOVE_IN = 30;
+    private static final double ROBOT_X = -30;
+    private static final double ROBOT_Y = -45;
+    private static final double ROBOT_YAW = 0;
+    private static final double AFTER_THE_FEED_SECONDS = 0.05;
+
+    private static Launcher.Frame frame(double x, double y, double yaw) {
+        return Valid.value(Launcher.Frame.of(x, y, yaw));
+    }
+
+    private static Launcher.Frame resting(double seconds) {
+        return frame(ROBOT_X, ROBOT_Y, ROBOT_YAW);
+    }
+
+    private static Flywheel.AngularSpeed wheel(double ticksPerSecond) {
+        assertEquals(TICKS_PER_TURN_SOURCE, 24.2, TICKS_PER_TURN, 0);
+        return Flywheel.AngularSpeed.from(ticksPerSecond, Valid.value(Flywheel.TicksPerTurn.of(TICKS_PER_TURN)));
+    }
+
+    private void carryALauncher(DoubleFunction<Launcher.Frame> frameAt) {
+        flown = 0;
+        flight = Valid.value(Flight.<Object>carryingALauncher(field, frameAt.apply(flown)));
+    }
+
+    private Object feed() {
+        Object ball = new Object();
+        flight = Valid.value(flight.fed(ball, Field.Kind.POLLEN, POLLEN));
+        return ball;
+    }
+
+    private void carry(double seconds, DoubleFunction<Launcher.Frame> frameAt, Flywheel.AngularSpeed wheel) {
+        for (long i = Math.round(seconds / STEP); i > 0; i--) {
+            flown += STEP;
+            Flight.Stepped<Object> stepped = Valid.value(flight.step(tick(STEP), frameAt.apply(flown), wheel));
+            flight = stepped.flight();
+            landed.addAll(stepped.landings());
+        }
+    }
+
+    private double highestWithin(double seconds, Object ball, DoubleFunction<Launcher.Frame> frameAt) {
+        double highest = Double.NEGATIVE_INFINITY;
+        for (long i = Math.round(seconds / STEP); i > 0 && flight.holds(ball); i--) {
+            carry(STEP, frameAt, wheel(CLOSE_LAUNCH));
+            highest = flight.holds(ball) ? Math.max(highest, at(ball).z()) : highest;
+        }
+        return highest;
+    }
+
+    private static void assertVec(String what, Vec3 expected, Vec3 actual, double within) {
+        assertEquals(what + ": x of " + actual, expected.x(), actual.x(), within);
+        assertEquals(what + ": y of " + actual, expected.y(), actual.y(), within);
+        assertEquals(what + ": z of " + actual, expected.z(), actual.z(), within);
+    }
+
+    private static Vec3 turned(Vec3 v, double radians) {
+        double cos = Math.cos(radians), sin = Math.sin(radians);
+        return new Vec3(cos * v.x() - sin * v.y(), sin * v.x() + cos * v.y(), v.z());
+    }
+
+    @Test
+    public void aFlightWithNoRobotHasNoLauncherToStepOrFeedAndOneCarryingALauncherStepsOnlyWithItsFrameAndWheel() {
+        Launcher.Frame at = resting(0);
+
+        List<String> robotless = List.of(
+                rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN)),
+                rejection(flight.step(tick(STEP), at, wheel(0))));
+        String alone = rejection(
+                Valid.value(Flight.<Object>carryingALauncher(field, at)).step(tick(STEP)));
+
+        for (String rule : robotless) {
+            assertTrue(rule, rule.contains("a flight with no robot has no launcher"));
+        }
+        assertTrue(
+                alone,
+                alone.contains(
+                        "a flight that carries a launcher steps with the frame it ends at and its" + " wheel's speed"));
+    }
+
+    @Test
+    public void aLauncherIsFedOnlyAPollenOfItsSizeAndOnlyWhileItsEntryIsClearAndARefusalNamesTheRule() {
+        carryALauncher(FlightTest::resting);
+        Flight<Object> empty = flight;
+        Object first = feed();
+
+        String crowded = rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
+        carry(1.0, FlightTest::resting, wheel(0));
+        String stillCrowded = rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
+        String nectar = rejection(empty.fed(new Object(), Field.Kind.NECTAR, NECTAR));
+        String bigger = rejection(empty.fed(new Object(), Field.Kind.POLLEN, NECTAR));
+
+        assertTrue(crowded, crowded.contains("the launcher's entry is not clear"));
+        assertTrue(stillCrowded, stillCrowded.contains("the launcher's entry is not clear"));
+        assertTrue(nectar, nectar.contains("the launcher is fed a pollen of 1.39 in radius"));
+        assertTrue(bigger, bigger.contains("the launcher is fed a pollen of 1.39 in radius"));
+        assertTrue("the fed ball is in flight", flight.holds(first) && landed.isEmpty());
+        assertTrue(
+                ROBOT_TOP_SOURCE + ": inside the robot and off the floor at " + at(first),
+                at(first).z() - POLLEN_RADIUS > 0 && at(first).z() + POLLEN_RADIUS < ROBOT_TOP_IN);
+    }
+
+    @Test
+    public void withBothGatesOpenBallsAreFedOneAtATimeAsTheEntryClearsAndEachIsThrownWithNoTwoEverOverlapping() {
+        carryALauncher(FlightTest::resting);
+        List<Object> fed = new ArrayList<>();
+        List<Double> highest = new ArrayList<>();
+        int refusals = 0;
+        double nearest = Double.POSITIVE_INFINITY;
+
+        for (int tick = 0; tick < 400; tick++) {
+            if (fed.size() < 4) {
+                Object ball = new Object();
+                String refused = flight.fed(ball, Field.Kind.POLLEN, POLLEN)
+                        .fold(
+                                next -> {
+                                    flight = next;
+                                    return "";
+                                },
+                                rule -> rule);
+                if (refused.isEmpty()) {
+                    fed.add(ball);
+                    highest.add(Double.NEGATIVE_INFINITY);
+                } else {
+                    assertTrue(refused, refused.contains("the launcher's entry is not clear"));
+                    refusals++;
+                }
+            }
+            carry(STEP, FlightTest::resting, wheel(CLOSE_LAUNCH));
+            for (int i = 0; i < fed.size(); i++) {
+                if (!flight.holds(fed.get(i))) {
+                    continue;
+                }
+                highest.set(i, Math.max(highest.get(i), at(fed.get(i)).z()));
+                for (int j = 0; j < i; j++) {
+                    if (flight.holds(fed.get(j))) {
+                        nearest = Math.min(
+                                nearest, at(fed.get(i)).minus(at(fed.get(j))).length());
+                    }
+                }
+            }
+        }
+
+        assertEquals("all four were fed", 4, fed.size());
+        assertTrue("each only once the entry was clear: refused " + refusals + " times", refusals > 0);
+        assertTrue("no two ever overlapped: " + nearest + " apart at the nearest", nearest >= 2 * POLLEN_RADIUS);
+        for (int i = 0; i < fed.size(); i++) {
+            assertTrue("ball " + i + " was thrown, up to " + highest.get(i), highest.get(i) > THROWN_ABOVE_IN);
+        }
+    }
+
+    @Test
+    public void
+            aBallInTheLauncherStaysWhereItWasThroughAHivesTipAndAChangeInWhatStandsInTheBoresAndIsThrownOnceSpunUp() {
+        carryALauncher(FlightTest::resting);
+        Object ball = feed();
+        carry(1.0, FlightTest::resting, wheel(0));
+        Vec3 held = at(ball);
+        for (int i = 0; i < 5; i++) {
+            putIn(Field.Kind.NECTAR, NECTAR, upturned(blue));
+        }
+
+        carry(STEP, FlightTest::resting, wheel(0));
+        assertTrue("the hive has begun to tip", hives().tipping(blue));
+        carry(Lean.TIP_SECONDS, FlightTest::resting, wheel(0));
+        assertFalse("and is over", hives().tipping(blue));
+        Vec3 throughTheTip = at(ball);
+        Field.Flower flower = field.flowers().get(0);
+        flight = Valid.value(flight.amid(List.of(threeStandingOnTheNestedPollen(flower)), nestedIn(flower)));
+        Vec3 amidTheStack = at(ball);
+        carry(0.1, FlightTest::resting, wheel(0));
+
+        assertEquals("through the tip", held, throughTheTip);
+        assertEquals("amid what stands in the bores", held, amidTheStack);
+        assertEquals("and on", held, at(ball));
+        assertTrue("thrown once the wheel spins up", highestWithin(0.5, ball, FlightTest::resting) > THROWN_ABOVE_IN);
+    }
+
+    @Test
+    public void
+            aRestingRobotsLauncherLetsAFedBallFallAsleepAgainstItsStopWithItsWheelStoppedAndTheFlightThenIdlesAtNoWork() {
+        carryALauncher(FlightTest::resting);
+        Object ball = feed();
+
+        carry(1.5, FlightTest::resting, wheel(0));
+        Vec3 held = at(ball);
+        long rested = flight.work();
+        carry(1.0, FlightTest::resting, wheel(0));
+
+        assertTrue(
+                ROBOT_TOP_SOURCE + ": inside the robot and off the floor at " + held,
+                held.z() - POLLEN_RADIUS > 0 && held.z() + POLLEN_RADIUS < ROBOT_TOP_IN);
+        assertEquals("where it stays", held, at(ball));
+        assertEquals("and costs nothing asleep", rested, flight.work());
+    }
+
+    @Test
+    public void aLauncherMovingAndSpinningWhereNothingIsNearItWakesNothingInTheHivesAndCostsTheFlightNoWork() {
+        DoubleFunction<Launcher.Frame> driving =
+                t -> frame(ROBOT_X + 20 * Math.sin(t), ROBOT_Y + 10 * (1 - Math.cos(t)), ROBOT_YAW + 0.8 * t);
+        carryALauncher(driving);
+        List<Object> resting = new ArrayList<>();
+        for (Field.Piece piece : field.cellPieces()) {
+            Object ball = new Object();
+            resting.add(ball);
+            flight = Valid.value(
+                    flight.restingAt(ball, piece.kind(), Valid.value(Length.of(piece.radius())), piece.at()));
+        }
+        List<Vec3> setDownAt = new ArrayList<>();
+        for (Object ball : resting) {
+            setDownAt.add(at(ball));
+        }
+        long setDown = flight.work();
+
+        carry(2.0, driving, wheel(CLOSE_LAUNCH));
+
+        assertEquals("nothing moved, so nothing was worked out", setDown, flight.work());
+        for (int i = 0; i < resting.size(); i++) {
+            assertEquals("ball " + i + " lies where it was set down", setDownAt.get(i), at(resting.get(i)));
+        }
+        assertEquals(3, flight.scored("Blue"));
+        Vec3 fedAt = at(feed());
+        double fromTheRobot = Math.hypot(
+                fedAt.x() - (ROBOT_X + 20 * Math.sin(flown)), fedAt.y() - (ROBOT_Y + 10 * (1 - Math.cos(flown))));
+        assertTrue("the launcher went with the robot: fed " + fromTheRobot + " in from it", fromTheRobot < 2);
+    }
+
+    @Test
+    public void whileItsRobotRestsAFlightCarryingALauncherFliesTheSameToTheBitItsWorkIncludedHoweverItsTimeIsCut() {
+        carryALauncher(FlightTest::resting);
+        Object fed = feed();
+        Object dropped = drop(Field.Kind.POLLEN, POLLEN, aboveTheMouthOf(upturned(blue), 10));
+        Flight<Object> fine = flight, coarse = flight;
+        Launcher.Frame at = resting(0);
+
+        for (int i = 0; i < 25; i++) {
+            for (int j = 0; j < 4; j++) {
+                fine = Valid.value(fine.step(tick(0.005), resting(0), wheel(CLOSE_LAUNCH)))
+                        .flight();
+            }
+            coarse = Valid.value(coarse.step(tick(0.02), at, wheel(CLOSE_LAUNCH)))
+                    .flight();
+        }
+
+        for (Object ball : List.of(fed, dropped)) {
+            assertEquals(fine.at(ball), coarse.at(ball));
+            assertEquals(fine.velocity(ball), coarse.velocity(ball));
+        }
+        assertEquals(fine.work(), coarse.work());
+        assertTrue(
+                "the fed ball was thrown: " + fine.at(fed),
+                fine.at(fed).orElseThrow().z() > ROBOT_TOP_IN);
+    }
+
+    private Vec3 thrownBy(DoubleFunction<Launcher.Frame> frameAt) {
+        carryALauncher(frameAt);
+        carry(2 * STEP, frameAt, wheel(CLOSE_LAUNCH));
+        Object ball = feed();
+        carry(AFTER_THE_FEED_SECONDS, frameAt, wheel(CLOSE_LAUNCH));
+        assertTrue("thrown above the robot: " + at(ball), at(ball).z() - POLLEN_RADIUS > ROBOT_TOP_IN);
+        return flight.velocity(ball).orElseThrow();
+    }
+
+    @Test
+    public void theRobotsVelocityCarriesIntoTheThrow() {
+        Vec3 robot = new Vec3(0.6, -0.8, 0).times(180);
+        Vec3 still = thrownBy(FlightTest::resting);
+
+        Vec3 moving = thrownBy(t -> frame(ROBOT_X + robot.x() * t, ROBOT_Y + robot.y() * t, ROBOT_YAW));
+
+        double off = moving.minus(still.plus(robot)).length();
+        assertTrue(
+                AIR_SOURCE + ": the still throw " + still + " with the robot's " + robot + " added is " + off
+                        + " in/s from " + moving,
+                off <= AIR_TAKES_OF_THE_ROBOTS_SPEED * robot.length());
+    }
+
+    @Test
+    public void turningTheFramesYawByAnAngleTurnsTheThrowsDirectionByAsMuchAboutTheUpright() {
+        Vec3 facing = thrownBy(FlightTest::resting);
+        for (double yaw : new double[] {0.7, -2.5, Math.PI}) {
+            Vec3 turned = thrownBy(t -> frame(ROBOT_X, ROBOT_Y, ROBOT_YAW + yaw));
+
+            assertVec(ROUNDING_SOURCE + ", turned by " + yaw, turned(facing, yaw), turned, ROUNDING_WITHIN);
+        }
+    }
 
     private static Ring<Vec3> floorOf(Field.Cell cell) {
         Ring<Vec3> lowest = cell.walls().get(0);

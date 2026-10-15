@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class Flight<K> {
     public static final double GRAVITY_IN_PER_S2 = 386.09;
@@ -101,19 +103,50 @@ public final class Flight<K> {
         }
     }
 
+    private sealed interface Robot permits Robotless, Carrying {
+        <T> T fold(Supplier<T> robotless, Function<Launcher, T> carrying);
+
+        default List<Surroundings.Part> parts() {
+            return fold(List::of, launcher -> List.of(launcher));
+        }
+    }
+
+    private record Robotless() implements Robot {
+        @Override
+        public <T> T fold(Supplier<T> robotless, Function<Launcher, T> carrying) {
+            return robotless.get();
+        }
+    }
+
+    private record Carrying(Launcher launcher) implements Robot {
+        @Override
+        public <T> T fold(Supplier<T> robotless, Function<Launcher, T> carrying) {
+            return carrying.apply(launcher);
+        }
+    }
+
     private final Physics physics;
     private final Hives hives;
     private final Bores bores;
+    private final Robot robot;
     private final Bodies bodies;
     private final List<Flying<K>> flying;
     private final long named;
     private final long nanos;
 
     private Flight(
-            Physics physics, Hives hives, Bores bores, Bodies bodies, List<Flying<K>> flying, long named, long nanos) {
+            Physics physics,
+            Hives hives,
+            Bores bores,
+            Robot robot,
+            Bodies bodies,
+            List<Flying<K>> flying,
+            long named,
+            long nanos) {
         this.physics = physics;
         this.hives = hives;
         this.bores = bores;
+        this.robot = robot;
         this.bodies = bodies;
         this.flying = Collections.unmodifiableList(flying);
         this.named = named;
@@ -121,14 +154,25 @@ public final class Flight<K> {
     }
 
     public static <K> Checked<Flight<K>> over(Field field) {
-        return Hives.of(field).then(Flight::<K>over);
+        return Hives.of(field).then(hives -> Flight.<K>over(hives, new Robotless()));
     }
 
-    private static <K> Checked<Flight<K>> over(Hives hives) {
+    public static <K> Checked<Flight<K>> carryingALauncher(Field field, Launcher.Frame at) {
+        return Hives.of(field)
+                .then(hives -> stepping()
+                        .then(step -> Launcher.Faces.built()
+                                .then(faces -> Launcher.standing(faces, at, GridTime.at(0, step))))
+                        .then(launcher -> Flight.<K>over(hives, new Carrying(launcher))));
+    }
+
+    private static <K> Checked<Flight<K>> over(Hives hives, Robot robot) {
         ShotSettings defaults = ShotSettings.defaults();
         Set<String> floors = floorsOf(hives.field());
+        List<Surroundings.Part> parts = new ArrayList<>();
+        parts.add(hives.part());
+        parts.addAll(robot.parts());
         return Colliders.withoutHives(hives.field())
-                .then(still -> Surroundings.of(still, List.of(hives.part()))
+                .then(still -> Surroundings.of(still, parts)
                         .then(around -> ShotSetup.air(defaults)
                                 .then(air -> ShotSetup.surfaces(defaults)
                                         .then(surfaces -> stepping()
@@ -145,6 +189,7 @@ public final class Flight<K> {
                                                                         defaults.value(ShotSetting.INERTIA)),
                                                                 hives,
                                                                 Bores.of(hives.field()),
+                                                                robot,
                                                                 Bodies.unwatched(around, air, surfaces, step),
                                                                 new ArrayList<>(),
                                                                 0,
@@ -191,13 +236,18 @@ public final class Flight<K> {
                 radius, kind == Field.Kind.NECTAR ? physics.nectarGrams() : physics.pollenGrams(), physics.inertia());
     }
 
-    public Checked<Flight<K>> with(K ball, Field.Kind kind, Length radius, Vec3 at, Vec3 velocity) {
+    private static Checked<Vec3> comingIntoFlight(Vec3 velocity) {
         double speed = StrictMath.sqrt(velocity.dot(velocity));
         if (!(speed <= MOST_SPEED_IN_PER_S)) {
             return Checked.rejected(
                     "a ball comes into flight at most " + MOST_SPEED_IN_PER_S + " in/s, not at " + velocity);
         }
-        return Bodies.Motion.of(at, velocity, Vec3.zero())
+        return Checked.ok(velocity);
+    }
+
+    public Checked<Flight<K>> with(K ball, Field.Kind kind, Length radius, Vec3 at, Vec3 velocity) {
+        return comingIntoFlight(velocity)
+                .then(allowed -> Bodies.Motion.of(at, velocity, Vec3.zero()))
                 .then(motion -> ballOf(kind, radius).then(shape -> {
                     Work<K> work = new Work<>(this);
                     work.catchUp();
@@ -319,8 +369,19 @@ public final class Flight<K> {
     }
 
     public Checked<Stepped<K>> step(Tick tick) {
+        return robot.fold(
+                () -> steppedAlone(tick),
+                launcher -> Checked.rejected("a flight that carries a launcher steps with the frame it ends at and its"
+                        + " wheel's speed, and not without them"));
+    }
+
+    private long after(Tick tick) {
         long more = StrictMath.round(tick.seconds().value() * NANOS_PER_SECOND);
-        long then = more > Long.MAX_VALUE - nanos ? Long.MAX_VALUE : nanos + more;
+        return more > Long.MAX_VALUE - nanos ? Long.MAX_VALUE : nanos + more;
+    }
+
+    private Checked<Stepped<K>> steppedAlone(Tick tick) {
+        long then = after(tick);
         Work<K> work = new Work<>(this);
         work.tipWhatIsFull();
         if (!work.bodies.anyAwake() && !work.hives.moving()) {
@@ -328,6 +389,36 @@ public final class Flight<K> {
         }
         work.advanceTo(stepsTo(then));
         return work.unlessRefused(new Stepped<>(work.at(then), Collections.unmodifiableList(work.landings)));
+    }
+
+    public Checked<Stepped<K>> step(Tick tick, Launcher.Frame endsAt, Flywheel.AngularSpeed wheel) {
+        return robot.fold(
+                () -> Checked.rejected("a flight with no robot has no launcher to carry to " + endsAt), launcher -> {
+                    long then = after(tick);
+                    Work<K> work = new Work<>(this);
+                    work.tipWhatIsFull();
+                    work.catchUp();
+                    work.carry(launcher.onward(endsAt, work.gridTime(then), wheel));
+                    work.advanceTo(stepsTo(then));
+                    return work.unlessRefused(
+                            new Stepped<>(work.at(then), Collections.unmodifiableList(work.landings)));
+                });
+    }
+
+    public Checked<Flight<K>> fed(K ball, Field.Kind kind, Length radius) {
+        return robot.fold(() -> Checked.rejected("a flight with no robot has no launcher to feed"), launcher -> {
+            if (kind != Field.Kind.POLLEN || !(radius.inches() == Launcher.POLLEN_RADIUS_IN)) {
+                return Checked.rejected("the launcher is fed a pollen of " + Launcher.POLLEN_RADIUS_IN
+                        + " in radius, which its lead-in and stop are built for, not a " + kind.named() + " of "
+                        + radius.inches() + " in");
+            }
+            return ballOf(kind, radius).then(shape -> {
+                Work<K> work = new Work<>(this);
+                work.catchUp();
+                work.remove(ball);
+                return work.feed(ball, kind, radius, shape, launcher);
+            });
+        });
     }
 
     private static long stepsTo(long nanos) {
@@ -342,6 +433,7 @@ public final class Flight<K> {
         private final long nanos;
         private Hives hives;
         private Bores bores;
+        private Robot robot;
         private Bodies bodies;
         private long named;
         private boolean copied;
@@ -353,12 +445,13 @@ public final class Flight<K> {
             this.nanos = flight.nanos;
             this.hives = flight.hives;
             this.bores = flight.bores;
+            this.robot = flight.robot;
             this.bodies = flight.bodies;
             this.named = flight.named;
         }
 
         Flight<K> at(long then) {
-            return new Flight<>(physics, hives, bores, bodies, flying, named, then);
+            return new Flight<>(physics, hives, bores, robot, bodies, flying, named, then);
         }
 
         Checked<Surroundings> surround(Hives by, Bores amid) {
@@ -367,6 +460,7 @@ public final class Flight<K> {
             if (!amid.empty()) {
                 parts.add(amid);
             }
+            parts.addAll(robot.parts());
             return Surroundings.of(physics.still(), parts).map(around -> {
                 hives = by;
                 bores = amid;
@@ -399,6 +493,72 @@ public final class Flight<K> {
             if (engine.steps() < stepsTo(nanos)) {
                 advanceTo(stepsTo(nanos));
             }
+        }
+
+        GridTime gridTime(long at) {
+            Bodies.Step step = bodies.time().step();
+            long whole = at / 100_000;
+            double part = (at % 100_000) / 100_000.0;
+            return GridTime.PartOfAStep.of(part)
+                    .map(of -> GridTime.partWay(whole, of, step))
+                    .orElse(GridTime.at(whole, step));
+        }
+
+        void carry(Checked<Launcher> onward) {
+            if (refused.isPresent()) {
+                return;
+            }
+            onward.fold(
+                    next -> {
+                        if (robot.fold(() -> false, now -> next.standsAs(now))) {
+                            robot = new Carrying(next);
+                            return true;
+                        }
+                        return surroundedAgainBy(next);
+                    },
+                    rule -> {
+                        refused = Optional.of(rule);
+                        return false;
+                    });
+        }
+
+        private boolean surroundedAgainBy(Launcher next) {
+            return engine().surroundings()
+                    .replacing(next)
+                    .fold(
+                            around -> {
+                                engine().surroundedWithoutWorkWhileIdleBy(around);
+                                robot = new Carrying(next);
+                                seeAll();
+                                return true;
+                            },
+                            rule -> {
+                                refused = Optional.of(rule);
+                                return false;
+                            });
+        }
+
+        Checked<Flight<K>> feed(K ball, Field.Kind kind, Length radius, Ball shape, Launcher launcher) {
+            Launcher placed = launcher.at(engine().time());
+            Vec3 entry = placed.entry(radius);
+            for (Bodies.Seen other : engine().seen()) {
+                Vec3 apart = other.at().minus(entry);
+                double reach = radiusOf(other.name()) + radius.inches() + Shot.TOUCHING_IN;
+                if (apart.dot(apart) <= reach * reach) {
+                    return Checked.rejected("the launcher's entry is not clear: a ball at " + other.at()
+                            + " lies within " + reach + " in of where a fed ball goes in, " + entry);
+                }
+            }
+            return comingIntoFlight(placed.feed(radius))
+                    .then(feed -> Bodies.Motion.of(entry, feed, Vec3.zero()))
+                    .then(motion -> add(
+                                    ball,
+                                    kind,
+                                    radius,
+                                    shape,
+                                    motion,
+                                    new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING))
+                            .then(seen -> checked()));
         }
 
         void advanceTo(long target) {
