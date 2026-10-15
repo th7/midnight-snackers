@@ -490,9 +490,8 @@ def basic(token):
 
 
 class ARefusingServer(http.server.ThreadingHTTPServer):
-    def __init__(self, status):
+    def __init__(self):
         super().__init__(('127.0.0.1', 0), Refusing)
-        self.status = status
         self.heard = []
 
 
@@ -500,9 +499,7 @@ class Refusing(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.server.heard.append(self.headers.get_all('Authorization') or [])
         said = b'Permission to th7/midnight-snackers.git denied to a-user.\n'
-        self.send_response(self.server.status)
-        if self.server.status == 401:
-            self.send_header('WWW-Authenticate', 'Basic realm="GitHub"')
+        self.send_response(403)
         self.send_header('Content-Type', 'text/plain')
         self.send_header('Content-Length', str(len(said)))
         self.end_headers()
@@ -533,8 +530,8 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
         return subprocess.run(['git'] + list(arguments), cwd=where, env=self.environ, check=True, capture_output=True,
                               text=True, timeout=60).stdout.strip()
 
-    def pushed(self, status):
-        server = ARefusingServer(status)
+    def pushed(self):
+        server = ARefusingServer()
         threading.Thread(target=server.serve_forever, daemon=True).start()
         runner = os.path.join(self.where.name, 'runner-%d' % server.server_address[1])
         try:
@@ -547,15 +544,14 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
                 ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
                  step_named(self.jobs['promote'], 'push')['run']],
                 cwd=runner, capture_output=True, text=True, timeout=60, start_new_session=True,
-                env=dict(self.environ, GITHUB_SERVER_URL=url, GITHUB_OUTPUT=outputs, RUNNER_TEMP=runner,
-                         JUDGED=self.judged))
+                env=dict(self.environ, GITHUB_OUTPUT=outputs, RUNNER_TEMP=runner, JUDGED=self.judged))
             return done, server.heard
         finally:
             server.shutdown()
             server.server_close()
 
     def test_the_push_sends_the_built_in_token_the_checkout_kept_and_no_other(self):
-        done, heard = self.pushed(403)
+        done, heard = self.pushed()
 
         self.assertNotEqual(0, done.returncode, done.stdout)
         self.assertTrue(heard, done.stdout)
