@@ -4,12 +4,18 @@ import unittest
 import develop_run as run
 from develop_run import (Green, Hold, JudgingEnded, Judged, Looked, StepDidNotPass, StepsEnded,
                          MainHasWhatDevelopLacks, MainRefusedThePush, Move, NeverJudged, NeverLooked,
-                         NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed)
+                         NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed,
+                         MainRefusedOverWorkflows)
 
 JUDGED = 'a' * 40
 MAIN = 'b' * 40
 STRAY = 'c' * 40
 SUBJECT = 'A ball comes back from a lone still compliant surface at its restitution'
+REFUSED_OVER_WORKFLOWS = (
+    'To https://github.com/th7/midnight-snackers\n'
+    ' ! [remote rejected] %s -> main (refusing to allow a GitHub App to create or update workflow '
+    '`.github/workflows/tests.yml` without `workflows` permission)\n'
+    "error: failed to push some refs to 'https://github.com/th7/midnight-snackers'\n" % JUDGED)
 
 
 def b64(text):
@@ -147,6 +153,32 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
         self.assertEqual(Red((MainRefusedThePush(commit(), said),), looked(pushed=Outcome.FAILURE, said=said)),
                          run.verdict(judged(), looked(pushed=Outcome.FAILURE, said=said)))
 
+    def test_a_run_whose_push_main_refused_over_workflow_permission_is_red_for_that_with_what_git_said(self):
+        promoting = looked(pushed=Outcome.FAILURE, said=REFUSED_OVER_WORKFLOWS, ended=Outcome.FAILURE)
+
+        self.assertEqual(Red((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS),), promoting),
+                         run.verdict(judged(), promoting))
+
+    def test_every_way_github_words_a_refusal_over_workflow_permission_is_one(self):
+        for refusal in ('refusing to allow a GitHub App to create or update workflow `.github/workflows/tests.yml` '
+                        'without `workflows` permission',
+                        'refusing to allow an OAuth App to create or update workflow `.github/workflows/tests.yml` '
+                        'without `workflow` scope',
+                        'refusing to allow a Personal Access Token to create or update workflow '
+                        '`.github/workflows/tests.yml` without `workflow` scope',
+                        'refusing to allow a bot to create or update workflow `.github/workflows/tests.yml`'):
+            said = ' ! [remote rejected] %s -> main (%s)\n' % (JUDGED, refusal)
+            promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
+
+            self.assertEqual(Red((MainRefusedOverWorkflows(commit(), said),), promoting),
+                             run.verdict(judged(), promoting), refusal)
+
+    def test_a_push_refused_for_anything_else_is_not_one_over_workflow_permission(self):
+        said = ' ! [rejected]        %s -> main (fetch first)\n' % JUDGED
+        promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
+
+        self.assertEqual(Red((MainRefusedThePush(commit(), said),), promoting), run.verdict(judged(), promoting))
+
     def test_a_run_that_held_main_is_red_for_the_reasons_it_held(self):
         promoting = looked(pushed=Outcome.SKIPPED)
 
@@ -205,6 +237,19 @@ class WhatTheReasonsSay(unittest.TestCase):
 
         self.assertIn('main refused the push of `%s`' % JUDGED, said)
         self.assertIn('```\n' + git_said + '```', said)
+
+    def test_a_push_refused_over_workflow_permission_is_said_to_wait_on_a_maintainer_who_has_two_ways_to_end_it(self):
+        said = run.reasons((MainRefusedOverWorkflows(commit(), REFUSED_OVER_WORKFLOWS),))
+
+        self.assertIn('main refused the push of `%s`' % JUDGED, said)
+        self.assertIn('change a file under `.github/workflows`', said)
+        self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', said)
+        self.assertIn('moves main to `%s` by hand' % JUDGED, said)
+        self.assertIn('`git push origin %s:refs/heads/main`' % JUDGED, said)
+        self.assertIn('never forced', said)
+        self.assertIn('the repository secret `%s`' % run.MAIN_PUSH_TOKEN, said)
+        self.assertIn('runs the failed jobs of this run again', said)
+        self.assertIn('```\n' + REFUSED_OVER_WORKFLOWS + '```', said)
 
     def test_a_run_that_judged_nothing_says_so(self):
         self.assertIn('No commit was judged', run.reasons((NothingJudged(Outcome.FAILURE),)))

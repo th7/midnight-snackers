@@ -8,6 +8,7 @@ COMMIT_HASH = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 BASE64 = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
 LISTED_AT_MOST = 50
 MAIN_PUSH_TOKEN = 'MAIN_PUSH_TOKEN'
+REFUSED_OVER_WORKFLOWS = re.compile(r'refusing to allow an? [^\n]+? to create or update workflow')
 SUBJECT_SHOWN = 200
 SUBJECT_SHOWN_AT_MOST = 256
 SAID_SHOWN = 4000
@@ -189,6 +190,12 @@ class MainHasWhatDevelopLacks:
 
 @dataclass(frozen=True)
 class MainRefusedThePush:
+    commit: Commit
+    said: str
+
+
+@dataclass(frozen=True)
+class MainRefusedOverWorkflows:
     commit: Commit
     said: str
 
@@ -395,6 +402,8 @@ def verdict(judgement_read, promoting_read):
         return Stayed(decided.commit)
     if promoting_read.pushed is Outcome.SUCCESS:
         return Green(decided.commit)
+    if promoting_read.pushed is Outcome.FAILURE and REFUSED_OVER_WORKFLOWS.search(promoting_read.said):
+        return Red((MainRefusedOverWorkflows(decided.commit, promoting_read.said),), promoting_read)
     if promoting_read.pushed is Outcome.FAILURE:
         return Red((MainRefusedThePush(decided.commit, promoting_read.said),), promoting_read)
     return Red((PromotingEnded(promoting_read.ended),), promoting_read)
@@ -440,6 +449,17 @@ def described(found):
             fenced(listed),
             '\n\nand %d more.' % more if more > 0 else '',
             THE_MERGE_THAT_FIXES_IT)
+    if isinstance(found, MainRefusedOverWorkflows):
+        hash_text = found.commit.hash.text
+        return ('main refused the push of %s: the commits it would bring to main change a file under '
+                '`.github/workflows`, and the credential the job that moves main pushes with may not update workflows. '
+                'No commit to develop fixes this, so no session can: it waits on a maintainer, who either moves main '
+                'to %s by hand with a credential that may update workflows (%s, a plain push, never forced), or gives '
+                'the job that moves main such a credential as the repository secret %s, a token that may write '
+                'contents and workflows of this repository alone, and then runs the failed jobs of this run again. '
+                'git said:\n\n%s' % (code_span(hash_text), code_span(hash_text),
+                                     code_span('git push origin %s:refs/heads/main' % hash_text),
+                                     code_span(MAIN_PUSH_TOKEN), fenced(found.said)))
     if isinstance(found, MainRefusedThePush):
         return 'main refused the push of %s. git said:\n\n%s' % (code_span(found.commit.hash.text),
                                                                   fenced(found.said))
