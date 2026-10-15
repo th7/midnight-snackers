@@ -517,11 +517,12 @@ a repository without `nugget-develop` gets one at `develop`'s tip when the
 server starts, said on its console. It never deletes or rewrites either: it
 only adds merge commits to them. Getting `develop` to `main` is CI's: a **run
 for develop** whose every step is green moves `main` to the commit it judged,
-unless `main` is already past it; a run whose commits since `main` change a
-workflow file holds `main` red, naming those files, until a maintainer pushes
-`main` to the judged commit by hand and re-runs the failed jobs. Anything that
-moves between the two robots' lines is the coach's job. `GET /git/status` names
-the one a user's **ahead** and **behind** are counted against, as **develop**.
+unless `main` is already past it; a run that would move `main` past a change to
+a workflow file, as when its commits since `main` change one, holds `main` red
+instead, naming those files, until a maintainer pushes `main` to the judged
+commit by hand and re-runs the failed jobs. Anything that moves between the
+two robots' lines is the coach's job. `GET /git/status` names the one a user's
+**ahead** and **behind** are counted against, as **develop**.
 
 **Run for develop** — What CI does each time `develop` is pushed. Runs go one
 at a time: a push that arrives during a run waits, and a run still waiting
@@ -531,31 +532,33 @@ run judges `develop`'s tip as it is when the run starts, not the commit whose
 push started it, with the same commands as a local run:
 `./gradlew spotlessCheck`, `python3 tools/run_tests.py` and
 `./gradlew :TeamCode:testDebugUnitTest`. When every step of the judging is
-green, `main` has no commit `develop` lacks and no commit from `main` to the
-judged commit changes a workflow file, CI pushes the commit it judged to
+green and `main` has no commit `develop` lacks, a `main` that already has
+commits of `develop` the judged commit lacks stays where it is, whatever its
+workflows, and the run is green but leaves the issue as it is, open or not,
+since only a run that judges the commit `main` stands at can say whether that
+commit is good. Otherwise, with the judging green and `main` at the judged
+commit or behind it, the workflows decide. No step reads a secret, and the
+built-in token may not move a branch past a change to a workflow file, so when
+any commit from `main` to the judged commit changes a file under
+`.github/workflows`, even one on a branch merged into `develop`, one a later
+commit undoes or one a merge changes in resolving it, or the judged commit's
+copy of one differs from `main`'s, the run pushes nothing and is red, naming
+those files, a renamed one by its old name and its new. No commit to `develop`
+and no session can clear that: it waits on a maintainer, who pushes `main` to
+the judged commit by hand, never forced, and re-runs the failed jobs of the
+run. When no workflow file holds `main`, CI pushes the commit it judged to
 `main` with the built-in token its checkout keeps: a plain push, never forced
-and never a merge, so a `main` that moved meanwhile refuses it. A `main` that
-already has commits of `develop` the judged commit lacks stays where it is, and
-the run is green but leaves the issue as it is, open or not, since only a run
-that judges the commit `main` stands at can say whether that commit is good.
-Anything else is a red run, and `main` stays where it was. A red run opens the
-issue **IMPORTANT: develop CI Failures**, or comments on it when it is already
-open, naming the commit judged, whether its judging was green, and what held
-`main` — the step that failed, a setup step or the report upload as much as a
-check; the commits `main` has that `develop` lacks,
-with the merge that brings them in; the workflow files that hold `main` for a
-maintainer; or git's own words for a refused push — and the run; a commit that
-reached `main` by itself keeps every run red until `develop` holds it. No step
-reads a secret, and the built-in token may not move a branch past a change to a
-workflow file, so when any commit from `main` to the judged commit changes a
-file under `.github/workflows`, even one a later commit undoes or one a merge
-changes in resolving it, or the judged commit's copy of one differs from
-`main`'s, the run pushes nothing and is red, naming those files, a renamed one
-by its old name and its new. No commit to `develop` and no session
-can clear that: it waits on a maintainer, who pushes `main` to the judged
-commit by hand, never forced, and re-runs the failed jobs of the run. The next
-run that moves `main`, or finds it already at the commit it judged, as that
-re-run does, closes the issue, saying `main` now stands at that commit. A pull
+and never a merge, so a `main` that moved meanwhile refuses it. Anything else
+is a red run, and `main` stays where it was. A red run opens the issue
+**IMPORTANT: develop CI Failures**, or comments on it when it is already open,
+naming the commit judged, whether its judging was green, and what held `main`
+— the step that failed, a setup step or the report upload as much as a check;
+the commits `main` has that `develop` lacks, with the merge that brings them
+in; the workflow files that hold `main` for a maintainer; or git's own words
+for a refused push — and the run; a commit that reached `main` by itself keeps
+every run red until `develop` holds it. The next run that moves `main`, or
+finds it already at the commit it judged, as the re-run after a maintainer's
+push does, closes the issue, saying `main` now stands at that commit. A pull
 request is still judged, in a queue of its own, and never moves `main` or
 touches the issue. What a run decides is the core's, and the workflow only
 gathers what the core needs and does what it says, which a test holds it to.
