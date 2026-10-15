@@ -102,6 +102,7 @@ jobs:
       lacking: ${{ steps.main.outputs.lacking }}
       main-ahead: ${{ steps.main.outputs.ahead }}
       pushed: ${{ steps.push.outcome }}
+      pushed-with: ${{ steps.push.outputs.token }}
       git-said: ${{ steps.push.outputs.said }}
     steps:
       - name: Check out the judged commit
@@ -144,7 +145,9 @@ jobs:
         env:
           JUDGED: ${{ steps.decide.outputs.commit }}
           PUSH_TOKEN: ${{ secrets.MAIN_PUSH_TOKEN || github.token }}
+          PUSH_TOKEN_IS: ${{ secrets.MAIN_PUSH_TOKEN && 'MAIN_PUSH_TOKEN' || 'GITHUB_TOKEN' }}
         run: |
+          echo "token=$PUSH_TOKEN_IS" >> "$GITHUB_OUTPUT"
           auth=$(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)
           export GIT_CONFIG_COUNT=2
           export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" GIT_CONFIG_VALUE_0=
@@ -198,6 +201,7 @@ jobs:
           LACKING: ${{ needs.promote.outputs.lacking }}
           MAIN_AHEAD: ${{ needs.promote.outputs.main-ahead }}
           PUSHED: ${{ needs.promote.outputs.pushed }}
+          PUSHED_WITH: ${{ needs.promote.outputs.pushed-with }}
           GIT_SAID: ${{ needs.promote.outputs.git-said }}
         run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" "$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"
       - name: Open the issue

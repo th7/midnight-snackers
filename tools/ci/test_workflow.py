@@ -200,8 +200,11 @@ class HowMainMoves(WorkflowTest):
              'id': 'push',
              'if': "steps.decide.outputs.decision == 'move'",
              'env': {'JUDGED': '${{ steps.decide.outputs.commit }}',
-                     'PUSH_TOKEN': '${{ secrets.%s || github.token }}' % run.MAIN_PUSH_TOKEN},
-             'run': 'auth=$(printf \'x-access-token:%s\' "$PUSH_TOKEN" | base64 -w0)\n'
+                     'PUSH_TOKEN': '${{ secrets.%s || github.token }}' % run.MAIN_PUSH_TOKEN,
+                     'PUSH_TOKEN_IS': "${{ secrets.%s && '%s' || '%s' }}" % (
+                         run.MAIN_PUSH_TOKEN, run.PushToken.SECRET.value, run.PushToken.BUILT_IN.value)},
+             'run': 'echo "token=$PUSH_TOKEN_IS" >> "$GITHUB_OUTPUT"\n'
+                    'auth=$(printf \'x-access-token:%s\' "$PUSH_TOKEN" | base64 -w0)\n'
                     'export GIT_CONFIG_COUNT=2\n'
                     'export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" GIT_CONFIG_VALUE_0=\n'
                     'export GIT_CONFIG_KEY_1="http.$GITHUB_SERVER_URL/.extraheader" '
@@ -239,6 +242,7 @@ class HowMainMoves(WorkflowTest):
                           'lacking': '${{ steps.main.outputs.lacking }}',
                           'main-ahead': '${{ steps.main.outputs.ahead }}',
                           'pushed': '${{ steps.push.outcome }}',
+                          'pushed-with': '${{ steps.push.outputs.token }}',
                           'git-said': '${{ steps.push.outputs.said }}'},
                          self.jobs['promote']['outputs'])
 
@@ -408,19 +412,24 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
         return subprocess.run(['git'] + list(arguments), cwd=where, env=self.environ, check=True, capture_output=True,
                               text=True, timeout=60).stdout.strip()
 
-    def pushed(self, status, push_token, **environ):
+    def pushed(self, status, push_token, credential_helper=None, **environ):
+        environ.setdefault('PUSH_TOKEN_IS', 'GITHUB_TOKEN')
         server = ARefusingServer(status)
         threading.Thread(target=server.serve_forever, daemon=True).start()
+        runner = os.path.join(self.where.name, 'runner-%d' % server.server_address[1])
         try:
             url = 'http://127.0.0.1:%d' % server.server_address[1]
-            self.git(self.runner, 'remote', 'add', 'origin', url + '/th7/midnight-snackers')
-            self.git(self.runner, 'config', 'http.%s/.extraheader' % url, 'AUTHORIZATION: ' + basic(self.BUILT_IN))
-            outputs = os.path.join(self.where.name, 'outputs')
+            self.git(self.where.name, 'clone', '-q', self.runner, runner)
+            self.git(runner, 'remote', 'set-url', 'origin', url + '/th7/midnight-snackers')
+            self.git(runner, 'config', 'http.%s/.extraheader' % url, 'AUTHORIZATION: ' + basic(self.BUILT_IN))
+            if credential_helper is not None:
+                self.git(runner, 'config', 'credential.helper', credential_helper)
+            outputs = os.path.join(runner, 'outputs')
             done = subprocess.run(
                 ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
                  step_named(self.jobs['promote'], 'push')['run']],
-                cwd=self.runner, capture_output=True, text=True, timeout=60, start_new_session=True,
-                env=dict(self.environ, GITHUB_SERVER_URL=url, GITHUB_OUTPUT=outputs, RUNNER_TEMP=self.where.name,
+                cwd=runner, capture_output=True, text=True, timeout=60, start_new_session=True,
+                env=dict(self.environ, GITHUB_SERVER_URL=url, GITHUB_OUTPUT=outputs, RUNNER_TEMP=runner,
                          JUDGED=self.judged, PUSH_TOKEN=push_token, **environ))
             with open(outputs, encoding='utf-8') as written:
                 handed = dict(line.split('=', 1) for line in written.read().split('\n') if line)
@@ -437,6 +446,25 @@ class WhatThePushToMainSendsOverHttp(WorkflowTest):
         self.assertEqual([[basic(self.SECRET)]] * len(heard), heard,
                          'an empty http.extraHeader clears the headers set before it (%s), and the environment sets '
                          'configuration after the repository does (%s)' % (GIT_EXTRA_HEADER, GIT_CONFIG_FROM_ENVIRONMENT))
+
+    def test_the_push_says_which_token_it_used(self):
+        for token_is in ('MAIN_PUSH_TOKEN', 'GITHUB_TOKEN'):
+            _, handed, _ = self.pushed(403, self.SECRET, PUSH_TOKEN_IS=token_is)
+
+            self.assertEqual(token_is, handed.get('token'))
+
+    def test_git_words_a_push_refused_for_its_credential_as_the_core_reads_it(self):
+        judgement = run.judgement('success', self.judged, base64.b64encode(b'The commit judged\n').decode('ascii'),
+                                  tuple('success' for _ in run.STEPS))
+        for status, credential_helper in ((401, None), (401, '!f() { echo username=a-user; echo password=wrong; }; f'),
+                                          (403, None)):
+            done, handed, _ = self.pushed(status, self.SECRET, credential_helper, PUSH_TOKEN_IS='MAIN_PUSH_TOKEN')
+            read = run.promoting('failure', 'b' * 40, '', '', 'failure', handed['said'], 'MAIN_PUSH_TOKEN')
+            found = run.verdict(judgement, read)
+
+            self.assertEqual([run.MainRefusedTheToken], [type(each) for each in found.findings],
+                             'answered %d%s, git said: %s' % (status, ' to a credential helper' if credential_helper
+                                                              else '', done.stdout))
 
 
 class HowTheIssueIsWritten(WorkflowTest):
@@ -455,6 +483,7 @@ class HowTheIssueIsWritten(WorkflowTest):
                               LACKING='${{ needs.promote.outputs.lacking }}',
                               MAIN_AHEAD='${{ needs.promote.outputs.main-ahead }}',
                               PUSHED='${{ needs.promote.outputs.pushed }}',
+                              PUSHED_WITH='${{ needs.promote.outputs.pushed-with }}',
                               GIT_SAID='${{ needs.promote.outputs.git-said }}'),
                          saying['env'])
         self.assertEqual(set(cli.JUDGEMENT) | set(cli.PROMOTING), set(saying['env']))

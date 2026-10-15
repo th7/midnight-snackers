@@ -42,7 +42,8 @@ def failed():
 
 def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=()):
     return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), pushed, said,
-                  Outcome.SUCCESS if pushed in (Outcome.SUCCESS, Outcome.SKIPPED) else Outcome.FAILURE)
+                  Outcome.SUCCESS if pushed in (Outcome.SUCCESS, Outcome.SKIPPED) else Outcome.FAILURE,
+                  run.push_token('' if pushed is Outcome.SKIPPED else 'GITHUB_TOKEN'))
 
 
 def held():
@@ -176,8 +177,8 @@ class WhatTheIssueSays(unittest.TestCase):
         judged_long = run.judgement('failure', JUDGED, b64(endless), texts(formatting=Outcome.FAILURE,
                                                                            unit_tests=Outcome.FAILURE))
         strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
-        for promoting in (run.promoting('failure', MAIN, strays, '', 'skipped', ''),
-                          run.promoting('failure', MAIN, '', '', 'failure', b64(endless))):
+        for promoting in (run.promoting('failure', MAIN, strays, '', 'skipped', '', ''),
+                          run.promoting('failure', MAIN, '', '', 'failure', b64(endless), 'GITHUB_TOKEN')):
             body = issues.issue_action(judged_long, promoting, (), link()).body
 
             self.assertLess(len(body), issues.BODY_AT_MOST // 2)

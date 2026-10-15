@@ -27,7 +27,7 @@ def gathered(**changed):
 
 
 def reported(**changed):
-    handed = gathered(PROMOTING_ENDED='success', MAIN_TIP=MAIN, PUSHED='success', GIT_SAID='',
+    handed = gathered(PROMOTING_ENDED='success', MAIN_TIP=MAIN, PUSHED='success', PUSHED_WITH='GITHUB_TOKEN', GIT_SAID='',
                       GITHUB_SERVER_URL='https://github.com', GITHUB_REPOSITORY='th7/midnight-snackers',
                       GITHUB_RUN_ID='123456')
     handed.update(changed)
@@ -159,6 +159,28 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
         self.assertIn('remote: error: GH006: Protected branch update failed\n', self.body_written())
+
+    def test_a_push_token_refused_for_its_credential_reaches_the_body_as_waiting_on_a_maintainer_to_replace_it(self):
+        done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure', PUSHED_WITH='MAIN_PUSH_TOKEN',
+                           GIT_SAID=b64("fatal: could not read Username for 'https://github.com': No such device or "
+                                        "address\n"))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer',
+                      self.body_written())
+        self.assertIn('replaces `MAIN_PUSH_TOKEN`', self.body_written())
+
+    def test_a_report_not_handed_which_token_the_push_used_fails_naming_it_and_hands_nothing(self):
+        environ = reported()
+        del environ['PUSHED_WITH']
+        with open(self.open_issues, 'w') as written:
+            written.write('[]')
+        done = called('report', environ, self.open_issues, self.body)
+
+        self.assertEqual(2, done.returncode)
+        self.assertEqual('', done.stdout)
+        self.assertIn('PUSHED_WITH', done.stderr)
 
     def test_open_issues_that_are_not_the_json_gh_prints_fail_with_the_rule_and_hand_nothing(self):
         done = self.report('not json')
