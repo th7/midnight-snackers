@@ -5,6 +5,9 @@ import sys
 import tempfile
 import unittest
 
+import develop_run as run
+import develop_run_cli as cli
+
 CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'develop_run_cli.py')
 JUDGED = 'a' * 40
 MAIN = 'b' * 40
@@ -16,8 +19,8 @@ def b64(text):
 
 
 def gathered(**changed):
-    handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'),
-              'FORMATTING': 'success', 'TOOL_TESTS': 'success', 'UNIT_TESTS': 'success', 'LACKING': ''}
+    handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': ''}
+    handed.update({cli.outcome_of(step): 'success' for step in run.STEPS})
     handed.update(changed)
     return handed
 
@@ -61,8 +64,22 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertEqual('', done.stdout)
         self.assertIn('LACKING', done.stderr)
 
+    def test_the_outcome_of_each_step_of_the_judging_job_is_handed_under_a_name_of_its_own(self):
+        self.assertEqual(['STEP_CHECKOUT', 'STEP_JUDGED', 'STEP_JAVA', 'STEP_GRADLE', 'STEP_NODE', 'STEP_BROWSER',
+                          'STEP_FORMATTING', 'STEP_TOOL_TESTS', 'STEP_UNIT_TESTS', 'STEP_RESULTS'],
+                         [cli.outcome_of(step) for step in run.STEPS])
+
+    def test_a_step_outcome_the_workflow_did_not_hand_fails_naming_it_and_hands_nothing(self):
+        environ = gathered()
+        del environ['STEP_BROWSER']
+        done = called('promotion', environ)
+
+        self.assertEqual(2, done.returncode)
+        self.assertEqual('', done.stdout)
+        self.assertIn('STEP_BROWSER', done.stderr)
+
     def test_an_input_that_breaks_its_rule_fails_with_the_rule_and_hands_nothing(self):
-        done = called('promotion', gathered(UNIT_TESTS='passed'))
+        done = called('promotion', gathered(STEP_UNIT_TESTS='passed'))
 
         self.assertEqual(2, done.returncode)
         self.assertEqual('', done.stdout)
@@ -104,7 +121,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
 
     def test_a_red_run_with_no_issue_open_hands_the_workflow_an_issue_to_open_and_writes_its_body(self):
         done = self.report('[{"number": 7, "title": "Launch Sim"}]', JUDGING_ENDED='failure',
-                           UNIT_TESTS='failure', PUSHED='skipped')
+                           STEP_UNIT_TESTS='failure', PUSHED='skipped')
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)

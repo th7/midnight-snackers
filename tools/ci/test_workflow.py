@@ -11,6 +11,10 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 WORKFLOW = os.path.join(REPO, '.github', 'workflows', 'tests.yml')
 FOR_DEVELOP_ONLY = "${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}"
 JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}"
+JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
+                         'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
+                         'SUBJECT': '${{ needs.unit-tests.outputs.subject }}'},
+                        **{cli.outcome_of(step): '${{ needs.unit-tests.outputs.%s }}' % step.step for step in run.STEPS})
 
 
 def read_workflow():
@@ -131,12 +135,19 @@ class WhatARunJudges(WorkflowTest):
             'echo "subject=$subject" >> "$GITHUB_OUTPUT"\n',
             step_named(self.jobs['unit-tests'], 'judged')['run'])
 
-    def test_each_check_is_the_same_command_as_local_and_hands_on_its_outcome(self):
-        judging = self.jobs['unit-tests']
+    def test_the_judging_job_s_steps_are_the_ones_the_core_names_in_the_same_order(self):
+        self.assertEqual([(step.step, step.name) for step in run.STEPS],
+                         [(each.get('id'), each.get('name')) for each in steps_of(self.jobs['unit-tests'])])
+
+    def test_each_check_is_the_same_command_as_local(self):
         for check in run.CHECKS:
-            step = step_named(judging, check.step)
-            self.assertEqual((check.name, check.command), (step['name'], step['run']))
-            self.assertEqual('${{ steps.%s.outcome }}' % check.step, judging['outputs'][check.step])
+            self.assertEqual(check.command, step_named(self.jobs['unit-tests'], check.step)['run'])
+
+    def test_the_judging_job_hands_on_the_commit_it_judged_and_how_each_of_its_steps_ended(self):
+        self.assertEqual(dict({'commit': '${{ steps.judged.outputs.commit }}',
+                               'subject': '${{ steps.judged.outputs.subject }}'},
+                              **{step.step: '${{ steps.%s.outcome }}' % step.step for step in run.STEPS}),
+                         self.jobs['unit-tests']['outputs'])
 
     def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_so_it_can_count_what_main_has(self):
         self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
@@ -171,8 +182,7 @@ class HowMainMoves(WorkflowTest):
         deciding = step_named(self.jobs['promote'], 'decide')
 
         self.assertEqual('python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"', deciding['run'])
-        self.assertEqual(set(cli.JUDGEMENT) | {'LACKING'}, set(deciding['env']))
-        self.assertEqual('${{ steps.main.outputs.lacking }}', deciding['env']['LACKING'])
+        self.assertEqual(dict(JUDGEMENT_HANDED, LACKING='${{ steps.main.outputs.lacking }}'), deciding['env'])
 
     def test_what_main_lacks_is_found_against_main_as_it_is_just_before_the_decision(self):
         self.assertEqual(
@@ -210,6 +220,13 @@ class HowTheIssueIsWritten(WorkflowTest):
 
         self.assertEqual('python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" '
                          '"$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"', saying['run'])
+        self.assertEqual(dict(JUDGEMENT_HANDED,
+                              PROMOTING_ENDED='${{ needs.promote.result }}',
+                              MAIN_TIP='${{ needs.promote.outputs.main-tip }}',
+                              LACKING='${{ needs.promote.outputs.lacking }}',
+                              PUSHED='${{ needs.promote.outputs.pushed }}',
+                              GIT_SAID='${{ needs.promote.outputs.git-said }}'),
+                         saying['env'])
         self.assertEqual(set(cli.JUDGEMENT) | set(cli.PROMOTING), set(saying['env']))
 
     def test_each_issue_action_the_core_hands_on_is_carried_out_by_one_step_that_does_only_that(self):

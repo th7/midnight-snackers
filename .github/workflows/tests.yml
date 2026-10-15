@@ -24,11 +24,19 @@ jobs:
     outputs:
       commit: ${{ steps.judged.outputs.commit }}
       subject: ${{ steps.judged.outputs.subject }}
+      checkout: ${{ steps.checkout.outcome }}
+      judged: ${{ steps.judged.outcome }}
+      java: ${{ steps.java.outcome }}
+      gradle: ${{ steps.gradle.outcome }}
+      node: ${{ steps.node.outcome }}
+      browser: ${{ steps.browser.outcome }}
       formatting: ${{ steps.formatting.outcome }}
       tool-tests: ${{ steps.tool-tests.outcome }}
       unit-tests: ${{ steps.unit-tests.outcome }}
+      results: ${{ steps.results.outcome }}
     steps:
       - name: Check out develop's tip as it is now, or the pull request
+        id: checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'push' && 'refs/heads/develop' || github.ref }}
@@ -40,15 +48,22 @@ jobs:
           subject=$(git log -1 --format=%s HEAD | base64 -w0)
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "subject=$subject" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-java@v4
+      - name: Java 21
+        id: java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
-      - uses: actions/setup-node@v4
+      - name: Gradle
+        id: gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Node 22
+        id: node
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Browser for the page tests, with the shared libraries Chromium needs
+        id: browser
         run: |
           npm ci --prefix tools/browser
           npx --prefix tools/browser playwright install --with-deps chromium
@@ -62,6 +77,7 @@ jobs:
         id: unit-tests
         run: ./gradlew :TeamCode:testDebugUnitTest
       - name: Test report and simulation replays
+        id: results
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -103,9 +119,16 @@ jobs:
           JUDGING_ENDED: ${{ needs.unit-tests.result }}
           JUDGED: ${{ needs.unit-tests.outputs.commit }}
           SUBJECT: ${{ needs.unit-tests.outputs.subject }}
-          FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
-          TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
-          UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
+          STEP_CHECKOUT: ${{ needs.unit-tests.outputs.checkout }}
+          STEP_JUDGED: ${{ needs.unit-tests.outputs.judged }}
+          STEP_JAVA: ${{ needs.unit-tests.outputs.java }}
+          STEP_GRADLE: ${{ needs.unit-tests.outputs.gradle }}
+          STEP_NODE: ${{ needs.unit-tests.outputs.node }}
+          STEP_BROWSER: ${{ needs.unit-tests.outputs.browser }}
+          STEP_FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
+          STEP_TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
+          STEP_UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
+          STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
           LACKING: ${{ steps.main.outputs.lacking }}
         run: python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"
       - name: Move main to the judged commit, never by force
@@ -148,9 +171,16 @@ jobs:
           JUDGING_ENDED: ${{ needs.unit-tests.result }}
           JUDGED: ${{ needs.unit-tests.outputs.commit }}
           SUBJECT: ${{ needs.unit-tests.outputs.subject }}
-          FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
-          TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
-          UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
+          STEP_CHECKOUT: ${{ needs.unit-tests.outputs.checkout }}
+          STEP_JUDGED: ${{ needs.unit-tests.outputs.judged }}
+          STEP_JAVA: ${{ needs.unit-tests.outputs.java }}
+          STEP_GRADLE: ${{ needs.unit-tests.outputs.gradle }}
+          STEP_NODE: ${{ needs.unit-tests.outputs.node }}
+          STEP_BROWSER: ${{ needs.unit-tests.outputs.browser }}
+          STEP_FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
+          STEP_TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
+          STEP_UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
+          STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
           PROMOTING_ENDED: ${{ needs.promote.result }}
           MAIN_TIP: ${{ needs.promote.outputs.main-tip }}
           LACKING: ${{ needs.promote.outputs.lacking }}

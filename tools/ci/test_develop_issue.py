@@ -4,7 +4,7 @@ import unittest
 import develop_issue as issues
 import develop_run as run
 from develop_issue import Close, CommentOn, LeaveAlone, Open, OpenIssue
-from develop_run import (CheckDidNotPass, Checked, Judged, Looked, MainHasWhatDevelopLacks, NeverJudged,
+from develop_run import (Judged, Looked, MainHasWhatDevelopLacks, NeverJudged, StepDidNotPass, StepsEnded,
                          NeverLooked, Outcome, Rejected)
 
 JUDGED = 'a' * 40
@@ -22,10 +22,18 @@ def commit(hash_text=JUDGED, subject=SUBJECT):
     return run.commit_line(hash_text + ' ' + subject)
 
 
+def steps_ended(**changed):
+    outcomes = {step.step: Outcome.SUCCESS for step in run.STEPS}
+    outcomes.update({key.replace('_', '-'): value for key, value in changed.items()})
+    return StepsEnded(tuple(outcomes[step.step] for step in run.STEPS))
+
+
+def texts(**changed):
+    return tuple(each.value for each in steps_ended(**changed).outcomes)
+
+
 def judged(ended=Outcome.SUCCESS, the_commit=None, **outcomes):
-    every = dict(formatting=Outcome.SUCCESS, tool_tests=Outcome.SUCCESS, unit_tests=Outcome.SUCCESS)
-    every.update(outcomes)
-    return Judged(the_commit or commit(), ended, Checked(**every))
+    return Judged(the_commit or commit(), ended, steps_ended(**outcomes))
 
 
 def failed():
@@ -85,9 +93,16 @@ class WhatTheIssueSays(unittest.TestCase):
         body = issues.issue_action(failed(), held(), (), link()).body
 
         self.assertIn('develop was judged red at `%s` `%s`' % (JUDGED, SUBJECT), body)
-        self.assertIn(run.reasons((CheckDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),)), body)
+        self.assertIn(run.reasons((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),)), body)
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
         self.assertIn(RUN, body)
+
+    def test_a_red_run_whose_judging_failed_before_any_check_names_the_step_that_failed(self):
+        body = issues.issue_action(judged(Outcome.FAILURE, browser=Outcome.FAILURE, formatting=Outcome.SKIPPED,
+                                          tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), held(), (),
+                                   link()).body
+
+        self.assertIn('**%s** failed.' % run.BROWSER.name, body)
 
     def test_a_red_run_for_what_main_lacks_names_those_commits_and_the_fix(self):
         stray = commit(STRAY, 'Fix the README on main')
@@ -104,9 +119,14 @@ class WhatTheIssueSays(unittest.TestCase):
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
 
     def test_a_red_run_that_judged_nothing_and_never_looked_at_main_says_main_stays_where_it_was(self):
-        body = issues.issue_action(NeverJudged(Outcome.FAILURE), NeverLooked(Outcome.FAILURE), (), link()).body
+        never = NeverJudged(Outcome.FAILURE, steps_ended(judged=Outcome.FAILURE, java=Outcome.SKIPPED,
+                                                         gradle=Outcome.SKIPPED, node=Outcome.SKIPPED,
+                                                         browser=Outcome.SKIPPED, formatting=Outcome.SKIPPED,
+                                                         tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED))
+        body = issues.issue_action(never, NeverLooked(Outcome.FAILURE), (), link()).body
 
         self.assertIn('judged no commit', body)
+        self.assertIn('**%s** failed.' % run.NAMING.name, body)
         self.assertIn('main stays where it was.', body)
         self.assertIn(RUN, body)
 
@@ -127,7 +147,7 @@ class WhatTheIssueSays(unittest.TestCase):
 
     def test_a_carriage_return_in_a_subject_never_breaks_the_head_line_so_the_reasons_and_the_run_stay_outside_code(self):
         for printed in ('Fix the thing\r```\rrest\n', 'Fix the thing\r===\n'):
-            tricky = run.judgement('failure', JUDGED, b64(printed), 'success', 'success', 'failure')
+            tricky = run.judgement('failure', JUDGED, b64(printed), texts(unit_tests=Outcome.FAILURE))
             body = issues.issue_action(tricky, held(), (), link()).body
             head, _, rest = body.partition('\n')
 
@@ -138,14 +158,15 @@ class WhatTheIssueSays(unittest.TestCase):
 
     def test_the_body_stays_well_under_github_s_limit_however_long_what_it_quotes(self):
         endless = 'x' * 70000
-        judged_long = run.judgement('failure', JUDGED, b64(endless), 'failure', 'success', 'failure')
+        judged_long = run.judgement('failure', JUDGED, b64(endless), texts(formatting=Outcome.FAILURE,
+                                                                           unit_tests=Outcome.FAILURE))
         strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
         for promoting in (run.promoting('failure', MAIN, strays, 'skipped', ''),
                           run.promoting('failure', MAIN, '', 'failure', b64(endless))):
             body = issues.issue_action(judged_long, promoting, (), link()).body
 
             self.assertLess(len(body), issues.BODY_AT_MOST // 2)
-        green_long = run.judgement('success', JUDGED, b64(endless), 'success', 'success', 'success')
+        green_long = run.judgement('success', JUDGED, b64(endless), texts())
 
         self.assertLess(len(issues.issue_action(green_long, looked(), (issue(12),), link()).body),
                         issues.BODY_AT_MOST // 2)

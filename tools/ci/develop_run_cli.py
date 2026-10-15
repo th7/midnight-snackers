@@ -4,9 +4,19 @@ import sys
 import develop_issue as issues
 import develop_run as run
 
-JUDGEMENT = ('JUDGING_ENDED', 'JUDGED', 'SUBJECT', 'FORMATTING', 'TOOL_TESTS', 'UNIT_TESTS')
+def outcome_of(step):
+    return 'STEP_' + step.step.upper().replace('-', '_')
+
+
+JUDGED = ('JUDGING_ENDED', 'JUDGED', 'SUBJECT')
+STEP_OUTCOMES = tuple(outcome_of(step) for step in run.STEPS)
+JUDGEMENT = JUDGED + STEP_OUTCOMES
 PROMOTING = ('PROMOTING_ENDED', 'MAIN_TIP', 'LACKING', 'PUSHED', 'GIT_SAID')
 RUN = ('GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID')
+
+
+def judgement_from(inputs):
+    return run.judgement(*inputs[:len(JUDGED)], inputs[len(JUDGED):len(JUDGEMENT)])
 
 
 def handed(environ, names):
@@ -20,8 +30,8 @@ def promotion(environ, arguments, stdout, stderr):
     inputs = handed(environ, JUDGEMENT + ('LACKING',))
     if isinstance(inputs, run.Rejected):
         return inputs
-    judgement = run.judgement(*inputs[:6])
-    lacking = run.lacking(inputs[6])
+    judgement = judgement_from(inputs)
+    lacking = run.lacking(inputs[len(JUDGEMENT)])
     rejected = run.first_rejected(judgement, lacking)
     if rejected is not None:
         return rejected
@@ -39,9 +49,9 @@ def report(environ, arguments, stdout, stderr):
         return inputs
     with open(arguments[0], encoding='utf-8') as listed:
         open_issues = issues.open_issues(listed.read())
-    judgement = run.judgement(*inputs[:6])
-    promoting = run.promoting(*inputs[6:11])
-    link = issues.run_link(*inputs[11:])
+    judgement = judgement_from(inputs)
+    promoting = run.promoting(*inputs[len(JUDGEMENT):len(JUDGEMENT) + len(PROMOTING)])
+    link = issues.run_link(*inputs[len(JUDGEMENT) + len(PROMOTING):])
     rejected = run.first_rejected(open_issues, judgement, promoting, link)
     if rejected is not None:
         return rejected

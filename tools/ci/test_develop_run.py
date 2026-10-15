@@ -2,7 +2,7 @@ import base64
 import unittest
 
 import develop_run as run
-from develop_run import (CheckDidNotPass, Checked, Green, Hold, JudgingEnded, Judged, Looked,
+from develop_run import (Green, Hold, JudgingEnded, Judged, Looked, StepDidNotPass, StepsEnded,
                          MainHasWhatDevelopLacks, MainRefusedThePush, Move, NeverJudged, NeverLooked,
                          NothingJudged, Outcome, PromotingEnded, Red, Rejected)
 
@@ -20,12 +20,18 @@ def commit(hash_text=JUDGED, subject=SUBJECT):
     return run.commit_line(hash_text + ' ' + subject)
 
 
-def checked(formatting=Outcome.SUCCESS, tool_tests=Outcome.SUCCESS, unit_tests=Outcome.SUCCESS):
-    return Checked(formatting, tool_tests, unit_tests)
+def steps_ended(**changed):
+    outcomes = {step.step: Outcome.SUCCESS for step in run.STEPS}
+    outcomes.update({key.replace('_', '-'): value for key, value in changed.items()})
+    return StepsEnded(tuple(outcomes[step.step] for step in run.STEPS))
+
+
+def texts(**changed):
+    return tuple(each.value for each in steps_ended(**changed).outcomes)
 
 
 def judged(ended=Outcome.SUCCESS, **outcomes):
-    return Judged(commit(), ended, checked(**outcomes))
+    return Judged(commit(), ended, steps_ended(**outcomes))
 
 
 def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ended=Outcome.SUCCESS):
@@ -38,9 +44,9 @@ class WhetherMainMoves(unittest.TestCase):
 
     def test_main_holds_naming_the_check_that_failed_and_the_checks_it_kept_from_running(self):
         self.assertEqual(
-            Hold((CheckDidNotPass(run.FORMATTING, Outcome.FAILURE),
-                  CheckDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
-                  CheckDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
+            Hold((StepDidNotPass(run.FORMATTING, Outcome.FAILURE),
+                  StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
+                  StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
             run.promotion(judged(Outcome.FAILURE, formatting=Outcome.FAILURE,
                                  tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), ()))
 
@@ -53,7 +59,7 @@ class WhetherMainMoves(unittest.TestCase):
         stray = commit(STRAY, 'Fix the README on main')
 
         self.assertEqual(
-            Hold((CheckDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), MainHasWhatDevelopLacks((stray,)))),
+            Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), MainHasWhatDevelopLacks((stray,)))),
             run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (stray,)))
 
     def test_main_holds_when_the_judging_job_ended_badly_after_every_check_passed(self):
@@ -61,16 +67,50 @@ class WhetherMainMoves(unittest.TestCase):
 
     def test_main_holds_when_the_judging_job_ended_before_its_checks_reported(self):
         self.assertEqual(
-            Hold((CheckDidNotPass(run.FORMATTING, Outcome.UNREPORTED),
-                  CheckDidNotPass(run.TOOL_TESTS, Outcome.UNREPORTED),
-                  CheckDidNotPass(run.UNIT_TESTS, Outcome.UNREPORTED),
+            Hold((StepDidNotPass(run.FORMATTING, Outcome.UNREPORTED),
+                  StepDidNotPass(run.TOOL_TESTS, Outcome.UNREPORTED),
+                  StepDidNotPass(run.UNIT_TESTS, Outcome.UNREPORTED),
                   JudgingEnded(Outcome.CANCELLED))),
             run.promotion(judged(Outcome.CANCELLED, formatting=Outcome.UNREPORTED,
                                  tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED), ()))
 
-    def test_main_holds_when_no_commit_was_judged(self):
-        self.assertEqual(Hold((NothingJudged(Outcome.FAILURE),)),
-                         run.promotion(NeverJudged(Outcome.FAILURE), ()))
+    def test_main_holds_when_no_commit_was_judged_naming_the_step_that_failed_before_one_was(self):
+        never = NeverJudged(Outcome.FAILURE, steps_ended(checkout=Outcome.FAILURE, judged=Outcome.SKIPPED,
+                                                         java=Outcome.SKIPPED, gradle=Outcome.SKIPPED,
+                                                         node=Outcome.SKIPPED, browser=Outcome.SKIPPED,
+                                                         formatting=Outcome.SKIPPED, tool_tests=Outcome.SKIPPED,
+                                                         unit_tests=Outcome.SKIPPED))
+
+        self.assertEqual(Hold((NothingJudged(Outcome.FAILURE), StepDidNotPass(run.CHECKOUT, Outcome.FAILURE),
+                               StepDidNotPass(run.FORMATTING, Outcome.SKIPPED),
+                               StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
+                               StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
+                         run.promotion(never, ()))
+
+    def test_main_holds_naming_a_step_before_the_checks_that_failed_and_the_checks_it_kept_from_running(self):
+        self.assertEqual(
+            Hold((StepDidNotPass(run.BROWSER, Outcome.FAILURE),
+                  StepDidNotPass(run.FORMATTING, Outcome.SKIPPED),
+                  StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
+                  StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
+            run.promotion(judged(Outcome.FAILURE, browser=Outcome.FAILURE, formatting=Outcome.SKIPPED,
+                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), ()))
+
+    def test_main_holds_when_the_report_could_not_be_kept_though_every_check_passed(self):
+        self.assertEqual(Hold((StepDidNotPass(run.RESULTS, Outcome.FAILURE),)),
+                         run.promotion(judged(Outcome.FAILURE, results=Outcome.FAILURE), ()))
+
+    def test_a_step_cancelled_while_it_ran_is_named_with_the_checks_it_kept_from_their_end(self):
+        self.assertEqual(
+            Hold((StepDidNotPass(run.GRADLE, Outcome.CANCELLED),
+                  StepDidNotPass(run.FORMATTING, Outcome.UNREPORTED),
+                  StepDidNotPass(run.TOOL_TESTS, Outcome.UNREPORTED),
+                  StepDidNotPass(run.UNIT_TESTS, Outcome.UNREPORTED),
+                  JudgingEnded(Outcome.CANCELLED))),
+            run.promotion(judged(Outcome.CANCELLED, gradle=Outcome.CANCELLED, node=Outcome.UNREPORTED,
+                                 browser=Outcome.UNREPORTED, formatting=Outcome.UNREPORTED,
+                                 tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED,
+                                 results=Outcome.UNREPORTED), ()))
 
     def test_a_check_that_passed_in_a_job_that_passed_is_never_a_reason_to_hold(self):
         self.assertIsInstance(run.promotion(judged(), ()), Move)
@@ -89,13 +129,13 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
     def test_a_run_that_held_main_is_red_for_the_reasons_it_held(self):
         promoting = looked(pushed=Outcome.SKIPPED)
 
-        self.assertEqual(Red((CheckDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),), promoting),
+        self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),), promoting),
                          run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
 
     def test_a_run_whose_mover_ended_before_it_looked_at_main_is_red_for_that_and_for_the_judging(self):
         promoting = NeverLooked(Outcome.FAILURE)
 
-        self.assertEqual(Red((CheckDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), PromotingEnded(Outcome.FAILURE)),
+        self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), PromotingEnded(Outcome.FAILURE)),
                              promoting),
                          run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
 
@@ -112,12 +152,19 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
 
 class WhatTheReasonsSay(unittest.TestCase):
     def test_a_failed_check_is_named_with_the_command_that_failed(self):
-        said = run.reasons((CheckDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),))
+        said = run.reasons((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),))
 
         self.assertIn('**%s** failed: `%s`' % (run.UNIT_TESTS.name, run.UNIT_TESTS.command), said)
 
+    def test_a_failed_step_that_is_not_a_check_is_named_by_its_step_name(self):
+        self.assertEqual('**%s** failed.' % run.BROWSER.name, run.reasons((StepDidNotPass(run.BROWSER, Outcome.FAILURE),)))
+
+    def test_a_step_cancelled_while_it_ran_is_said_so(self):
+        self.assertEqual('**%s** did not run to its end: its outcome is `cancelled`.' % run.GRADLE.name,
+                         run.reasons((StepDidNotPass(run.GRADLE, Outcome.CANCELLED),)))
+
     def test_a_check_kept_from_running_is_said_not_to_have_run(self):
-        said = run.reasons((CheckDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),))
+        said = run.reasons((StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),))
 
         self.assertIn('**%s** did not run' % run.TOOL_TESTS.name, said)
 
@@ -162,7 +209,7 @@ class WhatTheReasonsSay(unittest.TestCase):
         self.assertIn('and 10 more', said)
 
     def test_each_reason_is_a_paragraph_of_its_own(self):
-        said = run.reasons((CheckDidNotPass(run.FORMATTING, Outcome.FAILURE), JudgingEnded(Outcome.FAILURE)))
+        said = run.reasons((StepDidNotPass(run.FORMATTING, Outcome.FAILURE), JudgingEnded(Outcome.FAILURE)))
 
         self.assertEqual(2, len(said.split('\n\n')))
 
@@ -183,16 +230,15 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
 
     def test_a_subject_whose_base64_holds_a_character_beyond_ascii_is_refused_by_the_rule(self):
         self.assertEqual(Rejected("what the workflow gathered is base64, and 'é' is not"),
-                         run.judgement('success', JUDGED, 'é', 'success', 'success', 'success'))
+                         run.judgement('success', JUDGED, 'é', texts()))
 
     def test_a_control_character_in_a_subject_is_shown_escaped_so_the_subject_stays_one_line(self):
-        read = run.judgement('success', JUDGED, b64('Fix the thing\r```\rrest\x1b[31m\u2028end\n'), 'success', 'success',
-                             'success')
+        read = run.judgement('success', JUDGED, b64('Fix the thing\r```\rrest\x1b[31m\u2028end\n'), texts())
 
         self.assertEqual('Fix the thing\\x0d```\\x0drest\\x1b[31m\\u2028end', read.commit.subject)
 
     def test_a_subject_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
-        read = run.judgement('success', JUDGED, b64('x' * 70000 + '\n'), 'success', 'success', 'success')
+        read = run.judgement('success', JUDGED, b64('x' * 70000 + '\n'), texts())
 
         self.assertEqual('x' * run.SUBJECT_SHOWN + '… (%d more characters)' % (70000 - run.SUBJECT_SHOWN),
                          read.commit.subject)
@@ -204,8 +250,7 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
                          run.lacking(b64(printed))[0].subject)
 
     def test_a_subject_is_never_cut_inside_the_escape_of_a_character(self):
-        read = run.judgement('success', JUDGED, b64('x' * (run.SUBJECT_SHOWN - 2) + '\r\n'), 'success', 'success',
-                             'success')
+        read = run.judgement('success', JUDGED, b64('x' * (run.SUBJECT_SHOWN - 2) + '\r\n'), texts())
 
         self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
 
@@ -220,14 +265,28 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
 
     def test_a_judgement_with_no_commit_named_is_one_that_judged_nothing(self):
-        self.assertEqual(NeverJudged(Outcome.FAILURE), run.judgement('failure', '', '', '', '', ''))
+        before_naming = dict(checkout=Outcome.FAILURE, judged=Outcome.SKIPPED, java=Outcome.SKIPPED,
+                             gradle=Outcome.SKIPPED, node=Outcome.SKIPPED, browser=Outcome.SKIPPED,
+                             formatting=Outcome.SKIPPED, tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED)
+
+        self.assertEqual(NeverJudged(Outcome.FAILURE, steps_ended(**before_naming)),
+                         run.judgement('failure', '', '', texts(**before_naming)))
 
     def test_a_judgement_reads_the_subject_git_printed_without_its_newline(self):
-        self.assertEqual(Judged(commit(), Outcome.SUCCESS, checked()),
-                         run.judgement('success', JUDGED, b64(SUBJECT + '\n'), 'success', 'success', 'success'))
+        self.assertEqual(Judged(commit(), Outcome.SUCCESS, steps_ended()),
+                         run.judgement('success', JUDGED, b64(SUBJECT + '\n'), texts()))
+
+    def test_a_judgement_reads_one_outcome_for_each_step_of_the_judging_job(self):
+        for wrong in (texts()[:-1], texts() + ('success',)):
+            self.assertEqual(Rejected('a judgement hands one outcome for each of the %d steps of the judging job'
+                                      % len(run.STEPS)),
+                             run.judgement('success', JUDGED, b64(SUBJECT + '\n'), wrong))
+        passed = tuple('passed' if step is run.JAVA else 'success' for step in run.STEPS)
+
+        self.assertIsInstance(run.judgement('success', JUDGED, b64(SUBJECT + '\n'), passed), Rejected)
 
     def test_a_subject_that_is_not_base64_is_refused(self):
-        self.assertIsInstance(run.judgement('success', JUDGED, 'not base64!', 'success', 'success', 'success'),
+        self.assertIsInstance(run.judgement('success', JUDGED, 'not base64!', texts()),
                               Rejected)
 
     def test_what_main_lacks_is_read_from_the_lines_git_log_printed(self):
@@ -275,9 +334,12 @@ class MakingAValueDirectly(unittest.TestCase):
         self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS), Rejected)
 
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
-        self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, checked()), Rejected)
-        self.assertIsInstance(Judged(commit(), 'success', checked()), Rejected)
-        self.assertIsInstance(Checked('success', Outcome.SUCCESS, Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, steps_ended()), Rejected)
+        self.assertIsInstance(Judged(commit(), 'success', steps_ended()), Rejected)
+        self.assertIsInstance(StepsEnded(('success',) * len(run.STEPS)), Rejected)
+        self.assertIsInstance(StepsEnded((Outcome.SUCCESS,) * (len(run.STEPS) - 1)), Rejected)
+        self.assertIsInstance(NeverJudged('failure', steps_ended()), Rejected)
+        self.assertIsInstance(NeverJudged(Outcome.FAILURE, None), Rejected)
 
 
 class WhatTheWorkflowIsHanded(unittest.TestCase):
@@ -291,7 +353,7 @@ class WhatTheWorkflowIsHanded(unittest.TestCase):
         self.assertEqual('main moves to `%s` `%s`.' % (JUDGED, SUBJECT), run.explained(Move(commit())))
 
     def test_the_log_of_a_hold_gives_its_reasons(self):
-        hold = Hold((CheckDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),))
+        hold = Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),))
 
         self.assertEqual('main holds where it was:\n\n' + run.reasons(hold.findings), run.explained(hold))
 
