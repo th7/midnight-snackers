@@ -27,7 +27,7 @@ def gathered(**changed):
 
 
 def reported(**changed):
-    handed = gathered(PROMOTING_ENDED='success', MAIN_TIP=MAIN, PUSHED='success', GIT_SAID='',
+    handed = gathered(LOOKING_ENDED='success', PROMOTING_ENDED='success', MAIN_TIP=MAIN, PUSHED='success', GIT_SAID='',
                       GITHUB_SERVER_URL='https://github.com', GITHUB_REPOSITORY='th7/midnight-snackers',
                       GITHUB_RUN_ID='123456')
     handed.update(changed)
@@ -41,11 +41,11 @@ def called(command, environ, *arguments):
 
 
 class DecidingWhetherMainMoves(unittest.TestCase):
-    def test_a_green_judgement_with_nothing_lacking_hands_the_workflow_a_move_to_the_judged_commit(self):
+    def test_a_green_judgement_with_nothing_lacking_hands_the_workflow_a_move_naming_the_judged_commit_in_the_log(self):
         done = called('promotion', gathered())
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertEqual('decision=move\ncommit=%s\n' % JUDGED, done.stdout)
+        self.assertEqual('decision=move\n', done.stdout)
         self.assertIn('main moves to `%s`' % JUDGED, done.stderr)
 
     def test_a_held_main_hands_the_workflow_a_hold_and_says_why_in_the_log(self):
@@ -177,16 +177,25 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertEqual('action=comment\nissues=12\n', done.stdout)
         self.assertIn('git push origin %s:refs/heads/main' % JUDGED, self.body_written())
 
-    def test_a_report_not_handed_the_workflow_files_fails_naming_them_and_hands_nothing(self):
-        environ = reported()
-        del environ['WORKFLOWS']
-        with open(self.open_issues, 'w') as written:
-            written.write('[]')
-        done = called('report', environ, self.open_issues, self.body)
+    def test_a_report_not_handed_what_the_look_at_main_found_fails_naming_it_and_hands_nothing(self):
+        for name in ('WORKFLOWS', 'LOOKING_ENDED'):
+            environ = reported()
+            del environ[name]
+            with open(self.open_issues, 'w') as written:
+                written.write('[]')
+            done = called('report', environ, self.open_issues, self.body)
 
-        self.assertEqual(2, done.returncode)
-        self.assertEqual('', done.stdout)
-        self.assertIn('WORKFLOWS', done.stderr)
+            self.assertEqual(2, done.returncode)
+            self.assertEqual('', done.stdout)
+            self.assertIn(name, done.stderr)
+
+    def test_a_run_whose_look_at_main_ended_before_it_found_main_says_so(self):
+        done = self.report('[]', LOOKING_ENDED='failure', MAIN_TIP='', PROMOTING_ENDED='failure', PUSHED='skipped')
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertIn('The job that looks at main ended `failure` before it found where main stands.',
+                      self.body_written())
 
     def test_open_issues_that_are_not_the_json_gh_prints_fail_with_the_rule_and_hand_nothing(self):
         done = self.report('not json')

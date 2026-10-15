@@ -11,7 +11,8 @@ def outcome_of(step):
 JUDGED = ('JUDGING_ENDED', 'JUDGED', 'SUBJECT')
 STEP_OUTCOMES = tuple(outcome_of(step) for step in run.STEPS)
 JUDGEMENT = JUDGED + STEP_OUTCOMES
-PROMOTING = ('PROMOTING_ENDED', 'MAIN_TIP', 'LACKING', 'MAIN_AHEAD', 'WORKFLOWS', 'PUSHED', 'GIT_SAID')
+LOOKING = ('LOOKING_ENDED', 'MAIN_TIP', 'LACKING', 'MAIN_AHEAD', 'WORKFLOWS')
+PROMOTING = ('PROMOTING_ENDED', 'PUSHED', 'GIT_SAID')
 RUN = ('GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID')
 
 
@@ -46,14 +47,15 @@ def promotion(environ, arguments, stdout, stderr):
 def report(environ, arguments, stdout, stderr):
     if len(arguments) != 2:
         return run.Rejected('report takes where the open issues are and where to write the body, in that order')
-    inputs = handed(environ, JUDGEMENT + PROMOTING + RUN)
+    inputs = handed(environ, JUDGEMENT + LOOKING + PROMOTING + RUN)
     if isinstance(inputs, run.Rejected):
         return inputs
     with open(arguments[0], encoding='utf-8') as listed:
         open_issues = issues.open_issues(listed.read())
     judgement = judgement_from(inputs)
-    promoting = run.promoting(*inputs[len(JUDGEMENT):len(JUDGEMENT) + len(PROMOTING)])
-    link = issues.run_link(*inputs[len(JUDGEMENT) + len(PROMOTING):])
+    found = len(JUDGEMENT) + len(LOOKING) + len(PROMOTING)
+    promoting = run.promoting(*inputs[len(JUDGEMENT):found])
+    link = issues.run_link(*inputs[found:])
     rejected = run.first_rejected(open_issues, judgement, promoting, link)
     if rejected is not None:
         return rejected

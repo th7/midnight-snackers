@@ -89,30 +89,29 @@ jobs:
             TeamCode/build/sim/*.html
             tools/browser/field-as-drawn.png
 
-  promote:
+  look:
     needs: unit-tests
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write
+      contents: read
     outputs:
       main-tip: ${{ steps.main.outputs.tip }}
       lacking: ${{ steps.main.outputs.lacking }}
       main-ahead: ${{ steps.main.outputs.ahead }}
       workflows: ${{ steps.main.outputs.workflows }}
-      pushed: ${{ steps.push.outcome }}
-      git-said: ${{ steps.push.outputs.said }}
+      decision: ${{ steps.decide.outputs.decision }}
     steps:
-      - name: Check out the judged commit
+      - name: Check out the judged commit with every branch's history, keeping no credential
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
+          persist-credentials: false
       - name: Find what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
         id: main
         run: |
-          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/develop:refs/remotes/origin/develop
           tip=$(git rev-parse refs/remotes/origin/main)
           lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)
           ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
@@ -143,11 +142,31 @@ jobs:
           MAIN_AHEAD: ${{ steps.main.outputs.ahead }}
           WORKFLOWS: ${{ steps.main.outputs.workflows }}
         run: python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"
+      - name: Fail unless main moves or stays, so that re-running the failed jobs looks at main again
+        if: steps.decide.outputs.decision != 'move' && steps.decide.outputs.decision != 'stay'
+        run: exit 1
+
+  promote:
+    needs: [unit-tests, look]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      pushed: ${{ steps.push.outcome }}
+      git-said: ${{ steps.push.outputs.said }}
+    steps:
+      - name: Check out the judged commit with all of history and the built-in token, running none of its code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
+          fetch-depth: 0
       - name: Move main to the judged commit, never by force
         id: push
-        if: steps.decide.outputs.decision == 'move'
+        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.look.outputs.decision == 'move'
         env:
-          JUDGED: ${{ steps.decide.outputs.commit }}
+          JUDGED: ${{ needs.unit-tests.outputs.commit }}
         run: |
           pushed=0
           git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?
@@ -156,11 +175,11 @@ jobs:
           echo "said=$said" >> "$GITHUB_OUTPUT"
           exit "$pushed"
       - name: Hold main where it was
-        if: steps.decide.outputs.decision != 'move' && steps.decide.outputs.decision != 'stay'
+        if: needs.unit-tests.result != 'success' || needs.look.result != 'success'
         run: exit 1
 
   report:
-    needs: [unit-tests, promote]
+    needs: [unit-tests, look, promote]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -193,11 +212,12 @@ jobs:
           STEP_TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
           STEP_UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
           STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
+          LOOKING_ENDED: ${{ needs.look.result }}
+          MAIN_TIP: ${{ needs.look.outputs.main-tip }}
+          LACKING: ${{ needs.look.outputs.lacking }}
+          MAIN_AHEAD: ${{ needs.look.outputs.main-ahead }}
+          WORKFLOWS: ${{ needs.look.outputs.workflows }}
           PROMOTING_ENDED: ${{ needs.promote.result }}
-          MAIN_TIP: ${{ needs.promote.outputs.main-tip }}
-          LACKING: ${{ needs.promote.outputs.lacking }}
-          MAIN_AHEAD: ${{ needs.promote.outputs.main-ahead }}
-          WORKFLOWS: ${{ needs.promote.outputs.workflows }}
           PUSHED: ${{ needs.promote.outputs.pushed }}
           GIT_SAID: ${{ needs.promote.outputs.git-said }}
         run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" "$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"

@@ -2,7 +2,7 @@ import base64
 import unittest
 
 import develop_run as run
-from develop_run import (Green, Hold, JudgingEnded, Judged, Looked, StepDidNotPass, StepsEnded,
+from develop_run import (Green, Hold, JudgingEnded, Judged, Looked, LookingEnded, StepDidNotPass, StepsEnded,
                          MainHasWhatDevelopLacks, MainRefusedThePush, Move, NeverJudged, NeverLooked,
                          NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed,
                          MainNeedsAMaintainerForWorkflows, WorkflowFiles)
@@ -198,10 +198,10 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
         self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),), promoting),
                          run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
 
-    def test_a_run_whose_mover_ended_before_it_looked_at_main_is_red_for_that_and_for_the_judging(self):
+    def test_a_run_whose_look_at_main_ended_before_it_found_main_is_red_for_that_and_for_the_judging(self):
         promoting = NeverLooked(Outcome.FAILURE)
 
-        self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), PromotingEnded(Outcome.FAILURE)),
+        self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), LookingEnded(Outcome.FAILURE)),
                              promoting),
                          run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
 
@@ -296,7 +296,14 @@ class WhatTheReasonsSay(unittest.TestCase):
         self.assertIn('ended `cancelled`', run.reasons((JudgingEnded(Outcome.CANCELLED),)))
 
     def test_a_mover_that_ended_before_it_pushed_says_how_it_ended(self):
-        self.assertIn('ended `failure` before it pushed', run.reasons((PromotingEnded(Outcome.FAILURE),)))
+        self.assertEqual('The job that moves main ended `failure` before it pushed.',
+                         run.reasons((PromotingEnded(Outcome.FAILURE),)))
+
+    def test_a_look_at_main_that_ended_before_it_found_main_says_how_it_ended(self):
+        self.assertEqual('The job that looks at main ended `cancelled` before it found where main stands.',
+                         run.reasons((LookingEnded(Outcome.CANCELLED),)))
+        self.assertEqual('The job that looks at main ended `unreported` before it found where main stands.',
+                         run.reasons((LookingEnded(Outcome.UNREPORTED),)))
 
     def test_backticks_in_what_git_said_never_close_its_quote_early(self):
         git_said = 'remote: ``` and more\n'
@@ -363,13 +370,13 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
 
     def test_what_git_said_ends_its_lines_where_a_carriage_return_did_and_shows_other_control_characters_escaped(self):
-        read = run.promoting('failure', MAIN, '', '', '', 'failure',
+        read = run.promoting('success', MAIN, '', '', '', 'failure', 'failure',
                              b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'))
 
         self.assertEqual('remote: one\nremote: two\nthree\\x00\\x1b[0m\tok\n', read.said)
 
     def test_what_git_said_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
-        read = run.promoting('failure', MAIN, '', '', '', 'failure', b64('z' * 70000))
+        read = run.promoting('success', MAIN, '', '', '', 'failure', 'failure', b64('z' * 70000))
 
         self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
 
@@ -408,23 +415,24 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
     def test_a_line_of_what_main_lacks_that_names_no_commit_is_refused(self):
         self.assertIsInstance(run.listed_commits(b64('Fix the README on main\n')), Rejected)
 
-    def test_a_mover_that_named_no_main_tip_never_looked_at_main(self):
-        self.assertEqual(NeverLooked(Outcome.FAILURE), run.promoting('failure', '', '', '', '', '', ''))
+    def test_a_look_that_named_no_main_tip_never_found_main_and_ended_as_the_job_that_looks_did(self):
+        self.assertEqual(NeverLooked(Outcome.CANCELLED), run.promoting('cancelled', '', '', '', '', 'failure', 'skipped', ''))
 
     def test_a_mover_that_looked_reads_what_main_lacks_and_what_git_said(self):
         self.assertEqual(looked(pushed=Outcome.FAILURE, said='refused\n', ended=Outcome.FAILURE),
-                         run.promoting('failure', MAIN, '', '', '', 'failure', b64('refused\n')))
+                         run.promoting('success', MAIN, '', '', '', 'failure', 'failure', b64('refused\n')))
 
     def test_a_mover_that_looked_reads_what_main_has_beyond_the_judged_commit(self):
         later = commit(STRAY, 'A later commit of develop')
 
         self.assertEqual(looked(ahead=(later,), pushed=Outcome.SKIPPED),
-                         run.promoting('success', MAIN, '', b64('%s A later commit of develop\n' % STRAY), '', 'skipped',
-                                       ''))
+                         run.promoting('success', MAIN, '', b64('%s A later commit of develop\n' % STRAY), '', 'success',
+                                       'skipped', ''))
 
     def test_a_mover_that_looked_reads_the_workflow_files_the_commits_since_main_change(self):
         self.assertEqual(looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE, workflows=TESTS_YML),
-                         run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'skipped', ''))
+                         run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'failure', 'skipped',
+                                       ''))
 
     def test_the_workflow_files_are_read_from_the_lines_git_log_printed_each_once_and_in_order(self):
         printed = ('.github/workflows/tests.yml\n\n.github/workflows/release.yml\n.github/workflows/tests.yml\n\n'
@@ -528,13 +536,15 @@ class MakingAValueDirectly(unittest.TestCase):
 
     def test_what_a_mover_hands_on_that_disagrees_with_itself_is_refused_by_the_rule_it_breaks(self):
         self.assertEqual(Rejected(run.SAID_ONLY_OF_A_PUSH_THAT_RAN),
-                         run.promoting('failure', MAIN, '', '', '', 'skipped', b64('refused\n')))
+                         run.promoting('success', MAIN, '', '', '', 'failure', 'skipped', b64('refused\n')))
         self.assertEqual(Rejected(run.A_PUSH_RUNS_ONLY_TO_MOVE_MAIN),
-                         run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'failure', ''))
+                         run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'failure', 'failure',
+                                       ''))
         self.assertEqual(Rejected(run.A_FAILED_PUSH_FAILS_ITS_JOB),
-                         run.promoting('success', MAIN, '', '', '', 'failure', b64('refused\n')))
+                         run.promoting('success', MAIN, '', '', '', 'success', 'failure', b64('refused\n')))
         self.assertEqual(Rejected(run.A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD),
-                         run.promoting('success', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'skipped', ''))
+                         run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'success', 'skipped',
+                                       ''))
 
     def test_workflow_files_made_directly_are_held_to_distinct_paths_under_the_workflows_directory_in_order(self):
         self.assertEqual(('.github/workflows/a.yml', '.github/workflows/b.yml'),
@@ -574,8 +584,8 @@ class MakingAValueDirectly(unittest.TestCase):
 
 
 class WhatTheWorkflowIsHanded(unittest.TestCase):
-    def test_a_move_hands_the_workflow_the_commit_to_push(self):
-        self.assertEqual('decision=move\ncommit=%s\n' % JUDGED, run.promotion_outputs(Move(commit())))
+    def test_a_move_hands_the_workflow_only_the_decision_since_the_push_takes_the_commit_from_the_judging(self):
+        self.assertEqual('decision=move\n', run.promotion_outputs(Move(commit())))
 
     def test_a_stay_hands_the_workflow_no_commit(self):
         self.assertEqual('decision=stay\n', run.promotion_outputs(Stay(commit(), (commit(STRAY, 'Later'),))))

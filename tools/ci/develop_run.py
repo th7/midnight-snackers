@@ -276,6 +276,11 @@ class PromotingEnded:
 
 
 @dataclass(frozen=True)
+class LookingEnded:
+    ended: Outcome
+
+
+@dataclass(frozen=True)
 class Move:
     commit: Commit
 
@@ -427,12 +432,15 @@ def workflow_files(lines_base64):
     return WorkflowFiles(tuple(sorted(set(shown_subject(path) for path in text.split('\n') if path != ''))))
 
 
-def promoting(ended_text, main_tip_text, lacking_base64, ahead_base64, workflows_base64, pushed_text, said_base64):
+def promoting(looking_text, main_tip_text, lacking_base64, ahead_base64, workflows_base64, ended_text, pushed_text,
+              said_base64):
+    looking = outcome(looking_text)
     ended = outcome(ended_text)
-    if isinstance(ended, Rejected):
-        return ended
+    rejected = first_rejected(looking, ended)
+    if rejected is not None:
+        return rejected
     if main_tip_text == '':
-        return NeverLooked(ended)
+        return NeverLooked(looking)
     main_tip = commit_hash(main_tip_text)
     lacking = listed_commits(lacking_base64)
     ahead = listed_commits(ahead_base64)
@@ -474,7 +482,7 @@ def promotion(judgement_read, lacking_commits, ahead_commits, workflows):
 
 def verdict(judgement_read, promoting_read):
     if isinstance(promoting_read, NeverLooked):
-        return Red(judging_findings(judgement_read) + (PromotingEnded(promoting_read.ended),), promoting_read)
+        return Red(judging_findings(judgement_read) + (LookingEnded(promoting_read.ended),), promoting_read)
     decided = promotion(judgement_read, promoting_read.lacking, promoting_read.ahead, promoting_read.workflows)
     if isinstance(decided, Hold):
         return Red(decided.findings, promoting_read)
@@ -545,6 +553,9 @@ def described(found):
     if isinstance(found, MainRefusedThePush):
         return 'main refused the push of %s. git said:\n\n%s' % (code_span(found.commit.hash.text),
                                                                   fenced(found.said))
+    if isinstance(found, LookingEnded):
+        return 'The job that looks at main ended `%s` before it found where main stands.' % (
+            found.ended.value or 'unreported')
     return 'The job that moves main ended `%s` before it pushed.' % (found.ended.value or 'unreported')
 
 
@@ -554,7 +565,7 @@ def reasons(findings):
 
 def promotion_outputs(decided):
     if isinstance(decided, Move):
-        return 'decision=move\ncommit=%s\n' % decided.commit.hash.text
+        return 'decision=move\n'
     if isinstance(decided, Stay):
         return 'decision=stay\n'
     return 'decision=hold\n'

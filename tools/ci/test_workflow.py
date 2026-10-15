@@ -10,6 +10,7 @@ import unittest
 import develop_issue as issues
 import develop_run as run
 import develop_run_cli as cli
+import workflow_conditions as conditions
 from yaml_subset import Rejected, parse
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -18,6 +19,8 @@ FOR_DEVELOP_ONLY = "${{ !cancelled() && github.event_name == 'push' && github.re
 JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}"
 CHECKOUT_KEEPS_ITS_TOKEN = 'https://github.com/actions/checkout/blob/v4/src/git-auth-helper.ts'
 SECRETS_CONTEXT = 'https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context'
+CHECKOUT_FETCHES_EVERY_BRANCH = 'https://github.com/actions/checkout/blob/v4/src/ref-helper.ts'
+REPOSITORY_CODE = re.compile(r'python3? |\./|gradlew|npm |npx |tools/|bash |source |make ')
 CONTEXT_NAMES_IGNORE_CASE = ('https://github.com/actions/runner/blob/796cc18ffaaafd5cea525d6231f5a8c93c11c603/'
                              'src/Sdk/DTExpressions2/Expressions2/ExpressionParser.cs#L427')
 JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
@@ -41,6 +44,22 @@ def runs_of(job):
 
 def step_named(job, step_id):
     return next(step for step in steps_of(job) if step.get('id') == step_id)
+
+
+def ran(job, contexts, outputs=None, failing=()):
+    status = conditions.Status(failed=False, cancelled=False)
+    steps = {}
+    outcomes = {}
+    for step in steps_of(job):
+        key = step.get('id') or step['name']
+        runs = conditions.holds(step.get('if', 'success()'), dict(contexts, steps=steps), status)
+        if isinstance(runs, conditions.Rejected):
+            return runs
+        fails = step.get('run') == 'exit 1' or key in failing
+        outcomes[key] = ('failure' if fails else 'success') if runs else 'skipped'
+        steps[key] = {'outcome': outcomes[key], 'outputs': (outputs or {}).get(key, {}) if runs else {}}
+        status = conditions.Status(failed=status.failed or outcomes[key] == 'failure', cancelled=False)
+    return outcomes, 'failure' if status.failed else 'success'
 
 
 def every_text_in(value):
@@ -71,10 +90,16 @@ class WhatStartsARun(WorkflowTest):
             self.workflow['concurrency'])
 
     def test_only_a_push_to_develop_reaches_the_jobs_that_move_main_and_write_the_issue_judged_red_or_not(self):
-        self.assertEqual({'promote': FOR_DEVELOP_ONLY, 'report': FOR_DEVELOP_ONLY},
+        self.assertEqual({'look': FOR_DEVELOP_ONLY, 'promote': FOR_DEVELOP_ONLY, 'report': FOR_DEVELOP_ONLY},
                          {name: job['if'] for name, job in self.jobs.items() if 'if' in job})
-        self.assertEqual('unit-tests', self.jobs['promote']['needs'])
-        self.assertEqual(['unit-tests', 'promote'], self.jobs['report']['needs'])
+        self.assertEqual('unit-tests', self.jobs['look']['needs'])
+        self.assertEqual(['unit-tests', 'look'], self.jobs['promote']['needs'])
+        self.assertEqual(['unit-tests', 'look', 'promote'], self.jobs['report']['needs'])
+
+    def test_every_condition_in_the_workflow_is_one_the_tests_evaluate(self):
+        for name, job in self.jobs.items():
+            for text in [job.get('if', 'success()')] + [step.get('if', 'success()') for step in steps_of(job)]:
+                self.assertNotIsInstance(conditions.parsed(text), conditions.Rejected, (name, text))
 
     def test_no_job_or_step_is_let_fail_without_failing_the_run(self):
         def keys_in(value):
@@ -97,6 +122,7 @@ class WhatEachJobMayDo(WorkflowTest):
 
     def test_each_job_is_granted_only_what_it_needs(self):
         self.assertEqual({'unit-tests': {'contents': 'read'},
+                          'look': {'contents': 'read'},
                           'promote': {'contents': 'write'},
                           'report': {'contents': 'read', 'issues': 'write'}},
                          {name: job['permissions'] for name, job in self.jobs.items()})
@@ -122,6 +148,14 @@ class WhatEachJobMayDo(WorkflowTest):
                 and step.get('with', {}).get('persist-credentials') != 'false'}
 
         self.assertEqual({'promote'}, kept)
+
+    def test_no_job_that_runs_code_it_checked_out_keeps_a_credential_and_the_job_that_pushes_runs_none(self):
+        for name, job in self.jobs.items():
+            if any(REPOSITORY_CODE.search(each) for each in runs_of(job)):
+                for step in steps_of(job):
+                    if step.get('uses', '').startswith('actions/checkout@'):
+                        self.assertEqual('false', step['with'].get('persist-credentials'), name)
+        self.assertEqual([], [each for each in runs_of(self.jobs['promote']) if REPOSITORY_CODE.search(each)])
 
 
 class WhatARunJudges(WorkflowTest):
@@ -165,9 +199,20 @@ class WhatARunJudges(WorkflowTest):
                          self.jobs['unit-tests']['outputs'])
 
     def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_and_the_built_in_token(self):
-        self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
+        self.assertEqual({'name': 'Check out the judged commit with all of history and the built-in token, running '
+                                  'none of its code',
+                          'uses': 'actions/checkout@v4',
                           'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0'}},
                          steps_of(self.jobs['promote'])[0])
+
+    def test_the_job_that_decides_checks_out_the_commit_judged_with_every_branch_s_history_keeping_no_credential(self):
+        self.assertEqual({'name': "Check out the judged commit with every branch's history, keeping no credential",
+                          'uses': 'actions/checkout@v4',
+                          'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0', 'persist-credentials': 'false'}},
+                         steps_of(self.jobs['look'])[0],
+                         'a checkout of all of history fetches every branch into refs/remotes/origin (%s), so the job '
+                         'that looks at main needs no credential of its own to fetch main and develop'
+                         % CHECKOUT_FETCHES_EVERY_BRANCH)
 
     def test_nothing_in_the_workflow_reads_a_secret_in_any_form(self):
         with open(WORKFLOW, encoding='utf-8') as text:
@@ -178,10 +223,13 @@ class WhatARunJudges(WorkflowTest):
 
     def test_the_jobs_that_move_main_and_write_the_issue_hold_exactly_these_steps_so_none_is_added_unseen(self):
         self.assertEqual(
-            {'promote': [(None, 'Check out the judged commit'),
-                         ('main', 'Find what main has that develop or the judged commit lacks, and the workflow files '
-                                  'the commits since main change or main and the judged commit differ in'),
-                         ('decide', 'Decide whether main moves'),
+            {'look': [(None, "Check out the judged commit with every branch's history, keeping no credential"),
+                      ('main', 'Find what main has that develop or the judged commit lacks, and the workflow files '
+                               'the commits since main change or main and the judged commit differ in'),
+                      ('decide', 'Decide whether main moves'),
+                      (None, 'Fail unless main moves or stays, so that re-running the failed jobs looks at main again')],
+             'promote': [(None, 'Check out the judged commit with all of history and the built-in token, running none '
+                                'of its code'),
                          ('push', 'Move main to the judged commit, never by force'),
                          (None, 'Hold main where it was')],
              'report': [(None, 'Check out the judged commit'),
@@ -191,11 +239,12 @@ class WhatARunJudges(WorkflowTest):
                         (None, 'Comment on the open issue'),
                         (None, 'Close the issue, saying main now stands at the judged commit')]},
             {name: [(step.get('id'), step.get('name')) for step in steps_of(self.jobs[name])]
-             for name in ('promote', 'report')})
+             for name in ('look', 'promote', 'report')})
 
     def test_the_workflow_and_each_job_hold_exactly_their_keys_so_no_env_or_environment_is_added_unseen(self):
         self.assertEqual(['name', 'on', 'concurrency', 'permissions', 'defaults', 'jobs'], list(self.workflow))
         self.assertEqual({'unit-tests': ['runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
+                          'look': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
                           'promote': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
                           'report': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'steps']},
                          {name: list(job) for name, job in self.jobs.items()})
@@ -210,14 +259,15 @@ class WhatARunJudges(WorkflowTest):
 
 
 class HowMainMoves(WorkflowTest):
-    def test_main_is_moved_only_by_a_plain_push_of_the_commit_the_core_said_moves(self):
+    def test_main_is_moved_only_by_a_plain_push_of_the_judged_commit_when_the_judging_passed_and_the_core_said_move(self):
         promoting = self.jobs['promote']
 
         self.assertEqual(
             {'name': 'Move main to the judged commit, never by force',
              'id': 'push',
-             'if': "steps.decide.outputs.decision == 'move'",
-             'env': {'JUDGED': '${{ steps.decide.outputs.commit }}'},
+             'if': "needs.unit-tests.result == 'success' && needs.look.result == 'success' && "
+                   "needs.look.outputs.decision == 'move'",
+             'env': {'JUDGED': '${{ needs.unit-tests.outputs.commit }}'},
              'run': 'pushed=0\n'
                     'git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?\n'
                     'cat "$RUNNER_TEMP/git-said"\n'
@@ -228,17 +278,15 @@ class HowMainMoves(WorkflowTest):
         self.assertEqual(1, sum(each.count('git push') for job in self.jobs.values() for each in runs_of(job)))
 
     def test_the_core_decides_from_the_judging_what_main_has_and_the_workflow_files_the_commits_since_main_change(self):
-        deciding = step_named(self.jobs['promote'], 'decide')
+        deciding = step_named(self.jobs['look'], 'decide')
 
         self.assertEqual('python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"', deciding['run'])
         self.assertEqual(dict(JUDGEMENT_HANDED, LACKING='${{ steps.main.outputs.lacking }}',
                               MAIN_AHEAD='${{ steps.main.outputs.ahead }}',
                               WORKFLOWS='${{ steps.main.outputs.workflows }}'), deciding['env'])
 
-    def test_what_main_has_and_lacks_is_found_against_develop_and_the_judged_commit_just_before_the_decision(self):
+    def test_what_main_has_and_lacks_is_found_against_develop_and_the_judged_commit_as_the_checkout_fetched_them(self):
         self.assertEqual(
-            'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main '
-            '+refs/heads/develop:refs/remotes/origin/develop\n'
             'tip=$(git rev-parse refs/remotes/origin/main)\n'
             "lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)\n"
             "ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
@@ -251,30 +299,40 @@ class HowMainMoves(WorkflowTest):
             'echo "lacking=$lacking" >> "$GITHUB_OUTPUT"\n'
             'echo "ahead=$ahead" >> "$GITHUB_OUTPUT"\n'
             'echo "workflows=$workflows" >> "$GITHUB_OUTPUT"\n',
-            step_named(self.jobs['promote'], 'main')['run'])
+            step_named(self.jobs['look'], 'main')['run'])
         self.assertEqual('Find what main has that develop or the judged commit lacks, and the workflow files the '
                          'commits since main change or main and the judged commit differ in',
-                         step_named(self.jobs['promote'], 'main')['name'])
+                         step_named(self.jobs['look'], 'main')['name'])
 
-    def test_the_mover_hands_on_what_it_found_of_main_and_how_its_push_went(self):
+    def test_the_job_that_looks_hands_on_what_it_found_of_main_and_what_the_core_decided(self):
         self.assertEqual({'main-tip': '${{ steps.main.outputs.tip }}',
                           'lacking': '${{ steps.main.outputs.lacking }}',
                           'main-ahead': '${{ steps.main.outputs.ahead }}',
                           'workflows': '${{ steps.main.outputs.workflows }}',
-                          'pushed': '${{ steps.push.outcome }}',
-                          'git-said': '${{ steps.push.outputs.said }}'},
+                          'decision': '${{ steps.decide.outputs.decision }}'},
+                         self.jobs['look']['outputs'])
+
+    def test_the_mover_hands_on_how_its_push_went(self):
+        self.assertEqual({'pushed': '${{ steps.push.outcome }}', 'git-said': '${{ steps.push.outputs.said }}'},
                          self.jobs['promote']['outputs'])
 
-    def test_a_main_the_core_neither_moves_nor_leaves_where_it_already_is_makes_the_run_red(self):
-        holding = [step for step in steps_of(self.jobs['promote']) if step.get('name') == 'Hold main where it was']
+    def test_a_main_the_core_neither_moves_nor_leaves_where_it_already_is_fails_the_job_that_looks(self):
+        failing = [step for step in steps_of(self.jobs['look']) if step.get('run') == 'exit 1']
         some_commit = run.Commit(run.CommitHash('a' * 40), 'A commit of develop')
         handed = [run.promotion_outputs(decided).split('\n')[0].split('=')[1] for decided in
                   (run.Move(some_commit), run.Stay(some_commit, (some_commit,)))]
 
-        self.assertEqual([{'name': 'Hold main where it was',
+        self.assertEqual([{'name': 'Fail unless main moves or stays, so that re-running the failed jobs looks at main '
+                                   'again',
                            'if': "steps.decide.outputs.decision != '%s' && steps.decide.outputs.decision != '%s'"
                                  % tuple(handed),
-                           'run': 'exit 1'}], holding)
+                           'run': 'exit 1'}], failing)
+
+    def test_the_mover_holds_main_red_whenever_the_judging_or_the_look_did_not_pass(self):
+        self.assertEqual([{'name': 'Hold main where it was',
+                           'if': "needs.unit-tests.result != 'success' || needs.look.result != 'success'",
+                           'run': 'exit 1'}],
+                         [step for step in steps_of(self.jobs['promote']) if step.get('run') == 'exit 1'])
 
     def test_no_run_merges_commits_or_rewrites_and_no_push_forces(self):
         for job in self.jobs.values():
@@ -285,6 +343,67 @@ class HowMainMoves(WorkflowTest):
                     if 'git push' in line:
                         for never in ('--force', ' -f ', '--mirror', '--delete', '--all', ' +', '"+', ':+'):
                             self.assertNotIn(never, line)
+
+
+class WhatReachesThePushToMain(WorkflowTest):
+    RESULTS = ('success', 'failure', 'cancelled', 'skipped', '')
+    DECISIONS = ('move', 'stay', 'hold', '', 'anything else')
+
+    def ran(self, job, contexts, outputs=None, failing=()):
+        done = ran(job, dict(contexts, github={'event_name': 'push', 'ref': 'refs/heads/develop'}), outputs, failing)
+        self.assertNotIsInstance(done, conditions.Rejected)
+        return done
+
+    def looked(self, judging, decision):
+        return self.ran(self.jobs['look'], {'needs': {'unit-tests': {'result': judging}}},
+                        {'decide': {'decision': decision}})
+
+    def moved(self, judging, looking, decision, failing=()):
+        return self.ran(self.jobs['promote'],
+                        {'needs': {'unit-tests': {'result': judging, 'outputs': {'commit': 'a' * 40}},
+                                   'look': {'result': looking, 'outputs': {'decision': decision}}}},
+                        failing=failing)
+
+    def test_a_judging_that_did_not_pass_never_reaches_the_push_whatever_the_core_decided(self):
+        for judging in self.RESULTS[1:]:
+            for decision in self.DECISIONS:
+                _, looking = self.looked(judging, decision)
+                steps, ended = self.moved(judging, looking, decision)
+
+                self.assertEqual(('skipped', 'failure'), (steps['push'], ended), (judging, decision))
+
+    def test_a_look_at_main_that_did_not_pass_never_reaches_the_push_whatever_it_handed_on(self):
+        for looking in self.RESULTS[1:]:
+            for decision in self.DECISIONS:
+                steps, ended = self.moved('success', looking, decision)
+
+                self.assertEqual(('skipped', 'failure'), (steps['push'], ended), (looking, decision))
+
+    def test_the_job_that_looks_fails_unless_the_core_said_main_moves_or_stays_so_a_rerun_of_failed_jobs_looks_again(self):
+        for decision in self.DECISIONS:
+            _, looking = self.looked('success', decision)
+
+            self.assertEqual('success' if decision in ('move', 'stay') else 'failure', looking, decision)
+
+    def test_main_is_pushed_exactly_when_the_judging_passed_and_the_core_said_move(self):
+        for judging in self.RESULTS:
+            for decision in self.DECISIONS:
+                _, looking = self.looked(judging, decision)
+                steps, _ = self.moved(judging, looking, decision)
+
+                self.assertEqual('success' if (judging, decision) == ('success', 'move') else 'skipped', steps['push'],
+                                 (judging, decision))
+
+    def test_the_mover_ends_in_success_only_having_pushed_or_with_main_staying_where_the_core_said_it_stays(self):
+        for judging in self.RESULTS:
+            for decision in self.DECISIONS:
+                for failing in ((), ('push',)):
+                    _, looking = self.looked(judging, decision)
+                    steps, ended = self.moved(judging, looking, decision, failing)
+                    stayed = (judging, decision) == ('success', 'stay')
+
+                    self.assertEqual('success' if steps['push'] == 'success' or stayed else 'failure', ended,
+                                     (judging, decision, failing))
 
 
 class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
@@ -326,10 +445,10 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
     def push(self, *refspecs):
         self.git(self.work, 'push', '-q', 'origin', *refspecs)
 
-    def ran(self, step_id, runner, **environ):
+    def ran(self, job, step_id, runner, **environ):
         outputs = os.path.join(runner, 'outputs-' + step_id)
         done = subprocess.run(['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
-                               step_named(self.jobs['promote'], step_id)['run']], cwd=runner,
+                               step_named(self.jobs[job], step_id)['run']], cwd=runner,
                               env=dict(self.environ, GITHUB_OUTPUT=outputs, RUNNER_TEMP=runner, **environ),
                               capture_output=True, text=True, timeout=60)
         self.assertEqual(0, done.returncode, done.stdout + done.stderr)
@@ -340,7 +459,7 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         runner = tempfile.mkdtemp(prefix='runner-', dir=self.where.name)
         self.git(self.where.name, 'clone', '-q', self.origin, runner)
         self.git(runner, 'checkout', '-q', '--detach', judged_commit)
-        return runner, self.ran('main', runner)
+        return runner, self.ran('look', 'main', runner)
 
     def judgement_of(self, judged_commit, subject):
         steps = tuple('success' for _ in run.STEPS)
@@ -545,9 +664,9 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         decided = run.promotion(judgement, run.listed_commits(found['lacking']), run.listed_commits(found['ahead']),
                                 run.workflow_files(found['workflows']))
         self.assertEqual(run.Move(run.Commit(run.CommitHash(judged_commit), 'Run the tool tests too')), decided)
-        pushed = self.ran('push', runner, JUDGED=judged_commit)
+        pushed = self.ran('promote', 'push', runner, JUDGED=judged_commit)
         promoting = run.promoting('success', found['tip'], found['lacking'], found['ahead'], found['workflows'],
-                                  'success', pushed['said'])
+                                  'success', 'success', pushed['said'])
         action = issues.issue_action(judgement, promoting, (issues.OpenIssue(12, issues.TITLE),),
                                      issues.run_link('https://github.com', 'th7/midnight-snackers', '123456'))
 
@@ -656,15 +775,16 @@ class HowTheIssueIsWritten(WorkflowTest):
         self.assertEqual('python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" '
                          '"$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"', saying['run'])
         self.assertEqual(dict(JUDGEMENT_HANDED,
+                              LOOKING_ENDED='${{ needs.look.result }}',
+                              MAIN_TIP='${{ needs.look.outputs.main-tip }}',
+                              LACKING='${{ needs.look.outputs.lacking }}',
+                              MAIN_AHEAD='${{ needs.look.outputs.main-ahead }}',
+                              WORKFLOWS='${{ needs.look.outputs.workflows }}',
                               PROMOTING_ENDED='${{ needs.promote.result }}',
-                              MAIN_TIP='${{ needs.promote.outputs.main-tip }}',
-                              LACKING='${{ needs.promote.outputs.lacking }}',
-                              MAIN_AHEAD='${{ needs.promote.outputs.main-ahead }}',
-                              WORKFLOWS='${{ needs.promote.outputs.workflows }}',
                               PUSHED='${{ needs.promote.outputs.pushed }}',
                               GIT_SAID='${{ needs.promote.outputs.git-said }}'),
                          saying['env'])
-        self.assertEqual(set(cli.JUDGEMENT) | set(cli.PROMOTING), set(saying['env']))
+        self.assertEqual(set(cli.JUDGEMENT) | set(cli.LOOKING) | set(cli.PROMOTING), set(saying['env']))
 
     def test_each_issue_action_the_core_hands_on_is_carried_out_by_one_step_that_does_only_that(self):
         report = self.jobs['report']
