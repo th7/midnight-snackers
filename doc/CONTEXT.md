@@ -571,12 +571,21 @@ a red run for which that job carried out nothing the core said still opens or
 comments on the issue, saying only that the run is red and linking it. Only a
 run whose every job passed closes the issue: one that moves `main`, or finds it
 already at the commit it judged, as the re-run after a maintainer's push does,
-closes it when that commit is still `develop`'s tip as the run found it, saying
-`main` now stands there, and otherwise says so on the issue and leaves it to a
-run that judges the tip. A pull request is still judged, in a queue of its own,
-and never moves `main` or touches the issue. What a run decides is the core's,
-and the workflow only gathers what the core needs and does what it says, which
-a test holds it to by evaluating the workflow's own conditions.
+closes it, saying `main` now stands there, only when that commit is still
+`develop`'s tip both when the job that says what to write reads it, after the
+push, and when the job that writes the issue reads it again just before
+closing. Otherwise it says on the issue that `main` now stands at that commit
+but `develop` has moved on, and leaves the issue to a run that judges the tip,
+so re-running only some of a run's jobs after `develop` has moved on, as after
+a push refused once or a close that failed, never closes the issue. A pull
+request is still judged, in a queue of its own, and never moves `main` or
+touches the issue. The judged commit's core decides whether `main` moves and
+what to write on the issue, and the workflow adds guards that do not depend on
+that commit's code: a red judging or a job that did not pass never pushes or
+closes the issue, a close also needs `develop`'s tip, as the job that writes
+the issue reads it, to still be the judged commit, and a red run the core could
+not speak for still writes to the issue. A test holds each guard by evaluating
+the workflow's own conditions.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`;
 `tools/ci/workflow_conditions.py`.
