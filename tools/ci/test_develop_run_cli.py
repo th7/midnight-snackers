@@ -2,6 +2,7 @@ import base64
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 
 CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'develop_run_cli.py')
@@ -17,6 +18,14 @@ def b64(text):
 def gathered(**changed):
     handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'),
               'FORMATTING': 'success', 'TOOL_TESTS': 'success', 'UNIT_TESTS': 'success', 'LACKING': ''}
+    handed.update(changed)
+    return handed
+
+
+def reported(**changed):
+    handed = gathered(PROMOTING_ENDED='success', MAIN_TIP=MAIN, PUSHED='success', GIT_SAID='',
+                      GITHUB_SERVER_URL='https://github.com', GITHUB_REPOSITORY='th7/midnight-snackers',
+                      GITHUB_RUN_ID='123456')
     handed.update(changed)
     return handed
 
@@ -65,6 +74,64 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertEqual(2, done.returncode)
         self.assertEqual('', done.stdout)
         self.assertIn('promotion', done.stderr)
+
+
+class SayingWhatTheRunFound(unittest.TestCase):
+    def setUp(self):
+        self.where = tempfile.TemporaryDirectory()
+        self.open_issues = os.path.join(self.where.name, 'open-issues.json')
+        self.body = os.path.join(self.where.name, 'issue-body.md')
+
+    def tearDown(self):
+        self.where.cleanup()
+
+    def report(self, open_issues, **changed):
+        with open(self.open_issues, 'w') as written:
+            written.write(open_issues)
+        return called('report', reported(**changed), self.open_issues, self.body)
+
+    def body_written(self):
+        with open(self.body) as read:
+            return read.read()
+
+    def test_a_red_run_with_no_issue_open_hands_the_workflow_an_issue_to_open_and_writes_its_body(self):
+        done = self.report('[{"number": 7, "title": "Launch Sim"}]', JUDGING_ENDED='failure',
+                           UNIT_TESTS='failure', PUSHED='skipped')
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertIn('develop was judged red at `%s` `A wheel throws a ball`' % JUDGED, self.body_written())
+        self.assertIn('https://github.com/th7/midnight-snackers/actions/runs/123456', self.body_written())
+        self.assertIn(self.body_written(), done.stderr)
+
+    def test_a_green_run_with_the_issue_open_hands_the_workflow_the_issue_to_close(self):
+        done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]')
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=close\nissues=12\n', done.stdout)
+        self.assertIn('main now stands there', self.body_written())
+
+    def test_a_refused_push_reaches_the_body_with_what_git_said(self):
+        done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure',
+                           GIT_SAID=b64('remote: error: GH006: Protected branch update failed\n'))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
+        self.assertIn('remote: error: GH006: Protected branch update failed\n', self.body_written())
+
+    def test_open_issues_that_are_not_the_json_gh_prints_fail_with_the_rule_and_hand_nothing(self):
+        done = self.report('not json')
+
+        self.assertEqual(2, done.returncode)
+        self.assertEqual('', done.stdout)
+        self.assertIn('JSON', done.stderr)
+
+    def test_a_report_not_told_where_the_open_issues_and_the_body_are_fails_and_hands_nothing(self):
+        done = called('report', reported())
+
+        self.assertEqual(2, done.returncode)
+        self.assertEqual('', done.stdout)
+        self.assertIn('open issues', done.stderr)
 
 
 if __name__ == '__main__':
