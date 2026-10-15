@@ -544,6 +544,26 @@ class MakingAValueDirectly(unittest.TestCase):
                       ('.github/workflows/a\nb.yml',), ('.github/workflows/' + 'x' * run.SUBJECT_SHOWN_AT_MOST,), None):
             self.assertEqual(Rejected(run.WORKFLOW_FILES_RULE), WorkflowFiles(wrong), wrong)
 
+    def test_what_main_lacks_made_directly_is_held_to_at_least_one_commit(self):
+        stray = commit(STRAY, 'Fix the README on main')
+
+        self.assertEqual((stray,), MainHasWhatDevelopLacks((stray,)).commits)
+        for wrong in ((), [stray], (STRAY,), None):
+            self.assertEqual(Rejected(run.WHAT_MAIN_LACKS_NAMES_ITS_COMMITS), MainHasWhatDevelopLacks(wrong), wrong)
+
+    def test_a_refused_push_made_directly_is_held_to_the_commit_it_pushed_and_what_git_said(self):
+        self.assertEqual('refused\n', MainRefusedThePush(commit(), 'refused\n').said)
+        self.assertEqual(Rejected(run.A_REFUSED_PUSH_NAMES_ITS_COMMIT), MainRefusedThePush(JUDGED, 'refused\n'))
+        for wrong in (None, 'a\rb', 'x' * (run.SAID_SHOWN_AT_MOST + 1)):
+            self.assertEqual(Rejected(run.WHAT_GIT_SAID_RULE), MainRefusedThePush(commit(), wrong), wrong)
+
+    def test_a_hold_over_workflows_made_directly_is_held_to_the_judged_commit_and_at_least_one_workflow_file(self):
+        self.assertEqual(TESTS_YML, MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML).files)
+        for wrong in ((commit(), NO_WORKFLOWS), ('x', None), (JUDGED, TESTS_YML),
+                      (commit(), ('.github/workflows/tests.yml',))):
+            self.assertEqual(Rejected(run.A_HOLD_OVER_WORKFLOWS_NAMES_THEM), MainNeedsAMaintainerForWorkflows(*wrong),
+                             wrong)
+
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
         self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, steps_ended()), Rejected)
         self.assertIsInstance(Judged(commit(), 'success', steps_ended()), Rejected)

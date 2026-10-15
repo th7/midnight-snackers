@@ -14,6 +14,8 @@ SAID_SHOWN_AT_MOST = 4096
 WORKFLOWS_DIRECTORY = '.github/workflows/'
 WORKFLOW_FILES_RULE = ('the workflow files the commits since main change are distinct paths under .github/workflows, '
                        'as git prints them, in order, each one line of at most %d characters' % SUBJECT_SHOWN_AT_MOST)
+WHAT_GIT_SAID_RULE = ('what git said is text of at most %d characters, with no control character but a newline or a '
+                      'tab' % SAID_SHOWN_AT_MOST)
 SAID_ONLY_OF_A_PUSH_THAT_RAN = 'git said something only of a push that ran, never of one skipped or unreported'
 A_PUSH_RUNS_ONLY_TO_MOVE_MAIN = ('a push runs only to move main, so never when main has a commit develop or the judged '
                                  'commit lacks or the commits since main change a workflow file')
@@ -21,6 +23,10 @@ A_FAILED_PUSH_FAILS_ITS_JOB = 'a push that failed fails the job that moves main,
 A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD = (
     'a mover ends in success only when its push succeeded, or when it pushed nothing because main stayed where it was '
     'for commits of develop it already has, having nothing develop or the judged commit lacks')
+WHAT_MAIN_LACKS_NAMES_ITS_COMMITS = 'what main has that develop lacks is named as a tuple of at least one commit'
+A_REFUSED_PUSH_NAMES_ITS_COMMIT = 'a refused push names the commit it pushed'
+A_HOLD_OVER_WORKFLOWS_NAMES_THEM = ('a hold for a maintainer over workflows names the judged commit and at least one '
+                                    'workflow file the commits since main change')
 THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fetch origin && git merge origin/main`, '
                            'and push that merge to develop as it is, without a rebase, which would drop it.')
 
@@ -163,6 +169,11 @@ class WorkflowFiles(Validated):
         return None
 
 
+def quotes_what_git_said(said):
+    return (isinstance(said, str) and len(said) <= SAID_SHOWN_AT_MOST
+            and not any(unsafe_in_a_quote(character) for character in said))
+
+
 @dataclass(frozen=True)
 class Looked(Validated):
     main_tip: CommitHash
@@ -183,10 +194,8 @@ class Looked(Validated):
             return 'a mover that looked names the workflow files the commits since main change'
         if not all_of(Outcome, (pushed, ended)):
             return 'a mover says how its push and its job ended'
-        if (not isinstance(said, str) or len(said) > SAID_SHOWN_AT_MOST
-                or any(unsafe_in_a_quote(character) for character in said)):
-            return ('what git said is text of at most %d characters, with no control character but a newline or a '
-                    'tab' % SAID_SHOWN_AT_MOST)
+        if not quotes_what_git_said(said):
+            return WHAT_GIT_SAID_RULE
         if said and pushed in (Outcome.SKIPPED, Outcome.UNREPORTED):
             return SAID_ONLY_OF_A_PUSH_THAT_RAN
         if pushed in (Outcome.SUCCESS, Outcome.FAILURE, Outcome.CANCELLED) and (lacking or ahead or workflows.paths):
@@ -221,20 +230,40 @@ class NothingJudged:
 
 
 @dataclass(frozen=True)
-class MainHasWhatDevelopLacks:
+class MainHasWhatDevelopLacks(Validated):
     commits: tuple
+
+    @staticmethod
+    def broken(commits):
+        if not all_of(Commit, commits) or not commits:
+            return WHAT_MAIN_LACKS_NAMES_ITS_COMMITS
+        return None
 
 
 @dataclass(frozen=True)
-class MainRefusedThePush:
+class MainRefusedThePush(Validated):
     commit: Commit
     said: str
 
+    @staticmethod
+    def broken(commit, said):
+        if not isinstance(commit, Commit):
+            return A_REFUSED_PUSH_NAMES_ITS_COMMIT
+        if not quotes_what_git_said(said):
+            return WHAT_GIT_SAID_RULE
+        return None
+
 
 @dataclass(frozen=True)
-class MainNeedsAMaintainerForWorkflows:
+class MainNeedsAMaintainerForWorkflows(Validated):
     commit: Commit
     files: WorkflowFiles
+
+    @staticmethod
+    def broken(commit, files):
+        if not isinstance(commit, Commit) or not isinstance(files, WorkflowFiles) or not files.paths:
+            return A_HOLD_OVER_WORKFLOWS_NAMES_THEM
+        return None
 
 
 @dataclass(frozen=True)
