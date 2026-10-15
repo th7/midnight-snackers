@@ -152,7 +152,7 @@ public class SimConstantsTest {
     }
 
     @Test
-    public void aSavedRetiredConstantIsSetAsideWhateverItsValueListedAsDroppedAndWrittenBackAsItWasSaved() {
+    public void aSavedRetiredConstantIsSetAsideWhateverFiniteNumberItIsListedAsDroppedAndWrittenBackAsItWasSaved() {
         for (double saved : new double[] {0.25, 5, -1}) {
             Constants.Restored restored = Valid.value(
                     SimConstants.restoredFromJson(json("{\"launch_throw\": " + saved + ", \"hiccup_chance\": 0}")));
@@ -171,6 +171,10 @@ public class SimConstantsTest {
                     restored.setAside(),
                     Valid.value(SimConstants.restoredFromJson(written)).setAside());
         }
+    }
+
+    @Test
+    public void aSavedRetiredConstantThatIsNoFiniteNumberIsRefusedAsACurrentOneIsAsANameNeverAConstantStillIs() {
         assertTrue(
                 "saved as a number is still the rule",
                 SimConstants.restoredFromJson(json("{\"launch_throw\": \"fast\"}"))

@@ -341,7 +341,7 @@ public class ConstantsTest {
     }
 
     @Test
-    public void aSavedRetiredConstantIsSetAsideWhateverItsValueAndEverythingElseIsRestoredByEveryOtherRule() {
+    public void aSavedRetiredConstantIsSetAsideWhateverFiniteNumberItIsAndEverythingElseIsRestoredByEveryOtherRule() {
         for (double saved : List.of(0.25, 5.0, -1.0, 0.0)) {
             Constants.Restored restored = Valid.value(Constants.restored(
                     set(Constant.HICCUP_CHANCE, 0, Constant.TURNTABLE_SPEED, 20000),
