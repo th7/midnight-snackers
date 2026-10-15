@@ -12,6 +12,9 @@ MAIN = 'b' * 40
 STRAY = 'c' * 40
 SUBJECT = 'A ball comes back from a lone still compliant surface at its restitution'
 RUN = 'https://github.com/th7/midnight-snackers/actions/runs/123456'
+BODY_TOO_LONG = 'https://github.com/golang/go/issues/45998'
+GITHUB_LIMITS = 'https://github.com/dead-claudia/github-limits'
+GH_ISSUE_LIST = 'https://cli.github.com/manual/gh_issue_list'
 
 
 def b64(text):
@@ -172,23 +175,24 @@ class WhatTheIssueSays(unittest.TestCase):
             self.assertTrue(rest.startswith('\n**'), rest)
             self.assertTrue(body.endswith('\n\nThe run: %s\n' % RUN), body)
 
-    def test_the_body_stays_well_under_github_s_limit_however_long_what_it_quotes(self):
-        endless = 'x' * 70000
-        judged_long = run.judgement('failure', JUDGED, b64(endless), texts(formatting=Outcome.FAILURE,
-                                                                           unit_tests=Outcome.FAILURE))
-        strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
-        for promoting in (run.promoting('failure', MAIN, strays, '', 'skipped', '', ''),
-                          run.promoting('failure', MAIN, '', '', 'failure', b64(endless), 'GITHUB_TOKEN')):
-            body = issues.issue_action(judged_long, promoting, (), link()).body
+    def test_the_body_stays_under_github_s_limit_in_utf_8_bytes_however_long_and_wide_what_it_quotes(self):
+        for character in ('x', '\U0001f600'):
+            endless = character * 70000
+            judged_long = run.judgement('failure', JUDGED, b64(endless), texts(formatting=Outcome.FAILURE,
+                                                                               unit_tests=Outcome.FAILURE))
+            strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
+            green_long = run.judgement('success', JUDGED, b64(endless), texts())
+            bodies = [issues.issue_action(judged_long, promoting, (), link()).body for promoting in (
+                run.promoting('failure', MAIN, strays, '', 'skipped', '', ''),
+                run.promoting('failure', MAIN, '', '', 'failure', b64(endless), 'GITHUB_TOKEN'),
+                run.promoting('failure', MAIN, '', '', 'failure', b64(endless), 'MAIN_PUSH_TOKEN'))]
+            bodies.append(issues.issue_action(green_long, looked(), (issue(12),), link()).body)
 
-            self.assertLess(len(body), issues.BODY_AT_MOST // 2)
-        green_long = run.judgement('success', JUDGED, b64(endless), texts())
-
-        self.assertLess(len(issues.issue_action(green_long, looked(), (issue(12),), link()).body),
-                        issues.BODY_AT_MOST // 2)
-
-    def test_github_takes_an_issue_body_of_at_most_65536_characters(self):
-        self.assertEqual(65536, issues.BODY_AT_MOST)
+            for body in bodies:
+                self.assertLess(len(body.encode('utf-8')), issues.BODY_AT_MOST,
+                                'GitHub does not document it, but refuses an issue body over %d characters (%s), counted '
+                                'as code points for an issue and bytes for a comment (%s), so a body under that many '
+                                'UTF-8 bytes is under either' % (issues.BODY_AT_MOST, BODY_TOO_LONG, GITHUB_LIMITS))
 
 
 class ReadingWhatTheWorkflowGathered(unittest.TestCase):
@@ -201,7 +205,8 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         def listing(count):
             return '[%s]' % ', '.join('{"number": %d, "title": "Issue %d"}' % (n, n) for n in range(1, count + 1))
 
-        self.assertEqual(issues.LISTED_AT_MOST - 1, len(issues.open_issues(listing(issues.LISTED_AT_MOST - 1))))
+        self.assertEqual(issues.LISTED_AT_MOST - 1, len(issues.open_issues(listing(issues.LISTED_AT_MOST - 1))),
+                         'gh lists at most as many issues as --limit asks for: %s' % GH_ISSUE_LIST)
         self.assertEqual(Rejected('gh listed as many open issues as it was asked for, %d, so the list may be cut short '
                                   'and the develop CI issue may be among those left out' % issues.LISTED_AT_MOST),
                          issues.open_issues(listing(issues.LISTED_AT_MOST)))

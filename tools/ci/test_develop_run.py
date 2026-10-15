@@ -23,6 +23,14 @@ REFUSED_OVER_WORKFLOWS = (
     "error: failed to push some refs to 'https://github.com/th7/midnight-snackers'\n" % JUDGED)
 
 
+GITHUB_TOKEN_PERMISSIONS = 'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions'
+FINE_GRAINED_TOKENS = ('https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/'
+                       'managing-your-personal-access-tokens')
+REFUSED_A_GITHUB_APP = 'https://github.com/actions/create-github-app-token/issues/301'
+REFUSED_AN_OAUTH_APP = 'https://jira.atlassian.com/browse/SRCTREEWIN-14170'
+REFUSED_A_PERSONAL_ACCESS_TOKEN = 'https://kuroco.app/docs/faq/i-get-an-error-message-when-i-push-to-the-github-repository'
+
+
 def b64(text):
     return base64.b64encode(text.encode('utf-8')).decode('ascii')
 
@@ -187,19 +195,20 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
             self.assertEqual(Red((MainRefusedThePush(commit(), said),), promoting), run.verdict(judged(), promoting),
                              said)
 
-    def test_every_way_github_words_a_refusal_over_workflow_permission_is_one(self):
-        for refusal in ('refusing to allow a GitHub App to create or update workflow `.github/workflows/tests.yml` '
-                        'without `workflows` permission',
-                        'refusing to allow an OAuth App to create or update workflow `.github/workflows/tests.yml` '
-                        'without `workflow` scope',
-                        'refusing to allow a Personal Access Token to create or update workflow '
-                        '`.github/workflows/tests.yml` without `workflow` scope',
-                        'refusing to allow a bot to create or update workflow `.github/workflows/tests.yml`'):
+    def test_every_way_github_has_been_seen_to_word_a_refusal_over_workflow_permission_is_one(self):
+        for refusal, seen in (('refusing to allow a GitHub App to create or update workflow '
+                               '`.github/workflows/tests.yml` without `workflows` permission', REFUSED_A_GITHUB_APP),
+                              ('refusing to allow an OAuth App to create or update workflow '
+                               '`.github/workflows/tests.yml` without `workflow` scope', REFUSED_AN_OAUTH_APP),
+                              ('refusing to allow a Personal Access Token to create or update workflow '
+                               '`.github/workflows/tests.yml` without `workflow` scope',
+                               REFUSED_A_PERSONAL_ACCESS_TOKEN)):
             said = ' ! [remote rejected] %s -> main (%s)\n' % (JUDGED, refusal)
             promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
 
             self.assertEqual(Red((MainRefusedOverWorkflows(commit(), said, run.push_token('GITHUB_TOKEN')),), promoting),
-                             run.verdict(judged(), promoting), refusal)
+                             run.verdict(judged(), promoting),
+                             'GitHub does not document this refusal; it is worded so at %s' % seen)
 
     def test_a_push_refused_for_anything_else_is_not_one_over_workflow_permission(self):
         said = ' ! [rejected]        %s -> main (fetch first)\n' % JUDGED
@@ -271,7 +280,9 @@ class WhatTheReasonsSay(unittest.TestCase):
 
         self.assertIn('main refused the push of `%s`' % JUDGED, said)
         self.assertIn('change a file under `.github/workflows`', said)
-        self.assertIn('the built-in token the job that moves main pushed with may not update workflows', said)
+        self.assertIn('the built-in token the job that moves main pushed with may not update workflows', said,
+                      'no permission a workflow grants its token is one over workflows (%s), and a push it makes that '
+                      'changes one is refused (%s)' % (GITHUB_TOKEN_PERMISSIONS, REFUSED_A_GITHUB_APP))
         self.assertIn('No commit to develop fixes this, so no session can: it waits on a maintainer', said)
         self.assertIn('moves main to `%s` by hand' % JUDGED, said)
         self.assertIn('`git push origin %s:refs/heads/main`' % JUDGED, said)
@@ -280,7 +291,9 @@ class WhatTheReasonsSay(unittest.TestCase):
                       '`develop`', said)
         self.assertIn('a fine-grained personal access token for this repository alone, with Contents and Workflows '
                       'set to read and write', said)
-        self.assertIn('stops working on the expiry date chosen when it is made, unless it was made with none', said)
+        self.assertIn('stops working on the expiry date chosen when it is made, unless it was made with none', said,
+                      'a fine-grained token expires as chosen when it is made, and may be made with no expiry where '
+                      'no policy forbids it: %s' % FINE_GRAINED_TOKENS)
         self.assertIn('runs the failed jobs of this run again', said)
         self.assertIn('```\n' + REFUSED_OVER_WORKFLOWS + '```', said)
         self.assertNotIn('repository secret', said)
