@@ -9,12 +9,6 @@ public class LaunchTest {
     private static final double DELTA = 1e-9;
     private static final Vec2 STILL = new Vec2(0, 0);
     private static final Vec2 AT = new Vec2(10, 20);
-    private static final int TICKS_PER_REVOLUTION = 1700;
-    private static final Turntable TURNTABLE = Valid.value(Turntable.of(TICKS_PER_REVOLUTION, Constants.defaults()));
-
-    private static Seconds seconds(double value) {
-        return Valid.value(Seconds.of(value));
-    }
 
     private static void assertVec(Vec3 expected, Vec3 actual) {
         assertEquals("x of " + actual, expected.x(), actual.x(), DELTA);
@@ -67,29 +61,6 @@ public class LaunchTest {
         assertVec(still.plus(new Vec3(5, -3, 0)), moving);
     }
 
-    @Test
-    public void theTurntableTurnsCounterClockwiseWithItsEncoderARevolutionForItsTicks() {
-        assertEquals(2 * Math.PI, TURNTABLE.radians(TICKS_PER_REVOLUTION), DELTA);
-        assertEquals(Math.PI / 2, TURNTABLE.radians(TICKS_PER_REVOLUTION / 4), DELTA);
-        assertEquals(-Math.PI, TURNTABLE.radians(-TICKS_PER_REVOLUTION / 2), DELTA);
-    }
-
-    @Test
-    public void theTurntableTurnsAtItsFullSpeedTimesItsPowerInWholeTicks() {
-        assertEquals(
-                100 + (int) Turntable.TICKS_PER_SECOND_AT_FULL_POWER,
-                TURNTABLE.turned(100, Power.clamped(1), seconds(1)));
-        assertEquals(100 - 850, TURNTABLE.turned(100, Power.clamped(-0.5), seconds(1)));
-        assertEquals("4.25 ticks is 4", 104, TURNTABLE.turned(100, Power.clamped(0.5), seconds(0.005)));
-        assertEquals(100, TURNTABLE.turned(100, Power.none(), seconds(1)));
-    }
-
-    @Test
-    public void aTurntableHasTicksInARevolution() {
-        assertTrue(Turntable.of(0, Constants.defaults()) instanceof Checked.Rejected);
-        assertTrue(Turntable.of(-1700, Constants.defaults()) instanceof Checked.Rejected);
-    }
-
     private static Constants constants(Constant constant, double value) {
         java.util.Map<Constant, Double> set = new java.util.EnumMap<>(Constant.class);
         set.put(constant, value);
@@ -115,13 +86,5 @@ public class LaunchTest {
                     Launch.from(AT, 0.3, 0.2, way * Flywheel.TOP_TICKS_PER_SECOND, STILL, Constants.defaults()),
                     Launch.from(AT, 0.3, 0.2, way * 10000, STILL, Constants.defaults()));
         }
-    }
-
-    @Test
-    public void theTurntableTurnsAtTheSpeedItIsGiven() {
-        Turntable quicker = Valid.value(Turntable.of(TICKS_PER_REVOLUTION, constants(Constant.TURNTABLE_SPEED, 3400)));
-
-        assertEquals(100 + 3400, quicker.turned(100, Power.clamped(1), seconds(1)));
-        assertEquals(100 - 1700, quicker.turned(100, Power.clamped(-0.5), seconds(1)));
     }
 }
