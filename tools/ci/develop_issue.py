@@ -124,12 +124,17 @@ def green_body(found, link):
         run.named(found.commit), link.url)
 
 
+def how_main_came_there(found):
+    if found.main_found == found.commit.hash:
+        return 'main already stood there when this run looked at it'
+    return 'this run moved main there'
+
+
 def moved_on_body(found, link):
-    return ("develop was judged green at %s, and this run moved main there, but develop's tip is now %s, which this run "
-            "did not judge, and a run closes this issue only when it finds develop's tip and main's both at the commit "
-            'it judged, so this run does not close it.\n\nThe run: %s\n' % (run.named(found.commit),
-                                                                          run.code_span(found.develop_tip.text),
-                                                                          link.url))
+    return ("develop was judged green at %s, and %s, but develop's tip is now %s, which this run did not judge, and a "
+            "run closes this issue only when it finds develop's tip and main's both at the commit it judged, so this "
+            'run does not close it.\n\nThe run: %s\n' % (run.named(found.commit), how_main_came_there(found),
+                                                          run.code_span(found.develop_tip.text), link.url))
 
 
 def where_this_run_left_main(found):

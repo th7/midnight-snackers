@@ -102,6 +102,16 @@ class WhichIssueIsTouched(unittest.TestCase):
                                        'so this run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
                          action)
 
+    def test_a_green_run_that_found_main_already_at_the_judged_commit_and_develop_moved_on_says_main_already_stood_there(self):
+        action = issues.issue_action(judged(), looked(main=JUDGED, develop=LATER, found=JUDGED), (issue(12),), link())
+
+        self.assertEqual(CommentOn(12, "develop was judged green at `%s` `%s`, and main already stood there when this run "
+                                       "looked at it, but develop's tip is now `%s`, which this run did not judge, and a "
+                                       "run closes this issue only when it finds develop's tip and main's both at the "
+                                       'commit it judged, so this run does not close it.\n\nThe run: %s\n'
+                                       % (JUDGED, SUBJECT, LATER, RUN)),
+                         action)
+
     def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_writes_nothing_to_the_issue_and_says_why_in_the_log(self):
         for listed in ((issue(41), issue(12)), ()):
             for develop in (JUDGED, LATER):

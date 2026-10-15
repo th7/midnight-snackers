@@ -965,6 +965,29 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
                          self.issue_writes(calls))
         self.assertEqual('success', rerun['report']['result'])
 
+    def test_a_rerun_of_the_failed_jobs_after_a_maintainer_pushed_main_to_the_held_commit_says_main_already_stood_there_once_develop_moved_on(self):
+        judged_commit, first, runner = self.held_for_a_maintainer('Run every test')
+        broken = self.commit('Break the drive code', {'drive.txt': 'broken\n'})
+        self.push('develop')
+        self.push('%s:refs/heads/main' % judged_commit)
+        self.gh_calls()
+
+        rerun = self.jobs_ran(('look', 'promote', 'say', 'report'), runner, {'unit-tests': first['unit-tests']})
+        calls = self.gh_calls()
+
+        self.assertEqual((judged_commit, broken), self.where_main_and_develop_stand())
+        self.assertEqual(('move', 'success', 'comment'), (rerun['look']['outputs']['decision'],
+                                                          rerun['promote']['outputs']['pushed'],
+                                                          rerun['say']['outputs']['action']))
+        self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file', 'issue-body.md', '--', '12',
+                           "develop was judged green at `%s` `Run every test`, and main already stood there when this run "
+                           "looked at it, but develop's tip is now `%s`, which this run did not judge, and a run closes "
+                           "this issue only when it finds develop's tip and main's both at the commit it judged, so this "
+                           'run does not close it.\n\nThe run: https://github.com/th7/midnight-snackers/actions/runs/'
+                           '123456\n' % (judged_commit, broken)]],
+                         self.issue_writes(calls))
+        self.assertEqual('success', rerun['report']['result'])
+
     def test_a_rerun_of_the_failed_jobs_of_a_run_whose_push_was_refused_once_pushes_and_writes_nothing_after_a_later_green_run_moved_main_and_closed_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
         tuned = self.commit('Tune the arm', {'arm.txt': 'tuned\n'})
