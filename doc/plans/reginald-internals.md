@@ -555,9 +555,8 @@ This plan changes three things.
 **What the CAD says about the drive:** nothing. It has no motor and no
 gearing, and its printed parts have no material, so it gives no inertia. The
 robot code sets the velocity PIDF to (250, 0, 0, 12.9) and the close launch to
-1050 ticks/s (`Launcher`), which stage 4c sets to 1220. The simulator ignores
-the coefficients, and sets the measured velocity to the commanded one
-(`SimRobot`).
+1220 ticks/s (`Launcher`). The simulator ignores the coefficients, and sets
+the measured velocity to the commanded one (`SimRobot`).
 
 **What we infer.**
 
@@ -568,8 +567,8 @@ the coefficients, and sets the measured velocity to the commanded one
 | The hub's controller: power = (P·e + I·∫e + D·ė + F·target) ÷ 32767, clamped to ±1, run every substep (at most 5 ms) | The SDK's PIDF convention. The hub's own loop period is not published | medium for the form, low for the period |
 
 There is no calibration of the ticks per turn: at the team's 28 the code's
-close launch of 1050 ticks/s throws about 198 in/s and every acceptance shot
-falls short, so stage 4c sets the close launch to 1220 ticks/s
+old close launch of 1050 ticks/s threw about 198 in/s and every acceptance
+shot fell short, so the code's close launch is now 1220 ticks/s
 (`runtime-flight.md`, *Calibration*). Stage 4's hood throws that at
 228.6 in/s, 70.9° up, with 172 rad/s of backspin.
 
@@ -712,7 +711,7 @@ before and after in the telemetry store.
 | 8 | The ramp's timing | up and down about 0.21 s; a pocket every 0.21–0.25 s; no rotor sensor | A fixed ramp time may lift none or two. The default lowers the ramp once the flywheel's speed drops (item 22) |
 | 9 | The fin's torque | 1.5–1.7 N·m against a stall of 1.1–1.3 | The servo may give way |
 | 10 | The flywheel slows per shot | about 9 %, 115 ticks/s, at 0.95 lb·in²; the ready window is ±15 | Shots wait about 0.1 s to recover |
-| 11 | The close launch's power | Under drag, Magnus and contacts the close shot scores from 40 in at 224.0–228.0 in/s. The flywheel is direct drive, 1:1 on its 28-tick motor, so the code's 1050 ticks/s throws about 198 in/s through stage 4's hood and every acceptance shot falls short. Stage 4's hood scores the shots into a cell holding nectar from 1211 to 1231 ticks/s, and tips the hive with the preload from 1218 to 1227: 9 ticks/s wide, narrower than the ±15 window (30 wide) and the 25 ticks/s power step. Into an empty cell, run at every whole command from 1000 to 1400, the shot after a tip scores in short runs (1148–1150, 1195–1202, 1263–1267) and at 1282, and the four at their cadence only at 1148, 1200, 1202 and 1267, since the cell's friction turns the hood's backspin into speed back out. The whole set scores only at isolated commands near 1148 and 1267, with the four at their cadence failing one tick a second either side | Stage 4c sets the code's close launch to 1220 ticks/s, and the team test-fires it on the robot. A ready window narrower than ±15 is worth having. The backspin is the robot's to reduce: until then the two empty-cell tests are red with the launcher in the run, and stage 4c's runtime stays off `develop` (`runtime-flight.md`, *Calibration*) |
+| 11 | The close launch's power | Under drag, Magnus and contacts the close shot scores from 40 in at 224.0–228.0 in/s. The flywheel is direct drive, 1:1 on its 28-tick motor, so the code's old 1050 ticks/s threw about 198 in/s through stage 4's hood and every acceptance shot fell short. Stage 4's hood scores the shots into a cell holding nectar from 1211 to 1231 ticks/s, and tips the hive with the preload from 1218 to 1227: 9 ticks/s wide, narrower than the ±15 window (30 wide) and the 25 ticks/s power step. Into an empty cell, run at every whole command from 1000 to 1400, the shot after a tip scores in short runs (1148–1150, 1195–1202, 1263–1267) and at 1282, and the four at their cadence only at 1148, 1200, 1202 and 1267, since the cell's friction turns the hood's backspin into speed back out. The whole set scores only at isolated commands near 1148 and 1267, with the four at their cadence failing one tick a second either side | The code's close launch is now 1220 ticks/s, and the team test-fires it on the robot. A ready window narrower than ±15 is worth having. The backspin is the robot's to reduce: until then the two empty-cell tests are red with the launcher in the run, and stage 4c's runtime stays off `develop` (`runtime-flight.md`, *Calibration*) |
 | 12 | A nectar may be drawn onto the scoop | 91.44 mm against the roller's 69.30 mm gap: 22 mm on the bands. It cannot pass the 76.12 mm feeder gap, and the intake has no reverse | A prediction. Batch 5's replay shows what happens |
 | 13 | Two pollen sizes | the field's 70.61 mm; the CAD's 71.12 mm | Item 1 |
 | 14 | A fifth pollen meets every arm | a pollen waiting in the V sits at r 76.26, its near side at r 40.7, and the arms reach r 88 every quarter turn; each passing pocket's pollen also rolls out there, and with the next pocket full the guide wedges the fifth against it | Predicted to stall the rotor. Batch 5's replay shows what happens |

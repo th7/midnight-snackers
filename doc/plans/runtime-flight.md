@@ -400,10 +400,10 @@ no band around it: both alliances' close shots, the ball at rest against
 the back, the shot after a tip, one launch, the preload that tips the hive,
 and four at their real cadence with all four at rest in an empty cell.
 
-**What stage 4c's runs found.** The code's close launch is 1050 ticks/s
-(`Launcher.closeLauncherPower`), tuned in October 2025 on an earlier
-launcher. Through the simulated launcher at T 28 it throws about 198 in/s,
-and every shot in the set falls short. Run at every whole command from 1000
+**What stage 4c's runs found.** The code's close launch was 1050 ticks/s,
+tuned in October 2025 on an earlier launcher. Through the simulated
+launcher at T 28 it throws about 198 in/s, and every shot in the set falls
+short. Run at every whole command from 1000
 to 1400 ticks/s at T 28, the shots into a cell holding nectar (both close
 shots, the ball at rest against the back, one launch) pass from 1211 to
 1231 ticks/s, and in shorter runs below and above that, and the preload that
@@ -417,11 +417,11 @@ every command: the cell's friction turns the hood's backspin, about
 170 rad/s, into speed back out of the cell.
 
 The user decided two things:
-- **Set 1220, check on the robot.** Stage 4c sets the code's close launch
-  to 1220 ticks/s, which the simulated launcher throws at 228.6 in/s, 70.9°
-  up, with 172 rad/s of backspin, and the team test-fires it on the real
-  robot. `SimRobotTest` and `FlightTest` then each hold the close launch
-  they use to the one the code commands.
+- **Set 1220, check on the robot.** The code's close launch is 1220
+  ticks/s (`Launcher.closeLauncherPower`), which the simulated launcher
+  throws at 228.6 in/s, 70.9° up, with 172 rad/s of backspin, and the team
+  test-fires it on the real robot. `SimRobotTest` and `FlightTest` each
+  hold the close launch they use to the one the code commands.
 - **A robot problem: keep the tests.** The two empty-cell tests,
   `SimRobotTest.aHiveThatTipsDropsWhatWasInItAndHoldsUpItsOtherCell` and
   `LauncherSimTest.fourLaunchesAtTheirCadenceAllComeToRestInAnEmptyCell`,
@@ -467,10 +467,9 @@ they score.
    - Held in the squeeze for 0.1 s it records no hit and no impact.
    - Halving the step changes the exit speed by less than 0.5 % and the
      angle by less than 0.2°.
-3. `LauncherTest` (core), at 1050 ticks/s, the code's close launch until
-   stage 4c sets 1220, and T 24.2, as in stage 4b: a wheel speed that
-   exercises the launcher, not Reginald's, and since the test needs only a
-   spinning wheel it keeps both when stage 4c lands:
+3. `LauncherTest` (core), at 1050 ticks/s and T 24.2, as in stage 4b, a
+   wheel speed that exercises the launcher and not Reginald's, since the
+   test needs only a spinning wheel:
    - It is drawn in from a feed of 0, and at μ 0.3 on the wheel and 0.5 on
      the hood.
    - It leaves at 0.366·u50 ≤ v ≤ 0.584·u50, where u50 is the surface speed

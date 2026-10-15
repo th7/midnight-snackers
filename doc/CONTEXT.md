@@ -1614,9 +1614,11 @@ hub would report it, which for an encoder's velocity is to the nearest
 as a count of the hub's 16-bit overflows, so anything finer is read as
 tens of inches a second). The turntable's speed is a guess until measured on the robot, and it and the
 flywheel's ticks per turn are **simulation constants**, so whoever measures the
-one or regears the other sets it on the admin page. Whether the code's own
-launch commands score at the built ticks per turn is open, and the team's to
-decide. The world moves in steps of at
+one or regears the other sets it on the admin page. At the built ticks per
+turn the code's close launch, 1,220 ticks a second, scores the close shot for
+either alliance; it is still to be checked on the robot, and whether a shot
+into an empty cell stays there waits on the team (`doc/plans/runtime-flight.md`,
+*Calibration*). The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
 `Turntable`, `Flywheel` and `Launcher`, in the **core**.
