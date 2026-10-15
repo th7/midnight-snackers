@@ -273,7 +273,11 @@ public final class SimRunStream {
     }
 
     private static List<String> everyConstantRetired() {
-        return List.of();
+        List<String> names = new ArrayList<>();
+        for (Constant.Retired retired : Constant.Retired.values()) {
+            names.add(retired.asked());
+        }
+        return names;
     }
 
     private record Listed(List<String> reads, List<String> retired) {}

@@ -1781,7 +1781,7 @@ public final class CodingServer {
 
     private String constantsListed() {
         Constants.Restored listed = restored;
-        return GSON.toJson(SimConstants.listing(listed.constants(), listed.pastTheirRange()));
+        return GSON.toJson(SimConstants.listing(listed));
     }
 
     private Response setConstants(String body) {

@@ -31,7 +31,6 @@ public class LaunchSimIsStrictTest {
             "Encoder",
             "Field",
             "Heading",
-            "Launch",
             "Nest",
             "Noise",
             "Placement",

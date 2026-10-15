@@ -206,10 +206,10 @@ public class SimDriverStationTest {
     public void theStartLineCarriesTheConstantsThatWereChangedAndOnlyThose() {
         SimDriverStation station = new SimDriverStation();
         Pose2d placed = new Pose2d(-60, 12, 0);
-        Constants changed = Valid.value(Constants.of(Map.of(Constant.LAUNCH_THROW, 0.25)));
+        Constants changed = Valid.value(Constants.of(Map.of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5)));
         JsonObject line = SimDriverStation.startLine(placed, 7L, changed);
         assertEquals(
-                "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7,\"constants\":{\"launch_throw\":0.25}}",
+                "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7,\"constants\":{\"flywheel_ticks_per_turn\":30.5}}",
                 line.toString());
         assertEquals(
                 "as built, no key",
@@ -242,9 +242,15 @@ public class SimDriverStationTest {
         assertTrue(unknown.getMessage(), unknown.getMessage().contains("'gravity'"));
         IllegalArgumentException outOfRange = assertThrows(
                 SimDriverStation.CannotStart.class,
+                () -> station.accept(
+                        json(
+                                "{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"flywheel_ticks_per_turn\": 5}}")));
+        assertTrue(outOfRange.getMessage(), outOfRange.getMessage().contains("Flywheel ticks per turn"));
+        IllegalArgumentException retired = assertThrows(
+                SimDriverStation.CannotStart.class,
                 () -> station.accept(json(
-                        "{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"launch_throw\": 5}}")));
-        assertTrue(outOfRange.getMessage(), outOfRange.getMessage().contains("Launcher throw"));
+                        "{\"start\": {\"x\": 0, \"y\": 0, \"heading\": 0}, \"constants\": {\"launch_throw\": 0.25}}")));
+        assertTrue(retired.getMessage(), retired.getMessage().contains("is no longer a simulation constant"));
         assertFalse("not placed by a line it refused", station.stopRequested());
     }
 

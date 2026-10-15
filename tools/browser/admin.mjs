@@ -84,13 +84,19 @@ const BUILT = [
     says: 'How far each drive motor may be drawn from its tuning.', least: 0, most: 0.5, byDefault: 0.1 },
   { name: 'hiccup_chance', group: 'noise', label: 'Hiccup chance', unit: 'per loop',
     says: 'The chance that a loop is a hiccup.', least: 0, most: 1, byDefault: 0.02 },
-  { name: 'launch_throw', group: 'mechanisms', label: 'Launcher throw', unit: 'in/s per tick/s',
-    says: 'How fast a ball leaves the launcher.', least: 0.01, most: 0.29, byDefault: 0.189 }
+  { name: 'flywheel_ticks_per_turn', group: 'mechanisms', label: 'Flywheel ticks per turn',
+    unit: 'ticks per turn of the flywheel', says: 'How many ticks the flywheel motor counts as the flywheel turns once.',
+    least: 18, most: 10000, byDefault: 28 }
 ];
 
-let set = { launch_throw: 0.29 };
+let set = { flywheel_ticks_per_turn: 10000 };
 
-let savedPastTheirRange = { launch_throw: 0.5 };
+let savedPastTheirRange = { flywheel_ticks_per_turn: 20000 };
+
+const WHY_THE_THROW_WENT = 'a ball is fed into the simulated flywheel and hood, and how fast it leaves comes out of '
+    + 'their physics';
+
+let dropped = [{ name: 'launch_throw', label: 'Launcher throw', saved: 0.25, why: WHY_THE_THROW_WENT }];
 
 const PUTS = [];
 
@@ -101,7 +107,8 @@ function constantsListed() {
       ...c,
       value: c.name in set ? set[c.name] : c.byDefault,
       ...(c.name in savedPastTheirRange ? { saved: savedPastTheirRange[c.name] } : {})
-    }))
+    })),
+    ...(dropped.length ? { dropped } : {})
   };
 }
 
@@ -111,13 +118,15 @@ function constantsAsked(request, response) {
   request.on('end', () => {
     PUTS.push(body);
     const asked = JSON.parse(body);
-    if (asked.launch_throw > 0.29) {
+    if (asked.flywheel_ticks_per_turn > 10000) {
       response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-      response.end('Launcher throw is from 0.01 to 0.29 in/s per tick/s, not ' + asked.launch_throw.toFixed(1));
+      response.end('Flywheel ticks per turn is from 18.0 to 10000.0 ticks per turn of the flywheel, not '
+          + asked.flywheel_ticks_per_turn.toFixed(1));
       return;
     }
     set = asked;
     savedPastTheirRange = {};
+    dropped = [];
     answer(response, constantsListed());
   });
 }
@@ -303,21 +312,28 @@ async function main() {
     await page.waitForFunction(() => document.querySelectorAll('#constants input').length === 3, null,
         { timeout: 10_000 }).catch(() => {});
     const panel = await page.locator('#constants').innerText();
-    for (const saying of ['Noise', 'Mechanisms', 'Motor spread', 'Hiccup chance', 'Launcher throw', 'in/s per tick/s',
-      'built 0.189']) {
+    for (const saying of ['Noise', 'Mechanisms', 'Motor spread', 'Hiccup chance', 'Flywheel ticks per turn',
+      'ticks per turn of the flywheel', 'built 28']) {
       check(panel.includes(saying), `the constants panel does not say ${saying}: ${JSON.stringify(panel)}`);
     }
-    const throwInput = page.locator('#constants input[data-name="launch_throw"]');
-    check(await throwInput.inputValue() === '0.29', `the launcher throw shows ${await throwInput.inputValue()}, not 0.29`);
+    const ticksInput = page.locator('#constants input[data-name="flywheel_ticks_per_turn"]');
+    check(await ticksInput.inputValue() === '10000',
+        `the flywheel's ticks per turn shows ${await ticksInput.inputValue()}, not 10000`);
     const pastTheirRange = await page.locator('#constants .constant.past').allInnerTexts();
-    check(pastTheirRange.length === 1 && pastTheirRange[0].includes('Launcher throw')
-        && pastTheirRange[0].includes('saved 0.5') && pastTheirRange[0].includes('0.01 to 0.29')
-        && pastTheirRange[0].includes('runs use 0.29'),
-        `a throw saved past where it may now go is not shown with what was saved and what runs use: `
+    check(pastTheirRange.length === 1 && pastTheirRange[0].includes('Flywheel ticks per turn')
+        && pastTheirRange[0].includes('saved 20000') && pastTheirRange[0].includes('18 to 10000')
+        && pastTheirRange[0].includes('runs use 10000'),
+        `a constant saved past where it may now go is not shown with what was saved and what runs use: `
         + JSON.stringify(pastTheirRange));
     const changedRows = await page.locator('#constants .constant.changed').allInnerTexts();
-    check(changedRows.length === 1 && changedRows[0].includes('Launcher throw'),
-        `the constants marked as changed are ${JSON.stringify(changedRows)} rather than the launcher throw alone`);
+    check(changedRows.length === 1 && changedRows[0].includes('Flywheel ticks per turn'),
+        `the constants marked as changed are ${JSON.stringify(changedRows)} rather than the ticks per turn alone`);
+    const droppedPanel = await page.locator('#constants-dropped').innerText().catch(() => '');
+    for (const saying of ['Dropped from the saved settings', 'Launcher throw', 'saved 0.25', WHY_THE_THROW_WENT]) {
+      check(droppedPanel.includes(saying),
+          `a retired constant in the saved settings is not shown dropped with ${saying}: ${JSON.stringify(droppedPanel)}`);
+    }
+    check(await page.locator('#constants-dropped input').count() === 0, 'a dropped constant is offered to be set');
 
     await page.fill('#constants input[data-name="hiccup_chance"]', '0');
     check(await page.locator('#constants .constant.changed').count() === 2,
@@ -327,7 +343,8 @@ async function main() {
           { timeout: 10_000 }),
       page.click('#save-constants')
     ]);
-    check(JSON.stringify(JSON.parse(PUTS[PUTS.length - 1])) === JSON.stringify({ hiccup_chance: 0, launch_throw: 0.29 }),
+    check(JSON.stringify(JSON.parse(PUTS[PUTS.length - 1]))
+        === JSON.stringify({ hiccup_chance: 0, flywheel_ticks_per_turn: 10000 }),
         `Save sent ${PUTS[PUTS.length - 1]} rather than every constant that differs from how it was built`);
     await page.waitForFunction(() => document.getElementById('constants-said').textContent.length > 0, null,
         { timeout: 10_000 }).catch(() => {});
@@ -335,16 +352,18 @@ async function main() {
         'saving does not say when the constants take effect');
     check(await page.locator('#constants .constant.past').count() === 0,
         'once saved, a constant is still shown as saved past where it may go');
+    check(!(await page.locator('#constants-dropped').innerText().catch(() => '')).includes('Launcher throw'),
+        'once saved, a retired constant is still shown as dropped from the saved settings');
 
-    await page.fill('#constants input[data-name="launch_throw"]', '5');
+    await page.fill('#constants input[data-name="flywheel_ticks_per_turn"]', '20000');
     await Promise.all([
       page.waitForResponse((r) => r.url().endsWith('/admin/constants') && r.request().method() === 'PUT',
           { timeout: 10_000 }),
       page.click('#save-constants')
     ]);
-    await page.waitForFunction(() => document.getElementById('constants-said').textContent.includes('from 0.01'), null,
+    await page.waitForFunction(() => document.getElementById('constants-said').textContent.includes('from 18'), null,
         { timeout: 10_000 }).catch(() => {});
-    check((await page.locator('#constants-said').innerText()).includes('Launcher throw is from 0.01 to 0.29'),
+    check((await page.locator('#constants-said').innerText()).includes('Flywheel ticks per turn is from 18.0 to 10000.0'),
         `a refused set does not show why: ${await page.locator('#constants-said').innerText()}`);
 
     await Promise.all([
@@ -357,8 +376,8 @@ async function main() {
         { timeout: 10_000 }).catch(() => {});
     check(await page.locator('#constants .constant.changed').count() === 0,
         'after putting them back as built, some are still marked as changed');
-    check(await page.locator('#constants input[data-name="launch_throw"]').inputValue() === '0.189',
-        'after putting them back as built, the launcher throw is not 0.189');
+    check(await page.locator('#constants input[data-name="flywheel_ticks_per_turn"]').inputValue() === '28',
+        'after putting them back as built, the flywheel\'s ticks per turn is not 28');
 
     check(threw.length === 0, `the page threw ${threw.join('; ')}`);
   } catch (stuck) {
@@ -380,7 +399,8 @@ async function main() {
       + 'picks files for one robot at a time, '
       + 'shows each robot\'s own package as always editable and never offers it, '
       + 'deletes a user, '
-      + 'and shows the simulation constants and any saved past where it may now go, '
+      + 'and shows the simulation constants, any saved past where it may now go and any dropped from the saved '
+      + 'settings, '
       + 'saves those that differ from how they were built, '
       + 'says why a set is refused, and puts them back as built.');
 }

@@ -21,11 +21,11 @@ import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flywheel;
-import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -1006,9 +1006,9 @@ public class SimRobotTest {
         sim.step(1.0);
         double[] still = sim.placeOf(thePreloadOf(sim));
 
-        assertTrue("flying: z=" + flying[2], flying[2] > Launch.HEIGHT_IN + 5);
+        assertTrue(ROBOT_TOP_SOURCE + ": flying over the robot's top: z=" + flying[2], flying[2] > ROBOT_TOP_IN + 5);
         assertEquals("on the floor", BALL, landed[2], DELTA);
-        assertTrue("beyond where it was launched from: x=" + landed[0], landed[0] > -60 + Launch.AHEAD_IN);
+        assertTrue("beyond the robot: x=" + landed[0], landed[0] > -60 + SimPlacement.ROBOT_SIZE_IN / 2);
         assertEquals("in its lane, which nothing on the field crosses", lane, landed[1], 1);
         assertEquals("at rest", resting[0], still[0], DELTA);
         assertEquals(resting[1], still[1], DELTA);
@@ -1273,7 +1273,7 @@ public class SimRobotTest {
         assertTrue(
                 "a wheel turns at most " + fastestWheel
                         + " in/s, where its motor's kS and kV leave its battery's volts",
-                fastestWheel <= Launch.MOST_ROBOT_SPEED_IN_PER_S);
+                fastestWheel <= Chassis.MOST_ROBOT_SPEED_IN_PER_S);
     }
 
     @Test

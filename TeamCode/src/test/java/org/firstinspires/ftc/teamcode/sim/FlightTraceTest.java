@@ -7,7 +7,6 @@ import java.util.Map;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Hives;
-import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
@@ -19,6 +18,7 @@ public class FlightTraceTest {
     private static final double NECTAR = 1.8;
     private static final double STEP = 0.005;
     private static final int STEPS_PER_SAMPLE = 4;
+    private static final double LAUNCHED_FROM_HEIGHT_IN = 14;
 
     private final Field field = SimPlacement.FIELD;
     private Flight<Object> flight = Valid.value(Flight.<Object>over(field));
@@ -100,7 +100,7 @@ public class FlightTraceTest {
     @Test
     public void ballsThrownAtTheHivesTheWallsAndTheFloorFlyAsTheyDidWhenTheTraceWasWritten() {
         double[] mouth = aboveTheMouthOf("Red", 0, 0);
-        double[] from = {mouth[0] - 40, mouth[1] - 10, Launch.HEIGHT_IN};
+        double[] from = {mouth[0] - 40, mouth[1] - 10, LAUNCHED_FROM_HEIGHT_IN};
         double rise = mouth[2] + 4 - from[2], seconds = 0.6;
         add(Field.Kind.POLLEN, POLLEN, from, new double[] {
             (mouth[0] - from[0]) / seconds,

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -15,10 +16,12 @@ public final class SimConstants {
     private SimConstants() {}
 
     public static JsonObject listing(Constants constants) {
-        return listing(constants, Map.of());
+        return listing(Constants.Restored.asSet(constants));
     }
 
-    public static JsonObject listing(Constants constants, Map<Constant, Double> pastTheirRange) {
+    public static JsonObject listing(Constants.Restored restored) {
+        Constants constants = restored.constants();
+        Map<Constant, Double> pastTheirRange = restored.pastTheirRange();
         JsonArray groups = new JsonArray();
         for (Constant.Group group : Constant.Group.values()) {
             JsonObject one = new JsonObject();
@@ -47,6 +50,19 @@ public final class SimConstants {
         JsonObject listing = new JsonObject();
         listing.add("groups", groups);
         listing.add("constants", listed);
+        Map<Constant.Retired, Double> setAside = restored.setAside();
+        if (!setAside.isEmpty()) {
+            JsonArray dropped = new JsonArray();
+            for (Map.Entry<Constant.Retired, Double> entry : setAside.entrySet()) {
+                JsonObject one = new JsonObject();
+                one.addProperty("name", entry.getKey().asked());
+                one.addProperty("label", entry.getKey().label());
+                one.addProperty("saved", entry.getValue());
+                one.addProperty("why", entry.getKey().why());
+                dropped.add(one);
+            }
+            listing.add("dropped", dropped);
+        }
         return listing;
     }
 
@@ -55,7 +71,11 @@ public final class SimConstants {
     }
 
     public static JsonObject saved(Constants.Restored restored) {
-        return numbersByName(restored.asSaved());
+        JsonObject saved = numbersByName(restored.asSaved());
+        for (Map.Entry<Constant.Retired, Double> entry : restored.setAside().entrySet()) {
+            saved.addProperty(entry.getKey().asked(), entry.getValue());
+        }
+        return saved;
     }
 
     private static JsonObject numbersByName(Map<Constant, Double> numbers) {
@@ -71,7 +91,24 @@ public final class SimConstants {
     }
 
     public static Checked<Constants.Restored> restoredFromJson(JsonElement element) {
-        return numbersByName(element).then(Constants::restored);
+        if (element == null || !element.isJsonObject()) {
+            return numbersByName(element).then(Constants::restored);
+        }
+        JsonObject saved = new JsonObject();
+        Map<Constant.Retired, Double> retired = new EnumMap<>(Constant.Retired.class);
+        for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
+            Optional<Constant.Retired> gone = Constant.Retired.named(entry.getKey());
+            if (gone.isEmpty()) {
+                saved.add(entry.getKey(), entry.getValue());
+                continue;
+            }
+            JsonElement value = entry.getValue();
+            if (!(value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber())) {
+                return Checked.rejected(gone.get().label() + " is a number, not " + value);
+            }
+            retired.put(gone.get(), value.getAsDouble());
+        }
+        return numbersByName(saved).then(constants -> Constants.restored(constants, retired));
     }
 
     private static Checked<Map<Constant, Double>> numbersByName(JsonElement element) {

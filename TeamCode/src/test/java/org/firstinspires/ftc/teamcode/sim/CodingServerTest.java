@@ -2276,11 +2276,15 @@ public class CodingServerTest {
     public void theAdminChangesTheConstantsAndTheyOutliveARestartAlongsideTheOtherSettings() throws IOException {
         admin("POST", "/admin/assets/default?resolution=medium");
 
-        Reply set = admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25, \"hiccup_chance\": 0}");
+        Reply set = admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": 30.5, \"hiccup_chance\": 0}");
 
         assertEquals(set.body, 200, set.status);
         assertEquals(
-                0.25, constantNamed(set, Constant.LAUNCH_THROW).get("value").getAsDouble(), 0);
+                30.5,
+                constantNamed(set, Constant.FLYWHEEL_TICKS_PER_TURN)
+                        .get("value")
+                        .getAsDouble(),
+                0);
         assertEquals(0, constantNamed(set, Constant.HICCUP_CHANCE).get("value").getAsDouble(), 0);
         assertEquals(
                 Constant.MOTOR_SPREAD.byDefault(),
@@ -2291,7 +2295,11 @@ public class CodingServerTest {
 
         Reply after = admin("GET", "/admin/constants");
         assertEquals(
-                0.25, constantNamed(after, Constant.LAUNCH_THROW).get("value").getAsDouble(), 0);
+                30.5,
+                constantNamed(after, Constant.FLYWHEEL_TICKS_PER_TURN)
+                        .get("value")
+                        .getAsDouble(),
+                0);
         assertEquals(
                 0, constantNamed(after, Constant.HICCUP_CHANCE).get("value").getAsDouble(), 0);
         assertTrue(
@@ -2301,14 +2309,14 @@ public class CodingServerTest {
 
     @Test
     public void whatThePagesDrawIsSetWithoutForgettingTheConstants() throws IOException {
-        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+        admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": 30.5}");
 
         admin("POST", "/admin/assets/default?resolution=low");
         restart();
 
         assertEquals(
-                0.25,
-                constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW)
+                30.5,
+                constantNamed(admin("GET", "/admin/constants"), Constant.FLYWHEEL_TICKS_PER_TURN)
                         .get("value")
                         .getAsDouble(),
                 0);
@@ -2316,14 +2324,16 @@ public class CodingServerTest {
 
     @Test
     public void theConstantsAreSetWholeSoWhatIsLeftOutGoesBackToHowItWasBuilt() throws IOException {
-        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25, \"hiccup_chance\": 0}");
+        admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": 30.5, \"hiccup_chance\": 0}");
 
         Reply set = admin("PUT", "/admin/constants", "{\"hiccup_chance\": 0.1}");
         Reply none = admin("PUT", "/admin/constants", "{}");
 
         assertEquals(
-                Constant.LAUNCH_THROW.byDefault(),
-                constantNamed(set, Constant.LAUNCH_THROW).get("value").getAsDouble(),
+                Constant.FLYWHEEL_TICKS_PER_TURN.byDefault(),
+                constantNamed(set, Constant.FLYWHEEL_TICKS_PER_TURN)
+                        .get("value")
+                        .getAsDouble(),
                 0);
         assertEquals(
                 0.1, constantNamed(set, Constant.HICCUP_CHANCE).get("value").getAsDouble(), 0);
@@ -2338,29 +2348,29 @@ public class CodingServerTest {
 
     @Test
     public void constantsTheSimulatorCannotTakeAreRefusedSayingWhyAndChangeNothing() throws IOException {
-        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+        admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": 30.5}");
 
-        Reply outOfRange = admin("PUT", "/admin/constants", "{\"launch_throw\": 5}");
+        Reply outOfRange = admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": 5}");
         Reply backwards = admin("PUT", "/admin/constants", "{\"least_traction_g\": 0.9}");
         Reply unknown = admin("PUT", "/admin/constants", "{\"gravity\": 1}");
-        Reply notANumber = admin("PUT", "/admin/constants", "{\"launch_throw\": \"hard\"}");
+        Reply notANumber = admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": \"hard\"}");
         Reply notJson = admin("PUT", "/admin/constants", "harder");
         Reply nothing = admin("PUT", "/admin/constants", "");
 
         assertEquals(400, outOfRange.status);
-        assertTrue(outOfRange.body, outOfRange.body.contains("Launcher throw is from"));
+        assertTrue(outOfRange.body, outOfRange.body.contains("Flywheel ticks per turn is from"));
         assertEquals(400, backwards.status);
         assertTrue(backwards.body, backwards.body.contains("Least traction may not be more than most traction"));
         assertEquals(400, unknown.status);
         assertTrue(unknown.body, unknown.body.contains("'gravity'"));
         assertEquals(400, notANumber.status);
-        assertTrue(notANumber.body, notANumber.body.contains("Launcher throw is a number"));
+        assertTrue(notANumber.body, notANumber.body.contains("Flywheel ticks per turn is a number"));
         assertEquals(400, notJson.status);
         assertEquals(400, nothing.status);
         assertEquals(
                 "what was set is what it was",
-                0.25,
-                constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW)
+                30.5,
+                constantNamed(admin("GET", "/admin/constants"), Constant.FLYWHEEL_TICKS_PER_TURN)
                         .get("value")
                         .getAsDouble(),
                 0);
@@ -2378,10 +2388,10 @@ public class CodingServerTest {
         assertEquals(1, handed.size());
         assertEquals(Constants.defaults(), handed.get(0).get());
 
-        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+        admin("PUT", "/admin/constants", "{\"flywheel_ticks_per_turn\": 30.5}");
 
         assertEquals(
-                Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, 0.25))),
+                Valid.value(Constants.of(java.util.Map.of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5))),
                 handed.get(0).get());
     }
 
@@ -2390,52 +2400,52 @@ public class CodingServerTest {
         Files.createDirectories(stateDir());
         Files.write(
                 stateDir().resolve("settings.json"),
-                "{\"constants\": {\"launch_throw\": \"hard\"}}".getBytes(StandardCharsets.UTF_8));
+                "{\"constants\": {\"flywheel_ticks_per_turn\": \"hard\"}}".getBytes(StandardCharsets.UTF_8));
 
         IllegalStateException refused = assertThrows(IllegalStateException.class, this::server);
 
         assertTrue(refused.getMessage(), refused.getMessage().contains("settings"));
-        assertTrue(refused.getMessage(), refused.getMessage().contains("Launcher throw is a number"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("Flywheel ticks per turn is a number"));
         server = null;
     }
 
     @Test
-    public void aThrowSavedPastWhereItMayNowGoStillLetsTheServerStartAtTheNearerEndAndTheAdminSeesWhatWasSaved()
+    public void aConstantSavedPastWhereItMayNowGoStillLetsTheServerStartAtTheNearerEndAndTheAdminSeesWhatWasSaved()
             throws IOException {
         Files.createDirectories(stateDir());
         Files.write(
                 stateDir().resolve("settings.json"),
-                "{\"constants\": {\"launch_throw\": 0.5}}".getBytes(StandardCharsets.UTF_8));
+                "{\"constants\": {\"turntable_speed\": 20000}}".getBytes(StandardCharsets.UTF_8));
         List<java.util.function.Supplier<Constants>> handed = new ArrayList<>();
         serverWith((worktree, robot, constants) -> {
             handed.add(constants);
             return bench();
         });
 
-        JsonObject listed = constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW);
-        assertEquals(Constant.LAUNCH_THROW.most(), listed.get("value").getAsDouble(), 0);
-        assertEquals("what was saved", 0.5, listed.get("saved").getAsDouble(), 0);
+        JsonObject listed = constantNamed(admin("GET", "/admin/constants"), Constant.TURNTABLE_SPEED);
+        assertEquals(Constant.TURNTABLE_SPEED.most(), listed.get("value").getAsDouble(), 0);
+        assertEquals("what was saved", 20000, listed.get("saved").getAsDouble(), 0);
         String ada = approvedUser("ada");
         user("GET", "/sim/catalog", ada);
         assertEquals(
                 "and every run is made at the nearer end",
-                Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, Constant.LAUNCH_THROW.most()))),
+                Valid.value(Constants.of(java.util.Map.of(Constant.TURNTABLE_SPEED, Constant.TURNTABLE_SPEED.most()))),
                 handed.get(0).get());
 
-        admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+        admin("PUT", "/admin/constants", "{\"turntable_speed\": 2000}");
         restart();
 
-        JsonObject saved = constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW);
-        assertEquals(0.25, saved.get("value").getAsDouble(), 0);
+        JsonObject saved = constantNamed(admin("GET", "/admin/constants"), Constant.TURNTABLE_SPEED);
+        assertEquals(2000, saved.get("value").getAsDouble(), 0);
         assertFalse("once the admin saves them, nothing is past its range: " + saved, saved.has("saved"));
     }
 
     @Test
-    public void savingAnotherSettingKeepsAThrowSavedPastWhereItMayNowGoAsItWasSavedThroughARestart()
+    public void savingAnotherSettingKeepsAConstantSavedPastWhereItMayNowGoAsItWasSavedThroughARestart()
             throws IOException {
         Files.createDirectories(stateDir());
         Path settings = stateDir().resolve("settings.json");
-        Files.write(settings, "{\"constants\": {\"launch_throw\": 0.5}}".getBytes(StandardCharsets.UTF_8));
+        Files.write(settings, "{\"constants\": {\"turntable_speed\": 20000}}".getBytes(StandardCharsets.UTF_8));
         server();
 
         assertEquals(200, admin("POST", "/admin/assets/default?resolution=medium").status);
@@ -2447,17 +2457,76 @@ public class CodingServerTest {
                 "medium",
                 onDisk.get("defaultResolution").getAsString());
         assertEquals(
-                "and the throw as it was saved: " + onDisk,
-                0.5,
-                onDisk.getAsJsonObject("constants").get("launch_throw").getAsDouble(),
+                "and the turntable's speed as it was saved: " + onDisk,
+                20000,
+                onDisk.getAsJsonObject("constants").get("turntable_speed").getAsDouble(),
                 0);
         restart();
 
-        JsonObject listed = constantNamed(admin("GET", "/admin/constants"), Constant.LAUNCH_THROW);
-        assertEquals(Constant.LAUNCH_THROW.most(), listed.get("value").getAsDouble(), 0);
+        JsonObject listed = constantNamed(admin("GET", "/admin/constants"), Constant.TURNTABLE_SPEED);
+        assertEquals(Constant.TURNTABLE_SPEED.most(), listed.get("value").getAsDouble(), 0);
         assertTrue("the admin still sees what was saved: " + listed, listed.has("saved"));
-        assertEquals(0.5, listed.get("saved").getAsDouble(), 0);
+        assertEquals(20000, listed.get("saved").getAsDouble(), 0);
         assertTrue(admin("GET", "/admin/assets").body.contains("\"defaultResolution\":\"medium\""));
+    }
+
+    @Test
+    public void aRetiredConstantInTheSavedSettingsIsSetAsideAndShownDroppedUntilTheAdminSavesTheConstants()
+            throws IOException {
+        Files.createDirectories(stateDir());
+        Path settings = stateDir().resolve("settings.json");
+        Files.write(
+                settings,
+                "{\"constants\": {\"launch_throw\": 0.25, \"hiccup_chance\": 0}}".getBytes(StandardCharsets.UTF_8));
+        List<java.util.function.Supplier<Constants>> handed = new ArrayList<>();
+        serverWith((worktree, robot, constants) -> {
+            handed.add(constants);
+            return bench();
+        });
+
+        JsonObject listing = new Gson().fromJson(admin("GET", "/admin/constants").body, JsonObject.class);
+        JsonArray dropped = listing.getAsJsonArray("dropped");
+        assertEquals(listing.toString(), 1, dropped.size());
+        JsonObject thrown = dropped.get(0).getAsJsonObject();
+        assertEquals("launch_throw", thrown.get("name").getAsString());
+        assertEquals(Constant.Retired.LAUNCH_THROW.label(), thrown.get("label").getAsString());
+        assertEquals(0.25, thrown.get("saved").getAsDouble(), 0);
+        assertEquals(Constant.Retired.LAUNCH_THROW.why(), thrown.get("why").getAsString());
+        String ada = approvedUser("ada");
+        user("GET", "/sim/catalog", ada);
+        assertEquals(
+                "every run is made on the rest of what was saved",
+                Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, 0.0))),
+                handed.get(0).get());
+
+        assertEquals(200, admin("POST", "/admin/assets/default?resolution=medium").status);
+        restart();
+        JsonObject onDisk =
+                new Gson().fromJson(new String(Files.readAllBytes(settings), StandardCharsets.UTF_8), JsonObject.class);
+        assertEquals(
+                "saving another setting keeps it as it was saved: " + onDisk,
+                0.25,
+                onDisk.getAsJsonObject("constants").get("launch_throw").getAsDouble(),
+                0);
+        assertTrue(admin("GET", "/admin/constants").body.contains("\"dropped\""));
+
+        assertEquals(200, admin("PUT", "/admin/constants", "{\"hiccup_chance\": 0.1}").status);
+        restart();
+
+        JsonObject saved = new Gson().fromJson(admin("GET", "/admin/constants").body, JsonObject.class);
+        assertFalse("once the admin saves the constants, it is gone: " + saved, saved.has("dropped"));
+        JsonObject written =
+                new Gson().fromJson(new String(Files.readAllBytes(settings), StandardCharsets.UTF_8), JsonObject.class);
+        assertFalse(written.toString(), written.getAsJsonObject("constants").has("launch_throw"));
+    }
+
+    @Test
+    public void aRetiredConstantIsRefusedWhenTheAdminSetsItSayingItIsNoLongerOne() throws IOException {
+        Reply retired = admin("PUT", "/admin/constants", "{\"launch_throw\": 0.25}");
+
+        assertEquals(400, retired.status);
+        assertTrue(retired.body, retired.body.contains("is no longer a simulation constant"));
+        assertTrue(retired.body, retired.body.contains(Constant.FLYWHEEL_TICKS_PER_TURN.label()));
     }
 
     @Test

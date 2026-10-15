@@ -47,7 +47,6 @@ public class ConstantsTest {
         assertEquals(Noise.HICCUP_CHANCE, built.value(Constant.HICCUP_CHANCE), 0);
         assertEquals(Noise.SHORTEST_HICCUP_SECONDS, built.value(Constant.SHORTEST_HICCUP_SECONDS), 0);
         assertEquals(Noise.LONGEST_HICCUP_SECONDS, built.value(Constant.LONGEST_HICCUP_SECONDS), 0);
-        assertEquals(Launch.IN_PER_S_PER_TICK_PER_S, built.value(Constant.LAUNCH_THROW), 0);
         assertEquals(Flywheel.TicksPerTurn.BUILT, built.value(Constant.FLYWHEEL_TICKS_PER_TURN), 0);
         assertEquals(Turntable.TICKS_PER_SECOND_AT_FULL_POWER, built.value(Constant.TURNTABLE_SPEED), 0);
 
@@ -77,10 +76,36 @@ public class ConstantsTest {
         for (Constant constant : Constant.values()) {
             assertSame(constant, Valid.value(Constant.named(constant.asked())));
         }
-        assertEquals("launch_throw", Constant.LAUNCH_THROW.asked());
-        assertRejected("launch_throw", Constant.named("gravity"));
+        assertEquals("flywheel_ticks_per_turn", Constant.FLYWHEEL_TICKS_PER_TURN.asked());
+        assertRejected("flywheel_ticks_per_turn", Constant.named("gravity"));
         assertRejected("'gravity'", Constant.named("gravity"));
-        assertRejected("'LAUNCH_THROW'", Constant.named("LAUNCH_THROW"));
+        assertRejected("'FLYWHEEL_TICKS_PER_TURN'", Constant.named("FLYWHEEL_TICKS_PER_TURN"));
+    }
+
+    @Test
+    public void theLaunchersThrowIsRetiredSoNamingItIsRefusedSayingItIsNoLongerAConstantAndWhatReplacedIt() {
+        assertEquals(List.of(Constant.Retired.LAUNCH_THROW), List.of(Constant.Retired.values()));
+        Constant.Retired thrown = Constant.Retired.LAUNCH_THROW;
+        assertEquals("launch_throw", thrown.asked());
+        assertEquals("Launcher throw", thrown.label());
+        assertSame(thrown, Constant.Retired.named("launch_throw").orElseThrow());
+        assertFalse(Constant.Retired.named("flywheel_ticks_per_turn").isPresent());
+
+        Checked<Constant> refused = Constant.named("launch_throw");
+
+        assertRejected("'launch_throw'", refused);
+        assertRejected("Launcher throw", refused);
+        assertRejected("is no longer a simulation constant", refused);
+        assertRejected(thrown.why(), refused);
+        assertRejected(Constant.FLYWHEEL_TICKS_PER_TURN.label(), refused);
+        assertFalse(
+                "a retired name is not offered as a constant",
+                Constant.named("gravity").fold(c -> "", rule -> rule).contains("launch_throw"));
+        for (Constant constant : Constant.values()) {
+            for (Constant.Retired retired : Constant.Retired.values()) {
+                assertFalse(retired.asked(), constant.asked().equals(retired.asked()));
+            }
+        }
     }
 
     @Test
@@ -137,11 +162,8 @@ public class ConstantsTest {
 
     @Test
     public void aValueAtEitherEndOfItsRangeIsTaken() {
-        for (Constant constant : List.of(
-                Constant.MOTOR_SPREAD,
-                Constant.LAUNCH_THROW,
-                Constant.FLYWHEEL_TICKS_PER_TURN,
-                Constant.TURNTABLE_SPEED)) {
+        for (Constant constant :
+                List.of(Constant.MOTOR_SPREAD, Constant.FLYWHEEL_TICKS_PER_TURN, Constant.TURNTABLE_SPEED)) {
             assertEquals(
                     constant.least(),
                     Valid.value(of(constant, constant.least())).value(constant),
@@ -179,18 +201,18 @@ public class ConstantsTest {
     @Test
     public void whatChangedIsWhatDiffersFromTheValueAsBuiltInTheOrderTheyAreListed() {
         Constants changed = Valid.value(of(
-                Constant.LAUNCH_THROW,
-                0.2,
+                Constant.FLYWHEEL_TICKS_PER_TURN,
+                30.5,
                 Constant.MOTOR_SPREAD,
                 Noise.MOTOR_SPREAD,
                 Constant.SAG_VOLTS_PER_POWER,
                 0.3));
 
         assertEquals(
-                List.of(Constant.SAG_VOLTS_PER_POWER, Constant.LAUNCH_THROW),
+                List.of(Constant.SAG_VOLTS_PER_POWER, Constant.FLYWHEEL_TICKS_PER_TURN),
                 List.copyOf(changed.changed().keySet()));
         assertEquals(0.3, changed.changed().get(Constant.SAG_VOLTS_PER_POWER), 0);
-        assertEquals(0.2, changed.changed().get(Constant.LAUNCH_THROW), 0);
+        assertEquals(30.5, changed.changed().get(Constant.FLYWHEEL_TICKS_PER_TURN), 0);
         assertFalse(changed.asBuilt());
         assertEquals(Noise.MOTOR_SPREAD, changed.value(Constant.MOTOR_SPREAD), 0);
         assertEquals(Noise.LOOP_SECONDS, changed.value(Constant.LOOP_SECONDS), 0);
@@ -199,41 +221,44 @@ public class ConstantsTest {
     @Test
     public void twoSetsOfTheSameValuesAreTheSame() {
         assertEquals(Constants.defaults(), Valid.value(of()));
-        assertEquals(Constants.defaults(), Valid.value(of(Constant.LAUNCH_THROW, Launch.IN_PER_S_PER_TICK_PER_S)));
-        assertEquals(Valid.value(of(Constant.LAUNCH_THROW, 0.2)), Valid.value(of(Constant.LAUNCH_THROW, 0.2)));
         assertEquals(
-                Valid.value(of(Constant.LAUNCH_THROW, 0.2)).hashCode(),
-                Valid.value(of(Constant.LAUNCH_THROW, 0.2)).hashCode());
-        assertFalse(Constants.defaults().equals(Valid.value(of(Constant.LAUNCH_THROW, 0.2))));
+                Constants.defaults(), Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, Flywheel.TicksPerTurn.BUILT)));
+        assertEquals(
+                Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5)),
+                Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5)));
+        assertEquals(
+                Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5)).hashCode(),
+                Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5)).hashCode());
+        assertFalse(Constants.defaults().equals(Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5))));
     }
 
     @Test
     public void whatASetIsHandedIsNotWhatItHolds() {
-        Map<Constant, Double> handed = set(Constant.LAUNCH_THROW, 0.2);
+        Map<Constant, Double> handed = set(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5);
         Constants constants = Valid.value(Constants.of(handed));
-        handed.put(Constant.LAUNCH_THROW, 0.5);
-        constants.changed().put(Constant.LAUNCH_THROW, 0.7);
+        handed.put(Constant.FLYWHEEL_TICKS_PER_TURN, 50.0);
+        constants.changed().put(Constant.FLYWHEEL_TICKS_PER_TURN, 70.0);
 
-        assertEquals(0.2, constants.value(Constant.LAUNCH_THROW), 0);
+        assertEquals(30.5, constants.value(Constant.FLYWHEEL_TICKS_PER_TURN), 0);
     }
 
     @Test
     public void aSavedValuePastItsRangeIsRestoredAtTheNearerEndAndWhatWasSavedIsKeptToSay() {
         Constants.Restored restored = Valid.value(Constants.restored(
-                set(Constant.LAUNCH_THROW, 0.5, Constant.MOTOR_SPREAD, -0.1, Constant.HICCUP_CHANCE, 0.5)));
+                set(Constant.TURNTABLE_SPEED, 20000, Constant.MOTOR_SPREAD, -0.1, Constant.HICCUP_CHANCE, 0.5)));
 
-        assertEquals(Constant.LAUNCH_THROW.most(), restored.constants().value(Constant.LAUNCH_THROW), 0);
+        assertEquals(Constant.TURNTABLE_SPEED.most(), restored.constants().value(Constant.TURNTABLE_SPEED), 0);
         assertEquals(Constant.MOTOR_SPREAD.least(), restored.constants().value(Constant.MOTOR_SPREAD), 0);
         assertEquals(0.5, restored.constants().value(Constant.HICCUP_CHANCE), 0);
-        assertEquals(set(Constant.MOTOR_SPREAD, -0.1, Constant.LAUNCH_THROW, 0.5), restored.pastTheirRange());
+        assertEquals(set(Constant.MOTOR_SPREAD, -0.1, Constant.TURNTABLE_SPEED, 20000), restored.pastTheirRange());
         assertEquals(
-                List.of(Constant.MOTOR_SPREAD, Constant.LAUNCH_THROW),
+                List.of(Constant.MOTOR_SPREAD, Constant.TURNTABLE_SPEED),
                 List.copyOf(restored.pastTheirRange().keySet()));
     }
 
     @Test
     public void savedValuesWithinTheirRangesAreRestoredAsTheyWereSavedAndNothingIsSaidOfThem() {
-        Map<Constant, Double> saved = set(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0);
+        Map<Constant, Double> saved = set(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5, Constant.HICCUP_CHANCE, 0);
 
         Constants.Restored restored = Valid.value(Constants.restored(saved));
 
@@ -252,8 +277,8 @@ public class ConstantsTest {
     @Test
     public void aSavedValueThatIsNoNumberOrPutsARangesEndsTheWrongWayRoundIsNotRestoredAndSaysWhy() {
         for (double wrong : List.of(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)) {
-            Checked<Constants.Restored> refused = Constants.restored(set(Constant.LAUNCH_THROW, wrong));
-            assertRejected(Constant.LAUNCH_THROW.label(), refused);
+            Checked<Constants.Restored> refused = Constants.restored(set(Constant.FLYWHEEL_TICKS_PER_TURN, wrong));
+            assertRejected(Constant.FLYWHEEL_TICKS_PER_TURN.label(), refused);
             assertRejected(String.valueOf(wrong), refused);
         }
         assertRejected(
@@ -263,19 +288,22 @@ public class ConstantsTest {
 
     @Test
     public void whatARestoredSetSaysWasSavedIsNotWhatItHolds() {
-        Constants.Restored restored = Valid.value(Constants.restored(set(Constant.LAUNCH_THROW, 0.5)));
+        Constants.Restored restored = Valid.value(
+                Constants.restored(set(Constant.TURNTABLE_SPEED, 20000), retired(Constant.Retired.LAUNCH_THROW, 0.5)));
 
-        restored.pastTheirRange().put(Constant.LAUNCH_THROW, 0.7);
-        restored.asSaved().put(Constant.LAUNCH_THROW, 0.7);
+        restored.pastTheirRange().put(Constant.TURNTABLE_SPEED, 30000.0);
+        restored.asSaved().put(Constant.TURNTABLE_SPEED, 30000.0);
+        restored.setAside().put(Constant.Retired.LAUNCH_THROW, 0.7);
 
-        assertEquals(set(Constant.LAUNCH_THROW, 0.5), restored.pastTheirRange());
-        assertEquals(set(Constant.LAUNCH_THROW, 0.5), restored.asSaved());
+        assertEquals(set(Constant.TURNTABLE_SPEED, 20000), restored.pastTheirRange());
+        assertEquals(set(Constant.TURNTABLE_SPEED, 20000), restored.asSaved());
+        assertEquals(retired(Constant.Retired.LAUNCH_THROW, 0.5), restored.setAside());
     }
 
     @Test
     public void aRestoredSetSavesWhatWasSavedSoWhatItSavesIsRestoredAsTheSameSet() {
         Map<Constant, Double> saved =
-                set(Constant.MOTOR_SPREAD, -0.1, Constant.HICCUP_CHANCE, 0.5, Constant.LAUNCH_THROW, 0.5);
+                set(Constant.MOTOR_SPREAD, -0.1, Constant.HICCUP_CHANCE, 0.5, Constant.TURNTABLE_SPEED, 20000);
         Constants.Restored restored = Valid.value(Constants.restored(saved));
 
         assertEquals(saved, restored.asSaved());
@@ -286,21 +314,62 @@ public class ConstantsTest {
 
     @Test
     public void aSetSetAsItIsSavesWhatDiffersFromHowItWasBuiltAndHasNothingSavedPastItsRange() {
-        Constants set = Valid.value(of(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0));
+        Constants set = Valid.value(of(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5, Constant.HICCUP_CHANCE, 0));
 
         Constants.Restored asSet = Constants.Restored.asSet(set);
 
         assertEquals(set, asSet.constants());
         assertTrue(asSet.pastTheirRange().toString(), asSet.pastTheirRange().isEmpty());
-        assertEquals(set(Constant.HICCUP_CHANCE, 0, Constant.LAUNCH_THROW, 0.25), asSet.asSaved());
+        assertEquals(set(Constant.HICCUP_CHANCE, 0, Constant.FLYWHEEL_TICKS_PER_TURN, 30.5), asSet.asSaved());
+        assertTrue(asSet.setAside().toString(), asSet.setAside().isEmpty());
         assertTrue(Constants.Restored.asSet(Constants.defaults()).asSaved().isEmpty());
     }
 
+    private static Map<Constant.Retired, Double> retired(Constant.Retired retired, double value) {
+        Map<Constant.Retired, Double> set = new EnumMap<>(Constant.Retired.class);
+        set.put(retired, value);
+        return set;
+    }
+
     @Test
-    public void theFastestBallTheLauncherThrowConstantAllowsFromTheFastestRobotIsOneAFlightTakes() {
+    public void aSavedRetiredConstantIsSetAsideWhateverItsValueAndEverythingElseIsRestoredByEveryOtherRule() {
+        for (double saved : List.of(0.25, 5.0, -1.0, 0.0)) {
+            Constants.Restored restored = Valid.value(Constants.restored(
+                    set(Constant.HICCUP_CHANCE, 0, Constant.TURNTABLE_SPEED, 20000),
+                    retired(Constant.Retired.LAUNCH_THROW, saved)));
+
+            assertEquals(
+                    Valid.value(
+                            of(Constant.HICCUP_CHANCE, 0, Constant.TURNTABLE_SPEED, Constant.TURNTABLE_SPEED.most())),
+                    restored.constants());
+            assertEquals(set(Constant.TURNTABLE_SPEED, 20000), restored.pastTheirRange());
+            assertEquals(retired(Constant.Retired.LAUNCH_THROW, saved), restored.setAside());
+        }
+        assertRejected(
+                "Least traction may not be more than most traction",
+                Constants.restored(set(Constant.LEAST_TRACTION_G, 0.9), retired(Constant.Retired.LAUNCH_THROW, 0.25)));
+        assertRejected(
+                Constant.HICCUP_CHANCE.label(),
+                Constants.restored(
+                        set(Constant.HICCUP_CHANCE, Double.NaN), retired(Constant.Retired.LAUNCH_THROW, 0.25)));
         assertTrue(
-                Constant.LAUNCH_THROW.most() + " in/s per tick/s",
-                Constant.LAUNCH_THROW.most() * Flywheel.TOP_TICKS_PER_SECOND + Launch.MOST_ROBOT_SPEED_IN_PER_S
-                        <= Flight.MOST_SPEED_IN_PER_S);
+                "nothing is set aside where nothing retired was saved",
+                Valid.value(Constants.restored(set(Constant.HICCUP_CHANCE, 0)))
+                        .setAside()
+                        .isEmpty());
+    }
+
+    @Test
+    public void whatWasSetAsideIsKeptToSaveAsItWasSavedSoItIsRestoredAndSetAsideAgain() {
+        Constants.Restored restored = Valid.value(
+                Constants.restored(set(Constant.HICCUP_CHANCE, 0), retired(Constant.Retired.LAUNCH_THROW, 0.25)));
+
+        Constants.Restored again = Valid.value(Constants.restored(restored.asSaved(), restored.setAside()));
+
+        assertEquals(restored.constants(), again.constants());
+        assertEquals(retired(Constant.Retired.LAUNCH_THROW, 0.25), again.setAside());
+        assertTrue(
+                "constants set as they are have nothing set aside",
+                Constants.Restored.asSet(restored.constants()).setAside().isEmpty());
     }
 }

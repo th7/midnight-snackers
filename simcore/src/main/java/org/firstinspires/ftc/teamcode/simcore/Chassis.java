@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.simcore;
 public final class Chassis {
     public static final double SIZE_IN = 18;
     public static final double INTAKE_REACH_IN = 0.25;
+    public static final double MOST_ROBOT_SPEED_IN_PER_S = 180;
 
     private Chassis() {}
 

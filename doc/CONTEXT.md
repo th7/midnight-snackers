@@ -1718,8 +1718,10 @@ the constants a run was started on. Classes: `Noise` and `Draws`, in the
 the admin's to change: the **noise** a seed draws a robot from (how far a
 motor strays from its tuning, the battery, its sag and drain, traction, how a
 hand sets the robot down, and the loop and its hiccups), and the
-**mechanisms** nobody has measured yet (the launcher's throw and the
-turntable's speed). Each has a range it may go in, and the ones that come in
+**mechanisms** a measurement or a regearing would change (the flywheel's ticks
+per turn, built at the 28 its motor counts a turn because the team says the
+flywheel is direct drive, 1:1 on the motor, and the turntable's speed, a guess
+until measured). Each has a range it may go in, and the ones that come in
 pairs — the flattest and freshest battery, the least and most traction, the
 shortest loop, the loop, and the shortest and longest hiccup — must be the
 right way round, so a set is checked whole and is either taken whole or
@@ -1734,17 +1736,24 @@ was built as, and a set is saved whole, so what is left out goes back to how
 it was built; `GET /admin/constants` and `PUT /admin/constants` with what
 differs as `{"<name>": <number>}`. The server keeps them with the rest of its
 settings, so a restart runs what was set, and a settings file it cannot read
-stops it from starting. A saved constant that is a number past where its range
-now lets it go, as a throw saved before the throw's range was narrowed is, does
-not stop the server: it is used at the nearer end of its range, and the admin
+stops it from starting. A saved constant that is a number past where its range now lets it go does not
+stop the server: it is used at the nearer end of its range, and the admin
 page shows it beside what was saved until the admin saves the constants again.
 Saving any other setting, as the field the pages draw is, keeps it saved as it
-was, so it is still shown after a restart. Every run a user starts is made on the constants as
+was, so it is still shown after a restart. A constant the simulator no longer
+has is **retired**, as the launcher's throw was once a ball came to be fed into
+the simulated flywheel and hood: naming it where a constant is set, on the
+admin page or a start line, is refused, saying it is no longer a simulation
+constant and what replaced it; but a retired constant in the saved settings,
+whatever its value, does not stop the server. Loading sets it aside, the admin
+page lists it under *Dropped from the saved settings* with what was saved and
+why it went, and it is saved back as it was until the admin saves the
+constants. A name that never was a constant still stops the server. Every run a user starts is made on the constants as
 they were when it was started: its child is told the ones that were changed on
-its start line, its log names them, and `/status` says which they were. The
-core's calls that draw a seeded robot, launch a ball or turn the turntable
-name the constants rather than defaulting them, so none of them is made on the
-built ones by forgetting to say. Classes: `Constant` and `Constants`, in the **core**;
+its start line, its log names them, and `/status` says which they were. The core's calls that draw a seeded robot or turn the turntable name the
+constants rather than defaulting them, and the flywheel's ticks per turn is
+read from them into the wheel's speed each run, so none of them is made on the
+built ones by forgetting to say. Classes: `Constant`, `Constant.Retired` and `Constants`, in the **core**;
 `SimConstants`, which reads and writes them; `SimBench.Run.constants`.
 
 **Seed** — Which robot an op mode's runs are made on, kept by the bench

@@ -47,14 +47,19 @@ public final class Constants {
     public static final class Restored {
         private final Constants constants;
         private final EnumMap<Constant, Double> pastTheirRange;
+        private final EnumMap<Constant.Retired, Double> setAside;
 
-        private Restored(Constants constants, EnumMap<Constant, Double> pastTheirRange) {
+        private Restored(
+                Constants constants,
+                EnumMap<Constant, Double> pastTheirRange,
+                EnumMap<Constant.Retired, Double> setAside) {
             this.constants = constants;
             this.pastTheirRange = pastTheirRange;
+            this.setAside = setAside;
         }
 
         public static Restored asSet(Constants constants) {
-            return new Restored(constants, new EnumMap<>(Constant.class));
+            return new Restored(constants, new EnumMap<>(Constant.class), new EnumMap<>(Constant.Retired.class));
         }
 
         public Constants constants() {
@@ -63,6 +68,10 @@ public final class Constants {
 
         public Map<Constant, Double> pastTheirRange() {
             return new EnumMap<>(pastTheirRange);
+        }
+
+        public Map<Constant.Retired, Double> setAside() {
+            return new EnumMap<>(setAside);
         }
 
         public Map<Constant, Double> asSaved() {
@@ -74,6 +83,10 @@ public final class Constants {
     }
 
     public static Checked<Restored> restored(Map<Constant, Double> saved) {
+        return restored(saved, new EnumMap<>(Constant.Retired.class));
+    }
+
+    public static Checked<Restored> restored(Map<Constant, Double> saved, Map<Constant.Retired, Double> retired) {
         EnumMap<Constant, Double> nearest = new EnumMap<>(Constant.class);
         EnumMap<Constant, Double> pastTheirRange = new EnumMap<>(Constant.class);
         for (Map.Entry<Constant, Double> entry : saved.entrySet()) {
@@ -90,7 +103,9 @@ public final class Constants {
                 }
             }
         }
-        return of(nearest).map(constants -> new Restored(constants, pastTheirRange));
+        EnumMap<Constant.Retired, Double> setAside = new EnumMap<>(Constant.Retired.class);
+        setAside.putAll(retired);
+        return of(nearest).map(constants -> new Restored(constants, pastTheirRange, setAside));
     }
 
     private record Ordered(Constant lower, Constant upper) {}

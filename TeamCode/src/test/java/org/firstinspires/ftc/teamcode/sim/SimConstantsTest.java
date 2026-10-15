@@ -38,7 +38,7 @@ public class SimConstantsTest {
 
     @Test
     public void theListingSaysEveryConstantInOrderWithWhatItIsWhereItMayGoAndWhereItIs() {
-        JsonObject listing = SimConstants.listing(constants(Constant.LAUNCH_THROW, 0.25));
+        JsonObject listing = SimConstants.listing(constants(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5));
 
         JsonArray listed = listing.getAsJsonArray("constants");
         List<String> names = new ArrayList<>();
@@ -51,16 +51,17 @@ public class SimConstantsTest {
         }
         assertEquals(every, names);
 
-        JsonObject launchThrow = listed.get(Constant.LAUNCH_THROW.ordinal()).getAsJsonObject();
-        assertEquals("mechanisms", launchThrow.get("group").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.label(), launchThrow.get("label").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.unit(), launchThrow.get("unit").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.says(), launchThrow.get("says").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.least(), launchThrow.get("least").getAsDouble(), 0);
-        assertEquals(Constant.LAUNCH_THROW.most(), launchThrow.get("most").getAsDouble(), 0);
-        assertEquals(
-                Constant.LAUNCH_THROW.byDefault(), launchThrow.get("byDefault").getAsDouble(), 0);
-        assertEquals(0.25, launchThrow.get("value").getAsDouble(), 0);
+        Constant ticksPerTurn = Constant.FLYWHEEL_TICKS_PER_TURN;
+        JsonObject ticks = listed.get(ticksPerTurn.ordinal()).getAsJsonObject();
+        assertEquals("mechanisms", ticks.get("group").getAsString());
+        assertEquals(ticksPerTurn.label(), ticks.get("label").getAsString());
+        assertEquals(ticksPerTurn.unit(), ticks.get("unit").getAsString());
+        assertEquals(ticksPerTurn.says(), ticks.get("says").getAsString());
+        assertEquals(ticksPerTurn.least(), ticks.get("least").getAsDouble(), 0);
+        assertEquals(ticksPerTurn.most(), ticks.get("most").getAsDouble(), 0);
+        assertEquals(ticksPerTurn.byDefault(), ticks.get("byDefault").getAsDouble(), 0);
+        assertEquals(30.5, ticks.get("value").getAsDouble(), 0);
+        assertFalse("nothing was dropped from constants set as they are", listing.has("dropped"));
         JsonObject spread = listed.get(Constant.MOTOR_SPREAD.ordinal()).getAsJsonObject();
         assertEquals(Constant.MOTOR_SPREAD.byDefault(), spread.get("value").getAsDouble(), 0);
 
@@ -74,11 +75,11 @@ public class SimConstantsTest {
 
     @Test
     public void whatChangedIsWrittenByNameAndReadBackAsTheSameConstants() {
-        Constants changed = constants(Constant.SAG_VOLTS_PER_POWER, 0.3, Constant.LAUNCH_THROW, 0.25);
+        Constants changed = constants(Constant.SAG_VOLTS_PER_POWER, 0.3, Constant.FLYWHEEL_TICKS_PER_TURN, 30.5);
 
         JsonObject written = SimConstants.changed(changed);
 
-        assertEquals("{\"sag_volts_per_power\":0.3,\"launch_throw\":0.25}", written.toString());
+        assertEquals("{\"sag_volts_per_power\":0.3,\"flywheel_ticks_per_turn\":30.5}", written.toString());
         assertEquals(changed, Valid.value(SimConstants.fromJson(written)));
         assertEquals("{}", SimConstants.changed(Constants.defaults()).toString());
     }
@@ -95,12 +96,14 @@ public class SimConstantsTest {
         assertRefused("an object", SimConstants.fromJson(json("[0.2]")));
         assertRefused("an object", SimConstants.fromJson(json("0.2")));
         assertRefused("'gravity'", SimConstants.fromJson(json("{\"gravity\": 1}")));
-        assertRefused("launch_throw", SimConstants.fromJson(json("{\"gravity\": 1}")));
-        assertRefused("Launcher throw is a number", SimConstants.fromJson(json("{\"launch_throw\": \"fast\"}")));
-        assertRefused("\"fast\"", SimConstants.fromJson(json("{\"launch_throw\": \"fast\"}")));
-        assertRefused("Launcher throw is a number", SimConstants.fromJson(json("{\"launch_throw\": null}")));
-        assertRefused("Launcher throw is a number", SimConstants.fromJson(json("{\"launch_throw\": [1]}")));
-        assertRefused("Launcher throw is from", SimConstants.fromJson(json("{\"launch_throw\": 2}")));
+        assertRefused("flywheel_ticks_per_turn", SimConstants.fromJson(json("{\"gravity\": 1}")));
+        String ticks = "Flywheel ticks per turn";
+        assertRefused(ticks + " is a number", SimConstants.fromJson(json("{\"flywheel_ticks_per_turn\": \"fast\"}")));
+        assertRefused("\"fast\"", SimConstants.fromJson(json("{\"flywheel_ticks_per_turn\": \"fast\"}")));
+        assertRefused(ticks + " is a number", SimConstants.fromJson(json("{\"flywheel_ticks_per_turn\": null}")));
+        assertRefused(ticks + " is a number", SimConstants.fromJson(json("{\"flywheel_ticks_per_turn\": [1]}")));
+        assertRefused(ticks + " is from", SimConstants.fromJson(json("{\"flywheel_ticks_per_turn\": 2}")));
+        assertRefused("is no longer a simulation constant", SimConstants.fromJson(json("{\"launch_throw\": 0.25}")));
         assertRefused(
                 "Flattest battery may not be more than freshest battery",
                 SimConstants.fromJson(json("{\"flattest_volts\": 14}")));
@@ -109,17 +112,16 @@ public class SimConstantsTest {
     @Test
     public void savedConstantsPastTheirRangeAreReadAtTheNearerEndAndListedWithWhatWasSaved() {
         Constants.Restored restored =
-                Valid.value(SimConstants.restoredFromJson(json("{\"launch_throw\": 0.5, \"hiccup_chance\": 0}")));
+                Valid.value(SimConstants.restoredFromJson(json("{\"turntable_speed\": 20000, \"hiccup_chance\": 0}")));
 
-        assertEquals(Constant.LAUNCH_THROW.most(), restored.constants().value(Constant.LAUNCH_THROW), 0);
+        assertEquals(Constant.TURNTABLE_SPEED.most(), restored.constants().value(Constant.TURNTABLE_SPEED), 0);
         assertEquals(0, restored.constants().value(Constant.HICCUP_CHANCE), 0);
-        JsonArray listed = SimConstants.listing(restored.constants(), restored.pastTheirRange())
-                .getAsJsonArray("constants");
-        JsonObject launchThrow = listed.get(Constant.LAUNCH_THROW.ordinal()).getAsJsonObject();
-        assertEquals(Constant.LAUNCH_THROW.most(), launchThrow.get("value").getAsDouble(), 0);
-        assertEquals(0.5, launchThrow.get("saved").getAsDouble(), 0);
+        JsonArray listed = SimConstants.listing(restored).getAsJsonArray("constants");
+        JsonObject turntable = listed.get(Constant.TURNTABLE_SPEED.ordinal()).getAsJsonObject();
+        assertEquals(Constant.TURNTABLE_SPEED.most(), turntable.get("value").getAsDouble(), 0);
+        assertEquals(20000, turntable.get("saved").getAsDouble(), 0);
         for (JsonElement other : listed) {
-            if (other != launchThrow) {
+            if (other != turntable) {
                 assertFalse(other.toString(), other.getAsJsonObject().has("saved"));
             }
         }
@@ -128,9 +130,9 @@ public class SimConstantsTest {
                 Valid.value(SimConstants.restoredFromJson(null)).constants());
         assertTrue(
                 "saved as a number is still the rule",
-                SimConstants.restoredFromJson(json("{\"launch_throw\": \"fast\"}"))
+                SimConstants.restoredFromJson(json("{\"turntable_speed\": \"fast\"}"))
                         .fold(read -> "accepted " + read, rule -> rule)
-                        .contains("Launcher throw is a number"));
+                        .contains("Turntable speed is a number"));
         assertFalse(
                 "a listing of constants set on the page says nothing was saved past its range",
                 SimConstants.listing(restored.constants()).toString().contains("saved"));
@@ -139,23 +141,58 @@ public class SimConstantsTest {
     @Test
     public void constantsRestoredPastTheirRangeAreWrittenAsTheyWereSavedAndReadBackAsTheSame() {
         Constants.Restored restored =
-                Valid.value(SimConstants.restoredFromJson(json("{\"launch_throw\": 0.5, \"hiccup_chance\": 0}")));
+                Valid.value(SimConstants.restoredFromJson(json("{\"turntable_speed\": 20000, \"hiccup_chance\": 0}")));
 
         JsonObject written = SimConstants.saved(restored);
 
-        assertEquals("{\"hiccup_chance\":0.0,\"launch_throw\":0.5}", written.toString());
+        assertEquals("{\"hiccup_chance\":0.0,\"turntable_speed\":20000.0}", written.toString());
         Constants.Restored again = Valid.value(SimConstants.restoredFromJson(written));
         assertEquals(restored.constants(), again.constants());
         assertEquals(restored.pastTheirRange(), again.pastTheirRange());
     }
 
     @Test
+    public void aSavedRetiredConstantIsSetAsideWhateverItsValueListedAsDroppedAndWrittenBackAsItWasSaved() {
+        for (double saved : new double[] {0.25, 5, -1}) {
+            Constants.Restored restored = Valid.value(
+                    SimConstants.restoredFromJson(json("{\"launch_throw\": " + saved + ", \"hiccup_chance\": 0}")));
+
+            assertEquals(constants(Constant.HICCUP_CHANCE, 0), restored.constants());
+            JsonArray dropped = SimConstants.listing(restored).getAsJsonArray("dropped");
+            assertEquals(1, dropped.size());
+            JsonObject thrown = dropped.get(0).getAsJsonObject();
+            assertEquals("launch_throw", thrown.get("name").getAsString());
+            assertEquals("Launcher throw", thrown.get("label").getAsString());
+            assertEquals(saved, thrown.get("saved").getAsDouble(), 0);
+            assertEquals(Constant.Retired.LAUNCH_THROW.why(), thrown.get("why").getAsString());
+            JsonObject written = SimConstants.saved(restored);
+            assertEquals(saved, written.get("launch_throw").getAsDouble(), 0);
+            assertEquals(
+                    restored.setAside(),
+                    Valid.value(SimConstants.restoredFromJson(written)).setAside());
+        }
+        assertTrue(
+                "saved as a number is still the rule",
+                SimConstants.restoredFromJson(json("{\"launch_throw\": \"fast\"}"))
+                        .fold(read -> "accepted " + read, rule -> rule)
+                        .contains("Launcher throw is a number"));
+        assertTrue(
+                "a name that was never a constant still stops it",
+                SimConstants.restoredFromJson(json("{\"gravity\": 1}"))
+                        .fold(read -> "accepted " + read, rule -> rule)
+                        .contains("'gravity'"));
+    }
+
+    @Test
     public void aRunsLogSaysWhichConstantsWereChangedAndFromWhat() {
         assertEquals("as built", SimConstants.described(Constants.defaults()));
 
-        String said = SimConstants.described(constants(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0));
+        String said =
+                SimConstants.described(constants(Constant.FLYWHEEL_TICKS_PER_TURN, 30.5, Constant.HICCUP_CHANCE, 0));
 
         assertEquals(
-                "Hiccup chance 0.0 per loop (built 0.02); Launcher throw 0.25 in/s per tick/s (built 0.1899)", said);
+                "Hiccup chance 0.0 per loop (built 0.02); Flywheel ticks per turn 30.5 ticks per turn of the flywheel"
+                        + " (built 28.0)",
+                said);
     }
 }

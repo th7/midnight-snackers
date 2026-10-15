@@ -123,6 +123,11 @@
   .constant:not(.changed) .built { display: none; }
   .constant.past { box-shadow: inset 3px 0 0 var(--warn); }
   .constant .saved { grid-column: 1 / -1; color: var(--warn); font-size: 12px; }
+  .constants-dropped:empty { display: none; }
+  .constants-dropped { padding: 10px 14px; border-top: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--warn); }
+  .constants-dropped .name { font-weight: 600; }
+  .constants-dropped .gone { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .constants-dropped .gone .saved { color: var(--warn); }
   .constants-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
   .constants-actions .result { flex: 1 1 12em; }
 </style>
@@ -194,6 +199,7 @@
       <div class="panel">
         <p class="constants-note">Every run a teammate starts on this server is made with these, from the moment they are saved. Hover over one for what it is and how far it may go.</p>
         <div id="constants"></div>
+        <div id="constants-dropped" class="constants-dropped"></div>
         <div class="constants-actions">
           <button id="save-constants" type="button" class="primary">Save</button>
           <button id="reset-constants" type="button" title="Every constant back to the value the simulator was built with">Back as built</button>
@@ -297,6 +303,7 @@
   loadAssets();
 
   var constantsEl = document.getElementById('constants');
+  var droppedEl = document.getElementById('constants-dropped');
   var constantsSaid = document.getElementById('constants-said');
   var saveConstants = document.getElementById('save-constants');
   var resetConstants = document.getElementById('reset-constants');
@@ -310,8 +317,31 @@
     return typed.trim() !== '' && Number(typed) !== constant.byDefault;
   }
 
+  function showDropped(dropped) {
+    droppedEl.textContent = '';
+    if (!dropped.length) {
+      return;
+    }
+    var head = document.createElement('div');
+    head.className = 'name';
+    head.textContent = 'Dropped from the saved settings';
+    droppedEl.appendChild(head);
+    dropped.forEach(function (gone) {
+      var line = document.createElement('p');
+      line.className = 'gone';
+      var saved = document.createElement('span');
+      saved.className = 'saved';
+      saved.textContent = gone.label + ', saved ' + gone.saved;
+      line.appendChild(saved);
+      line.appendChild(document.createTextNode(', is no longer a simulation constant: ' + gone.why
+        + '. It stays in the saved settings until you save the constants.'));
+      droppedEl.appendChild(line);
+    });
+  }
+
   function showConstants(json) {
     constantsListed = json.constants || [];
+    showDropped(json.dropped || []);
     constantsEl.textContent = '';
     (json.groups || []).forEach(function (group) {
       var head = document.createElement('div');

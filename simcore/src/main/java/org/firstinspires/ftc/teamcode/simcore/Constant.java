@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.simcore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 public enum Constant {
     MOTOR_SPREAD(
@@ -114,14 +115,6 @@ public enum Constant {
             2),
     LONGEST_HICCUP_SECONDS(
             Group.NOISE, "Longest hiccup", "s", "The longest a hiccup lasts.", Noise.LONGEST_HICCUP_SECONDS, 0.001, 2),
-    LAUNCH_THROW(
-            Group.MECHANISMS,
-            "Launcher throw",
-            "in/s per tick/s",
-            "How fast a ball leaves Reginald's launcher for each tick a second its flywheel turns.",
-            Launch.IN_PER_S_PER_TICK_PER_S,
-            0.01,
-            0.29),
     FLYWHEEL_TICKS_PER_TURN(
             Group.MECHANISMS,
             "Flywheel ticks per turn",
@@ -140,6 +133,43 @@ public enum Constant {
             Turntable.TICKS_PER_SECOND_AT_FULL_POWER,
             1,
             10000);
+
+    public enum Retired {
+        LAUNCH_THROW(
+                "Launcher throw",
+                "a ball the bottom gate lets go is fed into Reginald's simulated flywheel and hood, and how fast"
+                        + " it leaves and with what spin come out of their physics, from how fast the flywheel turns:"
+                        + " Flywheel ticks per turn sets that");
+
+        private final String label;
+        private final String why;
+
+        Retired(String label, String why) {
+            this.label = label;
+            this.why = why;
+        }
+
+        public static Optional<Retired> named(String asked) {
+            for (Retired retired : values()) {
+                if (retired.asked().equals(asked)) {
+                    return Optional.of(retired);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public String asked() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public String label() {
+            return label;
+        }
+
+        public String why() {
+            return why;
+        }
+    }
 
     public enum Group {
         NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
@@ -190,7 +220,10 @@ public enum Constant {
                 return Checked.ok(constant);
             }
         }
-        return Checked.rejected("a simulation constant is " + everyName() + ", not '" + asked + "'");
+        return Retired.named(asked)
+                .<Checked<Constant>>map(retired -> Checked.rejected("'" + asked + "' (" + retired.label()
+                        + ") is no longer a simulation constant: " + retired.why()))
+                .orElseGet(() -> Checked.rejected("a simulation constant is " + everyName() + ", not '" + asked + "'"));
     }
 
     private static String everyName() {

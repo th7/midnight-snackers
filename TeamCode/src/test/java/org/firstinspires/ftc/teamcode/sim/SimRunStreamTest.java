@@ -447,8 +447,8 @@ public class SimRunStreamTest {
                 SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, Constants.defaults()), handshake.startLine);
     }
 
-    private static Constants throwing(double inPerSPerTickPerS) {
-        return Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, inPerSPerTickPerS)));
+    private static Constants regeared(double ticksPerTurn) {
+        return Valid.value(Constants.of(java.util.Map.of(Constant.FLYWHEEL_TICKS_PER_TURN, ticksPerTurn)));
     }
 
     @Test
@@ -461,16 +461,16 @@ public class SimRunStreamTest {
     @Test
     public void aChildOfThisVersionIsToldTheConstantsTheAdminChanged() {
         SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, TeamRobot.REGINALD, throwing(0.25));
+                SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, TeamRobot.REGINALD, regeared(30.5));
 
         assertFalse(handshake.message, handshake.refused());
-        assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, throwing(0.25)), handshake.startLine);
+        assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, regeared(30.5)), handshake.startLine);
         assertEquals(
-                0.25,
+                30.5,
                 handshake
                         .startLine
                         .getAsJsonObject("constants")
-                        .get("launch_throw")
+                        .get("flywheel_ticks_per_turn")
                         .getAsDouble(),
                 0);
     }
@@ -487,13 +487,13 @@ public class SimRunStreamTest {
     @Test
     public void aChildFromBeforeTheConstantsIsRefusedChangedOnesByNameAndToldTheFix() {
         SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(5), StartPoses.ORIGIN, null, TeamRobot.NUGGET, throwing(0.25));
+                SimRunStream.helloOf(5), StartPoses.ORIGIN, null, TeamRobot.NUGGET, regeared(30.5));
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotTune(5), handshake.outcome);
         assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
         assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.CONSTANTS_PROTOCOL));
-        assertTrue(handshake.message, handshake.message.contains("Launcher throw"));
+        assertTrue(handshake.message, handshake.message.contains("Flywheel ticks per turn"));
         assertTrue(handshake.message, handshake.message.contains("Pull nugget-develop"));
         assertTrue(handshake.message, handshake.message.contains("put the simulation constants back"));
         assertNull("a refused run is sent nothing", handshake.startLine);
@@ -547,7 +547,12 @@ public class SimRunStreamTest {
 
         assertEquals(SimRunStream.PROTOCOL, hello.get("protocol").getAsInt());
         assertEquals(everyConstantBut(""), strings(hello.getAsJsonArray("reads")));
-        assertEquals(List.of(), strings(hello.getAsJsonArray("retired")));
+        List<String> retired = new ArrayList<>();
+        for (Constant.Retired gone : Constant.Retired.values()) {
+            retired.add(gone.asked());
+        }
+        assertEquals(retired, strings(hello.getAsJsonArray("retired")));
+        assertTrue("the throw is retired: " + retired, retired.contains("launch_throw"));
         assertEquals(
                 "a child of this version says exactly this",
                 SimRunStream.hello(),

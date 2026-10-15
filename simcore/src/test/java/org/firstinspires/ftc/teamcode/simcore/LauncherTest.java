@@ -407,7 +407,7 @@ public class LauncherTest {
 
     @Test
     public void theRobotsVelocityCarriesIntoTheThrowExactlyInAVacuum() {
-        Vec3 robot = new Vec3(0.6, -0.8, 0).times(Launch.MOST_ROBOT_SPEED_IN_PER_S);
+        Vec3 robot = new Vec3(0.6, -0.8, 0).times(Chassis.MOST_ROBOT_SPEED_IN_PER_S);
         Exit still = thrownBy(still(), wheel(CLOSE_LAUNCH), Air.vacuum());
         Exit moving = thrownBy(
                 course(
@@ -479,7 +479,7 @@ public class LauncherTest {
 
     @Test
     public void atTheLeastTicksPerTurnTheMotorsTopSpeedAndTheFastestRobotTheBallLeavesNoFasterThanAFlightTakesOne() {
-        double fastest = Launch.MOST_ROBOT_SPEED_IN_PER_S;
+        double fastest = Chassis.MOST_ROBOT_SPEED_IN_PER_S;
         Launcher.Course along = course(frame(-25, -35, 0), frame(-25 + fastest * COURSE_SECONDS, -35, 0));
         Exit exit = thrownBy(along, wheel(Flywheel.TOP_TICKS_PER_SECOND, Flywheel.TicksPerTurn.LEAST), flightsAir());
 
