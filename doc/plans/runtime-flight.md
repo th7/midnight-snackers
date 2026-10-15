@@ -24,8 +24,11 @@ engine. `WheelPair` stays in the Launch Sim. The rest of Reginald's insides
 
 Stages 1 to 3 are built, and so are the first two parts of stage 4: the
 arcs and the compliant contact the launcher is made of, and the launcher
-itself, tested on its own. The rest of stage 4, the launcher in a run, is
-planned here. Every stage keeps the
+itself, tested on its own. So is the launcher in a flight: a flight may
+carry it, step it with each tick, feed it and take it along in a teleport,
+though no run gives a flight one yet. The rest of stage 4, the launcher in
+a run, is stage 4c's runtime; it is planned here, and it waits until the
+team reduces the hood's backspin (*Calibration*). Every stage keeps the
 Launch Sim's results bit for bit: its fingerprint tests pin the exact work
 and the raw bits of every field of every story, in the simulator's core and
 on the field, and no stage changes them.
@@ -172,14 +175,16 @@ hives are a part that moves while one tips.
   touching the stop; the feed is the frame's velocity there plus 0.1 m/s up
   the path. The ball overlaps the lead-in there by more than 0.25 mm, since
   the lead-in slopes across the radius it is measured along.
-- In a world built as `Flight` builds its own, at 1050 ticks/s and T 24.2, a
-  fed ball leaves at 227.7 in/s, 0.424 of u50, and 71.0° up; the first
-  sample with nothing of the launcher touching it is 8.5° past the hood's
-  upper end, at (−3.11, 0, 8.49) in in the frame, 31.2 ms after the feed and
-  5,615 units of work later. It spins back at 171.5 rad/s about the axle, a
-  spin ratio of 1.05. The loads peak at 33 N on the wheel and 38 N on the
-  hood, where the stick floor reaches 0.21 m/s. The hood's upper end stays
-  at +20°: 71.0° is within the degree that would have moved it.
+- In a world built as `Flight` builds its own, at 1050 ticks/s and T 24.2,
+  the wheel speed the launcher's tests turn it at and not Reginald's, whose
+  T is 28 (*Calibration*), a fed ball leaves at 227.7 in/s, 0.424 of u50,
+  and 71.0° up; the first sample with nothing of the launcher touching it is
+  8.5° past the hood's upper end, at (−3.11, 0, 8.49) in in the frame,
+  31.2 ms after the feed and 5,615 units of work later. It spins back at
+  171.5 rad/s about the axle, a spin ratio of 1.05. The loads peak at 33 N
+  on the wheel and 38 N on the hood, where the stick floor reaches 0.21 m/s.
+  The hood's upper end stays at +20°: 71.0° is within the degree that would
+  have moved it.
 - The throw hardly depends on friction: 227.4 to 228.5 in/s for μ 0.3 to
   1.0 on the wheel and 0.05 to 0.8 on the hood, though a frictionless hood
   throws 208 in/s. A smoother hood carries the ball faster through the
@@ -340,7 +345,8 @@ naming the rule.
 **Constants and the run stream.** The throw is no longer a constant.
 - `Constant.FLYWHEEL_TICKS_PER_TURN` (`flywheel_ticks_per_turn`), a
   mechanism, "Flywheel ticks per turn", in ticks per turn of the flywheel,
-  18 to 10000, built at the calibrated value. It says: "How many encoder
+  18 to 10000, built at 28, the motor's ticks a turn, since the flywheel
+  is direct drive (*Calibration*). It says: "How many encoder
   ticks Reginald's flywheel motor counts as the flywheel turns once, gearing
   included: the flywheel turns at its motor's ticks a second over this, and
   the throw and spin follow from the simulated hood."
@@ -379,24 +385,68 @@ commit. `SimRobotTest`'s uses of the launch height and reach restate as
 
 ### Calibration
 
-The throw is about 5511 ÷ T in/s at 1050 ticks/s, for T ticks per turn, so
-the scan is in T: steps of at most 0.11 % of T (about 0.25 in/s), over
-stage 3's acceptance set: both alliances' close shots, the ball at rest
-against the back, the shot after a tip, one launch, and four at their real
-cadence with all four at rest in the cell. The widest band at which every
-one passes must be at least 1.77 % of T wide (about 4 in/s). Its middle is
-built in, and reported in ticks and in in/s.
+There is no scan in T. The team settled the flywheel's ticks per turn: "The
+flywheel is direct drive, 1:1 on the motor." Its motor counts 28 ticks a
+turn (`Flywheel.MOTOR_TICKS_PER_TURN`: a 6,000 rpm 28-tick motor like a
+goBILDA 5203, as the code's F of 12.9 implies), so T is 28, a fact and not a
+calibration parameter. Stage 4c builds `Constant.FLYWHEEL_TICKS_PER_TURN` at
+28 and keeps it a constant, 18 to 10000, so a regeared robot can say so.
 
-Expect it near T 24.2: a 1.16:1 step-up over a 28-tick motor. At T 28 the
-throw is 196 in/s and lands short. The Launch Sim's runs of this exit put
-the band for the close shot at 224–228 in/s, with four shots in a row
-failing at two speeds inside it. Stage 3's band came out three times wider
-than the same kind of estimate, so the scan decides. If the band is
-narrower than 1.77 % of T, stop and report it to the user with the numbers,
-rather than build in a knife edge.
+Stage 4c holds stage 3's acceptance set at T 28 and the code's own
+commands, with no band around it: both alliances' close shots, the ball at
+rest against the back, the shot after a tip, one launch, the preload that
+tips the hive, and four at their real cadence with all four at rest in an
+empty cell.
 
-Any later change to the stiffness, the friction, the rings or the hood moves
-T, and is calibrated again.
+**What stage 4c's runs found.** The code's close launch is 1050 ticks/s
+(`Launcher.closeLauncherPower`), tuned in October 2025 on an earlier
+launcher. Through the simulated launcher at T 28 it throws about 198 in/s,
+and every shot in the set falls short. Run at every whole command from 1000
+to 1400 ticks/s at T 28, the shots into a cell holding nectar (both close
+shots, the ball at rest against the back, one launch) pass from 1211 to
+1231 ticks/s, and in shorter runs below and above that, and the preload that
+tips the hive from 1218 to 1227. The two shots into an empty cell pass
+elsewhere: the shot after a tip in short runs, 1148 to 1150, 1195 to 1202
+and 1263 to 1267, and at 1282; the four at their cadence only at 1148, 1200,
+1202 and 1267. So the whole set passes only at isolated commands near 1148
+and 1267 ticks/s, and one tick a second either side of them the four at
+their cadence fail. Into an empty cell the ball bounces back out at nearly
+every command: the cell's friction turns the hood's backspin, about
+170 rad/s, into speed back out of the cell.
+
+The user decided two things:
+- **Set 1220, check on the robot.** Stage 4c sets the code's close launch
+  to 1220 ticks/s, which the simulated launcher throws at 228.6 in/s, 70.9°
+  up, with 172 rad/s of backspin, and the team test-fires it on the real
+  robot. `SimRobotTest` and `FlightTest` then each hold the close launch
+  they use to the one the code commands.
+- **A robot problem: keep the tests.** The two empty-cell tests,
+  `SimRobotTest.aHiveThatTipsDropsWhatWasInItAndHoldsUpItsOtherCell` and
+  `LauncherSimTest.fourLaunchesAtTheirCadenceAllComeToRestInAnEmptyCell`,
+  stay exactly as written. With the launcher in the run they are red, and
+  they stay red, taking the simulator to be right that the robot's backspin
+  throws a ball back out of an empty cell, until the team changes the robot
+  to reduce it.
+
+So stage 4c's runtime waits. A red test holds `main` for everyone, so the
+flywheel's ticks per turn, protocol 7, `SimRobot` feeding the launcher, the
+retired throw and the close launch of 1220 stay off `develop` until a
+change to the robot reduces the backspin. What lands before them is the
+launcher in `Flight`: the engine's idle surroundings and moved bodies, the
+launcher carried, stepped, fed and teleported in a flight, the feed that
+waits while its entry is not clear, and the launcher's frame from the
+robot's pose and the turntable. The flywheel's ticks per turn and protocol
+7 land with `SimRobot` feeding the launcher, not before: until then no run
+reads the ticks per turn, so the admin page would offer a constant that
+changes nothing, and a protocol 7 child would list it as read, which no
+later server could tell from one that reads it. Protocol 7's test of a
+start line the child cannot take starts one more child JVM, and the retired
+throw's server tests hash one more password, so the suite's cost budget is
+pinned again with them.
+
+Any later change to the stiffness, the friction, the rings or the hood
+changes what those commands throw, and the acceptance set says again whether
+they score.
 
 ### Tests first
 
@@ -415,7 +465,10 @@ T, and is calibrated again.
    - Held in the squeeze for 0.1 s it records no hit and no impact.
    - Halving the step changes the exit speed by less than 0.5 % and the
      angle by less than 0.2°.
-3. `LauncherTest` (core), at 1050 ticks/s and the built T:
+3. `LauncherTest` (core), at 1050 ticks/s, the code's close launch until
+   stage 4c sets 1220, and T 24.2, as in stage 4b: a wheel speed that
+   exercises the launcher, not Reginald's, and since the test needs only a
+   spinning wheel it keeps both when stage 4c lands:
    - It is drawn in from a feed of 0, and at μ 0.3 on the wheel and 0.5 on
      the hood.
    - It leaves at 0.366·u50 ≤ v ≤ 0.584·u50, where u50 is the surface speed
@@ -442,6 +495,9 @@ T, and is calibrated again.
    naming the rule. With both gates open, balls leave one at a time and
    never overlap. A ball in the launcher stays where it was through a
    hive's tip and through a change in what stands in the bores.
+   Until stage 4c builds T in, `FlightTest` turns the launcher's wheel at
+   T 24.2 and 1050 ticks/s, as stage 4b's tests do: a wheel speed that
+   exercises the flight, not Reginald's.
 5. `FlywheelTest` gains: the `AngularSpeed` is |1050|·2π ÷ T exactly, and
    its sign follows the command. Its clamp tests stay as they are.
 6. `SimRobotTest`:
@@ -455,9 +511,11 @@ T, and is calibrated again.
    - `withTheFlywheelStoppedTheBallJustDropsOutOfTheRobot` becomes "with the
      flywheel stopped the ball stays in the launcher and is thrown once the
      flywheel spins up".
-   - The acceptance set passes at the built T, and the band test holds it at
-     T·(1 ± 0.885 %) for every shot in it. `LauncherSimTest`'s four launches
-     at their cadence are held at the built T and at T·(1 ± 0.885 %) too.
+   - The acceptance set is held at T 28 and the code's own commands, with
+     no band around it, and passes there but for its two shots into an
+     empty cell, which stay as written and red (*Calibration*). The close
+     launch it uses, and `FlightTest`'s, is held to the one the code
+     commands.
 7. Constants and the stream: `ConstantsTest`, `SimConstantsTest`,
    `SimDriverStationTest`, `CodingServerTest`, `SimRunStreamTest`,
    `SimBenchTest`, `SimChildTest` and `tools/browser/admin.mjs`, for each

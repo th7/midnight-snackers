@@ -22,10 +22,11 @@ gives the flywheel inertia and a motor. Every number says where it comes
 from: the CAD's exact faces (the 13 October snapshot), a source, or an
 inference with its confidence. Nothing in the plan waits on the team. Each
 open question has a default, and each measurement replaces one. Two steps
-can stop for the user: batch 4's recalibration, if its band is narrower than
-stage 4's, and `SimRunnerTest`, if the turning feeder pushes it past 1 s. The
-second is likely, so its question goes to the user before batch 4 starts
-(*What it costs*).
+can stop for the user: batch 4's run of the acceptance set, if a shot that
+scores at the code's close launch in stage 4 no longer does, and
+`SimRunnerTest`, if the turning feeder pushes it past 1 s. The second is
+likely, so its question goes to the user before batch 4 starts (*What it
+costs*).
 
 It builds on two plans and does not repeat them:
 - `doc/plans/reginald.md`, batches 1 to 5: Reginald's shape, his CAD, his
@@ -490,21 +491,20 @@ notch to the back window's \|x\| < 42 (item 23).
 
 **A finding for the team: timing.** A pocket passes every 1/(4·rev/s): 0.25 s
 at 1.0 rev/s, 0.21 s at 1.19. Up and down together take about 0.21 s at 5 V.
-The robot code does not know the rotor's angle, because a continuous servo
-has no encoder. So a ramp raised for a fixed time may lift none or two,
-depending on when it starts. The plan does not wait for the team's fix. Its
-default uses a sensor the robot already has: the flywheel. A pollen the wheel
-takes slows it by about 100 ticks/s (*Flywheel and hood*), twice the 50
-ticks/s the default looks for and four times the 25 ticks/s a driver's power
+The robot code does not know the rotor's angle, because a continuous servo has
+no encoder. So a ramp raised for a fixed time may lift none or two, depending
+on when it starts. The plan does not wait for the team's fix. Its default uses
+a sensor the robot already has: the flywheel. A pollen the wheel takes slows
+it by about 115 ticks/s (*Flywheel and hood*), more than twice the 50 ticks/s
+the default looks for and more than four times the 25 ticks/s a driver's power
 step moves the target. So `Launcher` raises the ramp and lowers it as soon as
 the flywheel's measured speed falls more than 50 ticks/s below its target, or
 after `RAMP_UP_SECONDS` if no pollen came. The next pollen climbs high enough
 to reach the wheel only in the last 13 mm before the station, about 0.038 s
-before it at 1 rev/s. The fin must be down by then. The drop passes 50
-ticks/s within the take's 40 ms; one loop to see it and 0.104 s to lower the
-fin make at most about 0.16 s of the 0.21 s there is. A sensor on the rotor,
-or a slower feeder for the shot, would replace this default (calibration
-item 22).
+before it at 1 rev/s. The fin must be down by then. The drop passes 50 ticks/s
+within the take's 40 ms; one loop to see it and 0.104 s to lower the fin make
+at most about 0.16 s of the 0.21 s there is. A sensor on the rotor, or a
+slower feeder for the shot, would replace this default (calibration item 22).
 
 **A finding for the team: the fin's torque.** While the wheel takes a pollen,
 stage 4's 2.0 mm squeeze presses the fin with about 40 N (two contacts of
@@ -555,28 +555,29 @@ This plan changes three things.
 **What the CAD says about the drive:** nothing. It has no motor and no
 gearing, and its printed parts have no material, so it gives no inertia. The
 robot code sets the velocity PIDF to (250, 0, 0, 12.9) and the close launch to
-1050 ticks/s (`Launcher`). The simulator ignores the coefficients, and sets
-the measured velocity to the commanded one (`SimRobot`).
+1050 ticks/s (`Launcher`), which stage 4c sets to 1220. The simulator ignores
+the coefficients, and sets the measured velocity to the commanded one
+(`SimRobot`).
 
 **What we infer.**
 
 | Inference | Why | Confidence |
 |---|---|---|
-| A 6000 rpm, 28-tick motor, like a goBILDA 5203: stall torque 0.144 N·m. It turns the wheel once per `FLYWHEEL_TICKS_PER_TURN` ticks | The code's F of 12.9 means 32767 ÷ 12.9 ≈ 2,540 ticks/s at full power, by the SDK's convention F = 32767 ÷ top speed. That is a 6000 rpm, 28-tick motor at about 90 % of its free speed. Stage 4's calibration fixes the ticks per turn, about 24.4: a 1.15:1 step-up. Batch 4 calibrates it again | low |
+| A 6000 rpm, 28-tick motor, like a goBILDA 5203: stall torque 0.144 N·m. It turns the wheel once per `FLYWHEEL_TICKS_PER_TURN` ticks | The code's F of 12.9 means 32767 ÷ 12.9 ≈ 2,540 ticks/s at full power, by the SDK's convention F = 32767 ÷ top speed. That is a 6000 rpm, 28-tick motor at about 90 % of its free speed. The team says the flywheel is direct drive, 1:1 on the motor, so the ticks per turn is the motor's 28, a fact and not a calibration | low for the motor; the 1:1 is the team's |
 | Inertia 0.95 lb·in² (2.78·10⁻⁴ kg·m²) | The Launch Sim's default wheel inertia. A printed 100 × 50 mm wheel at about 40 % fill is about 0.8 | low |
 | The hub's controller: power = (P·e + I·∫e + D·ė + F·target) ÷ 32767, clamped to ±1, run every substep (at most 5 ms) | The SDK's PIDF convention. The hub's own loop period is not published | medium for the form, low for the period |
 
-Stage 4 expects the calibration's centre near 24.2, from runs of its model
-with the hood at r 108.849. With the hood placed for the 1.39 in pollen, as
-stage 4 now places it, the same model threw 220.9 in/s at 25 ticks per turn
-instead of 219.2. That puts the centre for 226 in/s nearer 24.4, and 28 ticks
-per turn throws about 197 in/s.
+There is no calibration of the ticks per turn: at the team's 28 the code's
+close launch of 1050 ticks/s throws about 198 in/s and every acceptance shot
+falls short, so stage 4c sets the close launch to 1220 ticks/s
+(`runtime-flight.md`, *Calibration*). Stage 4's hood throws that at
+228.6 in/s, 70.9° up, with 172 rad/s of backspin.
 
-**What follows.** At 1050 ticks/s and 24.4 ticks per turn the wheel turns at
-270 rad/s and holds 10.2 J. A pollen at 226 in/s with stage 4's backspin
-(S about 1.05) carries about 0.69 J: 0.41 moving, 0.28 spinning. Stage 4's
+**What follows.** At 1220 ticks/s and 28 ticks per turn the wheel turns at
+274 rad/s and holds 10.4 J. A pollen at 228.6 in/s with 172 rad/s of
+backspin carries about 0.71 J: 0.42 moving, 0.29 spinning. Stage 4's
 simulated launch puts 38 % of the wheel's work into the ball, so the wheel
-loses about 1.8 J: **9 % of its speed, about 100 ticks/s**. The robot's
+loses about 1.9 J: **9 % of its speed, about 115 ticks/s**. The robot's
 ready window is ±15 ticks/s. At full power the motor gives the speed back in
 roughly 0.1 s.
 
@@ -710,8 +711,8 @@ before and after in the telemetry store.
 | 7 | The fling limit | 1.15 rev/s; a Smart Robot Servo at 6 V turns 1.19 | Above it a pollen passes the back station pressed into the window. Choose the servo and its voltage under it |
 | 8 | The ramp's timing | up and down about 0.21 s; a pocket every 0.21–0.25 s; no rotor sensor | A fixed ramp time may lift none or two. The default lowers the ramp once the flywheel's speed drops (item 22) |
 | 9 | The fin's torque | 1.5–1.7 N·m against a stall of 1.1–1.3 | The servo may give way |
-| 10 | The flywheel slows per shot | about 9 %, 100 ticks/s, at 0.95 lb·in²; the ready window is ±15 | Shots wait about 0.1 s to recover |
-| 11 | The close launch's power | Under drag, Magnus and contacts the close shot scores from 40 in at 224.0–228.0 in/s. Stage 4's hood throws about 0.425 of the 100 mm surface speed, so at 1:1 on a 28-tick motor 1050 ticks/s throws about 197 in/s and lands short. The shot needs about 1193–1214 ticks/s: 21 ticks/s wide, narrower than the ±15 window (30 wide) and the 25 ticks/s power step | The robot code's. Stage 4 calibrates the simulator's ticks per turn instead. A ready window of ±8 or less is worth having |
+| 10 | The flywheel slows per shot | about 9 %, 115 ticks/s, at 0.95 lb·in²; the ready window is ±15 | Shots wait about 0.1 s to recover |
+| 11 | The close launch's power | Under drag, Magnus and contacts the close shot scores from 40 in at 224.0–228.0 in/s. The flywheel is direct drive, 1:1 on its 28-tick motor, so the code's 1050 ticks/s throws about 198 in/s through stage 4's hood and every acceptance shot falls short. Stage 4's hood scores the shots into a cell holding nectar from 1211 to 1231 ticks/s, and tips the hive with the preload from 1218 to 1227: 9 ticks/s wide, narrower than the ±15 window (30 wide) and the 25 ticks/s power step. Into an empty cell, run at every whole command from 1000 to 1400, the shot after a tip scores in short runs (1148–1150, 1195–1202, 1263–1267) and at 1282, and the four at their cadence only at 1148, 1200, 1202 and 1267, since the cell's friction turns the hood's backspin into speed back out. The whole set scores only at isolated commands near 1148 and 1267, with the four at their cadence failing one tick a second either side | Stage 4c sets the code's close launch to 1220 ticks/s, and the team test-fires it on the robot. A ready window narrower than ±15 is worth having. The backspin is the robot's to reduce: until then the two empty-cell tests are red with the launcher in the run, and stage 4c's runtime stays off `develop` (`runtime-flight.md`, *Calibration*) |
 | 12 | A nectar may be drawn onto the scoop | 91.44 mm against the roller's 69.30 mm gap: 22 mm on the bands. It cannot pass the 76.12 mm feeder gap, and the intake has no reverse | A prediction. Batch 5's replay shows what happens |
 | 13 | Two pollen sizes | the field's 70.61 mm; the CAD's 71.12 mm | Item 1 |
 | 14 | A fifth pollen meets every arm | a pollen waiting in the V sits at r 76.26, its near side at r 40.7, and the arms reach r 88 every quarter turn; each passing pocket's pollen also rolls out there, and with the next pocket full the guide wedges the fifth against it | Predicted to stall the rotor. Batch 5's replay shows what happens |
@@ -755,7 +756,7 @@ robot code. After each, run stage 3's acceptance set again.
 | 13 | The feeder's direction | which way positive power turns it | counter-clockwise seen from above | the `assumed` rotor |
 | 14 | The ramp | a hinged fin under the hood? Its hinge, length, width and section, its servo, its two positions in degrees, how it sits against the notch | the fin above, 12 mm wide and half-round; 37° | the `assumed` fin |
 | 15 | The ramp's stroke | 120 fps video, up and down | 0.168 s per 60° | `RAMP_SERVO_SECONDS` |
-| 16 | The flywheel's motor and gearing | confirm | a 6000 rpm, 28-tick motor; ticks per turn as batch 4 recalibrates them. Expect fewer than stage 4's 24.4: the wheel has lost part of its 9 % by the time the ball leaves | the motor's constants; `FLYWHEEL_TICKS_PER_TURN` |
+| 16 | The flywheel's motor and gearing | confirm | a 6000 rpm, 28-tick motor, direct drive at 1:1, as the team says: 28 ticks per turn. Batch 4's slowing per shot may move the close launch that scores, since the wheel has lost part of its 9 % by the time the ball leaves, but not the ticks per turn | the motor's constants; `FLYWHEEL_TICKS_PER_TURN` |
 | 17 | The flywheel's inertia | weigh and measure the wheel and its hub | 0.95 lb·in² | `FLYWHEEL_INERTIA` |
 | 18 | The hood's squeeze as built | the gap at the groove bottom | 2.0 mm on the 1.39 in pollen (try 1.5–3) | stage 4's hood, and the fin's crest with it |
 | 19 | The throw | 240 fps video: exit speed, angle and spin against rpm, at three squeezes | stage 4's model | checks the whole launcher; fits 2, 3 and the wheel's μ |
@@ -1000,7 +1001,7 @@ Tests first:
    - Each refuses a parameter that is not finite or not positive, naming the
      rule.
 2. `FlywheelTest` (stage 4's, core):
-   - From rest, with the code's (250, 0, 0, 12.9) and 1050 ticks/s, it settles
+   - From rest, with the code's (250, 0, 0, 12.9) and 1220 ticks/s, it settles
      within ±15 ticks/s and stays there.
    - With the motor's torque at zero, a load that takes a shot's energy slows
      it by exactly that energy, to 1e-9 J. With the motor on, the controller
@@ -1188,12 +1189,14 @@ the user.
 - **Stage 4's stand-ins go.** `SimRobot` now builds the launcher with the
   internals (batch 3b). `Flight.fed` and its entry check, the hood extension,
   the stop and the lead-in's middle ring then have no user, and go.
-- **Calibration.** Stage 4's `FLYWHEEL_TICKS_PER_TURN` is calibrated again by
-  stage 4's rule in T, now that the flywheel slows and the fin feeds it: steps
-  of at most 0.11 % of T, a common band at least 1.77 % of T wide, reported in
-  ticks and in in/s. It uses stage 3's acceptance set. For the four-shot test
-  it keeps whatever stage 4 settled with the user. If the band is narrower
-  than stage 4's, stop and report it with the numbers.
+- **The acceptance set.** There is no calibration in T: the flywheel's ticks
+  per turn stays the team's 28 (`runtime-flight.md`, *Calibration*). Now that
+  the flywheel slows and the fin feeds it, stage 3's acceptance set runs
+  again at T 28 and the code's own commands, with no band around it, as
+  stage 4 holds it. For the two shots into an empty cell it keeps whatever
+  stage 4 settled with the user. If a shot that scores at the code's close
+  launch in stage 4 no longer does, stop and report it to the user with the
+  numbers, scanning the command as stage 4c did, rather than move T.
 
 Tests first:
 
@@ -1232,8 +1235,9 @@ Tests first:
    - The close shot scores, for Blue and for Red.
 5. `IntakeSimTest`: four pollen go in while the feeder turns, each into its
    own pocket.
-6. The calibration's band test: the chosen ticks per turn, moved by 0.885 %
-   either way (about 2 in/s), scores and stays for Blue and for Red.
+6. The acceptance set at T 28 and the code's own commands, with no band
+   around it, as stage 4 holds it: the close shot scores and stays for Blue
+   and for Red.
 7. Cost:
    - `SimRunnerTest`'s 2 s run still finishes in under 1 s, unchanged.
      Record the units per simulated second with four pollen riding.

@@ -8,9 +8,8 @@ import java.util.Optional;
 import org.junit.Test;
 
 public class LauncherTest {
-    private static final String TICKS_PER_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4, Calibration: the ticks"
-            + " per turn is expected near 24.2, a 1.16:1 step-up over a 28-tick motor, until stage 4c calibrates it"
-            + " and builds it in";
+    private static final String TICKS_PER_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the core"
+            + " launcher is tested at T 24.2, as in stage 4b, a wheel speed that exercises the launcher, not Reginald's";
     private static final double TICKS_PER_TURN = 24.2;
     private static final String CLOSE_LAUNCH_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the"
             + " launcher is held to its throw at the code's close launch of 1050 ticks a second";

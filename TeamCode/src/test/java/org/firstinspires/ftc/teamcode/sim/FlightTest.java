@@ -971,9 +971,9 @@ public class FlightTest {
     private static final long LAUNCH_WORK = 136054;
     private static final long TIP_WORK = 1251376;
 
-    private static final String TICKS_PER_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4, Calibration: the"
-            + " flywheel's ticks per turn is expected near 24.2, a 1.16:1 step-up over a 28-tick motor, until the"
-            + " calibration builds it in";
+    private static final String TICKS_PER_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: until"
+            + " stage 4c builds T in, FlightTest turns the launcher's wheel at T 24.2 and 1050 ticks/s, as stage 4b's"
+            + " tests do, a wheel speed that exercises the flight, not Reginald's";
     private static final double TICKS_PER_TURN = 24.2;
     private static final double CLOSE_LAUNCH = 1050;
     private static final String ROBOT_TOP_SOURCE =
