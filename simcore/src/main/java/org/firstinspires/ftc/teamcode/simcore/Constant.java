@@ -122,6 +122,16 @@ public enum Constant {
             Launch.IN_PER_S_PER_TICK_PER_S,
             0.01,
             0.29),
+    FLYWHEEL_TICKS_PER_TURN(
+            Group.MECHANISMS,
+            "Flywheel ticks per turn",
+            "ticks per turn of the flywheel",
+            "How many encoder ticks Reginald's flywheel motor counts as the flywheel turns once, gearing included:"
+                    + " the flywheel turns at its motor's ticks a second over this, and the throw and spin follow"
+                    + " from the simulated hood.",
+            Flywheel.TicksPerTurn.BUILT,
+            Flywheel.TicksPerTurn.LEAST,
+            Flywheel.TicksPerTurn.MOST),
     TURNTABLE_SPEED(
             Group.MECHANISMS,
             "Turntable speed",

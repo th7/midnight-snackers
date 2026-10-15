@@ -15,6 +15,9 @@ public final class Flywheel {
                 + " 10000";
         public static final double LEAST = 18;
         public static final double MOST = 10000;
+        public static final String BUILT_SOURCE = "the team: \"The flywheel is direct drive, 1:1 on the motor\", so it"
+                + " turns once for each turn of its motor, which counts 28 ticks a turn: " + MOTOR;
+        public static final double BUILT = MOTOR_TICKS_PER_TURN;
 
         private final double value;
 

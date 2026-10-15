@@ -48,6 +48,7 @@ public class ConstantsTest {
         assertEquals(Noise.SHORTEST_HICCUP_SECONDS, built.value(Constant.SHORTEST_HICCUP_SECONDS), 0);
         assertEquals(Noise.LONGEST_HICCUP_SECONDS, built.value(Constant.LONGEST_HICCUP_SECONDS), 0);
         assertEquals(Launch.IN_PER_S_PER_TICK_PER_S, built.value(Constant.LAUNCH_THROW), 0);
+        assertEquals(Flywheel.TicksPerTurn.BUILT, built.value(Constant.FLYWHEEL_TICKS_PER_TURN), 0);
         assertEquals(Turntable.TICKS_PER_SECOND_AT_FULL_POWER, built.value(Constant.TURNTABLE_SPEED), 0);
 
         for (Constant constant : Constant.values()) {
@@ -83,6 +84,40 @@ public class ConstantsTest {
     }
 
     @Test
+    public void theFlywheelsTicksPerTurnIsBuiltAtItsMotorsTicksATurnForTheFlywheelIsDirectDriveOnTheMotor() {
+        assertEquals(
+                Flywheel.TicksPerTurn.BUILT_SOURCE,
+                28,
+                Constants.defaults().value(Constant.FLYWHEEL_TICKS_PER_TURN),
+                0);
+        assertEquals(Flywheel.TicksPerTurn.BUILT_SOURCE, Flywheel.MOTOR_TICKS_PER_TURN, Flywheel.TicksPerTurn.BUILT, 0);
+    }
+
+    @Test
+    public void theFlywheelsTicksPerTurnIsAMechanismThatGoesWhereverAFlywheelsTicksPerTurnMayAndSaysWhatItSets() {
+        Constant ticks = Valid.value(Constant.named("flywheel_ticks_per_turn"));
+
+        assertEquals(Constant.Group.MECHANISMS, ticks.group());
+        assertEquals("Flywheel ticks per turn", ticks.label());
+        assertEquals("ticks per turn of the flywheel", ticks.unit());
+        assertEquals(
+                "How many encoder ticks Reginald's flywheel motor counts as the flywheel turns once, gearing included:"
+                        + " the flywheel turns at its motor's ticks a second over this, and the throw and spin follow"
+                        + " from the simulated hood.",
+                ticks.says());
+        assertEquals(Flywheel.TicksPerTurn.RANGE_SOURCE, Flywheel.TicksPerTurn.LEAST, ticks.least(), 0);
+        assertEquals(Flywheel.TicksPerTurn.RANGE_SOURCE, Flywheel.TicksPerTurn.MOST, ticks.most(), 0);
+        for (double admitted : List.of(ticks.least(), ticks.byDefault(), ticks.most())) {
+            assertEquals(
+                    admitted,
+                    Valid.value(Flywheel.TicksPerTurn.of(
+                                    Valid.value(of(ticks, admitted)).value(ticks)))
+                            .value(),
+                    0);
+        }
+    }
+
+    @Test
     public void aValueOutsideItsRangeIsRefusedSayingWhichConstantAndWhatItsRangeIs() {
         for (Constant constant : Constant.values()) {
             for (double wrong : List.of(
@@ -102,7 +137,11 @@ public class ConstantsTest {
 
     @Test
     public void aValueAtEitherEndOfItsRangeIsTaken() {
-        for (Constant constant : List.of(Constant.MOTOR_SPREAD, Constant.LAUNCH_THROW, Constant.TURNTABLE_SPEED)) {
+        for (Constant constant : List.of(
+                Constant.MOTOR_SPREAD,
+                Constant.LAUNCH_THROW,
+                Constant.FLYWHEEL_TICKS_PER_TURN,
+                Constant.TURNTABLE_SPEED)) {
             assertEquals(
                     constant.least(),
                     Valid.value(of(constant, constant.least())).value(constant),
