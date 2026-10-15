@@ -19,7 +19,8 @@ def b64(text):
 
 
 def gathered(**changed):
-    handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': ''}
+    handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': '',
+              'MAIN_AHEAD': ''}
     handed.update({cli.outcome_of(step): 'success' for step in run.STEPS})
     handed.update(changed)
     return handed
@@ -54,6 +55,13 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertEqual('decision=hold\n', done.stdout)
         self.assertIn('main holds where it was', done.stderr)
         self.assertIn('%s Fix the README on main' % STRAY, done.stderr)
+
+    def test_a_main_that_already_has_later_commits_of_develop_hands_the_workflow_a_stay(self):
+        done = called('promotion', gathered(MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY)))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('decision=stay\n', done.stdout)
+        self.assertIn('main stays where it is', done.stderr)
 
     def test_an_input_the_workflow_did_not_hand_fails_naming_it_and_hands_nothing(self):
         environ = gathered()
@@ -135,6 +143,14 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=close\nissues=12\n', done.stdout)
         self.assertIn('main now stands there', self.body_written())
+
+    def test_a_run_that_left_main_where_it_was_ahead_hands_the_workflow_nothing_to_do_and_writes_no_body(self):
+        done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
+                           MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=none\n', done.stdout)
+        self.assertFalse(os.path.exists(self.body))
 
     def test_a_refused_push_reaches_the_body_with_what_git_said(self):
         done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure',

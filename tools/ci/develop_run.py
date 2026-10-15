@@ -140,16 +140,17 @@ class NeverJudged(Validated):
 class Looked(Validated):
     main_tip: CommitHash
     lacking: tuple
+    ahead: tuple
     pushed: Outcome
     said: str
     ended: Outcome
 
     @staticmethod
-    def broken(main_tip, lacking, pushed, said, ended):
+    def broken(main_tip, lacking, ahead, pushed, said, ended):
         if not isinstance(main_tip, CommitHash):
             return 'a mover that looked names main\'s tip by its hash'
-        if not all_of(Commit, lacking):
-            return 'what main lacks is a tuple of commits'
+        if not all_of(Commit, lacking) or not all_of(Commit, ahead):
+            return 'what main has that develop or the judged commit lacks is a tuple of commits'
         if not all_of(Outcome, (pushed, ended)):
             return 'a mover says how its push and its job ended'
         if (not isinstance(said, str) or len(said) > SAID_SHOWN_AT_MOST
@@ -202,12 +203,23 @@ class Move:
 
 
 @dataclass(frozen=True)
+class Stay:
+    commit: Commit
+    ahead: tuple
+
+
+@dataclass(frozen=True)
 class Hold:
     findings: tuple
 
 
 @dataclass(frozen=True)
 class Green:
+    commit: Commit
+
+
+@dataclass(frozen=True)
+class Stayed:
     commit: Commit
 
 
@@ -319,7 +331,7 @@ def judgement(ended_text, judged_text, subject_base64, step_texts):
     return Judged(named, ended, steps)
 
 
-def lacking(lines_base64):
+def listed_commits(lines_base64):
     text = decoded(lines_base64)
     if isinstance(text, Rejected):
         return text
@@ -330,20 +342,21 @@ def lacking(lines_base64):
     return commits
 
 
-def promoting(ended_text, main_tip_text, lacking_base64, pushed_text, said_base64):
+def promoting(ended_text, main_tip_text, lacking_base64, ahead_base64, pushed_text, said_base64):
     ended = outcome(ended_text)
     if isinstance(ended, Rejected):
         return ended
     if main_tip_text == '':
         return NeverLooked(ended)
     main_tip = commit_hash(main_tip_text)
-    commits = lacking(lacking_base64)
+    lacking = listed_commits(lacking_base64)
+    ahead = listed_commits(ahead_base64)
     pushed = outcome(pushed_text)
     said = decoded(said_base64)
-    rejected = first_rejected(main_tip, commits, pushed, said)
+    rejected = first_rejected(main_tip, lacking, ahead, pushed, said)
     if rejected is not None:
         return rejected
-    return Looked(main_tip, commits, pushed, shown_said(said), ended)
+    return Looked(main_tip, lacking, ahead, pushed, shown_said(said), ended)
 
 
 def step_findings(steps):
@@ -361,20 +374,24 @@ def judging_findings(judgement_read):
     return unpassed + ((JudgingEnded(judgement_read.ended),) if ended_badly else ())
 
 
-def promotion(judgement_read, lacking_commits):
+def promotion(judgement_read, lacking_commits, ahead_commits):
     findings = judging_findings(judgement_read) + (
         (MainHasWhatDevelopLacks(tuple(lacking_commits)),) if lacking_commits else ())
     if findings or isinstance(judgement_read, NeverJudged):
         return Hold(findings)
+    if ahead_commits:
+        return Stay(judgement_read.commit, tuple(ahead_commits))
     return Move(judgement_read.commit)
 
 
 def verdict(judgement_read, promoting_read):
     if isinstance(promoting_read, NeverLooked):
         return Red(judging_findings(judgement_read) + (PromotingEnded(promoting_read.ended),), promoting_read)
-    decided = promotion(judgement_read, promoting_read.lacking)
+    decided = promotion(judgement_read, promoting_read.lacking, promoting_read.ahead)
     if isinstance(decided, Hold):
         return Red(decided.findings, promoting_read)
+    if isinstance(decided, Stay):
+        return Stayed(decided.commit)
     if promoting_read.pushed is Outcome.SUCCESS:
         return Green(decided.commit)
     if promoting_read.pushed is Outcome.FAILURE:
@@ -435,6 +452,8 @@ def reasons(findings):
 def promotion_outputs(decided):
     if isinstance(decided, Move):
         return 'decision=move\ncommit=%s\n' % decided.commit.hash.text
+    if isinstance(decided, Stay):
+        return 'decision=stay\n'
     return 'decision=hold\n'
 
 
@@ -445,4 +464,8 @@ def named(commit):
 def explained(decided):
     if isinstance(decided, Move):
         return 'main moves to %s.' % named(decided.commit)
+    if isinstance(decided, Stay):
+        count = len(decided.ahead)
+        return ('main stays where it is: it already has %d commit%s of develop that %s lacks, which a run for a later '
+                'tip of develop judges.' % (count, '' if count == 1 else 's', code_span(decided.commit.hash.text)))
     return 'main holds where it was:\n\n' + reasons(decided.findings)

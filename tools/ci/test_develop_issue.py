@@ -40,8 +40,8 @@ def failed():
     return judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE)
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said=''):
-    return Looked(run.commit_hash(MAIN), tuple(lacking), pushed, said,
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=()):
+    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), pushed, said,
                   Outcome.SUCCESS if pushed in (Outcome.SUCCESS, Outcome.SKIPPED) else Outcome.FAILURE)
 
 
@@ -83,6 +83,12 @@ class WhichIssueIsTouched(unittest.TestCase):
 
         self.assertIsInstance(action, Close)
         self.assertEqual((12, 41), action.issues)
+
+    def test_a_run_that_left_main_where_it_already_had_later_commits_of_develop_leaves_the_issue_alone(self):
+        later = commit(STRAY, 'A later commit of develop')
+
+        self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(ahead=(later,), pushed=Outcome.SKIPPED),
+                                                           (issue(12),), link()))
 
     def test_a_green_run_with_no_issue_open_leaves_issues_alone(self):
         self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(), (issue(7, 'Launch Sim'),), link()))
@@ -161,8 +167,8 @@ class WhatTheIssueSays(unittest.TestCase):
         judged_long = run.judgement('failure', JUDGED, b64(endless), texts(formatting=Outcome.FAILURE,
                                                                            unit_tests=Outcome.FAILURE))
         strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
-        for promoting in (run.promoting('failure', MAIN, strays, 'skipped', ''),
-                          run.promoting('failure', MAIN, '', 'failure', b64(endless))):
+        for promoting in (run.promoting('failure', MAIN, strays, '', 'skipped', ''),
+                          run.promoting('failure', MAIN, '', '', 'failure', b64(endless))):
             body = issues.issue_action(judged_long, promoting, (), link()).body
 
             self.assertLess(len(body), issues.BODY_AT_MOST // 2)

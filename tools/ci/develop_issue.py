@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 
 import develop_run as run
-from develop_run import Green, Judged, Looked, Rejected, Validated
+from develop_run import Green, Judged, Looked, Rejected, Stayed, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
 BODY_AT_MOST = 65536
@@ -115,6 +115,8 @@ def green_body(found, link):
 def issue_action(judgement, promoting, listed, link):
     found = run.verdict(judgement, promoting)
     ours = tuple(sorted(each.number for each in listed if each.title == TITLE))
+    if isinstance(found, Stayed):
+        return LeaveAlone()
     if isinstance(found, Green):
         return Close(ours, green_body(found, link)) if ours else LeaveAlone()
     body = red_body(judgement, found, link)

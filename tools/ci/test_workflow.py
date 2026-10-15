@@ -1,5 +1,8 @@
+import base64
 import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 import develop_issue as issues
@@ -178,25 +181,42 @@ class HowMainMoves(WorkflowTest):
             step_named(promoting, 'push'))
         self.assertEqual(1, sum(each.count('git push') for job in self.jobs.values() for each in runs_of(job)))
 
-    def test_the_core_decides_from_what_the_judging_found_and_what_main_has_that_develop_lacks(self):
+    def test_the_core_decides_from_what_the_judging_found_and_what_main_has_that_develop_or_the_judged_commit_lacks(self):
         deciding = step_named(self.jobs['promote'], 'decide')
 
         self.assertEqual('python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"', deciding['run'])
-        self.assertEqual(dict(JUDGEMENT_HANDED, LACKING='${{ steps.main.outputs.lacking }}'), deciding['env'])
+        self.assertEqual(dict(JUDGEMENT_HANDED, LACKING='${{ steps.main.outputs.lacking }}',
+                              MAIN_AHEAD='${{ steps.main.outputs.ahead }}'), deciding['env'])
 
-    def test_what_main_lacks_is_found_against_main_as_it_is_just_before_the_decision(self):
+    def test_what_main_has_is_found_against_develop_and_the_judged_commit_as_they_are_just_before_the_decision(self):
         self.assertEqual(
-            'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main\n'
+            'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main '
+            '+refs/heads/develop:refs/remotes/origin/develop\n'
             'tip=$(git rev-parse refs/remotes/origin/main)\n'
-            "lacking=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
+            "lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)\n"
+            "ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
             'echo "tip=$tip" >> "$GITHUB_OUTPUT"\n'
-            'echo "lacking=$lacking" >> "$GITHUB_OUTPUT"\n',
+            'echo "lacking=$lacking" >> "$GITHUB_OUTPUT"\n'
+            'echo "ahead=$ahead" >> "$GITHUB_OUTPUT"\n',
             step_named(self.jobs['promote'], 'main')['run'])
 
-    def test_a_main_the_core_holds_makes_the_run_red(self):
-        holding = [step for step in steps_of(self.jobs['promote']) if step.get('name') == 'Hold main where it was']
+    def test_the_mover_hands_on_what_it_found_of_main_and_how_its_push_went(self):
+        self.assertEqual({'main-tip': '${{ steps.main.outputs.tip }}',
+                          'lacking': '${{ steps.main.outputs.lacking }}',
+                          'main-ahead': '${{ steps.main.outputs.ahead }}',
+                          'pushed': '${{ steps.push.outcome }}',
+                          'git-said': '${{ steps.push.outputs.said }}'},
+                         self.jobs['promote']['outputs'])
 
-        self.assertEqual([{'name': 'Hold main where it was', 'if': "steps.decide.outputs.decision != 'move'",
+    def test_a_main_the_core_neither_moves_nor_leaves_where_it_already_is_makes_the_run_red(self):
+        holding = [step for step in steps_of(self.jobs['promote']) if step.get('name') == 'Hold main where it was']
+        some_commit = run.Commit(run.CommitHash('a' * 40), 'A commit of develop')
+        handed = [run.promotion_outputs(decided).split('\n')[0].split('=')[1] for decided in
+                  (run.Move(some_commit), run.Stay(some_commit, (some_commit,)))]
+
+        self.assertEqual([{'name': 'Hold main where it was',
+                           'if': "steps.decide.outputs.decision != '%s' && steps.decide.outputs.decision != '%s'"
+                                 % tuple(handed),
                            'run': 'exit 1'}], holding)
 
     def test_no_run_merges_commits_or_rewrites_and_no_push_forces(self):
@@ -208,6 +228,101 @@ class HowMainMoves(WorkflowTest):
                     if 'git push' in line:
                         for never in ('--force', ' -f ', '--mirror', '--delete', '--all', ' +', '"+', ':+'):
                             self.assertNotIn(never, line)
+
+
+class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
+    def setUp(self):
+        super().setUp()
+        self.where = tempfile.TemporaryDirectory()
+        self.environ = {'PATH': os.environ.get('PATH', ''), 'HOME': self.where.name, 'GIT_CONFIG_NOSYSTEM': '1',
+                        'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_AUTHOR_NAME': 'Coach', 'GIT_AUTHOR_EMAIL': 'c@example.org',
+                        'GIT_COMMITTER_NAME': 'Coach', 'GIT_COMMITTER_EMAIL': 'c@example.org', 'LC_ALL': 'C'}
+        self.origin = os.path.join(self.where.name, 'origin.git')
+        self.work = os.path.join(self.where.name, 'work')
+        self.git(self.where.name, 'init', '--bare', '-b', 'main', self.origin)
+        self.git(self.where.name, 'init', '-b', 'main', self.work)
+        self.git(self.work, 'remote', 'add', 'origin', self.origin)
+        self.commit('Where both lines start')
+        self.git(self.work, 'push', 'origin', 'main', 'main:develop')
+
+    def tearDown(self):
+        self.where.cleanup()
+
+    def git(self, where, *arguments):
+        return subprocess.run(['git'] + list(arguments), cwd=where, env=self.environ, check=True, capture_output=True,
+                              text=True, timeout=60).stdout.strip()
+
+    def commit(self, subject):
+        self.git(self.work, 'commit', '--allow-empty', '-q', '-m', subject)
+        return self.git(self.work, 'rev-parse', 'HEAD')
+
+    def on(self, branch):
+        self.git(self.work, 'checkout', '-q', '-B', branch, 'origin/' + branch if branch != 'main' else 'main')
+
+    def push(self, *refspecs):
+        self.git(self.work, 'push', '-q', 'origin', *refspecs)
+
+    def decided_for(self, judged_commit, subject):
+        runner = os.path.join(self.where.name, 'runner')
+        self.git(self.where.name, 'clone', '-q', self.origin, runner)
+        self.git(runner, 'checkout', '-q', '--detach', judged_commit)
+        outputs = os.path.join(self.where.name, 'outputs')
+        subprocess.run(['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c',
+                        step_named(self.jobs['promote'], 'main')['run']], cwd=runner,
+                       env=dict(self.environ, GITHUB_OUTPUT=outputs), check=True, capture_output=True, timeout=60)
+        with open(outputs, encoding='utf-8') as written:
+            found = dict(line.split('=', 1) for line in written.read().split('\n') if line)
+        steps = tuple('success' for _ in run.STEPS)
+        judgement = run.judgement('success', judged_commit, base64.b64encode((subject + '\n').encode()).decode(), steps)
+        return run.promotion(judgement, run.listed_commits(found['lacking']), run.listed_commits(found['ahead']))
+
+    def listed(self, *hashes_and_subjects):
+        return tuple(run.Commit(run.CommitHash(each), subject) for each, subject in hashes_and_subjects)
+
+    def test_a_main_behind_the_judged_commit_along_develop_moves_to_it(self):
+        self.git(self.work, 'checkout', '-q', '-b', 'develop')
+        judged_commit = self.commit('A commit of develop')
+        self.push('develop')
+
+        decided = self.decided_for(judged_commit, 'A commit of develop')
+
+        self.assertEqual(run.Move(run.Commit(run.CommitHash(judged_commit), 'A commit of develop')), decided)
+
+    def test_a_main_moved_past_the_judged_commit_along_develop_stays_and_names_nothing_develop_lacks(self):
+        self.git(self.work, 'checkout', '-q', '-b', 'develop')
+        judged_commit = self.commit('The commit judged')
+        later = self.commit('A later commit of develop')
+        self.push('develop', 'develop:main')
+
+        decided = self.decided_for(judged_commit, 'The commit judged')
+
+        self.assertEqual(run.Stay(run.Commit(run.CommitHash(judged_commit), 'The commit judged'),
+                                  self.listed((later, 'A later commit of develop'))), decided)
+
+    def test_a_commit_that_reached_main_by_itself_holds_main_naming_it(self):
+        stray = self.commit('Fix the README on main')
+        self.push('main')
+        self.git(self.work, 'checkout', '-q', '-b', 'develop', 'HEAD~1')
+        judged_commit = self.commit('A commit of develop')
+        self.push('develop')
+
+        decided = self.decided_for(judged_commit, 'A commit of develop')
+
+        self.assertEqual(run.Hold((run.MainHasWhatDevelopLacks(self.listed((stray, 'Fix the README on main'))),)),
+                         decided)
+
+    def test_a_commit_that_reached_main_by_itself_and_was_merged_into_develop_after_the_judging_stays(self):
+        stray = self.commit('Fix the README on main')
+        self.push('main')
+        self.git(self.work, 'checkout', '-q', '-b', 'develop', 'HEAD~1')
+        judged_commit = self.commit('A commit of develop')
+        self.git(self.work, 'merge', '-q', '--no-edit', 'main')
+        self.push('develop')
+
+        decided = self.decided_for(judged_commit, 'A commit of develop')
+
+        self.assertEqual(run.Stay(run.Commit(run.CommitHash(judged_commit), 'A commit of develop'),
+                                  self.listed((stray, 'Fix the README on main'))), decided)
 
 
 class HowTheIssueIsWritten(WorkflowTest):
@@ -224,6 +339,7 @@ class HowTheIssueIsWritten(WorkflowTest):
                               PROMOTING_ENDED='${{ needs.promote.result }}',
                               MAIN_TIP='${{ needs.promote.outputs.main-tip }}',
                               LACKING='${{ needs.promote.outputs.lacking }}',
+                              MAIN_AHEAD='${{ needs.promote.outputs.main-ahead }}',
                               PUSHED='${{ needs.promote.outputs.pushed }}',
                               GIT_SAID='${{ needs.promote.outputs.git-said }}'),
                          saying['env'])

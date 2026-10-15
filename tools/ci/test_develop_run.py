@@ -4,7 +4,7 @@ import unittest
 import develop_run as run
 from develop_run import (Green, Hold, JudgingEnded, Judged, Looked, StepDidNotPass, StepsEnded,
                          MainHasWhatDevelopLacks, MainRefusedThePush, Move, NeverJudged, NeverLooked,
-                         NothingJudged, Outcome, PromotingEnded, Red, Rejected)
+                         NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed)
 
 JUDGED = 'a' * 40
 MAIN = 'b' * 40
@@ -34,13 +34,13 @@ def judged(ended=Outcome.SUCCESS, **outcomes):
     return Judged(commit(), ended, steps_ended(**outcomes))
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ended=Outcome.SUCCESS):
-    return Looked(run.commit_hash(MAIN), tuple(lacking), pushed, said, ended)
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ended=Outcome.SUCCESS, ahead=()):
+    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), pushed, said, ended)
 
 
 class WhetherMainMoves(unittest.TestCase):
     def test_main_moves_to_the_judged_commit_when_every_check_passed_and_main_has_nothing_develop_lacks(self):
-        self.assertEqual(Move(commit()), run.promotion(judged(), ()))
+        self.assertEqual(Move(commit()), run.promotion(judged(), (), ()))
 
     def test_main_holds_naming_the_check_that_failed_and_the_checks_it_kept_from_running(self):
         self.assertEqual(
@@ -48,22 +48,22 @@ class WhetherMainMoves(unittest.TestCase):
                   StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
                   StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
             run.promotion(judged(Outcome.FAILURE, formatting=Outcome.FAILURE,
-                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), ()))
+                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), (), ()))
 
     def test_main_holds_when_main_has_commits_develop_lacks_though_every_check_passed(self):
         stray = commit(STRAY, 'Fix the README on main')
 
-        self.assertEqual(Hold((MainHasWhatDevelopLacks((stray,)),)), run.promotion(judged(), (stray,)))
+        self.assertEqual(Hold((MainHasWhatDevelopLacks((stray,)),)), run.promotion(judged(), (stray,), ()))
 
     def test_main_holds_for_a_failed_check_and_for_what_main_lacks_together(self):
         stray = commit(STRAY, 'Fix the README on main')
 
         self.assertEqual(
             Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), MainHasWhatDevelopLacks((stray,)))),
-            run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (stray,)))
+            run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (stray,), ()))
 
     def test_main_holds_when_the_judging_job_ended_badly_after_every_check_passed(self):
-        self.assertEqual(Hold((JudgingEnded(Outcome.FAILURE),)), run.promotion(judged(Outcome.FAILURE), ()))
+        self.assertEqual(Hold((JudgingEnded(Outcome.FAILURE),)), run.promotion(judged(Outcome.FAILURE), (), ()))
 
     def test_main_holds_when_the_judging_job_ended_before_its_checks_reported(self):
         self.assertEqual(
@@ -72,7 +72,7 @@ class WhetherMainMoves(unittest.TestCase):
                   StepDidNotPass(run.UNIT_TESTS, Outcome.UNREPORTED),
                   JudgingEnded(Outcome.CANCELLED))),
             run.promotion(judged(Outcome.CANCELLED, formatting=Outcome.UNREPORTED,
-                                 tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED), ()))
+                                 tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED), (), ()))
 
     def test_main_holds_when_no_commit_was_judged_naming_the_step_that_failed_before_one_was(self):
         never = NeverJudged(Outcome.FAILURE, steps_ended(checkout=Outcome.FAILURE, judged=Outcome.SKIPPED,
@@ -85,7 +85,7 @@ class WhetherMainMoves(unittest.TestCase):
                                StepDidNotPass(run.FORMATTING, Outcome.SKIPPED),
                                StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
                                StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
-                         run.promotion(never, ()))
+                         run.promotion(never, (), ()))
 
     def test_main_holds_naming_a_step_before_the_checks_that_failed_and_the_checks_it_kept_from_running(self):
         self.assertEqual(
@@ -94,11 +94,11 @@ class WhetherMainMoves(unittest.TestCase):
                   StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
                   StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
             run.promotion(judged(Outcome.FAILURE, browser=Outcome.FAILURE, formatting=Outcome.SKIPPED,
-                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), ()))
+                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), (), ()))
 
     def test_main_holds_when_the_report_could_not_be_kept_though_every_check_passed(self):
         self.assertEqual(Hold((StepDidNotPass(run.RESULTS, Outcome.FAILURE),)),
-                         run.promotion(judged(Outcome.FAILURE, results=Outcome.FAILURE), ()))
+                         run.promotion(judged(Outcome.FAILURE, results=Outcome.FAILURE), (), ()))
 
     def test_a_step_cancelled_while_it_ran_is_named_with_the_checks_it_kept_from_their_end(self):
         self.assertEqual(
@@ -110,15 +110,36 @@ class WhetherMainMoves(unittest.TestCase):
             run.promotion(judged(Outcome.CANCELLED, gradle=Outcome.CANCELLED, node=Outcome.UNREPORTED,
                                  browser=Outcome.UNREPORTED, formatting=Outcome.UNREPORTED,
                                  tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED,
-                                 results=Outcome.UNREPORTED), ()))
+                                 results=Outcome.UNREPORTED), (), ()))
+
+    def test_main_stays_where_it_is_when_it_already_has_commits_of_develop_the_judged_commit_lacks(self):
+        later = commit(STRAY, 'A later commit of develop')
+
+        self.assertEqual(Stay(commit(), (later,)), run.promotion(judged(), (), (later,)))
+
+    def test_main_holds_for_commits_develop_lacks_though_main_also_has_commits_the_judged_commit_lacks(self):
+        stray = commit(STRAY, 'Fix the README on main')
+
+        self.assertEqual(Hold((MainHasWhatDevelopLacks((stray,)),)), run.promotion(judged(), (stray,), (stray,)))
+
+    def test_main_holds_for_a_failed_check_though_main_already_has_commits_the_judged_commit_lacks(self):
+        later = commit(STRAY, 'A later commit of develop')
+
+        self.assertEqual(Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),)),
+                         run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (), (later,)))
 
     def test_a_check_that_passed_in_a_job_that_passed_is_never_a_reason_to_hold(self):
-        self.assertIsInstance(run.promotion(judged(), ()), Move)
+        self.assertIsInstance(run.promotion(judged(), (), ()), Move)
 
 
 class WhatARunForDevelopEndsAs(unittest.TestCase):
     def test_a_run_that_moved_main_to_the_judged_commit_is_green(self):
         self.assertEqual(Green(commit()), run.verdict(judged(), looked()))
+
+    def test_a_run_that_left_main_where_it_already_had_later_commits_of_develop_stayed(self):
+        later = commit(STRAY, 'A later commit of develop')
+
+        self.assertEqual(Stayed(commit()), run.verdict(judged(), looked(ahead=(later,), pushed=Outcome.SKIPPED)))
 
     def test_a_run_whose_push_main_refused_is_red_with_what_git_said(self):
         said = ' ! [remote rejected] %s -> main (protected branch hook declined)\n' % JUDGED
@@ -247,7 +268,7 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         printed = '%s Fix\rit%s\n' % (STRAY, 'y' * 1000)
 
         self.assertEqual('Fix\\x0dit' + 'y' * (run.SUBJECT_SHOWN - 9) + '… (809 more characters)',
-                         run.lacking(b64(printed))[0].subject)
+                         run.listed_commits(b64(printed))[0].subject)
 
     def test_a_subject_is_never_cut_inside_the_escape_of_a_character(self):
         read = run.judgement('success', JUDGED, b64('x' * (run.SUBJECT_SHOWN - 2) + '\r\n'), texts())
@@ -255,12 +276,12 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
 
     def test_what_git_said_ends_its_lines_where_a_carriage_return_did_and_shows_other_control_characters_escaped(self):
-        read = run.promoting('failure', MAIN, '', 'failure', b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'))
+        read = run.promoting('failure', MAIN, '', '', 'failure', b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'))
 
         self.assertEqual('remote: one\nremote: two\nthree\\x00\\x1b[0m\tok\n', read.said)
 
     def test_what_git_said_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
-        read = run.promoting('failure', MAIN, '', 'failure', b64('z' * 70000))
+        read = run.promoting('failure', MAIN, '', '', 'failure', b64('z' * 70000))
 
         self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
 
@@ -293,18 +314,24 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         printed = '%s Fix the README on main\n%s Bump a version\n' % (STRAY, MAIN)
 
         self.assertEqual((commit(STRAY, 'Fix the README on main'), commit(MAIN, 'Bump a version')),
-                         run.lacking(b64(printed)))
-        self.assertEqual((), run.lacking(''))
+                         run.listed_commits(b64(printed)))
+        self.assertEqual((), run.listed_commits(''))
 
     def test_a_line_of_what_main_lacks_that_names_no_commit_is_refused(self):
-        self.assertIsInstance(run.lacking(b64('Fix the README on main\n')), Rejected)
+        self.assertIsInstance(run.listed_commits(b64('Fix the README on main\n')), Rejected)
 
     def test_a_mover_that_named_no_main_tip_never_looked_at_main(self):
-        self.assertEqual(NeverLooked(Outcome.FAILURE), run.promoting('failure', '', '', '', ''))
+        self.assertEqual(NeverLooked(Outcome.FAILURE), run.promoting('failure', '', '', '', '', ''))
 
     def test_a_mover_that_looked_reads_what_main_lacks_and_what_git_said(self):
         self.assertEqual(looked(pushed=Outcome.FAILURE, said='refused\n', ended=Outcome.FAILURE),
-                         run.promoting('failure', MAIN, '', 'failure', b64('refused\n')))
+                         run.promoting('failure', MAIN, '', '', 'failure', b64('refused\n')))
+
+    def test_a_mover_that_looked_reads_what_main_has_beyond_the_judged_commit(self):
+        later = commit(STRAY, 'A later commit of develop')
+
+        self.assertEqual(looked(ahead=(later,), pushed=Outcome.SKIPPED),
+                         run.promoting('success', MAIN, '', b64('%s A later commit of develop\n' % STRAY), 'skipped', ''))
 
 
 class MakingAValueDirectly(unittest.TestCase):
@@ -324,14 +351,15 @@ class MakingAValueDirectly(unittest.TestCase):
         self.assertIsInstance(run.Commit(run.CommitHash(JUDGED), None), Rejected)
 
     def test_what_a_mover_saw_made_directly_is_held_to_a_main_tip_commits_outcomes_and_text(self):
-        self.assertIsInstance(Looked(MAIN, (), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
-        self.assertIsInstance(Looked(run.CommitHash(MAIN), (STRAY,), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
-        self.assertIsInstance(Looked(run.CommitHash(MAIN), [], Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
-        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), 'success', '', Outcome.SUCCESS), Rejected)
-        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, None, Outcome.SUCCESS), Rejected)
-        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, 'x' * (run.SAID_SHOWN_AT_MOST + 1),
+        self.assertIsInstance(Looked(MAIN, (), (), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (STRAY,), (), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), [], (), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), (STRAY,), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), (), 'success', '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), (), Outcome.SUCCESS, None, Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), (), Outcome.SUCCESS, 'x' * (run.SAID_SHOWN_AT_MOST + 1),
                                      Outcome.SUCCESS), Rejected)
-        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), (), Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS), Rejected)
 
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
         self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, steps_ended()), Rejected)
@@ -345,6 +373,14 @@ class MakingAValueDirectly(unittest.TestCase):
 class WhatTheWorkflowIsHanded(unittest.TestCase):
     def test_a_move_hands_the_workflow_the_commit_to_push(self):
         self.assertEqual('decision=move\ncommit=%s\n' % JUDGED, run.promotion_outputs(Move(commit())))
+
+    def test_a_stay_hands_the_workflow_no_commit(self):
+        self.assertEqual('decision=stay\n', run.promotion_outputs(Stay(commit(), (commit(STRAY, 'Later'),))))
+
+    def test_the_log_of_a_stay_says_main_already_has_later_commits_of_develop(self):
+        self.assertEqual('main stays where it is: it already has 1 commit of develop that `%s` lacks, which a run for '
+                         'a later tip of develop judges.' % JUDGED,
+                         run.explained(Stay(commit(), (commit(STRAY, 'Later'),))))
 
     def test_a_hold_hands_the_workflow_no_commit(self):
         self.assertEqual('decision=hold\n', run.promotion_outputs(Hold((NothingJudged(Outcome.FAILURE),))))
