@@ -543,27 +543,43 @@ any commit from `main` to the judged commit changes a file under
 `.github/workflows`, even one on a branch merged into `develop`, one a later
 commit undoes or one a merge changes in resolving it, or the judged commit's
 copy of one differs from `main`'s, the run pushes nothing and is red, naming
-those files, a renamed one by its old name and its new. No commit to `develop`
-and no session can clear that: it waits on a maintainer, who pushes `main` to
-the judged commit by hand, never forced, and re-runs the failed jobs of the
-run. When no workflow file holds `main`, CI pushes the commit it judged to
-`main` with the built-in token its checkout keeps: a plain push, never forced
-and never a merge, so a `main` that moved meanwhile refuses it. Anything else
-is a red run, and `main` stays where it was. A red run opens the issue
-**IMPORTANT: develop CI Failures**, or comments on it when it is already open,
-naming the commit judged, whether its judging was green, and what held `main`
-— the step that failed, a setup step or the report upload as much as a check;
-the commits `main` has that `develop` lacks, with the merge that brings them
-in; the workflow files that hold `main` for a maintainer; or git's own words
-for a refused push — and the run; a commit that reached `main` by itself keeps
-every run red until `develop` holds it. The next run that moves `main`, or
-finds it already at the commit it judged, as the re-run after a maintainer's
-push does, closes the issue, saying `main` now stands at that commit. A pull
-request is still judged, in a queue of its own, and never moves `main` or
-touches the issue. What a run decides is the core's, and the workflow only
-gathers what the core needs and does what it says, which a test holds it to.
+the files the commits change, a renamed one by its old name and its new, apart
+from those whose copy alone differs, as after a merge of `main` that keeps
+`develop`'s copy, of which it says that a push of the judged commit replaces
+`main`'s copy with its own. No commit to `develop` and no session can clear
+that: it waits on a maintainer, who pushes `main` to the judged commit by hand,
+never forced, and re-runs the failed jobs of the run. The judged commit's own
+core decides whether `main` moves, in a job whose token may only read and whose
+checkout keeps no credential, and that job fails unless `main` moves or stays,
+so re-running the failed jobs looks at `main` again. The job that pushes runs
+none of the judged commit's code: when the judging and that look both passed
+and the core said move, it pushes the commit the judging named to `main` with
+the built-in token its checkout keeps, a plain push, never forced and never a
+merge, so a `main` that moved meanwhile refuses it, and a red judging never
+reaches the push whatever the core said. Anything else is a red run, and `main`
+stays where it was. A red run opens the issue **IMPORTANT: develop CI
+Failures**, or comments on it when it is already open, naming the commit
+judged, whether its judging was green, and what held `main` — the step that
+failed, a setup step or the report upload as much as a check; the job that
+looks at `main` or the one that moves it ending early; the commits `main` has
+that `develop` lacks, with the merge that brings them in; the workflow files
+that hold `main` for a maintainer; or git's own words for a refused push — and
+the run; a commit that reached `main` by itself keeps every run red until
+`develop` holds it. The core says what to write in a job whose tokens may only
+read, and the job that writes the issue runs none of the judged commit's code;
+a red run for which that job carried out nothing the core said still opens or
+comments on the issue, saying only that the run is red and linking it. Only a
+run whose every job passed closes the issue: one that moves `main`, or finds it
+already at the commit it judged, as the re-run after a maintainer's push does,
+closes it when that commit is still `develop`'s tip as the run found it, saying
+`main` now stands there, and otherwise says so on the issue and leaves it to a
+run that judges the tip. A pull request is still judged, in a queue of its own,
+and never moves `main` or touches the issue. What a run decides is the core's,
+and the workflow only gathers what the core needs and does what it says, which
+a test holds it to by evaluating the workflow's own conditions.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
-`tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`.
+`tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`;
+`tools/ci/workflow_conditions.py`.
 
 **Which git** — The coding server is handed the git it works the repository
 with, rather than making one. What a real git does is `RealGitTest`'s, over a
