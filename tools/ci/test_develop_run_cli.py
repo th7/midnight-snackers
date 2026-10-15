@@ -27,7 +27,8 @@ def gathered(**changed):
 
 
 def reported(**changed):
-    handed = gathered(LOOKING_ENDED='success', PROMOTING_ENDED='success', MAIN_TIP=MAIN, PUSHED='success', GIT_SAID='',
+    handed = gathered(LOOKING_ENDED='success', PROMOTING_ENDED='success', MAIN_TIP=MAIN, DEVELOP_TIP=JUDGED,
+                      PUSHED='success', GIT_SAID='',
                       GITHUB_SERVER_URL='https://github.com', GITHUB_REPOSITORY='th7/midnight-snackers',
                       GITHUB_RUN_ID='123456')
     handed.update(changed)
@@ -154,6 +155,13 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertTrue(done.stdout.startswith('action=close\nissues=12\nbody='), done.stdout)
         self.assertIn('main now stands there', self.body_written())
 
+    def test_a_green_run_after_develop_moved_on_hands_the_workflow_the_issue_to_comment_on_naming_develop_s_tip(self):
+        done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', DEVELOP_TIP=STRAY)
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
+        self.assertIn("develop's tip is now `%s`" % STRAY, self.body_written())
+
     def test_a_run_that_left_main_where_it_was_ahead_hands_the_workflow_nothing_to_do_and_no_body(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
                            MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY))
@@ -178,7 +186,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertIn('git push origin %s:refs/heads/main' % JUDGED, self.body_written())
 
     def test_a_report_not_handed_what_the_look_at_main_found_fails_naming_it_and_hands_nothing(self):
-        for name in ('WORKFLOWS', 'LOOKING_ENDED'):
+        for name in ('WORKFLOWS', 'LOOKING_ENDED', 'DEVELOP_TIP'):
             environ = reported()
             del environ[name]
             with open(self.open_issues, 'w') as written:

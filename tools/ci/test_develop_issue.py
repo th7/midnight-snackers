@@ -10,6 +10,7 @@ from develop_run import (Judged, Looked, MainHasWhatDevelopLacks, NeverJudged, S
 JUDGED = 'a' * 40
 MAIN = 'b' * 40
 STRAY = 'c' * 40
+LATER = 'd' * 40
 SUBJECT = 'A ball comes back from a lone still compliant surface at its restitution'
 RUN = 'https://github.com/th7/midnight-snackers/actions/runs/123456'
 BODY_TOO_LONG = 'https://github.com/golang/go/issues/45998'
@@ -45,8 +46,9 @@ def failed():
     return judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE)
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None):
-    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), run.WorkflowFiles(tuple(workflows)), pushed, said,
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED):
+    return Looked(run.commit_hash(MAIN), run.commit_hash(develop), tuple(lacking), tuple(ahead),
+                  run.WorkflowFiles(tuple(workflows)), pushed, said,
                   ended if ended is not None else Outcome.SUCCESS if pushed is Outcome.SUCCESS else Outcome.FAILURE)
 
 
@@ -88,6 +90,18 @@ class WhichIssueIsTouched(unittest.TestCase):
 
         self.assertIsInstance(action, Close)
         self.assertEqual((12, 41), action.issues)
+
+    def test_a_green_run_whose_judged_commit_is_no_longer_develop_s_tip_comments_on_the_issue_and_leaves_it_open(self):
+        action = issues.issue_action(judged(), looked(develop=LATER), (issue(41), issue(12)), link())
+
+        self.assertEqual(CommentOn(12, 'develop was judged green at `%s` `%s`, and main now stands there, but develop\'s '
+                                       'tip is now `%s`, which this run did not judge, so this issue stays open until a run '
+                                       'that judges develop\'s tip closes it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
+                         action)
+
+    def test_a_green_run_behind_develop_s_tip_with_no_issue_open_leaves_issues_alone(self):
+        self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(develop=LATER), (issue(7, 'Launch Sim'),),
+                                                           link()))
 
     def test_a_run_that_left_main_where_it_already_had_later_commits_of_develop_leaves_the_issue_alone(self):
         later = commit(STRAY, 'A later commit of develop')
@@ -205,9 +219,9 @@ class WhatTheIssueSays(unittest.TestCase):
             strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
             green_long = run.judgement('success', JUDGED, b64(endless), texts())
             bodies = [issues.issue_action(judged_long, promoting, (), link()).body for promoting in (
-                run.promoting('failure', MAIN, strays, '', '', 'failure', 'skipped', ''),
-                run.promoting('success', MAIN, '', '', '', 'failure', 'failure', b64(endless)),
-                run.promoting('failure', MAIN, '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
+                run.promoting('failure', MAIN, JUDGED, strays, '', '', 'failure', 'skipped', ''),
+                run.promoting('success', MAIN, JUDGED, '', '', '', 'failure', 'failure', b64(endless)),
+                run.promoting('failure', MAIN, JUDGED, '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
                                                                    for n in range(1, 61))), 'failure', 'skipped', ''))]
             bodies.append(issues.issue_action(green_long, looked(), (issue(12),), link()).body)
 

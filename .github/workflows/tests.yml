@@ -98,6 +98,7 @@ jobs:
       contents: read
     outputs:
       main-tip: ${{ steps.main.outputs.tip }}
+      develop-tip: ${{ steps.main.outputs.develop }}
       lacking: ${{ steps.main.outputs.lacking }}
       main-ahead: ${{ steps.main.outputs.ahead }}
       workflows: ${{ steps.main.outputs.workflows }}
@@ -109,16 +110,18 @@ jobs:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Find what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
+      - name: Find where main and develop stand, what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
         id: main
         run: |
           tip=$(git rev-parse refs/remotes/origin/main)
+          develop=$(git rev-parse refs/remotes/origin/develop)
           lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)
           ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
           git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows > "$RUNNER_TEMP/workflows"
           git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows >> "$RUNNER_TEMP/workflows"
           workflows=$(base64 -w0 < "$RUNNER_TEMP/workflows")
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
+          echo "develop=$develop" >> "$GITHUB_OUTPUT"
           echo "lacking=$lacking" >> "$GITHUB_OUTPUT"
           echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
           echo "workflows=$workflows" >> "$GITHUB_OUTPUT"
@@ -219,6 +222,7 @@ jobs:
           STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
           LOOKING_ENDED: ${{ needs.look.result }}
           MAIN_TIP: ${{ needs.look.outputs.main-tip }}
+          DEVELOP_TIP: ${{ needs.look.outputs.develop-tip }}
           LACKING: ${{ needs.look.outputs.lacking }}
           MAIN_AHEAD: ${{ needs.look.outputs.main-ahead }}
           WORKFLOWS: ${{ needs.look.outputs.workflows }}

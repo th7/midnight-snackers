@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 import develop_run as run
-from develop_run import Green, Judged, Looked, Rejected, Stayed, Validated
+from develop_run import Green, GreenBehindDevelop, Judged, Looked, Rejected, Stayed, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
 BODY_AT_MOST = 65536
@@ -119,6 +119,12 @@ def green_body(found, link):
         run.named(found.commit), link.url)
 
 
+def green_behind_body(found, link):
+    return ("develop was judged green at %s, and main now stands there, but develop's tip is now %s, which this run did "
+            "not judge, so this issue stays open until a run that judges develop's tip closes it.\n\nThe run: %s\n" % (
+                run.named(found.commit), run.code_span(found.develop_tip.text), link.url))
+
+
 def issue_action(judgement, promoting, listed, link):
     found = run.verdict(judgement, promoting)
     ours = tuple(sorted(each.number for each in listed if each.title == TITLE))
@@ -126,6 +132,8 @@ def issue_action(judgement, promoting, listed, link):
         return LeaveAlone()
     if isinstance(found, Green):
         return Close(ours, green_body(found, link)) if ours else LeaveAlone()
+    if isinstance(found, GreenBehindDevelop):
+        return CommentOn(ours[0], green_behind_body(found, link)) if ours else LeaveAlone()
     body = red_body(judgement, found, link)
     return CommentOn(ours[0], body) if ours else Open(TITLE, body)
 

@@ -180,6 +180,7 @@ def quotes_what_git_said(said):
 @dataclass(frozen=True)
 class Looked(Validated):
     main_tip: CommitHash
+    develop_tip: CommitHash
     lacking: tuple
     ahead: tuple
     workflows: WorkflowFiles
@@ -188,9 +189,9 @@ class Looked(Validated):
     ended: Outcome
 
     @staticmethod
-    def broken(main_tip, lacking, ahead, workflows, pushed, said, ended):
-        if not isinstance(main_tip, CommitHash):
-            return 'a mover that looked names main\'s tip by its hash'
+    def broken(main_tip, develop_tip, lacking, ahead, workflows, pushed, said, ended):
+        if not isinstance(main_tip, CommitHash) or not isinstance(develop_tip, CommitHash):
+            return 'a mover that looked names main\'s tip and develop\'s tip by their hashes'
         if not all_of(Commit, lacking) or not all_of(Commit, ahead):
             return 'what main has that develop or the judged commit lacks is a tuple of commits'
         if not isinstance(workflows, WorkflowFiles):
@@ -299,6 +300,12 @@ class Hold:
 @dataclass(frozen=True)
 class Green:
     commit: Commit
+
+
+@dataclass(frozen=True)
+class GreenBehindDevelop:
+    commit: Commit
+    develop_tip: CommitHash
 
 
 @dataclass(frozen=True)
@@ -432,8 +439,8 @@ def workflow_files(lines_base64):
     return WorkflowFiles(tuple(sorted(set(shown_subject(path) for path in text.split('\n') if path != ''))))
 
 
-def promoting(looking_text, main_tip_text, lacking_base64, ahead_base64, workflows_base64, ended_text, pushed_text,
-              said_base64):
+def promoting(looking_text, main_tip_text, develop_tip_text, lacking_base64, ahead_base64, workflows_base64, ended_text,
+              pushed_text, said_base64):
     looking = outcome(looking_text)
     ended = outcome(ended_text)
     rejected = first_rejected(looking, ended)
@@ -442,15 +449,16 @@ def promoting(looking_text, main_tip_text, lacking_base64, ahead_base64, workflo
     if main_tip_text == '':
         return NeverLooked(looking)
     main_tip = commit_hash(main_tip_text)
+    develop_tip = commit_hash(develop_tip_text)
     lacking = listed_commits(lacking_base64)
     ahead = listed_commits(ahead_base64)
     workflows = workflow_files(workflows_base64)
     pushed = outcome(pushed_text)
     said = decoded(said_base64)
-    rejected = first_rejected(main_tip, lacking, ahead, workflows, pushed, said)
+    rejected = first_rejected(main_tip, develop_tip, lacking, ahead, workflows, pushed, said)
     if rejected is not None:
         return rejected
-    return Looked(main_tip, lacking, ahead, workflows, pushed, shown_said(said), ended)
+    return Looked(main_tip, develop_tip, lacking, ahead, workflows, pushed, shown_said(said), ended)
 
 
 def step_findings(steps):
@@ -488,8 +496,10 @@ def verdict(judgement_read, promoting_read):
         return Red(decided.findings, promoting_read)
     if isinstance(decided, Stay):
         return Stayed(decided.commit)
-    if promoting_read.pushed is Outcome.SUCCESS:
+    if promoting_read.pushed is Outcome.SUCCESS and promoting_read.develop_tip == decided.commit.hash:
         return Green(decided.commit)
+    if promoting_read.pushed is Outcome.SUCCESS:
+        return GreenBehindDevelop(decided.commit, promoting_read.develop_tip)
     if promoting_read.pushed is Outcome.FAILURE:
         return Red((MainRefusedThePush(decided.commit, promoting_read.said),), promoting_read)
     return Red((PromotingEnded(promoting_read.ended),), promoting_read)
@@ -545,8 +555,10 @@ def described(found):
                 'change to a workflow file, so nothing was pushed:\n\n%s%s\n\nNo commit to develop and no session can '
                 'clear this, since every later commit of develop carries these commits too: it waits on a maintainer, '
                 'who pushes main to %s by hand with a credential that may update workflows, a plain push, never '
-                'forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the job that writes '
-                'this issue too: the re-run finds main at the commit this run judged and closes this issue.' % (
+                'forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at '
+                'main, move it and write this issue too: the re-run finds main at the commit this run judged and closes '
+                "this issue if that commit is still develop's tip, or says here that develop has moved on and leaves "
+                'this issue to a run that judges its tip.' % (
                     code_span(hash_text), count, '' if count == 1 else 's', fenced(listed),
                     '\n\nand %d more.' % more if more > 0 else '', code_span(hash_text),
                     fenced('git push origin %s:refs/heads/main' % hash_text)))
