@@ -222,8 +222,11 @@ class HowMainMoves(WorkflowTest):
             'tip=$(git rev-parse refs/remotes/origin/main)\n'
             "lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)\n"
             "ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
-            'workflows=$(git log --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows '
-            '| base64 -w0)\n'
+            'git log --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows '
+            '> "$RUNNER_TEMP/workflows"\n'
+            'git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows '
+            '>> "$RUNNER_TEMP/workflows"\n'
+            'workflows=$(base64 -w0 < "$RUNNER_TEMP/workflows")\n'
             'echo "tip=$tip" >> "$GITHUB_OUTPUT"\n'
             'echo "lacking=$lacking" >> "$GITHUB_OUTPUT"\n'
             'echo "ahead=$ahead" >> "$GITHUB_OUTPUT"\n'
@@ -428,6 +431,22 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         self.assertEqual(run.WorkflowFiles(('.github/workflows/checks.yml', '.github/workflows/tests.yml')),
                          decided.findings[0].files)
+
+    def test_a_merge_that_keeps_an_older_workflow_than_main_s_holds_main_naming_it(self):
+        self.a_workflow_on_main_and_develop()
+        self.commit('Fix the workflow on main', {'.github/workflows/tests.yml': 'name: fixed tests\n'})
+        self.push('main')
+        self.on('develop')
+        self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.git(self.work, 'merge', '-q', '--no-commit', 'origin/main')
+        judged_commit = self.commit('Merge main', {'.github/workflows/tests.yml': 'name: tests\n'})
+        self.push('develop')
+
+        decided = self.decided_for(judged_commit, 'Merge main')
+
+        self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
+            run.Commit(run.CommitHash(judged_commit), 'Merge main'),
+            run.WorkflowFiles(('.github/workflows/tests.yml',))),)), decided)
 
     def test_a_rerun_after_a_maintainer_pushed_main_to_the_judged_commit_moves_it_nowhere_and_closes_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')

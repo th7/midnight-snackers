@@ -549,8 +549,9 @@ reached `main` by itself keeps every run red until `develop` holds it. No step
 reads a secret, and the built-in token may not move a branch past a change to a
 workflow file, so when any commit from `main` to the judged commit changes a
 file under `.github/workflows`, even one a later commit undoes or one a merge
-changes in resolving it, the run pushes nothing and is red, naming those files,
-a renamed one by its old name and its new. No commit to `develop` and no session
+changes in resolving it, or the judged commit's copy of one differs from
+`main`'s, the run pushes nothing and is red, naming those files, a renamed one
+by its old name and its new. No commit to `develop` and no session
 can clear that: it waits on a maintainer, who pushes `main` to the judged
 commit by hand, never forced, and re-runs the failed jobs of the run. The next
 run that moves `main`, or finds it already at the commit it judged, as that
