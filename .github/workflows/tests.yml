@@ -2,17 +2,44 @@ name: tests
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
   pull_request:
+
+concurrency:
+  group: ${{ github.event_name == 'push' && 'tests-develop' || format('tests-pull-request-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    # The suite forks child JVMs. One that hangs would otherwise run the job to GitHub's own
-    # six-hour limit, which reads as a stuck queue rather than as a failing test.
     timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      commit: ${{ steps.judged.outputs.commit }}
+      subject: ${{ steps.judged.outputs.subject }}
+      formatting: ${{ steps.formatting.outcome }}
+      tool-tests: ${{ steps.tool-tests.outcome }}
+      unit-tests: ${{ steps.unit-tests.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out develop's tip as it is now, or the pull request
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && 'refs/heads/develop' || github.ref }}
+          persist-credentials: false
+      - name: Name the judged commit
+        id: judged
+        run: |
+          commit=$(git rev-parse HEAD)
+          subject=$(git log -1 --format=%s HEAD | base64 -w0)
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "subject=$subject" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -21,17 +48,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # The tool tests open the field page in a browser, which has to be here to be opened.
-      # `--with-deps` installs the shared libraries Chromium needs, which the runner lacks.
-      - name: Browser for the page tests
+      - name: Browser for the page tests, with the shared libraries Chromium needs
         run: |
           npm ci --prefix tools/browser
           npx --prefix tools/browser playwright install --with-deps chromium
       - name: Java formatting (same command as local; fix with ./gradlew spotlessApply)
+        id: formatting
         run: ./gradlew spotlessCheck
       - name: Tool tests (same command as local)
+        id: tool-tests
         run: python3 tools/run_tests.py
       - name: Unit tests (same command as local)
+        id: unit-tests
         run: ./gradlew :TeamCode:testDebugUnitTest
       - name: Test report and simulation replays
         if: always()
@@ -42,3 +70,112 @@ jobs:
             TeamCode/build/test-results/testDebugUnitTest/*.xml
             TeamCode/build/sim/*.html
             tools/browser/field-as-drawn.png
+
+  promote:
+    needs: unit-tests
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      main-tip: ${{ steps.main.outputs.tip }}
+      lacking: ${{ steps.main.outputs.lacking }}
+      pushed: ${{ steps.push.outcome }}
+      git-said: ${{ steps.push.outputs.said }}
+    steps:
+      - name: Check out the judged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
+          fetch-depth: 0
+      - name: Find what main has that the judged commit lacks
+        id: main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          tip=$(git rev-parse refs/remotes/origin/main)
+          lacking=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
+          echo "tip=$tip" >> "$GITHUB_OUTPUT"
+          echo "lacking=$lacking" >> "$GITHUB_OUTPUT"
+      - name: Decide whether main moves
+        id: decide
+        env:
+          JUDGING_ENDED: ${{ needs.unit-tests.result }}
+          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          SUBJECT: ${{ needs.unit-tests.outputs.subject }}
+          FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
+          TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
+          UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
+          LACKING: ${{ steps.main.outputs.lacking }}
+        run: python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"
+      - name: Move main to the judged commit, never by force
+        id: push
+        if: steps.decide.outputs.decision == 'move'
+        env:
+          JUDGED: ${{ steps.decide.outputs.commit }}
+        run: |
+          pushed=0
+          git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?
+          cat "$RUNNER_TEMP/git-said"
+          said=$(base64 -w0 < "$RUNNER_TEMP/git-said")
+          echo "said=$said" >> "$GITHUB_OUTPUT"
+          exit "$pushed"
+      - name: Hold main where it was
+        if: steps.decide.outputs.decision != 'move'
+        run: exit 1
+
+  report:
+    needs: [unit-tests, promote]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the judged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
+          persist-credentials: false
+      - name: List the open issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title > "$RUNNER_TEMP/open-issues.json"
+      - name: Say what the run found
+        id: say
+        env:
+          JUDGING_ENDED: ${{ needs.unit-tests.result }}
+          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          SUBJECT: ${{ needs.unit-tests.outputs.subject }}
+          FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
+          TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
+          UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
+          PROMOTING_ENDED: ${{ needs.promote.result }}
+          MAIN_TIP: ${{ needs.promote.outputs.main-tip }}
+          LACKING: ${{ needs.promote.outputs.lacking }}
+          PUSHED: ${{ needs.promote.outputs.pushed }}
+          GIT_SAID: ${{ needs.promote.outputs.git-said }}
+        run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" "$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"
+      - name: Open the issue
+        if: steps.say.outputs.action == 'open'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.say.outputs.title }}
+        run: gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/issue-body.md"
+      - name: Comment on the open issue
+        if: steps.say.outputs.action == 'comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.say.outputs.issues }}
+        run: gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"
+      - name: Close the issue, saying main now stands at the judged commit
+        if: steps.say.outputs.action == 'close'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUES: ${{ steps.say.outputs.issues }}
+        run: |
+          for issue in $ISSUES; do
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY"
+          done
