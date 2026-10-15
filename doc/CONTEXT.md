@@ -1648,7 +1648,26 @@ so what stands in the bores stays as it was. Were the surroundings to refuse a
 tip, or the engine a ball, the flight says so to whatever stepped it or put the
 ball in, and a run stops there saying why, rather than a full cell staying
 upturned or a ball going missing. A flight is a value.
-Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
+A flight may carry Reginald's **launcher**, made with the frame it stands at and
+its wheel stopped; one with no robot has none, so it is never fed, stepped with a
+frame or carried, and flies as it always has, its work included. The launcher is
+a part of its own beside the hives and the bores: a rebuild for what stands in the
+bores keeps it, and a tip, which replaces the hives alone, never touches it, so a
+ball in it stays where it was through both. A flight that carries one is stepped
+only with the frame the tick ends at and the wheel's angular speed, and each tick's
+course begins exactly at the frame and time the last one ended at; a launcher that
+stands as it stood, at the same frame and not moving with its wheel turning as it
+did, is not replaced, so while its robot rests a flight comes out the same to the
+bit however its time is cut. Its motion wakes nothing it does not reach and costs
+nothing while nothing is awake, so a flight idles ahead past a robot driving where
+no ball is near its launcher. A ball is fed into it only if it is a pollen of the
+launcher's 1.39 in, and only while no ball lies within the two radii and the
+touching distance of the entry ("the launcher's entry is not clear"); it goes in
+at the entry with the feed and no spin, so balls fed as fast as that allows are
+thrown one at a time and never overlap. A teleport carries the launcher to its new
+frame at once, with no sweep, and the balls it holds go with it, lying and moving
+in it as they did; a tick that would sweep it there faster than a flight takes a
+ball is refused. Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
 tells the flight what the floor's own world has in the bores each step.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
@@ -2048,8 +2067,8 @@ command (**Simulated robot**). Classes: `Flywheel`, with `Flywheel.TicksPerTurn`
 
 **Launcher** — Reginald's flywheel and hood as a part of the **surroundings**, its
 faces **arcs** a ball meets by **compliant contact**, as stage 4 of
-`doc/plans/runtime-flight.md` gives them; no run uses it until stage 4c, when a
-**flight** holds it and feeds it. Its **frame** is the robot's pose turned by the
+`doc/plans/runtime-flight.md` gives them; a **flight** may carry it and feed it,
+though no run does until `SimRobot` gives its flight one. Its **frame** is the robot's pose turned by the
 **turntable**: a place within 10,000 in of the field's centre either way and a finite
 yaw, kept within half a turn either way; anything else is refused, saying which. In it,
 in inches with x forward, y to the left and z up from the floor, the flywheel's axle
@@ -2135,7 +2154,8 @@ a ball near enough a compliant part to be pushed by it, as **compliant contact**
 says), every query of its surroundings (asking what squeezes a ball among them), every
 check of a moving part's bounds and every placing of the parts in a step in which some
 body is awake once what the moving parts reach ahead of the step is woken; going idle,
-and a step in which nothing is then awake, are no work, so whether an engine idles
+a step in which nothing is then awake, and new surroundings a **flight**'s launcher
+gives it while nothing is then awake, are no work, so whether an engine idles
 through a stretch or steps through it never changes its work. A step can be given an
 **allowance**: so many units of work in each window of so many steps, the windows
 lying end to end from the first step. Once the work done since the first step the
