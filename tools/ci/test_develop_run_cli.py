@@ -27,7 +27,8 @@ def gathered(**changed):
 
 
 def reported(**changed):
-    handed = gathered(LOOKING_ENDED='success', PROMOTING_ENDED='success', MAIN_TIP=MAIN, DEVELOP_TIP=JUDGED,
+    handed = gathered(LOOKING_ENDED='success', PROMOTING_ENDED='success', MAIN_FOUND=MAIN, MAIN_TIP=JUDGED,
+                      DEVELOP_TIP=JUDGED,
                       PUSHED='success', GIT_SAID='',
                       GITHUB_SERVER_URL='https://github.com', GITHUB_REPOSITORY='th7/midnight-snackers',
                       GITHUB_RUN_ID='123456')
@@ -171,6 +172,20 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
         self.assertIn("develop's tip is now `%s`" % STRAY, self.body_written())
 
+    def test_a_green_run_after_main_moved_off_the_judged_commit_hands_the_workflow_the_issue_to_comment_on_naming_main_s_tip(self):
+        done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', MAIN_TIP=STRAY)
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
+        self.assertIn("main's tip is now `%s`" % STRAY, self.body_written())
+
+    def test_a_red_run_says_main_stays_where_the_job_that_says_read_its_tip_not_where_the_look_found_it(self):
+        done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure', MAIN_TIP=STRAY,
+                           GIT_SAID=b64(' ! [rejected] %s -> main (fetch first)\n' % JUDGED))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertIn('main stays where it was, at `%s`.' % STRAY, self.body_written())
+
     def test_a_run_that_left_main_where_it_was_ahead_hands_the_workflow_nothing_to_do_and_no_body(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
                            MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY))
@@ -195,7 +210,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertIn('git push origin %s:refs/heads/main' % JUDGED, self.body_written())
 
     def test_a_report_not_handed_what_the_look_at_main_found_fails_naming_it_and_hands_nothing(self):
-        for name in ('WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING', 'LOOKING_ENDED', 'DEVELOP_TIP'):
+        for name in ('WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING', 'LOOKING_ENDED', 'MAIN_FOUND', 'MAIN_TIP', 'DEVELOP_TIP'):
             environ = reported()
             del environ[name]
             with open(self.open_issues, 'w') as written:
@@ -207,7 +222,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
             self.assertIn(name, done.stderr)
 
     def test_a_run_whose_look_at_main_ended_before_it_found_main_says_so(self):
-        done = self.report('[]', LOOKING_ENDED='failure', MAIN_TIP='', PROMOTING_ENDED='failure', PUSHED='skipped')
+        done = self.report('[]', LOOKING_ENDED='failure', MAIN_FOUND='', PROMOTING_ENDED='failure', PUSHED='skipped')
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertTrue(done.stdout.startswith('action=open\ntitle=IMPORTANT: develop CI Failures\nbody='), done.stdout)

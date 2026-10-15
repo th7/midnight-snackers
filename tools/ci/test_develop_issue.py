@@ -46,8 +46,8 @@ def failed():
     return judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE)
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED):
-    return Looked(run.commit_hash(MAIN), run.commit_hash(develop), tuple(lacking), tuple(ahead),
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED, main=MAIN):
+    return Looked(run.commit_hash(main), run.commit_hash(develop), tuple(lacking), tuple(ahead),
                   run.Workflows(run.WorkflowFiles(tuple(workflows)), run.WorkflowFiles(tuple(workflows))), pushed, said,
                   ended if ended is not None else Outcome.SUCCESS if pushed is Outcome.SUCCESS else Outcome.FAILURE)
 
@@ -86,22 +86,41 @@ class WhichIssueIsTouched(unittest.TestCase):
         self.assertIsInstance(issues.issue_action(failed(), held(), others, link()), Open)
 
     def test_a_green_run_closes_every_issue_so_titled(self):
-        action = issues.issue_action(judged(), looked(), (issue(41), issue(12), issue(7, 'Launch Sim')), link())
+        action = issues.issue_action(judged(), looked(main=JUDGED), (issue(41), issue(12), issue(7, 'Launch Sim')),
+                                     link())
 
         self.assertIsInstance(action, Close)
         self.assertEqual((12, 41), action.issues)
 
     def test_a_green_run_whose_judged_commit_is_no_longer_develop_s_tip_comments_on_the_issue_and_leaves_it_open(self):
-        action = issues.issue_action(judged(), looked(develop=LATER), (issue(41), issue(12)), link())
+        action = issues.issue_action(judged(), looked(main=JUDGED, develop=LATER), (issue(41), issue(12)), link())
 
-        self.assertEqual(CommentOn(12, 'develop was judged green at `%s` `%s`, and main now stands there, but develop\'s '
-                                       'tip is now `%s`, which this run did not judge, so this issue stays open until a run '
-                                       'that judges develop\'s tip closes it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
+        self.assertEqual(CommentOn(12, "develop was judged green at `%s` `%s`, and this run moved main there, but "
+                                       "develop's tip is now `%s`, which this run did not judge, and a run closes this "
+                                       "issue only when it finds develop's tip and main's both at the commit it judged, "
+                                       'so this run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
                          action)
 
-    def test_a_green_run_behind_develop_s_tip_with_no_issue_open_leaves_issues_alone(self):
-        self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(develop=LATER), (issue(7, 'Launch Sim'),),
-                                                           link()))
+    def test_a_green_run_whose_judged_commit_is_no_longer_main_s_tip_comments_on_the_issue_naming_main_s_tip_and_leaves_it_open(self):
+        action = issues.issue_action(judged(), looked(main=STRAY), (issue(41), issue(12)), link())
+
+        self.assertEqual(CommentOn(12, "develop was judged green at `%s` `%s`, and this run moved main there, but "
+                                       "main's tip is now `%s`, which this run did not judge, and a run closes this "
+                                       "issue only when it finds develop's tip and main's both at the commit it judged, "
+                                       'so this run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, STRAY, RUN)),
+                         action)
+
+    def test_a_green_run_whose_judged_commit_is_neither_tip_any_more_names_both(self):
+        body = issues.issue_action(judged(), looked(main=STRAY, develop=LATER), (issue(12),), link()).body
+
+        self.assertIn("but develop's tip is now `%s` and main's tip is now `%s`, which this run did not judge"
+                      % (LATER, STRAY), body)
+        self.assertNotIn('main now stands there', body)
+
+    def test_a_green_run_no_longer_at_both_tips_with_no_issue_open_leaves_issues_alone(self):
+        for main, develop in ((JUDGED, LATER), (STRAY, JUDGED), (STRAY, LATER)):
+            self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(main=main, develop=develop),
+                                                               (issue(7, 'Launch Sim'),), link()), (main, develop))
 
     def test_a_run_that_left_main_where_it_already_had_later_commits_of_develop_leaves_the_issue_alone(self):
         later = commit(STRAY, 'A later commit of develop')
@@ -111,7 +130,8 @@ class WhichIssueIsTouched(unittest.TestCase):
                                                            (issue(12),), link()))
 
     def test_a_green_run_with_no_issue_open_leaves_issues_alone(self):
-        self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(), (issue(7, 'Launch Sim'),), link()))
+        self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(main=JUDGED), (issue(7, 'Launch Sim'),),
+                                                           link()))
 
 
 class WhatTheIssueSays(unittest.TestCase):
@@ -186,7 +206,10 @@ class WhatTheIssueSays(unittest.TestCase):
         self.assertIn(RUN, body)
 
     def test_a_green_run_says_which_commit_was_judged_green_and_that_main_now_stands_there(self):
-        body = issues.issue_action(judged(), looked(), (issue(12),), link()).body
+        action = issues.issue_action(judged(), looked(main=JUDGED), (issue(12),), link())
+        body = action.body
+
+        self.assertIsInstance(action, Close)
 
         self.assertIn('develop was judged green at `%s` `%s`' % (JUDGED, SUBJECT), body)
         self.assertIn('main now stands there', body)
@@ -219,13 +242,13 @@ class WhatTheIssueSays(unittest.TestCase):
             strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
             green_long = run.judgement('success', JUDGED, b64(endless), texts())
             bodies = [issues.issue_action(judged_long, promoting, (), link()).body for promoting in (
-                run.promoting('failure', MAIN, JUDGED, strays, '', '', '', 'failure', 'skipped', ''),
-                run.promoting('success', MAIN, JUDGED, '', '', '', '', 'failure', 'failure', b64(endless)),
-                run.promoting('failure', MAIN, JUDGED, '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
+                run.promoting('failure', MAIN, MAIN, JUDGED, strays, '', '', '', 'failure', 'skipped', ''),
+                run.promoting('success', MAIN, MAIN, JUDGED, '', '', '', '', 'failure', 'failure', b64(endless)),
+                run.promoting('failure', MAIN, MAIN, JUDGED, '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
                                                                    for n in range(1, 61))), '', 'failure', 'skipped', ''),
-                run.promoting('failure', MAIN, JUDGED, '', '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
+                run.promoting('failure', MAIN, MAIN, JUDGED, '', '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
                                                                        for n in range(1, 61))), 'failure', 'skipped', ''))]
-            bodies.append(issues.issue_action(green_long, looked(), (issue(12),), link()).body)
+            bodies.append(issues.issue_action(green_long, looked(main=JUDGED), (issue(12),), link()).body)
 
             for body in bodies:
                 self.assertLess(len(body.encode('utf-8')), issues.BODY_AT_MOST,

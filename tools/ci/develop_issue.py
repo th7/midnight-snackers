@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 import develop_run as run
-from develop_run import Green, GreenBehindDevelop, Judged, Looked, Rejected, Stayed, Validated
+from develop_run import Green, GreenButMovedOn, Judged, Looked, Rejected, Stayed, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
 BODY_AT_MOST = 65536
@@ -119,10 +119,16 @@ def green_body(found, link):
         run.named(found.commit), link.url)
 
 
-def green_behind_body(found, link):
-    return ("develop was judged green at %s, and main now stands there, but develop's tip is now %s, which this run did "
-            "not judge, so this issue stays open until a run that judges develop's tip closes it.\n\nThe run: %s\n" % (
-                run.named(found.commit), run.code_span(found.develop_tip.text), link.url))
+def tips_moved_on(found):
+    moved = ((("develop's tip", found.develop_tip),) if found.develop_tip != found.commit.hash else ()) + (
+        (("main's tip", found.main_tip),) if found.main_tip != found.commit.hash else ())
+    return ' and '.join('%s is now %s' % (which, run.code_span(tip.text)) for which, tip in moved)
+
+
+def moved_on_body(found, link):
+    return ("develop was judged green at %s, and this run moved main there, but %s, which this run did not judge, "
+            "and a run closes this issue only when it finds develop's tip and main's both at the commit it judged, so "
+            'this run does not close it.\n\nThe run: %s\n' % (run.named(found.commit), tips_moved_on(found), link.url))
 
 
 def issue_action(judgement, promoting, listed, link):
@@ -132,8 +138,8 @@ def issue_action(judgement, promoting, listed, link):
         return LeaveAlone()
     if isinstance(found, Green):
         return Close(ours, green_body(found, link)) if ours else LeaveAlone()
-    if isinstance(found, GreenBehindDevelop):
-        return CommentOn(ours[0], green_behind_body(found, link)) if ours else LeaveAlone()
+    if isinstance(found, GreenButMovedOn):
+        return CommentOn(ours[0], moved_on_body(found, link)) if ours else LeaveAlone()
     body = red_body(judgement, found, link)
     return CommentOn(ours[0], body) if ours else Open(TITLE, body)
 

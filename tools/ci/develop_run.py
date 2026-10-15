@@ -31,6 +31,8 @@ A_REFUSED_PUSH_NAMES_ITS_COMMIT = 'a refused push names the commit it pushed'
 A_HOLD_OVER_WORKFLOWS_NAMES_THEM = ('a hold for a maintainer over workflows names the judged commit and at least one '
                                     'workflow file the commits since main change or main and the judged commit differ '
                                     'in')
+A_GREEN_RUN_MOVED_ON_FROM_ONE_TIP_AT_LEAST = ("a green run that moved on names the judged commit, main's tip and "
+                                              "develop's tip, at least one of the two not the judged commit")
 THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fetch origin && git merge origin/main`, '
                            'and push that merge to develop as it is, without a rebase, which would drop it.')
 
@@ -322,9 +324,17 @@ class Green:
 
 
 @dataclass(frozen=True)
-class GreenBehindDevelop:
+class GreenButMovedOn(Validated):
     commit: Commit
+    main_tip: CommitHash
     develop_tip: CommitHash
+
+    @staticmethod
+    def broken(commit, main_tip, develop_tip):
+        if (not isinstance(commit, Commit) or not all_of(CommitHash, (main_tip, develop_tip))
+                or main_tip == develop_tip == commit.hash):
+            return A_GREEN_RUN_MOVED_ON_FROM_ONE_TIP_AT_LEAST
+        return None
 
 
 @dataclass(frozen=True)
@@ -467,15 +477,16 @@ def workflows(changed_base64, differing_base64):
     return Workflows(changed, differing)
 
 
-def promoting(looking_text, main_tip_text, develop_tip_text, lacking_base64, ahead_base64, changed_base64,
+def promoting(looking_text, found_text, main_tip_text, develop_tip_text, lacking_base64, ahead_base64, changed_base64,
               differing_base64, ended_text, pushed_text, said_base64):
     looking = outcome(looking_text)
     ended = outcome(ended_text)
     rejected = first_rejected(looking, ended)
     if rejected is not None:
         return rejected
-    if main_tip_text == '':
+    if found_text == '':
         return NeverLooked(looking)
+    found = commit_hash(found_text)
     main_tip = commit_hash(main_tip_text)
     develop_tip = commit_hash(develop_tip_text)
     lacking = listed_commits(lacking_base64)
@@ -483,7 +494,7 @@ def promoting(looking_text, main_tip_text, develop_tip_text, lacking_base64, ahe
     found_workflows = workflows(changed_base64, differing_base64)
     pushed = outcome(pushed_text)
     said = decoded(said_base64)
-    rejected = first_rejected(main_tip, develop_tip, lacking, ahead, found_workflows, pushed, said)
+    rejected = first_rejected(found, main_tip, develop_tip, lacking, ahead, found_workflows, pushed, said)
     if rejected is not None:
         return rejected
     return Looked(main_tip, develop_tip, lacking, ahead, found_workflows, pushed, shown_said(said), ended)
@@ -524,10 +535,11 @@ def verdict(judgement_read, promoting_read):
         return Red(decided.findings, promoting_read)
     if isinstance(decided, Stay):
         return Stayed(decided.commit)
-    if promoting_read.pushed is Outcome.SUCCESS and promoting_read.develop_tip == decided.commit.hash:
+    at_both_tips = promoting_read.main_tip == decided.commit.hash and promoting_read.develop_tip == decided.commit.hash
+    if promoting_read.pushed is Outcome.SUCCESS and at_both_tips:
         return Green(decided.commit)
     if promoting_read.pushed is Outcome.SUCCESS:
-        return GreenBehindDevelop(decided.commit, promoting_read.develop_tip)
+        return GreenButMovedOn(decided.commit, promoting_read.main_tip, promoting_read.develop_tip)
     if promoting_read.pushed is Outcome.FAILURE:
         return Red((MainRefusedThePush(decided.commit, promoting_read.said),), promoting_read)
     return Red((PromotingEnded(promoting_read.ended),), promoting_read)
@@ -612,8 +624,8 @@ def held_for_a_maintainer(found):
            'maintainer, who pushes main to %s by hand with a credential that may update workflows, a plain push, '
            'never forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at '
            'main, move it and write this issue too: the re-run finds main at the commit this run judged and closes '
-           "this issue if that commit is still develop's tip, or says here that develop has moved on and leaves this "
-           'issue to a run that judges its tip.' % (
+           "this issue if that commit is still both develop's tip and main's, or otherwise says here where they stand "
+           'and does not close it.' % (
                judged, fenced('git push origin %s:refs/heads/main' % found.commit.hash.text)),))
 
 
