@@ -17,6 +17,7 @@ WORKFLOW = os.path.join(REPO, '.github', 'workflows', 'tests.yml')
 FOR_DEVELOP_ONLY = "${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}"
 JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}"
 CHECKOUT_KEEPS_ITS_TOKEN = 'https://github.com/actions/checkout/blob/v4/src/git-auth-helper.ts'
+SECRETS_CONTEXT = 'https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context'
 JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
                          'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
                          'SUBJECT': '${{ needs.unit-tests.outputs.subject }}'},
@@ -166,9 +167,18 @@ class WhatARunJudges(WorkflowTest):
                           'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0'}},
                          steps_of(self.jobs['promote'])[0])
 
-    def test_nothing_in_the_workflow_reads_a_secret(self):
+    def test_nothing_in_the_workflow_reads_a_secret_in_any_form(self):
         with open(WORKFLOW, encoding='utf-8') as text:
-            self.assertNotIn('secrets.', text.read())
+            self.assertEqual([], re.findall(r'.*\bsecrets\b.*', text.read()),
+                             'no step reads a secret, and an expression reaches the secrets context as secrets.NAME, '
+                             "as secrets['NAME'] or whole (%s)" % SECRETS_CONTEXT)
+
+    def test_the_workflow_and_each_job_hold_exactly_their_keys_so_no_env_or_environment_is_added_unseen(self):
+        self.assertEqual(['name', 'on', 'concurrency', 'permissions', 'defaults', 'jobs'], list(self.workflow))
+        self.assertEqual({'unit-tests': ['runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
+                          'promote': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'outputs', 'steps'],
+                          'report': ['needs', 'if', 'runs-on', 'timeout-minutes', 'permissions', 'steps']},
+                         {name: list(job) for name, job in self.jobs.items()})
 
     def test_no_job_names_an_environment(self):
         self.assertEqual({}, {name: job['environment'] for name, job in self.jobs.items() if 'environment' in job})
