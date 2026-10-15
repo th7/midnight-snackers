@@ -52,6 +52,25 @@ class CommentOn:
 
 
 @dataclass(frozen=True)
+class CommentDevelopMovedOn(Validated):
+    issue: int
+    found: GreenButMovedOn
+    link: RunLink
+
+    @staticmethod
+    def broken(issue, found, link):
+        if (type(issue) is not int or issue < 1 or not isinstance(found, GreenButMovedOn)
+                or not isinstance(link, RunLink)):
+            return ('the word that develop moved on goes on an open issue, numbered from 1 up, for a green run whose '
+                    'develop moved on, linking that run, never %r' % ((issue, found, link),))
+        return None
+
+    @property
+    def body(self):
+        return moved_on_body(self.found, self.link)
+
+
+@dataclass(frozen=True)
 class Close:
     issues: tuple
     body: str
@@ -160,7 +179,7 @@ def issue_action(judgement, promoting, listed, link):
     if isinstance(found, Green):
         return Close(ours, green_body(found, link)) if ours else LeaveAlone()
     if isinstance(found, GreenButMovedOn):
-        return CommentOn(ours[0], moved_on_body(found, link)) if ours else LeaveAlone()
+        return CommentDevelopMovedOn(ours[0], found, link) if ours else LeaveAlone()
     body = red_body(judgement, found, link)
     return CommentOn(ours[0], body) if ours else Open(TITLE, body)
 
@@ -182,6 +201,8 @@ def action_outputs(action):
         return 'action=open\ntitle=%s\n' % action.title + body_output(action.body)
     if isinstance(action, CommentOn):
         return 'action=comment\nissues=%d\n' % action.issue + body_output(action.body)
+    if isinstance(action, CommentDevelopMovedOn):
+        return 'action=moved-on\nissues=%d\n' % action.issue + body_output(action.body)
     if isinstance(action, Close):
         return 'action=close\nissues=%s\n' % ' '.join(str(number) for number in action.issues) + body_output(action.body)
     return 'action=none\n'

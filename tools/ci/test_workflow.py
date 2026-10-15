@@ -42,6 +42,9 @@ HOLDS = ("Fail unless develop holds main's tip as both are now, as GitHub compar
 MOVED_OFF_DEVELOP = ('Fail once main has moved since the job that looks found it to a tip this job could not find in '
                      'develop, pushing nothing and saying so')
 COMPARE = 'gh api --method GET "repos/$GITHUB_REPOSITORY/compare/$MAIN...$DEVELOP" --jq .status'
+MOVED_ON = ('Comment on the open issue that develop moved on past the commit judged green, only when no step before '
+            'failed')
+FALLING_BACK = 'Open or comment on the issue saying only that the run is red, when nothing else said so'
 COMPARE_STATUS = 'https://docs.github.com/en/rest/commits/commits#compare-two-commits'
 FELL_BACK = ('A run for develop is red, and the jobs that say why could not, so only the run itself says what failed: '
              'https://github.com/th7/midnight-snackers/actions/runs/123456')
@@ -86,6 +89,15 @@ FAKE_GH = '\n'.join((
     "if compared is not None and 'GH_COMPARE' in os.environ:",
     "    sys.stdout.write(os.environ['GH_COMPARE'])",
     ''))
+
+
+def core_word_for_develop_moved_on():
+    judgement = run.judgement('success', JUDGED_HASH, base64.b64encode(b'Tune the arm\n').decode('ascii'),
+                              tuple('success' for _ in run.STEPS))
+    promoting = run.promoting('success', STRAY_HASH, JUDGED_HASH, LATER_HASH, '', '', '', '', 'success', 'success', '')
+    action = issues.issue_action(judgement, promoting, (issues.OpenIssue(12, issues.TITLE),),
+                                 issues.run_link('https://github.com', 'th7/midnight-snackers', '123456'))
+    return issues.action_outputs(action).split('\n')[0].split('=')[1]
 
 
 def read_workflow():
@@ -390,6 +402,7 @@ class WhatARunJudges(WorkflowTest):
                         ('holds', HOLDS),
                         ('open', 'Open the issue'),
                         ('comment', 'Comment on the open issue'),
+                        ('moved-on', MOVED_ON),
                         ('close', "Close the issue, saying main now stands at the judged commit, only when every job "
                                   "before passed and that commit is still both develop's tip and main's"),
                         ('behind', "Say on the issue where develop's tip and main's now stand, when every job before "
@@ -397,7 +410,7 @@ class WhatARunJudges(WorkflowTest):
                         ('moved', 'Write nothing to the issue once main has moved since this run looked at it, saying '
                                   "so, when every job before passed, the core said close and main's tip is not the "
                                   'judged commit'),
-                        (None, 'Open or comment on the issue saying only that the run is red, when nothing else did')]},
+                        (None, FALLING_BACK)]},
             {name: [(step.get('id'), step.get('name')) for step in steps_of(self.jobs[name])]
              for name in ('look', 'promote', 'say', 'report')})
 
@@ -1038,7 +1051,7 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         calls = self.gh_calls()
 
         self.assertEqual((judged_commit, broken), self.where_main_and_develop_stand())
-        self.assertEqual(('move', 'success', 'comment'), (rerun['look']['outputs']['decision'],
+        self.assertEqual(('move', 'success', 'moved-on'), (rerun['look']['outputs']['decision'],
                                                           rerun['promote']['outputs']['pushed'],
                                                           rerun['say']['outputs']['action']))
         self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file', 'issue-body.md', '--', '12',
@@ -1106,7 +1119,7 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         calls = self.gh_calls()
 
         self.assertEqual((tuned, broken), self.where_main_and_develop_stand())
-        self.assertEqual(('success', 'comment'), (rerun['promote']['result'], rerun['say']['outputs']['action']))
+        self.assertEqual(('success', 'moved-on'), (rerun['promote']['result'], rerun['say']['outputs']['action']))
         self.assertEqual([], [call for call in calls if call[:2] == ['issue', 'close']])
         commented = [call for call in calls if call[:2] == ['issue', 'comment']]
         self.assertEqual(1, len(commented), calls)
@@ -1211,6 +1224,64 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         self.assertEqual(([self.red_comment_on_12()], 'failure', 'failure', 'success'),
                          (self.issue_writes(calls), ended['report']['result'],
                           ended['report']['steps'].get('holds', 'absent'), self.fallback_of(ended['report'])))
+
+    def develop_moved_on_before_the_job_that_writes_the_issue(self, strayed):
+        self.git(self.work, 'checkout', '-q', '-b', 'develop')
+        tuned = self.commit('Tune the arm', {'arm.txt': 'tuned\n'})
+        self.push('develop')
+        runner = self.checked_out(tuned)
+        ended = self.jobs_ran(('look', 'promote'), runner, {'unit-tests': self.judging(tuned, 'Tune the arm')})
+        named = self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.push('develop')
+        ended = self.jobs_ran(('say',), runner, ended)
+        main = self.stray_on_main() if strayed else tuned
+        self.assertEqual((main, named), self.where_main_and_develop_stand())
+        self.assertEqual(('move', 'success', 'success', 'success'),
+                         (ended['look']['outputs']['decision'], ended['promote']['outputs']['pushed'],
+                          ended['promote']['result'], ended['say']['result']))
+        self.gh_calls()
+        return ended, runner
+
+    def reported_after_develop_moved_on(self, ended, runner):
+        reported = self.jobs_ran(('report',), runner, ended)['report']
+        return (self.issue_writes(self.gh_calls()), ended['say']['outputs']['action'], reported['result'],
+                tuple(reported['steps'].get(key, 'absent') for key in ('develop', 'holds', 'comment', 'moved-on'))
+                + (self.fallback_of(reported),))
+
+    def test_a_green_run_whose_develop_moved_on_before_the_job_that_says_read_it_says_so_on_the_issue_and_ends_green(self):
+        ended, runner = self.develop_moved_on_before_the_job_that_writes_the_issue(strayed=False)
+        tuned, named = self.where_main_and_develop_stand()
+
+        self.assertEqual(([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file', 'issue-body.md', '--',
+                            '12', "develop was judged green at `%s` `Tune the arm`, and this run moved main there, but "
+                                  "develop's tip is now `%s`, which this run did not judge, and a run closes this issue "
+                                  "only when it finds develop's tip and main's both at the commit it judged, so this run "
+                                  'does not close it.\n\nThe run: https://github.com/th7/midnight-snackers/actions/runs/'
+                                  '123456\n' % (tuned, named)]],
+                          'moved-on', 'success', ('success', 'success', 'skipped', 'success', 'skipped')),
+                         self.reported_after_develop_moved_on(ended, runner))
+
+    def test_a_commit_that_reaches_main_by_itself_after_the_job_that_says_found_develop_moved_on_turns_the_run_red_saying_only_that_on_the_issue(self):
+        ended, runner = self.develop_moved_on_before_the_job_that_writes_the_issue(strayed=True)
+
+        self.assertEqual(([self.red_comment_on_12()], 'moved-on', 'failure',
+                          ('success', 'failure', 'skipped', 'skipped', 'success')),
+                         self.reported_after_develop_moved_on(ended, runner))
+
+    def red_when_the_job_that_writes_the_issue_cannot_read_a_tip_after_develop_moved_on(self, strayed):
+        ended, runner = self.develop_moved_on_before_the_job_that_writes_the_issue(strayed)
+        self.on_runner['GH_API_FAILS'] = '1'
+        reported = self.reported_after_develop_moved_on(ended, runner)
+        del self.on_runner['GH_API_FAILS']
+
+        self.assertEqual(([self.red_comment_on_12()], 'moved-on', 'failure',
+                          ('failure', 'skipped', 'skipped', 'skipped', 'success')), reported)
+
+    def test_a_job_that_writes_the_issue_and_cannot_read_develop_s_tip_after_the_job_that_says_found_develop_moved_on_turns_the_run_red_saying_only_that_on_the_issue(self):
+        self.red_when_the_job_that_writes_the_issue_cannot_read_a_tip_after_develop_moved_on(strayed=False)
+
+    def test_a_job_that_writes_the_issue_and_cannot_read_develop_s_tip_after_develop_moved_on_and_a_commit_reached_main_by_itself_turns_the_run_red_saying_only_that_on_the_issue(self):
+        self.red_when_the_job_that_writes_the_issue_cannot_read_a_tip_after_develop_moved_on(strayed=True)
 
     def red_comment_on_12(self):
         return ['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body', FELL_BACK, '--', '12']
@@ -1544,7 +1615,7 @@ class HowTheIssueIsWritten(WorkflowTest):
 
     def test_each_issue_action_the_core_hands_on_is_carried_out_by_one_step_that_does_only_that(self):
         report = self.jobs['report']
-        carried = [step for step in steps_of(report) if step.get('id') in ('open', 'comment', 'close')]
+        carried = [step for step in steps_of(report) if step.get('id') in ('open', 'comment', 'moved-on', 'close')]
         handed = [issues.action_outputs(action).split('\n')[0].split('=')[1] for action in
                   (issues.Open(issues.TITLE, ''), issues.CommentOn(1, ''), issues.Close((1,), ''))]
         body = 'base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"\n'
@@ -1560,6 +1631,13 @@ class HowTheIssueIsWritten(WorkflowTest):
              {'name': 'Comment on the open issue',
               'id': 'comment',
               'if': "${{ !cancelled() && needs.say.outputs.action == '%s' }}" % handed[1],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUE': '${{ needs.say.outputs.issues }}',
+                      'BODY': '${{ needs.say.outputs.body }}'},
+              'run': body + 'gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" '
+                            '-- "$ISSUE"\n'},
+             {'name': MOVED_ON,
+              'id': 'moved-on',
+              'if': "needs.say.outputs.action == '%s'" % core_word_for_develop_moved_on(),
               'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUE': '${{ needs.say.outputs.issues }}',
                       'BODY': '${{ needs.say.outputs.body }}'},
               'run': body + 'gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" '
@@ -1619,7 +1697,7 @@ class HowTheIssueIsWritten(WorkflowTest):
         falling_back = steps_of(self.jobs['report'])[-1]
 
         self.assertEqual(
-            {'name': 'Open or comment on the issue saying only that the run is red, when nothing else did',
+            {'name': FALLING_BACK,
              'if': "${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && "
                    "(failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || "
                    "needs.promote.result != 'success' || needs.say.result != 'success') }}",
@@ -1641,7 +1719,7 @@ class HowTheIssueIsWritten(WorkflowTest):
 
 class WhatReachesTheIssue(WorkflowTest):
     RESULTS = ('success', 'failure', 'cancelled', 'skipped', '')
-    ACTIONS = ('open', 'comment', 'close', 'none', '', 'anything else')
+    ACTIONS = ('open', 'comment', 'moved-on', 'close', 'none', '', 'anything else')
     TIPS = (JUDGED_HASH, LATER_HASH)
     TIPS_READ = tuple(itertools.product(TIPS, repeat=2))
     GREEN = ('success',) * 4
@@ -1663,7 +1741,8 @@ class WhatReachesTheIssue(WorkflowTest):
 
     def reported(self, results, action, tip=JUDGED_HASH, failing=(), main=JUDGED_HASH):
         steps, _ = self.report_ran(results, action, tip, failing, main)
-        return {'open': steps['open'], 'comment': steps['comment'], 'read': steps.get('develop', 'absent'),
+        return {'open': steps['open'], 'comment': steps['comment'], 'moved-on': steps.get('moved-on', 'absent'),
+                'read': steps.get('develop', 'absent'),
                 'read main': steps.get('main', 'absent'), 'holds': steps.get('holds', 'absent'),
                 'close': steps[key_of(self.closing())],
                 'behind': steps.get('behind', 'absent'), 'moved': steps.get('moved', 'absent'),
@@ -1685,7 +1764,7 @@ class WhatReachesTheIssue(WorkflowTest):
     def test_a_green_run_closes_the_issue_when_the_core_says_close_and_develop_s_tip_and_main_s_are_still_the_judged_commit(self):
         self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
                           'holds': 'success', 'close': 'success', 'behind': 'skipped', 'moved': 'skipped',
-                          'fallback': 'skipped'},
+                          'moved-on': 'skipped', 'fallback': 'skipped'},
                          self.reported(self.GREEN, 'close'))
 
     def test_no_run_closes_the_issue_once_develop_s_tip_as_the_job_that_writes_it_reads_it_has_moved_on_whatever_say_said(self):
@@ -1705,14 +1784,14 @@ class WhatReachesTheIssue(WorkflowTest):
     def test_a_green_run_the_core_said_to_close_for_says_on_the_issue_where_develop_and_main_stand_once_develop_alone_moved_off_the_judged_commit(self):
         self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
                           'holds': 'success', 'close': 'skipped', 'behind': 'success', 'moved': 'skipped',
-                          'fallback': 'skipped'},
+                          'moved-on': 'skipped', 'fallback': 'skipped'},
                          self.reported(self.GREEN, 'close', LATER_HASH, main=JUDGED_HASH))
 
     def test_a_green_run_the_core_said_to_close_for_writes_nothing_to_the_issue_and_says_so_in_its_log_once_main_moved_off_the_judged_commit(self):
         for tip in self.TIPS:
             self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
                               'holds': 'success', 'close': 'skipped', 'behind': 'skipped', 'moved': 'success',
-                              'fallback': 'skipped'},
+                              'moved-on': 'skipped', 'fallback': 'skipped'},
                              self.reported(self.GREEN, 'close', tip, main=LATER_HASH), tip)
 
     def test_a_run_says_where_develop_and_main_stand_only_when_every_job_passed_the_core_said_close_and_develop_alone_moved_off_the_judged_commit(self):
@@ -1760,7 +1839,7 @@ class WhatReachesTheIssue(WorkflowTest):
 
                     self.assertEqual('failure', ended, (results, action, failing))
 
-    def test_open_and_comment_carry_out_what_the_core_said_whatever_became_of_the_check_that_develop_holds_main_s_tip(self):
+    def test_open_and_the_red_comment_carry_out_what_the_core_said_whatever_became_of_the_check_that_develop_holds_main_s_tip(self):
         for results in self.green_and_each_job_off_alone():
             for action in self.ACTIONS:
                 for failing in ((),) + self.GUARD:
@@ -1781,7 +1860,7 @@ class WhatReachesTheIssue(WorkflowTest):
                                          (reported['close'], reported['behind'], reported['moved']),
                                          (results, action, tip, main, failing))
 
-    def test_a_run_whose_check_that_develop_holds_main_s_tip_failed_says_on_the_issue_that_it_is_red_when_nothing_else_wrote(self):
+    def test_a_run_whose_check_that_develop_holds_main_s_tip_failed_says_on_the_issue_that_it_is_red_unless_the_core_s_open_or_red_comment_went_through(self):
         for results in self.green_and_each_job_off_alone():
             for action in self.ACTIONS:
                 for guard in self.GUARD:
@@ -1791,6 +1870,25 @@ class WhatReachesTheIssue(WorkflowTest):
 
                         self.assertEqual('skipped' if wrote else 'success', reported['fallback'],
                                          (results, action, guard, failing))
+
+    def test_a_green_run_the_core_said_develop_moved_on_for_says_so_on_the_issue_by_a_step_of_its_own_and_ends_green(self):
+        said = core_word_for_develop_moved_on()
+
+        self.assertEqual(({'open': 'skipped', 'comment': 'skipped', 'moved-on': 'success', 'read': 'success',
+                           'read main': 'success', 'holds': 'success', 'close': 'skipped', 'behind': 'skipped',
+                           'moved': 'skipped', 'fallback': 'skipped'}, 'success'),
+                         (self.reported(self.GREEN, said, LATER_HASH), self.report_ran(self.GREEN, said, LATER_HASH)[1]))
+
+    def test_no_run_says_on_the_issue_that_develop_moved_on_once_a_read_of_develop_or_main_or_the_check_that_develop_holds_main_s_tip_failed_saying_instead_that_the_run_is_red(self):
+        for said in sorted({core_word_for_develop_moved_on(), 'moved-on'}):
+            for results in self.green_and_each_job_off_alone():
+                for tip, main in self.TIPS_READ:
+                    for failing in self.GUARD:
+                        reported = self.reported(results, said, tip, failing, main)
+
+                        self.assertEqual(('skipped', 'skipped', 'skipped', 'success'),
+                                         (reported['open'], reported['comment'], reported['moved-on'],
+                                          reported['fallback']), (said, results, tip, main, failing))
 
     def test_a_red_run_writes_to_the_issue_whatever_the_core_said_or_failed_to_say(self):
         for results in self.every_red():
@@ -1805,11 +1903,11 @@ class WhatReachesTheIssue(WorkflowTest):
         for results in self.every_red():
             self.assertEqual({'open': 'success', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
                               'holds': 'success', 'close': 'skipped', 'behind': 'skipped', 'moved': 'skipped',
-                              'fallback': 'skipped'},
+                              'moved-on': 'skipped', 'fallback': 'skipped'},
                              self.reported(results, 'open'))
             self.assertEqual({'open': 'skipped', 'comment': 'success', 'read': 'success', 'read main': 'success',
                               'holds': 'success', 'close': 'skipped', 'behind': 'skipped', 'moved': 'skipped',
-                              'fallback': 'skipped'},
+                              'moved-on': 'skipped', 'fallback': 'skipped'},
                              self.reported(results, 'comment'))
 
     def test_a_green_run_never_says_it_is_red(self):
@@ -1818,8 +1916,11 @@ class WhatReachesTheIssue(WorkflowTest):
                 self.assertEqual('skipped', self.reported(self.GREEN, action, tip, main=main)['fallback'],
                                  (action, tip, main))
 
-    def test_a_green_run_whose_close_word_of_where_develop_and_main_stand_or_log_that_main_moved_failed_says_it_is_red(self):
+    def test_a_green_run_whose_close_word_that_develop_moved_on_word_of_where_develop_and_main_stand_or_log_that_main_moved_failed_says_it_is_red(self):
         self.assertEqual('success', self.reported(self.GREEN, 'close', failing=('close',))['fallback'])
+        self.assertEqual(('failure', 'success'),
+                         tuple(self.reported(self.GREEN, core_word_for_develop_moved_on(), LATER_HASH,
+                                             failing=('moved-on',))[key] for key in ('moved-on', 'fallback')))
         self.assertEqual('success',
                          self.reported(self.GREEN, 'close', LATER_HASH, failing=('behind',), main=JUDGED_HASH)['fallback'])
         for tip in self.TIPS:
@@ -1882,9 +1983,10 @@ class WhatTheIssueStepsHandGh(WorkflowTest):
         self.assertEqual([['issue', 'create', '--repo', 'th7/midnight-snackers', '--title', issues.TITLE, '--body-file',
                            os.path.join(self.where.name, 'issue-body.md'), body]],
                          self.ran(step_named(report, 'open'), {'TITLE': issues.TITLE, 'BODY': handed}))
-        self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file',
-                           os.path.join(self.where.name, 'issue-body.md'), '--', '12', body]],
-                         self.ran(step_named(report, 'comment'), {'ISSUE': '12', 'BODY': handed}))
+        for step_id in ('comment', 'moved-on'):
+            self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file',
+                               os.path.join(self.where.name, 'issue-body.md'), '--', '12', body]],
+                             self.ran(step_named(report, step_id), {'ISSUE': '12', 'BODY': handed}), step_id)
         closing = self.ran(step_named(report, 'close'), {'ISSUES': '12 41', 'BODY': handed})
         self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file',
                            os.path.join(self.where.name, 'issue-body.md'), '--', '12', body],

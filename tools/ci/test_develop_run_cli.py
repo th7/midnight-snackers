@@ -165,11 +165,11 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertTrue(done.stdout.startswith('action=close\nissues=12\nbody='), done.stdout)
         self.assertIn('main now stands there', self.body_written())
 
-    def test_a_green_run_after_develop_moved_on_hands_the_workflow_the_issue_to_comment_on_naming_develop_s_tip(self):
+    def test_a_green_run_after_develop_moved_on_hands_the_workflow_the_issue_to_say_develop_moved_on_on_naming_develop_s_tip(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', DEVELOP_TIP=STRAY)
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
+        self.assertTrue(done.stdout.startswith('action=moved-on\nissues=12\nbody='), done.stdout)
         self.assertIn("develop's tip is now `%s`" % STRAY, self.body_written())
 
     def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_hands_the_workflow_nothing_to_do_and_says_why_in_the_log(self):

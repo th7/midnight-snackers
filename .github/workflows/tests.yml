@@ -342,6 +342,16 @@ jobs:
         run: |
           base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
           gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
+      - name: Comment on the open issue that develop moved on past the commit judged green, only when no step before failed
+        id: moved-on
+        if: needs.say.outputs.action == 'moved-on'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.say.outputs.issues }}
+          BODY: ${{ needs.say.outputs.body }}
+        run: |
+          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
+          gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
       - name: Close the issue, saying main now stands at the judged commit, only when every job before passed and that commit is still both develop's tip and main's
         id: close
         if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.develop.outputs.tip == needs.unit-tests.outputs.commit && steps.main.outputs.tip == needs.unit-tests.outputs.commit
@@ -378,7 +388,7 @@ jobs:
           MAIN_TIP: ${{ steps.main.outputs.tip }}
         run: |
           echo "main moved since this run looked at it: its tip is now $MAIN_TIP, not the judged commit $JUDGED, so this run writes nothing to the issue, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
-      - name: Open or comment on the issue saying only that the run is red, when nothing else did
+      - name: Open or comment on the issue saying only that the run is red, when nothing else said so
         if: ${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && (failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || needs.promote.result != 'success' || needs.say.result != 'success') }}
         env:
           GH_TOKEN: ${{ github.token }}

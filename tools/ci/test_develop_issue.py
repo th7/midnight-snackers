@@ -65,6 +65,10 @@ def issue(number, title=issues.TITLE):
     return OpenIssue(number, title)
 
 
+def moved_on_found():
+    return run.GreenButMovedOn(commit(), run.commit_hash(MAIN), run.commit_hash(LATER))
+
+
 class WhichIssueIsTouched(unittest.TestCase):
     def test_the_issue_is_titled_exactly_so(self):
         self.assertEqual('IMPORTANT: develop CI Failures', issues.TITLE)
@@ -93,24 +97,38 @@ class WhichIssueIsTouched(unittest.TestCase):
         self.assertIsInstance(action, Close)
         self.assertEqual((12, 41), action.issues)
 
-    def test_a_green_run_whose_judged_commit_is_no_longer_develop_s_tip_comments_on_the_issue_and_leaves_it_open(self):
+    def test_a_green_run_whose_judged_commit_is_no_longer_develop_s_tip_hands_the_workflow_apart_from_a_red_comment_the_word_that_develop_moved_on_for_the_issue_and_leaves_it_open(self):
         action = issues.issue_action(judged(), looked(main=JUDGED, develop=LATER), (issue(41), issue(12)), link())
 
-        self.assertEqual(CommentOn(12, "develop was judged green at `%s` `%s`, and this run moved main there, but "
-                                       "develop's tip is now `%s`, which this run did not judge, and a run closes this "
-                                       "issue only when it finds develop's tip and main's both at the commit it judged, "
-                                       'so this run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
-                         action)
+        self.assertEqual('action=moved-on\nissues=12\nbody=%s\n'
+                         % b64("develop was judged green at `%s` `%s`, and this run moved main there, but develop's tip is "
+                               "now `%s`, which this run did not judge, and a run closes this issue only when it finds "
+                               "develop's tip and main's both at the commit it judged, so this run does not close it."
+                               '\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
+                         issues.action_outputs(action))
 
     def test_a_green_run_that_found_main_already_at_the_judged_commit_and_develop_moved_on_says_main_already_stood_there(self):
         action = issues.issue_action(judged(), looked(main=JUDGED, develop=LATER, found=JUDGED), (issue(12),), link())
 
-        self.assertEqual(CommentOn(12, "develop was judged green at `%s` `%s`, and main already stood there when this run "
-                                       "looked at it, but develop's tip is now `%s`, which this run did not judge, and a "
-                                       "run closes this issue only when it finds develop's tip and main's both at the "
-                                       'commit it judged, so this run does not close it.\n\nThe run: %s\n'
-                                       % (JUDGED, SUBJECT, LATER, RUN)),
-                         action)
+        self.assertEqual('action=moved-on\nissues=12\nbody=%s\n'
+                         % b64("develop was judged green at `%s` `%s`, and main already stood there when this run looked "
+                               "at it, but develop's tip is now `%s`, which this run did not judge, and a run closes this "
+                               "issue only when it finds develop's tip and main's both at the commit it judged, so this "
+                               'run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
+                         issues.action_outputs(action))
+
+    def test_the_only_comment_the_core_hands_the_workflow_as_such_is_a_red_run_s_saying_main_stays_where_it_was(self):
+        stray = commit(STRAY, 'Fix the README on main')
+        for judgement, promoting in ((failed(), held()), (judged(), looked(lacking=(stray,), pushed=Outcome.SKIPPED)),
+                                     (judged(), looked(pushed=Outcome.FAILURE, said='remote: refused\n')),
+                                     (judged(), looked(main=JUDGED, develop=LATER)),
+                                     (judged(), looked(main=JUDGED, develop=LATER, found=JUDGED)),
+                                     (judged(), looked(main=JUDGED)), (judged(), looked(main=STRAY))):
+            handed = issues.action_outputs(issues.issue_action(judgement, promoting, (issue(12),), link()))
+            said, _, rest = handed.partition('\n')
+            body = base64.b64decode(rest.split('\n')[1][len('body='):]).decode('utf-8') if said != 'action=none' else ''
+
+            self.assertEqual('main stays where it was' in body, said == 'action=comment', (promoting, handed))
 
     def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_says_nothing_for_the_issue_and_logs_why(self):
         for listed in ((issue(41), issue(12)), ()):
@@ -332,6 +350,9 @@ class WhatTheWorkflowIsHanded(unittest.TestCase):
                          issues.action_outputs(Close((12, 41), body)))
         self.assertEqual('action=none\n', issues.action_outputs(LeaveAlone()))
         self.assertEqual('action=none\n', issues.action_outputs(LeaveAloneSinceMainMoved('main moved')))
+        moved_on = issues.CommentDevelopMovedOn(12, moved_on_found(), link())
+        self.assertEqual('action=moved-on\nissues=12\nbody=%s\n' % b64(issues.moved_on_body(moved_on_found(), link())),
+                         issues.action_outputs(moved_on))
 
     def test_the_log_of_each_issue_action_is_the_body_it_writes_or_why_it_writes_nothing(self):
         body = 'develop was judged red at `x`\n'
@@ -340,6 +361,16 @@ class WhatTheWorkflowIsHanded(unittest.TestCase):
                          [issues.logged(action) for action in (Open(issues.TITLE, body), CommentOn(12, body),
                                                                Close((12, 41), body), LeaveAloneSinceMainMoved('main moved'),
                                                                LeaveAlone())])
+        self.assertEqual(issues.moved_on_body(moved_on_found(), link()),
+                         issues.logged(issues.CommentDevelopMovedOn(12, moved_on_found(), link())))
+
+    def test_the_word_that_develop_moved_on_is_held_to_an_open_issue_s_number_a_green_run_whose_develop_moved_on_and_a_run_link(self):
+        self.assertEqual(issues.moved_on_body(moved_on_found(), link()),
+                         issues.CommentDevelopMovedOn(12, moved_on_found(), link()).body)
+        for number, found, linked in ((0, moved_on_found(), link()), (True, moved_on_found(), link()),
+                                      ('12', moved_on_found(), link()), (12, run.Green(commit()), link()),
+                                      (12, 'moved on', link()), (12, moved_on_found(), RUN)):
+            self.assertIsInstance(issues.CommentDevelopMovedOn(number, found, linked), Rejected, (number, found, linked))
 
     def test_the_longest_body_in_base64_fits_one_environment_string_so_the_job_that_writes_it_is_handed_it_whole(self):
         longest = 'x' * (issues.BODY_AT_MOST - 1)
