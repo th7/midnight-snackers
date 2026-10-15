@@ -5,14 +5,17 @@ import develop_run as run
 from develop_run import (Green, GreenBehindDevelop, Hold, JudgingEnded, Judged, Looked, LookingEnded, StepDidNotPass, StepsEnded,
                          MainHasWhatDevelopLacks, MainRefusedThePush, Move, NeverJudged, NeverLooked,
                          NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed,
-                         MainNeedsAMaintainerForWorkflows, WorkflowFiles)
+                         MainNeedsAMaintainerForWorkflows, WorkflowFiles, Workflows)
 
 JUDGED = 'a' * 40
 MAIN = 'b' * 40
 STRAY = 'c' * 40
 SUBJECT = 'A ball comes back from a lone still compliant surface at its restitution'
-NO_WORKFLOWS = WorkflowFiles(())
-TESTS_YML = WorkflowFiles(('.github/workflows/tests.yml',))
+NO_FILES = WorkflowFiles(())
+TESTS_YML_FILE = WorkflowFiles(('.github/workflows/tests.yml',))
+NO_WORKFLOWS = Workflows(NO_FILES, NO_FILES)
+TESTS_YML = Workflows(TESTS_YML_FILE, TESTS_YML_FILE)
+KEPT_OLDER_TESTS_YML = Workflows(NO_FILES, TESTS_YML_FILE)
 DEVELOP_AT_JUDGED = run.CommitHash(JUDGED)
 LATER = 'd' * 40
 REFUSALS = (
@@ -25,6 +28,14 @@ REFUSALS = (
 
 GITHUB_TOKEN_PERMISSIONS = 'https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions'
 PARTIAL_RERUNS = 'https://github.blog/2022-03-16-save-time-partial-re-runs-github-actions/'
+MAINTAINER_TAIL = (
+    'No commit to develop and no session can clear this: a later commit of develop either leaves these workflow files as '
+    'the judged commit has them or changes them, and main holds for either. It waits on a maintainer, who pushes main '
+    'to `%s` by hand with a credential that may update workflows, a plain push, never forced:\n\n```\ngit push origin '
+    '%s:refs/heads/main\n```\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at main, '
+    'move it and write this issue too: the re-run finds main at the commit this run judged and closes this issue if that '
+    "commit is still develop's tip, or says here that develop has moved on and leaves this issue to a run that judges its "
+    'tip.' % (JUDGED, JUDGED))
 
 
 def b64(text):
@@ -148,6 +159,13 @@ class WhetherMainMoves(unittest.TestCase):
     def test_main_holds_for_a_maintainer_when_the_commits_since_main_change_a_workflow_though_every_check_passed(self):
         self.assertEqual(Hold((MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML),)),
                          run.promotion(judged(), (), (), TESTS_YML))
+        changed_back = Workflows(TESTS_YML_FILE, NO_FILES)
+        self.assertEqual(Hold((MainNeedsAMaintainerForWorkflows(commit(), changed_back),)),
+                         run.promotion(judged(), (), (), changed_back))
+
+    def test_main_holds_for_a_maintainer_when_the_judged_commit_s_copy_of_a_workflow_differs_from_main_s_alone(self):
+        self.assertEqual(Hold((MainNeedsAMaintainerForWorkflows(commit(), KEPT_OLDER_TESTS_YML),)),
+                         run.promotion(judged(), (), (), KEPT_OLDER_TESTS_YML))
 
     def test_main_stays_where_it_is_when_it_already_has_later_commits_of_develop_whatever_the_judged_commit_changes(self):
         later = commit(STRAY, 'A later commit of develop')
@@ -260,15 +278,15 @@ class WhatTheReasonsSay(unittest.TestCase):
 
     def test_a_hold_over_workflows_names_each_file_and_gives_the_maintainer_the_push_and_the_rerun_that_end_it(self):
         files = WorkflowFiles(('.github/workflows/release.yml', '.github/workflows/tests.yml'))
-        said = run.reasons((MainNeedsAMaintainerForWorkflows(commit(), files),))
+        said = run.reasons((MainNeedsAMaintainerForWorkflows(commit(), Workflows(files, files)),))
 
-        self.assertIn('the commits from main to `%s` change 2 workflow files' % JUDGED, said)
+        self.assertIn('The commits from main to `%s` change 2 workflow files' % JUDGED, said)
         self.assertIn('```\n.github/workflows/release.yml\n.github/workflows/tests.yml\n```', said)
         self.assertIn("GitHub's built-in token, the only credential the job that moves main has, may not move a branch "
                       'past a change to a workflow file, so nothing was pushed', said,
                       'no permission a workflow grants its token is one over workflows: %s' % GITHUB_TOKEN_PERMISSIONS)
         self.assertIn('No commit to develop and no session can clear this', said)
-        self.assertIn('it waits on a maintainer, who pushes main to `%s` by hand with a credential that may update '
+        self.assertIn('It waits on a maintainer, who pushes main to `%s` by hand with a credential that may update '
                       'workflows, a plain push, never forced:' % JUDGED, said)
         self.assertIn('```\ngit push origin %s:refs/heads/main\n```' % JUDGED, said)
         self.assertIn('and then re-runs the failed jobs of this run, which re-runs the jobs that look at main, move it and '
@@ -277,28 +295,44 @@ class WhatTheReasonsSay(unittest.TestCase):
         self.assertIn("finds main at the commit this run judged and closes this issue if that commit is still develop's "
                       'tip, or says here that develop has moved on and leaves this issue to a run that judges its tip',
                       said)
+        self.assertNotIn("The judged commit's copy", said)
 
-    def test_a_hold_over_one_workflow_file_says_exactly_this_and_nothing_more(self):
+    def test_a_hold_over_one_workflow_file_the_commits_since_main_change_says_exactly_this_and_nothing_more(self):
         self.assertEqual(
-            "main needs a maintainer: the commits from main to `%s` change 1 workflow file, and GitHub's built-in token, "
-            'the only credential the job that moves main has, may not move a branch past a change to a workflow file, so '
-            'nothing was pushed:\n\n```\n.github/workflows/tests.yml\n```\n\nNo commit to develop and no session can '
-            'clear this, since every later commit of develop carries these commits too: it waits on a maintainer, who '
-            'pushes main to `%s` by hand with a credential that may update workflows, a plain push, never forced:\n\n'
-            '```\ngit push origin %s:refs/heads/main\n```\n\nand then re-runs the failed jobs of this run, which re-runs '
-            'the jobs that look at main, move it and write this issue too: the re-run finds main at the commit this run '
-            "judged and closes this issue if that commit is still develop's tip, or says here that develop has moved on "
-            'and leaves this issue to a run that judges its tip.' % (JUDGED, JUDGED, JUDGED),
+            "main needs a maintainer: GitHub's built-in token, the only credential the job that moves main has, may not "
+            'move a branch past a change to a workflow file, so nothing was pushed.\n\nThe commits from main to `%s` '
+            'change 1 workflow file:\n\n```\n.github/workflows/tests.yml\n```\n\n' % JUDGED + MAINTAINER_TAIL,
             run.reasons((MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML),)))
+
+    def test_a_hold_over_a_workflow_main_s_copy_of_which_alone_differs_says_a_push_replaces_main_s_copy_and_nothing_more(self):
+        self.assertEqual(
+            "main needs a maintainer: GitHub's built-in token, the only credential the job that moves main has, may not "
+            'move a branch past a change to a workflow file, so nothing was pushed.\n\nThe judged commit\'s copy of 1 '
+            "workflow file differs from main's though no commit from main to `%s` changes it, as when a merge of main "
+            "into develop keeps develop's copy, so a push of `%s` replaces main's copy with the judged commit's:\n\n"
+            '```\n.github/workflows/tests.yml\n```\n\n' % (JUDGED, JUDGED) + MAINTAINER_TAIL,
+            run.reasons((MainNeedsAMaintainerForWorkflows(commit(), KEPT_OLDER_TESTS_YML),)))
+
+    def test_a_hold_over_workflows_of_both_kinds_lists_each_kind_apart_naming_a_file_both_hold_once(self):
+        changed = WorkflowFiles(('.github/workflows/nightly.yml', '.github/workflows/tests.yml'))
+        differing = WorkflowFiles(('.github/workflows/release.yml', '.github/workflows/tests.yml'))
+        said = run.reasons((MainNeedsAMaintainerForWorkflows(commit(), Workflows(changed, differing)),))
+
+        self.assertIn('change 2 workflow files:\n\n```\n.github/workflows/nightly.yml\n.github/workflows/tests.yml\n```',
+                      said)
+        self.assertIn("The judged commit's copy of 1 workflow file differs from main's", said)
+        self.assertIn("with the judged commit's:\n\n```\n.github/workflows/release.yml\n```", said)
 
     def test_a_hold_over_more_workflow_files_than_can_be_listed_names_the_first_fifty_and_counts_the_rest(self):
         files = WorkflowFiles(tuple(sorted('.github/workflows/w%02d.yml' % n for n in range(1, 61))))
-        said = run.reasons((MainNeedsAMaintainerForWorkflows(commit(), files),))
+        for workflows, counted in ((Workflows(files, NO_FILES), 'change 60 workflow files'),
+                                   (Workflows(NO_FILES, files), "copy of 60 workflow files differs from main's")):
+            said = run.reasons((MainNeedsAMaintainerForWorkflows(commit(), workflows),))
 
-        self.assertIn('change 60 workflow files', said)
-        self.assertIn('w50.yml\n', said)
-        self.assertNotIn('w51.yml', said)
-        self.assertIn('and 10 more.', said)
+            self.assertIn(counted, said)
+            self.assertIn('w50.yml\n', said)
+            self.assertNotIn('w51.yml', said)
+            self.assertIn('and 10 more.', said)
 
     def test_a_run_that_judged_nothing_says_so(self):
         self.assertIn('No commit was judged', run.reasons((NothingJudged(Outcome.FAILURE),)))
@@ -381,13 +415,13 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
 
     def test_what_git_said_ends_its_lines_where_a_carriage_return_did_and_shows_other_control_characters_escaped(self):
-        read = run.promoting('success', MAIN, JUDGED, '', '', '', 'failure', 'failure',
+        read = run.promoting('success', MAIN, JUDGED, '', '', '', '', 'failure', 'failure',
                              b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'))
 
         self.assertEqual('remote: one\nremote: two\nthree\\x00\\x1b[0m\tok\n', read.said)
 
     def test_what_git_said_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
-        read = run.promoting('success', MAIN, JUDGED, '', '', '', 'failure', 'failure', b64('z' * 70000))
+        read = run.promoting('success', MAIN, JUDGED, '', '', '', '', 'failure', 'failure', b64('z' * 70000))
 
         self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
 
@@ -427,27 +461,37 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertIsInstance(run.listed_commits(b64('Fix the README on main\n')), Rejected)
 
     def test_a_look_that_named_no_main_tip_never_found_main_and_ended_as_the_job_that_looks_did(self):
-        self.assertEqual(NeverLooked(Outcome.CANCELLED), run.promoting('cancelled', '', '', '', '', '', 'failure', 'skipped', ''))
+        self.assertEqual(NeverLooked(Outcome.CANCELLED), run.promoting('cancelled', '', '', '', '', '', '', 'failure', 'skipped', ''))
 
     def test_a_look_that_found_main_reads_develop_s_tip_as_it_found_it(self):
-        self.assertEqual(looked(develop=LATER), run.promoting('success', MAIN, LATER, '', '', '', 'success', 'success', ''))
-        self.assertIsInstance(run.promoting('success', MAIN, 'not a hash', '', '', '', 'success', 'success', ''), Rejected)
+        self.assertEqual(looked(develop=LATER), run.promoting('success', MAIN, LATER, '', '', '', '', 'success', 'success', ''))
+        self.assertIsInstance(run.promoting('success', MAIN, 'not a hash', '', '', '', '', 'success', 'success', ''), Rejected)
 
     def test_a_mover_that_looked_reads_what_main_lacks_and_what_git_said(self):
         self.assertEqual(looked(pushed=Outcome.FAILURE, said='refused\n', ended=Outcome.FAILURE),
-                         run.promoting('success', MAIN, JUDGED, '', '', '', 'failure', 'failure', b64('refused\n')))
+                         run.promoting('success', MAIN, JUDGED, '', '', '', '', 'failure', 'failure', b64('refused\n')))
 
     def test_a_mover_that_looked_reads_what_main_has_beyond_the_judged_commit(self):
         later = commit(STRAY, 'A later commit of develop')
 
         self.assertEqual(looked(ahead=(later,), pushed=Outcome.SKIPPED),
-                         run.promoting('success', MAIN, JUDGED, '', b64('%s A later commit of develop\n' % STRAY), '', 'success',
+                         run.promoting('success', MAIN, JUDGED, '', b64('%s A later commit of develop\n' % STRAY), '', '', 'success',
                                        'skipped', ''))
 
-    def test_a_mover_that_looked_reads_the_workflow_files_the_commits_since_main_change(self):
+    def test_a_mover_that_looked_reads_the_workflow_files_the_commits_since_main_change_and_those_main_differs_in(self):
         self.assertEqual(looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE, workflows=TESTS_YML),
-                         run.promoting('failure', MAIN, JUDGED, '', '', b64('.github/workflows/tests.yml\n'), 'failure', 'skipped',
-                                       ''))
+                         run.promoting('failure', MAIN, JUDGED, '', '', b64('.github/workflows/tests.yml\n'),
+                                       b64('.github/workflows/tests.yml\n'), 'failure', 'skipped', ''))
+        self.assertEqual(looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE, workflows=KEPT_OLDER_TESTS_YML),
+                         run.promoting('failure', MAIN, JUDGED, '', '', '', b64('.github/workflows/tests.yml\n'), 'failure',
+                                       'skipped', ''))
+        self.assertEqual(Rejected(run.WORKFLOW_FILES_RULE),
+                         run.promoting('failure', MAIN, JUDGED, '', '', '', b64('README.md\n'), 'failure', 'skipped', ''))
+
+    def test_what_the_workflow_found_of_the_workflows_is_read_as_two_sets_kept_apart(self):
+        self.assertEqual(Workflows(TESTS_YML_FILE, NO_FILES), run.workflows(b64('.github/workflows/tests.yml\n'), ''))
+        self.assertEqual(KEPT_OLDER_TESTS_YML, run.workflows('', b64('.github/workflows/tests.yml\n')))
+        self.assertIsInstance(run.workflows('not base64!', ''), Rejected)
 
     def test_the_workflow_files_are_read_from_the_lines_git_log_printed_each_once_and_in_order(self):
         printed = ('.github/workflows/tests.yml\n\n.github/workflows/release.yml\n.github/workflows/tests.yml\n\n'
@@ -455,7 +499,7 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
 
         self.assertEqual(WorkflowFiles(('.github/workflows/release.yml', '.github/workflows/tests.yml')),
                          run.workflow_files(b64(printed)))
-        self.assertEqual(NO_WORKFLOWS, run.workflow_files(''))
+        self.assertEqual(NO_FILES, run.workflow_files(''))
 
     def test_a_workflow_file_git_quoted_is_read_as_git_printed_it(self):
         printed = '".github/workflows/caf\\303\\251.yml"\n'
@@ -501,6 +545,7 @@ class MakingAValueDirectly(unittest.TestCase):
                       (tip, at, [], (), none, Outcome.SUCCESS, '', Outcome.SUCCESS),
                       (tip, at, (), (STRAY,), none, Outcome.SUCCESS, '', Outcome.SUCCESS),
                       (tip, at, (), (), ('.github/workflows/tests.yml',), Outcome.SUCCESS, '', Outcome.SUCCESS),
+                      (tip, at, (), (), TESTS_YML_FILE, Outcome.SUCCESS, '', Outcome.SUCCESS),
                       (tip, at, (), (), none, 'success', '', Outcome.SUCCESS),
                       (tip, at, (), (), none, Outcome.SUCCESS, None, Outcome.SUCCESS),
                       (tip, at, (), (), none, Outcome.SUCCESS, 'x' * (run.SAID_SHOWN_AT_MOST + 1), Outcome.SUCCESS),
@@ -519,7 +564,8 @@ class MakingAValueDirectly(unittest.TestCase):
     def test_what_a_mover_saw_made_directly_holds_no_push_to_a_main_the_core_would_have_held_or_left_alone(self):
         tip = run.CommitHash(MAIN)
         held_or_left = ((commit(STRAY, 'Fix the README on main'),), (), NO_WORKFLOWS), \
-                       ((), (commit(STRAY, 'A later commit of develop'),), NO_WORKFLOWS), ((), (), TESTS_YML)
+                       ((), (commit(STRAY, 'A later commit of develop'),), NO_WORKFLOWS), ((), (), TESTS_YML), \
+                       ((), (), KEPT_OLDER_TESTS_YML)
         for pushed in (Outcome.SUCCESS, Outcome.FAILURE, Outcome.CANCELLED):
             for lacking, ahead, workflows in held_or_left:
                 self.assertEqual(Rejected(run.A_PUSH_RUNS_ONLY_TO_MOVE_MAIN),
@@ -554,14 +600,14 @@ class MakingAValueDirectly(unittest.TestCase):
 
     def test_what_a_mover_hands_on_that_disagrees_with_itself_is_refused_by_the_rule_it_breaks(self):
         self.assertEqual(Rejected(run.SAID_ONLY_OF_A_PUSH_THAT_RAN),
-                         run.promoting('success', MAIN, JUDGED, '', '', '', 'failure', 'skipped', b64('refused\n')))
+                         run.promoting('success', MAIN, JUDGED, '', '', '', '', 'failure', 'skipped', b64('refused\n')))
         self.assertEqual(Rejected(run.A_PUSH_RUNS_ONLY_TO_MOVE_MAIN),
-                         run.promoting('failure', MAIN, JUDGED, '', '', b64('.github/workflows/tests.yml\n'), 'failure', 'failure',
+                         run.promoting('failure', MAIN, JUDGED, '', '', b64('.github/workflows/tests.yml\n'), '', 'failure', 'failure',
                                        ''))
         self.assertEqual(Rejected(run.A_FAILED_PUSH_FAILS_ITS_JOB),
-                         run.promoting('success', MAIN, JUDGED, '', '', '', 'success', 'failure', b64('refused\n')))
+                         run.promoting('success', MAIN, JUDGED, '', '', '', '', 'success', 'failure', b64('refused\n')))
         self.assertEqual(Rejected(run.A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD),
-                         run.promoting('failure', MAIN, JUDGED, '', '', b64('.github/workflows/tests.yml\n'), 'success', 'skipped',
+                         run.promoting('failure', MAIN, JUDGED, '', '', '', b64('.github/workflows/tests.yml\n'), 'success', 'skipped',
                                        ''))
 
     def test_workflow_files_made_directly_are_held_to_distinct_paths_under_the_workflows_directory_in_order(self):
@@ -586,11 +632,18 @@ class MakingAValueDirectly(unittest.TestCase):
             self.assertEqual(Rejected(run.WHAT_GIT_SAID_RULE), MainRefusedThePush(commit(), wrong), wrong)
 
     def test_a_hold_over_workflows_made_directly_is_held_to_the_judged_commit_and_at_least_one_workflow_file(self):
-        self.assertEqual(TESTS_YML, MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML).files)
+        self.assertEqual(TESTS_YML, MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML).workflows)
+        self.assertEqual(KEPT_OLDER_TESTS_YML, MainNeedsAMaintainerForWorkflows(commit(), KEPT_OLDER_TESTS_YML).workflows)
         for wrong in ((commit(), NO_WORKFLOWS), ('x', None), (JUDGED, TESTS_YML),
-                      (commit(), ('.github/workflows/tests.yml',))):
+                      (commit(), ('.github/workflows/tests.yml',)), (commit(), TESTS_YML_FILE)):
             self.assertEqual(Rejected(run.A_HOLD_OVER_WORKFLOWS_NAMES_THEM), MainNeedsAMaintainerForWorkflows(*wrong),
                              wrong)
+
+    def test_workflows_made_directly_are_held_to_two_sets_of_workflow_files(self):
+        self.assertEqual((TESTS_YML_FILE, NO_FILES), (Workflows(TESTS_YML_FILE, NO_FILES).changed,
+                                                      Workflows(TESTS_YML_FILE, NO_FILES).differing))
+        for wrong in ((TESTS_YML_FILE, None), (None, NO_FILES), (('.github/workflows/tests.yml',), NO_FILES)):
+            self.assertEqual(Rejected(run.WORKFLOWS_RULE), Workflows(*wrong), wrong)
 
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
         self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, steps_ended()), Rejected)

@@ -101,7 +101,8 @@ jobs:
       develop-tip: ${{ steps.main.outputs.develop }}
       lacking: ${{ steps.main.outputs.lacking }}
       main-ahead: ${{ steps.main.outputs.ahead }}
-      workflows: ${{ steps.main.outputs.workflows }}
+      workflows-changed: ${{ steps.main.outputs.changed }}
+      workflows-differing: ${{ steps.main.outputs.differing }}
       decision: ${{ steps.decide.outputs.decision }}
     steps:
       - name: Check out the judged commit with every branch's history, keeping no credential
@@ -117,14 +118,14 @@ jobs:
           develop=$(git rev-parse refs/remotes/origin/develop)
           lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)
           ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
-          git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows > "$RUNNER_TEMP/workflows"
-          git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows >> "$RUNNER_TEMP/workflows"
-          workflows=$(base64 -w0 < "$RUNNER_TEMP/workflows")
+          changed=$(git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows | base64 -w0)
+          differing=$(git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows | base64 -w0)
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
           echo "develop=$develop" >> "$GITHUB_OUTPUT"
           echo "lacking=$lacking" >> "$GITHUB_OUTPUT"
           echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
-          echo "workflows=$workflows" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "differing=$differing" >> "$GITHUB_OUTPUT"
       - name: Decide whether main moves
         id: decide
         env:
@@ -143,7 +144,8 @@ jobs:
           STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
           LACKING: ${{ steps.main.outputs.lacking }}
           MAIN_AHEAD: ${{ steps.main.outputs.ahead }}
-          WORKFLOWS: ${{ steps.main.outputs.workflows }}
+          WORKFLOWS_CHANGED: ${{ steps.main.outputs.changed }}
+          WORKFLOWS_DIFFERING: ${{ steps.main.outputs.differing }}
         run: python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"
       - name: Fail unless main moves or stays, so that re-running the failed jobs looks at main again
         if: steps.decide.outputs.decision != 'move' && steps.decide.outputs.decision != 'stay'
@@ -225,7 +227,8 @@ jobs:
           DEVELOP_TIP: ${{ needs.look.outputs.develop-tip }}
           LACKING: ${{ needs.look.outputs.lacking }}
           MAIN_AHEAD: ${{ needs.look.outputs.main-ahead }}
-          WORKFLOWS: ${{ needs.look.outputs.workflows }}
+          WORKFLOWS_CHANGED: ${{ needs.look.outputs.workflows-changed }}
+          WORKFLOWS_DIFFERING: ${{ needs.look.outputs.workflows-differing }}
           PROMOTING_ENDED: ${{ needs.promote.result }}
           PUSHED: ${{ needs.promote.outputs.pushed }}
           GIT_SAID: ${{ needs.promote.outputs.git-said }}

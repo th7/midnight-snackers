@@ -20,7 +20,7 @@ def b64(text):
 
 def gathered(**changed):
     handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': '',
-              'MAIN_AHEAD': '', 'WORKFLOWS': ''}
+              'MAIN_AHEAD': '', 'WORKFLOWS_CHANGED': '', 'WORKFLOWS_DIFFERING': ''}
     handed.update({cli.outcome_of(step): 'success' for step in run.STEPS})
     handed.update(changed)
     return handed
@@ -65,15 +65,24 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertIn('main stays where it is', done.stderr)
 
     def test_commits_since_main_that_change_a_workflow_hand_the_workflow_a_hold_naming_the_files_in_the_log(self):
-        done = called('promotion', gathered(WORKFLOWS=b64('.github/workflows/tests.yml\n')))
+        done = called('promotion', gathered(WORKFLOWS_CHANGED=b64('.github/workflows/tests.yml\n')))
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('decision=hold\n', done.stdout)
-        self.assertIn('.github/workflows/tests.yml', done.stderr)
+        self.assertIn('The commits from main to `%s` change 1 workflow file:\n\n```\n.github/workflows/tests.yml' % JUDGED,
+                      done.stderr)
         self.assertIn('git push origin %s:refs/heads/main' % JUDGED, done.stderr)
 
+    def test_a_workflow_main_s_copy_of_which_alone_differs_hands_the_workflow_a_hold_naming_it_apart_in_the_log(self):
+        done = called('promotion', gathered(WORKFLOWS_DIFFERING=b64('.github/workflows/tests.yml\n')))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('decision=hold\n', done.stdout)
+        self.assertIn("The judged commit's copy of 1 workflow file differs from main's", done.stderr)
+        self.assertNotIn('The commits from main to', done.stderr)
+
     def test_an_input_the_workflow_did_not_hand_fails_naming_it_and_hands_nothing(self):
-        for name in ('LACKING', 'WORKFLOWS'):
+        for name in ('LACKING', 'WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING'):
             environ = gathered()
             del environ[name]
             done = called('promotion', environ)
@@ -104,7 +113,7 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertIn('an outcome is success, failure, cancelled, skipped or nothing', done.stderr)
 
     def test_an_input_holding_a_character_beyond_ascii_fails_with_the_rule_and_hands_nothing(self):
-        for name in ('SUBJECT', 'LACKING', 'WORKFLOWS'):
+        for name in ('SUBJECT', 'LACKING', 'WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING'):
             done = called('promotion', gathered(**{name: 'é'}))
 
             self.assertEqual(2, done.returncode, done.stderr)
@@ -179,14 +188,14 @@ class SayingWhatTheRunFound(unittest.TestCase):
 
     def test_a_run_held_over_workflows_hands_the_workflow_the_issue_to_comment_on_with_the_maintainer_s_push(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
-                           PROMOTING_ENDED='failure', WORKFLOWS=b64('.github/workflows/tests.yml\n'))
+                           PROMOTING_ENDED='failure', WORKFLOWS_CHANGED=b64('.github/workflows/tests.yml\n'))
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
         self.assertIn('git push origin %s:refs/heads/main' % JUDGED, self.body_written())
 
     def test_a_report_not_handed_what_the_look_at_main_found_fails_naming_it_and_hands_nothing(self):
-        for name in ('WORKFLOWS', 'LOOKING_ENDED', 'DEVELOP_TIP'):
+        for name in ('WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING', 'LOOKING_ENDED', 'DEVELOP_TIP'):
             environ = reported()
             del environ[name]
             with open(self.open_issues, 'w') as written:

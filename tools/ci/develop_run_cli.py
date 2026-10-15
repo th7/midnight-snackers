@@ -11,7 +11,8 @@ def outcome_of(step):
 JUDGED = ('JUDGING_ENDED', 'JUDGED', 'SUBJECT')
 STEP_OUTCOMES = tuple(outcome_of(step) for step in run.STEPS)
 JUDGEMENT = JUDGED + STEP_OUTCOMES
-LOOKING = ('LOOKING_ENDED', 'MAIN_TIP', 'DEVELOP_TIP', 'LACKING', 'MAIN_AHEAD', 'WORKFLOWS')
+WORKFLOWS = ('WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING')
+LOOKING = ('LOOKING_ENDED', 'MAIN_TIP', 'DEVELOP_TIP', 'LACKING', 'MAIN_AHEAD') + WORKFLOWS
 PROMOTING = ('PROMOTING_ENDED', 'PUSHED', 'GIT_SAID')
 RUN = ('GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID')
 
@@ -28,13 +29,13 @@ def handed(environ, names):
 
 
 def promotion(environ, arguments, stdout, stderr):
-    inputs = handed(environ, JUDGEMENT + ('LACKING', 'MAIN_AHEAD', 'WORKFLOWS'))
+    inputs = handed(environ, JUDGEMENT + ('LACKING', 'MAIN_AHEAD') + WORKFLOWS)
     if isinstance(inputs, run.Rejected):
         return inputs
     judgement = judgement_from(inputs)
     lacking = run.listed_commits(inputs[len(JUDGEMENT)])
     ahead = run.listed_commits(inputs[len(JUDGEMENT) + 1])
-    workflows = run.workflow_files(inputs[len(JUDGEMENT) + 2])
+    workflows = run.workflows(*inputs[len(JUDGEMENT) + 2:])
     rejected = run.first_rejected(judgement, lacking, ahead, workflows)
     if rejected is not None:
         return rejected

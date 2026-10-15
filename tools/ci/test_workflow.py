@@ -26,6 +26,7 @@ CHECKOUT_FETCHES_EVERY_BRANCH = 'https://github.com/actions/checkout/blob/v4/src
 REPOSITORY_CODE = re.compile(r'python3? |\./|gradlew|npm |npx |tools/|bash |source |make ')
 CONTEXT_NAMES_IGNORE_CASE = ('https://github.com/actions/runner/blob/796cc18ffaaafd5cea525d6231f5a8c93c11c603/'
                              'src/Sdk/DTExpressions2/Expressions2/ExpressionParser.cs#L427')
+TESTS_YML = run.WorkflowFiles(('.github/workflows/tests.yml',))
 JUDGEMENT_HANDED = dict({'JUDGING_ENDED': '${{ needs.unit-tests.result }}',
                          'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
                          'SUBJECT': '${{ needs.unit-tests.outputs.subject }}'},
@@ -298,7 +299,8 @@ class HowMainMoves(WorkflowTest):
         self.assertEqual('python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"', deciding['run'])
         self.assertEqual(dict(JUDGEMENT_HANDED, LACKING='${{ steps.main.outputs.lacking }}',
                               MAIN_AHEAD='${{ steps.main.outputs.ahead }}',
-                              WORKFLOWS='${{ steps.main.outputs.workflows }}'), deciding['env'])
+                              WORKFLOWS_CHANGED='${{ steps.main.outputs.changed }}',
+                              WORKFLOWS_DIFFERING='${{ steps.main.outputs.differing }}'), deciding['env'])
 
     def test_what_main_has_and_lacks_is_found_against_develop_and_the_judged_commit_as_the_checkout_fetched_them(self):
         self.assertEqual(
@@ -306,16 +308,16 @@ class HowMainMoves(WorkflowTest):
             'develop=$(git rev-parse refs/remotes/origin/develop)\n'
             "lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)\n"
             "ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
-            'git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD '
-            '-- .github/workflows > "$RUNNER_TEMP/workflows"\n'
-            'git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows '
-            '>> "$RUNNER_TEMP/workflows"\n'
-            'workflows=$(base64 -w0 < "$RUNNER_TEMP/workflows")\n'
+            'changed=$(git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD '
+            '-- .github/workflows | base64 -w0)\n'
+            'differing=$(git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows '
+            '| base64 -w0)\n'
             'echo "tip=$tip" >> "$GITHUB_OUTPUT"\n'
             'echo "develop=$develop" >> "$GITHUB_OUTPUT"\n'
             'echo "lacking=$lacking" >> "$GITHUB_OUTPUT"\n'
             'echo "ahead=$ahead" >> "$GITHUB_OUTPUT"\n'
-            'echo "workflows=$workflows" >> "$GITHUB_OUTPUT"\n',
+            'echo "changed=$changed" >> "$GITHUB_OUTPUT"\n'
+            'echo "differing=$differing" >> "$GITHUB_OUTPUT"\n',
             step_named(self.jobs['look'], 'main')['run'])
         self.assertEqual('Find where main and develop stand, what main has that develop or the judged commit lacks, '
                          'and the workflow files the commits since main change or main and the judged commit differ in',
@@ -326,7 +328,8 @@ class HowMainMoves(WorkflowTest):
                           'develop-tip': '${{ steps.main.outputs.develop }}',
                           'lacking': '${{ steps.main.outputs.lacking }}',
                           'main-ahead': '${{ steps.main.outputs.ahead }}',
-                          'workflows': '${{ steps.main.outputs.workflows }}',
+                          'workflows-changed': '${{ steps.main.outputs.changed }}',
+                          'workflows-differing': '${{ steps.main.outputs.differing }}',
                           'decision': '${{ steps.decide.outputs.decision }}'},
                          self.jobs['look']['outputs'])
 
@@ -486,7 +489,7 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
     def decided_for(self, judged_commit, subject):
         _, found = self.mover_found(judged_commit)
         return run.promotion(self.judgement_of(judged_commit, subject), run.listed_commits(found['lacking']),
-                             run.listed_commits(found['ahead']), run.workflow_files(found['workflows']))
+                             run.listed_commits(found['ahead']), run.workflows(found['changed'], found['differing']))
 
     def listed(self, *hashes_and_subjects):
         return tuple(run.Commit(run.CommitHash(each), subject) for each, subject in hashes_and_subjects)
@@ -533,9 +536,9 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         decided = self.decided_for(judged_commit, 'Release from main')
 
+        both = run.WorkflowFiles(('.github/workflows/release.yml', '.github/workflows/tests.yml'))
         self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
-            run.Commit(run.CommitHash(judged_commit), 'Release from main'),
-            run.WorkflowFiles(('.github/workflows/release.yml', '.github/workflows/tests.yml'))),)), decided)
+            run.Commit(run.CommitHash(judged_commit), 'Release from main'), run.Workflows(both, both)),)), decided)
 
     def test_a_workflow_change_a_later_commit_undoes_still_holds_main_naming_it(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
@@ -545,7 +548,8 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         decided = self.decided_for(judged_commit, 'No nightly run after all')
 
-        self.assertEqual(run.WorkflowFiles(('.github/workflows/nightly.yml',)), decided.findings[0].files)
+        self.assertEqual(run.Workflows(run.WorkflowFiles(('.github/workflows/nightly.yml',)), run.WorkflowFiles(())),
+                         decided.findings[0].workflows)
 
     def test_a_workflow_change_main_already_has_does_not_hold_main(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
@@ -575,13 +579,13 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         decided = self.decided_for(judged_commit, 'Merge side')
 
         self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
-            run.Commit(run.CommitHash(judged_commit), 'Merge side'),
-            run.WorkflowFiles(('.github/workflows/tests.yml',))),)), decided)
+            run.Commit(run.CommitHash(judged_commit), 'Merge side'), run.Workflows(TESTS_YML, TESTS_YML)),)), decided)
 
-    def held_naming_tests_yml(self, judged_commit, subject):
+    def held_naming_tests_yml(self, judged_commit, subject, changed=None, differing=None):
         self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
             run.Commit(run.CommitHash(judged_commit), subject),
-            run.WorkflowFiles(('.github/workflows/tests.yml',))),)), self.decided_for(judged_commit, subject))
+            run.Workflows(changed or TESTS_YML, differing or run.WorkflowFiles(()))),)),
+            self.decided_for(judged_commit, subject))
 
     def test_a_workflow_change_a_merged_branch_undoes_on_itself_still_holds_main_naming_it(self):
         self.a_workflow_on_main_and_develop()
@@ -651,10 +655,10 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         decided = self.decided_for(judged_commit, 'Call the workflow checks')
 
-        self.assertEqual(run.WorkflowFiles(('.github/workflows/checks.yml', '.github/workflows/tests.yml')),
-                         decided.findings[0].files)
+        both = run.WorkflowFiles(('.github/workflows/checks.yml', '.github/workflows/tests.yml'))
+        self.assertEqual(run.Workflows(both, both), decided.findings[0].workflows)
 
-    def test_a_merge_that_keeps_an_older_workflow_than_main_s_holds_main_naming_it(self):
+    def merged_main_keeping_an_older_workflow(self):
         self.a_workflow_on_main_and_develop()
         self.commit('Fix the workflow on main', {'.github/workflows/tests.yml': 'name: fixed tests\n'})
         self.push('main')
@@ -663,12 +667,43 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         self.git(self.work, 'merge', '-q', '--no-commit', 'origin/main')
         judged_commit = self.commit('Merge main', {'.github/workflows/tests.yml': 'name: tests\n'})
         self.push('develop')
+        return judged_commit
+
+    def test_a_merge_that_keeps_an_older_workflow_than_main_s_holds_main_naming_it_as_differing_from_main_s_alone(self):
+        judged_commit = self.merged_main_keeping_an_older_workflow()
 
         decided = self.decided_for(judged_commit, 'Merge main')
 
         self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
-            run.Commit(run.CommitHash(judged_commit), 'Merge main'),
-            run.WorkflowFiles(('.github/workflows/tests.yml',))),)), decided)
+            run.Commit(run.CommitHash(judged_commit), 'Merge main'), run.Workflows(run.WorkflowFiles(()), TESTS_YML)),)),
+            decided)
+        said = run.reasons(decided.findings)
+        self.assertIn("The judged commit's copy of 1 workflow file differs from main's though no commit from main to `%s` "
+                      "changes it" % judged_commit, said)
+        self.assertIn("so a push of `%s` replaces main's copy with the judged commit's" % judged_commit, said)
+        self.assertNotIn('The commits from main to', said)
+
+    def test_a_later_commit_that_leaves_a_workflow_kept_older_than_main_s_alone_still_holds_main(self):
+        self.merged_main_keeping_an_older_workflow()
+        judged_commit = self.commit('Say how to build', {'README.md': 'Build with Gradle.\n'})
+        self.push('develop')
+
+        self.held_naming_tests_yml(judged_commit, 'Say how to build', changed=run.WorkflowFiles(()), differing=TESTS_YML)
+
+    def test_a_later_commit_that_gives_develop_main_s_copy_of_a_workflow_back_still_holds_main(self):
+        self.merged_main_keeping_an_older_workflow()
+        judged_commit = self.commit('Keep the fixed workflow', {'.github/workflows/tests.yml': 'name: fixed tests\n'})
+        self.push('develop')
+
+        self.held_naming_tests_yml(judged_commit, 'Keep the fixed workflow')
+
+    def test_a_later_commit_that_leaves_workflows_the_commits_since_main_change_alone_still_holds_main(self):
+        self.git(self.work, 'checkout', '-q', '-b', 'develop')
+        self.commit('Run every test', {'.github/workflows/tests.yml': 'name: every test\n'})
+        judged_commit = self.commit('Say how to build', {'README.md': 'Build with Gradle.\n'})
+        self.push('develop')
+
+        self.held_naming_tests_yml(judged_commit, 'Say how to build', differing=TESTS_YML)
 
     def test_a_rerun_after_a_maintainer_pushed_main_to_the_judged_commit_moves_it_nowhere_and_closes_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
@@ -680,11 +715,11 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         runner, found = self.mover_found(judged_commit)
         decided = run.promotion(judgement, run.listed_commits(found['lacking']), run.listed_commits(found['ahead']),
-                                run.workflow_files(found['workflows']))
+                                run.workflows(found['changed'], found['differing']))
         self.assertEqual(run.Move(run.Commit(run.CommitHash(judged_commit), 'Run the tool tests too')), decided)
         pushed = self.ran('promote', 'push', runner, JUDGED=judged_commit)
         promoting = run.promoting('success', found['tip'], found['develop'], found['lacking'], found['ahead'],
-                                  found['workflows'], 'success', 'success', pushed['said'])
+                                  found['changed'], found['differing'], 'success', 'success', pushed['said'])
         action = issues.issue_action(judgement, promoting, (issues.OpenIssue(12, issues.TITLE),),
                                      issues.run_link('https://github.com', 'th7/midnight-snackers', '123456'))
 
@@ -706,17 +741,17 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
                             tuple('failure' if step is run.UNIT_TESTS else 'success' for step in run.STEPS))
         _, found = self.mover_found(broken)
         held = run.promoting('failure', found['tip'], found['develop'], found['lacking'], found['ahead'],
-                             found['workflows'], 'failure', 'skipped', '')
+                             found['changed'], found['differing'], 'failure', 'skipped', '')
         self.assertIsInstance(issues.issue_action(red, held, (issues.OpenIssue(12, issues.TITLE),), link),
                               issues.CommentOn)
         self.push('%s:refs/heads/main' % workflow_change)
 
         runner, found = self.mover_found(workflow_change)
         decided = run.promotion(older, run.listed_commits(found['lacking']), run.listed_commits(found['ahead']),
-                                run.workflow_files(found['workflows']))
+                                run.workflows(found['changed'], found['differing']))
         pushed = self.ran('promote', 'push', runner, JUDGED=workflow_change)
         promoting = run.promoting('success', found['tip'], found['develop'], found['lacking'], found['ahead'],
-                                  found['workflows'], 'success', 'success', pushed['said'])
+                                  found['changed'], found['differing'], 'success', 'success', pushed['said'])
         action = issues.issue_action(older, promoting, (issues.OpenIssue(12, issues.TITLE),), link)
 
         self.assertEqual(run.Move(run.Commit(run.CommitHash(workflow_change), 'Run every test')), decided)
@@ -833,7 +868,8 @@ class HowTheIssueIsWritten(WorkflowTest):
                               DEVELOP_TIP='${{ needs.look.outputs.develop-tip }}',
                               LACKING='${{ needs.look.outputs.lacking }}',
                               MAIN_AHEAD='${{ needs.look.outputs.main-ahead }}',
-                              WORKFLOWS='${{ needs.look.outputs.workflows }}',
+                              WORKFLOWS_CHANGED='${{ needs.look.outputs.workflows-changed }}',
+                              WORKFLOWS_DIFFERING='${{ needs.look.outputs.workflows-differing }}',
                               PROMOTING_ENDED='${{ needs.promote.result }}',
                               PUSHED='${{ needs.promote.outputs.pushed }}',
                               GIT_SAID='${{ needs.promote.outputs.git-said }}'),

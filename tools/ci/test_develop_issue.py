@@ -48,7 +48,7 @@ def failed():
 
 def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED):
     return Looked(run.commit_hash(MAIN), run.commit_hash(develop), tuple(lacking), tuple(ahead),
-                  run.WorkflowFiles(tuple(workflows)), pushed, said,
+                  run.Workflows(run.WorkflowFiles(tuple(workflows)), run.WorkflowFiles(tuple(workflows))), pushed, said,
                   ended if ended is not None else Outcome.SUCCESS if pushed is Outcome.SUCCESS else Outcome.FAILURE)
 
 
@@ -219,10 +219,12 @@ class WhatTheIssueSays(unittest.TestCase):
             strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
             green_long = run.judgement('success', JUDGED, b64(endless), texts())
             bodies = [issues.issue_action(judged_long, promoting, (), link()).body for promoting in (
-                run.promoting('failure', MAIN, JUDGED, strays, '', '', 'failure', 'skipped', ''),
-                run.promoting('success', MAIN, JUDGED, '', '', '', 'failure', 'failure', b64(endless)),
+                run.promoting('failure', MAIN, JUDGED, strays, '', '', '', 'failure', 'skipped', ''),
+                run.promoting('success', MAIN, JUDGED, '', '', '', '', 'failure', 'failure', b64(endless)),
                 run.promoting('failure', MAIN, JUDGED, '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
-                                                                   for n in range(1, 61))), 'failure', 'skipped', ''))]
+                                                                   for n in range(1, 61))), '', 'failure', 'skipped', ''),
+                run.promoting('failure', MAIN, JUDGED, '', '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
+                                                                       for n in range(1, 61))), 'failure', 'skipped', ''))]
             bodies.append(issues.issue_action(green_long, looked(), (issue(12),), link()).body)
 
             for body in bodies:

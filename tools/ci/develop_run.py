@@ -12,9 +12,10 @@ SUBJECT_SHOWN_AT_MOST = 256
 SAID_SHOWN = 4000
 SAID_SHOWN_AT_MOST = 4096
 WORKFLOWS_DIRECTORY = '.github/workflows/'
-WORKFLOW_FILES_RULE = ('the workflow files the commits since main change or main and the judged commit differ in are '
-                       'distinct paths under .github/workflows, as git prints them, in order, each one line of at most '
-                       '%d characters' % SUBJECT_SHOWN_AT_MOST)
+WORKFLOW_FILES_RULE = ('workflow files are distinct paths under .github/workflows, as git prints them, in order, each one '
+                       'line of at most %d characters' % SUBJECT_SHOWN_AT_MOST)
+WORKFLOWS_RULE = ('what a mover found of the workflows is the workflow files the commits since main change and, kept '
+                  'apart, those main and the judged commit differ in')
 WHAT_GIT_SAID_RULE = ('what git said is text of at most %d characters, with no control character but a newline or a '
                       'tab' % SAID_SHOWN_AT_MOST)
 SAID_ONLY_OF_A_PUSH_THAT_RAN = 'git said something only of a push that ran, never of one skipped or unreported'
@@ -172,6 +173,24 @@ class WorkflowFiles(Validated):
         return None
 
 
+@dataclass(frozen=True)
+class Workflows(Validated):
+    changed: WorkflowFiles
+    differing: WorkflowFiles
+
+    @staticmethod
+    def broken(changed, differing):
+        if not isinstance(changed, WorkflowFiles) or not isinstance(differing, WorkflowFiles):
+            return WORKFLOWS_RULE
+        return None
+
+    def hold_main(self):
+        return bool(self.changed.paths or self.differing.paths)
+
+    def differing_alone(self):
+        return tuple(path for path in self.differing.paths if path not in self.changed.paths)
+
+
 def quotes_what_git_said(said):
     return (isinstance(said, str) and len(said) <= SAID_SHOWN_AT_MOST
             and not any(unsafe_in_a_quote(character) for character in said))
@@ -183,7 +202,7 @@ class Looked(Validated):
     develop_tip: CommitHash
     lacking: tuple
     ahead: tuple
-    workflows: WorkflowFiles
+    workflows: Workflows
     pushed: Outcome
     said: str
     ended: Outcome
@@ -194,7 +213,7 @@ class Looked(Validated):
             return 'a mover that looked names main\'s tip and develop\'s tip by their hashes'
         if not all_of(Commit, lacking) or not all_of(Commit, ahead):
             return 'what main has that develop or the judged commit lacks is a tuple of commits'
-        if not isinstance(workflows, WorkflowFiles):
+        if not isinstance(workflows, Workflows):
             return ('a mover that looked names the workflow files the commits since main change or main and the judged '
                     'commit differ in')
         if not all_of(Outcome, (pushed, ended)):
@@ -203,7 +222,7 @@ class Looked(Validated):
             return WHAT_GIT_SAID_RULE
         if said and pushed in (Outcome.SKIPPED, Outcome.UNREPORTED):
             return SAID_ONLY_OF_A_PUSH_THAT_RAN
-        if pushed in (Outcome.SUCCESS, Outcome.FAILURE, Outcome.CANCELLED) and (lacking or ahead or workflows.paths):
+        if pushed in (Outcome.SUCCESS, Outcome.FAILURE, Outcome.CANCELLED) and (lacking or ahead or workflows.hold_main()):
             return A_PUSH_RUNS_ONLY_TO_MOVE_MAIN
         if pushed is Outcome.FAILURE and ended is Outcome.SUCCESS:
             return A_FAILED_PUSH_FAILS_ITS_JOB
@@ -262,11 +281,11 @@ class MainRefusedThePush(Validated):
 @dataclass(frozen=True)
 class MainNeedsAMaintainerForWorkflows(Validated):
     commit: Commit
-    files: WorkflowFiles
+    workflows: Workflows
 
     @staticmethod
-    def broken(commit, files):
-        if not isinstance(commit, Commit) or not isinstance(files, WorkflowFiles) or not files.paths:
+    def broken(commit, workflows):
+        if not isinstance(commit, Commit) or not isinstance(workflows, Workflows) or not workflows.hold_main():
             return A_HOLD_OVER_WORKFLOWS_NAMES_THEM
         return None
 
@@ -439,8 +458,17 @@ def workflow_files(lines_base64):
     return WorkflowFiles(tuple(sorted(set(shown_subject(path) for path in text.split('\n') if path != ''))))
 
 
-def promoting(looking_text, main_tip_text, develop_tip_text, lacking_base64, ahead_base64, workflows_base64, ended_text,
-              pushed_text, said_base64):
+def workflows(changed_base64, differing_base64):
+    changed = workflow_files(changed_base64)
+    differing = workflow_files(differing_base64)
+    rejected = first_rejected(changed, differing)
+    if rejected is not None:
+        return rejected
+    return Workflows(changed, differing)
+
+
+def promoting(looking_text, main_tip_text, develop_tip_text, lacking_base64, ahead_base64, changed_base64,
+              differing_base64, ended_text, pushed_text, said_base64):
     looking = outcome(looking_text)
     ended = outcome(ended_text)
     rejected = first_rejected(looking, ended)
@@ -452,13 +480,13 @@ def promoting(looking_text, main_tip_text, develop_tip_text, lacking_base64, ahe
     develop_tip = commit_hash(develop_tip_text)
     lacking = listed_commits(lacking_base64)
     ahead = listed_commits(ahead_base64)
-    workflows = workflow_files(workflows_base64)
+    found_workflows = workflows(changed_base64, differing_base64)
     pushed = outcome(pushed_text)
     said = decoded(said_base64)
-    rejected = first_rejected(main_tip, develop_tip, lacking, ahead, workflows, pushed, said)
+    rejected = first_rejected(main_tip, develop_tip, lacking, ahead, found_workflows, pushed, said)
     if rejected is not None:
         return rejected
-    return Looked(main_tip, develop_tip, lacking, ahead, workflows, pushed, shown_said(said), ended)
+    return Looked(main_tip, develop_tip, lacking, ahead, found_workflows, pushed, shown_said(said), ended)
 
 
 def step_findings(steps):
@@ -476,15 +504,15 @@ def judging_findings(judgement_read):
     return unpassed + ((JudgingEnded(judgement_read.ended),) if ended_badly else ())
 
 
-def promotion(judgement_read, lacking_commits, ahead_commits, workflows):
+def promotion(judgement_read, lacking_commits, ahead_commits, found_workflows):
     findings = judging_findings(judgement_read) + (
         (MainHasWhatDevelopLacks(tuple(lacking_commits)),) if lacking_commits else ())
     if findings or isinstance(judgement_read, NeverJudged):
         return Hold(findings)
     if ahead_commits:
         return Stay(judgement_read.commit, tuple(ahead_commits))
-    if workflows.paths:
-        return Hold((MainNeedsAMaintainerForWorkflows(judgement_read.commit, workflows),))
+    if found_workflows.hold_main():
+        return Hold((MainNeedsAMaintainerForWorkflows(judgement_read.commit, found_workflows),))
     return Move(judgement_read.commit)
 
 
@@ -546,22 +574,7 @@ def described(found):
             '\n\nand %d more.' % more if more > 0 else '',
             THE_MERGE_THAT_FIXES_IT)
     if isinstance(found, MainNeedsAMaintainerForWorkflows):
-        hash_text = found.commit.hash.text
-        count = len(found.files.paths)
-        listed = ''.join(path + '\n' for path in found.files.paths[:LISTED_AT_MOST])
-        more = count - LISTED_AT_MOST
-        return ("main needs a maintainer: the commits from main to %s change %d workflow file%s, and GitHub's "
-                'built-in token, the only credential the job that moves main has, may not move a branch past a '
-                'change to a workflow file, so nothing was pushed:\n\n%s%s\n\nNo commit to develop and no session can '
-                'clear this, since every later commit of develop carries these commits too: it waits on a maintainer, '
-                'who pushes main to %s by hand with a credential that may update workflows, a plain push, never '
-                'forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at '
-                'main, move it and write this issue too: the re-run finds main at the commit this run judged and closes '
-                "this issue if that commit is still develop's tip, or says here that develop has moved on and leaves "
-                'this issue to a run that judges its tip.' % (
-                    code_span(hash_text), count, '' if count == 1 else 's', fenced(listed),
-                    '\n\nand %d more.' % more if more > 0 else '', code_span(hash_text),
-                    fenced('git push origin %s:refs/heads/main' % hash_text)))
+        return held_for_a_maintainer(found)
     if isinstance(found, MainRefusedThePush):
         return 'main refused the push of %s. git said:\n\n%s' % (code_span(found.commit.hash.text),
                                                                   fenced(found.said))
@@ -569,6 +582,39 @@ def described(found):
         return 'The job that looks at main ended `%s` before it found where main stands.' % (
             found.ended.value or 'unreported')
     return 'The job that moves main ended `%s` before it pushed.' % (found.ended.value or 'unreported')
+
+
+def workflow_files_counted(paths):
+    return '%d workflow file%s' % (len(paths), '' if len(paths) == 1 else 's')
+
+
+def workflow_files_listed(paths):
+    more = len(paths) - LISTED_AT_MOST
+    return fenced(''.join(path + '\n' for path in paths[:LISTED_AT_MOST])) + (
+        '\n\nand %d more.' % more if more > 0 else '')
+
+
+def held_for_a_maintainer(found):
+    judged = code_span(found.commit.hash.text)
+    changed = found.workflows.changed.paths
+    differing = found.workflows.differing_alone()
+    return '\n\n'.join(
+        ("main needs a maintainer: GitHub's built-in token, the only credential the job that moves main has, may not "
+         'move a branch past a change to a workflow file, so nothing was pushed.',)
+        + (('The commits from main to %s change %s:\n\n%s' % (
+            judged, workflow_files_counted(changed), workflow_files_listed(changed)),) if changed else ())
+        + (("The judged commit's copy of %s differs from main's though no commit from main to %s changes it, as when "
+            "a merge of main into develop keeps develop's copy, so a push of %s replaces main's copy with the judged "
+            "commit's:\n\n%s" % (workflow_files_counted(differing), judged, judged,
+                                 workflow_files_listed(differing)),) if differing else ())
+        + ('No commit to develop and no session can clear this: a later commit of develop either leaves these '
+           'workflow files as the judged commit has them or changes them, and main holds for either. It waits on a '
+           'maintainer, who pushes main to %s by hand with a credential that may update workflows, a plain push, '
+           'never forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at '
+           'main, move it and write this issue too: the re-run finds main at the commit this run judged and closes '
+           "this issue if that commit is still develop's tip, or says here that develop has moved on and leaves this "
+           'issue to a run that judges its tip.' % (
+               judged, fenced('git push origin %s:refs/heads/main' % found.commit.hash.text)),))
 
 
 def reasons(findings):
