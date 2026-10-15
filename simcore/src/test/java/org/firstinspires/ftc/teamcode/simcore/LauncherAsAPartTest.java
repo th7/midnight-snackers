@@ -27,6 +27,10 @@ public class LauncherAsAPartTest {
     private static final double EXTENSION_FROM = -73;
     private static final double LEAD_IN_SQUEEZE = 0.25 * MILLIMETRE;
     private static final double FEED_IN_PER_S = 0.1 / Length.METRES_PER_INCH;
+    private static final String LEAD_IN_TURN_SOURCE = "doc/plans/runtime-flight.md, stage 4b: each lead-in's normal"
+            + " turns by 6.4 to 7.1 degrees where it meets the hood";
+    private static final double LEAD_IN_TURNS_LEAST_DEGREES = 6.4;
+    private static final double LEAD_IN_TURNS_MOST_DEGREES = 7.1;
     private static final String STOP = "Launcher stop";
     private static final double WITHIN = 1e-9;
     private static final Colliders FIELD = Valid.value(Colliders.of(
@@ -255,6 +259,46 @@ public class LauncherAsAPartTest {
                         WITHIN);
                 assertTrue("below the lead-in of " + ring, degrees < -81 || depth > 0);
             }
+        }
+    }
+
+    @Test
+    public void
+            eachLeadInIsAnArcOfItsHoodRingsRadiusThroughTheHoodsLowerEndAndTheExtensionsAndTurnsAsThePlanSaysAtTheJoin() {
+        Launcher launcher = still(0);
+        double opening = (2 * R - LEAD_IN_SQUEEZE) - (hoodRing(0) - wheelRing(0));
+        double squeezed = 0.3 * MILLIMETRE;
+        for (double ring : RINGS_MM) {
+            Vec3 axis = HUB.plus(new Vec3(0, ring * MILLIMETRE, 0));
+            double radius = hoodRing(ring);
+            Vec3 joins = axis.plus(outward(HOOD_FROM).times(radius));
+            Vec3 lowerEnd = axis.plus(outward(EXTENSION_FROM).times(radius + opening));
+            Vec3 chord = lowerEnd.minus(joins);
+            double length = StrictMath.sqrt(chord.dot(chord));
+            Vec3 across = new Vec3(-chord.z(), 0, chord.x()).times(1 / length);
+            Vec3 middle = joins.plus(lowerEnd).times(0.5);
+            double off = StrictMath.sqrt(radius * radius - length * length / 4);
+            Vec3 one = middle.plus(across.times(off)), other = middle.minus(across.times(off));
+            Vec3 centre =
+                    one.minus(axis).dot(one.minus(axis)) <= other.minus(axis).dot(other.minus(axis)) ? one : other;
+            for (double part : new double[] {0.1, 0.3, 0.5, 0.7, 0.9}) {
+                Vec3 toward = lowerEnd.minus(centre)
+                        .times(1 - part)
+                        .plus(joins.minus(centre).times(part));
+                Vec3 out = toward.times(1 / StrictMath.sqrt(toward.dot(toward)));
+                Vec3 ball = centre.plus(out.times(radius - (R - squeezed)));
+                String where = "the lead-in of " + ring + " mm, " + part + " of the way up it";
+                Optional<Surroundings.Overlap> overlap = named(launcher.squeezing(ball, POLLEN), hoodId(ring));
+                assertTrue(where + " squeezes nothing", overlap.isPresent());
+                assertEquals(where, squeezed, overlap.get().depth(), WITHIN);
+                assertVec(where + ", its normal", out.negated(), overlap.get().normal(), WITHIN);
+            }
+            Vec3 hoodsNormal = axis.minus(joins).times(1 / radius);
+            Vec3 leadInsNormal = centre.minus(joins).times(1 / radius);
+            double turns = StrictMath.toDegrees(StrictMath.acos(hoodsNormal.dot(leadInsNormal)));
+            assertTrue(
+                    LEAD_IN_TURN_SOURCE + ": " + turns + " degrees at " + ring + " mm",
+                    turns >= LEAD_IN_TURNS_LEAST_DEGREES && turns <= LEAD_IN_TURNS_MOST_DEGREES);
         }
     }
 
