@@ -517,9 +517,9 @@ a repository without `nugget-develop` gets one at `develop`'s tip when the
 server starts, said on its console. It never deletes or rewrites either: it
 only adds merge commits to them. Getting `develop` to `main` is CI's: a **run
 for develop** that finds every check green moves `main` to the commit it
-judged, and nothing else moves `main`. Anything that moves between the two
-robots' lines is the coach's job. `GET /git/status` names the one a user's
-**ahead** and **behind** are counted against, as **develop**.
+judged. Anything that moves between the two robots' lines is the coach's
+job. `GET /git/status` names the one a user's **ahead** and **behind** are
+counted against, as **develop**.
 
 **Run for develop** — What CI does each time `develop` is pushed. Runs go one
 at a time: a push that arrives during a run waits, and a run still waiting
@@ -528,19 +528,27 @@ and the pushes that arrived meanwhile are judged together by the next run. A
 run judges `develop`'s tip as it is when the run starts, not the commit whose
 push started it, with the same commands as a local run:
 `./gradlew spotlessCheck`, `python3 tools/run_tests.py` and
-`./gradlew :TeamCode:testDebugUnitTest`. When every check is green and `main`
-has no commit `develop` lacks, CI pushes the commit it judged to `main`: a
-plain push, never forced and never a merge, so a `main` that moved meanwhile
-refuses it. Anything else is a red run, and `main` stays where it was. A red
-run opens the issue **IMPORTANT: develop CI Failures**, or comments on it when
-it is already open, naming the commit judged and what failed — a check, the
-commits `main` has that `develop` lacks with the merge that brings them in, or
-git's own words for a refused push — and the run; a commit that reached
-`main` by itself keeps every run red until `develop` holds it. The next green
-run closes the issue, saying `main` now stands at the commit it judged. A
-pull request is still judged, in a queue of its own, and never moves `main`
-or touches the issue. What a run decides is the core's, and the workflow only
-gathers what the core needs and does what it says, which a test holds it to.
+`./gradlew :TeamCode:testDebugUnitTest`. When every step of the judging is
+green and `main` has no commit `develop` lacks, CI pushes the commit it judged
+to `main`: a plain push, never forced and never a merge, so a `main` that moved
+meanwhile refuses it. A `main` that already has commits of `develop` the judged
+commit lacks stays where it is, and the run is green without touching the
+issue, since the run for a later tip judges those commits. Anything else is a
+red run, and `main` stays where it was. A red run opens the issue
+**IMPORTANT: develop CI Failures**, or comments on it when it is already open,
+naming the commit judged and what failed — the step, a setup step or the
+report upload as much as a check; the commits `main` has that `develop` lacks,
+with the merge that brings them in; or git's own words for a refused push —
+and the run; a commit that reached `main` by itself keeps every run red until
+`develop` holds it. The built-in token may not move `main` past a change to a
+workflow file, so a push refused for that says it waits on a maintainer, who
+moves `main` by hand or gives the job that moves `main` a token that may, as
+the repository secret `MAIN_PUSH_TOKEN`; no commit to `develop` can fix it. The
+next green run closes the issue, saying `main` now stands at the commit it
+judged. A pull request is still judged, in a queue of its own, and never moves
+`main` or touches the issue. What a run decides is the core's, and the
+workflow only gathers what the core needs and does what it says, which a test
+holds it to.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`.
 
