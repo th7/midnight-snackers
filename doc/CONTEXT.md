@@ -1955,17 +1955,21 @@ lead-in's lower end and across the hood's groove, and a ball touches it as it wo
 the field's metal frame. A launcher is placed for a step: it holds the frame the step
 begins at and the frame it ends at, with their times, and the wheel's speed, which
 stays as it was given wherever it is placed. Placed at any time, its frame is on the
-straight line through the two, on past them and never clamped, carried from
-whichever of the two is nearer in time at the step's velocity and turn, its yaw
-changing by the difference of the two yaws less whole turns, so it turns the short
-way across ±π, at that rate; a step of no time leaves it at rest where it ends, and a
-step that does not move, two equal frames among them, leaves it exactly at the frame
-it ends at. A step whose frame would sweep a face faster than a flight takes a ball,
-its speed plus its turn times the 5.26 in the farthest face stands from the turning
-axis, or that ends before it begins, is refused, saying so; since that bounds what it
-is carried at and every time on the grid is finite, whatever the types admit, however
-short the step, it is placed somewhere finite, and what squeezes a ball within its
-reach moves at a finite velocity where it meets it. A new wheel speed or a new frame comes as a new launcher
+straight line through the two, on past them and never clamped, carried from whichever
+of the two is nearer in time at the step's velocity and turn, so it is exactly the
+frame the step begins at as it begins and the frame it ends at as it ends, and is
+placed exactly as the same step run the other way is placed as far from its other
+end; its yaw changes by the difference of the two yaws less whole turns, so it turns
+the short way across ±π, at that rate. A step of no time leaves it at rest where it
+ends, and a step that does not move leaves it exactly at the frame it ends at: two
+equal frames, two whose difference is too small to give a rate, and two whose yaws
+are half a turn either way among them. A step whose frame would sweep a face faster
+than a flight takes a ball, its speed plus its turn times the 5.26 in the farthest
+face stands from the turning axis, or that ends before it begins, is refused, saying
+so; the step keeps its velocity and turn, which that bounds, and every time on the
+grid is finite, so whatever the types admit, however short the step, it is placed
+somewhere finite, and what squeezes a ball within its reach moves at a finite
+velocity where it meets it. A new wheel speed or a new frame comes as a new launcher
 in its place. A wheel ring moves as the frame does at the hub, plus the wheel's turn
 about the axle; a hood ring and the stop move with the frame alone; a still frame with
 a stopped wheel squeezes and touches with exactly nothing moving, so a ball held in it
