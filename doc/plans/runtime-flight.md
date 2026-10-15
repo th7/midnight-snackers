@@ -131,16 +131,23 @@ hives are a part that moves while one tips.
 - `Launcher.Frame` is a place within 10,000 in of the field's centre either
   way and a finite yaw. `Launcher.Course` holds the frames a step begins and
   ends at, with their `GridTime`s, and places the frame as *The launcher's
-  frame* below says, carrying it from whichever end is nearer in time at
-  the course's velocity and turn. A course that does not move, equal frames
-  among them, gives exactly no velocity and no turn and leaves the frame
-  exactly at its end. A course whose faces would sweep faster than a flight
-  takes a ball (its speed plus its turn times the 5.26 in the farthest face
-  is from the turning axis) is refused. Both rates are bounded so and every
-  `GridTime` is finite, so whatever frames, times and wheel speeds the
-  types admit, however short the course, the launcher is placed somewhere
-  finite, what squeezes a ball within its reach moves at a finite velocity
-  where it meets it, and no squeeze is dropped.
+  frame* below says, carrying it from whichever end is nearer in time at the
+  course's velocity and turn, so a moving course is exactly the frame it
+  begins at as it begins and the frame it ends at as it ends, even where
+  carrying one end across the course would miss the other by rounding, and
+  is placed exactly as the same course run the other way is placed as far
+  from its other end. A course that does not move gives exactly no velocity
+  and no turn and leaves the frame exactly at its end: equal frames, frames
+  whose difference is too small to give a rate, and frames whose yaws are
+  half a turn either way among them. A course whose faces would sweep faster
+  than a flight takes a ball (its speed plus its turn times the 5.26 in the
+  farthest face is from the turning axis) is refused. The course keeps both
+  rates, bounded so, rather than dividing at each placing, and every
+  `GridTime` is finite, so whatever frames, times and wheel speeds the types
+  admit, however short the course (down to the least time above none a step
+  admits), the launcher is placed somewhere finite, what squeezes a ball
+  within its reach moves at a finite velocity where it meets it, and no
+  squeeze is dropped.
 - `Launcher` is a part of the surroundings with the faces in the tables
   above. A hood ring is its arc and its lead-in, answered as one by
   whichever is nearer, so a ball is squeezed once by each ring. The lead-in
@@ -296,7 +303,9 @@ construction.
 - Between them the pose at engine time t, on stage 3's step grid, is
   interpolated linearly, extrapolated past the end and never clamped,
   carried from whichever end is nearer at the step's velocity and turn, so
-  it is finite however short the step.
+  each step is exactly the frame the last one ended at as it begins and no
+  step boundary is a jump. The step keeps its velocity and turn, which the
+  sweep bounds, so it is finite however short the step.
 - The yaw change is `StrictMath.IEEEremainder(yawEnd − yawStart, 2π)`, so
   crossing ±π never spins the hood. The frame's spin is the yaw's rate.
 - A step of no time gives the end frame at rest.
