@@ -6,6 +6,7 @@ import develop_run as run
 from develop_run import Green, Judged, Looked, Rejected, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
+BODY_AT_MOST = 65536
 REPOSITORY = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 RUN_ID = re.compile(r'[0-9]+')
 RUN_URL = re.compile(r'https://[^/\s]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+')

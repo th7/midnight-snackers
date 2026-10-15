@@ -185,6 +185,40 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual(Rejected("what the workflow gathered is base64, and 'é' is not"),
                          run.judgement('success', JUDGED, 'é', 'success', 'success', 'success'))
 
+    def test_a_control_character_in_a_subject_is_shown_escaped_so_the_subject_stays_one_line(self):
+        read = run.judgement('success', JUDGED, b64('Fix the thing\r```\rrest\x1b[31m\u2028end\n'), 'success', 'success',
+                             'success')
+
+        self.assertEqual('Fix the thing\\x0d```\\x0drest\\x1b[31m\\u2028end', read.commit.subject)
+
+    def test_a_subject_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
+        read = run.judgement('success', JUDGED, b64('x' * 70000 + '\n'), 'success', 'success', 'success')
+
+        self.assertEqual('x' * run.SUBJECT_SHOWN + '… (%d more characters)' % (70000 - run.SUBJECT_SHOWN),
+                         read.commit.subject)
+
+    def test_a_line_of_what_main_lacks_is_shown_escaped_and_cut_short_as_a_subject_is(self):
+        printed = '%s Fix\rit%s\n' % (STRAY, 'y' * 1000)
+
+        self.assertEqual('Fix\\x0dit' + 'y' * (run.SUBJECT_SHOWN - 9) + '… (809 more characters)',
+                         run.lacking(b64(printed))[0].subject)
+
+    def test_a_subject_is_never_cut_inside_the_escape_of_a_character(self):
+        read = run.judgement('success', JUDGED, b64('x' * (run.SUBJECT_SHOWN - 2) + '\r\n'), 'success', 'success',
+                             'success')
+
+        self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
+
+    def test_what_git_said_ends_its_lines_where_a_carriage_return_did_and_shows_other_control_characters_escaped(self):
+        read = run.promoting('failure', MAIN, '', 'failure', b64('remote: one\r\nremote: two\rthree\x00\x1b[0m\tok\n'))
+
+        self.assertEqual('remote: one\nremote: two\nthree\\x00\\x1b[0m\tok\n', read.said)
+
+    def test_what_git_said_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
+        read = run.promoting('failure', MAIN, '', 'failure', b64('z' * 70000))
+
+        self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
+
     def test_a_judgement_with_no_commit_named_is_one_that_judged_nothing(self):
         self.assertEqual(NeverJudged(Outcome.FAILURE), run.judgement('failure', '', '', '', '', ''))
 
@@ -223,7 +257,10 @@ class MakingAValueDirectly(unittest.TestCase):
 
     def test_a_commit_made_directly_is_held_to_a_hash_and_a_one_line_subject(self):
         self.assertEqual(commit(), run.Commit(run.CommitHash(JUDGED), SUBJECT))
-        self.assertEqual(Rejected('a commit subject is one line'), run.Commit(run.CommitHash(JUDGED), 'two\nlines'))
+        for wrong in ('two\nlines', 'a\rcarriage return', 'a\u2028line separator', 'x' * (run.SUBJECT_SHOWN_AT_MOST + 1)):
+            self.assertEqual(Rejected('a commit subject is one line of at most %d characters, none of them a control '
+                                      'character or a line separator' % run.SUBJECT_SHOWN_AT_MOST),
+                             run.Commit(run.CommitHash(JUDGED), wrong), wrong)
         self.assertIsInstance(run.Commit(JUDGED, SUBJECT), Rejected)
         self.assertIsInstance(run.Commit(run.CommitHash(JUDGED), None), Rejected)
 
@@ -233,6 +270,9 @@ class MakingAValueDirectly(unittest.TestCase):
         self.assertIsInstance(Looked(run.CommitHash(MAIN), [], Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
         self.assertIsInstance(Looked(run.CommitHash(MAIN), (), 'success', '', Outcome.SUCCESS), Rejected)
         self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, None, Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, 'x' * (run.SAID_SHOWN_AT_MOST + 1),
+                                     Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS), Rejected)
 
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
         self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, checked()), Rejected)

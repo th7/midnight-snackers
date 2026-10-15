@@ -1,3 +1,4 @@
+import base64
 import unittest
 
 import develop_issue as issues
@@ -11,6 +12,10 @@ MAIN = 'b' * 40
 STRAY = 'c' * 40
 SUBJECT = 'A ball comes back from a lone still compliant surface at its restitution'
 RUN = 'https://github.com/th7/midnight-snackers/actions/runs/123456'
+
+
+def b64(text):
+    return base64.b64encode(text.encode('utf-8')).decode('ascii')
 
 
 def commit(hash_text=JUDGED, subject=SUBJECT):
@@ -118,6 +123,35 @@ class WhatTheIssueSays(unittest.TestCase):
                                    link()).body
 
         self.assertIn('```` Say `x` and ``` then @everyone ````', body)
+
+
+    def test_a_carriage_return_in_a_subject_never_breaks_the_head_line_so_the_reasons_and_the_run_stay_outside_code(self):
+        for printed in ('Fix the thing\r```\rrest\n', 'Fix the thing\r===\n'):
+            tricky = run.judgement('failure', JUDGED, b64(printed), 'success', 'success', 'failure')
+            body = issues.issue_action(tricky, held(), (), link()).body
+            head, _, rest = body.partition('\n')
+
+            self.assertNotIn('\r', body)
+            self.assertIn('\\x0d', head)
+            self.assertTrue(rest.startswith('\n**'), rest)
+            self.assertTrue(body.endswith('\n\nThe run: %s\n' % RUN), body)
+
+    def test_the_body_stays_well_under_github_s_limit_however_long_what_it_quotes(self):
+        endless = 'x' * 70000
+        judged_long = run.judgement('failure', JUDGED, b64(endless), 'failure', 'success', 'failure')
+        strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
+        for promoting in (run.promoting('failure', MAIN, strays, 'skipped', ''),
+                          run.promoting('failure', MAIN, '', 'failure', b64(endless))):
+            body = issues.issue_action(judged_long, promoting, (), link()).body
+
+            self.assertLess(len(body), issues.BODY_AT_MOST // 2)
+        green_long = run.judgement('success', JUDGED, b64(endless), 'success', 'success', 'success')
+
+        self.assertLess(len(issues.issue_action(green_long, looked(), (issue(12),), link()).body),
+                        issues.BODY_AT_MOST // 2)
+
+    def test_github_takes_an_issue_body_of_at_most_65536_characters(self):
+        self.assertEqual(65536, issues.BODY_AT_MOST)
 
 
 class ReadingWhatTheWorkflowGathered(unittest.TestCase):

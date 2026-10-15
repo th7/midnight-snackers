@@ -1,11 +1,16 @@
 import base64
 import re
+import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 
 COMMIT_HASH = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 BASE64 = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
 LISTED_AT_MOST = 50
+SUBJECT_SHOWN = 200
+SUBJECT_SHOWN_AT_MOST = 256
+SAID_SHOWN = 4000
+SAID_SHOWN_AT_MOST = 4096
 THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fetch origin && git merge origin/main`, '
                            'and push that merge to develop as it is, without a rebase, which would drop it.')
 
@@ -55,8 +60,10 @@ class Commit(Validated):
     def broken(hash, subject):
         if not isinstance(hash, CommitHash):
             return 'a commit is named by its hash'
-        if not isinstance(subject, str) or '\n' in subject:
-            return 'a commit subject is one line'
+        if (not isinstance(subject, str) or len(subject) > SUBJECT_SHOWN_AT_MOST
+                or any(breaks_a_line(character) for character in subject)):
+            return ('a commit subject is one line of at most %d characters, none of them a control character or a '
+                    'line separator' % SUBJECT_SHOWN_AT_MOST)
         return None
 
 
@@ -126,8 +133,10 @@ class Looked(Validated):
             return 'what main lacks is a tuple of commits'
         if not all_of(Outcome, (pushed, ended)):
             return 'a mover says how its push and its job ended'
-        if not isinstance(said, str):
-            return 'what git said is text'
+        if (not isinstance(said, str) or len(said) > SAID_SHOWN_AT_MOST
+                or any(unsafe_in_a_quote(character) for character in said)):
+            return ('what git said is text of at most %d characters, with no control character but a newline or a '
+                    'tab' % SAID_SHOWN_AT_MOST)
         return None
 
 
@@ -189,6 +198,49 @@ class Red:
     promoting: object
 
 
+def breaks_a_line(character):
+    return unicodedata.category(character) in ('Cc', 'Zl', 'Zp')
+
+
+def unsafe_in_a_quote(character):
+    return unicodedata.category(character) == 'Cc' and character not in '\n\t'
+
+
+def escaped(character):
+    code = ord(character)
+    return '\\x%02x' % code if code < 0x100 else '\\u%04x' % code
+
+
+def more(left_out):
+    return '… (%d more character%s)' % (left_out, '' if left_out == 1 else 's')
+
+
+def shown_within(pieces, shown):
+    kept = []
+    length = 0
+    for piece in pieces:
+        if length + len(piece) > shown:
+            break
+        kept.append(piece)
+        length += len(piece)
+    return kept
+
+
+def shown_subject(text):
+    pieces = [escaped(character) if breaks_a_line(character) else character for character in text]
+    kept = shown_within(pieces, SUBJECT_SHOWN)
+    left_out = len(pieces) - len(kept)
+    return ''.join(kept) + (more(left_out) if left_out else '')
+
+
+def shown_said(text):
+    lines_ended = text.replace('\r\n', '\n').replace('\r', '\n')
+    pieces = [escaped(character) if unsafe_in_a_quote(character) else character for character in lines_ended]
+    kept = shown_within(pieces, SAID_SHOWN)
+    left_out = len(pieces) - len(kept)
+    return ''.join(kept) + ('\n' + more(left_out) + '\n' if left_out else '')
+
+
 def outcome(text):
     for known in Outcome:
         if known.value == text:
@@ -205,7 +257,7 @@ def commit_line(line):
     hashed = commit_hash(hash_text)
     if isinstance(hashed, Rejected):
         return hashed
-    return Commit(hashed, subject)
+    return Commit(hashed, shown_subject(subject))
 
 
 def decoded(text):
@@ -232,7 +284,7 @@ def judgement(ended_text, judged_text, subject_base64, formatting_text, tool_tes
     if rejected is not None:
         return rejected
     line = subject[:-1] if subject.endswith('\n') else subject
-    named = Commit(hashed, line)
+    named = Commit(hashed, shown_subject(line))
     if isinstance(named, Rejected):
         return named
     return Judged(named, ended, Checked(formatting, tool_tests, unit_tests))
@@ -262,7 +314,7 @@ def promoting(ended_text, main_tip_text, lacking_base64, pushed_text, said_base6
     rejected = first_rejected(main_tip, commits, pushed, said)
     if rejected is not None:
         return rejected
-    return Looked(main_tip, commits, pushed, said, ended)
+    return Looked(main_tip, commits, pushed, shown_said(said), ended)
 
 
 def judging_findings(judgement_read):
