@@ -977,7 +977,8 @@ public class FlightTest {
     private static final double TICKS_PER_TURN = 24.2;
     private static final double CLOSE_LAUNCH = 1050;
     private static final String ROBOT_TOP_SOURCE =
-            "doc/plans/reginald.md: Reginald stands 9.084 in high after the trim";
+            "doc/plans/runtime-flight.md, stage 4, What we change, the hood's upper end: the robot's top is 9.084 in"
+                    + " after the trim";
     private static final double ROBOT_TOP_IN = 9.084;
     private static final double THROWN_ABOVE_IN = 30;
     private static final double ROBOT_X = -30;

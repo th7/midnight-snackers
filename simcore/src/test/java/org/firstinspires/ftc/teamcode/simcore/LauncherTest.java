@@ -40,7 +40,8 @@ public class LauncherTest {
     private static final double SMOOTHER_HOOD = 0.15;
     private static final double FASTER_LAUNCH = 1400;
     private static final String ROBOT_TOP_SOURCE =
-            "doc/plans/reginald.md: Reginald stands 9.084 in high after the trim";
+            "doc/plans/runtime-flight.md, stage 4, What we change, the hood's upper end: the robot's top is 9.084 in"
+                    + " after the trim";
     private static final double ROBOT_TOP_IN = 9.084;
     private static final double HELD_FOR_SECONDS = 1;
     private static final double THROWN_WITHIN_SECONDS = 0.2;
