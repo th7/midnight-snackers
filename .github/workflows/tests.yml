@@ -98,7 +98,6 @@ jobs:
       contents: read
     outputs:
       main-tip: ${{ steps.main.outputs.tip }}
-      develop-tip: ${{ steps.main.outputs.develop }}
       lacking: ${{ steps.main.outputs.lacking }}
       main-ahead: ${{ steps.main.outputs.ahead }}
       workflows-changed: ${{ steps.main.outputs.changed }}
@@ -111,17 +110,15 @@ jobs:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Find where main and develop stand, what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
+      - name: Find where main stands, what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
         id: main
         run: |
           tip=$(git rev-parse refs/remotes/origin/main)
-          develop=$(git rev-parse refs/remotes/origin/develop)
           lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)
           ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
           changed=$(git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows | base64 -w0)
           differing=$(git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows | base64 -w0)
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
-          echo "develop=$develop" >> "$GITHUB_OUTPUT"
           echo "lacking=$lacking" >> "$GITHUB_OUTPUT"
           echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
@@ -201,6 +198,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title > "$RUNNER_TEMP/open-issues.json"
+      - name: Read develop's tip as it is now, before any of the judged commit is on disk
+        id: develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tip=$(gh api --method GET "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq .object.sha)
+          if [[ ! $tip =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+            echo "gh answered no commit hash for the tip of develop: $tip" >&2
+            exit 1
+          fi
+          echo "tip=$tip" >> "$GITHUB_OUTPUT"
       - name: Check out the judged commit, keeping no credential
         uses: actions/checkout@v4
         with:
@@ -224,7 +232,7 @@ jobs:
           STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
           LOOKING_ENDED: ${{ needs.look.result }}
           MAIN_TIP: ${{ needs.look.outputs.main-tip }}
-          DEVELOP_TIP: ${{ needs.look.outputs.develop-tip }}
+          DEVELOP_TIP: ${{ steps.develop.outputs.tip }}
           LACKING: ${{ needs.look.outputs.lacking }}
           MAIN_AHEAD: ${{ needs.look.outputs.main-ahead }}
           WORKFLOWS_CHANGED: ${{ needs.look.outputs.workflows-changed }}
@@ -263,8 +271,21 @@ jobs:
         run: |
           base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
           gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
-      - name: Close the issue, saying main now stands at the judged commit, only when every job before passed
-        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success'
+      - name: Read develop's tip as it is now, when the core said close
+        id: develop
+        if: needs.say.outputs.action == 'close'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tip=$(gh api --method GET "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq .object.sha)
+          if [[ ! $tip =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+            echo "gh answered no commit hash for the tip of develop: $tip" >&2
+            exit 1
+          fi
+          echo "tip=$tip" >> "$GITHUB_OUTPUT"
+      - name: Close the issue, saying main now stands at the judged commit, only when every job before passed and that commit is still develop's tip
+        id: close
+        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.develop.outputs.tip == needs.unit-tests.outputs.commit
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUES: ${{ needs.say.outputs.issues }}
@@ -274,6 +295,20 @@ jobs:
           for issue in $ISSUES; do
             gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$issue"
             gh issue close --repo "$GITHUB_REPOSITORY" -- "$issue"
+          done
+      - name: Say on the issue that main now stands at the judged commit but develop has moved on, when every job before passed and the core said close
+        id: behind
+        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.develop.outputs.tip != needs.unit-tests.outputs.commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUES: ${{ needs.say.outputs.issues }}
+          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          TIP: ${{ steps.develop.outputs.tip }}
+        run: |
+          link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body=$(printf '%s\n\nThe run: %s' "develop was judged green at $JUDGED, and main now stands there, but develop's tip is now $TIP, which this run did not judge, so this issue stays open until a run that judges develop's tip closes it." "$link")
+          for issue in $ISSUES; do
+            gh issue comment --repo "$GITHUB_REPOSITORY" --body "$body" -- "$issue"
           done
       - name: Open or comment on the issue saying only that the run is red, when nothing else did
         if: ${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && (failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || needs.promote.result != 'success' || needs.say.result != 'success') }}
