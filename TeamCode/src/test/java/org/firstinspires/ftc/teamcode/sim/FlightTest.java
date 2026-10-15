@@ -1005,8 +1005,22 @@ public class FlightTest {
 
     private Object feed() {
         Object ball = new Object();
-        flight = Valid.value(flight.fed(ball, Field.Kind.POLLEN, POLLEN));
+        flight = Valid.value(flight.fed(ball, Field.Kind.POLLEN, POLLEN)).fold(next -> next, why -> {
+            throw new AssertionError("the entry was clear, so the ball goes in, but the feed waited: " + why);
+        });
         return ball;
+    }
+
+    private static String waiting(Checked<Flight.Feeding<Object>> feeding) {
+        return feeding.fold(
+                fed -> fed.fold(
+                        next -> {
+                            throw new AssertionError("fed while its entry was not clear");
+                        },
+                        why -> why),
+                rule -> {
+                    throw new AssertionError("refused, where a feed whose entry is not clear waits: " + rule);
+                });
     }
 
     private void carry(double seconds, DoubleFunction<Launcher.Frame> frameAt, Flywheel.AngularSpeed wheel) {
@@ -1059,14 +1073,14 @@ public class FlightTest {
     }
 
     @Test
-    public void aLauncherIsFedOnlyAPollenOfItsSizeAndOnlyWhileItsEntryIsClearAndARefusalNamesTheRule() {
+    public void aLauncherIsFedOnlyAPollenOfItsSizeARefusalNamingTheRuleAndAFeedWaitsWhileItsEntryIsNotClearSayingSo() {
         carryALauncher(FlightTest::resting);
         Flight<Object> empty = flight;
         Object first = feed();
 
-        String crowded = rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
+        String crowded = waiting(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
         carry(1.0, FlightTest::resting, wheel(0));
-        String stillCrowded = rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
+        String stillCrowded = waiting(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN));
         String nectar = rejection(empty.fed(new Object(), Field.Kind.NECTAR, NECTAR));
         String bigger = rejection(empty.fed(new Object(), Field.Kind.POLLEN, NECTAR));
 
@@ -1091,13 +1105,13 @@ public class FlightTest {
         for (int tick = 0; tick < 400; tick++) {
             if (fed.size() < 4) {
                 Object ball = new Object();
-                String refused = flight.fed(ball, Field.Kind.POLLEN, POLLEN)
+                String refused = Valid.value(flight.fed(ball, Field.Kind.POLLEN, POLLEN))
                         .fold(
                                 next -> {
                                     flight = next;
                                     return "";
                                 },
-                                rule -> rule);
+                                why -> why);
                 if (refused.isEmpty()) {
                     fed.add(ball);
                     highest.add(Double.NEGATIVE_INFINITY);

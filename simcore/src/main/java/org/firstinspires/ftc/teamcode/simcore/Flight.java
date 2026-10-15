@@ -63,6 +63,24 @@ public final class Flight<K> {
 
     public record Stepped<K>(Flight<K> flight, List<Landing<K>> landings) {}
 
+    public sealed interface Feeding<K> permits Fed, EntryNotClear {
+        <T> T fold(Function<Flight<K>, T> fed, Function<String, T> waiting);
+    }
+
+    public record Fed<K>(Flight<K> flight) implements Feeding<K> {
+        @Override
+        public <T> T fold(Function<Flight<K>, T> fed, Function<String, T> waiting) {
+            return fed.apply(flight);
+        }
+    }
+
+    public record EntryNotClear<K>(String why) implements Feeding<K> {
+        @Override
+        public <T> T fold(Function<Flight<K>, T> fed, Function<String, T> waiting) {
+            return waiting.apply(why);
+        }
+    }
+
     private record Physics(
             Colliders still,
             Set<String> floors,
@@ -420,7 +438,7 @@ public final class Flight<K> {
                 }));
     }
 
-    public Checked<Flight<K>> fed(K ball, Field.Kind kind, Length radius) {
+    public Checked<Feeding<K>> fed(K ball, Field.Kind kind, Length radius) {
         return robot.fold(() -> Checked.rejected("a flight with no robot has no launcher to feed"), launcher -> {
             if (kind != Field.Kind.POLLEN || !(radius.inches() == Launcher.POLLEN_RADIUS_IN)) {
                 return Checked.rejected("the launcher is fed a pollen of " + Launcher.POLLEN_RADIUS_IN
@@ -578,15 +596,15 @@ public final class Flight<K> {
             }
         }
 
-        Checked<Flight<K>> feed(K ball, Field.Kind kind, Length radius, Ball shape, Launcher launcher) {
+        Checked<Feeding<K>> feed(K ball, Field.Kind kind, Length radius, Ball shape, Launcher launcher) {
             Launcher placed = launcher.at(engine().time());
             Vec3 entry = placed.entry(radius);
             for (Bodies.Seen other : engine().seen()) {
                 Vec3 apart = other.at().minus(entry);
                 double reach = radiusOf(other.name()) + radius.inches() + Shot.TOUCHING_IN;
                 if (apart.dot(apart) <= reach * reach) {
-                    return Checked.rejected("the launcher's entry is not clear: a ball at " + other.at()
-                            + " lies within " + reach + " in of where a fed ball goes in, " + entry);
+                    return Checked.ok(new EntryNotClear<>("the launcher's entry is not clear: a ball at " + other.at()
+                            + " lies within " + reach + " in of where a fed ball goes in, " + entry));
                 }
             }
             return comingIntoFlight(placed.feed(radius))
@@ -598,7 +616,8 @@ public final class Flight<K> {
                                     shape,
                                     motion,
                                     new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING))
-                            .then(seen -> checked()));
+                            .then(seen -> checked())
+                            .map(Fed::new));
         }
 
         void advanceTo(long target) {
