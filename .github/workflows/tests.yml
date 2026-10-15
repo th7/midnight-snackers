@@ -100,6 +100,7 @@ jobs:
       main-tip: ${{ steps.main.outputs.tip }}
       lacking: ${{ steps.main.outputs.lacking }}
       main-ahead: ${{ steps.main.outputs.ahead }}
+      workflows: ${{ steps.main.outputs.workflows }}
       pushed: ${{ steps.push.outcome }}
       git-said: ${{ steps.push.outputs.said }}
     steps:
@@ -108,16 +109,18 @@ jobs:
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
-      - name: Find what main has that develop lacks, and what it has that the judged commit lacks
+      - name: Find what main has that develop or the judged commit lacks, and the workflow files the commits since main change
         id: main
         run: |
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/develop:refs/remotes/origin/develop
           tip=$(git rev-parse refs/remotes/origin/main)
           lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)
           ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
+          workflows=$(git log --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows | base64 -w0)
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
           echo "lacking=$lacking" >> "$GITHUB_OUTPUT"
           echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          echo "workflows=$workflows" >> "$GITHUB_OUTPUT"
       - name: Decide whether main moves
         id: decide
         env:
@@ -136,6 +139,7 @@ jobs:
           STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
           LACKING: ${{ steps.main.outputs.lacking }}
           MAIN_AHEAD: ${{ steps.main.outputs.ahead }}
+          WORKFLOWS: ${{ steps.main.outputs.workflows }}
         run: python3 tools/ci/develop_run_cli.py promotion >> "$GITHUB_OUTPUT"
       - name: Move main to the judged commit, never by force
         id: push
@@ -191,6 +195,7 @@ jobs:
           MAIN_TIP: ${{ needs.promote.outputs.main-tip }}
           LACKING: ${{ needs.promote.outputs.lacking }}
           MAIN_AHEAD: ${{ needs.promote.outputs.main-ahead }}
+          WORKFLOWS: ${{ needs.promote.outputs.workflows }}
           PUSHED: ${{ needs.promote.outputs.pushed }}
           GIT_SAID: ${{ needs.promote.outputs.git-said }}
         run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" "$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"

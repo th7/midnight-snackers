@@ -20,7 +20,7 @@ def b64(text):
 
 def gathered(**changed):
     handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': '',
-              'MAIN_AHEAD': ''}
+              'MAIN_AHEAD': '', 'WORKFLOWS': ''}
     handed.update({cli.outcome_of(step): 'success' for step in run.STEPS})
     handed.update(changed)
     return handed
@@ -63,14 +63,23 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertEqual('decision=stay\n', done.stdout)
         self.assertIn('main stays where it is', done.stderr)
 
-    def test_an_input_the_workflow_did_not_hand_fails_naming_it_and_hands_nothing(self):
-        environ = gathered()
-        del environ['LACKING']
-        done = called('promotion', environ)
+    def test_commits_since_main_that_change_a_workflow_hand_the_workflow_a_hold_naming_the_files_in_the_log(self):
+        done = called('promotion', gathered(WORKFLOWS=b64('.github/workflows/tests.yml\n')))
 
-        self.assertEqual(2, done.returncode)
-        self.assertEqual('', done.stdout)
-        self.assertIn('LACKING', done.stderr)
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('decision=hold\n', done.stdout)
+        self.assertIn('.github/workflows/tests.yml', done.stderr)
+        self.assertIn('git push origin %s:refs/heads/main' % JUDGED, done.stderr)
+
+    def test_an_input_the_workflow_did_not_hand_fails_naming_it_and_hands_nothing(self):
+        for name in ('LACKING', 'WORKFLOWS'):
+            environ = gathered()
+            del environ[name]
+            done = called('promotion', environ)
+
+            self.assertEqual(2, done.returncode)
+            self.assertEqual('', done.stdout)
+            self.assertIn(name, done.stderr)
 
     def test_the_outcome_of_each_step_of_the_judging_job_is_handed_under_a_name_of_its_own(self):
         self.assertEqual(['STEP_CHECKOUT', 'STEP_JUDGED', 'STEP_JAVA', 'STEP_GRADLE', 'STEP_NODE', 'STEP_BROWSER',
@@ -94,7 +103,7 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertIn('an outcome is success, failure, cancelled, skipped or nothing', done.stderr)
 
     def test_an_input_holding_a_character_beyond_ascii_fails_with_the_rule_and_hands_nothing(self):
-        for name in ('SUBJECT', 'LACKING'):
+        for name in ('SUBJECT', 'LACKING', 'WORKFLOWS'):
             done = called('promotion', gathered(**{name: 'é'}))
 
             self.assertEqual(2, done.returncode, done.stderr)
@@ -159,6 +168,25 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)
         self.assertIn('remote: error: GH006: Protected branch update failed\n', self.body_written())
+
+    def test_a_run_held_over_workflows_hands_the_workflow_the_issue_to_comment_on_with_the_maintainer_s_push(self):
+        done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
+                           PROMOTING_ENDED='failure', WORKFLOWS=b64('.github/workflows/tests.yml\n'))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=comment\nissues=12\n', done.stdout)
+        self.assertIn('git push origin %s:refs/heads/main' % JUDGED, self.body_written())
+
+    def test_a_report_not_handed_the_workflow_files_fails_naming_them_and_hands_nothing(self):
+        environ = reported()
+        del environ['WORKFLOWS']
+        with open(self.open_issues, 'w') as written:
+            written.write('[]')
+        done = called('report', environ, self.open_issues, self.body)
+
+        self.assertEqual(2, done.returncode)
+        self.assertEqual('', done.stdout)
+        self.assertIn('WORKFLOWS', done.stderr)
 
     def test_open_issues_that_are_not_the_json_gh_prints_fail_with_the_rule_and_hand_nothing(self):
         done = self.report('not json')

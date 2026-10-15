@@ -43,8 +43,8 @@ def failed():
     return judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE)
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=()):
-    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), pushed, said,
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=()):
+    return Looked(run.commit_hash(MAIN), tuple(lacking), tuple(ahead), run.WorkflowFiles(tuple(workflows)), pushed, said,
                   Outcome.SUCCESS if pushed in (Outcome.SUCCESS, Outcome.SKIPPED) else Outcome.FAILURE)
 
 
@@ -136,6 +136,15 @@ class WhatTheIssueSays(unittest.TestCase):
         self.assertIn(said, body)
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
 
+    def test_a_red_run_held_over_workflows_gives_the_maintainer_the_push_and_says_main_stays_where_it_was(self):
+        body = issues.issue_action(judged(), looked(pushed=Outcome.SKIPPED, workflows=('.github/workflows/tests.yml',)),
+                                   (issue(12),), link()).body
+
+        self.assertIn('```\n.github/workflows/tests.yml\n```', body)
+        self.assertIn('```\ngit push origin %s:refs/heads/main\n```' % JUDGED, body)
+        self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
+        self.assertIn(RUN, body)
+
     def test_a_red_run_that_judged_nothing_and_never_looked_at_main_says_main_stays_where_it_was(self):
         never = NeverJudged(Outcome.FAILURE, steps_ended(judged=Outcome.FAILURE, java=Outcome.SKIPPED,
                                                          gradle=Outcome.SKIPPED, node=Outcome.SKIPPED,
@@ -182,8 +191,10 @@ class WhatTheIssueSays(unittest.TestCase):
             strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
             green_long = run.judgement('success', JUDGED, b64(endless), texts())
             bodies = [issues.issue_action(judged_long, promoting, (), link()).body for promoting in (
-                run.promoting('failure', MAIN, strays, '', 'skipped', ''),
-                run.promoting('failure', MAIN, '', '', 'failure', b64(endless)))]
+                run.promoting('failure', MAIN, strays, '', '', 'skipped', ''),
+                run.promoting('failure', MAIN, '', '', '', 'failure', b64(endless)),
+                run.promoting('failure', MAIN, '', '', b64(''.join('.github/workflows/%d%s\n' % (n, endless)
+                                                                   for n in range(1, 61))), 'skipped', ''))]
             bodies.append(issues.issue_action(green_long, looked(), (issue(12),), link()).body)
 
             for body in bodies:
