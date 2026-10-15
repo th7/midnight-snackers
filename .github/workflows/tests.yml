@@ -164,11 +164,16 @@ jobs:
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
-      - name: Find where main stands now, as this job's checkout fetched it
+      - name: Find where main stands now and whether develop holds it, as this job's checkout fetched them
         id: main
         run: |
           tip=$(git rev-parse refs/remotes/origin/main)
+          along=false
+          if git merge-base --is-ancestor "$tip" refs/remotes/origin/develop; then
+            along=true
+          fi
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
+          echo "along=$along" >> "$GITHUB_OUTPUT"
       - name: Move main to the judged commit, never by force, only from where the job that looks found it
         id: push
         if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.look.outputs.decision == 'move' && steps.main.outputs.tip == needs.look.outputs.main-tip
@@ -181,13 +186,21 @@ jobs:
           said=$(base64 -w0 < "$RUNNER_TEMP/git-said")
           echo "said=$said" >> "$GITHUB_OUTPUT"
           exit "$pushed"
-      - name: Push nothing once main has moved since the job that looks found it, saying so
-        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip
+      - name: Push nothing once main has moved along develop since the job that looks found it, saying so
+        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip && steps.main.outputs.along == 'true'
         env:
           FOUND: ${{ needs.look.outputs.main-tip }}
           NOW: ${{ steps.main.outputs.tip }}
         run: |
-          echo "main moved since the job that looks found it at $FOUND: its tip is now $NOW, so this run pushes nothing, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
+          echo "main moved along develop since the job that looks found it at $FOUND: its tip is now $NOW, which develop holds, so this run pushes nothing, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
+      - name: Fail once main has moved since the job that looks found it to a tip this job could not find in develop, pushing nothing and saying so
+        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip && steps.main.outputs.along != 'true'
+        env:
+          FOUND: ${{ needs.look.outputs.main-tip }}
+          NOW: ${{ steps.main.outputs.tip }}
+        run: |
+          echo "main moved since the job that looks found it at $FOUND: its tip is now $NOW, which this job could not find in develop as its checkout fetched it, so this run pushes nothing and is red." >&2
+          exit 1
       - name: Hold main where it was
         if: needs.unit-tests.result != 'success' || needs.look.result != 'success'
         run: exit 1
