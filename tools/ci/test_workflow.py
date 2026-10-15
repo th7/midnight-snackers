@@ -23,6 +23,7 @@ JUDGED_OR_DEVELOP = "${{ needs.unit-tests.outputs.commit || 'refs/heads/develop'
 CHECKOUT_KEEPS_ITS_TOKEN = 'https://github.com/actions/checkout/blob/v4/src/git-auth-helper.ts'
 SECRETS_CONTEXT = 'https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context'
 CHECKOUT_FETCHES_EVERY_BRANCH = 'https://github.com/actions/checkout/blob/v4/src/ref-helper.ts'
+GIT_SAYS_A_PUSH_OF_A_TIP_THE_CLONE_LACKS_NEEDS_FORCE = 'https://github.com/git/git/blob/v2.47.3/remote.c#L1834-L1844'
 REPOSITORY_CODE = re.compile(r'python3? |\./|gradlew|npm |npx |tools/|bash |source |make ')
 CONTEXT_NAMES_IGNORE_CASE = ('https://github.com/actions/runner/blob/796cc18ffaaafd5cea525d6231f5a8c93c11c603/'
                              'src/Sdk/DTExpressions2/Expressions2/ExpressionParser.cs#L427')
@@ -1062,6 +1063,43 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
                            '123456\n' % (judged_commit, broken)]],
                          self.issue_writes(calls))
         self.assertEqual('success', rerun['report']['result'])
+
+    def in_a_shell(self, where, script):
+        return subprocess.run(['bash', '--noprofile', '--norc', '-c', script], cwd=where, env=self.environ,
+                              capture_output=True, text=True, timeout=60)
+
+    def maintainer_s_commands(self, calls):
+        bodies = [call[-1] for call in self.issue_writes(calls) if call[:2] in (['issue', 'create'], ['issue', 'comment'])]
+        blocks = [block for body in bodies for _, block in re.findall(r'^(`{3,})\n(.*?)^\1$', body, re.M | re.S)
+                  if 'git push' in block]
+        self.assertEqual(1, len(blocks), bodies)
+        return blocks[0]
+
+    def test_a_maintainer_s_clone_made_before_develop_s_push_is_told_the_push_alone_needs_force_and_moves_main_to_the_held_commit_by_the_issue_s_commands_as_they_are_as_a_plain_fast_forward(self):
+        maintainer = os.path.join(self.where.name, 'maintainer')
+        self.git(self.where.name, 'clone', '-q', self.origin, maintainer)
+        judged_commit, _, _ = self.held_for_a_maintainer('Run every test')
+        commands = self.maintainer_s_commands(self.gh_calls())
+        held, _ = self.where_main_and_develop_stand()
+        push_alone = [line for line in commands.split('\n') if line.startswith('git push ')]
+
+        lacking = self.in_a_shell(maintainer, 'git cat-file -e %s^{commit}' % judged_commit)
+        refused = self.in_a_shell(maintainer, '\n'.join(push_alone))
+        main_after_refusal, _ = self.where_main_and_develop_stand()
+        done = self.in_a_shell(maintainer, commands)
+
+        self.assertNotEqual(0, lacking.returncode, 'the clone was made before develop had the held commit')
+        self.assertEqual((['git push origin %s:refs/heads/main' % judged_commit], 1, held),
+                         (push_alone, refused.returncode, main_after_refusal), refused.stderr)
+        self.assertIn('%s -> main (needs force)' % judged_commit, refused.stderr,
+                      'git tells a clone that has the tip a push replaces but not the commit it pushes that the push '
+                      'needs force: %s' % GIT_SAYS_A_PUSH_OF_A_TIP_THE_CLONE_LACKS_NEEDS_FORCE)
+        self.assertEqual((0, judged_commit), (done.returncode, self.where_main_and_develop_stand()[0]),
+                         done.stdout + done.stderr)
+        self.assertIn('%s..%s  %s -> main\n' % (self.git(maintainer, 'rev-parse', '--short', held),
+                                                self.git(maintainer, 'rev-parse', '--short', judged_commit), judged_commit),
+                      done.stderr)
+        self.assertNotIn('forced update', done.stderr)
 
     def test_a_rerun_of_the_failed_jobs_of_a_run_whose_push_was_refused_once_pushes_and_writes_nothing_after_a_later_green_run_moved_main_and_closed_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')

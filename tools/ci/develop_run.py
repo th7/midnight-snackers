@@ -650,10 +650,13 @@ def held_for_a_maintainer(found):
         + ('No commit to develop and no session can clear this: a later commit of develop either leaves these '
            'workflow files as the judged commit has them or changes them, and main holds for either. It waits on a '
            'maintainer, who pushes main to %s by hand with a credential that may update workflows, a plain push, '
-           'never forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at '
-           'main, move it and write this issue too: the re-run finds main at the commit this run judged and closes '
-           "this issue if that commit is still both develop's tip and main's, and otherwise leaves it open." % (
-               judged, fenced('git push origin %s:refs/heads/main' % found.commit.hash.text)),))
+           'never forced, from a clone that has fetched first:\n\n%s\n\nA clone that has main\'s tip but not %s is '
+           'told, without the fetch, that the push needs force, which it does not: fetch first, and never force. The '
+           'maintainer then re-runs the failed jobs of this run, which re-runs the jobs that look at main, move it and '
+           'write this issue too: the re-run finds main at the commit this run judged and closes this issue if that '
+           "commit is still both develop's tip and main's, and otherwise leaves it open." % (
+               judged, fenced('git fetch origin\ngit push origin %s:refs/heads/main' % found.commit.hash.text),
+               judged),))
 
 
 def reasons(findings):
