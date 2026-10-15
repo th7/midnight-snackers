@@ -106,6 +106,7 @@ jobs:
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
+          token: ${{ secrets.MAIN_PUSH_TOKEN || github.token }}
       - name: Find what main has that develop lacks, and what it has that the judged commit lacks
         id: main
         run: |

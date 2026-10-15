@@ -7,6 +7,7 @@ from enum import Enum
 COMMIT_HASH = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
 BASE64 = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
 LISTED_AT_MOST = 50
+MAIN_PUSH_TOKEN = 'MAIN_PUSH_TOKEN'
 SUBJECT_SHOWN = 200
 SUBJECT_SHOWN_AT_MOST = 256
 SAID_SHOWN = 4000

@@ -152,10 +152,21 @@ class WhatARunJudges(WorkflowTest):
                               **{step.step: '${{ steps.%s.outcome }}' % step.step for step in run.STEPS}),
                          self.jobs['unit-tests']['outputs'])
 
-    def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_so_it_can_count_what_main_has(self):
+    def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_and_the_push_token_if_there_is_one(self):
         self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
-                          'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0'}},
+                          'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0',
+                                   'token': '${{ secrets.%s || github.token }}' % run.MAIN_PUSH_TOKEN}},
                          steps_of(self.jobs['promote'])[0])
+
+    def test_no_step_but_the_checkout_of_the_job_that_moves_main_reads_a_secret(self):
+        reading = [(name, step.get('name')) for name, job in self.jobs.items() for step in steps_of(job)
+                   if any('secrets.' in text for text in every_text_in(step))]
+        elsewhere = [text for name, job in self.jobs.items() for text in every_text_in(
+            {key: value for key, value in job.items() if key != 'steps'})] + every_text_in(
+            {key: value for key, value in self.workflow.items() if key != 'jobs'})
+
+        self.assertEqual([('promote', 'Check out the judged commit')], reading)
+        self.assertFalse([text for text in elsewhere if 'secrets.' in text])
 
     def test_the_job_that_writes_the_issue_checks_out_the_commit_judged_without_keeping_a_credential(self):
         self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
