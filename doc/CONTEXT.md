@@ -540,8 +540,9 @@ the run is green but leaves the issue as it is, open or not, since only a run
 that judges the commit `main` stands at can say whether that commit is good.
 Anything else is a red run, and `main` stays where it was. A red run opens the
 issue **IMPORTANT: develop CI Failures**, or comments on it when it is already
-open, naming the commit judged and what failed — the step, a setup step or the
-report upload as much as a check; the commits `main` has that `develop` lacks,
+open, naming the commit judged, whether its judging was green, and what held
+`main` — the step that failed, a setup step or the report upload as much as a
+check; the commits `main` has that `develop` lacks,
 with the merge that brings them in; the workflow files that hold `main` for a
 maintainer; or git's own words for a refused push — and the run; a commit that
 reached `main` by itself keeps every run red until `develop` holds it. No step

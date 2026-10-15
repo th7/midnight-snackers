@@ -101,6 +101,8 @@ def where_main_stays(promoting):
 
 
 def red_head(judgement):
+    if isinstance(judgement, Judged) and not run.judging_findings(judgement):
+        return 'develop was judged green at %s, but' % run.named(judgement.commit)
     if isinstance(judgement, Judged):
         return 'develop was judged red at %s, so' % run.named(judgement.commit)
     return 'A run for develop judged no commit, so'

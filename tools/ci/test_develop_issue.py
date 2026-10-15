@@ -106,6 +106,18 @@ class WhatTheIssueSays(unittest.TestCase):
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
         self.assertIn(RUN, body)
 
+    def test_a_red_run_whose_judging_was_green_says_develop_was_judged_green_and_main_stays_where_it_was(self):
+        stray = commit(STRAY, 'Fix the README on main')
+        for promoting in (looked(pushed=Outcome.SKIPPED, workflows=('.github/workflows/tests.yml',)),
+                          looked(lacking=(stray,), pushed=Outcome.SKIPPED),
+                          looked(pushed=Outcome.FAILURE, said='remote: error: GH006: Protected branch update failed\n'),
+                          looked(pushed=Outcome.UNREPORTED)):
+            body = issues.issue_action(judged(), promoting, (), link()).body
+
+            self.assertTrue(body.startswith('develop was judged green at `%s` `%s`, but main stays where it was, at '
+                                            '`%s`.\n\n' % (JUDGED, SUBJECT, MAIN)), body)
+            self.assertNotIn('judged red', body)
+
     def test_a_red_run_whose_judging_failed_before_any_check_names_the_step_that_failed(self):
         body = issues.issue_action(judged(Outcome.FAILURE, browser=Outcome.FAILURE, formatting=Outcome.SKIPPED,
                                           tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), held(), (),
