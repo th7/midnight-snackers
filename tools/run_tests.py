@@ -9,19 +9,25 @@ import unittest
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 PACKAGES = ['field', 'ci']
 
-def main():
+def python_suite(tools, packages, loader):
     suite = unittest.TestSuite()
-    loader = unittest.TestLoader()
-    for package in PACKAGES:
-        directory = os.path.join(TOOLS, package)
+    for package in packages:
+        directory = os.path.join(tools, package)
         if not os.path.isdir(directory):
-            print('tools/' + package + ' is gone; this runner names it in PACKAGES.', file=sys.stderr)
-            return 2
+            return 'tools/' + package + ' is gone; this runner names it in PACKAGES.'
         sys.path.insert(0, directory)
-        suite.addTests(loader.discover(directory, pattern='test_*.py', top_level_dir=directory))
-    if loader.errors:
-        for error in loader.errors:
-            print(error, file=sys.stderr)
+        found = loader.discover(directory, pattern='test_*.py', top_level_dir=directory)
+        if loader.errors:
+            return '\n'.join(loader.errors)
+        if found.countTestCases() == 0:
+            return 'tools/' + package + ' discovered no tests. That is a broken runner, not a pass.'
+        suite.addTests(found)
+    return suite
+
+def main():
+    suite = python_suite(TOOLS, PACKAGES, unittest.TestLoader())
+    if isinstance(suite, str):
+        print(suite, file=sys.stderr)
         return 2
     began = time.monotonic()
     result = unittest.TextTestRunner(verbosity=2).run(suite)
