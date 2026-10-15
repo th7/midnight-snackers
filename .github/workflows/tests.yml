@@ -288,29 +288,8 @@ jobs:
       contents: read
       issues: write
     steps:
-      - name: Open the issue
-        id: open
-        if: needs.say.outputs.action == 'open'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TITLE: ${{ needs.say.outputs.title }}
-          BODY: ${{ needs.say.outputs.body }}
-        run: |
-          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/issue-body.md"
-      - name: Comment on the open issue
-        id: comment
-        if: needs.say.outputs.action == 'comment'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE: ${{ needs.say.outputs.issues }}
-          BODY: ${{ needs.say.outputs.body }}
-        run: |
-          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
-          gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
-      - name: Read develop's tip as it is now, when the core said close
+      - name: Read develop's tip as it is now, before writing anything to the issue
         id: develop
-        if: needs.say.outputs.action == 'close'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -320,9 +299,8 @@ jobs:
             exit 1
           fi
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
-      - name: Read main's tip as it is now, when the core said close
+      - name: Read main's tip as it is now, before writing anything to the issue
         id: main
-        if: needs.say.outputs.action == 'close'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -332,6 +310,38 @@ jobs:
             exit 1
           fi
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
+      - name: Fail unless develop holds main's tip as both are now, as GitHub compares them, so that no run is green while main has a commit develop lacks, whatever the core said
+        id: holds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN: ${{ steps.main.outputs.tip }}
+          DEVELOP: ${{ steps.develop.outputs.tip }}
+        run: |
+          status=$(gh api --method GET "repos/$GITHUB_REPOSITORY/compare/$MAIN...$DEVELOP" --jq .status)
+          if [[ $status != ahead && $status != identical ]]; then
+            echo "develop does not hold main's tip as GitHub compares them now: main's tip is $MAIN, develop's is $DEVELOP, and GitHub answered $status where only ahead or identical passes, so this run is red whatever the core said." >&2
+            exit 1
+          fi
+      - name: Open the issue
+        id: open
+        if: ${{ !cancelled() && needs.say.outputs.action == 'open' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ needs.say.outputs.title }}
+          BODY: ${{ needs.say.outputs.body }}
+        run: |
+          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/issue-body.md"
+      - name: Comment on the open issue
+        id: comment
+        if: ${{ !cancelled() && needs.say.outputs.action == 'comment' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.say.outputs.issues }}
+          BODY: ${{ needs.say.outputs.body }}
+        run: |
+          base64 -d <<< "$BODY" > "$RUNNER_TEMP/issue-body.md"
+          gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
       - name: Close the issue, saying main now stands at the judged commit, only when every job before passed and that commit is still both develop's tip and main's
         id: close
         if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.develop.outputs.tip == needs.unit-tests.outputs.commit && steps.main.outputs.tip == needs.unit-tests.outputs.commit
