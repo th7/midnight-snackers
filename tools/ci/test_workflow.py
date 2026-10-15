@@ -222,7 +222,8 @@ class HowMainMoves(WorkflowTest):
             'tip=$(git rev-parse refs/remotes/origin/main)\n'
             "lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)\n"
             "ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
-            'workflows=$(git log --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows | base64 -w0)\n'
+            'workflows=$(git log --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows '
+            '| base64 -w0)\n'
             'echo "tip=$tip" >> "$GITHUB_OUTPUT"\n'
             'echo "lacking=$lacking" >> "$GITHUB_OUTPUT"\n'
             'echo "ahead=$ahead" >> "$GITHUB_OUTPUT"\n'
@@ -395,6 +396,38 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         decided = self.decided_for(judged_commit, 'Say how to build')
 
         self.assertEqual(run.Move(run.Commit(run.CommitHash(judged_commit), 'Say how to build')), decided)
+
+    def a_workflow_on_main_and_develop(self):
+        self.commit('Run the tests', {'.github/workflows/tests.yml': 'name: tests\n'})
+        self.push('main', 'main:develop')
+
+    def test_a_merge_whose_own_resolution_changes_a_workflow_holds_main_naming_it(self):
+        self.a_workflow_on_main_and_develop()
+        self.git(self.work, 'checkout', '-q', '-b', 'side')
+        self.commit('Say how to build', {'README.md': 'Build with Gradle.\n'})
+        self.on('develop')
+        self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.git(self.work, 'merge', '-q', '--no-commit', 'side')
+        judged_commit = self.commit('Merge side', {'.github/workflows/tests.yml': 'name: every test\n'})
+        self.push('develop')
+
+        decided = self.decided_for(judged_commit, 'Merge side')
+
+        self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
+            run.Commit(run.CommitHash(judged_commit), 'Merge side'),
+            run.WorkflowFiles(('.github/workflows/tests.yml',))),)), decided)
+
+    def test_a_renamed_workflow_holds_main_naming_it_by_its_old_name_and_its_new(self):
+        self.a_workflow_on_main_and_develop()
+        self.on('develop')
+        self.git(self.work, 'mv', '.github/workflows/tests.yml', '.github/workflows/checks.yml')
+        judged_commit = self.commit('Call the workflow checks')
+        self.push('develop')
+
+        decided = self.decided_for(judged_commit, 'Call the workflow checks')
+
+        self.assertEqual(run.WorkflowFiles(('.github/workflows/checks.yml', '.github/workflows/tests.yml')),
+                         decided.findings[0].files)
 
     def test_a_rerun_after_a_maintainer_pushed_main_to_the_judged_commit_moves_it_nowhere_and_closes_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
