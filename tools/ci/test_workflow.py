@@ -222,8 +222,8 @@ class HowMainMoves(WorkflowTest):
             'tip=$(git rev-parse refs/remotes/origin/main)\n'
             "lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)\n"
             "ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)\n"
-            'git log --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows '
-            '> "$RUNNER_TEMP/workflows"\n'
+            'git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD '
+            '-- .github/workflows > "$RUNNER_TEMP/workflows"\n'
             'git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows '
             '>> "$RUNNER_TEMP/workflows"\n'
             'workflows=$(base64 -w0 < "$RUNNER_TEMP/workflows")\n'
@@ -419,6 +419,70 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
             run.Commit(run.CommitHash(judged_commit), 'Merge side'),
             run.WorkflowFiles(('.github/workflows/tests.yml',))),)), decided)
+
+    def held_naming_tests_yml(self, judged_commit, subject):
+        self.assertEqual(run.Hold((run.MainNeedsAMaintainerForWorkflows(
+            run.Commit(run.CommitHash(judged_commit), subject),
+            run.WorkflowFiles(('.github/workflows/tests.yml',))),)), self.decided_for(judged_commit, subject))
+
+    def test_a_workflow_change_a_merged_branch_undoes_on_itself_still_holds_main_naming_it(self):
+        self.a_workflow_on_main_and_develop()
+        self.git(self.work, 'checkout', '-q', '-b', 'side')
+        self.commit('Try a schedule', {'.github/workflows/tests.yml': 'name: tests\non: schedule\n'})
+        self.commit('No schedule after all', {'.github/workflows/tests.yml': 'name: tests\n'})
+        self.on('develop')
+        self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.git(self.work, 'merge', '-q', '--no-ff', '-m', 'Merge side', 'side')
+        judged_commit = self.git(self.work, 'rev-parse', 'HEAD')
+        self.push('develop')
+
+        self.held_naming_tests_yml(judged_commit, 'Merge side')
+
+    def test_a_workflow_change_a_merge_leaves_out_still_holds_main_naming_it(self):
+        self.a_workflow_on_main_and_develop()
+        self.git(self.work, 'checkout', '-q', '-b', 'side')
+        self.commit('Run every test', {'.github/workflows/tests.yml': 'name: every test\n'})
+        self.on('develop')
+        self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.git(self.work, 'merge', '-q', '--no-commit', 'side')
+        judged_commit = self.commit('Merge side', {'.github/workflows/tests.yml': 'name: tests\n'})
+        self.push('develop')
+
+        self.held_naming_tests_yml(judged_commit, 'Merge side')
+
+    def test_a_workflow_change_one_merge_makes_in_resolving_it_and_a_later_merge_undoes_still_holds_main(self):
+        self.a_workflow_on_main_and_develop()
+        self.git(self.work, 'checkout', '-q', '-b', 'side1')
+        self.commit('Say how to build', {'README.md': 'Build with Gradle.\n'})
+        self.on('develop')
+        self.git(self.work, 'checkout', '-q', '-b', 'side2')
+        self.commit('Draw the field', {'field.txt': 'Twelve feet square.\n'})
+        self.on('develop')
+        self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.git(self.work, 'merge', '-q', '--no-commit', 'side1')
+        self.commit('Merge side1', {'.github/workflows/tests.yml': 'name: every test\n'})
+        self.git(self.work, 'merge', '-q', '--no-commit', 'side2')
+        judged_commit = self.commit('Merge side2', {'.github/workflows/tests.yml': 'name: tests\n'})
+        self.push('develop')
+
+        self.held_naming_tests_yml(judged_commit, 'Merge side2')
+
+    def test_a_branch_that_pulled_a_workflow_change_main_already_has_does_not_hold_main_when_merged(self):
+        self.a_workflow_on_main_and_develop()
+        self.git(self.work, 'checkout', '-q', '-b', 'mine')
+        self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
+        self.on('develop')
+        self.commit('Run every test', {'.github/workflows/tests.yml': 'name: every test\n'})
+        self.push('develop', 'develop:main')
+        self.git(self.work, 'checkout', '-q', 'mine')
+        self.git(self.work, 'merge', '-q', '--no-edit', 'develop')
+        self.on('develop')
+        self.git(self.work, 'merge', '-q', '--no-ff', '-m', 'Merge mine', 'mine')
+        judged_commit = self.git(self.work, 'rev-parse', 'HEAD')
+        self.push('develop')
+
+        self.assertEqual(run.Move(run.Commit(run.CommitHash(judged_commit), 'Merge mine')),
+                         self.decided_for(judged_commit, 'Merge mine'))
 
     def test_a_renamed_workflow_holds_main_naming_it_by_its_old_name_and_its_new(self):
         self.a_workflow_on_main_and_develop()

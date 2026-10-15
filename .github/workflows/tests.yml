@@ -116,7 +116,7 @@ jobs:
           tip=$(git rev-parse refs/remotes/origin/main)
           lacking=$(git log --format='%H %s' refs/remotes/origin/develop..refs/remotes/origin/main | base64 -w0)
           ahead=$(git log --format='%H %s' HEAD..refs/remotes/origin/main | base64 -w0)
-          git log --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows > "$RUNNER_TEMP/workflows"
+          git log --full-history --no-renames --cc --format= --name-only refs/remotes/origin/main..HEAD -- .github/workflows > "$RUNNER_TEMP/workflows"
           git diff --no-renames --name-only refs/remotes/origin/main HEAD -- .github/workflows >> "$RUNNER_TEMP/workflows"
           workflows=$(base64 -w0 < "$RUNNER_TEMP/workflows")
           echo "tip=$tip" >> "$GITHUB_OUTPUT"
