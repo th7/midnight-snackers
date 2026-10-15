@@ -173,7 +173,10 @@ public enum Constant {
 
     public enum Group {
         NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
-        MECHANISMS("Mechanisms", "Guesses until measured on the robot, which every run uses, seeded or exact.");
+        MECHANISMS(
+                "Mechanisms",
+                "What a measurement or a regearing of Reginald would change, which every run of his uses, seeded or"
+                        + " exact.");
 
         private final String label;
         private final String says;

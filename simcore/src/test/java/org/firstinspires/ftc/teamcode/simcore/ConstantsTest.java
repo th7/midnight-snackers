@@ -119,6 +119,15 @@ public class ConstantsTest {
     }
 
     @Test
+    public void theMechanismsAreWhatAMeasurementOrARegearingOfReginaldWouldChangeNotGuesses() {
+        assertEquals("Mechanisms", Constant.Group.MECHANISMS.label());
+        assertEquals(
+                "What a measurement or a regearing of Reginald would change, which every run of his uses, seeded or"
+                        + " exact.",
+                Constant.Group.MECHANISMS.says());
+    }
+
+    @Test
     public void theFlywheelsTicksPerTurnIsAMechanismThatGoesWhereverAFlywheelsTicksPerTurnMayAndSaysWhatItSets() {
         Constant ticks = Valid.value(Constant.named("flywheel_ticks_per_turn"));
 

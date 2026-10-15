@@ -76,7 +76,7 @@ const ASKED = [];
 
 const GROUPS = [
   { name: 'noise', label: 'Noise', says: 'What a seed draws a run\'s robot from.' },
-  { name: 'mechanisms', label: 'Mechanisms', says: 'Guesses until measured on the robot.' }
+  { name: 'mechanisms', label: 'Mechanisms', says: 'What a measurement or a regearing of Reginald would change.' }
 ];
 
 const BUILT = [
