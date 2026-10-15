@@ -1073,7 +1073,8 @@ public class FlightTest {
         List<String> robotless = List.of(
                 rejection(flight.fed(new Object(), Field.Kind.POLLEN, POLLEN)),
                 rejection(flight.step(tick(STEP), at, wheel(0))),
-                rejection(flight.carriedTo(at)));
+                rejection(flight.carriedTo(at)),
+                rejection(flight.carriedMovingAsItWasTo(at)));
         String alone = rejection(
                 Valid.value(Flight.<Object>carryingALauncher(field, at)).step(tick(STEP)));
 
@@ -1377,6 +1378,28 @@ public class FlightTest {
         for (int step = 0; step < 60; step++) {
             carry(STEP, turned, wheel(0));
             Vec3 now = within(at(ball), new Vec3(ROBOT_X + speed * flown, ROBOT_Y, 0), ROBOT_YAW + turnedBy);
+            strayed = Math.max(strayed, now.minus(lying).length());
+        }
+
+        assertTrue("the ball strayed " + strayed + " in from where it lay in the launcher", strayed <= 1e-4);
+    }
+
+    @Test
+    public void aTeleportThatKeepsTheLauncherTurningAsItWasCarriesTheBallsInItTurningWithItSoTheyLieInItAsTheyDid() {
+        double turning = 3, aTick = turning * STEP;
+        Vec3 robot = new Vec3(ROBOT_X, ROBOT_Y, 0);
+        DoubleFunction<Launcher.Frame> round = t -> frame(ROBOT_X, ROBOT_Y, ROBOT_YAW + turning * t);
+        DoubleFunction<Launcher.Frame> aTickFurther = t -> frame(ROBOT_X, ROBOT_Y, ROBOT_YAW + turning * t + aTick);
+        carryALauncher(round);
+        Object ball = feed();
+        carry(1.0, round, wheel(0));
+        Vec3 lying = within(at(ball), robot, ROBOT_YAW + turning * flown);
+
+        flight = Valid.value(flight.carriedMovingAsItWasTo(aTickFurther.apply(flown)));
+        double strayed = 0;
+        for (int step = 0; step < 60; step++) {
+            carry(STEP, aTickFurther, wheel(0));
+            Vec3 now = within(at(ball), robot, ROBOT_YAW + turning * flown + aTick);
             strayed = Math.max(strayed, now.minus(lying).length());
         }
 

@@ -505,8 +505,10 @@ they score.
    and for a feed faster than a flight takes a ball while one just slower
    goes in, naming the rule. With both gates open, balls leave one at a
    time and never overlap. A ball in the launcher stays where it was
-   through a hive's tip and through a change in what stands in the bores.
-   `FlightTest` turns the launcher's wheel at the built T.
+   through a hive's tip and through a change in what stands in the bores,
+   and lies in it as it did through a teleport that keeps the launcher
+   going, or turning, as it was. A flight with no robot has no launcher to
+   carry either way. `FlightTest` turns the launcher's wheel at the built T.
 5. `FlywheelTest` gains: the `AngularSpeed` is |1050|·2π ÷ T exactly, and
    its sign follows the command. Its clamp tests stay as they are.
 6. `SimRobotTest`:
