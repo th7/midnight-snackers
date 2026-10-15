@@ -35,6 +35,8 @@ public final class Cost {
     /** Pin what the suite now spends, the way a golden trace is regenerated. */
     public static final String REGENERATE = "suiteCost.regenerate";
 
+    public static final String JUDGED_BY = "suiteCost.judgedBy";
+
     public static final Path BUDGET = Paths.get(
             "src", "test", "resources", "org", "firstinspires", "ftc", "teamcode", "sim", "suite-budget.json");
 

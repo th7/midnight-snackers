@@ -59,7 +59,7 @@ class WhatThePythonSuiteDiscovers(unittest.TestCase):
         self.assertIn('test_broken_eta_imports', gathered)
 
     def test_the_runner_names_every_package_whose_tests_it_runs(self):
-        self.assertEqual(['field', 'ci'], run_tests.PACKAGES)
+        self.assertEqual(['field', 'ci', 'suite_cost'], run_tests.PACKAGES)
 
 
 if __name__ == '__main__':

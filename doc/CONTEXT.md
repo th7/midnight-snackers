@@ -1389,7 +1389,12 @@ the ledger too, so what any one test class costs is one command:
 for a class that spends nothing counted as surely as for one that does: the
 test JVM is started with `Cost` as its agent, which is what writes the ledger
 up on the way out, so whether it is written never waits on some test having
-touched it — and `CostTest` holds the build to starting it that way.
+touched it — and `CostTest` holds the build to starting it that way. It holds
+whether the tests pass or fail: what they cost is printed and judged by a task
+that runs after them either way (`TeamCode/suite-cost.gradle`), so a run with a
+failing test still fails on a budget it missed, and one whose test JVM wrote no
+verdict still says so. `tools/suite_cost` holds that task to it on a build of
+its own, and `CostTest` holds the build to giving the suite one.
 
 The counts are pinned in a **suite budget** and the times are only ever
 printed: a count is the suite's and a time is the machine's. The same deal as

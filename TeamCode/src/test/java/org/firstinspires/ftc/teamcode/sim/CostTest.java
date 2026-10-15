@@ -329,6 +329,15 @@ public class CostTest {
     }
 
     @Test
+    public void theBuildJudgesWhatTheseTestsCostInATaskThatRunsAfterThemWhetherTheyPassOrFail() {
+        assertNotNull(
+                "no " + Cost.JUDGED_BY + ": the build ran these tests without TeamCode/suite-cost.gradle's"
+                        + " judgeTheCostOf, so nothing prints what they cost or fails on a budget they missed, and a run"
+                        + " that missed it would pass",
+                System.getProperty(Cost.JUDGED_BY));
+    }
+
+    @Test
     public void theLedgerIsWrittenUpWhateverTheTestsAreNotOnlyIfOneOfThemLoadsCost() throws Exception {
         assertNotNull(
                 "no " + Cost.LEDGER

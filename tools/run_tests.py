@@ -7,7 +7,7 @@ import time
 import unittest
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-PACKAGES = ['field', 'ci']
+PACKAGES = ['field', 'ci', 'suite_cost']
 
 def python_suite(tools, packages, loader):
     suite = unittest.TestSuite()

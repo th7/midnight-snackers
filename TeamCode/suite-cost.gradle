@@ -1,0 +1,43 @@
+ext.judgeTheCostOf = { TaskProvider<Test> test, File costDir ->
+    def judge = tasks.register("${test.name}Cost") {
+        group = 'verification'
+        description = "Prints what ${test.name} cost and fails on a budget it missed, whether its tests passed or not"
+        def results = test.flatMap { it.reports.junitXml.outputLocation }
+        doLast {
+            def slowest = results.get().asFile.listFiles({ f -> f.name.endsWith('.xml') } as FileFilter)
+            if (slowest) {
+                def classes = slowest.collect { new groovy.xml.XmlSlurper().parse(it) }
+                        .collect { [name: it.@name.text().tokenize('.').last(), seconds: it.@time.text() as double] }
+                        .sort { -it.seconds }
+                println()
+                println("the slowest test classes (${String.format('%.1f', classes.sum { it.seconds })}s over ${classes.size()})")
+                classes.take(8).each { println(String.format('  %-40s %6.1fs', it.name, it.seconds)) }
+            }
+
+            def verdict = new File(costDir, 'verdict.txt')
+            def report = new File(costDir, 'report.txt')
+            if (!verdict.exists()) {
+                throw new GradleException("the test JVM wrote no cost verdict to ${costDir}. It is started with " +
+                        "Cost as its agent and told where to write one by suiteCost.ledger, and writes it on its way " +
+                        "out; a run that wrote none has not checked what it cost, which is not the same as costing " +
+                        "what it should.")
+            }
+            if (report.exists()) {
+                println()
+                println(report.text.trim())
+            }
+            def lines = verdict.text.split('\n', 2)
+            def outcome = lines[0].trim()
+            def said = lines.length > 1 ? lines[1].trim() : ''
+            if (outcome == 'MISSED') {
+                throw new GradleException(said)
+            }
+            println()
+            println(said)
+        }
+    }
+    test.configure {
+        systemProperty 'suiteCost.judgedBy', judge.name
+        finalizedBy judge
+    }
+}

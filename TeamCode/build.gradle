@@ -16,6 +16,7 @@ apply plugin: 'com.diffplug.spotless'
 // Include common definitions from above.
 apply from: '../build.common.gradle'
 apply from: '../build.dependencies.gradle'
+apply from: 'suite-cost.gradle'
 
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
@@ -71,6 +72,12 @@ afterEvaluate {
     }
 }
 
+def costDir = layout.buildDirectory.dir('sim/cost').get().asFile
+
+afterEvaluate {
+    tasks.withType(Test).names.each { judgeTheCostOf(tasks.named(it, Test), costDir) }
+}
+
 tasks.withType(Test).configureEach {
     dependsOn ':simcore:gatesAndTests'
     jvmArgs javacExports
@@ -90,13 +97,11 @@ tasks.withType(Test).configureEach {
 
     // What the suite costs. The test JVM keeps a ledger of the dear things -- child JVMs, compiles,
     // git, password hashes, formatting, node, project copies -- and writes it, a report and a
-    // verdict as it goes. This task prints the report every run and fails on the verdict, so the
-    // same one command checks the budget locally and in CI.
-    def costDir = layout.buildDirectory.dir('sim/cost').get().asFile
+    // verdict as it goes.
     systemProperty 'suiteCost.ledger', costDir.absolutePath
     // What writes them is the JVM's agent, so they are written whatever the tests are: left to the
     // first test that touched the ledger, a run of one class that spends nothing counted would
-    // write nothing, and fail below for it. The jar is only a manifest naming Cost. The JVM loads
+    // write nothing, and the cost judge would fail it. The jar is only a manifest naming Cost. The JVM loads
     // an agent's class from the classpath, which makes it the very Cost the tests count into.
     def costAgent = layout.buildDirectory.file('sim/cost-agent.jar').get().asFile
     jvmArgs "-javaagent:${costAgent.absolutePath}".toString()
@@ -123,39 +128,6 @@ tasks.withType(Test).configureEach {
                 && maxParallelForks == 1
                 && forkEvery == 0
         systemProperty 'suiteCost.whole', whole.toString()
-    }
-
-    doLast {
-        def slowest = new File(project.buildDir, "test-results/${name}").listFiles({ f -> f.name.endsWith('.xml') } as FileFilter)
-        if (slowest) {
-            def classes = slowest.collect { new groovy.xml.XmlSlurper().parse(it) }
-                    .collect { [name: it.@name.text().tokenize('.').last(), seconds: it.@time.text() as double] }
-                    .sort { -it.seconds }
-            println()
-            println("the slowest test classes (${String.format('%.1f', classes.sum { it.seconds })}s over ${classes.size()})")
-            classes.take(8).each { println(String.format('  %-40s %6.1fs', it.name, it.seconds)) }
-        }
-
-        def verdict = new File(costDir, 'verdict.txt')
-        def report = new File(costDir, 'report.txt')
-        if (!verdict.exists()) {
-            throw new GradleException("the test JVM wrote no cost verdict to ${costDir}. It is started with " +
-                    "Cost as its agent and told where to write one by suiteCost.ledger, and writes it on its way " +
-                    "out; a run that wrote none has not checked what it cost, which is not the same as costing " +
-                    "what it should.")
-        }
-        if (report.exists()) {
-            println()
-            println(report.text.trim())
-        }
-        def lines = verdict.text.split('\n', 2)
-        def outcome = lines[0].trim()
-        def said = lines.length > 1 ? lines[1].trim() : ''
-        if (outcome == 'MISSED') {
-            throw new GradleException(said)
-        }
-        println()
-        println(said)
     }
 }
 
