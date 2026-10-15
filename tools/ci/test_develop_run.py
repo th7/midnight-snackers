@@ -288,6 +288,10 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
     def test_any_other_outcome_is_refused(self):
         self.assertIsInstance(run.outcome('passed'), Rejected)
 
+    def test_an_outcome_that_is_not_text_at_all_is_refused_by_the_same_rule(self):
+        self.assertEqual(Rejected("an outcome is success, failure, cancelled, skipped or nothing, never "
+                                  "('success', 'failure')"), run.outcome(('success', 'failure')))
+
     def test_a_commit_hash_is_forty_or_sixty_four_lowercase_hex_digits(self):
         self.assertEqual(JUDGED, run.commit_hash(JUDGED).text)
         self.assertEqual('d' * 64, run.commit_hash('d' * 64).text)

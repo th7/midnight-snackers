@@ -284,7 +284,7 @@ def outcome(text):
     for known in Outcome:
         if known.value == text:
             return known
-    return Rejected('an outcome is success, failure, cancelled, skipped or nothing, never %r' % text)
+    return Rejected('an outcome is success, failure, cancelled, skipped or nothing, never %r' % (text,))
 
 
 def commit_hash(text):
