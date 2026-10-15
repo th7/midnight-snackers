@@ -196,6 +196,15 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
                          issues.open_issues('[{"number": 12, "title": "%s"}, {"number": 7, "title": "Launch Sim"}]'
                                             % issues.TITLE))
 
+    def test_a_list_as_long_as_gh_was_asked_for_is_refused_since_the_issue_may_be_among_those_left_out(self):
+        def listing(count):
+            return '[%s]' % ', '.join('{"number": %d, "title": "Issue %d"}' % (n, n) for n in range(1, count + 1))
+
+        self.assertEqual(issues.LISTED_AT_MOST - 1, len(issues.open_issues(listing(issues.LISTED_AT_MOST - 1))))
+        self.assertEqual(Rejected('gh listed as many open issues as it was asked for, %d, so the list may be cut short '
+                                  'and the develop CI issue may be among those left out' % issues.LISTED_AT_MOST),
+                         issues.open_issues(listing(issues.LISTED_AT_MOST)))
+
     def test_open_issues_that_are_not_that_json_are_refused(self):
         for wrong in ('', 'nope', '{}', '[{"number": 0, "title": "x"}]', '[{"number": true, "title": "x"}]',
                       '[{"number": 3}]', '[{"number": "3", "title": "x"}]', '[3]'):

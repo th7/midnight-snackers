@@ -337,9 +337,9 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
 
 class HowTheIssueIsWritten(WorkflowTest):
-    def test_the_open_issues_are_listed_as_the_core_reads_them(self):
-        self.assertIn('gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title '
-                      '> "$RUNNER_TEMP/open-issues.json"', runs_of(self.jobs['report']))
+    def test_the_open_issues_are_listed_asking_gh_for_as_many_as_the_core_takes_to_be_a_list_cut_short(self):
+        self.assertIn('gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit %d --json number,title '
+                      '> "$RUNNER_TEMP/open-issues.json"' % issues.LISTED_AT_MOST, runs_of(self.jobs['report']))
 
     def test_the_core_says_what_to_write_from_everything_the_run_found(self):
         saying = step_named(self.jobs['report'], 'say')

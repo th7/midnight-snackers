@@ -7,6 +7,7 @@ from develop_run import Green, Judged, Looked, Rejected, Stayed, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
 BODY_AT_MOST = 65536
+LISTED_AT_MOST = 1000
 REPOSITORY = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 RUN_ID = re.compile(r'[0-9]+')
 RUN_URL = re.compile(r'https://[^/\s]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+')
@@ -73,6 +74,9 @@ def open_issues(json_text):
         return Rejected('the open issues are the JSON list gh prints, and this is not JSON')
     if not isinstance(listed, list):
         return Rejected('the open issues are the JSON list gh prints, and this is not a list')
+    if len(listed) >= LISTED_AT_MOST:
+        return Rejected('gh listed as many open issues as it was asked for, %d, so the list may be cut short and the '
+                        'develop CI issue may be among those left out' % LISTED_AT_MOST)
     read = tuple(open_issue(entry) for entry in listed)
     rejected = run.first_rejected(*read)
     if rejected is not None:
