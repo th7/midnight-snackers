@@ -516,10 +516,11 @@ Nugget user, it is `nugget-develop`. The server requires `develop` to exist;
 a repository without `nugget-develop` gets one at `develop`'s tip when the
 server starts, said on its console. It never deletes or rewrites either: it
 only adds merge commits to them. Getting `develop` to `main` is CI's: a **run
-for develop** that finds every check green moves `main` to the commit it
-judged. Anything that moves between the two robots' lines is the coach's
-job. `GET /git/status` names the one a user's **ahead** and **behind** are
-counted against, as **develop**.
+for develop** whose every step is green moves `main` to the commit it judged,
+unless `main` is already past it, and a maintainer moves it by hand when the
+token may not. Anything that moves between the two robots' lines is the
+coach's job. `GET /git/status` names the one a user's **ahead** and **behind**
+are counted against, as **develop**.
 
 **Run for develop** — What CI does each time `develop` is pushed. Runs go one
 at a time: a push that arrives during a run waits, and a run still waiting
@@ -532,23 +533,30 @@ push started it, with the same commands as a local run:
 green and `main` has no commit `develop` lacks, CI pushes the commit it judged
 to `main`: a plain push, never forced and never a merge, so a `main` that moved
 meanwhile refuses it. A `main` that already has commits of `develop` the judged
-commit lacks stays where it is, and the run is green without touching the
-issue, since the run for a later tip judges those commits. Anything else is a
-red run, and `main` stays where it was. A red run opens the issue
+commit lacks stays where it is, and the run is green but leaves the issue as
+it is, open or not, since only a run that judges the commit `main` stands at
+can say whether that commit is good. Anything else is a red run, and `main`
+stays where it was. A red run opens the issue
 **IMPORTANT: develop CI Failures**, or comments on it when it is already open,
 naming the commit judged and what failed — the step, a setup step or the
 report upload as much as a check; the commits `main` has that `develop` lacks,
 with the merge that brings them in; or git's own words for a refused push —
 and the run; a commit that reached `main` by itself keeps every run red until
 `develop` holds it. The built-in token may not move `main` past a change to a
-workflow file, so a push refused for that says it waits on a maintainer, who
-moves `main` by hand or gives the job that moves `main` a token that may, as
-the repository secret `MAIN_PUSH_TOKEN`; no commit to `develop` can fix it. The
-next green run closes the issue, saying `main` now stands at the commit it
-judged. A pull request is still judged, in a queue of its own, and never moves
-`main` or touches the issue. What a run decides is the core's, and the
-workflow only gathers what the core needs and does what it says, which a test
-holds it to.
+workflow file, so the push to `main`, and no other step, uses the secret
+`MAIN_PUSH_TOKEN` when there is one. It is kept in the environment `main`,
+which only the job that moves `main` names and whose only deployment branch is
+`develop`, so a run for any other branch cannot read it. A push refused because
+its token may not update workflows, or because `MAIN_PUSH_TOKEN` was not
+accepted — expired, revoked or without write access — says it waits on a
+maintainer, who moves `main` by hand or puts in `MAIN_PUSH_TOKEN` a
+fine-grained token that may, replacing it before the expiry date it was made
+with; no commit to `develop` can fix either. The next run that moves `main`,
+or finds it already at the commit it judged, closes the issue, saying `main`
+now stands at that commit. A pull request is still judged, in a queue of its
+own, and never moves `main` or touches the issue. What a run decides is the
+core's, and the workflow only gathers what the core needs and does what it
+says, which a test holds it to.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`.
 
