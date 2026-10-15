@@ -3,7 +3,7 @@ import unittest
 
 import develop_issue as issues
 import develop_run as run
-from develop_issue import Close, CommentOn, LeaveAlone, Open, OpenIssue
+from develop_issue import Close, CommentOn, LeaveAlone, LeaveAloneSinceMainMoved, Open, OpenIssue
 from develop_run import (Judged, Looked, MainHasWhatDevelopLacks, NeverJudged, StepDidNotPass, StepsEnded,
                          NeverLooked, Outcome, Rejected)
 
@@ -46,8 +46,9 @@ def failed():
     return judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE)
 
 
-def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED, main=MAIN):
-    return Looked(run.commit_hash(main), run.commit_hash(develop), tuple(lacking), tuple(ahead),
+def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED, main=MAIN,
+           found=MAIN):
+    return Looked(run.commit_hash(found), run.commit_hash(main), run.commit_hash(develop), tuple(lacking), tuple(ahead),
                   run.Workflows(run.WorkflowFiles(tuple(workflows)), run.WorkflowFiles(tuple(workflows))), pushed, said,
                   ended if ended is not None else Outcome.SUCCESS if pushed is Outcome.SUCCESS else Outcome.FAILURE)
 
@@ -101,26 +102,37 @@ class WhichIssueIsTouched(unittest.TestCase):
                                        'so this run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, LATER, RUN)),
                          action)
 
-    def test_a_green_run_whose_judged_commit_is_no_longer_main_s_tip_comments_on_the_issue_naming_main_s_tip_and_leaves_it_open(self):
-        action = issues.issue_action(judged(), looked(main=STRAY), (issue(41), issue(12)), link())
+    def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_writes_nothing_to_the_issue_and_says_why_in_the_log(self):
+        for listed in ((issue(41), issue(12)), ()):
+            for develop in (JUDGED, LATER):
+                for found in (MAIN, JUDGED):
+                    self.assertEqual(
+                        LeaveAloneSinceMainMoved(
+                            "develop was judged green at `%s` `%s`, but main moved since this run's push left it there, "
+                            "and now stands at `%s`, so this run writes nothing to the issue: a run that looks at main "
+                            "again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
+                            % (JUDGED, SUBJECT, STRAY)),
+                        issues.issue_action(judged(), looked(main=STRAY, develop=develop, found=found), listed, link()),
+                        (listed, develop, found))
 
-        self.assertEqual(CommentOn(12, "develop was judged green at `%s` `%s`, and this run moved main there, but "
-                                       "main's tip is now `%s`, which this run did not judge, and a run closes this "
-                                       "issue only when it finds develop's tip and main's both at the commit it judged, "
-                                       'so this run does not close it.\n\nThe run: %s\n' % (JUDGED, SUBJECT, STRAY, RUN)),
-                         action)
+    def test_a_run_that_pushed_nothing_to_a_main_moved_since_its_look_writes_nothing_to_the_issue_and_says_why_in_the_log(self):
+        later = commit(STRAY, 'A later commit of develop')
+        for promoting in (looked(pushed=Outcome.SKIPPED, ended=Outcome.SUCCESS, main=LATER),
+                          looked(pushed=Outcome.SKIPPED, ahead=(later,), ended=Outcome.SUCCESS, main=LATER),
+                          looked(pushed=Outcome.FAILURE, said=' ! [rejected] main (fetch first)\n', main=LATER)):
+            for listed in ((issue(12),), ()):
+                self.assertEqual(
+                    LeaveAloneSinceMainMoved(
+                        'develop was judged green at `%s` `%s`, but main moved since the job that looks found it at `%s`, '
+                        'and now stands at `%s`, so this run writes nothing to the issue: a run that looks at main again, '
+                        "for a new push to develop or re-running all of this run's jobs, speaks for develop."
+                        % (JUDGED, SUBJECT, MAIN, LATER)),
+                    issues.issue_action(judged(), promoting, listed, link()), (promoting, listed))
 
-    def test_a_green_run_whose_judged_commit_is_neither_tip_any_more_names_both(self):
-        body = issues.issue_action(judged(), looked(main=STRAY, develop=LATER), (issue(12),), link()).body
-
-        self.assertIn("but develop's tip is now `%s` and main's tip is now `%s`, which this run did not judge"
-                      % (LATER, STRAY), body)
-        self.assertNotIn('main now stands there', body)
-
-    def test_a_green_run_no_longer_at_both_tips_with_no_issue_open_leaves_issues_alone(self):
-        for main, develop in ((JUDGED, LATER), (STRAY, JUDGED), (STRAY, LATER)):
-            self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(main=main, develop=develop),
-                                                               (issue(7, 'Launch Sim'),), link()), (main, develop))
+    def test_a_green_run_with_develop_moved_on_and_no_issue_open_leaves_issues_alone(self):
+        for found in (MAIN, JUDGED):
+            self.assertEqual(LeaveAlone(), issues.issue_action(judged(), looked(main=JUDGED, develop=LATER, found=found),
+                                                               (issue(7, 'Launch Sim'),), link()), found)
 
     def test_a_run_that_left_main_where_it_already_had_later_commits_of_develop_leaves_the_issue_alone(self):
         later = commit(STRAY, 'A later commit of develop')
@@ -309,6 +321,15 @@ class WhatTheWorkflowIsHanded(unittest.TestCase):
         self.assertEqual('action=close\nissues=12 41\nbody=%s\n' % b64(body),
                          issues.action_outputs(Close((12, 41), body)))
         self.assertEqual('action=none\n', issues.action_outputs(LeaveAlone()))
+        self.assertEqual('action=none\n', issues.action_outputs(LeaveAloneSinceMainMoved('main moved')))
+
+    def test_the_log_of_each_issue_action_is_the_body_it_writes_or_why_it_writes_nothing(self):
+        body = 'develop was judged red at `x`\n'
+
+        self.assertEqual([body, body, body, 'main moved', ''],
+                         [issues.logged(action) for action in (Open(issues.TITLE, body), CommentOn(12, body),
+                                                               Close((12, 41), body), LeaveAloneSinceMainMoved('main moved'),
+                                                               LeaveAlone())])
 
     def test_the_longest_body_in_base64_fits_one_environment_string_so_the_job_that_writes_it_is_handed_it_whole(self):
         longest = 'x' * (issues.BODY_AT_MOST - 1)

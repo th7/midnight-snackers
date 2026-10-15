@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 import develop_run as run
-from develop_run import Green, GreenButMovedOn, Judged, Looked, Rejected, Stayed, Validated
+from develop_run import Green, GreenButMovedOn, Judged, Looked, MainMovedSinceTheLook, Rejected, Stayed, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
 BODY_AT_MOST = 65536
@@ -60,6 +60,11 @@ class Close:
 @dataclass(frozen=True)
 class LeaveAlone:
     pass
+
+
+@dataclass(frozen=True)
+class LeaveAloneSinceMainMoved:
+    log: str
 
 
 def open_issue(entry):
@@ -119,16 +124,25 @@ def green_body(found, link):
         run.named(found.commit), link.url)
 
 
-def tips_moved_on(found):
-    moved = ((("develop's tip", found.develop_tip),) if found.develop_tip != found.commit.hash else ()) + (
-        (("main's tip", found.main_tip),) if found.main_tip != found.commit.hash else ())
-    return ' and '.join('%s is now %s' % (which, run.code_span(tip.text)) for which, tip in moved)
-
-
 def moved_on_body(found, link):
-    return ("develop was judged green at %s, and this run moved main there, but %s, which this run did not judge, "
-            "and a run closes this issue only when it finds develop's tip and main's both at the commit it judged, so "
-            'this run does not close it.\n\nThe run: %s\n' % (run.named(found.commit), tips_moved_on(found), link.url))
+    return ("develop was judged green at %s, and this run moved main there, but develop's tip is now %s, which this run "
+            "did not judge, and a run closes this issue only when it finds develop's tip and main's both at the commit "
+            'it judged, so this run does not close it.\n\nThe run: %s\n' % (run.named(found.commit),
+                                                                          run.code_span(found.develop_tip.text),
+                                                                          link.url))
+
+
+def where_this_run_left_main(found):
+    if found.pushed is run.Outcome.SUCCESS:
+        return "this run's push left it there"
+    return 'the job that looks found it at %s' % run.code_span(found.main_found.text)
+
+
+def main_moved_log(found):
+    return ('develop was judged green at %s, but main moved since %s, and now stands at %s, so this run writes nothing '
+            'to the issue: a run that looks at main again, for a new push to develop or re-running all of this '
+            "run's jobs, speaks for develop." % (run.named(found.commit), where_this_run_left_main(found),
+                                                 run.code_span(found.main_tip.text)))
 
 
 def issue_action(judgement, promoting, listed, link):
@@ -136,12 +150,22 @@ def issue_action(judgement, promoting, listed, link):
     ours = tuple(sorted(each.number for each in listed if each.title == TITLE))
     if isinstance(found, Stayed):
         return LeaveAlone()
+    if isinstance(found, MainMovedSinceTheLook):
+        return LeaveAloneSinceMainMoved(main_moved_log(found))
     if isinstance(found, Green):
         return Close(ours, green_body(found, link)) if ours else LeaveAlone()
     if isinstance(found, GreenButMovedOn):
         return CommentOn(ours[0], moved_on_body(found, link)) if ours else LeaveAlone()
     body = red_body(judgement, found, link)
     return CommentOn(ours[0], body) if ours else Open(TITLE, body)
+
+
+def logged(action):
+    if isinstance(action, LeaveAloneSinceMainMoved):
+        return action.log
+    if isinstance(action, LeaveAlone):
+        return ''
+    return action.body
 
 
 def body_output(body):

@@ -23,16 +23,21 @@ A_PUSH_RUNS_ONLY_TO_MOVE_MAIN = ('a push runs only to move main, so never when m
                                  'commit lacks, nor when the commits since main change a workflow file or main and the '
                                  'judged commit differ in one')
 A_FAILED_PUSH_FAILS_ITS_JOB = 'a push that failed fails the job that moves main, which never ends in success'
-A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD = (
+A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_LEFT_IT_AHEAD_OR_FOUND_IT_MOVED = (
     'a mover ends in success only when its push succeeded, or when it pushed nothing because main stayed where it was '
-    'for commits of develop it already has, having nothing develop lacks')
+    'for commits of develop it already has, having nothing develop lacks, or because main had moved since the job that '
+    'looks found it, that job having found that main moves or stays')
 WHAT_MAIN_LACKS_NAMES_ITS_COMMITS = 'what main has that develop lacks is named as a tuple of at least one commit'
 A_REFUSED_PUSH_NAMES_ITS_COMMIT = 'a refused push names the commit it pushed'
 A_HOLD_OVER_WORKFLOWS_NAMES_THEM = ('a hold for a maintainer over workflows names the judged commit and at least one '
                                     'workflow file the commits since main change or main and the judged commit differ '
                                     'in')
-A_GREEN_RUN_MOVED_ON_FROM_ONE_TIP_AT_LEAST = ("a green run that moved on names the judged commit, main's tip and "
-                                              "develop's tip, at least one of the two not the judged commit")
+A_GREEN_RUN_MOVED_ON_NAMES_DEVELOP_S_TIP_OFF_THE_JUDGED_COMMIT = ("a green run that moved on names the judged commit, "
+                                                                 "where the look found main and develop's tip, which is "
+                                                                 "not the judged commit")
+MAIN_MOVED_SINCE_THE_LOOK_ONLY_OFF_WHERE_THIS_RUN_LEFT_IT = (
+    'main moved since the look only when it stands somewhere other than where this run left it, the judged commit '
+    'after a push that succeeded and otherwise where the look found it')
 THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fetch origin && git merge origin/main`, '
                            'and push that merge to develop as it is, without a rebase, which would drop it.')
 
@@ -200,6 +205,7 @@ def quotes_what_git_said(said):
 
 @dataclass(frozen=True)
 class Looked(Validated):
+    main_found: CommitHash
     main_tip: CommitHash
     develop_tip: CommitHash
     lacking: tuple
@@ -210,9 +216,10 @@ class Looked(Validated):
     ended: Outcome
 
     @staticmethod
-    def broken(main_tip, develop_tip, lacking, ahead, workflows, pushed, said, ended):
-        if not isinstance(main_tip, CommitHash) or not isinstance(develop_tip, CommitHash):
-            return 'a mover that looked names main\'s tip and develop\'s tip by their hashes'
+    def broken(main_found, main_tip, develop_tip, lacking, ahead, workflows, pushed, said, ended):
+        if not all_of(CommitHash, (main_found, main_tip, develop_tip)):
+            return ('a mover that looked names where the look found main, main\'s tip and develop\'s tip by their '
+                    'hashes')
         if not all_of(Commit, lacking) or not all_of(Commit, ahead):
             return 'what main has that develop or the judged commit lacks is a tuple of commits'
         if not isinstance(workflows, Workflows):
@@ -228,9 +235,11 @@ class Looked(Validated):
             return A_PUSH_RUNS_ONLY_TO_MOVE_MAIN
         if pushed is Outcome.FAILURE and ended is Outcome.SUCCESS:
             return A_FAILED_PUSH_FAILS_ITS_JOB
-        stayed = pushed is Outcome.SKIPPED and ahead and not lacking
-        if ended is Outcome.SUCCESS and pushed is not Outcome.SUCCESS and not stayed:
-            return A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD
+        looked_well = not lacking and (ahead or not workflows.hold_main())
+        stayed = pushed is Outcome.SKIPPED and ahead and looked_well
+        found_moved = pushed is Outcome.SKIPPED and looked_well and main_tip != main_found
+        if ended is Outcome.SUCCESS and pushed is not Outcome.SUCCESS and not stayed and not found_moved:
+            return A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_LEFT_IT_AHEAD_OR_FOUND_IT_MOVED
         return None
 
 
@@ -326,14 +335,30 @@ class Green:
 @dataclass(frozen=True)
 class GreenButMovedOn(Validated):
     commit: Commit
-    main_tip: CommitHash
+    main_found: CommitHash
     develop_tip: CommitHash
 
     @staticmethod
-    def broken(commit, main_tip, develop_tip):
-        if (not isinstance(commit, Commit) or not all_of(CommitHash, (main_tip, develop_tip))
-                or main_tip == develop_tip == commit.hash):
-            return A_GREEN_RUN_MOVED_ON_FROM_ONE_TIP_AT_LEAST
+    def broken(commit, main_found, develop_tip):
+        if (not isinstance(commit, Commit) or not all_of(CommitHash, (main_found, develop_tip))
+                or develop_tip == commit.hash):
+            return A_GREEN_RUN_MOVED_ON_NAMES_DEVELOP_S_TIP_OFF_THE_JUDGED_COMMIT
+        return None
+
+
+@dataclass(frozen=True)
+class MainMovedSinceTheLook(Validated):
+    commit: Commit
+    main_found: CommitHash
+    main_tip: CommitHash
+    pushed: Outcome
+
+    @staticmethod
+    def broken(commit, main_found, main_tip, pushed):
+        if (not isinstance(commit, Commit) or not all_of(CommitHash, (main_found, main_tip))
+                or not isinstance(pushed, Outcome)
+                or main_tip == (commit.hash if pushed is Outcome.SUCCESS else main_found)):
+            return MAIN_MOVED_SINCE_THE_LOOK_ONLY_OFF_WHERE_THIS_RUN_LEFT_IT
         return None
 
 
@@ -497,7 +522,7 @@ def promoting(looking_text, found_text, main_tip_text, develop_tip_text, lacking
     rejected = first_rejected(found, main_tip, develop_tip, lacking, ahead, found_workflows, pushed, said)
     if rejected is not None:
         return rejected
-    return Looked(main_tip, develop_tip, lacking, ahead, found_workflows, pushed, shown_said(said), ended)
+    return Looked(found, main_tip, develop_tip, lacking, ahead, found_workflows, pushed, shown_said(said), ended)
 
 
 def step_findings(steps):
@@ -533,13 +558,16 @@ def verdict(judgement_read, promoting_read):
     decided = promotion(judgement_read, promoting_read.lacking, promoting_read.ahead, promoting_read.workflows)
     if isinstance(decided, Hold):
         return Red(decided.findings, promoting_read)
+    moved = MainMovedSinceTheLook(decided.commit, promoting_read.main_found, promoting_read.main_tip,
+                                  promoting_read.pushed)
+    if isinstance(moved, MainMovedSinceTheLook):
+        return moved
     if isinstance(decided, Stay):
         return Stayed(decided.commit)
-    at_both_tips = promoting_read.main_tip == decided.commit.hash and promoting_read.develop_tip == decided.commit.hash
-    if promoting_read.pushed is Outcome.SUCCESS and at_both_tips:
+    if promoting_read.pushed is Outcome.SUCCESS and promoting_read.develop_tip == decided.commit.hash:
         return Green(decided.commit)
     if promoting_read.pushed is Outcome.SUCCESS:
-        return GreenButMovedOn(decided.commit, promoting_read.main_tip, promoting_read.develop_tip)
+        return GreenButMovedOn(decided.commit, promoting_read.main_found, promoting_read.develop_tip)
     if promoting_read.pushed is Outcome.FAILURE:
         return Red((MainRefusedThePush(decided.commit, promoting_read.said),), promoting_read)
     return Red((PromotingEnded(promoting_read.ended),), promoting_read)
@@ -624,8 +652,7 @@ def held_for_a_maintainer(found):
            'maintainer, who pushes main to %s by hand with a credential that may update workflows, a plain push, '
            'never forced:\n\n%s\n\nand then re-runs the failed jobs of this run, which re-runs the jobs that look at '
            'main, move it and write this issue too: the re-run finds main at the commit this run judged and closes '
-           "this issue if that commit is still both develop's tip and main's, or otherwise says here where they stand "
-           'and does not close it.' % (
+           "this issue if that commit is still both develop's tip and main's, and otherwise leaves it open." % (
                judged, fenced('git push origin %s:refs/heads/main' % found.commit.hash.text)),))
 
 

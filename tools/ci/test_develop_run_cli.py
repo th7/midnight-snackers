@@ -172,29 +172,38 @@ class SayingWhatTheRunFound(unittest.TestCase):
         self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
         self.assertIn("develop's tip is now `%s`" % STRAY, self.body_written())
 
-    def test_a_green_run_after_main_moved_off_the_judged_commit_hands_the_workflow_the_issue_to_comment_on_naming_main_s_tip(self):
+    def test_a_run_whose_main_moved_off_the_judged_commit_after_its_push_hands_the_workflow_nothing_to_do_and_says_why_in_the_log(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', MAIN_TIP=STRAY)
 
         self.assertEqual(0, done.returncode, done.stderr)
-        self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
-        self.assertIn("main's tip is now `%s`" % STRAY, self.body_written())
+        self.assertEqual('action=none\n', done.stdout)
+        self.assertIn("but main moved since this run's push left it there, and now stands at `%s`, so this run writes "
+                      'nothing to the issue' % STRAY, done.stderr)
 
-    def test_a_red_run_says_main_stays_where_the_job_that_says_read_its_tip_not_where_the_look_found_it(self):
-        done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure', MAIN_TIP=STRAY,
-                           GIT_SAID=b64(' ! [rejected] %s -> main (fetch first)\n' % JUDGED))
+    def test_a_run_whose_mover_found_main_moved_since_the_look_hands_the_workflow_nothing_to_do_and_says_why_in_the_log(self):
+        done = self.report('[]', PUSHED='skipped', MAIN_TIP=STRAY)
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('action=none\n', done.stdout)
+        self.assertIn('but main moved since the job that looks found it at `%s`, and now stands at `%s`, so this run '
+                      'writes nothing to the issue' % (MAIN, STRAY), done.stderr)
+
+    def test_a_held_run_says_main_stays_where_the_job_that_says_read_its_tip_not_where_the_look_found_it(self):
+        done = self.report('[]', LOOKING_ENDED='failure', PUSHED='skipped', PROMOTING_ENDED='failure', MAIN_TIP=STRAY,
+                           WORKFLOWS_CHANGED=b64('.github/workflows/tests.yml\n'))
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertIn('main stays where it was, at `%s`.' % STRAY, self.body_written())
 
     def test_a_run_that_left_main_where_it_was_ahead_hands_the_workflow_nothing_to_do_and_no_body(self):
         done = self.report('[{"number": 12, "title": "IMPORTANT: develop CI Failures"}]', PUSHED='skipped',
-                           MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY))
+                           MAIN_TIP=MAIN, MAIN_AHEAD=b64('%s A later commit of develop\n' % STRAY))
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=none\n', done.stdout)
 
     def test_a_refused_push_reaches_the_body_with_what_git_said(self):
-        done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure',
+        done = self.report('[]', PUSHED='failure', PROMOTING_ENDED='failure', MAIN_TIP=MAIN,
                            GIT_SAID=b64('remote: error: GH006: Protected branch update failed\n'))
 
         self.assertEqual(0, done.returncode, done.stderr)

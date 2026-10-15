@@ -61,8 +61,9 @@ def report(environ, arguments, stdout, stderr):
     if rejected is not None:
         return rejected
     action = issues.issue_action(judgement, promoting, open_issues, link)
-    if not isinstance(action, issues.LeaveAlone):
-        print(action.body, file=stderr)
+    said = issues.logged(action)
+    if said:
+        print(said, file=stderr)
     stdout.write(issues.action_outputs(action))
     return 0
 

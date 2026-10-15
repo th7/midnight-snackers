@@ -341,7 +341,10 @@ class WhatARunJudges(WorkflowTest):
                       (None, 'Fail unless main moves or stays, so that re-running the failed jobs looks at main again')],
              'promote': [(None, 'Check out the judged commit with all of history and the built-in token, running none '
                                 'of its code'),
-                         ('push', 'Move main to the judged commit, never by force'),
+                         ('main', "Find where main stands now, as this job's checkout fetched it"),
+                         ('push', 'Move main to the judged commit, never by force, only from where the job that looks '
+                                  'found it'),
+                         (None, 'Push nothing once main has moved since the job that looks found it, saying so'),
                          (None, 'Hold main where it was')],
              'say': [(None, 'List the open issues, before any of the judged commit is on disk'),
                      ('develop', "Read develop's tip as it is now, before any of the judged commit is on disk"),
@@ -355,7 +358,10 @@ class WhatARunJudges(WorkflowTest):
                         ('close', "Close the issue, saying main now stands at the judged commit, only when every job "
                                   "before passed and that commit is still both develop's tip and main's"),
                         ('behind', "Say on the issue where develop's tip and main's now stand, when every job before "
-                                   'passed, the core said close and either is not the judged commit'),
+                                   "passed, the core said close and only main's is still the judged commit"),
+                        ('moved', 'Write nothing to the issue once main has moved since this run looked at it, saying '
+                                  "so, when every job before passed, the core said close and main's tip is not the "
+                                  'judged commit'),
                         (None, 'Open or comment on the issue saying only that the run is red, when nothing else did')]},
             {name: [(step.get('id'), step.get('name')) for step in steps_of(self.jobs[name])]
              for name in ('look', 'promote', 'say', 'report')})
@@ -383,10 +389,10 @@ class HowMainMoves(WorkflowTest):
         promoting = self.jobs['promote']
 
         self.assertEqual(
-            {'name': 'Move main to the judged commit, never by force',
+            {'name': 'Move main to the judged commit, never by force, only from where the job that looks found it',
              'id': 'push',
              'if': "needs.unit-tests.result == 'success' && needs.look.result == 'success' && "
-                   "needs.look.outputs.decision == 'move'",
+                   "needs.look.outputs.decision == 'move' && steps.main.outputs.tip == needs.look.outputs.main-tip",
              'env': {'JUDGED': '${{ needs.unit-tests.outputs.commit }}'},
              'run': 'pushed=0\n'
                     'git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?\n'
@@ -396,6 +402,26 @@ class HowMainMoves(WorkflowTest):
                     'exit "$pushed"\n'},
             step_named(promoting, 'push'))
         self.assertEqual(1, sum(each.count('git push') for job in self.jobs.values() for each in runs_of(job)))
+
+    def test_the_mover_finds_where_main_stands_now_as_its_checkout_fetched_every_branch_running_none_of_the_judged_code(self):
+        self.assertEqual({'name': "Find where main stands now, as this job's checkout fetched it",
+                          'id': 'main',
+                          'run': 'tip=$(git rev-parse refs/remotes/origin/main)\n'
+                                 'echo "tip=$tip" >> "$GITHUB_OUTPUT"\n'},
+                         step_named(self.jobs['promote'], 'main'),
+                         'a checkout of all of history fetches every branch into refs/remotes/origin (%s)'
+                         % CHECKOUT_FETCHES_EVERY_BRANCH)
+
+    def test_the_mover_pushes_nothing_once_main_has_moved_since_the_look_saying_so_by_a_step_that_writes_nothing(self):
+        self.assertEqual(
+            [{'name': 'Push nothing once main has moved since the job that looks found it, saying so',
+              'if': "needs.unit-tests.result == 'success' && needs.look.result == 'success' && "
+                    "steps.main.outputs.tip != needs.look.outputs.main-tip",
+              'env': {'FOUND': '${{ needs.look.outputs.main-tip }}', 'NOW': '${{ steps.main.outputs.tip }}'},
+              'run': 'echo "main moved since the job that looks found it at $FOUND: its tip is now $NOW, so this run '
+                     "pushes nothing, and a run that looks at main again, for a new push to develop or re-running all "
+                     "of this run's jobs, speaks for develop.\"\n"}],
+            [step for step in steps_of(self.jobs['promote']) if 'NOW' in step.get('env', {})])
 
     def test_the_core_decides_from_the_judging_what_main_has_and_the_workflow_files_the_commits_since_main_change(self):
         deciding = step_named(self.jobs['look'], 'decide')
@@ -476,6 +502,7 @@ class HowMainMoves(WorkflowTest):
 class WhatReachesThePushToMain(WorkflowTest):
     RESULTS = ('success', 'failure', 'cancelled', 'skipped', '')
     DECISIONS = ('move', 'stay', 'hold', '', 'anything else')
+    MAIN_NOW = (LATER_HASH, STRAY_HASH, JUDGED_HASH)
 
     def ran(self, job, contexts, outputs=None, failing=()):
         done = steps_ran(job, dict(contexts, github={'event_name': 'push', 'ref': 'refs/heads/develop'}), outputs, failing)
@@ -486,26 +513,34 @@ class WhatReachesThePushToMain(WorkflowTest):
         return self.ran(self.jobs['look'], {'needs': {'unit-tests': {'result': judging}}},
                         {'decide': {'decision': decision}})
 
-    def moved(self, judging, looking, decision, failing=()):
+    def moved(self, judging, looking, decision, failing=(), now=LATER_HASH):
         return self.ran(self.jobs['promote'],
-                        {'needs': {'unit-tests': {'result': judging, 'outputs': {'commit': 'a' * 40}},
-                                   'look': {'result': looking, 'outputs': {'decision': decision}}}},
-                        failing=failing)
+                        {'needs': {'unit-tests': {'result': judging, 'outputs': {'commit': JUDGED_HASH}},
+                                   'look': {'result': looking, 'outputs': {'decision': decision,
+                                                                           'main-tip': LATER_HASH}}}},
+                        {'main': {'tip': now}}, failing)
 
-    def test_a_judging_that_did_not_pass_never_reaches_the_push_whatever_the_core_decided(self):
+    def said_main_moved(self, steps):
+        return steps[key_of(next(step for step in steps_of(self.jobs['promote']) if 'NOW' in step.get('env', {})))]
+
+    def test_a_judging_that_did_not_pass_never_reaches_the_push_whatever_the_core_decided_or_wherever_main_is(self):
         for judging in self.RESULTS[1:]:
             for decision in self.DECISIONS:
-                _, looking = self.looked(judging, decision)
-                steps, ended = self.moved(judging, looking, decision)
+                for now in self.MAIN_NOW:
+                    _, looking = self.looked(judging, decision)
+                    steps, ended = self.moved(judging, looking, decision, now=now)
 
-                self.assertEqual(('skipped', 'failure'), (steps['push'], ended), (judging, decision))
+                    self.assertEqual(('skipped', 'skipped', 'failure'), (steps['push'], self.said_main_moved(steps), ended),
+                                     (judging, decision, now))
 
-    def test_a_look_at_main_that_did_not_pass_never_reaches_the_push_whatever_it_handed_on(self):
+    def test_a_look_at_main_that_did_not_pass_never_reaches_the_push_whatever_it_handed_on_or_wherever_main_is(self):
         for looking in self.RESULTS[1:]:
             for decision in self.DECISIONS:
-                steps, ended = self.moved('success', looking, decision)
+                for now in self.MAIN_NOW:
+                    steps, ended = self.moved('success', looking, decision, now=now)
 
-                self.assertEqual(('skipped', 'failure'), (steps['push'], ended), (looking, decision))
+                    self.assertEqual(('skipped', 'skipped', 'failure'), (steps['push'], self.said_main_moved(steps), ended),
+                                     (looking, decision, now))
 
     def test_the_job_that_looks_fails_unless_the_core_said_main_moves_or_stays_so_a_rerun_of_failed_jobs_looks_again(self):
         for decision in self.DECISIONS:
@@ -513,25 +548,46 @@ class WhatReachesThePushToMain(WorkflowTest):
 
             self.assertEqual('success' if decision in ('move', 'stay') else 'failure', looking, decision)
 
-    def test_main_is_pushed_exactly_when_the_judging_passed_and_the_core_said_move(self):
+    def test_main_is_pushed_exactly_when_the_judging_passed_the_core_said_move_and_main_is_where_the_look_found_it(self):
         for judging in self.RESULTS:
             for decision in self.DECISIONS:
-                _, looking = self.looked(judging, decision)
-                steps, _ = self.moved(judging, looking, decision)
+                for now in self.MAIN_NOW:
+                    _, looking = self.looked(judging, decision)
+                    steps, _ = self.moved(judging, looking, decision, now=now)
 
-                self.assertEqual('success' if (judging, decision) == ('success', 'move') else 'skipped', steps['push'],
-                                 (judging, decision))
+                    self.assertEqual('success' if (judging, decision, now) == ('success', 'move', LATER_HASH) else 'skipped',
+                                     steps['push'], (judging, decision, now))
 
-    def test_the_mover_ends_in_success_only_having_pushed_or_with_main_staying_where_the_core_said_it_stays(self):
+    def test_the_mover_says_main_moved_since_the_look_exactly_when_the_judging_and_the_look_passed_and_main_is_not_where_the_look_found_it(self):
+        for judging in self.RESULTS:
+            for decision in self.DECISIONS:
+                for now in self.MAIN_NOW:
+                    _, looking = self.looked(judging, decision)
+                    steps, _ = self.moved(judging, looking, decision, now=now)
+                    said = (judging, looking) == ('success', 'success') and now != LATER_HASH
+
+                    self.assertEqual('success' if said else 'skipped', self.said_main_moved(steps),
+                                     (judging, decision, now))
+
+    def test_the_mover_ends_in_success_only_having_pushed_with_main_staying_where_the_core_said_it_stays_or_having_found_main_moved_since_the_look(self):
         for judging in self.RESULTS:
             for decision in self.DECISIONS:
                 for failing in ((), ('push',)):
-                    _, looking = self.looked(judging, decision)
-                    steps, ended = self.moved(judging, looking, decision, failing)
-                    stayed = (judging, decision) == ('success', 'stay')
+                    for now in self.MAIN_NOW:
+                        _, looking = self.looked(judging, decision)
+                        steps, ended = self.moved(judging, looking, decision, failing, now)
+                        stayed = (judging, decision) == ('success', 'stay')
+                        found_moved = (judging, looking) == ('success', 'success') and now != LATER_HASH
 
-                    self.assertEqual('success' if steps['push'] == 'success' or stayed else 'failure', ended,
-                                     (judging, decision, failing))
+                        self.assertEqual('success' if steps['push'] == 'success' or stayed or found_moved else 'failure',
+                                         ended, (judging, decision, failing, now))
+
+    def test_a_mover_whose_read_of_main_failed_neither_pushes_nor_says_main_moved_and_ends_red(self):
+        for decision in ('move', 'stay'):
+            steps, ended = self.moved('success', 'success', decision, failing=('main',), now='')
+
+            self.assertEqual(('failure', 'skipped', 'skipped', 'failure'),
+                             (steps['main'], steps['push'], self.said_main_moved(steps), ended), decision)
 
 
 class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
@@ -613,13 +669,27 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         contexts = {'needs': needs, 'github': {'event_name': 'push', 'ref': 'refs/heads/develop', 'token': 'a-token'}}
         done = played(job, contexts, cwd, self.on_runner, tempfile.mkdtemp(prefix='temp-', dir=self.where.name))
         self.assertNotIsInstance(done, conditions.Rejected)
-        return done[0]
+        return dict(done[0], steps={key: step['outcome'] for key, step in done[1].items()})
 
     def jobs_ran(self, names, runner, ended):
         for name in names:
+            if name != 'report':
+                self.git(runner, 'fetch', '-q', '--prune', 'origin')
             ended[name] = self.job(name, tempfile.mkdtemp(prefix='empty-', dir=self.where.name) if name == 'report'
                                    else runner, ended)
         return ended
+
+    def no_issue_open(self):
+        with open(self.on_runner['GH_LISTED'], 'w', encoding='utf-8') as written:
+            written.write('[]')
+
+    def issue_writes(self, calls):
+        return [[os.path.basename(each) if call[index - 1:index] == ['--body-file'] else each
+                 for index, each in enumerate(call)]
+                for call in calls if call[:2] in (['issue', 'create'], ['issue', 'comment'], ['issue', 'close'])]
+
+    def fallback_of(self, reported):
+        return reported['steps'][key_of(steps_of(self.jobs['report'])[-1])]
 
     def a_run(self, judged_commit, subject, failing=()):
         runner = self.checked_out(judged_commit)
@@ -866,63 +936,65 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
 
         self.held_naming_tests_yml(judged_commit, 'Say how to build', differing=TESTS_YML)
 
-    def test_a_rerun_after_a_maintainer_pushed_main_to_the_judged_commit_moves_it_nowhere_and_closes_the_issue(self):
+    def held_for_a_maintainer(self, subject):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
-        judged_commit = self.commit('Run the tool tests too', {'.github/workflows/tests.yml': 'name: tests\n'})
+        judged_commit = self.commit(subject, {'.github/workflows/tests.yml': 'name: every test\n'})
         self.push('develop')
-        judgement = self.judgement_of(judged_commit, 'Run the tool tests too')
-        self.assertIsInstance(self.decided_for(judged_commit, 'Run the tool tests too'), run.Hold)
+        first, runner = self.a_run(judged_commit, subject)
+        self.assertEqual(('hold', 'failure', 'failure', 'comment'),
+                         (first['look']['outputs']['decision'], first['look']['result'], first['promote']['result'],
+                          first['say']['outputs']['action']))
+        return judged_commit, first, runner
+
+    def test_a_rerun_of_the_failed_jobs_after_a_maintainer_pushed_main_to_the_held_commit_moves_it_nowhere_and_closes_the_issue(self):
+        judged_commit, first, runner = self.held_for_a_maintainer('Run every test')
         self.push('%s:refs/heads/main' % judged_commit)
+        self.gh_calls()
 
-        runner, found = self.mover_found(judged_commit)
-        decided = run.promotion(judgement, run.listed_commits(found['lacking']), run.listed_commits(found['ahead']),
-                                run.workflows(found['changed'], found['differing']))
-        self.assertEqual(run.Move(run.Commit(run.CommitHash(judged_commit), 'Run the tool tests too')), decided)
-        pushed = self.ran('promote', 'push', runner, JUDGED=judged_commit)
-        promoting = run.promoting('success', found['tip'], self.tip_read('main'), self.tip_read('develop'),
-                                  found['lacking'], found['ahead'], found['changed'], found['differing'], 'success',
-                                  'success', pushed['said'])
-        action = issues.issue_action(judgement, promoting, (issues.OpenIssue(12, issues.TITLE),),
-                                     issues.run_link('https://github.com', 'th7/midnight-snackers', '123456'))
+        rerun = self.jobs_ran(('look', 'promote', 'say', 'report'), runner, {'unit-tests': first['unit-tests']})
+        calls = self.gh_calls()
 
-        self.assertEqual(judged_commit, self.git(self.origin, 'rev-parse', 'refs/heads/main'))
-        self.assertIsInstance(action, issues.Close)
-        self.assertEqual((12,), action.issues)
-        self.assertIn('main now stands there', action.body)
+        self.assertEqual((judged_commit, judged_commit), self.where_main_and_develop_stand())
+        self.assertEqual(('move', 'success', 'close'), (rerun['look']['outputs']['decision'],
+                                                        rerun['promote']['outputs']['pushed'],
+                                                        rerun['say']['outputs']['action']))
+        self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body-file', 'issue-body.md', '--', '12',
+                           'develop was judged green at `%s` `Run every test`, and main now stands there.\n\nThe run: '
+                           'https://github.com/th7/midnight-snackers/actions/runs/123456\n' % judged_commit],
+                          ['issue', 'close', '--repo', 'th7/midnight-snackers', '--', '12']],
+                         self.issue_writes(calls))
+        self.assertEqual('success', rerun['report']['result'])
 
-    def test_a_rerun_of_an_older_held_run_after_a_maintainer_pushed_main_comments_and_leaves_open_an_issue_develop_s_red_tip_holds(self):
-        link = issues.run_link('https://github.com', 'th7/midnight-snackers', '123456')
+    def test_a_rerun_of_the_failed_jobs_of_a_run_whose_push_was_refused_once_pushes_and_writes_nothing_after_a_later_green_run_moved_main_and_closed_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
-        workflow_change = self.commit('Run every test', {'.github/workflows/tests.yml': 'name: every test\n'})
+        tuned = self.commit('Tune the arm', {'arm.txt': 'tuned\n'})
         self.push('develop')
-        older = self.judgement_of(workflow_change, 'Run every test')
-        self.assertIsInstance(self.decided_for(workflow_change, 'Run every test'), run.Hold)
-        broken = self.commit('Break the drive code', {'drive.txt': 'broken\n'})
+        hook = os.path.join(self.origin, 'hooks', 'pre-receive')
+        with open(hook, 'w', encoding='utf-8') as refusing:
+            refusing.write('#!/bin/sh\necho "502 try again later" >&2\nexit 1\n')
+        os.chmod(hook, 0o755)
+        first, runner = self.a_run(tuned, 'Tune the arm')
+        os.remove(hook)
+        self.assertEqual(('move', 'failure', 'comment'),
+                         (first['look']['outputs']['decision'], first['promote']['result'], first['say']['outputs']['action']))
+        named = self.commit('Name the robot', {'robot.txt': 'Reginald\n'})
         self.push('develop')
-        red = run.judgement('failure', broken, base64.b64encode(b'Break the drive code\n').decode(),
-                            tuple('failure' if step is run.UNIT_TESTS else 'success' for step in run.STEPS))
-        _, found = self.mover_found(broken)
-        held = run.promoting('failure', found['tip'], self.tip_read('main'), self.tip_read('develop'),
-                             found['lacking'], found['ahead'], found['changed'], found['differing'], 'failure',
-                             'skipped', '')
-        self.assertIsInstance(issues.issue_action(red, held, (issues.OpenIssue(12, issues.TITLE),), link),
-                              issues.CommentOn)
-        self.push('%s:refs/heads/main' % workflow_change)
+        later, _ = self.a_run(named, 'Name the robot')
+        self.assertEqual(('close', 'success'), (later['say']['outputs']['action'], later['report']['result']))
+        self.assertEqual((named, named), self.where_main_and_develop_stand())
+        self.no_issue_open()
+        self.gh_calls()
 
-        runner, found = self.mover_found(workflow_change)
-        decided = run.promotion(older, run.listed_commits(found['lacking']), run.listed_commits(found['ahead']),
-                                run.workflows(found['changed'], found['differing']))
-        pushed = self.ran('promote', 'push', runner, JUDGED=workflow_change)
-        promoting = run.promoting('success', found['tip'], self.tip_read('main'), self.tip_read('develop'),
-                                  found['lacking'], found['ahead'], found['changed'], found['differing'], 'success',
-                                  'success', pushed['said'])
-        action = issues.issue_action(older, promoting, (issues.OpenIssue(12, issues.TITLE),), link)
+        rerun = self.jobs_ran(('promote', 'say', 'report'), runner,
+                              {'unit-tests': first['unit-tests'], 'look': first['look']})
+        calls = self.gh_calls()
 
-        self.assertEqual(run.Move(run.Commit(run.CommitHash(workflow_change), 'Run every test')), decided)
-        self.assertEqual(workflow_change, self.git(self.origin, 'rev-parse', 'refs/heads/main'))
-        self.assertIsInstance(action, issues.CommentOn)
-        self.assertEqual(12, action.issue)
-        self.assertIn("develop's tip is now `%s`" % broken, action.body)
+        self.assertEqual((named, named), self.where_main_and_develop_stand())
+        self.assertEqual(('skipped', 'none'), (rerun['promote']['outputs']['pushed'], rerun['say']['outputs']['action']))
+        self.assertEqual([], self.issue_writes(calls))
+        self.assertEqual({'success'}, {rerun[name]['result'] for name in ('unit-tests', 'look', 'promote', 'say', 'report')})
+        self.assertNotIn('failure', rerun['report']['steps'].values())
+        self.assertEqual('skipped', self.fallback_of(rerun['report']))
 
     def test_a_rerun_of_the_failed_jobs_after_main_refused_a_push_once_never_closes_an_issue_a_later_red_tip_holds_open(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
@@ -987,7 +1059,7 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         self.git(self.work, 'checkout', '-q', 'develop')
         return stray
 
-    def test_a_rerun_of_the_job_that_writes_the_issue_alone_never_closes_an_issue_a_run_of_the_same_tip_holds_open_over_a_commit_on_main(self):
+    def test_a_rerun_of_the_job_that_writes_the_issue_alone_after_a_commit_reached_main_by_itself_never_closes_or_writes_to_an_issue_a_run_of_the_same_tip_holds_open(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
         tuned = self.commit('Tune the arm', {'arm.txt': 'tuned\n'})
         self.push('develop')
@@ -1005,15 +1077,11 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         calls = self.gh_calls()
 
         self.assertEqual((stray, tuned), self.where_main_and_develop_stand())
-        self.assertEqual([], [call for call in calls if call[:2] == ['issue', 'close']])
-        commented = [call for call in calls if call[:2] == ['issue', 'comment']]
-        self.assertEqual(1, len(commented), calls)
-        self.assertEqual(['--', '12'], commented[0][-2:])
-        self.assertIn("develop's tip is now %s and main's is %s" % (tuned, stray),
-                      commented[0][commented[0].index('--body') + 1])
-        self.assertEqual('success', reported['result'])
+        self.assertEqual([], self.issue_writes(calls))
+        self.assertEqual(('success', 'success', 'skipped'),
+                         (reported['result'], reported['steps']['moved'], self.fallback_of(reported)))
 
-    def test_a_rerun_of_the_jobs_that_say_and_write_after_a_commit_reached_main_by_itself_never_closes_the_issue(self):
+    def test_a_rerun_of_the_jobs_that_say_and_write_after_a_commit_reached_main_by_itself_never_closes_or_writes_to_the_issue(self):
         self.git(self.work, 'checkout', '-q', '-b', 'develop')
         tuned = self.commit('Tune the arm', {'arm.txt': 'tuned\n'})
         self.push('develop')
@@ -1030,12 +1098,9 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         calls = self.gh_calls()
 
         self.assertEqual((stray, tuned), self.where_main_and_develop_stand())
-        self.assertEqual(('success', 'comment'), (rerun['say']['result'], rerun['say']['outputs']['action']))
-        self.assertEqual([], [call for call in calls if call[:2] == ['issue', 'close']])
-        commented = [call for call in calls if call[:2] == ['issue', 'comment']]
-        self.assertEqual(1, len(commented), calls)
-        self.assertIn("main's tip is now `%s`" % stray, commented[0][-1])
-        self.assertNotIn('main now stands there', commented[0][-1])
+        self.assertEqual(('success', 'none'), (rerun['say']['result'], rerun['say']['outputs']['action']))
+        self.assertEqual([], self.issue_writes(calls))
+        self.assertEqual(('success', 'skipped'), (rerun['report']['result'], self.fallback_of(rerun['report'])))
 
     def test_a_commit_that_reached_main_by_itself_and_was_merged_into_develop_after_the_judging_stays(self):
         stray = self.commit('Fix the README on main')
@@ -1226,15 +1291,15 @@ class HowTheIssueIsWritten(WorkflowTest):
                             'done\n'}],
             carried)
 
-    def test_a_green_run_whose_judged_commit_develop_or_main_has_moved_off_says_where_they_stand_by_a_step_that_reads_nothing_the_core_wrote(self):
+    def test_a_green_run_whose_judged_commit_develop_has_moved_off_says_where_they_stand_by_a_step_that_reads_nothing_the_core_wrote(self):
         self.assertEqual(
             {'name': "Say on the issue where develop's tip and main's now stand, when every job before passed, the core "
-                     'said close and either is not the judged commit',
+                     "said close and only main's is still the judged commit",
              'id': 'behind',
              'if': "needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && "
                    "needs.look.result == 'success' && needs.promote.result == 'success' && "
-                   "needs.say.result == 'success' && (steps.develop.outputs.tip != needs.unit-tests.outputs.commit || "
-                   "steps.main.outputs.tip != needs.unit-tests.outputs.commit)",
+                   "needs.say.result == 'success' && steps.main.outputs.tip == needs.unit-tests.outputs.commit && "
+                   "steps.develop.outputs.tip != needs.unit-tests.outputs.commit",
              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUES': '${{ needs.say.outputs.issues }}',
                      'JUDGED': '${{ needs.unit-tests.outputs.commit }}',
                      'DEVELOP_TIP': '${{ steps.develop.outputs.tip }}', 'MAIN_TIP': '${{ steps.main.outputs.tip }}'},
@@ -1246,6 +1311,20 @@ class HowTheIssueIsWritten(WorkflowTest):
                     '  gh issue comment --repo "$GITHUB_REPOSITORY" --body "$body" -- "$issue"\n'
                     'done\n'},
             step_named(self.jobs['report'], 'behind'))
+
+    def test_a_green_run_whose_main_moved_off_the_judged_commit_writes_nothing_to_the_issue_saying_so_by_a_step_that_reads_nothing_the_core_wrote(self):
+        self.assertEqual(
+            {'name': 'Write nothing to the issue once main has moved since this run looked at it, saying so, when every '
+                     "job before passed, the core said close and main's tip is not the judged commit",
+             'id': 'moved',
+             'if': "needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && "
+                   "needs.look.result == 'success' && needs.promote.result == 'success' && "
+                   "needs.say.result == 'success' && steps.main.outputs.tip != needs.unit-tests.outputs.commit",
+             'env': {'JUDGED': '${{ needs.unit-tests.outputs.commit }}', 'MAIN_TIP': '${{ steps.main.outputs.tip }}'},
+             'run': 'echo "main moved since this run looked at it: its tip is now $MAIN_TIP, not the judged commit '
+                    "$JUDGED, so this run writes nothing to the issue, and a run that looks at main again, for a new "
+                    "push to develop or re-running all of this run's jobs, speaks for develop.\"\n"},
+            step_named(self.jobs['report'], 'moved'))
 
     def test_a_red_run_the_core_wrote_nothing_for_opens_or_comments_on_the_issue_by_a_step_that_reads_nothing_it_said(self):
         falling_back = steps_of(self.jobs['report'])[-1]
@@ -1296,7 +1375,8 @@ class WhatReachesTheIssue(WorkflowTest):
         steps, _ = self.report_ran(results, action, tip, failing, main)
         return {'open': steps['open'], 'comment': steps['comment'], 'read': steps.get('develop', 'absent'),
                 'read main': steps.get('main', 'absent'), 'close': steps[key_of(self.closing())],
-                'behind': steps.get('behind', 'absent'), 'fallback': steps[key_of(steps_of(self.jobs['report'])[-1])]}
+                'behind': steps.get('behind', 'absent'), 'moved': steps.get('moved', 'absent'),
+                'fallback': steps[key_of(steps_of(self.jobs['report'])[-1])]}
 
     def every_red(self):
         return [results for results in itertools.product(self.RESULTS, repeat=4) if results != self.GREEN]
@@ -1309,7 +1389,7 @@ class WhatReachesTheIssue(WorkflowTest):
 
     def test_a_green_run_closes_the_issue_when_the_core_says_close_and_develop_s_tip_and_main_s_are_still_the_judged_commit(self):
         self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
-                          'close': 'success', 'behind': 'skipped', 'fallback': 'skipped'},
+                          'close': 'success', 'behind': 'skipped', 'moved': 'skipped', 'fallback': 'skipped'},
                          self.reported(self.GREEN, 'close'))
 
     def test_no_run_closes_the_issue_once_develop_s_tip_as_the_job_that_writes_it_reads_it_has_moved_on_whatever_say_said(self):
@@ -1326,20 +1406,35 @@ class WhatReachesTheIssue(WorkflowTest):
                     self.assertEqual('skipped', self.reported(results, action, tip, main=LATER_HASH)['close'],
                                      (results, action, tip))
 
-    def test_a_green_run_the_core_said_to_close_for_says_on_the_issue_where_develop_and_main_stand_once_either_moved_off_the_judged_commit(self):
-        for tip, main in self.TIPS_READ[1:]:
-            self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
-                              'close': 'skipped', 'behind': 'success', 'fallback': 'skipped'},
-                             self.reported(self.GREEN, 'close', tip, main=main), (tip, main))
+    def test_a_green_run_the_core_said_to_close_for_says_on_the_issue_where_develop_and_main_stand_once_develop_alone_moved_off_the_judged_commit(self):
+        self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
+                          'close': 'skipped', 'behind': 'success', 'moved': 'skipped', 'fallback': 'skipped'},
+                         self.reported(self.GREEN, 'close', LATER_HASH, main=JUDGED_HASH))
 
-    def test_a_run_says_where_develop_and_main_stand_only_when_every_job_passed_the_core_said_close_and_either_moved_off_the_judged_commit(self):
+    def test_a_green_run_the_core_said_to_close_for_writes_nothing_to_the_issue_and_says_so_in_its_log_once_main_moved_off_the_judged_commit(self):
+        for tip in self.TIPS:
+            self.assertEqual({'open': 'skipped', 'comment': 'skipped', 'read': 'success', 'read main': 'success',
+                              'close': 'skipped', 'behind': 'skipped', 'moved': 'success', 'fallback': 'skipped'},
+                             self.reported(self.GREEN, 'close', tip, main=LATER_HASH), tip)
+
+    def test_a_run_says_where_develop_and_main_stand_only_when_every_job_passed_the_core_said_close_and_develop_alone_moved_off_the_judged_commit(self):
         for results in self.every_red() + [self.GREEN]:
             for action in self.ACTIONS:
                 for tip, main in self.TIPS_READ:
-                    said = (results, action) == (self.GREEN, 'close') and LATER_HASH in (tip, main)
+                    said = (results, action, tip, main) == (self.GREEN, 'close', LATER_HASH, JUDGED_HASH)
 
                     self.assertEqual('success' if said else 'skipped',
                                      self.reported(results, action, tip, main=main)['behind'],
+                                     (results, action, tip, main))
+
+    def test_a_run_says_in_its_log_that_main_moved_only_when_every_job_passed_the_core_said_close_and_main_moved_off_the_judged_commit(self):
+        for results in self.every_red() + [self.GREEN]:
+            for action in self.ACTIONS:
+                for tip, main in self.TIPS_READ:
+                    said = (results, action, main) == (self.GREEN, 'close', LATER_HASH)
+
+                    self.assertEqual('success' if said else 'skipped',
+                                     self.reported(results, action, tip, main=main)['moved'],
                                      (results, action, tip, main))
 
     def test_a_read_of_develop_or_main_that_failed_never_closes_the_issue_and_the_run_says_it_is_red(self):
@@ -1369,10 +1464,10 @@ class WhatReachesTheIssue(WorkflowTest):
     def test_a_red_run_whose_open_or_comment_went_through_writes_nothing_more(self):
         for results in self.every_red():
             self.assertEqual({'open': 'success', 'comment': 'skipped', 'read': 'skipped', 'read main': 'skipped',
-                              'close': 'skipped', 'behind': 'skipped', 'fallback': 'skipped'},
+                              'close': 'skipped', 'behind': 'skipped', 'moved': 'skipped', 'fallback': 'skipped'},
                              self.reported(results, 'open'))
             self.assertEqual({'open': 'skipped', 'comment': 'success', 'read': 'skipped', 'read main': 'skipped',
-                              'close': 'skipped', 'behind': 'skipped', 'fallback': 'skipped'},
+                              'close': 'skipped', 'behind': 'skipped', 'moved': 'skipped', 'fallback': 'skipped'},
                              self.reported(results, 'comment'))
 
     def test_a_green_run_never_says_it_is_red(self):
@@ -1381,12 +1476,13 @@ class WhatReachesTheIssue(WorkflowTest):
                 self.assertEqual('skipped', self.reported(self.GREEN, action, tip, main=main)['fallback'],
                                  (action, tip, main))
 
-    def test_a_green_run_whose_close_or_word_of_where_develop_and_main_stand_failed_says_it_is_red(self):
+    def test_a_green_run_whose_close_word_of_where_develop_and_main_stand_or_log_that_main_moved_failed_says_it_is_red(self):
         self.assertEqual('success', self.reported(self.GREEN, 'close', failing=('close',))['fallback'])
-        for tip, main in self.TIPS_READ[1:]:
+        self.assertEqual('success',
+                         self.reported(self.GREEN, 'close', LATER_HASH, failing=('behind',), main=JUDGED_HASH)['fallback'])
+        for tip in self.TIPS:
             self.assertEqual('success',
-                             self.reported(self.GREEN, 'close', tip, failing=('behind',), main=main)['fallback'],
-                             (tip, main))
+                             self.reported(self.GREEN, 'close', tip, failing=('moved',), main=LATER_HASH)['fallback'], tip)
 
 
 class WhatTheIssueStepsHandGh(WorkflowTest):
@@ -1496,6 +1592,22 @@ class WhatTheIssueStepsHandGh(WorkflowTest):
 
         self.assertEqual([['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body', body, '--', '12'],
                           ['issue', 'comment', '--repo', 'th7/midnight-snackers', '--body', body, '--', '41']], calls)
+
+
+    def test_each_word_that_main_moved_since_the_look_goes_to_the_log_alone_naming_where_main_was_and_is(self):
+        promoting = next(step for step in steps_of(self.jobs['promote']) if 'NOW' in step.get('env', {}))
+        for step, environ, said in (
+                (promoting, {'FOUND': JUDGED_HASH, 'NOW': STRAY_HASH},
+                 'main moved since the job that looks found it at %s: its tip is now %s, so this run pushes nothing, '
+                 "and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, "
+                 'speaks for develop.\n' % (JUDGED_HASH, STRAY_HASH)),
+                (step_named(self.jobs['report'], 'moved'), {'JUDGED': JUDGED_HASH, 'MAIN_TIP': STRAY_HASH},
+                 'main moved since this run looked at it: its tip is now %s, not the judged commit %s, so this run '
+                 "writes nothing to the issue, and a run that looks at main again, for a new push to develop or "
+                 "re-running all of this run's jobs, speaks for develop.\n" % (STRAY_HASH, JUDGED_HASH))):
+            done, calls, outputs = self.shell(step, environ)
+
+            self.assertEqual((0, said, [], {}), (done.returncode, done.stdout, calls, outputs), step['name'])
 
 
 class WhatAShellIsHanded(WorkflowTest):

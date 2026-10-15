@@ -164,9 +164,14 @@ jobs:
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
-      - name: Move main to the judged commit, never by force
+      - name: Find where main stands now, as this job's checkout fetched it
+        id: main
+        run: |
+          tip=$(git rev-parse refs/remotes/origin/main)
+          echo "tip=$tip" >> "$GITHUB_OUTPUT"
+      - name: Move main to the judged commit, never by force, only from where the job that looks found it
         id: push
-        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.look.outputs.decision == 'move'
+        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.look.outputs.decision == 'move' && steps.main.outputs.tip == needs.look.outputs.main-tip
         env:
           JUDGED: ${{ needs.unit-tests.outputs.commit }}
         run: |
@@ -176,6 +181,13 @@ jobs:
           said=$(base64 -w0 < "$RUNNER_TEMP/git-said")
           echo "said=$said" >> "$GITHUB_OUTPUT"
           exit "$pushed"
+      - name: Push nothing once main has moved since the job that looks found it, saying so
+        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip
+        env:
+          FOUND: ${{ needs.look.outputs.main-tip }}
+          NOW: ${{ steps.main.outputs.tip }}
+        run: |
+          echo "main moved since the job that looks found it at $FOUND: its tip is now $NOW, so this run pushes nothing, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
       - name: Hold main where it was
         if: needs.unit-tests.result != 'success' || needs.look.result != 'success'
         run: exit 1
@@ -320,9 +332,9 @@ jobs:
             gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$issue"
             gh issue close --repo "$GITHUB_REPOSITORY" -- "$issue"
           done
-      - name: Say on the issue where develop's tip and main's now stand, when every job before passed, the core said close and either is not the judged commit
+      - name: Say on the issue where develop's tip and main's now stand, when every job before passed, the core said close and only main's is still the judged commit
         id: behind
-        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && (steps.develop.outputs.tip != needs.unit-tests.outputs.commit || steps.main.outputs.tip != needs.unit-tests.outputs.commit)
+        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.main.outputs.tip == needs.unit-tests.outputs.commit && steps.develop.outputs.tip != needs.unit-tests.outputs.commit
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUES: ${{ needs.say.outputs.issues }}
@@ -335,6 +347,14 @@ jobs:
           for issue in $ISSUES; do
             gh issue comment --repo "$GITHUB_REPOSITORY" --body "$body" -- "$issue"
           done
+      - name: Write nothing to the issue once main has moved since this run looked at it, saying so, when every job before passed, the core said close and main's tip is not the judged commit
+        id: moved
+        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.main.outputs.tip != needs.unit-tests.outputs.commit
+        env:
+          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          MAIN_TIP: ${{ steps.main.outputs.tip }}
+        run: |
+          echo "main moved since this run looked at it: its tip is now $MAIN_TIP, not the judged commit $JUDGED, so this run writes nothing to the issue, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
       - name: Open or comment on the issue saying only that the run is red, when nothing else did
         if: ${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && (failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || needs.promote.result != 'success' || needs.say.result != 'success') }}
         env:
