@@ -1101,7 +1101,8 @@ child reads the seventeen it read before the list. The bench refuses a run on a
 changed constant the child does not read, naming it and whose the fix is: pull
 the robot's develop branch when the child's sources are older, restart the
 server from newer code when the child retired it, or either way have the coach
-put the constants back as built. A hello of version 7 or later without lists it
+put the constants back as built; a run refused for both kinds names every one,
+in its outcome as well as its message, with both fixes. A hello of version 7 or later without lists it
 can read is refused by name, and a start line the child cannot take ends the
 run with an outcome of its own, *could not take the start line*, saying why,
 rather than as a driver station it could not read. A tick's

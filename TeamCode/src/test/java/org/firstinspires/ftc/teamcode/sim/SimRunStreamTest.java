@@ -651,6 +651,33 @@ public class SimRunStreamTest {
     }
 
     @Test
+    public void aRunOnAConstantTheChildRetiredAndOneItDoesNotReadIsRefusedNamingBothInItsOutcomeAndEachFix() {
+        List<String> reads = everyConstantBut("hiccup_chance");
+        reads.remove("motor_spread");
+        Constants both =
+                Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, 0.0, Constant.MOTOR_SPREAD, 0.2)));
+
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.PROTOCOL, reads, List.of("hiccup_chance")),
+                StartPoses.ORIGIN,
+                null,
+                TeamRobot.REGINALD,
+                both);
+
+        assertTrue(handshake.refused());
+        assertEquals(
+                Outcome.retiredAndDoesNotRead(List.of(Constant.HICCUP_CHANCE), List.of(Constant.MOTOR_SPREAD)),
+                handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.contains("retired Hiccup chance"));
+        assertTrue(handshake.outcome, handshake.outcome.contains("does not read Motor spread"));
+        assertTrue(handshake.message, handshake.message.contains("Hiccup chance 0.0"));
+        assertTrue(handshake.message, handshake.message.contains("Restart the server"));
+        assertTrue(handshake.message, handshake.message.contains("Motor spread 0.2"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    @Test
     public void aChildOfThisVersionRunsWhenItReadsEveryConstantTheAdminChangedWhateverElseItDoesNotRead() {
         Constants spread = set(Constant.MOTOR_SPREAD, 0.2);
         SimRunStream.Handshake handshake = SimRunStream.handshake(

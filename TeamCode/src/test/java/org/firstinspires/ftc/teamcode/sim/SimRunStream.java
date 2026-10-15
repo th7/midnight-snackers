@@ -118,6 +118,11 @@ public final class SimRunStream {
             return "the simulator retired " + labelsOf(retired) + ", which the admin page set";
         }
 
+        public static String retiredAndDoesNotRead(Collection<Constant> retired, Collection<Constant> unread) {
+            return "the simulator retired " + labelsOf(retired) + " and does not read " + labelsOf(unread)
+                    + ", which the admin page set";
+        }
+
         public static String unlistedConstants(int childProtocol) {
             return "wrong protocol: the simulator speaks " + childProtocol
                     + " and does not list the constants it reads and the ones it retired";
@@ -459,9 +464,7 @@ public final class SimRunStream {
                     protocol,
                     content,
                     null,
-                    retiredByTheChild.isEmpty()
-                            ? Outcome.doesNotRead(unread.keySet())
-                            : Outcome.retired(retiredByTheChild.keySet()),
+                    refusedOutcome(retiredByTheChild.keySet(), unread.keySet()),
                     unreadMessage(retiredByTheChild, unread, robot));
         }
         if (protocol >= PLACED_PROTOCOL) {
@@ -482,6 +485,16 @@ public final class SimRunStream {
                         + PLACED_PROTOCOL
                         + ": the sources are older than the server. Pull develop, or place the robot"
                         + " back at the origin.");
+    }
+
+    private static String refusedOutcome(Collection<Constant> retiredByTheChild, Collection<Constant> unread) {
+        if (unread.isEmpty()) {
+            return Outcome.retired(retiredByTheChild);
+        }
+        if (retiredByTheChild.isEmpty()) {
+            return Outcome.doesNotRead(unread);
+        }
+        return Outcome.retiredAndDoesNotRead(retiredByTheChild, unread);
     }
 
     private static String unreadMessage(
