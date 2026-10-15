@@ -268,10 +268,17 @@ class WhatTheReasonsSay(unittest.TestCase):
                       said, 'a partial re-run runs again every job that depends on one it re-runs: %s' % PARTIAL_RERUNS)
         self.assertIn('finds main at the commit this run judged and closes this issue', said)
 
-    def test_a_hold_over_one_workflow_file_says_file(self):
-        said = run.reasons((MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML),))
-
-        self.assertIn('change 1 workflow file,', said)
+    def test_a_hold_over_one_workflow_file_says_exactly_this_and_nothing_more(self):
+        self.assertEqual(
+            "main needs a maintainer: the commits from main to `%s` change 1 workflow file, and GitHub's built-in token, "
+            'the only credential the job that moves main has, may not move a branch past a change to a workflow file, so '
+            'nothing was pushed:\n\n```\n.github/workflows/tests.yml\n```\n\nNo commit to develop and no session can '
+            'clear this, since every later commit of develop carries these commits too: it waits on a maintainer, who '
+            'pushes main to `%s` by hand with a credential that may update workflows, a plain push, never forced:\n\n'
+            '```\ngit push origin %s:refs/heads/main\n```\n\nand then re-runs the failed jobs of this run, which re-runs '
+            'the job that writes this issue too: the re-run finds main at the commit this run judged and closes this '
+            'issue.' % (JUDGED, JUDGED, JUDGED),
+            run.reasons((MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML),)))
 
     def test_a_hold_over_more_workflow_files_than_can_be_listed_names_the_first_fifty_and_counts_the_rest(self):
         files = WorkflowFiles(tuple(sorted('.github/workflows/w%02d.yml' % n for n in range(1, 61))))
