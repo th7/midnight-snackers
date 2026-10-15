@@ -138,7 +138,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
 
     def test_a_red_run_with_no_issue_open_hands_the_workflow_an_issue_to_open_and_writes_its_body(self):
         done = self.report('[{"number": 7, "title": "Launch Sim"}]', JUDGING_ENDED='failure',
-                           STEP_UNIT_TESTS='failure', PUSHED='skipped')
+                           STEP_UNIT_TESTS='failure', PUSHED='skipped', PROMOTING_ENDED='failure')
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertEqual('action=open\ntitle=IMPORTANT: develop CI Failures\n', done.stdout)

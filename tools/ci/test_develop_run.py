@@ -193,7 +193,7 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
                              said)
 
     def test_a_run_that_held_main_is_red_for_the_reasons_it_held(self):
-        promoting = looked(pushed=Outcome.SKIPPED)
+        promoting = looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE)
 
         self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),), promoting),
                          run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
@@ -210,10 +210,10 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
 
         self.assertEqual(Red((PromotingEnded(Outcome.FAILURE),), promoting), run.verdict(judged(), promoting))
 
-    def test_a_run_that_should_have_moved_main_but_skipped_the_push_is_red_however_its_mover_ended(self):
-        promoting = looked(pushed=Outcome.SKIPPED, ended=Outcome.SUCCESS)
+    def test_a_run_that_should_have_moved_main_but_skipped_the_push_is_red_for_how_its_mover_ended(self):
+        promoting = looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE)
 
-        self.assertEqual(Red((PromotingEnded(Outcome.SUCCESS),), promoting), run.verdict(judged(), promoting))
+        self.assertEqual(Red((PromotingEnded(Outcome.FAILURE),), promoting), run.verdict(judged(), promoting))
 
 
 class WhatTheReasonsSay(unittest.TestCase):
@@ -494,12 +494,31 @@ class MakingAValueDirectly(unittest.TestCase):
         tip = run.CommitHash(MAIN)
         held_or_left = ((commit(STRAY, 'Fix the README on main'),), (), NO_WORKFLOWS), \
                        ((), (commit(STRAY, 'A later commit of develop'),), NO_WORKFLOWS), ((), (), TESTS_YML)
-        for pushed in (Outcome.SUCCESS, Outcome.FAILURE):
+        for pushed in (Outcome.SUCCESS, Outcome.FAILURE, Outcome.CANCELLED):
             for lacking, ahead, workflows in held_or_left:
                 self.assertEqual(Rejected(run.A_PUSH_RUNS_ONLY_TO_MOVE_MAIN),
                                  Looked(tip, lacking, ahead, workflows, pushed, '', Outcome.FAILURE),
                                  (pushed, lacking, ahead, workflows))
             self.assertIsInstance(Looked(tip, (), (), NO_WORKFLOWS, pushed, '', Outcome.FAILURE), Looked)
+
+    def test_what_a_mover_saw_made_directly_ends_in_success_only_having_moved_main_or_left_it_ahead(self):
+        tip = run.CommitHash(MAIN)
+        stray = commit(STRAY, 'Fix the README on main')
+        later = commit(STRAY, 'A later commit of develop')
+        for lacking, ahead, workflows, pushed, said in (((stray,), (), NO_WORKFLOWS, Outcome.SKIPPED, ''),
+                                                        ((stray,), (later,), NO_WORKFLOWS, Outcome.SKIPPED, ''),
+                                                        ((), (), TESTS_YML, Outcome.SKIPPED, ''),
+                                                        ((), (), NO_WORKFLOWS, Outcome.SKIPPED, ''),
+                                                        ((), (), NO_WORKFLOWS, Outcome.UNREPORTED, ''),
+                                                        ((), (), NO_WORKFLOWS, Outcome.CANCELLED, 'x\n')):
+            self.assertEqual(Rejected(run.A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD),
+                             Looked(tip, lacking, ahead, workflows, pushed, said, Outcome.SUCCESS),
+                             (lacking, ahead, workflows, pushed))
+        for ahead, workflows, pushed in (((later,), NO_WORKFLOWS, Outcome.SKIPPED),
+                                         ((later,), TESTS_YML, Outcome.SKIPPED),
+                                         ((), NO_WORKFLOWS, Outcome.SUCCESS)):
+            self.assertIsInstance(Looked(tip, (), ahead, workflows, pushed, '', Outcome.SUCCESS), Looked,
+                                  (ahead, workflows, pushed))
 
     def test_what_a_mover_saw_made_directly_holds_no_failed_push_in_a_mover_that_succeeded(self):
         tip = run.CommitHash(MAIN)
@@ -514,6 +533,8 @@ class MakingAValueDirectly(unittest.TestCase):
                          run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'failure', ''))
         self.assertEqual(Rejected(run.A_FAILED_PUSH_FAILS_ITS_JOB),
                          run.promoting('success', MAIN, '', '', '', 'failure', b64('refused\n')))
+        self.assertEqual(Rejected(run.A_MOVER_SUCCEEDS_ONLY_HAVING_MOVED_MAIN_OR_LEFT_IT_AHEAD),
+                         run.promoting('success', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'skipped', ''))
 
     def test_workflow_files_made_directly_are_held_to_distinct_paths_under_the_workflows_directory_in_order(self):
         self.assertEqual(('.github/workflows/a.yml', '.github/workflows/b.yml'),
