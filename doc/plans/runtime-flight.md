@@ -131,12 +131,16 @@ hives are a part that moves while one tips.
 - `Launcher.Frame` is a place within 10,000 in of the field's centre either
   way and a finite yaw. `Launcher.Course` holds the frames a step begins and
   ends at, with their `GridTime`s, and places the frame as *The launcher's
-  frame* below says; equal frames give exactly no velocity and no turn. A
-  course whose faces would sweep faster than a flight takes a ball (its
-  speed plus its turn times the 5.26 in the farthest face is from the
-  turning axis) is refused, so whatever frames and wheel speeds the types
-  admit, what squeezes a ball within the launcher's reach moves at a finite
-  velocity where it meets it, and no squeeze is dropped.
+  frame* below says, carrying it from whichever end is nearer in time at
+  the course's velocity and turn. A course that does not move, equal frames
+  among them, gives exactly no velocity and no turn and leaves the frame
+  exactly at its end. A course whose faces would sweep faster than a flight
+  takes a ball (its speed plus its turn times the 5.26 in the farthest face
+  is from the turning axis) is refused. Both rates are bounded so and every
+  `GridTime` is finite, so whatever frames, times and wheel speeds the
+  types admit, however short the course, the launcher is placed somewhere
+  finite, what squeezes a ball within its reach moves at a finite velocity
+  where it meets it, and no squeeze is dropped.
 - `Launcher` is a part of the surroundings with the faces in the tables
   above. A hood ring is its arc and its lead-in, answered as one by
   whichever is nearer, so a ball is squeezed once by each ring. The lead-in
@@ -155,7 +159,8 @@ hives are a part that moves while one tips.
   the distance asked and nowhere else, so a ball elsewhere on the field
   moves and costs as if the launcher squeezed nothing. It keeps the part
   contract still, sliding, turning and across ±π, with its wheel stopped,
-  spinning and reversed, densely across the lead-in's join and the stop.
+  spinning and reversed, densely across the lead-in's join and the stop,
+  and each lead-in is held to its arc between its ends.
 - The entry is at −73°, the ball's centre one radius off the groove bottom,
   touching the stop; the feed is the frame's velocity there plus 0.1 m/s up
   the path. The ball overlaps the lead-in there by more than 0.25 mm, since
@@ -289,7 +294,9 @@ while the code has one. `Flight` keeps the frame its last step ended at, and
 each step is given the frame it ends at, so the frame is continuous by
 construction.
 - Between them the pose at engine time t, on stage 3's step grid, is
-  interpolated linearly, extrapolated past the end and never clamped.
+  interpolated linearly, extrapolated past the end and never clamped,
+  carried from whichever end is nearer at the step's velocity and turn, so
+  it is finite however short the step.
 - The yaw change is `StrictMath.IEEEremainder(yawEnd − yawStart, 2π)`, so
   crossing ±π never spins the hood. The frame's spin is the yaw's rate.
 - A step of no time gives the end frame at rest.
