@@ -14,6 +14,10 @@ SAID_SHOWN_AT_MOST = 4096
 WORKFLOWS_DIRECTORY = '.github/workflows/'
 WORKFLOW_FILES_RULE = ('the workflow files the commits since main change are distinct paths under .github/workflows, '
                        'as git prints them, in order, each one line of at most %d characters' % SUBJECT_SHOWN_AT_MOST)
+SAID_ONLY_OF_A_PUSH_THAT_RAN = 'git said something only of a push that ran, never of one skipped or unreported'
+A_PUSH_RUNS_ONLY_TO_MOVE_MAIN = ('a push runs to its end only to move main, so never when main has a commit develop or '
+                                 'the judged commit lacks or the commits since main change a workflow file')
+A_FAILED_PUSH_FAILS_ITS_JOB = 'a push that failed fails the job that moves main, which never ends in success'
 THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fetch origin && git merge origin/main`, '
                            'and push that merge to develop as it is, without a rebase, which would drop it.')
 
@@ -180,6 +184,12 @@ class Looked(Validated):
                 or any(unsafe_in_a_quote(character) for character in said)):
             return ('what git said is text of at most %d characters, with no control character but a newline or a '
                     'tab' % SAID_SHOWN_AT_MOST)
+        if said and pushed in (Outcome.SKIPPED, Outcome.UNREPORTED):
+            return SAID_ONLY_OF_A_PUSH_THAT_RAN
+        if pushed in (Outcome.SUCCESS, Outcome.FAILURE) and (lacking or ahead or workflows.paths):
+            return A_PUSH_RUNS_ONLY_TO_MOVE_MAIN
+        if pushed is Outcome.FAILURE and ended is Outcome.SUCCESS:
+            return A_FAILED_PUSH_FAILS_ITS_JOB
         return None
 
 

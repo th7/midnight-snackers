@@ -181,8 +181,9 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
     def test_a_run_whose_push_main_refused_is_red_with_what_git_said(self):
         said = ' ! [remote rejected] %s -> main (protected branch hook declined)\n' % JUDGED
 
-        self.assertEqual(Red((MainRefusedThePush(commit(), said),), looked(pushed=Outcome.FAILURE, said=said)),
-                         run.verdict(judged(), looked(pushed=Outcome.FAILURE, said=said)))
+        promoting = looked(pushed=Outcome.FAILURE, said=said, ended=Outcome.FAILURE)
+
+        self.assertEqual(Red((MainRefusedThePush(commit(), said),), promoting), run.verdict(judged(), promoting))
 
     def test_a_push_main_refused_is_a_refused_push_with_git_s_own_words_whatever_they_are(self):
         for said in REFUSALS:
@@ -473,6 +474,39 @@ class MakingAValueDirectly(unittest.TestCase):
                       (tip, (), (), none, Outcome.SUCCESS, 'a\rb', Outcome.SUCCESS)):
             self.assertIsInstance(Looked(*wrong), Rejected, wrong)
         self.assertIsInstance(Looked(tip, (), (), none, Outcome.SUCCESS, '', Outcome.SUCCESS), Looked)
+
+    def test_what_a_mover_saw_made_directly_holds_what_git_said_only_for_a_push_that_ran(self):
+        tip = run.CommitHash(MAIN)
+        for never_ran in (Outcome.SKIPPED, Outcome.UNREPORTED):
+            self.assertEqual(Rejected(run.SAID_ONLY_OF_A_PUSH_THAT_RAN),
+                             Looked(tip, (), (), NO_WORKFLOWS, never_ran, 'refused\n', Outcome.FAILURE), never_ran)
+        for ran in (Outcome.SUCCESS, Outcome.FAILURE, Outcome.CANCELLED):
+            self.assertIsInstance(Looked(tip, (), (), NO_WORKFLOWS, ran, 'said\n', Outcome.CANCELLED), Looked, ran)
+
+    def test_what_a_mover_saw_made_directly_holds_no_push_to_a_main_the_core_would_have_held_or_left_alone(self):
+        tip = run.CommitHash(MAIN)
+        held_or_left = ((commit(STRAY, 'Fix the README on main'),), (), NO_WORKFLOWS), \
+                       ((), (commit(STRAY, 'A later commit of develop'),), NO_WORKFLOWS), ((), (), TESTS_YML)
+        for pushed in (Outcome.SUCCESS, Outcome.FAILURE):
+            for lacking, ahead, workflows in held_or_left:
+                self.assertEqual(Rejected(run.A_PUSH_RUNS_ONLY_TO_MOVE_MAIN),
+                                 Looked(tip, lacking, ahead, workflows, pushed, '', Outcome.FAILURE),
+                                 (pushed, lacking, ahead, workflows))
+            self.assertIsInstance(Looked(tip, (), (), NO_WORKFLOWS, pushed, '', Outcome.FAILURE), Looked)
+
+    def test_what_a_mover_saw_made_directly_holds_no_failed_push_in_a_mover_that_succeeded(self):
+        tip = run.CommitHash(MAIN)
+
+        self.assertEqual(Rejected(run.A_FAILED_PUSH_FAILS_ITS_JOB),
+                         Looked(tip, (), (), NO_WORKFLOWS, Outcome.FAILURE, 'refused\n', Outcome.SUCCESS))
+
+    def test_what_a_mover_hands_on_that_disagrees_with_itself_is_refused_by_the_rule_it_breaks(self):
+        self.assertEqual(Rejected(run.SAID_ONLY_OF_A_PUSH_THAT_RAN),
+                         run.promoting('failure', MAIN, '', '', '', 'skipped', b64('refused\n')))
+        self.assertEqual(Rejected(run.A_PUSH_RUNS_ONLY_TO_MOVE_MAIN),
+                         run.promoting('failure', MAIN, '', '', b64('.github/workflows/tests.yml\n'), 'failure', ''))
+        self.assertEqual(Rejected(run.A_FAILED_PUSH_FAILS_ITS_JOB),
+                         run.promoting('success', MAIN, '', '', '', 'failure', b64('refused\n')))
 
     def test_workflow_files_made_directly_are_held_to_distinct_paths_under_the_workflows_directory_in_order(self):
         self.assertEqual(('.github/workflows/a.yml', '.github/workflows/b.yml'),
