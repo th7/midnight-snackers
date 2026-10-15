@@ -50,7 +50,7 @@ def step_named(job, step_id):
     return next(step for step in steps_of(job) if step.get('id') == step_id)
 
 
-def ran(job, contexts, outputs=None, failing=()):
+def steps_ran(job, contexts, outputs=None, failing=()):
     status = conditions.Status(failed=False, cancelled=False)
     steps = {}
     outcomes = {}
@@ -371,7 +371,7 @@ class WhatReachesThePushToMain(WorkflowTest):
     DECISIONS = ('move', 'stay', 'hold', '', 'anything else')
 
     def ran(self, job, contexts, outputs=None, failing=()):
-        done = ran(job, dict(contexts, github={'event_name': 'push', 'ref': 'refs/heads/develop'}), outputs, failing)
+        done = steps_ran(job, dict(contexts, github={'event_name': 'push', 'ref': 'refs/heads/develop'}), outputs, failing)
         self.assertNotIsInstance(done, conditions.Rejected)
         return done
 
@@ -947,7 +947,7 @@ class WhatReachesTheIssue(WorkflowTest):
     def reported(self, results, action, failing=()):
         needs = {name: {'result': result} for name, result in zip(('unit-tests', 'look', 'promote', 'say'), results)}
         needs['say']['outputs'] = {'action': action}
-        done = ran(self.jobs['report'], {'needs': needs, 'github': {'event_name': 'push', 'ref': 'refs/heads/develop'}},
+        done = steps_ran(self.jobs['report'], {'needs': needs, 'github': {'event_name': 'push', 'ref': 'refs/heads/develop'}},
                    failing=failing)
         self.assertNotIsInstance(done, conditions.Rejected)
         steps, _ = done
