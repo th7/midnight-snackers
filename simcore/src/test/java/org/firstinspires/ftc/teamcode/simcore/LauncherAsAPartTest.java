@@ -700,6 +700,8 @@ public class LauncherAsAPartTest {
         GridTime first = GridTime.at(0, step);
         GridTime instant = GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-306)), step);
         GridTime soon = GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-310)), step);
+        Bodies.Step least = Valid.value(Seconds.of(Double.MIN_VALUE).then(Bodies.Step::of));
+        GridTime leastOn = GridTime.at(1, least);
         List<Flywheel.AngularSpeed> wheels = List.of(
                 wheel(Flywheel.TOP_TICKS_PER_SECOND, 18),
                 wheel(-Flywheel.TOP_TICKS_PER_SECOND, 18),
@@ -719,6 +721,10 @@ public class LauncherAsAPartTest {
             }
             courses.add(Valid.value(Launcher.Course.of(frame(x, most, 0), first, frame(x + 1e-312, most, 0), soon)));
             courses.add(Valid.value(Launcher.Course.of(frame(x, -most, 0), first, frame(x, -most, 1e-314), soon)));
+            courses.add(Valid.value(
+                    Launcher.Course.of(frame(x, most, 0), first, frame(x + Double.MIN_VALUE, most, 0), leastOn)));
+            courses.add(Valid.value(
+                    Launcher.Course.of(frame(x, -most, 0), first, frame(x, -most, Double.MIN_VALUE), leastOn)));
         }
         int met = 0;
         for (Launcher.Course course : courses) {
@@ -763,15 +769,17 @@ public class LauncherAsAPartTest {
     }
 
     @Test
-    public void overACourseOfTheLeastTimeTheTypesAdmitItSqueezesAndTouchesTheBallAtItsEntryAsItDoesWhereItBegan() {
+    public void overAStillCourseOfTheLeastTimeAboveNoneTheTypesAdmitItMeetsABallAtItsEntryAsWhereItBegan() {
         Bodies.Step step = Valid.value(Flight.stepping());
-        GridTime first = GridTime.at(0, step);
+        Bodies.Step least = Valid.value(Seconds.of(Double.MIN_VALUE).then(Bodies.Step::of));
+        GridTime first = GridTime.at(0, least);
+        GridTime next = GridTime.at(1, least);
+        assertEquals(Double.MIN_VALUE, next.seconds() - first.seconds(), 0);
         Launcher.Frame at = frame(-25, -35, 0.7);
-        Launcher.Course instant = Valid.value(Launcher.Course.of(
-                at, first, at, GridTime.partWay(0, Valid.value(GridTime.PartOfAStep.of(1e-306)), step)));
+        Launcher.Course instant = Valid.value(Launcher.Course.of(at, first, at, next));
         Launcher began = launcher(instant, wheel(CLOSE_LAUNCH));
         Vec3 entry = began.entry(POLLEN);
-        for (GridTime time : List.of(GridTime.at(1, step), Valid.time(BEGINS), Valid.time(250))) {
+        for (GridTime time : List.of(next, GridTime.at(1, step), Valid.time(BEGINS), Valid.time(250))) {
             Launcher then = began.at(time);
             assertEquals("placed at " + time, began.where(), then.where());
             assertEquals("squeezed at " + time, began.squeezing(entry, POLLEN), then.squeezing(entry, POLLEN));
