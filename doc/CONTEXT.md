@@ -558,16 +558,23 @@ job's own checkout fetched it, it pushes the commit the judging named to `main`
 with the built-in token its checkout keeps, a plain push, never forced and never
 a merge, and a red judging never reaches the push whatever the core said. A look
 is stale once `main` has moved since it, other than to the judged commit by the
-run's own push. The job that pushes, when the judging and the look passed and it
-finds `main` moved since the look, pushes nothing and ends in success; the core,
-when the look found that `main` moves or stays and `main` is neither where the
-look found it nor, after the run's push, at the judged commit, says to write
-nothing to the issue; and the job that writes the issue, about to close it,
-writes nothing once `main`'s tip is not the judged commit. Each says in its log
-that `main` moved since the run looked and that a run that looks again, for a
-new push to `develop` or re-running all of the run's jobs, speaks for `develop`,
-so re-running the failed jobs of an older run whose look passed, after a later
-run moved `main`, pushes nothing, writes nothing to the issue and ends green.
+run's own push. The job that pushes also asks whether `develop` holds `main`'s
+tip, as its checkout fetched them, an error in asking counting as no. When the
+judging and the look passed and it finds `main` moved since the look, it pushes
+nothing, and it ends in success when `develop` holds that tip, `main` having
+moved along `develop`; otherwise, as when a commit reached `main` by itself
+after the look, it ends red, saying in its log that it could not find `main`'s
+tip in `develop`, and the job that writes the issue says on it only that the
+run is red, linking it. The core, when the look found that `main` moves or stays
+and `main` is neither where the look found it nor, after the run's push, at the
+judged commit, says to write nothing to the issue; and the job that writes the
+issue, about to close it, writes nothing once `main`'s tip is not the judged
+commit. Each of these two, and the job that pushes when `main` moved along
+`develop`, says in its log that `main` moved since the run looked and that a run
+that looks again, for a new push to `develop` or re-running all of the run's
+jobs, speaks for `develop`, so re-running the failed jobs of a run whose push
+was refused once, after a later green run moved `main` along `develop` and
+closed the issue, pushes nothing, writes nothing to the issue and ends green.
 Anything else is a red run, and `main` stays where it was. A red run opens the
 issue **IMPORTANT: develop CI Failures**, or comments on it when it is already
 open, naming the commit judged, whether its judging was green, and what held
@@ -575,8 +582,9 @@ open, naming the commit judged, whether its judging was green, and what held
 check; the job that looks at `main` or the one that moves it ending early; the
 commits `main` has that `develop` lacks, with the merge that brings them in; the
 workflow files that hold `main` for a maintainer; or git's own words for a
-refused push — and the run; a commit that reached `main` by itself keeps every
-run red until `develop` holds it. The core says what to write in a job whose
+refused push — and the run; a commit that reached `main` by itself keeps red
+every run that looks at `main` after it, or whose job that pushes finds it after
+the look, until `develop` holds it. The core says what to write in a job whose
 tokens may only read, and the job that writes the issue runs none of the judged
 commit's code; a red run for which that job carried out nothing the core said
 still opens or comments on the issue, saying only that the run is red and
@@ -597,11 +605,12 @@ own, and never moves `main` or touches the issue. The judged commit's core
 decides whether `main` moves and what to write on the issue, and the workflow
 adds guards that do not depend on that commit's code: a red judging or a job
 that did not pass never pushes or closes the issue, a push also needs `main` to
-stand where the look found it, as the job that pushes reads it, a close also
-needs `develop`'s tip and `main`'s, as the job that writes the issue reads them,
-to still be the judged commit, and a red run the core could not speak for still
-writes to the issue. A test holds each guard by evaluating the workflow's own
-conditions.
+stand where the look found it, as the job that pushes reads it, a `main` that
+has moved since the look to a tip that job cannot find in `develop` turns the
+run red, a close also needs `develop`'s tip and `main`'s, as the job that writes
+the issue reads them, to still be the judged commit, and a red run the core
+could not speak for still writes to the issue. A test holds each guard by
+evaluating the workflow's own conditions.
 Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`;
 `tools/ci/workflow_conditions.py`.
