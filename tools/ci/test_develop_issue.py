@@ -229,7 +229,7 @@ class WhatTheIssueSays(unittest.TestCase):
                                    (issue(12),), link()).body
 
         self.assertIn('```\n.github/workflows/tests.yml\n```', body)
-        self.assertIn('```\ngit fetch origin\ngit push origin %s:refs/heads/main\n```' % JUDGED, body)
+        self.assertIn('```\ngit fetch origin %s\ngit push origin %s:refs/heads/main\n```' % (JUDGED, JUDGED), body)
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
         self.assertIn(RUN, body)
 

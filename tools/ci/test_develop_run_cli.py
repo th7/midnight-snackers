@@ -72,7 +72,7 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertEqual('decision=hold\n', done.stdout)
         self.assertIn('The commits from main to `%s` change 1 workflow file:\n\n```\n.github/workflows/tests.yml' % JUDGED,
                       done.stderr)
-        self.assertIn('git fetch origin\ngit push origin %s:refs/heads/main' % JUDGED, done.stderr)
+        self.assertIn('git fetch origin %s\ngit push origin %s:refs/heads/main' % (JUDGED, JUDGED), done.stderr)
 
     def test_a_workflow_main_s_copy_of_which_alone_differs_hands_the_workflow_a_hold_naming_it_apart_in_the_log(self):
         done = called('promotion', gathered(WORKFLOWS_DIFFERING=b64('.github/workflows/tests.yml\n')))
@@ -216,7 +216,7 @@ class SayingWhatTheRunFound(unittest.TestCase):
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertTrue(done.stdout.startswith('action=comment\nissues=12\nbody='), done.stdout)
-        self.assertIn('git fetch origin\ngit push origin %s:refs/heads/main' % JUDGED, self.body_written())
+        self.assertIn('git fetch origin %s\ngit push origin %s:refs/heads/main' % (JUDGED, JUDGED), self.body_written())
 
     def test_a_report_not_handed_what_the_look_at_main_found_fails_naming_it_and_hands_nothing(self):
         for name in ('WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING', 'LOOKING_ENDED', 'MAIN_FOUND', 'MAIN_TIP', 'DEVELOP_TIP'):

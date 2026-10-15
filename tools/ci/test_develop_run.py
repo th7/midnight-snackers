@@ -32,12 +32,13 @@ MAINTAINER_TAIL = (
     'No commit to develop and no session can clear this: a later commit of develop either leaves these workflow files as '
     'the judged commit has them or changes them, and main holds for either. It waits on a maintainer, who pushes main '
     'to `%s` by hand with a credential that may update workflows, a plain push, never forced, from a clone that has '
-    'fetched first:\n\n```\ngit fetch origin\ngit push origin %s:refs/heads/main\n```\n\nA clone that has main\'s tip '
-    'but not `%s` is told, without the fetch, that the push needs force, which it does not: fetch first, and never '
+    'fetched that commit first:\n\n```\ngit fetch origin %s\ngit push origin %s:refs/heads/main\n```\n\nA clone that '
+    'has main\'s tip but not `%s` is told, without the fetch, that the push needs force, which it does not: fetch it '
+    'first, and never '
     'force. The maintainer then re-runs the failed jobs of this run, which re-runs the jobs that look at main, move it '
     'and write this issue too: the re-run finds main at the commit this run judged and closes this issue if that commit '
     "is still both develop's tip and main's, and otherwise leaves it open."
-    % (JUDGED, JUDGED, JUDGED))
+    % (JUDGED, JUDGED, JUDGED, JUDGED))
 
 
 def b64(text):
@@ -325,10 +326,11 @@ class WhatTheReasonsSay(unittest.TestCase):
                       'no permission a workflow grants its token is one over workflows: %s' % GITHUB_TOKEN_PERMISSIONS)
         self.assertIn('No commit to develop and no session can clear this', said)
         self.assertIn('It waits on a maintainer, who pushes main to `%s` by hand with a credential that may update '
-                      'workflows, a plain push, never forced, from a clone that has fetched first:' % JUDGED, said)
-        self.assertIn('```\ngit fetch origin\ngit push origin %s:refs/heads/main\n```' % JUDGED, said)
+                      'workflows, a plain push, never forced, from a clone that has fetched that commit first:' % JUDGED,
+                      said)
+        self.assertIn('```\ngit fetch origin %s\ngit push origin %s:refs/heads/main\n```' % (JUDGED, JUDGED), said)
         self.assertIn("A clone that has main's tip but not `%s` is told, without the fetch, that the push needs force, "
-                      'which it does not: fetch first, and never force.' % JUDGED, said)
+                      'which it does not: fetch it first, and never force.' % JUDGED, said)
         self.assertIn('The maintainer then re-runs the failed jobs of this run, which re-runs the jobs that look at main, '
                       'move it and write this issue too', said,
                       'a partial re-run runs again every job that depends on one it re-runs: %s' % PARTIAL_RERUNS)

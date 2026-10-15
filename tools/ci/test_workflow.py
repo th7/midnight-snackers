@@ -1076,8 +1076,18 @@ class WhatTheMoverFindsOfMainInARealRepository(WorkflowTest):
         return blocks[0]
 
     def test_a_maintainer_s_clone_made_before_develop_s_push_is_told_the_push_alone_needs_force_and_moves_main_to_the_held_commit_by_the_issue_s_commands_as_they_are_as_a_plain_fast_forward(self):
+        self.maintainer_s_clone_moves_main_by_the_issue_s_commands('-q', self.origin)
+
+    def test_a_maintainer_s_clone_of_main_alone_moves_main_to_the_held_commit_by_the_issue_s_commands_as_they_are(self):
+        self.maintainer_s_clone_moves_main_by_the_issue_s_commands('-q', '--single-branch', '--branch', 'main',
+                                                                   'file://' + self.origin)
+
+    def test_a_maintainer_s_shallow_clone_moves_main_to_the_held_commit_by_the_issue_s_commands_as_they_are(self):
+        self.maintainer_s_clone_moves_main_by_the_issue_s_commands('-q', '--depth', '1', 'file://' + self.origin)
+
+    def maintainer_s_clone_moves_main_by_the_issue_s_commands(self, *cloned):
         maintainer = os.path.join(self.where.name, 'maintainer')
-        self.git(self.where.name, 'clone', '-q', self.origin, maintainer)
+        self.git(self.where.name, 'clone', *cloned, maintainer)
         judged_commit, _, _ = self.held_for_a_maintainer('Run every test')
         commands = self.maintainer_s_commands(self.gh_calls())
         held, _ = self.where_main_and_develop_stand()
