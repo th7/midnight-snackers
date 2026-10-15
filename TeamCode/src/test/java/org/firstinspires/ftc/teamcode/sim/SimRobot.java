@@ -428,6 +428,8 @@ public class SimRobot {
                 Flight<Ball> flight, Flight.Tick tick, Launcher.Frame endsAt, Flywheel.AngularSpeed wheel);
 
         Checked<Flight<Ball>> carried(Flight<Ball> flight, Launcher.Frame to);
+
+        Checked<Flight<Ball>> carriedMovingAsItWas(Flight<Ball> flight, Launcher.Frame to);
     }
 
     private record Reginald(SimDevices devices) implements Build {
@@ -477,6 +479,11 @@ public class SimRobot {
         @Override
         public Checked<Flight<Ball>> carried(Flight<Ball> flight, Launcher.Frame to) {
             return flight.carriedTo(to);
+        }
+
+        @Override
+        public Checked<Flight<Ball>> carriedMovingAsItWas(Flight<Ball> flight, Launcher.Frame to) {
+            return flight.carriedMovingAsItWasTo(to);
         }
     }
 
@@ -532,6 +539,11 @@ public class SimRobot {
 
         @Override
         public Checked<Flight<Ball>> carried(Flight<Ball> flight, Launcher.Frame to) {
+            return Checked.ok(flight);
+        }
+
+        @Override
+        public Checked<Flight<Ball>> carriedMovingAsItWas(Flight<Ball> flight, Launcher.Frame to) {
             return Checked.ok(flight);
         }
     }
@@ -602,6 +614,11 @@ public class SimRobot {
     private void carryTheLauncher() {
         turntableTicksOfTheFrame = turnTable.currentPosition;
         flight = refusedIfNot(build.carried(flight, launcherFrame()));
+    }
+
+    private void turnTheLauncherWithItsEncoder() {
+        turntableTicksOfTheFrame = turnTable.currentPosition;
+        flight = refusedIfNot(build.carriedMovingAsItWas(flight, launcherFrame()));
     }
 
     private Launcher.Frame launcherFrame() {
@@ -861,7 +878,7 @@ public class SimRobot {
 
     private void substep(Seconds dt) {
         if (turnTable.currentPosition != turntableTicksOfTheFrame) {
-            carryTheLauncher();
+            turnTheLauncherWithItsEncoder();
         }
         launcher.measuredVelocity = Flywheel.turnsAt(launcher.commandedVelocity);
         turnTable.currentPosition = turntable.turned(turnTable.currentPosition, Power.clamped(turnTable.power), dt);

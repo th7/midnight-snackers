@@ -438,6 +438,16 @@ public final class Flight<K> {
                 }));
     }
 
+    public Checked<Flight<K>> carriedMovingAsItWasTo(Launcher.Frame frame) {
+        return robot.fold(
+                () -> Checked.rejected("a flight with no robot has no launcher to carry to " + frame), launcher -> {
+                    Work<K> work = new Work<>(this);
+                    work.catchUp();
+                    work.teleport(launcher, launcher.carriedMovingAsItWasTo(frame));
+                    return work.checked();
+                });
+    }
+
     public Checked<Feeding<K>> fed(K ball, Field.Kind kind, Length radius) {
         return robot.fold(() -> Checked.rejected("a flight with no robot has no launcher to feed"), launcher -> {
             if (kind != Field.Kind.POLLEN || !(radius.inches() == Launcher.POLLEN_RADIUS_IN)) {

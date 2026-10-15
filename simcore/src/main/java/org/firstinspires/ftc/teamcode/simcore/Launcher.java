@@ -164,6 +164,10 @@ public final class Launcher implements Surroundings.Part {
             return later.seconds() - earlier.seconds();
         }
 
+        Course movingAsItWasAt(Frame at) {
+            return new Course(at, ends, at, ends, velocity, turning);
+        }
+
         GridTime began() {
             return began;
         }
@@ -410,6 +414,10 @@ public final class Launcher implements Surroundings.Part {
 
     Checked<Launcher> carriedTo(Frame to) {
         return Course.of(to, course.ends(), to, course.ends()).map(still -> placed(faces, still, wheel));
+    }
+
+    Launcher carriedMovingAsItWasTo(Frame to) {
+        return placed(faces, course.movingAsItWasAt(to), wheel);
     }
 
     boolean standsAs(Launcher other) {

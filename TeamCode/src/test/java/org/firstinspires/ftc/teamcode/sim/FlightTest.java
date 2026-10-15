@@ -1362,6 +1362,31 @@ public class FlightTest {
         assertTrue("thrown from there once the wheel spins up", highestWithin(0.5, ball, there) > THROWN_ABOVE_IN);
     }
 
+    @Test
+    public void aTeleportThatKeepsTheLauncherMovingAsItWasCarriesTheBallsInItMovingWithItSoTheyLieInItAsTheyDid() {
+        double speed = 26, turnedBy = 2 * Math.PI / 1700;
+        DoubleFunction<Launcher.Frame> driving = t -> frame(ROBOT_X + speed * t, ROBOT_Y, ROBOT_YAW);
+        DoubleFunction<Launcher.Frame> turned = t -> frame(ROBOT_X + speed * t, ROBOT_Y, ROBOT_YAW + turnedBy);
+        carryALauncher(driving);
+        Object ball = feed();
+        carry(1.0, driving, wheel(0));
+        Vec3 lying = within(at(ball), new Vec3(ROBOT_X + speed * flown, ROBOT_Y, 0), ROBOT_YAW);
+
+        flight = Valid.value(flight.carriedMovingAsItWasTo(turned.apply(flown)));
+        double strayed = 0;
+        for (int step = 0; step < 60; step++) {
+            carry(STEP, turned, wheel(0));
+            Vec3 now = within(at(ball), new Vec3(ROBOT_X + speed * flown, ROBOT_Y, 0), ROBOT_YAW + turnedBy);
+            strayed = Math.max(strayed, now.minus(lying).length());
+        }
+
+        assertTrue("the ball strayed " + strayed + " in from where it lay in the launcher", strayed <= 1e-4);
+    }
+
+    private static Vec3 within(Vec3 at, Vec3 origin, double yaw) {
+        return turned(at.minus(origin), -yaw);
+    }
+
     private static Ring<Vec3> floorOf(Field.Cell cell) {
         Ring<Vec3> lowest = cell.walls().get(0);
         double depth = Double.MAX_VALUE;

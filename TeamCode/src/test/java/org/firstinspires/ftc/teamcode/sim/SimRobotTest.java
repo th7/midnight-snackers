@@ -1104,6 +1104,37 @@ public class SimRobotTest {
         assertEquals("as high", held[2], turned[2], DELTA);
     }
 
+    @Test
+    public void aBallInTheLauncherStaysWhereItLiesInItWhenTheTurntablesEncoderIsWrittenWhileTheRobotDrives() {
+        heldInTheStoppedLauncher(sim);
+        robotDrive();
+        setPowers(1, 1, 1, 1);
+        sim.step(0.3);
+        double[] lying = inTheLauncher(sim, 0);
+
+        sim.turnTable.currentPosition = 1;
+        double strayed = 0;
+        for (int step = 0; step < 60; step++) {
+            sim.step(SimRobot.MAX_STEP_SECONDS);
+            strayed = Math.max(strayed, distance(lying, inTheLauncher(sim, 1)));
+        }
+
+        assertTrue("driving at " + sim.pose() + ", far from at rest", sim.pose().position.x > -60 + 3);
+        assertTrue("the ball strayed " + strayed + " in from where it lay in the launcher", strayed <= HELD_WITHIN);
+    }
+
+    private static final double HELD_WITHIN = 1e-4;
+
+    private static double[] inTheLauncher(SimRobot sim, int turntableTicks) {
+        double[] at = sim.placeOf(thePreloadOf(sim));
+        Pose2d robot = sim.pose();
+        double facing = robot.heading.toDouble() + 2 * Math.PI * turntableTicks / Turntable.TICKS_PER_REVOLUTION;
+        double x = at[0] - robot.position.x, y = at[1] - robot.position.y;
+        return new double[] {
+            Math.cos(facing) * x + Math.sin(facing) * y, -Math.sin(facing) * x + Math.cos(facing) * y, at[2]
+        };
+    }
+
     private static final Vec3 THROWN_FROM =
             new Vec3(-26.50 + 6 * Math.cos(Math.toRadians(-10)), 40.06 + 6 * Math.sin(Math.toRadians(-10)), 14);
 
