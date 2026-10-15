@@ -328,10 +328,14 @@ the motor's 2,800 ticks a second and reads NaN as 0. It gains:
 `Flight.step` takes the `AngularSpeed`, never a double. A reversed wheel
 drives the ball down and does not throw it.
 
-**Feeding.** `Flight.fed(key)` is Checked. It is refused with "the
-launcher's entry is not clear" while a body lies within 2r plus the
-touching distance of the entry spot. `SimRobot` then keeps the ball
-chambered and tries again the next substep.
+**Feeding.** `Flight.fed(ball, kind, radius)` is Checked, and what it
+gives is a `Feeding`: `Fed`, with the flight the ball is in, or
+`EntryNotClear`, a wait that says why ("the launcher's entry is not
+clear") while a ball lies within its own radius and the fed ball's, plus
+the touching distance, of the entry spot. `SimRobot` then keeps the ball
+chambered and tries again the next substep. Only a ball that is not a
+pollen of the launcher's 1.39 in, or a flight with no robot, is refused,
+naming the rule.
 
 **Constants and the run stream.** The throw is no longer a constant.
 - `Constant.FLYWHEEL_TICKS_PER_TURN` (`flywheel_ticks_per_turn`), a
@@ -432,10 +436,12 @@ T, and is calibrated again.
    - A NaN command leaves every ball finite.
    - At the least ticks per turn, the motor's top speed and the fastest
      robot, the ball leaves at most `Flight.MOST_SPEED_IN_PER_S`.
-4. `FlightTest`: `fed` is refused while the entry is not clear, naming the
-   rule. With both gates open, balls leave one at a time and never overlap.
-   A ball in the launcher stays where it was through a hive's tip and
-   through a change in what stands in the bores.
+4. `FlightTest`: `fed` waits, saying why, while a ball lies just within
+   the two radii and the touching distance of the entry, and feeds once it
+   lies just beyond; it is refused for a nectar or a ball of another size,
+   naming the rule. With both gates open, balls leave one at a time and
+   never overlap. A ball in the launcher stays where it was through a
+   hive's tip and through a change in what stands in the bores.
 5. `FlywheelTest` gains: the `AngularSpeed` is |1050|·2π ÷ T exactly, and
    its sign follows the command. Its clamp tests stay as they are.
 6. `SimRobotTest`:
