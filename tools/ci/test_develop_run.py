@@ -104,6 +104,11 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
 
         self.assertEqual(Red((PromotingEnded(Outcome.FAILURE),), promoting), run.verdict(judged(), promoting))
 
+    def test_a_run_that_should_have_moved_main_but_skipped_the_push_is_red_however_its_mover_ended(self):
+        promoting = looked(pushed=Outcome.SKIPPED, ended=Outcome.SUCCESS)
+
+        self.assertEqual(Red((PromotingEnded(Outcome.SUCCESS),), promoting), run.verdict(judged(), promoting))
+
 
 class WhatTheReasonsSay(unittest.TestCase):
     def test_a_failed_check_is_named_with_the_command_that_failed(self):
@@ -176,6 +181,10 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         for wrong in ('A' * 40, 'a' * 39, 'g' * 40, ''):
             self.assertIsInstance(run.commit_hash(wrong), Rejected, wrong)
 
+    def test_a_subject_whose_base64_holds_a_character_beyond_ascii_is_refused_by_the_rule(self):
+        self.assertEqual(Rejected("what the workflow gathered is base64, and 'é' is not"),
+                         run.judgement('success', JUDGED, 'é', 'success', 'success', 'success'))
+
     def test_a_judgement_with_no_commit_named_is_one_that_judged_nothing(self):
         self.assertEqual(NeverJudged(Outcome.FAILURE), run.judgement('failure', '', '', '', '', ''))
 
@@ -203,6 +212,32 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
     def test_a_mover_that_looked_reads_what_main_lacks_and_what_git_said(self):
         self.assertEqual(looked(pushed=Outcome.FAILURE, said='refused\n', ended=Outcome.FAILURE),
                          run.promoting('failure', MAIN, '', 'failure', b64('refused\n')))
+
+
+class MakingAValueDirectly(unittest.TestCase):
+    def test_a_commit_hash_made_directly_is_held_to_the_rule_its_reader_checks(self):
+        self.assertEqual(JUDGED, run.CommitHash(JUDGED).text)
+        self.assertEqual(Rejected("a commit hash is 40 or 64 lowercase hexadecimal digits, never 'not a hash'"),
+                         run.CommitHash('not a hash'))
+        self.assertIsInstance(run.CommitHash(None), Rejected)
+
+    def test_a_commit_made_directly_is_held_to_a_hash_and_a_one_line_subject(self):
+        self.assertEqual(commit(), run.Commit(run.CommitHash(JUDGED), SUBJECT))
+        self.assertEqual(Rejected('a commit subject is one line'), run.Commit(run.CommitHash(JUDGED), 'two\nlines'))
+        self.assertIsInstance(run.Commit(JUDGED, SUBJECT), Rejected)
+        self.assertIsInstance(run.Commit(run.CommitHash(JUDGED), None), Rejected)
+
+    def test_what_a_mover_saw_made_directly_is_held_to_a_main_tip_commits_outcomes_and_text(self):
+        self.assertIsInstance(Looked(MAIN, (), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (STRAY,), Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), [], Outcome.SUCCESS, '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), 'success', '', Outcome.SUCCESS), Rejected)
+        self.assertIsInstance(Looked(run.CommitHash(MAIN), (), Outcome.SUCCESS, None, Outcome.SUCCESS), Rejected)
+
+    def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
+        self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, checked()), Rejected)
+        self.assertIsInstance(Judged(commit(), 'success', checked()), Rejected)
+        self.assertIsInstance(Checked('success', Outcome.SUCCESS, Outcome.SUCCESS), Rejected)
 
 
 class WhatTheWorkflowIsHanded(unittest.TestCase):

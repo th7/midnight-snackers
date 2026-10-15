@@ -131,6 +131,18 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
                       '[{"number": 3}]', '[{"number": "3", "title": "x"}]', '[3]'):
             self.assertIsInstance(issues.open_issues(wrong), Rejected, wrong)
 
+    def test_an_open_issue_made_directly_is_held_to_a_number_from_one_up_and_a_title(self):
+        self.assertEqual(12, OpenIssue(12, issues.TITLE).number)
+        for number, title in ((0, 'x'), (True, 'x'), ('3', 'x'), (3, None)):
+            self.assertIsInstance(OpenIssue(number, title), Rejected, (number, title))
+
+    def test_a_run_link_made_directly_is_held_to_a_run_on_an_https_server(self):
+        self.assertEqual(RUN, issues.RunLink(RUN).url)
+        for wrong in ('http://github.com/th7/midnight-snackers/actions/runs/1',
+                      'https://github.com/th7/midnight-snackers/actions/runs/1a',
+                      'https://github.com/th7/midnight-snackers/actions/runs/1 and more', None):
+            self.assertIsInstance(issues.RunLink(wrong), Rejected, wrong)
+
     def test_the_run_link_is_built_from_where_github_said_the_run_is(self):
         self.assertEqual(RUN, link().url)
 

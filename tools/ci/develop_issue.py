@@ -3,22 +3,37 @@ import re
 from dataclasses import dataclass
 
 import develop_run as run
-from develop_run import Green, Judged, Looked, Rejected
+from develop_run import Green, Judged, Looked, Rejected, Validated
 
 TITLE = 'IMPORTANT: develop CI Failures'
 REPOSITORY = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 RUN_ID = re.compile(r'[0-9]+')
+RUN_URL = re.compile(r'https://[^/\s]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+')
 
 
 @dataclass(frozen=True)
-class OpenIssue:
+class OpenIssue(Validated):
     number: int
     title: str
 
+    @staticmethod
+    def broken(number, title):
+        if type(number) is not int or number < 1:
+            return 'an open issue\'s number is a whole number from 1 up, never %r' % (number,)
+        if not isinstance(title, str):
+            return 'an open issue\'s title is text, never %r' % (title,)
+        return None
+
 
 @dataclass(frozen=True)
-class RunLink:
+class RunLink(Validated):
     url: str
+
+    @staticmethod
+    def broken(url):
+        if not isinstance(url, str) or RUN_URL.fullmatch(url) is None:
+            return 'a run is linked as https://server/owner/name/actions/runs/digits, never %r' % (url,)
+        return None
 
 
 @dataclass(frozen=True)
@@ -47,12 +62,7 @@ class LeaveAlone:
 def open_issue(entry):
     if not isinstance(entry, dict):
         return Rejected('an open issue is a JSON object with a number and a title')
-    number, title = entry.get('number'), entry.get('title')
-    if type(number) is not int or number < 1:
-        return Rejected('an open issue\'s number is a whole number from 1 up, never %r' % (number,))
-    if not isinstance(title, str):
-        return Rejected('an open issue\'s title is text, never %r' % (title,))
-    return OpenIssue(number, title)
+    return OpenIssue(entry.get('number'), entry.get('title'))
 
 
 def open_issues(json_text):

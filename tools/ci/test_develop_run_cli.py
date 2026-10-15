@@ -68,6 +68,14 @@ class DecidingWhetherMainMoves(unittest.TestCase):
         self.assertEqual('', done.stdout)
         self.assertIn('an outcome is success, failure, cancelled, skipped or nothing', done.stderr)
 
+    def test_an_input_holding_a_character_beyond_ascii_fails_with_the_rule_and_hands_nothing(self):
+        for name in ('SUBJECT', 'LACKING'):
+            done = called('promotion', gathered(**{name: 'é'}))
+
+            self.assertEqual(2, done.returncode, done.stderr)
+            self.assertEqual('', done.stdout)
+            self.assertIn('what the workflow gathered is base64', done.stderr)
+
     def test_a_command_it_does_not_know_fails_naming_those_it_does(self):
         done = called('promote', gathered())
 

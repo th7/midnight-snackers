@@ -1,10 +1,10 @@
 import base64
-import binascii
 import re
 from dataclasses import dataclass
 from enum import Enum
 
 COMMIT_HASH = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
+BASE64 = re.compile(r'(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
 LISTED_AT_MOST = 50
 THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fetch origin && git merge origin/main`, '
                            'and push that merge to develop as it is, without a rebase, which would drop it.')
@@ -13,6 +13,18 @@ THE_MERGE_THAT_FIXES_IT = ('On a branch cut from the latest develop, run `git fe
 @dataclass(frozen=True)
 class Rejected:
     rule: str
+
+
+class Validated:
+    def __new__(cls, *fields, **named):
+        broken = cls.broken(*fields, **named)
+        if broken is not None:
+            return Rejected(broken)
+        return super().__new__(cls)
+
+
+def all_of(kind, values):
+    return isinstance(values, tuple) and all(isinstance(each, kind) for each in values)
 
 
 class Outcome(Enum):
@@ -24,14 +36,28 @@ class Outcome(Enum):
 
 
 @dataclass(frozen=True)
-class CommitHash:
+class CommitHash(Validated):
     text: str
+
+    @staticmethod
+    def broken(text):
+        if not isinstance(text, str) or COMMIT_HASH.fullmatch(text) is None:
+            return 'a commit hash is 40 or 64 lowercase hexadecimal digits, never %r' % (text,)
+        return None
 
 
 @dataclass(frozen=True)
-class Commit:
+class Commit(Validated):
     hash: CommitHash
     subject: str
+
+    @staticmethod
+    def broken(hash, subject):
+        if not isinstance(hash, CommitHash):
+            return 'a commit is named by its hash'
+        if not isinstance(subject, str) or '\n' in subject:
+            return 'a commit subject is one line'
+        return None
 
 
 @dataclass(frozen=True)
@@ -49,20 +75,34 @@ CHECKS = (FORMATTING, TOOL_TESTS, UNIT_TESTS)
 
 
 @dataclass(frozen=True)
-class Checked:
+class Checked(Validated):
     formatting: Outcome
     tool_tests: Outcome
     unit_tests: Outcome
+
+    @staticmethod
+    def broken(formatting, tool_tests, unit_tests):
+        if not all_of(Outcome, (formatting, tool_tests, unit_tests)):
+            return 'each check ends in an outcome'
+        return None
 
     def each(self):
         return ((FORMATTING, self.formatting), (TOOL_TESTS, self.tool_tests), (UNIT_TESTS, self.unit_tests))
 
 
 @dataclass(frozen=True)
-class Judged:
+class Judged(Validated):
     commit: Commit
     ended: Outcome
     checked: Checked
+
+    @staticmethod
+    def broken(commit, ended, checked):
+        if not isinstance(commit, Commit):
+            return 'a judgement names the commit it judged'
+        if not isinstance(ended, Outcome) or not isinstance(checked, Checked):
+            return 'a judgement says how its job ended and how each check ended'
+        return None
 
 
 @dataclass(frozen=True)
@@ -71,12 +111,24 @@ class NeverJudged:
 
 
 @dataclass(frozen=True)
-class Looked:
+class Looked(Validated):
     main_tip: CommitHash
     lacking: tuple
     pushed: Outcome
     said: str
     ended: Outcome
+
+    @staticmethod
+    def broken(main_tip, lacking, pushed, said, ended):
+        if not isinstance(main_tip, CommitHash):
+            return 'a mover that looked names main\'s tip by its hash'
+        if not all_of(Commit, lacking):
+            return 'what main lacks is a tuple of commits'
+        if not all_of(Outcome, (pushed, ended)):
+            return 'a mover says how its push and its job ended'
+        if not isinstance(said, str):
+            return 'what git said is text'
+        return None
 
 
 @dataclass(frozen=True)
@@ -145,8 +197,6 @@ def outcome(text):
 
 
 def commit_hash(text):
-    if COMMIT_HASH.fullmatch(text) is None:
-        return Rejected('a commit hash is 40 or 64 lowercase hexadecimal digits, never %r' % text)
     return CommitHash(text)
 
 
@@ -155,17 +205,13 @@ def commit_line(line):
     hashed = commit_hash(hash_text)
     if isinstance(hashed, Rejected):
         return hashed
-    if '\n' in subject:
-        return Rejected('a commit subject is one line')
     return Commit(hashed, subject)
 
 
 def decoded(text):
-    try:
-        raw = base64.b64decode(text, validate=True)
-    except binascii.Error:
-        return Rejected('what the workflow gathered is base64, and %r is not' % text)
-    return raw.decode('utf-8', errors='replace')
+    if not isinstance(text, str) or not text.isascii() or BASE64.fullmatch(text) is None:
+        return Rejected('what the workflow gathered is base64, and %r is not' % (text,))
+    return base64.b64decode(text, validate=True).decode('utf-8', errors='replace')
 
 
 def first_rejected(*read):
@@ -186,9 +232,10 @@ def judgement(ended_text, judged_text, subject_base64, formatting_text, tool_tes
     if rejected is not None:
         return rejected
     line = subject[:-1] if subject.endswith('\n') else subject
-    if '\n' in line:
-        return Rejected('a commit subject is one line')
-    return Judged(Commit(hashed, line), ended, Checked(formatting, tool_tests, unit_tests))
+    named = Commit(hashed, line)
+    if isinstance(named, Rejected):
+        return named
+    return Judged(named, ended, Checked(formatting, tool_tests, unit_tests))
 
 
 def lacking(lines_base64):
