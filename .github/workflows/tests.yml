@@ -109,7 +109,7 @@ jobs:
         with:
           ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
-      - name: Find what main has that develop or the judged commit lacks, and the workflow files the commits since main change
+      - name: Find what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
         id: main
         run: |
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main +refs/heads/develop:refs/remotes/origin/develop

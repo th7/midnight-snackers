@@ -180,7 +180,7 @@ class WhatARunJudges(WorkflowTest):
         self.assertEqual(
             {'promote': [(None, 'Check out the judged commit'),
                          ('main', 'Find what main has that develop or the judged commit lacks, and the workflow files '
-                                  'the commits since main change'),
+                                  'the commits since main change or main and the judged commit differ in'),
                          ('decide', 'Decide whether main moves'),
                          ('push', 'Move main to the judged commit, never by force'),
                          (None, 'Hold main where it was')],
@@ -253,7 +253,8 @@ class HowMainMoves(WorkflowTest):
             'echo "workflows=$workflows" >> "$GITHUB_OUTPUT"\n',
             step_named(self.jobs['promote'], 'main')['run'])
         self.assertEqual('Find what main has that develop or the judged commit lacks, and the workflow files the '
-                         'commits since main change', step_named(self.jobs['promote'], 'main')['name'])
+                         'commits since main change or main and the judged commit differ in',
+                         step_named(self.jobs['promote'], 'main')['name'])
 
     def test_the_mover_hands_on_what_it_found_of_main_and_how_its_push_went(self):
         self.assertEqual({'main-tip': '${{ steps.main.outputs.tip }}',
