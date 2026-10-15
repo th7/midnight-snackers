@@ -72,7 +72,14 @@ final class Launcher implements Surroundings.Part {
             if (!Double.isFinite(yaw)) {
                 return Checked.rejected("a launcher's frame faces a finite yaw, not " + yaw);
             }
-            return Checked.ok(new Frame(x, y, StrictMath.IEEEremainder(yaw, Flywheel.WHOLE_TURN)));
+            return Checked.ok(new Frame(
+                    withoutNegativeZero(x),
+                    withoutNegativeZero(y),
+                    withoutNegativeZero(StrictMath.IEEEremainder(yaw, Flywheel.WHOLE_TURN))));
+        }
+
+        private static double withoutNegativeZero(double value) {
+            return value + 0.0;
         }
 
         double x() {

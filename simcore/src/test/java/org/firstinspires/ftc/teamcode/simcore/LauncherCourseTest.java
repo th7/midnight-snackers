@@ -230,6 +230,28 @@ public class LauncherCourseTest {
     }
 
     @Test
+    public void aMovingCourseBeginsExactlyAtTheFrameTheMovingCourseBeforeItEndedAtWhereverThatFrameIs() {
+        double after = ENDS + STEP_SECONDS;
+        List<Launcher.Frame[]> chains = List.of(
+                new Launcher.Frame[] {frame(1.377, 0, 0), frame(4.997, 0, 0), frame(1.377, 0, 0)},
+                new Launcher.Frame[] {frame(34.92, -1.76, -2.95), frame(34.55, 0.11, -3.25), frame(34.92, 2, 3)},
+                new Launcher.Frame[] {frame(0.3, 0.4, 0.02), frame(-0.0, -0.0, -0.0), frame(0.3, 0.4, 0.02)},
+                new Launcher.Frame[] {frame(-0.3, -0.4, -0.02), frame(-0.0, -0.0, -0.0), frame(-0.3, -0.4, -0.02)},
+                new Launcher.Frame[] {frame(0.3, 0.4, 0.02), frame(0, 0, 0), frame(-0.3, -0.4, -0.02)},
+                new Launcher.Frame[] {
+                    frame(0.1, 0.2, 0.01), frame(-0.2, 0.05, -Flywheel.WHOLE_TURN), frame(-0.1, 0.1, 0.01)
+                });
+        for (Launcher.Frame[] chain : chains) {
+            Launcher.Course before = course(chain[0], BEGINS, chain[1], ENDS);
+            Launcher.Course next = course(chain[1], ENDS, chain[2], after);
+
+            assertTrue(before.moving() && next.moving());
+            assertExactly("as " + before + " ends", chain[1], placed(before, ENDS));
+            assertExactly("as " + next + " begins", chain[1], placed(next, ENDS));
+        }
+    }
+
+    @Test
     public void aCourseRunTheOtherWayIsPlacedExactlyAsItIsRunForwardEitherSideOfItsMiddle() {
         Bodies.Step step = Valid.value(
                 Seconds.of(STEP_ON_WHICH_TIMES_SUBTRACT_EXACTLY_SECONDS).then(Bodies.Step::of));
