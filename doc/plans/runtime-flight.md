@@ -135,11 +135,11 @@ hives are a part that moves while one tips.
   course's velocity and turn, so a moving course is exactly the frame it
   begins at as it begins and the frame it ends at as it ends, even where
   carrying one end across the course would miss the other by rounding, and
-  is placed exactly as the same course run the other way is placed as far
-  from its other end. A course that does not move gives exactly no velocity
-  and no turn and leaves the frame exactly at its end: equal frames, frames
-  whose difference is too small to give a rate, and frames whose yaws are
-  half a turn either way among them. A course whose faces would sweep faster
+  the next moving course from that frame begins exactly where it ended. A
+  course that does not move gives exactly no velocity and no turn and leaves
+  the frame exactly at its end from its start: equal frames, frames whose
+  difference is too small to give a rate, and frames whose yaws are half a
+  turn either way among them. A course whose faces would sweep faster
   than a flight takes a ball (its speed plus its turn times the 5.26 in the
   farthest face is from the turning axis) is refused. The course keeps both
   rates, bounded so, rather than dividing at each placing, and every
@@ -303,9 +303,11 @@ construction.
 - Between them the pose at engine time t, on stage 3's step grid, is
   interpolated linearly, extrapolated past the end and never clamped,
   carried from whichever end is nearer at the step's velocity and turn, so
-  each step is exactly the frame the last one ended at as it begins and no
-  step boundary is a jump. The step keeps its velocity and turn, which the
-  sweep bounds, so it is finite however short the step.
+  a moving step begins exactly at the frame the last one ended at. A step
+  that does not move is at the frame it ends at from its start, less than a
+  rate can count from where it began or facing the same way, so the only
+  jump meant is a teleport's. The step keeps its velocity and turn, which
+  the sweep bounds, so it is finite however short the step.
 - The yaw change is `StrictMath.IEEEremainder(yawEnd − yawStart, 2π)`, so
   crossing ±π never spins the hood. The frame's spin is the yaw's rate.
 - A step of no time gives the end frame at rest.

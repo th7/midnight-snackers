@@ -1956,14 +1956,15 @@ the field's metal frame. A launcher is placed for a step: it holds the frame the
 begins at and the frame it ends at, with their times, and the wheel's speed, which
 stays as it was given wherever it is placed. Placed at any time, its frame is on the
 straight line through the two, on past them and never clamped, carried from whichever
-of the two is nearer in time at the step's velocity and turn, so it is exactly the
-frame the step begins at as it begins and the frame it ends at as it ends, and is
-placed exactly as the same step run the other way is placed as far from its other
-end; its yaw changes by the difference of the two yaws less whole turns, so it turns
-the short way across ±π, at that rate. A step of no time leaves it at rest where it
-ends, and a step that does not move leaves it exactly at the frame it ends at: two
+of the two is nearer in time at the step's velocity and turn, so a step that moves is
+exactly the frame it begins at as it begins and the frame it ends at as it ends, and
+the next step that moves from that frame begins exactly where it ended; its yaw
+changes by the difference of the two yaws less whole turns, so it turns the short way
+across ±π, at that rate. A step of no time leaves it at rest where it ends, and a
+step that does not move leaves it exactly at the frame it ends at from its start: two
 equal frames, two whose difference is too small to give a rate, and two whose yaws
-are half a turn either way among them. A step whose frame would sweep a face faster
+are half a turn either way among them, so it starts less than a rate can count from
+where it began, or facing the same way. A step whose frame would sweep a face faster
 than a flight takes a ball, its speed plus its turn times the 5.26 in the farthest
 face stands from the turning axis, or that ends before it begins, is refused, saying
 so; the step keeps its velocity and turn, which that bounds, and every time on the
