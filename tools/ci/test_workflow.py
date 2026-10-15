@@ -63,6 +63,16 @@ class WhatStartsARun(WorkflowTest):
         self.assertEqual('unit-tests', self.jobs['promote']['needs'])
         self.assertEqual(['unit-tests', 'promote'], self.jobs['report']['needs'])
 
+    def test_no_job_or_step_is_let_fail_without_failing_the_run(self):
+        def keys_in(value):
+            if isinstance(value, dict):
+                return [key for inner_key, inner in value.items() for key in [inner_key] + keys_in(inner)]
+            if isinstance(value, list):
+                return [key for inner in value for key in keys_in(inner)]
+            return []
+
+        self.assertNotIn('continue-on-error', keys_in(self.workflow))
+
     def test_every_job_ends_long_before_github_s_own_limit_would_read_as_a_stuck_queue(self):
         for name, job in self.jobs.items():
             self.assertLessEqual(int(job['timeout-minutes']), 30, name)
@@ -128,11 +138,15 @@ class WhatARunJudges(WorkflowTest):
             self.assertEqual((check.name, check.command), (step['name'], step['run']))
             self.assertEqual('${{ steps.%s.outcome }}' % check.step, judging['outputs'][check.step])
 
-    def test_the_jobs_after_the_judging_check_out_the_commit_it_judged(self):
-        for name in ('promote', 'report'):
-            checkout = steps_of(self.jobs[name])[0]
-            self.assertTrue(checkout['uses'].startswith('actions/checkout@'), name)
-            self.assertEqual(JUDGED_OR_DEVELOP, checkout['with']['ref'], name)
+    def test_the_job_that_moves_main_checks_out_the_commit_judged_with_all_of_history_so_it_can_count_what_main_has(self):
+        self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
+                          'with': {'ref': JUDGED_OR_DEVELOP, 'fetch-depth': '0'}},
+                         steps_of(self.jobs['promote'])[0])
+
+    def test_the_job_that_writes_the_issue_checks_out_the_commit_judged_without_keeping_a_credential(self):
+        self.assertEqual({'name': 'Check out the judged commit', 'uses': 'actions/checkout@v4',
+                          'with': {'ref': JUDGED_OR_DEVELOP, 'persist-credentials': 'false'}},
+                         steps_of(self.jobs['report'])[0])
 
 
 class HowMainMoves(WorkflowTest):
@@ -198,20 +212,30 @@ class HowTheIssueIsWritten(WorkflowTest):
                          '"$RUNNER_TEMP/issue-body.md" >> "$GITHUB_OUTPUT"', saying['run'])
         self.assertEqual(set(cli.JUDGEMENT) | set(cli.PROMOTING), set(saying['env']))
 
-    def test_each_issue_action_the_core_hands_on_is_carried_out_by_one_step(self):
+    def test_each_issue_action_the_core_hands_on_is_carried_out_by_one_step_that_does_only_that(self):
         report = self.jobs['report']
-        carried = {step['if']: step['run'] for step in steps_of(report) if 'steps.say.outputs.action' in
-                   step.get('if', '')}
+        carried = [step for step in steps_of(report) if 'steps.say.outputs.action' in step.get('if', '')]
         handed = [issues.action_outputs(action).split('\n')[0].split('=')[1] for action in
                   (issues.Open(issues.TITLE, ''), issues.CommentOn(1, ''), issues.Close((1,), ''))]
 
-        self.assertEqual({"steps.say.outputs.action == '%s'" % action for action in handed}, set(carried))
-        self.assertIn('gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" '
-                      '--body-file "$RUNNER_TEMP/issue-body.md"', carried["steps.say.outputs.action == 'open'"])
-        self.assertIn('gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"',
-                      carried["steps.say.outputs.action == 'comment'"])
-        self.assertIn('gh issue close "$issue" --repo "$GITHUB_REPOSITORY"',
-                      carried["steps.say.outputs.action == 'close'"])
+        self.assertEqual(
+            [{'name': 'Open the issue',
+              'if': "steps.say.outputs.action == '%s'" % handed[0],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'TITLE': '${{ steps.say.outputs.title }}'},
+              'run': 'gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" '
+                     '--body-file "$RUNNER_TEMP/issue-body.md"'},
+             {'name': 'Comment on the open issue',
+              'if': "steps.say.outputs.action == '%s'" % handed[1],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUE': '${{ steps.say.outputs.issues }}'},
+              'run': 'gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"'},
+             {'name': 'Close the issue, saying main now stands at the judged commit',
+              'if': "steps.say.outputs.action == '%s'" % handed[2],
+              'env': {'GH_TOKEN': '${{ github.token }}', 'ISSUES': '${{ steps.say.outputs.issues }}'},
+              'run': 'for issue in $ISSUES; do\n'
+                     '  gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md"\n'
+                     '  gh issue close "$issue" --repo "$GITHUB_REPOSITORY"\n'
+                     'done\n'}],
+            carried)
 
 
 class WhatAShellIsHanded(WorkflowTest):
