@@ -1588,6 +1588,9 @@ launcher's frame is the robot's pose turned by the turntable's encoder, handed
 to the flight at the end of every step; placing the robot, or writing the
 turntable's encoder from outside between steps as a test does, carries the
 launcher there at once with the balls it holds, rather than sweeping it there.
+A placed robot is at rest, so its launcher is carried there at rest; an encoder
+written while the robot drives leaves the robot moving, so its launcher is
+carried there still moving as it was, and the balls it holds keep lying in it.
 The flywheel turns as fast as the code commands it, up to its motor's top speed
 of 2,800 ticks a second either way (a goBILDA 5203 at 6,000 rpm with no load, 28
 ticks a turn), over the flywheel's **ticks per turn**, which is 28 because the
@@ -1692,8 +1695,9 @@ lies within the two radii and the touching distance of the entry ("the launcher'
 entry is not clear"); it goes in at the entry with the feed and no spin, so balls
 fed as fast as that allows are thrown one at a time and never overlap. A teleport carries the launcher to its new
 frame at once, with no sweep, and the balls it holds go with it, lying and moving
-in it as they did; a tick that would sweep it there faster than a flight takes a
-ball is refused. Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
+in it as they did; it leaves the launcher there either at rest or moving as it was,
+going and turning as fast, as whoever carries it says; a tick that would sweep it
+there faster than a flight takes a ball is refused. Classes: `Flight` and `Bores`, in the **core**; `SimRobot.standInTheBores`, which
 tells the flight what the floor's own world has in the bores each step.
 
 **Noise** — How a run's robot differs from the tuned model, the ways a
@@ -2097,14 +2101,16 @@ turns at its clamped command times a whole turn over its ticks per turn, in radi
 second, signed as the command is: positive when the back of the wheel moves up, the
 motor's direction, which in the **launcher**'s frame is about the way to its left. So
 no command turns it faster than 2,800 ticks a second over 18, 977 radians a second.
-A run's launch does not turn it yet: it still leaves at a speed in proportion to the
-command (**Simulated robot**). Classes: `Flywheel`, with `Flywheel.TicksPerTurn` and
+In a run, Reginald's flywheel turns at the code's command over the ticks per turn the
+run's **simulation constants** give, and how fast a fed ball leaves and with what spin
+come out of the **launcher**'s physics, not a formula (**Simulated robot**). Classes: `Flywheel`, with `Flywheel.TicksPerTurn` and
 `Flywheel.AngularSpeed`, in the **core**.
 
 **Launcher** — Reginald's flywheel and hood as a part of the **surroundings**, its
 faces **arcs** a ball meets by **compliant contact**, as stage 4 of
-`doc/plans/runtime-flight.md` gives them; a **flight** may carry it and feed it,
-though no run does until `SimRobot` gives its flight one. Its **frame** is the robot's pose turned by the
+`doc/plans/runtime-flight.md` gives them. A **flight** may carry it and feed it:
+Reginald's run's flight carries one from the start of every run and is fed each
+ball his bottom gate lets go, and Nugget's carries none. Its **frame** is the robot's pose turned by the
 **turntable**: a place within 10,000 in of the field's centre either way and a finite
 yaw, kept within half a turn either way; anything else is refused, saying which. In it,
 in inches with x forward, y to the left and z up from the floor, the flywheel's axle
