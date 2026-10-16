@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+JAVA_HOME="${ANDROID_STUDIO_APP:-/Applications/Android Studio.app}/Contents/jbr/Contents/Home"
+if [ ! -x "$JAVA_HOME/bin/java" ]; then
+  echo "No Java at $JAVA_HOME. Install Android Studio there, or say where it is: ANDROID_STUDIO_APP=\"/path/to/Android Studio.app\" ./start" >&2
+  exit 1
+fi
+export JAVA_HOME
+exec ./gradlew :TeamCode:codingServer "$@"

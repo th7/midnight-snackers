@@ -353,7 +353,9 @@ a dead wheel's. Classes: `DriveEncoders` and `Encoder`, in the core.
 
 **Coding server** — The host process teammates reach over the LAN to edit
 the robot code and run simulations. One machine runs it with
-`./gradlew :TeamCode:codingServer`. It has two listeners: the **admin
+`./gradlew :TeamCode:codingServer`, or on a Mac with `./start`, which runs
+that task on Android Studio's own Java (`ANDROID_STUDIO_APP` names the app
+when it is not in `/Applications`). It has two listeners: the **admin
 listener** on loopback only (port 21987, `CODING_ADMIN_PORT`), and the
 **user listener** on every interface (port 21986, `CODING_USER_PORT`).
 Class: `CodingServer`.
