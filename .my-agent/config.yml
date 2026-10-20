@@ -37,3 +37,5 @@ features:
           credential_source: github_app
         onshape:
           credential_source: onshape_api_key
+        openai:
+          credential_source: chatgpt_signin
