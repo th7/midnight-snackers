@@ -25,6 +25,11 @@ const ANSWERS = {
 const RUNS_ASKED = [];
 
 const SAVES = [];
+const DEPLOYS = [];
+const SAVE_GATE = gate();
+const DEPLOY_GATE = gate();
+let saveStatus = 200;
+let deployStatus = 200;
 
 const BRANCHES = { reginald: 'coding/mia', nugget: 'nugget/mia' };
 
@@ -222,10 +227,25 @@ function serve() {
       let body = '';
       request.on('data', (chunk) => { body += chunk; });
       request.on('end', () => {
-        SAVES.push(JSON.parse(body));
-        response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        response.end(JSON.stringify({ path: asked.slice('/files/'.length), version: 'v' + (SAVES.length + 1) }));
+        SAVE_GATE.pass(() => {
+          if (saveStatus !== 200) {
+            response.writeHead(saveStatus, { 'Content-Type': 'text/plain; charset=utf-8' }).end('save refused');
+            return;
+          }
+          SAVES.push(JSON.parse(body));
+          json(response, { path: asked.slice('/files/'.length), version: 'v' + (SAVES.length + 1) });
+        });
       });
+      return;
+    }
+    if (request.method === 'POST' && asked === '/deploy') {
+      DEPLOYS.push({ robot: new URL(request.url, 'http://x').searchParams.get('robot'),
+                     saved: SAVES.length ? SAVES[SAVES.length - 1].content : null });
+      DEPLOY_GATE.pass(() => json(response, {
+        ok: deployStatus === 200,
+        message: deployStatus === 200 ? 'deployed to the connected robot' : 'deployment failed',
+        output: 'gradle <diagnostics> & adb'
+      }, deployStatus));
       return;
     }
     if (servedTheLaunchSim(request, response, asked)) {
@@ -382,6 +402,66 @@ async function aSaveSaysWhichRobotTheFileWasReadOn(page, engine) {
   const saved = SAVES.slice(before);
   check(saved.length > 0 && saved.every((save) => save.robot === 'nugget'),
       `${engine}: typing saved ${JSON.stringify(saved.map((save) => save.robot))} rather than on the robot it was read on`);
+}
+
+async function deploySavesFirstAndReportsTheInstall(page, engine) {
+  await page.locator('nav [data-tab="edit"]').click({ timeout: 5_000 });
+  const deploy = page.locator('#deploy');
+  check(await deploy.count() === 1, `${engine}: Edit offers no Deploy button`);
+  if (await deploy.count() !== 1) { return; }
+  check(await page.locator('#push + #deploy').count() === 1,
+      `${engine}: Deploy is not next to Push`);
+  const pushBox = await page.locator('#push').boundingBox();
+  const deployBox = await deploy.boundingBox();
+  check(pushBox.y === deployBox.y && deployBox.x > pushBox.x,
+      `${engine}: Deploy is not drawn beside Push`);
+  check(await deploy.isEnabled(), `${engine}: Deploy is disabled when there are no commits to push`);
+  SAVE_GATE.hold();
+  DEPLOY_GATE.hold();
+  const before = DEPLOYS.length;
+  await page.locator('#editor .cm-content').click();
+  await page.keyboard.type('deploy this edit');
+  await deploy.click();
+  try {
+    check(await untilSo(() => SAVE_GATE.holding() > 0), `${engine}: Deploy did not save the editor`);
+    await page.waitForTimeout(250);
+    check(DEPLOYS.length === before, `${engine}: Deploy ran before the save finished`);
+    check(await deploy.isDisabled(), `${engine}: Deploy can be pressed twice while saving`);
+    SAVE_GATE.release();
+    check(await untilSo(() => DEPLOYS.length > before), `${engine}: Deploy never ran after saving`);
+    check(DEPLOYS.length === before + 1 && DEPLOYS[before].robot === 'nugget'
+        && DEPLOYS[before].saved.includes('deploy this edit'),
+        `${engine}: Deploy did not use the saved edit on the selected robot: ${JSON.stringify(DEPLOYS.slice(before))}`);
+    await page.waitForTimeout(2200);
+    check(await deploy.isDisabled() && await page.locator('#pull').isDisabled(),
+        `${engine}: a status refresh allowed another deploy or a merge during installation`);
+    check((await page.locator('#git-result').textContent()).includes('deploying'),
+        `${engine}: no deployment progress is shown`);
+  } finally {
+    SAVE_GATE.release();
+    DEPLOY_GATE.release();
+  }
+  check(await untilTrue(page, () => document.getElementById('git-result').textContent.includes('deployed')),
+      `${engine}: deployment success is not shown`);
+  check(await page.locator('#deploy-output').textContent() === 'gradle <diagnostics> & adb',
+      `${engine}: deployment diagnostics were lost or read as HTML`);
+
+  deployStatus = 500;
+  await deploy.click();
+  check(await untilTrue(page, () => document.getElementById('git-result').textContent === 'deployment failed'),
+      `${engine}: deployment failure is not shown`);
+  check(await deploy.isEnabled(), `${engine}: a failed deployment cannot be retried`);
+  deployStatus = 200;
+
+  saveStatus = 500;
+  await page.locator('#editor .cm-content').click();
+  await page.keyboard.type('unsaved edit');
+  const after = DEPLOYS.length;
+  await deploy.click();
+  check(await untilTrue(page, () => document.getElementById('git-result').textContent.includes('could not save')),
+      `${engine}: a save failure does not explain why deployment was stopped`);
+  check(DEPLOYS.length === after, `${engine}: Deploy installed stale code after a save failed`);
+  saveStatus = 200;
 }
 
 async function aSwitchComesBackOnTheOtherRobot(page, engine) {
@@ -898,6 +978,7 @@ async function main() {
     await aGameIsAskedForByTheBox(current.page, 'this engine');
     await theEditorFollowsTheSystemTheme(current.page, 'this engine');
     await aSaveSaysWhichRobotTheFileWasReadOn(current.page, 'this engine');
+    await deploySavesFirstAndReportsTheInstall(current.page, 'this engine');
     await theLaunchSimWorks(current.page, 'this engine');
     await nothingBroke(current.page, current.threw, current.started, 'this engine');
 
@@ -905,6 +986,7 @@ async function main() {
     await itWorks(older.page, 'an older iPad');
     await aGameIsAskedForByTheBox(older.page, 'an older iPad');
     await theEditorFollowsTheSystemTheme(older.page, 'an older iPad');
+    await deploySavesFirstAndReportsTheInstall(older.page, 'an older iPad');
     await theLaunchSimWorks(older.page, 'an older iPad');
     await nothingBroke(older.page, older.threw, older.started, 'an older iPad');
 
@@ -938,7 +1020,8 @@ async function main() {
     process.exit(1);
   }
   console.log('the dashboard says which robot it is on, switches to another the user works on and comes back on '
-      + 'it, follows the admin moving it, saves on the robot a file was read on, '
+      + 'it, follows the admin moving it, saves on the robot a file was read on, deploys only after saving, '
+      + 'shows installation progress and diagnostics, prevents duplicate deployments and refuses a failed save, '
       + 'lists its files, opens one in the editor and reaches the Simulate tab, where a '
       + 'run is a game only when the box says so and begins once the view under it has drawn the field, '
       + `and the Launch Sim tab, which sets the bench's ${LAUNCH_SETTINGS.length} settings out in its `

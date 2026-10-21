@@ -55,7 +55,8 @@ public final class Cost {
         // move it, and a gate that fires on every commit that adds a file is one people turn off.
         FORMAT("format", "a Java file put through the formatter", PRINTED),
         NODE("node", "a node process run", PINNED),
-        PROJECT_COPY("project-copy", "a project tree copied onto disk", PINNED);
+        PROJECT_COPY("project-copy", "a project tree copied onto disk", PINNED),
+        GRADLE_DEPLOY("gradle-deploy", "a Gradle robot deployment attempted", PINNED);
 
         public final String key;
         public final String what;

@@ -2,7 +2,8 @@
   "child-jvm": 61,
   "compile": 60,
   "git": 2339,
-  "password-hash": 237,
+  "password-hash": 243,
   "node": 3,
-  "project-copy": 13
+  "project-copy": 13,
+  "gradle-deploy": 9
 }

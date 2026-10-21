@@ -41,6 +41,7 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Deployment;
 import org.firstinspires.ftc.teamcode.simcore.Robots;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
@@ -211,6 +212,7 @@ public final class CodingServer {
     private final int scryptN;
     private final Map<TeamRobot, Worktrees> worktreesByRobot = new EnumMap<>(TeamRobot.class);
     private final SimBench.Factory benches;
+    private final Deploy deploy;
 
     private final Map<Work, SimBench> benchByWork = new LinkedHashMap<>();
 
@@ -281,7 +283,9 @@ public final class CodingServer {
             Path stateDir,
             int scryptN,
             Assets assets,
-            Git git) {
+            Git git,
+            Deploy deploy) {
+        this.deploy = deploy;
         this.scryptN = scryptN;
         this.assets = assets;
         this.root = root.toAbsolutePath().normalize();
@@ -354,8 +358,23 @@ public final class CodingServer {
             int scryptN,
             Assets assets,
             Git git) {
+        return start(
+                root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets, git, new GradleDeploy(root));
+    }
+
+    static CodingServer start(
+            Path root,
+            SimBench.Factory benches,
+            InetAddress adminBind,
+            int adminPort,
+            int userPort,
+            Path stateDir,
+            int scryptN,
+            Assets assets,
+            Git git,
+            Deploy deploy) {
         JavaFormatter.check();
-        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets, git);
+        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets, git, deploy);
     }
 
     static Path stateDir(Map<String, String> env) {
@@ -505,6 +524,7 @@ public final class CodingServer {
                 .route("POST", "/git/commit", (request, params) -> gitCommit(sessionOf(request), request.body))
                 .route("POST", "/git/pull", (request, params) -> gitPull(sessionOf(request)))
                 .route("POST", "/git/push", (request, params) -> gitPush(sessionOf(request)))
+                .route("POST", "/deploy", (request, params) -> deploy(sessionOf(request), robotAskedIn(request)))
                 .route("POST", "/robot", (request, params) -> switchRobot(sessionOf(request), robotAskedIn(request)))
                 .route("GET", "/build", (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))))
                 .route(
@@ -523,6 +543,27 @@ public final class CodingServer {
                 .route("POST", "/login", (request, params) -> login(request))
                 .route("GET", "/me", (request, params) -> Response.json(GSON.toJson(me(sessionOf(request)))))
                 .mount("", approved);
+    }
+
+    private Response deploy(Session session, Checked<TeamRobot> asked) {
+        return asked.fold(
+                robot -> {
+                    Path path;
+                    synchronized (this) {
+                        Work work = session.work();
+                        if (work.robot() != robot) {
+                            return Response.error(409, "the selected robot changed; reload before deploying");
+                        }
+                        path = worktreeOf(work).path;
+                    }
+                    Deployment result = deploy.from(path);
+                    JsonObject body = new JsonObject();
+                    body.addProperty("ok", result.ok());
+                    body.addProperty("message", result.message());
+                    body.addProperty("output", result.output());
+                    return Response.json(result.status(), GSON.toJson(body));
+                },
+                rule -> robotRefused(asked));
     }
 
     private static boolean isApproved(Session session) {

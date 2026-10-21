@@ -35,11 +35,13 @@ public class CostIsCountedWhereItIsSpentTest {
             Cost.Kind.PASSWORD_HASH, Set.of("CodingServer", "CodingServerTest"),
             Cost.Kind.FORMAT, Set.of("JavaFormatter"),
             Cost.Kind.NODE, Set.of("SimReplayPageTest", "CodingServerTest"),
-            Cost.Kind.PROJECT_COPY, Set.of("SimProject")));
+            Cost.Kind.PROJECT_COPY, Set.of("SimProject"),
+            Cost.Kind.GRADLE_DEPLOY, Set.of("GradleDeploy")));
 
     /** What is dear to reach, and which kinds of cost reaching it is spent as. */
     private static final Map<String, Set<Cost.Kind>> REACHES = new LinkedHashMap<>(Map.of(
-            "java/lang/ProcessBuilder", Set.of(Cost.Kind.CHILD_JVM, Cost.Kind.GIT, Cost.Kind.NODE),
+            "java/lang/ProcessBuilder",
+                    Set.of(Cost.Kind.CHILD_JVM, Cost.Kind.GIT, Cost.Kind.NODE, Cost.Kind.GRADLE_DEPLOY),
             "javax/tools/ToolProvider", Set.of(Cost.Kind.COMPILE),
             "org/bouncycastle/crypto/generators/SCrypt", Set.of(Cost.Kind.PASSWORD_HASH),
             "com/palantir/javaformat/java/Formatter", Set.of(Cost.Kind.FORMAT)));

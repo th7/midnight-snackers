@@ -86,13 +86,14 @@
   .empty { color: var(--muted); padding: 8px 20px; }
 
   .git { margin: 0 20px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 8px; }
-  .git .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  .git .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .git .buttons button { position: relative; }
   .git #changed { color: var(--muted); font-size: 12px; }
   .git #git-result { font-size: 12px; min-height: 1.4em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .git #git-result.ok { color: var(--ok); }
   .git #git-result.bad { color: var(--bad); }
   .git #git-result.warn { color: var(--warn); }
+  #deploy-output { margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
 
   .git .badge { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
   @keyframes pull-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--warn-soft); } 50% { box-shadow: 0 0 0 7px var(--warn-soft); } }
@@ -226,8 +227,10 @@
         <button id="commit" type="button" disabled>Commit</button>
         <button id="pull" type="button" title="Bring your robot's develop branch into your branch">Pull</button>
         <button id="push" type="button" title="Land your commits on your robot's develop branch">Push</button>
+        <button id="deploy" type="button" title="Build and install this worktree's saved code on the connected robot, without committing or pushing">Deploy</button>
       </div>
       <div id="git-result" role="status"></div>
+      <pre id="deploy-output" aria-label="Deployment output" hidden></pre>
     </div>
     <p class="section-label">Files you can edit</p>
     <ul id="files"></ul>
@@ -348,6 +351,7 @@
   var editableKeys = [];
   var saveTimer = null;
   var saving = false;
+  var saveFailed = false;
   var dirtyWhileSaving = false;
   var pendingSave = false;
 
@@ -543,7 +547,10 @@
     return new Promise(function (resolve) {
       var waited = 0;
       (function settled() {
-        if ((!pendingSave && !saving && !dirtyWhileSaving) || waited >= SWITCH_WAIT_MS) { resolve(); return; }
+        if ((!pendingSave && !saving && !dirtyWhileSaving) || waited >= SWITCH_WAIT_MS) {
+          resolve(!open || open.readOnly || (!saveFailed && clean()));
+          return;
+        }
         waited += 100;
         setTimeout(settled, 100);
       })();
@@ -554,6 +561,7 @@
     if (!open) { return; }
     if (saving) { dirtyWhileSaving = true; return; }
     saving = true;
+    saveFailed = true;
     pendingSave = false;
     var path = open.path;
     var content = docText();
@@ -581,6 +589,7 @@
       return r.json().then(function (written) {
         if (open && open.path === path) {
           open.version = written.version;
+          saveFailed = false;
           setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
         }
         scheduleCheck();
@@ -747,6 +756,8 @@
     var commitButton = document.getElementById('commit');
     var pullButton = document.getElementById('pull');
     var pushButton = document.getElementById('push');
+    var deployButton = document.getElementById('deploy');
+    var deployOutput = document.getElementById('deploy-output');
     var resultEl = document.getElementById('git-result');
     var busy = false;
     var behind = 0;
@@ -775,6 +786,7 @@
       pullButton.classList.toggle('behind', behind > 0);
       pullButton.disabled = busy;
 
+      deployButton.disabled = busy;
       pushButton.disabled = busy || !status.pushable;
       pushButton.title = status.pushable
         ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push'
@@ -799,11 +811,16 @@
       }).catch(function () {});
     }
 
-    function post(path, body) {
+    function startWork() {
       busy = true;
       commitButton.disabled = true;
       pullButton.disabled = true;
       pushButton.disabled = true;
+      deployButton.disabled = true;
+    }
+
+    function post(path, body) {
+      startWork();
       return fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -865,6 +882,34 @@
       post('/git/push').then(afterMerge);
     }
 
+    function deploy() {
+      if (busy) { return; }
+      var robot = document.getElementById('robot').value;
+      startWork();
+      deployOutput.textContent = '';
+      deployOutput.hidden = true;
+      say('saving before deployment…');
+      whenSaved().then(function (saved) {
+        if (!saved) {
+          busy = false;
+          say('could not save the open file; deployment stopped', 'bad');
+          refresh();
+          return;
+        }
+        say('deploying this worktree to the connected robot…');
+        post('/deploy?robot=' + encodeURIComponent(robot)).then(function (reply) {
+          if (!reply) { return; }
+          var result;
+          try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
+          say(result.message, reply.ok && result.ok ? 'ok' : 'bad');
+          deployOutput.textContent = result.output || '';
+          deployOutput.hidden = !result.output;
+          refresh();
+        });
+      });
+    }
+
+    deployButton.addEventListener('click', deploy);
     commitButton.addEventListener('click', commit);
     pullButton.addEventListener('click', pull);
     pushButton.addEventListener('click', push);

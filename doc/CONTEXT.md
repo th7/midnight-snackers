@@ -732,6 +732,21 @@ push that fails (the robot's wifi has no way out; origin has moved on)
 leaves the local merge in place, is never forced, and is reported to
 the user and, with the command to run, to the coach on the admin page.
 
+**Deploy** — beside Push in the Edit tab. It saves the open file and waits
+for that save to succeed before asking `POST /deploy?robot=<robot>`.
+Only an approved session can deploy, and a robot selection that changed
+before the request arrived is refused rather than deploying another
+worktree. The server runs that worktree's Gradle wrapper with
+`:TeamCode:installDebug`, using its current files, including uncommitted
+and untracked code. It does not commit, merge, pull, or push to git.
+The server's ADB connection is used; the SDK location from the host
+checkout's `local.properties`, when present, is passed through without
+writing one into the worktree. One deployment runs at a time; another
+request is refused until it finishes. A build still running after ten
+minutes is stopped, including its child processes. The page shows the
+result and the last 64 KiB of combined build and ADB output. Classes:
+`Deploy`, `GradleDeploy`; result decisions live in `simcore.Deployment`.
+
 **Pull** — `POST /git/pull`: `develop` is merged into the user branch, in
 the user's worktree, a fast-forward when it can be and a merge commit
 otherwise. `develop` does not change. Uncommitted edits stay uncommitted

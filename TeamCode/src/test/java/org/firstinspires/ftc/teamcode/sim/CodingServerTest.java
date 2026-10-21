@@ -67,6 +67,10 @@ public class CodingServerTest {
 
     private CodingServer server;
 
+    private Deploy deploy = worktree -> {
+        throw new AssertionError("a test tried to deploy to a robot");
+    };
+
     private Path root;
 
     @Before
@@ -155,7 +159,7 @@ public class CodingServerTest {
             return made;
         };
         server = CodingServer.start(
-                root, recorded, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets, git());
+                root, recorded, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets, git(), deploy);
         return server;
     }
 
@@ -3831,6 +3835,95 @@ public class CodingServerTest {
         String cookie = approvedEditorOf("Plans.java");
 
         assertEquals(404, user("POST", "/admin/users/pull?robot=reginald&username=ada", cookie).status);
+    }
+
+    @Test
+    public void deployInstallsTheAskingUsersUncommittedWorkingDirectoryAndNeverMergesIt() throws IOException {
+        List<Path> deployed = new ArrayList<>();
+        List<String> contents = new ArrayList<>();
+        deploy = worktree -> {
+            deployed.add(worktree);
+            try {
+                contents.add(new String(
+                        Files.readAllBytes(worktree.resolve("TeamCode/Plans.java")), StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            return org.firstinspires.ftc.teamcode.simcore.Deployment.exited(0, "installed on the connected robot");
+        };
+        String ada = savedEditor(plans("ada's uncommitted work"));
+        String bob = approvedUser("bob");
+        Files.write(
+                worktreeOf("bob").resolve("TeamCode/Plans.java"),
+                plans("bob's uncommitted work").getBytes(StandardCharsets.UTF_8));
+        String develop = git().head(root).text();
+        String adasHead = git().head(worktreeOf("ada")).text();
+
+        Reply first = user("POST", "/deploy?robot=reginald", ada);
+        Reply second = user("POST", "/deploy?robot=reginald", bob);
+
+        assertEquals(first.body, 200, first.status);
+        assertEquals(second.body, 200, second.status);
+        assertTrue(json(first.body).get("ok").getAsBoolean());
+        assertEquals(
+                "installed on the connected robot",
+                json(first.body).get("output").getAsString());
+        assertEquals(List.of(worktreeOf("ada"), worktreeOf("bob")), deployed);
+        assertEquals(List.of(plans("ada's uncommitted work"), plans("bob's uncommitted work")), contents);
+        assertEquals(develop, git().head(root).text());
+        assertEquals(adasHead, git().head(worktreeOf("ada")).text());
+        assertTrue(json(user("GET", "/git/status", ada).body)
+                        .getAsJsonArray("changed")
+                        .size()
+                > 0);
+    }
+
+    @Test
+    public void deployUsesTheSelectedRobotsWorktreeAndRejectsAStaleRobotSelection() throws IOException {
+        List<Path> deployed = new ArrayList<>();
+        deploy = worktree -> {
+            deployed.add(worktree);
+            return org.firstinspires.ftc.teamcode.simcore.Deployment.exited(0, "installed");
+        };
+        String cookie = approvedUser("ada", TeamRobot.NUGGET);
+
+        assertEquals(409, user("POST", "/deploy?robot=reginald", cookie).status);
+        assertEquals(400, user("POST", "/deploy", cookie).status);
+        assertEquals(400, user("POST", "/deploy?robot=bender", cookie).status);
+        Reply result = user("POST", "/deploy?robot=nugget", cookie, "{\"worktree\":\"/not/the/users/tree\"}");
+
+        assertEquals(result.body, 200, result.status);
+        assertEquals(List.of(worktreeOf("ada", TeamRobot.NUGGET)), deployed);
+    }
+
+    @Test
+    public void deployRequiresAnApprovedSessionAndAPost() throws IOException {
+        List<Path> deployed = new ArrayList<>();
+        deploy = worktree -> {
+            deployed.add(worktree);
+            return org.firstinspires.ftc.teamcode.simcore.Deployment.exited(0, "installed");
+        };
+        String pending = login("bob");
+        assertEquals(403, user("POST", "/deploy?robot=reginald", null).status);
+        assertEquals(403, user("POST", "/deploy?robot=reginald", pending).status);
+        String approved = approvedUser("ada");
+        assertEquals(405, user("GET", "/deploy?robot=reginald", approved).status);
+        assertEquals(404, admin("POST", "/deploy?robot=reginald").status);
+        admin("POST", "/admin/logins/" + idOf("ada") + "/revoke");
+        assertEquals(403, user("POST", "/deploy?robot=reginald", approved).status);
+        assertTrue(deployed.isEmpty());
+    }
+
+    @Test
+    public void aFailedDeploymentReturnsItsDiagnosticsAndNeverClaimsSuccess() throws IOException {
+        deploy = worktree -> org.firstinspires.ftc.teamcode.simcore.Deployment.exited(1, "adb: no devices");
+        String cookie = approvedUser("ada");
+
+        Reply result = user("POST", "/deploy?robot=reginald", cookie);
+
+        assertEquals(result.body, 500, result.status);
+        assertFalse(json(result.body).get("ok").getAsBoolean());
+        assertEquals("adb: no devices", json(result.body).get("output").getAsString());
     }
 
     @Test
