@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -30,15 +31,12 @@ public class PlanOpModesTest {
 
         List<String> names =
                 manager.registrations.stream().map(r -> r.meta.name).sorted().collect(Collectors.toList());
-        assertEquals(
-                List.of(
-                        "BlueScoreAThingFromBack",
-                        "RedScoreAThingFromBack",
-                        "driveForward",
-                        "forwardLeftBackwardRight",
-                        "scoreAThing",
-                        "spinnyThing"),
-                names);
+        List<String> annotated = Arrays.stream(Plans.class.getDeclaredMethods())
+                .flatMap(method -> Arrays.stream(method.getAnnotationsByType(Auto.class))
+                        .map(auto -> auto.name().isEmpty() ? method.getName() : auto.name()))
+                .sorted()
+                .collect(Collectors.toList());
+        assertEquals(annotated, names);
         for (FakeOpModeManager.Registration registration : manager.registrations) {
             assertEquals(registration.meta.name, OpModeMeta.Flavor.AUTONOMOUS, registration.meta.flavor);
             assertEquals(registration.meta.name, "Autonomous", registration.meta.group);
