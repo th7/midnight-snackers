@@ -32,8 +32,17 @@ public class Plans implements Loopable {
         return new Plan(spin360(), move1FootForward(), move6InchesLeft(), moveBackTo0_0());
     }
 
+    @Auto(alliance = Alliance.RELATIVE)
+    public Plan forwardback() {
+        return new Plan(move1FootForward(), Step.waitFor("wait", 10, nanoClock), move1FootBackward());
+    }
+
     private PlanPart move1FootForward() {
         return driveNear("move1FootForward", 12, 0, 0);
+    }
+
+    private PlanPart move1FootBackward() {
+        return driveNear("move1FootBackward", -12, 0, 0);
     }
 
     private PlanPart move6InchesLeft() {
