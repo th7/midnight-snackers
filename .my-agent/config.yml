@@ -33,8 +33,7 @@ features:
             - main
         anthropic:
           credential_source: claude_oauth_token
-        mcp:
-          credential_source: github_app
+        mcp: {}
         onshape:
           credential_source: onshape_api_key
         openai:
