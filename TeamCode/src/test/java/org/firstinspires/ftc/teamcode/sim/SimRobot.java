@@ -970,13 +970,13 @@ public class SimRobot {
 
         Twist moved = new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle);
         deadWheels = deadWheels.moved(moved);
-        DeadWheels.Reading reading = deadWheels.read(perSecond, senseOf(leftFront), senseOf(rightBack));
+        DeadWheels.Reading reading = deadWheels.read(perSecond, senseOf(rightBack), senseOf(leftFront));
         driveEncoders = driveEncoders.moved(moved);
         build.sense(driveEncoders, perSecond);
-        leftFront.currentPosition = reading.par().position();
-        leftFront.measuredVelocity = reading.par().velocity();
-        rightBack.currentPosition = reading.perp().position();
-        rightBack.measuredVelocity = reading.perp().velocity();
+        rightBack.currentPosition = reading.par().position();
+        rightBack.measuredVelocity = reading.par().velocity();
+        leftFront.currentPosition = reading.perp().position();
+        leftFront.measuredVelocity = reading.perp().velocity();
 
         imu.yawRadians = pose.heading.toDouble();
         imu.yawRateRadiansPerSecond = perSecond.angle();

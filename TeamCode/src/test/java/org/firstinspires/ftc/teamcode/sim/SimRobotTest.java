@@ -160,7 +160,7 @@ public class SimRobotTest {
     }
 
     @Test
-    public void theParallelDeadWheelIsReadOnTheLeftFrontPortAndThePerpendicularOneOnTheRightBacks() {
+    public void theParallelDeadWheelIsReadOnTheRightBackPortAndThePerpendicularOneOnTheLeftFronts() {
         robotDrive();
         sim.setPose(new Pose2d(-30, 0, 0));
         setPowers(0.5, 0.5, 0.5, 0.5);
@@ -168,8 +168,8 @@ public class SimRobotTest {
         setPowers(0, 0, 0, 0);
         sim.step(1.0);
 
-        int ahead = new RawEncoder(sim.leftFront).getPositionAndVelocity().position;
-        int across = new RawEncoder(sim.rightBack).getPositionAndVelocity().position;
+        int ahead = new RawEncoder(sim.rightBack).getPositionAndVelocity().position;
+        int across = new RawEncoder(sim.leftFront).getPositionAndVelocity().position;
 
         assertTrue("the parallel wheel counted the drive ahead: " + ahead, ahead > 1000);
         assertTrue("the perpendicular wheel counted next to nothing: " + across, Math.abs(across) < 20);
@@ -179,7 +179,7 @@ public class SimRobotTest {
         setPowers(0, 0, 0, 0);
         sim.step(1.0);
 
-        int left = new RawEncoder(sim.rightBack).getPositionAndVelocity().position - across;
+        int left = new RawEncoder(sim.leftFront).getPositionAndVelocity().position - across;
         assertTrue("the perpendicular wheel counted the strafe left: " + left, left > 1000);
     }
 
@@ -191,16 +191,16 @@ public class SimRobotTest {
         sim.step(0.5);
         setPowers(0, 0, 0, 0);
         sim.step(1.0);
-        int parBefore = new RawEncoder(sim.leftFront).getPositionAndVelocity().position;
-        int perpBefore = new RawEncoder(sim.rightBack).getPositionAndVelocity().position;
+        int parBefore = new RawEncoder(sim.rightBack).getPositionAndVelocity().position;
+        int perpBefore = new RawEncoder(sim.leftFront).getPositionAndVelocity().position;
 
-        sim.leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
         sim.rightBack.setDirection(DcMotorSimple.Direction.FORWARD);
+        sim.leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
         sim.step(0.02);
 
         assertTrue("the parallel wheel counted the drive ahead: " + parBefore, parBefore > 1000);
-        assertEquals(parBefore, new RawEncoder(sim.leftFront).getPositionAndVelocity().position);
-        assertEquals(perpBefore, new RawEncoder(sim.rightBack).getPositionAndVelocity().position);
+        assertEquals(parBefore, new RawEncoder(sim.rightBack).getPositionAndVelocity().position);
+        assertEquals(perpBefore, new RawEncoder(sim.leftFront).getPositionAndVelocity().position);
     }
 
     @Test

@@ -933,12 +933,12 @@ drawn per wheel each motor has. Classes: `Drivebase`; `TeamRobot.drivebase`;
 `Drivetrain`.
 
 **Turned around** — Reginald's drivetrain, dead wheels and all, now faces the
-other way: what was its front is its back. Its motors are renamed in the
-configuration for the corners they now sit at, and each corner is mounted as
-it was, so the drive motors are what they were. The dead wheels' cables kept
-their ports, which kept the motors' new names, so the parallel wheel is read
-on the port now named `leftFront` and the perpendicular one on `rightBack`'s.
-The dead wheels count ahead where they counted back, and each sits as far off
+other way: what was its front is its back. Each drive motor's cable was moved
+to the port named for the corner it now sits at, and each corner is mounted as
+it was, so the drive motors are what they were. The dead wheels' cables stayed
+in their ports, so the parallel wheel is still read on `rightBack`'s port and
+the perpendicular one on `leftFront`'s. The dead wheels count ahead where they
+counted back, and each sits as far off
 the centre as it did, on the other side; a turn in place reads as it did.
 Their offsets are the simulator's own, the robot's measured ones turned
 around, not whatever the robot code believes, so code that has not caught up
