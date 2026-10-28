@@ -2,7 +2,9 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 public final class DeadWheels {
     public static final int PAR_RAW_SIGN = 1;
-    public static final int PERP_RAW_SIGN = -1;
+    public static final int PERP_RAW_SIGN = 1;
+    public static final double PAR_Y_TICKS = -610.3360642343223;
+    public static final double PERP_X_TICKS = -5186.563208836955;
 
     private final double inPerTick;
     private final double parYTicks;
@@ -31,6 +33,10 @@ public final class DeadWheels {
         return Checked.ok(new DeadWheels(inPerTick, parYTicks, perpXTicks, 0, 0));
     }
 
+    public static Checked<DeadWheels> reginalds(double inPerTick) {
+        return of(inPerTick, PAR_Y_TICKS, PERP_X_TICKS);
+    }
+
     public DeadWheels moved(Twist moved) {
         return new DeadWheels(
                 inPerTick,
@@ -40,11 +46,13 @@ public final class DeadWheels {
                 perpTicks + (moved.line().y() / inPerTick + perpXTicks * moved.angle()));
     }
 
-    public Reading read(Twist perSecond) {
+    public Reading read(Twist perSecond, Sense parPortsMotor, Sense perpPortsMotor) {
         double parVelocity = perSecond.line().x() / inPerTick + parYTicks * perSecond.angle();
         double perpVelocity = perSecond.line().y() / inPerTick + perpXTicks * perSecond.angle();
         return new Reading(
-                Encoder.asTheHubReports(PAR_RAW_SIGN * parTicks, PAR_RAW_SIGN * parVelocity),
-                Encoder.asTheHubReports(PERP_RAW_SIGN * perpTicks, PERP_RAW_SIGN * perpVelocity));
+                Encoder.asTheHubReports(
+                        parPortsMotor.of(PAR_RAW_SIGN * parTicks), parPortsMotor.of(PAR_RAW_SIGN * parVelocity)),
+                Encoder.asTheHubReports(
+                        perpPortsMotor.of(PERP_RAW_SIGN * perpTicks), perpPortsMotor.of(PERP_RAW_SIGN * perpVelocity)));
     }
 }

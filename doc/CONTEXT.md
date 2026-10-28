@@ -932,6 +932,24 @@ motors, in the order their powers are recorded, and says which of the noise
 drawn per wheel each motor has. Classes: `Drivebase`; `TeamRobot.drivebase`;
 `Drivetrain`.
 
+**Turned around** — Reginald's drivetrain, dead wheels and all, now faces the
+other way: what was its front is its back. Its motors are renamed in the
+configuration for the corners they now sit at, and each corner is mounted as
+it was, so the drive motors are what they were. The dead wheels' cables kept
+their ports, which kept the motors' new names, so the parallel wheel is read
+on the port now named `leftFront` and the perpendicular one on `rightBack`'s.
+The dead wheels count ahead where they counted back, and each sits as far off
+the centre as it did, on the other side; a turn in place reads as it did.
+Their offsets are the simulator's own, the robot's measured ones turned
+around, not whatever the robot code believes, so code that has not caught up
+with the turn is caught. Classes: `SimRobot`; `DeadWheels.reginalds`.
+
+**Dead wheels** — Reginald's two unpowered odometry wheels, each read on a
+drive motor's encoder port. Each is reported as the SDK reports a motor's
+count, the way that port's motor is set to turn, so Road Runner's raw encoder,
+which undoes that, reads the same whichever way the drive motor is set.
+Classes: `DeadWheels`; `TheHubReportsAReversedMotorsCountNegatedTest`.
+
 **Bench** — The simulation core shared by the bench page and the coding
 server's Simulate tab: the catalog, the runs so far, and the routes that
 start a run and follow it. One run at a time per bench. The bench page

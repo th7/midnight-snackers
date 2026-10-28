@@ -34,7 +34,6 @@ import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.reginald.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
@@ -131,7 +130,6 @@ public class SimRobot {
     private Draws draws;
 
     private final MecanumDrive.Params drive = MecanumDrive.PARAMS;
-    private final TwoDeadWheelLocalizer.Params deadWheelOffsets = TwoDeadWheelLocalizer.PARAMS;
     private final MecanumKinematics kinematics =
             new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
     private final Drivetrain drivetrain;
@@ -286,8 +284,7 @@ public class SimRobot {
                         Feedforward.of(drive.kSVolts, drive.kVVoltSecondsPerTick, drive.kAVoltSecondsSquaredPerTick)),
                 drive.inPerTick,
                 noise.motors()));
-        this.deadWheels =
-                Valid.value(DeadWheels.of(drive.inPerTick, deadWheelOffsets.parYTicks, deadWheelOffsets.perpXTicks));
+        this.deadWheels = Valid.value(DeadWheels.reginalds(drive.inPerTick));
         PerWheel<Sense> mounted = teamRobot.drivebase().mounted();
         this.driveEncoders = Valid.value(DriveEncoders.of(
                 new Sides<>(mounted.leftFront(), mounted.rightFront()), drive.inPerTick, drive.trackWidthTicks));
@@ -973,13 +970,13 @@ public class SimRobot {
 
         Twist moved = new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle);
         deadWheels = deadWheels.moved(moved);
-        DeadWheels.Reading reading = deadWheels.read(perSecond);
+        DeadWheels.Reading reading = deadWheels.read(perSecond, senseOf(leftFront), senseOf(rightBack));
         driveEncoders = driveEncoders.moved(moved);
         build.sense(driveEncoders, perSecond);
-        rightBack.currentPosition = reading.par().position();
-        rightBack.measuredVelocity = reading.par().velocity();
-        leftFront.currentPosition = reading.perp().position();
-        leftFront.measuredVelocity = reading.perp().velocity();
+        leftFront.currentPosition = reading.par().position();
+        leftFront.measuredVelocity = reading.par().velocity();
+        rightBack.currentPosition = reading.perp().position();
+        rightBack.measuredVelocity = reading.perp().velocity();
 
         imu.yawRadians = pose.heading.toDouble();
         imu.yawRateRadiansPerSecond = perSecond.angle();

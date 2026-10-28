@@ -12,29 +12,69 @@ public class DeadWheelsTest {
     private static final DeadWheels AT_REST = Valid.value(DeadWheels.of(IN_PER_TICK, PAR_Y_TICKS, PERP_X_TICKS));
     private static final Twist STILL = new Twist(new Vec2(0, 0), 0);
 
+    private static DeadWheels.Reading onForwardMotors(DeadWheels wheels, Twist perSecond) {
+        return wheels.read(perSecond, Sense.FORWARD, Sense.FORWARD);
+    }
+
     @Test
     public void drivingAheadTurnsTheParallelWheelByTheDistanceInTicks() {
-        DeadWheels.Reading reading = AT_REST.moved(new Twist(new Vec2(1, 0), 0)).read(STILL);
+        DeadWheels.Reading reading = onForwardMotors(AT_REST.moved(new Twist(new Vec2(1, 0), 0)), STILL);
 
         assertEquals(2000, reading.par().position());
         assertEquals(0, reading.perp().position());
     }
 
     @Test
-    public void strafingTurnsThePerpendicularWheelWhichIsWiredTheOtherWayRound() {
-        DeadWheels.Reading reading = AT_REST.moved(new Twist(new Vec2(0, 1), 0)).read(STILL);
+    public void strafingLeftTurnsThePerpendicularWheelByTheDistanceInTicks() {
+        DeadWheels.Reading reading = onForwardMotors(AT_REST.moved(new Twist(new Vec2(0, 1), 0)), STILL);
 
         assertEquals(0, reading.par().position());
-        assertEquals(-2000, reading.perp().position());
+        assertEquals(2000, reading.perp().position());
     }
 
     @Test
     public void turningInPlaceTurnsEachWheelByItsOffset() {
-        DeadWheels.Reading reading =
-                AT_REST.moved(new Twist(new Vec2(0, 0), 0.1)).read(STILL);
+        DeadWheels.Reading reading = onForwardMotors(AT_REST.moved(new Twist(new Vec2(0, 0), 0.1)), STILL);
 
         assertEquals(60, reading.par().position());
-        assertEquals(-500, reading.perp().position());
+        assertEquals(500, reading.perp().position());
+    }
+
+    @Test
+    public void aWheelOnTheEncoderPortOfAReversedMotorIsReportedNegatedAsTheHubReportsIt() {
+        DeadWheels moved = AT_REST.moved(new Twist(new Vec2(1, 1), 0));
+
+        DeadWheels.Reading parReversed = moved.read(new Twist(new Vec2(10, 5), 0), Sense.REVERSE, Sense.FORWARD);
+        DeadWheels.Reading perpReversed = moved.read(new Twist(new Vec2(10, 5), 0), Sense.FORWARD, Sense.REVERSE);
+
+        assertEquals(-2000, parReversed.par().position());
+        assertEquals(-20000, parReversed.par().velocity(), 0);
+        assertEquals(2000, parReversed.perp().position());
+        assertEquals(2000, perpReversed.par().position());
+        assertEquals(-2000, perpReversed.perp().position());
+        assertEquals(-10000, perpReversed.perp().velocity(), 0);
+    }
+
+    @Test
+    public void reginaldsDeadWheelsCountATurnInPlaceAsTheyDidBeforeTheRobotWasTurnedAround() {
+        DeadWheels.Reading reading = onForwardMotors(
+                Valid.value(DeadWheels.reginalds(IN_PER_TICK)).moved(new Twist(new Vec2(0, 0), 0.1)), STILL);
+
+        assertEquals(
+                "610.3 ticks off the centre, counting back", -61, reading.par().position());
+        assertEquals(
+                "5186.6 ticks off the centre, counting back",
+                -519,
+                reading.perp().position());
+    }
+
+    @Test
+    public void reginaldsDeadWheelsCountDrivingAheadAsTheyCountedDrivingBackBeforeTheRobotWasTurnedAround() {
+        DeadWheels.Reading reading = onForwardMotors(
+                Valid.value(DeadWheels.reginalds(IN_PER_TICK)).moved(new Twist(new Vec2(1, 1), 0)), STILL);
+
+        assertEquals(2000, reading.par().position());
+        assertEquals(2000, reading.perp().position());
     }
 
     @Test
@@ -46,37 +86,45 @@ public class DeadWheelsTest {
         }
 
         assertEquals(
-                "six tenths of a tick, ten times", 6, wheels.read(STILL).par().position());
+                "six tenths of a tick, ten times",
+                6,
+                onForwardMotors(wheels, STILL).par().position());
         assertEquals(
                 "the first is not a whole tick",
                 1,
-                AT_REST.moved(aLittle).read(STILL).par().position());
+                onForwardMotors(AT_REST.moved(aLittle), STILL).par().position());
     }
 
     @Test
     public void theVelocityIsTheMotionInTicksASecondAsTheWheelsSeeIt() {
-        DeadWheels.Reading reading = AT_REST.read(new Twist(new Vec2(10, 5), 0.5));
+        DeadWheels.Reading reading = onForwardMotors(AT_REST, new Twist(new Vec2(10, 5), 0.5));
 
         assertEquals(10 / IN_PER_TICK + PAR_Y_TICKS * 0.5, reading.par().velocity(), 20);
-        assertEquals(-(5 / IN_PER_TICK + PERP_X_TICKS * 0.5), reading.perp().velocity(), 20);
+        assertEquals(5 / IN_PER_TICK + PERP_X_TICKS * 0.5, reading.perp().velocity(), 20);
     }
 
     @Test
     public void theVelocityIsReadToTheNearestTwentyTicksASecondAsTheHubReportsIt() {
         assertEquals(
                 20,
-                AT_REST.read(new Twist(new Vec2(29 * IN_PER_TICK, 0), 0)).par().velocity(),
+                onForwardMotors(AT_REST, new Twist(new Vec2(29 * IN_PER_TICK, 0), 0))
+                        .par()
+                        .velocity(),
                 0);
         assertEquals(
                 40,
-                AT_REST.read(new Twist(new Vec2(31 * IN_PER_TICK, 0), 0)).par().velocity(),
+                onForwardMotors(AT_REST, new Twist(new Vec2(31 * IN_PER_TICK, 0), 0))
+                        .par()
+                        .velocity(),
                 0);
         assertEquals(
                 0,
-                AT_REST.read(new Twist(new Vec2(9 * IN_PER_TICK, 0), 0)).par().velocity(),
+                onForwardMotors(AT_REST, new Twist(new Vec2(9 * IN_PER_TICK, 0), 0))
+                        .par()
+                        .velocity(),
                 0);
         for (double ticks = -1000; ticks <= 1000; ticks += 7.3) {
-            double read = AT_REST.read(new Twist(new Vec2(ticks * IN_PER_TICK, 0), 0))
+            double read = onForwardMotors(AT_REST, new Twist(new Vec2(ticks * IN_PER_TICK, 0), 0))
                     .par()
                     .velocity();
             assertTrue(ticks + " read as " + read, Math.abs(read - ticks) <= 10 + 1e-9);
