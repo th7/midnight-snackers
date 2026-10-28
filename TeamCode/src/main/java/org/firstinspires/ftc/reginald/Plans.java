@@ -12,20 +12,20 @@ public class Plans implements Loopable {
     private final Drive drive;
 
     private final Nav nav;
-    private final Launcher launcher;
+    // private final Launcher launcher;
     private final LongSupplier nanoClock;
 
-    public Plans(Drive drive, Nav nav, Launcher launcher, LongSupplier nanoClock) {
+    public Plans(Drive drive, Nav nav, LongSupplier nanoClock) {
         this.drive = drive;
         this.nav = nav;
-        this.launcher = launcher;
+        //  this.launcher = launcher;
         this.nanoClock = nanoClock;
     }
 
-    @Auto(alliance = Alliance.RELATIVE)
-    public Plan scoreAThing() {
-        return new Plan(backFromZeroALittle(), launchAll());
-    }
+    // @Auto(alliance = Alliance.RELATIVE)
+    // public Plan scoreAThing() {
+    //     return new Plan(backFromZeroALittle(), launchAll());
+    // }
 
     @Auto(alliance = Alliance.RELATIVE)
     public Plan spinnyThing() {
@@ -87,12 +87,13 @@ public class Plans implements Loopable {
         });
     }
 
-    @Auto(name = "BlueScoreAThingFromBack", alliance = Alliance.BLUE)
-    @Auto(name = "RedScoreAThingFromBack", alliance = Alliance.RED)
-    public Plan scoreAThingFromBack() {
-        return new Plan(
-                setFarLaunchPosition(), moveToBackWall(), moveToBackWallScorePosition(), launchAll(), toLoadingZone());
-    }
+    // @Auto(name = "BlueScoreAThingFromBack", alliance = Alliance.BLUE)
+    // @Auto(name = "RedScoreAThingFromBack", alliance = Alliance.RED)
+    // public Plan scoreAThingFromBack() {
+    //     return new Plan(
+    //             setFarLaunchPosition(), moveToBackWall(), moveToBackWallScorePosition(), launchAll(),
+    // toLoadingZone());
+    // }
 
     private PlanPart moveToBackWall() {
         return driveTo(60, 12, 0);
@@ -109,13 +110,13 @@ public class Plans implements Loopable {
                 drive::done);
     }
 
-    private Step launch() {
-        return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
-    }
+    // private Step launch() {
+    //     return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
+    // }
 
-    private Plan launchAll() {
-        return new Plan(launch(), launch(), launch());
-    }
+    // private Plan launchAll() {
+    //     return new Plan(launch(), launch(), launch());
+    // }
 
     private Step setFarLaunchPosition() {
         return new Step("setBackPosition", () -> nav.placeAt(nav.pose(-63.5, 15.375, 0)), () -> true);

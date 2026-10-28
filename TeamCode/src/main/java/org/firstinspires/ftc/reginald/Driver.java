@@ -8,26 +8,26 @@ import org.firstinspires.ftc.teamcode.base.Loopable;
 public class Driver implements Loopable {
     private final Drive drive;
 
-    private final Launcher launcher;
+    // private final Launcher launcher;
     private final Brain brain;
     private final Nav nav;
-    private final Turntable turntable;
+    // private final Turntable turntable;
     private final Gamepad gamepad1;
     private final Gamepad gamepad2;
 
     public Driver(
             Drive drive,
-            Launcher launcher,
+            // Launcher launcher,
             Brain brain,
             Nav nav,
-            Turntable turntable,
+            // Turntable turntable,
             Gamepad gamepad1,
             Gamepad gamepad2) {
         this.drive = drive;
-        this.launcher = launcher;
+        // this.launcher = launcher;
         this.brain = brain;
         this.nav = nav;
-        this.turntable = turntable;
+        // this.turntable = turntable;
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
     }
@@ -54,23 +54,23 @@ public class Driver implements Loopable {
             drive.cancel();
         }
 
-        if (gamepad1.square) {
-            launcher.launchyLaunch();
-        }
+        // if (gamepad1.square) {
+        //     launcher.launchyLaunch();
+        // }
 
-        if (gamepad1.triangle) {
-            launcher.slowLaunchyLaunch();
-        }
-        if (gamepad1.crossWasPressed()) {
-            turntable.parkStraightAhead();
-        }
-        if (gamepad1.circleWasPressed()) {
-            turntable.followTheGoal();
-        }
+        // if (gamepad1.triangle) {
+        //     launcher.slowLaunchyLaunch();
+        // }
+        // if (gamepad1.crossWasPressed()) {
+        //     turntable.parkStraightAhead();
+        // }
+        // if (gamepad1.circleWasPressed()) {
+        //     turntable.followTheGoal();
+        // }
         if (gamepad1.right_trigger > 0.2) {
-            brain.autoShootSlow();
+            // brain.autoShootSlow();
         } else if (gamepad1.left_trigger > 0.2) {
-            brain.autoShootFast();
+            //  brain.autoShootFast();
         } else if (gamepad1.left_bumper) {
             brain.cancelPlan();
             Held held = Held.NONE;
@@ -93,26 +93,26 @@ public class Driver implements Loopable {
             drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
 
-        if (gamepad2.rightBumperWasPressed()) {
-            launcher.increaseBottomGateWaitSeconds();
-        }
-        if (gamepad2.leftBumperWasPressed()) {
-            launcher.decreaseBottomGateWaitSeconds();
-        }
-        if (gamepad2.dpadUpWasPressed()) {
-            launcher.increasePower();
-        }
-        if (gamepad2.dpadDownWasPressed()) {
-            launcher.decreasePower();
-        }
-        if (gamepad2.dpadLeftWasPressed()) {
-            turntable.nudgeLeft();
-        }
-        if (gamepad2.dpadRightWasPressed()) {
-            turntable.nudgeRight();
-        }
-        if (gamepad2.right_trigger > 0.2) {
-            brain.toggleCameraLocalization();
-        }
+        // if (gamepad2.rightBumperWasPressed()) {
+        //     launcher.increaseBottomGateWaitSeconds();
+        // }
+        // if (gamepad2.leftBumperWasPressed()) {
+        //     launcher.decreaseBottomGateWaitSeconds();
+        // }
+        // if (gamepad2.dpadUpWasPressed()) {
+        //     launcher.increasePower();
+        // }
+        // if (gamepad2.dpadDownWasPressed()) {
+        //     launcher.decreasePower();
+        // }
+        // if (gamepad2.dpadLeftWasPressed()) {
+        //     turntable.nudgeLeft();
+        // }
+        // if (gamepad2.dpadRightWasPressed()) {
+        //     turntable.nudgeRight();
+        // }
+        // if (gamepad2.right_trigger > 0.2) {
+        //     brain.toggleCameraLocalization();
+        // }
     }
 }

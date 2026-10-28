@@ -25,10 +25,10 @@ public final class Robot implements Loopable {
 
     public final LongSupplier nanoClock;
 
-    public final Launcher launcher;
-    public final Intake intake;
+    // public final Launcher launcher;
+    // public final Intake intake;
     public final Drive drive;
-    public final Camera camera;
+    // public final Camera camera;
     public final Localizer localizer;
     public final Nav nav;
 
@@ -36,7 +36,7 @@ public final class Robot implements Loopable {
 
     public final Wheels wheels;
 
-    public final Turntable turntable;
+    // public final Turntable turntable;
     public final Brain brain;
     public final Plans plans;
 
@@ -56,15 +56,15 @@ public final class Robot implements Loopable {
 
         this.nanoClock = hardware.nanoClock;
 
-        launcher = new Launcher(
-                hardware.launcher,
-                hardware.topGate,
-                hardware.bottomGate,
-                nanoClock,
-                channels.channel(Launcher.CHANNEL));
-        intake = new Intake(hardware.intake);
-        camera = new Camera(hardware.aprilTags, nanoClock, channels.channel(Camera.CHANNEL));
-        turntable = new Turntable(hardware.turnTable, channels.channel(Turntable.CHANNEL));
+        /* launcher = new Launcher(
+          hardware.launcher,
+          hardware.topGate,
+          hardware.bottomGate,
+          nanoClock,
+        channels.channel(Launcher.CHANNEL)); */
+        //  intake = new Intake(hardware.intake);
+        // camera = new Camera(hardware.aprilTags, nanoClock, channels.channel(Camera.CHANNEL));
+        //  turntable = new Turntable(hardware.turnTable, channels.channel(Turntable.CHANNEL));
 
         wheels = new Wheels(hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront);
 
@@ -78,10 +78,10 @@ public final class Robot implements Loopable {
         mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer, nanoClock);
         drive = new Drive(wheels, mecanumDrive, localizer, dashboard, channels.channel(Drive.CHANNEL));
         nav = new Nav(localizer, alliance);
-        brain = new Brain(drive, launcher, camera, nav, turntable, alliance, channels.channel(Brain.CHANNEL));
-        plans = new Plans(drive, nav, launcher, nanoClock);
+        brain = new Brain(drive, nav, alliance, channels.channel(Brain.CHANNEL));
+        plans = new Plans(drive, nav, nanoClock);
 
-        this.loopOrder = List.of(localizer, launcher, intake, drive, camera, nav, turntable, brain, plans);
+        this.loopOrder = List.of(localizer, drive, nav, brain, plans);
     }
 
     public List<Loopable> loopOrder() {
