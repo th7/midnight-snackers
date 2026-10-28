@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.reginald;
 
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
 
@@ -24,12 +23,12 @@ public class Turntable implements Loopable {
         THE_DRIVERS_HAND
     }
 
-    private final DcMotorEx turnTable;
+    // private final DcMotorEx turnTable;
     private Following following = Following.THE_GOAL;
     private int turnTableTargetPosition;
 
-    public Turntable(DcMotorEx turnTable, Prints telemetry) {
-        this.turnTable = turnTable;
+    public Turntable(Prints telemetry) {
+        //     this.turnTable = turnTable;
         this.telemetry = telemetry;
     }
 
@@ -72,10 +71,10 @@ public class Turntable implements Loopable {
         turnTableTargetPosition += ticks;
     }
 
-    public double offsetRadians() {
-        double revolutions = (double) turnTable.getCurrentPosition() / TICKS_PER_REVOLUTION;
-        return revolutions * (Math.PI * 2);
-    }
+    // public double offsetRadians() {
+    //     double revolutions = (double) turnTable.getCurrentPosition() / TICKS_PER_REVOLUTION;
+    //     return revolutions * (Math.PI * 2);
+    // }
 
     private static int ticks(double radians) {
         return (int) (radians * (TICKS_PER_REVOLUTION / (Math.PI * 2)));
@@ -93,19 +92,19 @@ public class Turntable implements Loopable {
 
     @Override
     public void loop() {
-        double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
-        double turnTablePower = turnTableError / TICKS_PER_FULL_POWER;
+        // double turnTableError = turnTableTargetPosition - turnTable.getCurrentPosition();
+        // double turnTablePower = turnTableError / TICKS_PER_FULL_POWER;
 
-        if (turnTableError < DEADBAND_TICKS && turnTableError > -DEADBAND_TICKS) {
-            turnTable.setPower(0);
-        } else {
-            turnTable.setPower(clampMinPower(turnTablePower, MINIMUM_POWER));
-        }
+        // if (turnTableError < DEADBAND_TICKS && turnTableError > -DEADBAND_TICKS) {
+        //     turnTable.setPower(0);
+        // } else {
+        //     turnTable.setPower(clampMinPower(turnTablePower, MINIMUM_POWER));
+        // }
 
-        telemetry.addData("turnTableFollowing", following);
-        telemetry.addData("turnTableRotationTicks", turnTable.getCurrentPosition());
-        telemetry.addData("turnTableOffsetRadians", offsetRadians());
-        telemetry.addData("turnTableTargetPosition", turnTableTargetPosition);
-        telemetry.addData("turnTablePower", turnTable.getPower());
+        // telemetry.addData("turnTableFollowing", following);
+        // telemetry.addData("turnTableRotationTicks", turnTable.getCurrentPosition());
+        // telemetry.addData("turnTableOffsetRadians", offsetRadians());
+        // telemetry.addData("turnTableTargetPosition", turnTableTargetPosition);
+        // telemetry.addData("turnTablePower", turnTable.getPower());
     }
 }

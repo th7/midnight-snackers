@@ -1,10 +1,8 @@
 package org.firstinspires.ftc.reginald;
 
-import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
-import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
@@ -15,25 +13,25 @@ public class Brain implements Loopable {
 
     private final Drive drive;
 
-    private final Launcher launcher;
-    private final Camera camera;
+    // private final Launcher launcher;
+    //  private final Camera camera;
     private final Nav nav;
-    private final Turntable turntable;
+    //  private final Turntable turntable;
     private final Alliance alliance;
 
     public Brain(
             Drive drive,
-            Launcher launcher,
-            Camera camera,
+            //  Launcher launcher,
+            // Camera camera,
             Nav nav,
-            Turntable turntable,
+            // Turntable turntable,
             Alliance alliance,
             Prints telemetry) {
         this.drive = drive;
-        this.launcher = launcher;
-        this.camera = camera;
+        //        this.launcher = launcher;
+        // this.camera = camera;
         this.nav = nav;
-        this.turntable = turntable;
+        // this.turntable = turntable;
         this.alliance = alliance;
         this.telemetry = telemetry;
         this.usingCameraLocalization = alliance.usesCameraLocalization();
@@ -46,26 +44,26 @@ public class Brain implements Loopable {
         planRunner.cancel();
     }
 
-    public void autoShootFast() {
-        if (planRunner.done()) {
-            planRunner.run(autoShootFastPlan());
+    /*   public void autoShootFast() {
+            if (planRunner.done()) {
+                planRunner.run(autoShootFastPlan());
+            }
         }
-    }
 
-    public void autoShootSlow() {
-        if (planRunner.done()) {
-            planRunner.run(autoShootSlowPlan());
+        public void autoShootSlow() {
+            if (planRunner.done()) {
+                planRunner.run(autoShootSlowPlan());
+            }
         }
-    }
 
-    private Plan autoShootFastPlan() {
-        return new Plan(moveToLaunchPose(), launch(), launch(), launch());
-    }
+       private Plan autoShootFastPlan() {
+            return new Plan(moveToLaunchPose(), launch(), launch(), launch());
+        }
 
-    private Plan autoShootSlowPlan() {
-        return new Plan(moveToLaunchPose(), launchSlow(), launchSlow(), launchSlow());
-    }
-
+        private Plan autoShootSlowPlan() {
+            return new Plan(moveToLaunchPose(), launchSlow(), launchSlow(), launchSlow());
+        }
+    */
     private Step moveToLaunchPose() {
         return new Step(
                 "moveToLaunchPose",
@@ -73,14 +71,14 @@ public class Brain implements Loopable {
                 () -> nav.launchPose().map(drive::toward).orElse(true));
     }
 
-    private Step launch() {
-        return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
-    }
+    /*  private Step launch() {
+            return new Step("launch", launcher::launchyLaunch, launcher::launchDone);
+        }
 
-    private Step launchSlow() {
-        return new Step("launchSlow", launcher::slowLaunchyLaunch, launcher::launchDone);
-    }
-
+        private Step launchSlow() {
+            return new Step("launchSlow", launcher::slowLaunchyLaunch, launcher::launchDone);
+        }
+    */
     private void setTelemetry() {
         telemetry.addData("usingCameraLocalization", usingCameraLocalization);
         telemetry.addData("brainStep", planRunner.currentStep());
@@ -98,21 +96,21 @@ public class Brain implements Loopable {
     public void loop() {
         planRunner.loop();
 
-        double relativeHeadingToTarget = nav.relativeHeadingToTarget();
-        telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
-        turntable.aimAt(relativeHeadingToTarget);
+        //   double relativeHeadingToTarget = nav.relativeHeadingToTarget();
+        //   telemetry.addData("relativeHeadingToTarget", relativeHeadingToTarget);
+        //  // turntable.aimAt(relativeHeadingToTarget);
 
-        Optional<Nav.Pose> sighting = camera.sighting();
+        // //  Optional<Nav.Pose> sighting = camera.sighting();
 
-        if (sighting.isPresent()) {
-            telemetry.addData("camera pose found", true);
+        //   if (sighting.isPresent()) {
+        //       telemetry.addData("camera pose found", true);
 
-            Nav.Pose robotPose = sighting.get().rotated(-turntable.offsetRadians());
+        //       Nav.Pose robotPose = sighting.get().rotated(-turntable.offsetRadians());
 
-            if (usingCameraLocalization) {
-                nav.sighted(robotPose);
-            }
-        }
+        //       if (usingCameraLocalization) {
+        //           nav.sighted(robotPose);
+        //       }
+        //   }
 
         setTelemetry();
     }
