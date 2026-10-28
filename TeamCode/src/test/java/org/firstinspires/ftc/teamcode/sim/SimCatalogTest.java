@@ -19,6 +19,7 @@ import org.firstinspires.ftc.reginald.opmode.AutoOp;
 import org.firstinspires.ftc.reginald.opmode.PlanOpModes;
 import org.firstinspires.ftc.reginald.opmode.RedTeleOp;
 import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
@@ -73,8 +74,12 @@ public class SimCatalogTest {
         assertEquals("auto", forward.kind);
         assertEquals("Autonomous", forward.group);
         assertEquals("Plans.driveForward()", forward.where);
-        assertTrue(catalog.find("BlueScoreAThingFromBack").isPresent());
-        assertTrue(catalog.find("RedScoreAThingFromBack").isPresent());
+        FakeOpModeManager registrar = new FakeOpModeManager();
+        PlanOpModes.register(registrar);
+        for (FakeOpModeManager.Registration registration : registrar.registrations) {
+            assertTrue(
+                    registration.meta.name, catalog.find(registration.meta.name).isPresent());
+        }
         assertTrue(
                 "discovered, so another JVM lists the same without being told where to look",
                 catalog.sources().isEmpty());
@@ -202,8 +207,6 @@ public class SimCatalogTest {
     public void eachOpModeSaysWhichAllianceItPlaysForAndOneThatPlaysForNoneSaysNone() {
         assertEquals("Blue", catalog.find("BlueTeleOp").get().alliance);
         assertEquals("Red", catalog.find("RedTeleOp").get().alliance);
-        assertEquals("Blue", catalog.find("BlueScoreAThingFromBack").get().alliance);
-        assertEquals("Red", catalog.find("RedScoreAThingFromBack").get().alliance);
         assertNull(
                 "a plan relative to where the robot starts plays for nobody",
                 catalog.find("driveForward").get().alliance);
@@ -211,7 +214,7 @@ public class SimCatalogTest {
         SimCatalog parsed = SimCatalog.fromJson(catalog.toJson());
 
         assertEquals("Red", parsed.find("RedTeleOp").get().alliance);
-        assertEquals("Blue", parsed.find("BlueScoreAThingFromBack").get().alliance);
+        assertEquals("Blue", parsed.find("BlueTeleOp").get().alliance);
         assertNull(parsed.find("driveForward").get().alliance);
     }
 

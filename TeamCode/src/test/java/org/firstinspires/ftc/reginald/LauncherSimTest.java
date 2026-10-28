@@ -10,8 +10,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.sim.SimNoise;
 import org.firstinspires.ftc.teamcode.sim.SimRobot;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
@@ -24,22 +23,26 @@ import org.junit.Test;
 
 public class LauncherSimTest {
     private final SimRobot sim = new SimRobot();
-    private final Robot robot = new Robot(sim.hardware(), Alliance.BLUE, new FakeTelemetry());
+    private final Launcher launcher = launcherOf(sim);
+
+    private static Launcher launcherOf(SimRobot sim) {
+        return new Launcher(sim.launcher, sim.topGate, sim.bottomGate, sim::nanoTime, Prints.NOWHERE);
+    }
 
     @Test
     public void aCloseLaunchFromTheLaunchDistanceScoresOneBallInTheBlueHive() {
         Field.Cell cell = sim.upturnedCell("Blue");
         int already = sim.scored("Blue");
         sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE_INCHES));
-        robot.launcher.setCloseLaunchPower();
+        launcher.setCloseLaunchPower();
 
-        robot.launcher.launchyLaunch();
+        launcher.launchyLaunch();
         int loops = 0;
-        while (!robot.launcher.launchDone() && loops++ < 200) {
-            robot.launcher.loop();
+        while (!launcher.launchDone() && loops++ < 200) {
+            launcher.loop();
             sim.step(0.02);
         }
-        assertTrue("the launch sequence finished", robot.launcher.launchDone());
+        assertTrue("the launch sequence finished", launcher.launchDone());
         sim.step(2.0);
 
         assertEquals(already + 1, sim.scored("Blue"));
@@ -52,13 +55,13 @@ public class LauncherSimTest {
         double leaning = sim.tilt("Blue");
         assertEquals("three fifths full to start with", 0.6, sim.load("Blue"), 0.001);
         sim.setPose(facing(cell, Nav.LAUNCH_DISTANCE_INCHES));
-        robot.launcher.setCloseLaunchPower();
+        launcher.setCloseLaunchPower();
 
         for (int launch = 0; launch < SimRobot.PRELOAD; launch++) {
-            robot.launcher.launchyLaunch();
+            launcher.launchyLaunch();
             int loops = 0;
-            while (!robot.launcher.launchDone() && loops++ < 200) {
-                robot.launcher.loop();
+            while (!launcher.launchDone() && loops++ < 200) {
+                launcher.loop();
                 sim.step(0.02);
             }
         }
@@ -80,7 +83,7 @@ public class LauncherSimTest {
         }) {
             String said = "throwing " + throwing * CODES_CLOSE_LAUNCH_TICKS_PER_SECOND + " in/s";
             SimRobot thrower = new SimRobot(TeamRobot.REGINALD, SimNoise.NONE, constants(throwing));
-            Robot code = new Robot(thrower.hardware(), Alliance.BLUE, new FakeTelemetry());
+            Launcher launcher = launcherOf(thrower);
             int aside = 0;
             for (SimRobot.Piece nectar : thrower.balls()) {
                 if (nectar.setUpFrom()
@@ -92,13 +95,13 @@ public class LauncherSimTest {
             }
             Field.Cell cell = thrower.upturnedCell("Blue");
             thrower.setPose(facing(thrower, cell, Nav.LAUNCH_DISTANCE_INCHES));
-            code.launcher.setCloseLaunchPower();
+            launcher.setCloseLaunchPower();
 
             for (int launch = 0; launch < SimRobot.PRELOAD; launch++) {
-                code.launcher.launchyLaunch();
+                launcher.launchyLaunch();
                 int loops = 0;
-                while (!code.launcher.launchDone() && loops++ < 200) {
-                    code.launcher.loop();
+                while (!launcher.launchDone() && loops++ < 200) {
+                    launcher.loop();
                     thrower.step(0.02);
                 }
             }

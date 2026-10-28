@@ -20,18 +20,7 @@ public class RobotTest {
 
     @Test
     public void buildsEverySubsystemWithBrainLastThenThePlans() {
-        assertEquals(
-                List.of(
-                        robot.localizer,
-                        robot.launcher,
-                        robot.intake,
-                        robot.drive,
-                        robot.camera,
-                        robot.nav,
-                        robot.turntable,
-                        robot.brain,
-                        robot.plans),
-                robot.loopOrder());
+        assertEquals(List.of(robot.localizer, robot.drive, robot.nav, robot.brain, robot.plans), robot.loopOrder());
     }
 
     @Test

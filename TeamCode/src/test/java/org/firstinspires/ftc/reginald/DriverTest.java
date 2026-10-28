@@ -19,8 +19,7 @@ public class DriverTest {
     private final Gamepad gamepad2 = new Gamepad();
     private final Robot robot = new Robot(devices.hardware(), Alliance.BLUE, new FakeTelemetry(), gamepad1, gamepad2);
 
-    private final Driver driver =
-            new Driver(robot.drive, robot.launcher, robot.brain, robot.nav, robot.turntable, gamepad1, gamepad2);
+    private final Driver driver = new Driver(robot.drive, robot.brain, robot.nav, gamepad1, gamepad2);
 
     private void tick() {
         robot.loop();
@@ -58,15 +57,6 @@ public class DriverTest {
     }
 
     @Test
-    public void squareStartsALaunch() {
-        gamepad1.square = true;
-
-        tick();
-
-        assertFalse(robot.launcher.launchDone());
-    }
-
-    @Test
     public void theLeftBumperAimsAtTheLaunchPoseAndTheSticksNudgeStrafeAndTurn() {
         parkAtTheLaunchPose();
         gamepad1.left_bumper = true;
@@ -100,14 +90,7 @@ public class DriverTest {
     @Test
     public void playingForNoAllianceThereIsNoGoalToAimAtSoTheBumpersJustDrive() {
         Robot relative = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry(), gamepad1, gamepad2);
-        Driver relativeDriver = new Driver(
-                relative.drive,
-                relative.launcher,
-                relative.brain,
-                relative.nav,
-                relative.turntable,
-                gamepad1,
-                gamepad2);
+        Driver relativeDriver = new Driver(relative.drive, relative.brain, relative.nav, gamepad1, gamepad2);
         gamepad1.left_bumper = true;
         gamepad1.left_stick_y = -1;
 

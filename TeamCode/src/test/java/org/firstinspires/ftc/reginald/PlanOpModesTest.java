@@ -57,17 +57,29 @@ public class PlanOpModesTest {
         assertEquals(Alliance.RELATIVE, opMode.alliance());
     }
 
+    public static class ForEachAlliance extends Plans {
+        public ForEachAlliance(Drive drive, Nav nav, LongSupplier nanoClock) {
+            super(drive, nav, nanoClock);
+        }
+
+        @Auto(name = "BlueFromBack", alliance = Alliance.BLUE)
+        @Auto(name = "RedFromBack", alliance = Alliance.RED)
+        public PlanPart fromBack() {
+            return new Step("wait", () -> {}, () -> false);
+        }
+    }
+
     @Test
     public void onePlanIsRegisteredOncePerAllianceItIsAnnotatedFor() {
-        PlanOpModes.register(manager);
+        PlanOpModes.register(manager, ForEachAlliance.class);
 
-        AutoOp blue = registered("BlueScoreAThingFromBack");
-        AutoOp red = registered("RedScoreAThingFromBack");
+        AutoOp blue = registered("BlueFromBack");
+        AutoOp red = registered("RedFromBack");
 
         assertEquals(Alliance.BLUE, blue.alliance());
         assertEquals(Alliance.RED, red.alliance());
-        assertEquals("Plans.scoreAThingFromBack()", blue.where());
-        assertEquals("Plans.scoreAThingFromBack()", red.where());
+        assertEquals("ForEachAlliance.fromBack()", blue.where());
+        assertEquals("ForEachAlliance.fromBack()", red.where());
     }
 
     @Test
@@ -85,8 +97,8 @@ public class PlanOpModesTest {
     }
 
     public static class WrongShape extends Plans {
-        public WrongShape(Drive drive, Nav nav, Launcher launcher, LongSupplier nanoClock) {
-            super(drive, nav, launcher, nanoClock);
+        public WrongShape(Drive drive, Nav nav, LongSupplier nanoClock) {
+            super(drive, nav, nanoClock);
         }
 
         @Auto(alliance = Alliance.RELATIVE)
@@ -106,8 +118,8 @@ public class PlanOpModesTest {
     }
 
     public static class Twice extends Plans {
-        public Twice(Drive drive, Nav nav, Launcher launcher, LongSupplier nanoClock) {
-            super(drive, nav, launcher, nanoClock);
+        public Twice(Drive drive, Nav nav, LongSupplier nanoClock) {
+            super(drive, nav, nanoClock);
         }
 
         @Auto(name = "Same", alliance = Alliance.RED)

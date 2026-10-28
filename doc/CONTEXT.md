@@ -55,8 +55,10 @@ is where anything the op mode owns is ticked. `loop` is final at both
 levels, so the order is not a subclass's to rearrange, and an auto's plan
 advancing after every subsystem is the shape of it rather than a position in
 a list. That every subsystem is ticked at all is mechanical rather than
-remembered, and a test says so: it finds every `Loopable` in `reginald` and
-fails naming any the op modes never reach. Classes: `Loopable`;
+remembered, and a test says so: it finds every `Loopable` in `reginald` that
+the robot or an op mode holds and fails naming any the op modes never reach.
+A subsystem nothing holds, such as one switched off with the hardware it
+drives, is not judged until something holds it again. Classes: `Loopable`;
 `Robot.loopOrder`; `SubSystemsAreTickedTest`.
 
 **Channel** — The driver station's telemetry divided by the name of whoever
@@ -65,7 +67,9 @@ it and nothing else, always, knowing nothing about whether anyone is
 reading; the channel puts its own name on every caption, so two subsystems
 cannot print the same one. Telemetry costs a loop and a crowded screen, so a
 channel is off until a driver asks for it, and which button reaches which
-channels is said once, in the op mode.
+channels is said once, in the op mode. Every channel the robot makes has a
+button; a button may also name a channel of a subsystem that is switched
+off, which then reaches nothing. Class: `TelemetryTogglesReachEveryChannelTest`.
 
 That the decision lives there and nowhere else is the point. It used to be a
 flag on every subsystem, a gate in a base class and a method on each of them
@@ -96,14 +100,16 @@ name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
 enforces rather than leaving to care.
 
-It is **whole or not at all**. Both sides of the seam wire it by hand — the
-robot from its configuration, the simulator from its fakes — and nothing
-but this class can say the two agree, so it is built through a builder that
-names each device and refuses one that is missing any, naming what is
-missing. A device added here that an adapter has not kept up with then
-fails where that adapter is written, rather than as a null inside whichever
-subsystem reaches for it first, which on the robot is in the middle of a
-match. The devices are named as they are set rather than counted out in
+It is **whole or not at all**. The robot wires it by hand from its
+configuration, and the simulator hands the builder each device the builder
+asks for, matched by name from its fakes, so switching a device off in the
+robot code (or on again) leaves the simulator building and running as it
+was. Nothing but this class can say the two agree, so it is built through a
+builder that names each device and refuses one that is missing any, naming
+what is missing. A device added here that the simulator has no fake of
+fails where the simulator wires it, naming the device, rather than as a
+null inside whichever subsystem reaches for it first, which on the robot is
+in the middle of a match. The devices are named as they are set rather than counted out in
 order, since nine of them are motors and a positional list would let a
 wheel be quietly swapped for its neighbour. Class: `Hardware`;
 `Hardware.Builder`; `Robot.clock`.
@@ -1528,7 +1534,10 @@ in prose: `SimLiveServerTest`, `SimBenchTest`.
 **Devices** — A robot's devices as fakes, and a clock: everything the robot
 code can reach through its **Hardware**, and nothing that moves on its own.
 A motor reads back what was last written to it, and time passes only when
-someone says `advance`. This is the second adapter at the hardware seam —
+someone says `advance`. The fakes are every device the robot has been built
+with; the **Hardware** is handed the ones its builder asks for, by name, and
+the rest sit unwired, still there for the physics and for a test that builds
+a switched-off subsystem straight from them. This is the second adapter at the hardware seam —
 the **simulated robot** is the first, and holds one of these, writing its
 sensors from where the physics put the robot. A test of one subsystem wants
 neither the physics nor the field (a turntable turns because its own motor

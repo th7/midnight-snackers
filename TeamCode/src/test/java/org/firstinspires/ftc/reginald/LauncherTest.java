@@ -5,8 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 
@@ -18,10 +17,11 @@ public class LauncherTest {
     private static final double CLOSE_LAUNCH_VELOCITY = 1050;
 
     private final SimDevices devices = new SimDevices();
-    private final Launcher launcher = new Robot(devices.hardware(), Alliance.RELATIVE, new FakeTelemetry()).launcher;
+    private final Launcher launcher =
+            new Launcher(devices.launcher, devices.topGate, devices.bottomGate, devices::nanoTime, Prints.NOWHERE);
 
     @Test
-    public void aFreshRobotParksTheGatesAndConfiguresTheFlywheel() {
+    public void aFreshLauncherParksTheGatesAndConfiguresTheFlywheel() {
         assertEquals(TOP_GATE_OPEN, devices.topGate.position, DELTA);
         assertEquals(BOTTOM_GATE_CLOSED, devices.bottomGate.position, DELTA);
         assertEquals(DcMotor.RunMode.RUN_USING_ENCODER, devices.launcher.getMode());

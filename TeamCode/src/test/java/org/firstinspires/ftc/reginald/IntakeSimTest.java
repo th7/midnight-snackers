@@ -34,6 +34,7 @@ public class IntakeSimTest {
 
     private final SimRobot sim = new SimRobot();
     private final Robot robot = new Robot(sim.hardware(), Alliance.RELATIVE, new FakeTelemetry());
+    private final Intake intake = new Intake(sim.intake);
 
     @Before
     public void setUpTheLane() {
@@ -67,7 +68,7 @@ public class IntakeSimTest {
     public void theIntakeOffLeavesAPollenOnTheFloor() {
         emptyTheRobot();
         SimRobot.Piece pollen = placeInTheLane(loosePollen().get(0), FIRST_PIECE_X);
-        robot.intake.off();
+        intake.off();
 
         driveDownTheLane();
 
@@ -104,7 +105,7 @@ public class IntakeSimTest {
 
     private void driveDownTheLane() {
         for (int loop = 0; loop < LOOPS; loop++) {
-            robot.intake.loop();
+            intake.loop();
             robot.drive.manual(DRIVING_POWER, 0, 0);
             sim.step(LOOP_SECONDS);
         }

@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.reginald;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,37 +36,6 @@ public class BrainTest {
             detections.add(new AprilTagDetection(BLUE_GOAL_TAG, 0, 0, null, null, null, null, null, robotPose, now));
             robot.loop();
         }
-    }
-
-    @Test
-    public void aSightingPlacesTheRobotWhereTheCameraSaysLessTheTurntablesTurn() {
-        Robot robot = robotFor(Alliance.BLUE);
-        devices.turnTable.currentPosition = Turntable.TICKS_PER_REVOLUTION / 4;
-
-        see(robot, 10, 20, Math.PI / 2);
-
-        assertEquals(-10, robot.nav.currentPose().xInches(), DELTA);
-        assertEquals(-20, robot.nav.currentPose().yInches(), DELTA);
-        assertEquals(
-                "the camera's heading is the turntable's, so the robot's is that less the turn",
-                -Math.PI / 2,
-                robot.nav.currentPose().headingRadians(),
-                DELTA);
-    }
-
-    @Test
-    public void theBrainsOwnPlanRunsOnEveryLoop() {
-        Robot robot = robotFor(Alliance.RELATIVE);
-        assertEquals("nothing commanded yet", 0, devices.launcher.commandedVelocity, DELTA);
-
-        robot.brain.autoShootFast();
-        for (int i = 0; i < 3; i++) {
-            robot.loop();
-        }
-
-        assertTrue(
-                "the plan reached its launch step, so the flywheel was commanded",
-                devices.launcher.commandedVelocity > 0);
     }
 
     @Test

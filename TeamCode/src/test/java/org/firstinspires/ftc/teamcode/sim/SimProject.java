@@ -118,10 +118,7 @@ public final class SimProject {
                 + "\n"
                 + "public class Plans implements Loopable {\n"
                 + "    private int loops = 0;\n"
-                + "    public Plans(org.firstinspires.ftc.reginald.Drive drive,"
-                + " org.firstinspires.ftc.reginald.Nav nav,"
-                + " org.firstinspires.ftc.reginald.Launcher launcher,"
-                + " java.util.function.LongSupplier nanoClock) { }\n"
+                + "    public Plans(Object... whateverTheRobotHandsIt) { }\n"
                 + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group
                 + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"
                 + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops

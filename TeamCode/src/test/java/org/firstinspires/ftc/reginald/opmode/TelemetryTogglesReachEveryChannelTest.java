@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import org.firstinspires.ftc.reginald.Robot;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
@@ -37,7 +39,7 @@ public class TelemetryTogglesReachEveryChannelTest {
     }
 
     @Test
-    public void everyChannelTheRobotMakesHasAButtonAndEveryButtonReachesOne() {
+    public void everyChannelTheRobotMakesHasAButton() {
         TestOp opMode = initialised();
         Robot robot = opMode.robot;
 
@@ -45,9 +47,8 @@ public class TelemetryTogglesReachEveryChannelTest {
         press(opMode, "square");
         press(opMode, "circle");
 
-        assertEquals(
-                "the channels the buttons reach are the channels the robot made",
-                robot.channels.made(),
-                robot.channels.areOn());
+        Set<String> unreached = new LinkedHashSet<>(robot.channels.made());
+        unreached.removeAll(robot.channels.areOn());
+        assertEquals("channels the robot made that no button reaches", Set.of(), unreached);
     }
 }

@@ -15,12 +15,12 @@ public class HardwareTest {
     public void aHardwareMissingADeviceIsRefusedAndTheDevicesAreNamed() {
         IllegalStateException refused = assertThrows(
                 IllegalStateException.class,
-                () -> Hardware.builder().launcher(new FakeDcMotorEx()).build());
+                () -> Hardware.builder().leftFront(new FakeDcMotorEx()).build());
 
-        assertTrue(refused.getMessage(), refused.getMessage().contains("turnTable"));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("rightFront"));
         assertTrue(refused.getMessage(), refused.getMessage().contains("imu"));
         assertTrue(refused.getMessage(), refused.getMessage().contains("nanoClock"));
-        assertFalse("not the one it was given", refused.getMessage().contains("launcher"));
+        assertFalse("not the one it was given", refused.getMessage().contains("leftFront"));
     }
 
     @Test

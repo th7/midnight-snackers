@@ -10,7 +10,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.teamcode.base.Channels;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -24,9 +24,9 @@ public class CameraTest {
     private final List<AprilTagDetection> detections = new ArrayList<>();
     private final SimDevices devices = new SimDevices();
 
-    private final Robot robot = new Robot(devices.hardware(() -> detections), Alliance.RELATIVE, new FakeTelemetry());
+    private final Channels channels = new Channels(new FakeTelemetry());
 
-    private final Camera camera = robot.camera;
+    private final Camera camera = new Camera(() -> detections, devices::nanoTime, channels.channel(Camera.CHANNEL));
 
     @Test
     public void aSightingGoesStaleATenthOfASecondAfterItsFrameOnTheRobotsClock() {
@@ -56,7 +56,7 @@ public class CameraTest {
 
     @Test
     public void turningTelemetryOnBeforeAnyTagIsSeenPrintsRatherThanThrowing() {
-        robot.channels.toggle(Camera.CHANNEL);
+        channels.toggle(Camera.CHANNEL);
 
         camera.loop();
 

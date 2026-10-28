@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.reginald;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
@@ -31,7 +32,33 @@ public class SubSystemsAreTickedTest {
         return subSystems.stream().filter(type -> !ticked.contains(type)).collect(Collectors.toList());
     }
 
+    private static List<Class<?>> heldAmong(Collection<Class<?>> subSystems, Set<Class<?>> held) {
+        return subSystems.stream().filter(held::contains).collect(Collectors.toList());
+    }
+
+    private static Set<Class<?>> heldByTheRobotOrAnOpMode() {
+        Set<Class<?>> held = new LinkedHashSet<>(fieldTypesOf(Robot.class));
+        for (SimCatalog.Entry entry : SimCatalog.discover(TeamRobot.REGINALD).entries()) {
+            held.addAll(fieldTypesOf(entry.opMode().getClass()));
+        }
+        return held;
+    }
+
+    private static Set<Class<?>> fieldTypesOf(Class<?> holder) {
+        Set<Class<?>> types = new LinkedHashSet<>();
+        for (Class<?> type = holder; type != null; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                types.add(field.getType());
+            }
+        }
+        return types;
+    }
+
     private static List<Class<?>> subSystems() {
+        return heldAmong(loopablesInTheRobotsPackage(), heldByTheRobotOrAnOpMode());
+    }
+
+    private static List<Class<?>> loopablesInTheRobotsPackage() {
         List<Class<?>> subSystems = new ArrayList<>();
         for (Class<?> type : Classpath.classesUnder(TeamRobot.REGINALD.javaPackage())) {
             if (type.getName().startsWith(SimCatalog.ROADRUNNER_PACKAGE + ".")) {
@@ -101,9 +128,20 @@ public class SubSystemsAreTickedTest {
     public void findsTheSubSystemsToCheck() {
         List<Class<?>> subSystems = subSystems();
 
-        assertTrue(subSystems.toString(), subSystems.containsAll(List.of(Launcher.class, Drive.class, Brain.class)));
+        assertTrue(subSystems.toString(), subSystems.containsAll(List.of(Localizer.class, Drive.class, Brain.class)));
         assertTrue(subSystems.toString(), subSystems.contains(Driver.class));
         assertTrue(subSystems.toString(), subSystems.contains(Plans.class));
+    }
+
+    @Test
+    public void aLoopableNothingHoldsIsNotASubSystem() {
+        List<Class<?>> candidates = new ArrayList<>(loopablesInTheRobotsPackage());
+        candidates.add(Stray.class);
+
+        List<Class<?>> held = heldAmong(candidates, heldByTheRobotOrAnOpMode());
+
+        assertFalse(held.toString(), held.contains(Stray.class));
+        assertTrue(held.toString(), held.containsAll(List.of(Localizer.class, Drive.class, Brain.class)));
     }
 
     @Test
