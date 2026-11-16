@@ -348,185 +348,25 @@ Tested in batch 1.
 
 ### Feeder
 
-**What the CAD says** (13 October).
-- **Tilt:** 16.4645° about X, rising toward the back (the feeder frame above).
-- **Bottom plate** (*FeederBottom*): a disc of r 83.62 mm (Ø = 2·PollenDiameter
-  + 25 mm), top face at d −6.701, 5 mm thick, with a boss of r 63.894 reaching
-  10 mm further down. It holds a REV-41-1683 bearing block: a 22.44 × 33.15 mm
-  pocket 10.41 mm deep, a Ø19.15 mm bore, and holes at exactly the block's
-  pattern scaled by 1.02.
-- **Top plate** (*FeederTop*): r 83.62, underside at d 69.419, top at 86.419,
-  17 mm thick. It holds a standard-size servo: a 20 × 41.65 mm pocket 14 mm
-  deep, Ø4.545 mm holes on a 49.995 × 10.1 mm pattern, and a Ø13.13 mm shaft
-  bore on the axis, 10.15 mm from the pocket's centre. The pocket, its ears
-  and its holes lie within \|x\| ≤ 10 and e2 −37.42 to 17.12.
-- **Gap between the plates:** 76.12 mm, one pollen plus 5 mm (Sketch 3,
-  `#PollenDiameter + 5mm`). `FeederHeight` (75 mm) and `FeederRadius` (55 mm)
-  are not used by any feature.
-- **Notch** in the top plate: \|x\| < 31.739 from e2 26.843 out to the rim,
-  63.48 mm wide.
-- **Front flat** on the top plate at e2 −59.795. Without it a pollen coming
-  over the crest would hit the rim by 6.09 mm. With it there is 5.07 mm.
-- The flywheel's flanges dip 8.30 mm below the top plate's underside, into
-  the pocket space: 67.82 mm above the floor at e2 84.13.
-- **Nothing hints at pockets, arms or a fence.**
+Superseded by `feeder-sim.md`. The CAD now draws the feeder: a floor 15 mm
+thick, a wall at r 82.27 with a front and a back window, the top plate 81.12
+above the floor, and the spinner's servo on top, pointing down the axis. The
+spinner has two arms, not four, and is not drawn yet. The 4-arm rotor, its
+pockets, the fence and its entry guide below are retired, and the batches
+that build them take the feeder from `feeder-sim.md` instead.
 
-**The live CAD has moved on** (14 October, mid-edit). The bottom plate is now
-*Part 1*: a 167.24 mm square slab, 15 mm thick, with the bearing block's
-recess and no boss. A REV 15 mm inside corner bracket was imported.
-*Transform 5* is in error, and Reginald still shows the slab at the origin,
-untilted. *Sketch 6*, a 7.5 × 8.59 mm rectangle on the slab's side, is not
-yet extruded. The top plate is unchanged.
-
-**What we infer.**
-
-| Inference | Why | Confidence |
-|---|---|---|
-| **Both plates are fixed, and a 4-arm rotor turns between them on a continuous-rotation servo** | The servo is bolted into the top plate, and a continuous servo whose body turned would wind up its cable. A bearing block in the bottom plate only makes sense with a shaft turning inside it. The notch and the front flat only work at one orientation. The live square slab cannot turn (its corners sweep r 118.3) and carries a frame bracket | high |
-| **Floor:** the bottom plate's top face at d −6.701, reaching r 96, cut at the front at e2 −83.62 | A pollen in the entry V at \|x\| 50 touches the floor at r 91, past the CAD's 83.62. The fence needs a floor under it. The cut keeps the rim, and so the V, where the CAD has them | medium |
-| **Lid:** the CAD's top plate, but for its notch | | high |
-| **Notch:** \|x\| < 42 (the back window's width) from e2 26.843 out to the rim, not the CAD's 31.739 | From the side, a pollen crossing the raised fin meets the CAD notch's edge 3.48 mm deep. No fin that reaches the wheel clears it: a 1 mm blade whose crest just reaches the wheel is 1.10 mm into the edge. At \|x\| < 42 the tightest clearance is 1.49 mm (3.13 at \|x\| < 45), and a centred pollen on stage 4's squeezed path has 7.49 mm (6.83 through the CAD's notch). The servo's pocket and ears end at e2 17.12, so the wider notch leaves them whole | low |
-| **Rotor:** a hub of r 12; 4 arms, 4.0 mm thick, from r 12 to 88, 22–62 mm above the floor and full height inside r 25 | Pollen to hub 5.56 mm. Arm top to lid 14.12 mm and to the flywheel's flange 5.82 mm. The arms' lower edge clears the raised fin by 2.21 mm. The arms push at the pollen's equator, 35.56 mm up | medium |
-| **Fence:** a fixed ring, r 93–96, floor to lid. A front window \|x\| ≤ 50.9 (the throat) and a back window \|x\| ≤ 42. An entry guide spirals from r 112 to r 93 over 60°, on the side the arms sweep toward | At r 55 a pollen overhangs the plates by 7 mm, so something must hold it. The windows let pollen in at the front and up into the flywheel at the back. The guide carries an arriving pollen in from the V to the fence | medium |
-| **Pockets:** 90° wedges between the arms. A pollen's centre sits between r 53.12 (seated against both arms) and 57.44 (against the fence); for the field's pollen, 52.76 and 57.69 | Follows from the rows above. It spans the CAD's unused `FeederRadius` of 55 | medium |
-| Positive power turns the rotor counter-clockwise seen from above, so the guide is on the left of the front window | The CAD does not say. Either way works | low |
-
-**Pocket numbers** (the CAD's 71.12 mm pollen unless it says otherwise).
-
-| Pair | Clearance (mm) |
-|---|---|
-| Neighbouring pollen at r 55 | 6.66 |
-| Pollen to a 4 mm arm, each side, at r 55 | **1.33**: 1.58 for the field's 70.61 mm pollen, 0.83 for one 1 mm large, 0.06 at 2.54 mm large |
-| Pollen to arm, each side, against the fence | 3.06 |
-| Pollen to fence (seated) / to hub | 4.32 / 5.56 |
-| Pollen to lid | 5.00 |
-| Arm top to lid / to the flywheel's flange | 14.12 / 5.82 |
-
-**The R 58 option.** Pockets at r 58 with 4 mm arms leave 3.45 mm each side,
-and need the fence at r 96. The default stays at the CAD's 55 with the fence
-at 93 (calibration item 12).
-
-**The fling limit.** At the back station gravity pulls a seated pollen inward
-at 2.779 m/s², because the plates rise toward the back. Above **1.15 rev/s**
-the turn pulls harder than that, and a pollen passes the back station against
-the fence instead of seated. The back window is 84 mm wide, 13 mm wider than
-a pollen, so it is pressed out into the window there. Whether it then leaves
-the feeder, catches on the window's far edge or reaches the fixed piece is
-for the physics to show (batch 3b).
-
-**The front station** is the opposite case. Gravity's 2.779 m/s² points
-outward there at any speed, and the front window leaves nothing to hold the
-pollen. On each pass a pocket's pollen rolls out toward the V (r 76.26), and
-the guide puts it back against the fence. While an arm lies on the front
-centreline, the pockets either side of it keep their pollen: each rolls along
-that arm onto the fence beside the window. The preload sits that way
-(batch 4).
-
-Vendor speeds, no load:
-
-| Servo | Speed | rev/s | Seconds per pocket |
-|---|---|---|---|
-| goBILDA 25-2 Torque | 40 rpm at 4.8 V | 0.67 | 0.375 |
-| REV Smart Robot Servo | 0.14 s/60° at 6 V | 1.19 | 0.21 |
-| goBILDA 25-3 Speed | 90 rpm at 4.8 V | 1.5 | 0.167 |
-| goBILDA 25-4 Super Speed | 180 rpm at 4.8 V | 3.0 | 0.083 |
-
-The Hub's servo ports give 5 V. A Servo Power Module or a Servo Hub gives 6 V.
-
-**How it is simulated.**
-
-| | Value | Source | Confidence |
-|---|---|---|---|
-| Floor | three convex slabs, with their joins named: the front piece, and one each side of the fin's slot (\|x\| ≤ 10.5 from e2 28.6 out). Arcs as 72-sided polygons, within 0.1 mm of the circle | inferred | medium |
-| Lid | three convex slabs, 17 mm thick, with their joins named: ahead of the notch, and one each side of it, with the front flat | the CAD's top plate with the notch widened (assumed) | low |
-| Fence | two cylinder patches, R 94.5, rounding 1.5 (r 93–96), between the windows; the guide as four flat plates | inferred | medium |
-| Rotor | the hub as a cylinder patch, R 12, rounding 0; each arm as two boxes, with their joins named, in the rotor's frame, turned about the feeder's axis | inferred | medium |
-| Contact | the pollen's squash, μ 0.30, restitution 0.50 | materials | low |
-| Drive | a continuous servo: speed = `FEEDER_SPEED`·sign(power)·max(0, \|power\| − L ÷ stall torque), with L the load torque opposing the turn. `FEEDER_SPEED` 1.0 rev/s at full power, 0.2–3. Stall torque 1.1 N·m | the REV Smart Robot Servo's 0.14 s/60° and 13.5 kg·cm at 6 V (vendor), scaled to the Hub's 5 V; under the fling limit | low |
-| Load | the torque the arms and the hub took from pollen in the step, from the engine | | |
-
-A jam: an arm that presses a pollen against a window's edge loads the servo
-past its stall torque. The rotor stops at the next step, with the pollen
-squashed by less than one step's travel of the arm (1.7 mm at 1 rev/s, r 55).
-
-Tested in batches 1, 3a, 3b, 3c, 4 and 5.
+Still standing, restated there: the fling limit (1.23 rev/s at the wall),
+the front station's push outward, and the servo figures.
 
 ### Lift ramp
 
-**What the CAD says.** Nothing: there is no ramp and no servo. What it does
-fix:
+Superseded by `feeder-sim.md`. The ramp is a bar under the feeder's floor on
+its own servo, which swings it up across the robot through a slot at the back
+of the floor. The fin under the hood, its pivot and its fixed piece are
+retired.
 
-| What | CAD (mm) | Robot frame (in) |
-|---|---|---|
-| A seated pollen at the back station | Y 210.58, Z 92.33; 87.91 from the flywheel's axle, 4.2° ahead of straight down | (−0.259, 0, 3.635) |
-| Rise to touch the wheel | 12.62 toward the axle, 13.65 straight along n (11.97 and 12.83 at r 55). The field's pollen, seated at r 52.76: 13.24 and 14.35 | |
-| Room through the top plate's notch, lifted onto stage 4's squeezed path | 6.83 (7.09 for the field's pollen; 6.99 with the hood at r 108.849) | |
-
-**What we infer.**
-
-| Inference | Why | Confidence |
-|---|---|---|
-| A hinged fin under the hood, 12 mm wide (\|X\| ≤ 6), on a positional servo | The team's "a servo lifts a small ramp". A fin fits a floor slot and the notch | medium |
-| Its crest continues stage 4's hood groove bottom: r 108.341 about the flywheel's axle, from θ −96° to −73° | A pollen on it is then squeezed stage 4's 2.0 mm between fin and wheel (2.5 mm for the CAD's pollen), so the wheel takes it | medium |
-| Ahead of −96° the crest drops away from the wheel, round a nose of radius 27.624 mm tangent at −96°, to r 112.849 at the tip (θ −103°) | It keeps the tip 19.56 mm above the floor and the arms 2.21 mm clear of the raised fin. Without it the tip would stand 23.49 mm up, 1.49 mm into the arms' sweep | medium |
-| The fin is a half-round bar: its top is round across its width with radius 6 mm, and its underside is flat 6 mm below the crest | At the back station the pocket moves across the robot, so a pollen meets the fin from its side, not from its front end. A round top lets an arm push the pollen up onto it. A top round with radius 8 across 16 mm would need the fin 8 mm deep, and lowered 37° that reaches the cross rail | medium-low |
-| A fixed piece of the same section from −73° to −64.8°, part of the hood. It replaces stage 4's hood extension and stop (batch 4) | It joins the fin to the hood at the same crest radius. It clears a pollen passing against the fence by 2.48 mm (2.38 for the field's) and a seated one by 5.74 mm | medium |
-| The pivot runs along y at CAD (Y 249.12, Z 74.95), robot (−1.776, 0, 2.951) in | It lies at the fin's back end, 1.51 mm from its crest at −73°, so lowering the fin hardly moves it at the fixed piece while its front swings down through the floor's slot | medium |
-| Down is 37° front-down | It balances a pollen passing against the fence (1.50 mm clear; 3.79 mm seated) against the cross rail (1.53 mm). At 32° a pollen against the fence would clear by 0.59 mm, and at 35° by 1.19 mm | medium |
-| Raised, the crest is 15.67 mm above the floor at θ −93° and 19.56 mm at the tip, both along n. A pollen pushed across it rises up to 15.67 mm, past the 13.65 mm along n (12.62 toward the axle) that brings it to the wheel; 14.35 for the field's pollen | | medium |
-| Lowered, the fin's front drops about 24 mm at the back station and 37 mm at the tip. A pollen crossing the slot dips 1.59 mm | | medium |
-| The ramp's servo takes 0.168 s per 60°: 0.104 s for the 37° stroke | The REV Smart Robot Servo's 0.14 s/60° at 6 V (vendor), scaled to 5 V | low |
-
-So with the ramp up, the passing pollen rides over the fin's crest and the
-wheel takes it there. With the ramp down it rides on round.
-
-**A finding for the team: the notch.** The top plate's notch is 63.48 mm
-wide, narrower than a pollen, and a pocket's pollen has only 5.00 mm under the
-lid. A pollen that meets the raised fin from its side can rise more than 5 mm
-only where its cap fits the notch. 20 mm off the centreline the CAD's notch
-lets it rise at most 6.99 mm, but the fin lifts it 10.54 mm there. The
-overlap with the notch's edge peaks at 3.48 mm, 17.9 mm off the centreline.
-The arm pushes with only about 20 N, so the rotor jams. The plan widens the
-notch to the back window's \|x\| < 42 (item 23).
-
-**A finding for the team: timing.** A pocket passes every 1/(4·rev/s): 0.25 s
-at 1.0 rev/s, 0.21 s at 1.19. Up and down together take about 0.21 s at 5 V.
-The robot code does not know the rotor's angle, because a continuous servo has
-no encoder. So a ramp raised for a fixed time may lift none or two, depending
-on when it starts. The plan does not wait for the team's fix. Its default uses
-a sensor the robot already has: the flywheel. A pollen the wheel takes slows
-it by about 115 ticks/s (*Flywheel and hood*), more than twice the 50 ticks/s
-the default looks for and more than four times the 25 ticks/s a driver's power
-step moves the target. So `Launcher` raises the ramp and lowers it as soon as
-the flywheel's measured speed falls more than 50 ticks/s below its target, or
-after `RAMP_UP_SECONDS` if no pollen came. The next pollen climbs high enough
-to reach the wheel only in the last 13 mm before the station, about 0.038 s
-before it at 1 rev/s. The fin must be down by then. The drop passes 50 ticks/s
-within the take's 40 ms; one loop to see it and 0.104 s to lower the fin make
-at most about 0.16 s of the 0.21 s there is. A sensor on the rotor, or a
-slower feeder for the shot, would replace this default (calibration item 22).
-
-**A finding for the team: the fin's torque.** While the wheel takes a pollen,
-stage 4's 2.0 mm squeeze presses the fin with about 40 N (two contacts of
-40 N/mm in series), 45 N at the peak, about 38 mm from the pivot at θ −93°.
-That is 1.5–1.7 N·m, against a stall torque of 1.1–1.3 N·m for a Smart Robot
-Servo. A servo's gears usually hold more than they drive, and the pollen
-leaves the fin within milliseconds. So the plan holds the fin where its servo
-puts it and reports the torque. If the torque is real, the team may want a
-stronger servo or a hard stop.
-
-**How it is simulated.**
-
-| | Value | Source | Confidence |
-|---|---|---|---|
-| Fin top | stage 4's arc collider rounded to 6 mm: its centre line at r 114.341 about the axle, so its face toward the axle, the crest, is at 108.341, θ −96° to −73°; ahead of it a second arc rounded to 6 mm, radius 21.624 mm about a centre 135.965 mm (108.341 + 27.624) from the axle along θ −96°, to the tip at −103°. Joined at −96° | inferred | medium |
-| Fin section | half-round, 12 mm wide and 6 mm deep. The rounded arcs are whole tubes, 12 mm deep, but a pollen only ever meets their top half, so the clearance tests read the section, not the arcs | inferred | medium |
-| Fixed piece | the same top and section, −73° to −64.8°, carried with the robot. Joined to the fin at −73° and to the hood's middle ring at −64.8° | inferred | medium |
-| Motion | turns about the pivot: up is 0°, down 37° front-down. The angle slews toward the commanded one at the servo's speed, and is held whatever the load | inferred | medium |
-| Positions | `Launcher`'s two ramp positions are down and up. A position between them is the angle between, linearly | read from `Launcher`, so there is no second copy | high |
-| Contact | the pollen's squash, μ 0.30 | materials | low |
-
-Tested in batches 1, 3a, 3b and 4.
+Still standing, restated there: the timing finding, now 0.5 s per pass with
+two arms, and the ramp's torque, which the Feeder Sim reports.
 
 ### Flywheel and hood
 
