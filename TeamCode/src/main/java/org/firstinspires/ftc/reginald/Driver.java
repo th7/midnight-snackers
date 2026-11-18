@@ -7,7 +7,7 @@ import org.firstinspires.ftc.teamcode.base.Loopable;
 
 public class Driver implements Loopable {
     private final Drive drive;
-
+    private final Intake intake;
     // private final Launcher launcher;
     private final Brain brain;
     private final Nav nav;
@@ -20,6 +20,7 @@ public class Driver implements Loopable {
             // Launcher launcher,
             Brain brain,
             Nav nav,
+            Intake intake,
             // Turntable turntable,
             Gamepad gamepad1,
             Gamepad gamepad2) {
@@ -27,6 +28,7 @@ public class Driver implements Loopable {
         // this.launcher = launcher;
         this.brain = brain;
         this.nav = nav;
+        this.intake = intake;
         // this.turntable = turntable;
         this.gamepad1 = gamepad1;
         this.gamepad2 = gamepad2;
@@ -54,9 +56,9 @@ public class Driver implements Loopable {
             drive.cancel();
         }
 
-        // if (gamepad1.square) {
-        //     launcher.launchyLaunch();
-        // }
+        if (gamepad1.square) {
+            intake.driveTheMotor();
+        }
 
         // if (gamepad1.triangle) {
         //     launcher.slowLaunchyLaunch();

@@ -13,7 +13,7 @@ public abstract class TeleOp extends OpMode {
     @Override
     public void init() {
         super.init();
-        driver = new Driver(robot.drive, robot.brain, robot.nav, robot.gamepad1, robot.gamepad2);
+        driver = new Driver(robot.drive, robot.brain, robot.nav, robot.intake, robot.gamepad1, robot.gamepad2);
     }
 
     @Override
