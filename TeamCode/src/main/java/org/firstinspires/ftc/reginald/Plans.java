@@ -136,7 +136,7 @@ public class Plans implements Loopable {
         return new Step("toLoadingZone", () -> drive.backwardTo(nav.pose(-36, 12, 0)), drive::done);
     }
 
-    private Step spinIntake() {
+    private PlanPart spinIntake() {
         return new Step("spinIntake", () -> intake.driveTheMotor(), () -> false);
     }
 
