@@ -27,7 +27,7 @@ public class Intake implements Loopable {
         return on;
     }
 
-    private void driveTheMotor() {
+    public void driveTheMotor() {
         intake.setPower(on ? RUNNING_POWER : 0);
     }
 
