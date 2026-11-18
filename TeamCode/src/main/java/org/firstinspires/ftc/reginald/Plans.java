@@ -34,6 +34,11 @@ public class Plans implements Loopable {
     }
 
     @Auto(alliance = Alliance.RELATIVE)
+    public Plan spinIntak() {
+        return new Plan(spinIntake());
+    }
+
+    @Auto(alliance = Alliance.RELATIVE)
     public Plan forwardback() {
         return new Plan(move1FootForward(), Step.waitFor("wait", 10, nanoClock), move1FootBackward());
     }
