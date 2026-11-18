@@ -43,7 +43,7 @@ public class Driver implements Loopable {
         if (launchPose.isPresent()) {
             drive.toward(launchPose.get(), held);
         } else {
-            drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+            drive.manual(gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
         }
     }
 
