@@ -11,8 +11,6 @@ public class Intake implements Loopable {
 
     public Intake(DcMotorEx intake) {
         this.intake = intake;
-
-        driveTheMotor();
     }
 
     public void on() {
@@ -27,12 +25,8 @@ public class Intake implements Loopable {
         return on;
     }
 
-    public void driveTheMotor() {
+    private void driveTheMotor() {
         intake.setPower(on ? RUNNING_POWER : 0);
-    }
-
-    public void stopTheMotor() {
-        intake.setPower(on ? RUNNING_POWER : 1);
     }
 
     @Override

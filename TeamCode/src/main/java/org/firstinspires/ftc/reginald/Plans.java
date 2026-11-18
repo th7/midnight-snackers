@@ -137,7 +137,7 @@ public class Plans implements Loopable {
     }
 
     private PlanPart spinIntake() {
-        return new Step("spinIntake", () -> intake.driveTheMotor(), () -> false);
+        return new Step("spinIntake", () -> intake.on(), () -> false);
     }
 
     @Auto(alliance = Alliance.RELATIVE)
