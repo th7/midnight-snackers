@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 
 public class Intake implements Loopable {
-    public static final double RUNNING_POWER = 1;
+    public static final double RUNNING_POWER = 0.7;
 
     private final DcMotorEx intake;
     private boolean on = true;
@@ -27,7 +27,7 @@ public class Intake implements Loopable {
         return on;
     }
 
-    private void driveTheMotor() {
+    public void driveTheMotor() {
         intake.setPower(on ? RUNNING_POWER : 0);
     }
 

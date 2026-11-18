@@ -10,14 +10,15 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans implements Loopable {
     private final Drive drive;
-
+    private final Intake intake;
     private final Nav nav;
     // private final Launcher launcher;
     private final LongSupplier nanoClock;
 
-    public Plans(Drive drive, Nav nav, LongSupplier nanoClock) {
+    public Plans(Drive drive, Nav nav, LongSupplier nanoClock, Intake intake) {
         this.drive = drive;
         this.nav = nav;
+        this.intake = intake;
         //  this.launcher = launcher;
         this.nanoClock = nanoClock;
     }
@@ -30,6 +31,11 @@ public class Plans implements Loopable {
     @Auto(alliance = Alliance.RELATIVE)
     public Plan spinnyThing() {
         return new Plan(spin360(), move1FootForward(), move6InchesLeft(), moveBackTo0_0());
+    }
+
+    @Auto(alliance = Alliance.RELATIVE)
+    public Plan spinIntak() {
+        return new Plan(spinIntake());
     }
 
     @Auto(alliance = Alliance.RELATIVE)
@@ -128,6 +134,10 @@ public class Plans implements Loopable {
 
     private Step toLoadingZone() {
         return new Step("toLoadingZone", () -> drive.backwardTo(nav.pose(-36, 12, 0)), drive::done);
+    }
+
+    private Step spinIntake() {
+        return new Step("spinIntake", () -> intake.driveTheMotor(), () -> false);
     }
 
     @Auto(alliance = Alliance.RELATIVE)
