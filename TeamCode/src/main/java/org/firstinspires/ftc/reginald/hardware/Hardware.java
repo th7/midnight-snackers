@@ -21,7 +21,7 @@ public final class Hardware {
     public final DcMotorEx leftBack;
     public final DcMotorEx rightBack;
     // public final DcMotorEx turnTable;
-    // public final DcMotorEx intake;
+    public final DcMotorEx intake;
 
     public final LazyImu imu;
 
@@ -40,7 +40,7 @@ public final class Hardware {
         this.leftBack = wiring.leftBack;
         this.rightBack = wiring.rightBack;
         //   this.turnTable = wiring.turnTable;
-        //  this.intake = wiring.intake;
+        this.intake = wiring.intake;
         this.imu = wiring.imu;
         this.voltageSensor = wiring.voltageSensor;
         //        this.aprilTags = wiring.aprilTags;
@@ -62,7 +62,7 @@ public final class Hardware {
                 .leftBack(hardwareMap.get(DcMotorEx.class, "leftBack"))
                 .rightBack(hardwareMap.get(DcMotorEx.class, "rightBack"))
                 // .turnTable(hardwareMap.get(DcMotorEx.class, "turnTable"))
-                // .intake(hardwareMap.get(DcMotorEx.class, "intake"))
+                .intake(hardwareMap.get(DcMotorEx.class, "intake"))
                 .imu(new LazyHardwareMapImu(
                         hardwareMap,
                         "imu",
@@ -84,7 +84,7 @@ public final class Hardware {
         private DcMotorEx leftBack;
         private DcMotorEx rightBack;
         // private DcMotorEx turnTable;
-        // private DcMotorEx intake;
+        private DcMotorEx intake;
         private LazyImu imu;
         private VoltageSensor voltageSensor;
         // private Supplier<List<AprilTagDetection>> aprilTags;
@@ -133,10 +133,10 @@ public final class Hardware {
         //     return this;
         // }
 
-        // public Builder intake(DcMotorEx intake) {
-        //     this.intake = intake;
-        //     return this;
-        // }
+        public Builder intake(DcMotorEx intake) {
+            this.intake = intake;
+            return this;
+        }
 
         public Builder imu(LazyImu imu) {
             this.imu = imu;
@@ -173,7 +173,7 @@ public final class Hardware {
             named("leftBack", leftBack, missing);
             named("rightBack", rightBack, missing);
             // named("turnTable", turnTable, missing);
-            // named("intake", intake, missing);
+            named("intake", intake, missing);
             named("imu", imu, missing);
             named("voltageSensor", voltageSensor, missing);
             //     named("aprilTags", aprilTags, missing);

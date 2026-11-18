@@ -26,7 +26,7 @@ public final class Robot implements Loopable {
     public final LongSupplier nanoClock;
 
     // public final Launcher launcher;
-    // public final Intake intake;
+    public final Intake intake;
     public final Drive drive;
     // public final Camera camera;
     public final Localizer localizer;
@@ -62,7 +62,7 @@ public final class Robot implements Loopable {
           hardware.bottomGate,
           nanoClock,
         channels.channel(Launcher.CHANNEL)); */
-        //  intake = new Intake(hardware.intake);
+        intake = new Intake(hardware.intake);
         // camera = new Camera(hardware.aprilTags, nanoClock, channels.channel(Camera.CHANNEL));
         //  turntable = new Turntable(hardware.turnTable, channels.channel(Turntable.CHANNEL));
 
@@ -79,7 +79,7 @@ public final class Robot implements Loopable {
         drive = new Drive(wheels, mecanumDrive, localizer, dashboard, channels.channel(Drive.CHANNEL));
         nav = new Nav(localizer, alliance);
         brain = new Brain(drive, nav, alliance, channels.channel(Brain.CHANNEL));
-        plans = new Plans(drive, nav, nanoClock);
+        plans = new Plans(drive, nav, nanoClock, intake);
 
         this.loopOrder = List.of(localizer, drive, nav, brain, plans);
     }

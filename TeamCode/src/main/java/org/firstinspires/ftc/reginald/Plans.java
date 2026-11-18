@@ -10,14 +10,15 @@ import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public class Plans implements Loopable {
     private final Drive drive;
-
+    private final Intake intake;
     private final Nav nav;
     // private final Launcher launcher;
     private final LongSupplier nanoClock;
 
-    public Plans(Drive drive, Nav nav, LongSupplier nanoClock) {
+    public Plans(Drive drive, Nav nav, LongSupplier nanoClock, Intake intake) {
         this.drive = drive;
         this.nav = nav;
+        this.intake = intake;
         //  this.launcher = launcher;
         this.nanoClock = nanoClock;
     }
