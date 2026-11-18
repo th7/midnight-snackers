@@ -11,10 +11,6 @@
 # ports:
 #   - "21986:21986"                 # the coding server's user port
 
-egress_allow:
-  - host: host.docker.internal
-    port: 5037
-
 features:
   - all_recommended
   # Project-authored agent briefs. Drop *.md files into
