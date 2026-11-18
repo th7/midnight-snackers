@@ -31,6 +31,10 @@ public class Intake implements Loopable {
         intake.setPower(on ? RUNNING_POWER : 0);
     }
 
+    public void stopTheMotor() {
+        intake.setPower(on ? RUNNING_POWER : 1);
+    }
+
     @Override
     public void loop() {
         driveTheMotor();
