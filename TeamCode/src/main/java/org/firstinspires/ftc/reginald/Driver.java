@@ -56,8 +56,10 @@ public class Driver implements Loopable {
             drive.cancel();
         }
 
-        if (gamepad1.square) {
+        if (gamepad1.square == true) {
             intake.driveTheMotor();
+        } else if (gamepad1.square == false) {
+            intake.stopTheMotor();
         }
 
         // if (gamepad1.triangle) {
