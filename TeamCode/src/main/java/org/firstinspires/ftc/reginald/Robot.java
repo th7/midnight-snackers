@@ -24,9 +24,9 @@ public final class Robot implements Loopable {
     public final Dashboard dashboard;
 
     public final LongSupplier nanoClock;
+    public final Intake intake;
 
     // public final Launcher launcher;
-    public final Intake intake;
     public final Drive drive;
     // public final Camera camera;
     public final Localizer localizer;
