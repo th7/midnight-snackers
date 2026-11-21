@@ -1,7 +1,11 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public final class Feeder implements Surroundings.Part {
     static final String CAD_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: the Onshape part studio Feeder"
@@ -52,6 +56,69 @@ public final class Feeder implements Surroundings.Part {
 
     Motion motion() {
         return motion;
+    }
+
+    record Loads(Torque spinner, Torque ramp) {
+        static Loads none() {
+            return new Loads(new Torque(0), new Torque(0));
+        }
+    }
+
+    static Set<String> tallied() {
+        Set<String> faces = new HashSet<>();
+        faces.add(HUB);
+        faces.add(FIRST_ARM);
+        faces.add(SECOND_ARM);
+        faces.add(RAMP_BAR);
+        return Collections.unmodifiableSet(faces);
+    }
+
+    Loads loads(Map<String, Bodies.Tally> tallies, Seconds over) {
+        Bodies.Tally spinner = new Bodies.Tally(Vec3.zero(), Vec3.zero());
+        Bodies.Tally ramp = new Bodies.Tally(Vec3.zero(), Vec3.zero());
+        for (Map.Entry<String, Bodies.Tally> tally : tallies.entrySet()) {
+            if (tally.getKey().equals(RAMP_BAR)) {
+                ramp = together(ramp, tally.getValue());
+            } else if (ofTheSpinner(tally.getKey())) {
+                spinner = together(spinner, tally.getValue());
+            }
+        }
+        return new Loads(
+                torque(spinner, placing.world(Vec3.zero()), placing.direction(new Vec3(0, 0, -1)), over),
+                torque(ramp, pivot, placing.direction(new Vec3(0, 1, 0)), over));
+    }
+
+    boolean touchesTheSpinner(Vec3 centre, Length radius) {
+        for (Surroundings.Touch touch : near(centre, radius, Shot.TOUCHING_IN)) {
+            if (ofTheSpinner(touch.id())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean ofTheSpinner(String id) {
+        return id.equals(HUB) || id.equals(FIRST_ARM) || id.equals(SECOND_ARM);
+    }
+
+    private static Bodies.Tally together(Bodies.Tally one, Bodies.Tally other) {
+        return new Bodies.Tally(
+                one.impulse().plus(other.impulse()), one.moment().plus(other.moment()));
+    }
+
+    private static Torque torque(Bodies.Tally given, Vec3 about, Vec3 axis, Seconds over) {
+        double inchSquaredKilogramsPerSecond =
+                given.moment().minus(about.cross(given.impulse())).dot(axis);
+        return Torque.ofNewtonMetres(
+                        inchSquaredKilogramsPerSecond * Length.METRES_PER_INCH * Length.METRES_PER_INCH / over.value())
+                .orElse(new Torque(0));
+    }
+
+    Vec3 againstTheWall(Length pollen, double degreesFromTheBack) {
+        double turn = StrictMath.toRadians(degreesFromTheBack);
+        double centre = faces.wallRadius - pollen.inches();
+        return placing.world(new Vec3(
+                -centre * StrictMath.sin(turn), -centre * StrictMath.cos(turn), faces.floorTop + pollen.inches()));
     }
 
     static final class Motion {
@@ -570,6 +637,10 @@ public final class Feeder implements Surroundings.Part {
 
         public double newtonMetres() {
             return newtonMetres;
+        }
+
+        Torque negated() {
+            return new Torque(-newtonMetres);
         }
 
         @Override

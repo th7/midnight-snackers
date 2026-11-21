@@ -163,6 +163,10 @@ public final class Colliders {
                 .map(colliders -> new Colliders(field, colliders, new LinkedHashMap<>(), List.of(), bores));
     }
 
+    static Colliders nothingIn(Field field) {
+        return new Colliders(field, List.of(), new LinkedHashMap<>(), List.of(), List.of());
+    }
+
     private static List<Checked<Collider>> floorWallsAndElements(Field field, Map<String, Integer> seen) {
         List<Checked<Collider>> made = new ArrayList<>();
         made.add(Checked.ok(Collider.floor(FLOOR)));
