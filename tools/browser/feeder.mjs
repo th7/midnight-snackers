@@ -22,11 +22,6 @@ const THROWN = ANSWERED.feed.events.filter((e) => e.kind === 'thrown').length;
 const END = FRAMES[FRAMES.length - 1].t;
 
 const ANSWERS = {
-  '/me': { state: 'approved', username: 'mia', robot: 'reginald', robots: ['reginald'], branch: 'coding/mia' },
-  '/files': { files: [] },
-  '/git/status': { branch: 'coding/mia', develop: 'develop', changed: [], behind: 0, ahead: 0, pushable: false,
-                   head: '0123456' },
-  '/build': { available: true, ok: true, problems: [] },
   '/sim/catalog': [],
   '/sim/status': { running: false, runs: [] },
   '/sim/launches': { launches: [] }
@@ -112,7 +107,6 @@ function serve(viewer) {
     }
     const asset = asked.startsWith('/sim/assets/') ? asked.slice('/sim/assets/'.length) : null;
     const file = asked === '/' ? path.join(sim, 'dashboard.html')
-        : asked === '/static/codemirror.js' ? path.join(sim, 'codemirror.js')
         : asset ? path.resolve(sim, asset)
         : null;
     if (!file || !file.startsWith(path.resolve(sim)) || !fs.existsSync(file)) {
@@ -232,14 +226,14 @@ async function main() {
     const page = await browser.newPage({ viewport: WIDE });
     page.on('pageerror', (e) => threw.push(String((e && e.message) || e)));
     await page.goto(base + '/', { waitUntil: 'load', timeout: 60_000 });
-    await untilTrue(page, () => window.codingPage && window.codingPage.started);
+    await untilTrue(page, () => window.simulatorPage && window.simulatorPage.started);
     await theTabSetsOutTheDefaults(page);
     const shown = await aFeedRunsAndShowsItsPollenThrown(page);
     await itReplaysToTheEndAndBack(shown);
     const problem = await shown.evaluate(() => window.feederPage.problem);
     check(problem === '', `the viewer says "${problem}"`);
     await aRefusedSettingShowsItsRuleBesideTheField(page);
-    const broke = await page.evaluate(() => window.codingPage.broke);
+    const broke = await page.evaluate(() => window.simulatorPage.broke);
     check(broke.length === 0, `the dashboard broke: ${JSON.stringify(broke)}`);
   } catch (stuck) {
     wrong.push(String(stuck && stuck.message));

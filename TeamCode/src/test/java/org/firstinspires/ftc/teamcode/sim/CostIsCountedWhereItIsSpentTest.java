@@ -30,21 +30,16 @@ public class CostIsCountedWhereItIsSpentTest {
     /** Who spends each kind. Nothing else may name it, and nothing here may fail to. */
     private static final Map<Cost.Kind, Set<String>> SPENT_BY = new LinkedHashMap<>(Map.of(
             Cost.Kind.CHILD_JVM, Set.of("JvmChild", "TestRogues"),
-            Cost.Kind.COMPILE, Set.of("SimBuild", "SourceNavigator"),
-            Cost.Kind.GIT, Set.of("RealGit", "GitFixture"),
-            Cost.Kind.PASSWORD_HASH, Set.of("CodingServer", "CodingServerTest"),
-            Cost.Kind.FORMAT, Set.of("JavaFormatter"),
-            Cost.Kind.NODE, Set.of("SimReplayPageTest", "CodingServerTest"),
-            Cost.Kind.PROJECT_COPY, Set.of("SimProject"),
-            Cost.Kind.GRADLE_DEPLOY, Set.of("GradleDeploy")));
+            Cost.Kind.COMPILE, Set.of("SimBuild"),
+            Cost.Kind.PASSWORD_HASH, Set.of("RobotGateway", "RobotGatewayTest"),
+            Cost.Kind.NODE, Set.of("SimReplayPageTest", "DashboardPageTest"),
+            Cost.Kind.PROJECT_COPY, Set.of("SimProject")));
 
     /** What is dear to reach, and which kinds of cost reaching it is spent as. */
     private static final Map<String, Set<Cost.Kind>> REACHES = new LinkedHashMap<>(Map.of(
-            "java/lang/ProcessBuilder",
-                    Set.of(Cost.Kind.CHILD_JVM, Cost.Kind.GIT, Cost.Kind.NODE, Cost.Kind.GRADLE_DEPLOY),
+            "java/lang/ProcessBuilder", Set.of(Cost.Kind.CHILD_JVM, Cost.Kind.NODE),
             "javax/tools/ToolProvider", Set.of(Cost.Kind.COMPILE),
-            "org/bouncycastle/crypto/generators/SCrypt", Set.of(Cost.Kind.PASSWORD_HASH),
-            "com/palantir/javaformat/java/Formatter", Set.of(Cost.Kind.FORMAT)));
+            "org/bouncycastle/crypto/generators/SCrypt", Set.of(Cost.Kind.PASSWORD_HASH)));
 
     /** The classes that may reach something dear: exactly those that count what it would cost. */
     static Set<String> mayReach(String reference) {
@@ -123,17 +118,17 @@ public class CostIsCountedWhereItIsSpentTest {
     @Test
     public void theRuleWouldNoticeSomethingThatReachedOneWithoutCounting() {
         List<Path> classes = classes();
-        List<Path> realGit = classes.stream()
-                .filter(file -> Bytecode.outermost(file).equals("RealGit"))
+        List<Path> jvmChild = classes.stream()
+                .filter(file -> Bytecode.outermost(file).equals("JvmChild"))
                 .toList();
 
-        assertTrue("RealGit was not compiled, so this rule judged nothing", !realGit.isEmpty());
+        assertTrue("JvmChild was not compiled, so this rule judged nothing", !jvmChild.isEmpty());
         assertTrue(
-                "RealGit is the adapter that runs git, so it is what both halves of this rule must see",
-                realGit.stream().anyMatch(file -> Bytecode.mentions(file, "java/lang/ProcessBuilder")));
+                "JvmChild is the adapter that starts a child JVM, so it is what both halves of this rule must see",
+                jvmChild.stream().anyMatch(file -> Bytecode.mentions(file, "java/lang/ProcessBuilder")));
         assertTrue(
                 "and it must be seen to count it",
-                realGit.stream().anyMatch(file -> Bytecode.mentions(file, Cost.Kind.GIT.name())));
+                jvmChild.stream().anyMatch(file -> Bytecode.mentions(file, Cost.Kind.CHILD_JVM.name())));
         assertTrue(
                 "a class that counts nothing must read as counting nothing",
                 classes.stream()

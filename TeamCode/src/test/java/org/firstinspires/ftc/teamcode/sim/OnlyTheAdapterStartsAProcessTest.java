@@ -58,14 +58,14 @@ public class OnlyTheAdapterStartsAProcessTest {
     @Test
     public void theModulesThatTalkToSomethingOutsideThisProcessDoItThroughAnInterface() throws IOException {
         List<Path> through = compiledClasses().stream()
-                .filter(file -> Set.of("Worktrees", "SimBench").contains(Bytecode.outermost(file)))
+                .filter(file -> Bytecode.outermost(file).equals("SimBench"))
                 .toList();
 
-        assertTrue("neither was compiled, so this rule judged nothing", through.size() > 1);
+        assertTrue("SimBench was not compiled, so this rule judged nothing", !through.isEmpty());
         for (Path classFile : through) {
             for (String reference : STARTS_A_PROCESS) {
                 assertTrue(
-                        classFile.getFileName() + " reaches " + reference + " rather than the Git interface",
+                        classFile.getFileName() + " reaches " + reference + " rather than the Child interface",
                         !Bytecode.mentions(classFile, reference));
             }
         }
@@ -73,14 +73,14 @@ public class OnlyTheAdapterStartsAProcessTest {
 
     @Test
     public void theRuleWouldNoticeAClassThatStartedOne() throws IOException {
-        List<Path> realGit = compiledClasses().stream()
-                .filter(file -> Bytecode.outermost(file).equals("RealGit"))
+        List<Path> jvmChild = compiledClasses().stream()
+                .filter(file -> Bytecode.outermost(file).equals("JvmChild"))
                 .toList();
 
-        assertTrue(!realGit.isEmpty());
+        assertTrue(!jvmChild.isEmpty());
         assertTrue(
-                "RealGit is the adapter, so it must be what this rule would catch if it were not allowed",
-                realGit.stream().anyMatch(file -> Bytecode.mentions(file, "java/lang/ProcessBuilder")));
+                "JvmChild is the adapter, so it must be what this rule would catch if it were not allowed",
+                jvmChild.stream().anyMatch(file -> Bytecode.mentions(file, "java/lang/ProcessBuilder")));
     }
 
     @Test

@@ -1,6 +1,6 @@
 # Glossary
 
-The words this project uses for the coding server, the simulator and the
+The words this project uses for the robot gateway, the simulator and the
 robot, as the code uses them. When a term here and a name in the code
 disagree, fix one of them. Robot-side vocabulary is covered only where a
 module has been deepened; plans, steps and the other subsystems are not yet.
@@ -21,12 +21,12 @@ to what), `control` (the controllers and filters a subsystem steers by) and
 steps), and what both robots' Road Runner needs — the **clocked encoder** and
 the drawing of a robot in `roadrunner`, the drive runner that follows an action
 a loop at a time in `control`, and the dashboard it draws on in `hardware`;
-its test sources hold the simulator, the coding server and the fakes.
+its test sources hold the simulator, the robot gateway and the fakes.
 Nothing outside a robot's package uses that robot's code, and every op mode
 is in a robot's package: a class moves into `teamcode` when a second robot
 needs it, rather than being reached for across. No test holds the robot code
 to this or to anything else: the tests and CI judge the simulator and the
-coding server, and the robot code is the team's to change.
+robot gateway, and the robot code is the team's to change.
 
 **Subsystem** — One part of the robot, and now only that: something the
 robot ticks, which is to say a `Loopable` that lives directly in
@@ -271,11 +271,10 @@ rather than an exception. Classes: `DetectionFilter`;
 
 ## Nugget
 
-**Nugget** — The team's second robot, whose users work on `nugget-develop`
-(see **Robot**, under the coding server). Its code is a package of its own,
+**Nugget** — The team's second robot, whose work lands on `nugget-develop`
+(see **Robot**, under the robot gateway). Its code is a package of its own,
 `org.firstinspires.ftc.nugget`, beside Reginald's `org.firstinspires.ftc.reginald`
-and the shared `teamcode` (see **Where things live**), and its teammates
-always edit every file in it (see **Own files**). Its op modes extend `NuggetOpMode`, which is how the simulator knows
+and the shared `teamcode` (see **Where things live**). Its op modes extend `NuggetOpMode`, which is how the simulator knows
 them for Nugget's and hands them Nugget's hardware rather than the robot
 controller's configuration. Class: `NuggetOpMode`.
 
@@ -356,121 +355,75 @@ simulator's own wheels do, each as far off the centre as Reginald's track says,
 and a hub reports their speed to the nearest twenty ticks a second, as it does
 a dead wheel's. Classes: `DriveEncoders` and `Encoder`, in the core.
 
-## The coding server
+## The robot gateway
 
-**Coding server** — The host process teammates reach over the LAN to edit
-the robot code and run simulations. One machine runs it with
-`./gradlew :TeamCode:codingServer`, or on a Mac with `./start`, which runs
+**Robot gateway** — The host process that lets teammates on the LAN reach
+the robot: the login page, the admin's approvals, the **robot relay** and the
+**field models**. It reads and writes no file of the project: teammates edit,
+build and deploy from their own clones in Android Studio, and simulate with
+their own **local simulator**. One machine runs it with
+`./gradlew :TeamCode:robotGateway`, or on a Mac with `./start`, which runs
 that task on Android Studio's own Java (`ANDROID_STUDIO_APP` names the app
 when it is not in `/Applications`). It has two listeners: the **admin
-listener** on loopback only (port 21987, `CODING_ADMIN_PORT`), and the
-**user listener** on every interface (port 21986, `CODING_USER_PORT`).
-Class: `CodingServer`.
+listener** on loopback only (port 21987, `ROBOT_GATEWAY_ADMIN_PORT`), and the
+**user listener** on every interface (port 21986, `ROBOT_GATEWAY_USER_PORT`).
+It replaces the coding server, whose `CODING_ADMIN_PORT` and
+`CODING_USER_PORT` it refuses to start under, naming the setting that
+replaces each. Which ports it listens on is decided in the **core**. Classes:
+`RobotGateway`; `GatewayPorts` and `PortSetting`, in the core.
 
 **Routes** — What each listener answers, said once as a table of method,
-path pattern and handler: the user listener's public routes, then the
-**approved routes** behind one guard (403 for anything but an approved
-session); the admin listener's routes. A path no route knows is a 404, a
-path known by another method a 405. The bench's routes are one table too,
-**mounted** at the root of the bench page and under `/sim` on the user
-listener, per user, so a run started there is recorded as theirs. Class:
-`Router`.
+path pattern and handler: the user listener's public routes (the login page,
+`POST /login`, `GET /me`), then the **approved routes** behind one guard (403
+for anything but an approved session), which is `GET /relay` alone; the admin
+listener's routes. A path no route knows is a 404, a path known by another
+method a 405. The bench's routes are one table too, **mounted** at the root
+of the **local simulator**'s page. Class: `Router`.
 
 **Admin** — The person at the host machine. Only they can reach the admin
-listener, where they decide logins, pick files for the editable set and set
-the **simulation constants**. There is no admin login; being on the machine is
-the credential.
+listener, where they decide logins, delete users and get the **field
+models**. There is no admin login; being on the machine is the credential.
 
 **User listing** — `GET /admin/users` and the roster it draws on the admin
-page: every user who has ever logged in, in the order they first did, one
-row to a name, each with their **work** on every robot and the **sessions**
-they have made, oldest first, each saying which robot it is on. A user's
-work on a robot says whether they work on it (**enabled**, a box on the row
-the admin ticks or clears) and, while they do, the worktree, its branch, its
-**status** (the same changed, ahead and behind that `GET /git/status` gives
-the user; null until the worktree exists, and null with a **statusError**
-when git cannot read it, so one broken worktree does not blank the list),
-how its last pull or push ended, and a Pull button. What is the user's
-rather than any one robot's is said once, on the user: whether they are
-**deletable** (whether a **delete** would go through rather than be refused
-— said by the server, since the server is what enforces it, counting the
-work kept on a robot they were taken off as well, and false for a user git
-cannot be read for, because what a delete would throw away is exactly what
-could not be counted), and a Delete button. Logging in again, on either
-robot, adds a session to the user, never a second row; a **delete** takes
-the row away, and a login after that is a new row for the same branches.
+page: every user with a session, in the order they first logged in, one row
+to a name, each with the **sessions** they have made, oldest first, each
+saying which robot it is for, whether a connection relayed for them is open
+(**relayed**), and a Delete button. Under `relay` it gives the relay's port,
+the hub, the **hub state** and the line approved teammates run. Logging in
+again adds a session to the user, never a second row; a **delete** takes the
+row away.
 
 **Fold** — A user's sessions on the admin page, folded away under their
 row and opened by the caret. A user the admin has not folded by hand is
 open exactly while a session of theirs is pending, so a login waiting to
 be decided is never hidden; folded shut, the row still carries the
-pending count, the branch, the status and what its sessions have open.
+pending count.
 
-**Robot** — One of the team's robots: **Reginald** or **Nugget**. Each robot
-works its own **develop branch**, and keeps its own worktrees, user branches
-and editable set. Reginald keeps every name it had before there were two
-robots, so a server started on an old state directory finds its users, their
-worktrees and their files where they were, and a login stored before then is
-Reginald's. Which robots there are, what each is called and what its lines
-are named is said once, in the **core**; `GET /admin/info` lists them for the
-admin page, and a test holds the login page's choice to the same list.
-Class: `TeamRobot`, in the core.
-
-**Robots a user works on** — Which robots the admin lets a user work on:
-either or both, and never none once they have been let in. A teammate picks
-the robot to work on when they ask to join, and none is picked for them; the
-login says which (`POST /login?username=<name>&robot=reginald` or
-`robot=nugget`), and one that does not is refused before any session exists.
-Approving it **lets the user onto** that robot, on top of any they had. The
-admin lets them onto the other, or takes them off one, with the robot's box
-on their row, `POST /admin/users/robots?robot=<robot>&username=<name>&enabled=true|false`;
-letting them on makes their worktree there, so git's refusal, if any, is the
-admin's to see, and taking them off their last robot is refused, saying to
-revoke their logins or delete them instead. Taking them off a robot keeps
-their work on it — the worktree, the branch, anything uncommitted — for when
-they are let back on, stops their run on it, and moves every approved login
-of theirs on it onto a robot they still work on. A user who has only ever
-asked works on none, and may be let onto one before any login is approved.
-An approved login is always on one of its user's robots, which the server
-holds to whatever it is told, and reaches that robot's work and none of the
-other's. Which robots a user works on, which one a login is moved to, and
-whether a switch may happen are decided in the **core**. Class: `Robots`, in
-the core.
-
-**Switch** — `POST /robot?robot=<robot>`, from the robot picker in the
-dashboard's header: the login moves to another robot its user works on, and
-the page comes back on that robot's files, branch and simulator. A robot the
-admin has not let them onto is refused (403), and the login stays where it
-was. Only the login that asked moves, so one browser can be on Reginald while
-another is on Nugget. The page waits for its save to land before it asks,
-and a page whose login was moved under it — by another tab, or by the admin
-taking a robot away — notices on its next look at `GET /me` and comes back on
-the robot it is on now. A user on one robot alone sees it named, with
-nothing to pick.
+**Robot** — One of the team's robots: **Reginald** or **Nugget**. A teammate
+picks one when they ask to join (`POST /login?username=<name>&robot=reginald`
+or `robot=nugget`), and a login that names none is refused before any session
+exists; a login stored before there were two robots is Reginald's. Which
+robots there are, what each is called and what its lines are named is said
+once, in the **core**. Class: `TeamRobot`, in the core.
 
 **User** — A teammate on the LAN who has logged in with a username. Users
-reach only the user listener. A user is their username, whichever robot they
-are on, so one user is one row of the listing however many times they log
-in. Their **work** on a robot — the worktree, the branch and what is on it —
-is owned by the pair of the username and the robot, so the work on each
-robot is kept apart, and pulling, pushing or simulating on one never touches
-the other.
+reach only the user listener. A user is their username, so one user is one
+row of the listing however many times they log in.
 
 **Session** — One login by one user, identified by a small integer **id**
 the admin sees, and proven by a **token** the browser holds in the
 `session` cookie as `<id>.<secret>`. A session moves through four
-**states**: *pending* (asked, not yet decided), *approved* (may edit and
-simulate), *denied* (the admin said no), and *revoked* (was approved, no
-longer is). Only approved sessions reach files, builds, and the simulator.
-A session carries what is its own alone: where it logged in from, how long
-ago, the robot it is on (the one it asked for, until a **switch** or the
-admin moves it), the file it has open, and its state, which the admin
-decides per session at `POST /admin/logins/<id>/approve|deny|revoke`. A
+**states**: *pending* (asked, not yet decided), *approved* (its address may
+reach the robot through the relay), *denied* (the admin said no), and
+*revoked* (was approved, no longer is). A session carries where it logged in
+from, how long ago, the robot it asked for, and its state, which the admin
+decides per session at `POST /admin/logins/<id>/approve|deny|revoke`. An
+approved login's page shows the `adb connect` line and nothing else to do. A
 revoked session is still a session; only a **delete** takes sessions away,
 and it takes all of that user's at once.
 
 **Robot relay** — How a teammate's own Android Studio reaches the robot: the
-coding server listens on every interface (port 5555, adb's own, so `adb
+robot gateway listens on every interface (port 5555, adb's own, so `adb
 connect <host>` needs no port; `ROBOT_RELAY_PORT`) and passes each connection
 it admits on to the hub's adb port (`192.168.43.1:5555`, `ROBOT_HUB_ADDRESS`),
 byte for byte in both directions, so the teammate's own adb server treats the
@@ -484,13 +437,13 @@ does not answer within three seconds closes the client's connection rather
 than leaving it hanging. Whom it admits, which connections a change closes,
 who is listed as relaying and the line a teammate runs are decided in the
 **core**; the relay decides nothing. An approved login reads its line at `GET
-/relay`, which the dashboard's header shows; the **user listing** says per
-user whether a connection relayed for them is open (**relayed**), and under
-`relay` the port, the hub and the **hub state**. The hub is assumed to take
-several adb clients at once, the host's own among them, so nothing takes
-turns. `doc/client-setup.md` takes a new client from a clone to a first
-deploy. Classes: `RobotRelay`; `RelayAdmission` and `Peer`, in the core;
-`FakeHub`.
+/relay`, which the login page shows once the admin approves; the **user
+listing** says per user whether a connection relayed for them is open
+(**relayed**), and under `relay` the port, the hub and the **hub state**. The
+hub is assumed to take several adb clients at once, the host's own among
+them, so nothing takes turns. `doc/client-setup.md` takes a new client from a
+clone to a first deploy. Classes: `RobotRelay`; `RelayAdmission` and `Peer`,
+in the core; `FakeHub`.
 
 **Hub state** — Whether the host could open a connection to the hub's adb port
 when it last tried: *untried*, *reachable* or *unreachable*, with why and when.
@@ -498,69 +451,20 @@ It is tried for each client the relay admits, and by a probe that opens and
 closes a connection while the admin page is open, no more often than every ten
 seconds. Class: `HubState`, in the core.
 
-**Editable set** — The files a **robot**'s users may edit: every one of
-that robot's **own files** in the user's worktree, and on top of them the
-files the admin has picked for that robot, each named by its **key**. The
-admin picks for one robot at a time, and every `/admin/files` route names it
-with `?robot=`; `GET /admin/files` lists what was picked, and a robot's own
-files are never among them. A robot's own files cannot be picked, for it or
-for the other robot, nor removed: `POST /admin/files/add` refuses one,
-saying whose it is, and `/admin/files/remove` refuses to take one away. A user
-may only ever name a file by exact match against this set; nothing a user
-sends is resolved against the filesystem. The admin picks from the host
-checkout; the key means the same path in every worktree, and a picked file
-the user's branch does not have yet is listed all the same and answers 404
-naming it. The admin page shows each robot's own package as always editable,
-and marks the files of either robot's package in the picker as whose they are
-rather than offering them. Class: `EditableSet`.
+**Delete** — `POST /admin/users/delete?username=<name>`, the Delete button
+on the user's row: the user leaves the listing. Every session they have is
+forgotten, so their browsers are logged out and their relayed connections
+close. A user nobody knows is a 404.
 
-**Own files** — A robot's own package, which its users always edit without
-the admin picking anything: every regular file under
-`TeamCode/src/main/java/` and `TeamCode/src/test/java/` of its package
-(`org/firstinspires/ftc/reginald/`, `org/firstinspires/ftc/nugget/`), and
-of the packages under it, as they are in that user's worktree — so a file
-that arrives there by a pull is editable from then. Found by walking the
-worktree rather than by anything a user sends; a link is not followed, so a
-link in the package, or a package that is a link out of the worktree, gives
-nothing. Which directories are whose, and so what the admin may pick, is
-said once, in the **core**. `GET /admin/info` gives each robot's as `own`.
-Methods: `TeamRobot.javaPackage`; `TeamRobot.ownDirectories`;
-`TeamRobot.owns`; `TeamRobot.picking`.
-
-**Key** — A file the server has vouched for, named by its **root-relative
-path** with `/` separators (`TeamCode/src/main/java/.../Plans.java`), and
-the only kind of thing the server resolves against a worktree. There are
-two ways to make one and no others: relativising a real path the server
-found itself, and a root-relative string that is neither absolute nor
-climbing out of the root — which is what the **editable set** and the
-**source set** hand back when a user's string matches one of theirs
-exactly. So a string off a request becomes a path only by being recognised,
-and the rule above is held by javac rather than by the one `if` that used
-to hold it, with a test that fails if a third way to make a key is ever
-added. The same check runs over what comes back out of the **state
-directory** and over the names git gives in a diff, since neither is more
-trustworthy than anything else read off disk. Class: `Key`.
-
-**Project root** — The repository checkout the coding server serves: the
-top of a git working tree with a `develop` branch. All paths users see are
-relative to it, and the editable set and the worktrees are stored per
-project root. A user's save never writes under it; only git does, under
-`.git`.
-
-**Develop branch** — The permanent branch every user's work starts from,
-pushes to, and pulls from: `develop` for Reginald's users and
-`nugget-develop` for Nugget's, so wherever this glossary says `develop` of a
-Nugget user, it is `nugget-develop`. The server requires `develop` to exist;
-a repository without `nugget-develop` gets one at `develop`'s tip when the
-server starts, said on its console. It never deletes or rewrites either: it
-only adds merge commits to them. Getting `develop` to `main` is CI's: a **run
+**Develop branch** — The permanent branch the team's work lands on:
+`develop` for Reginald and `nugget-develop` for Nugget. Teammates push to it
+from their own clones. Getting `develop` to `main` is CI's: a **run
 for develop** whose every step is green moves `main` to the commit it judged,
 unless `main` is already past it; a run that would move `main` past a change to
 a workflow file, as when its commits since `main` change one, holds `main` red
 instead, naming those files, until a maintainer pushes `main` to the judged
 commit by hand and re-runs the failed jobs. Anything that moves between the
-two robots' lines is the coach's job. `GET /git/status` names the one a user's
-**ahead** and **behind** are counted against, as **develop**.
+two robots' lines is the coach's job.
 
 **Run for develop** — What CI does each time `develop` is pushed. Runs go one
 at a time: a push that arrives during a run waits, and a run still waiting
@@ -674,256 +578,35 @@ Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 `tools/ci/develop_issue.py`; `tools/ci/test_workflow.py`;
 `tools/ci/workflow_conditions.py`.
 
-**Which git** — The coding server is handed the git it works the repository
-with, rather than making one. What a real git does is `RealGitTest`'s, over a
-contract `FakeGit` passes too, and what worktrees do over a real one is
-`WorktreesTest`'s; a test of the server itself takes the fake and forks nothing,
-except where its question is one only git can answer. Whether a directory is
-still a worktree is on that interface for the same reason: asked of the
-filesystem, by looking for the `.git` marker git leaves, it was a question only
-one of the two could be right about, and the other quietly remade the worktree
-under whoever was saving into it. The fake keeps a file as text and refuses by
-name one it cannot, since a model mangled in a worktree is a test passing for a
-reason nobody meant.
 
-**Worktree** — A git worktree of the project root's repository, one per
-**username**, on its own **user branch**. All of that user's edits are
-written there and every run they start is compiled from there. Owned by
-the username, not the session, so logging in again after a restart or a
-revoke-and-reapprove finds the same work. Made when the admin approves
-the login, so git's refusal, if any, is the admin's to see. Class:
-`Worktrees`.
+**State directory** — Where the robot gateway keeps what outlives the
+process: `sessions.json` (each login, with the robot it is for) and the
+**field models** it fetched. It is where the coding server kept its state and
+stays there, so the logins the coding server approved stay approved; the
+`users.json`, `settings.json`, `editable.json` and `worktrees.json` it left
+are no longer read and are left as they are. It follows the XDG Base
+Directory convention: `$XDG_STATE_HOME/midnight-snackers/coding-server`, else
+`~/.local/state/midnight-snackers/coding-server`. Owner-only. Session secrets
+are stored there only as salted scrypt hashes. A store that exists but cannot
+be read stops the gateway from starting. Class: `StateStore`.
 
-**User branch** — `coding/<slug>` on Reginald and `nugget/<slug>` on
-Nugget, created at the tip of the robot's **develop branch** when the
-worktree is made. Saves are uncommitted changes in the worktree
-until the user presses Commit.
+**Worktrees left behind** — The teammates' worktrees the coding server kept
+under the state directory's `worktrees/`. The robot gateway never writes or
+deletes them: at startup it names each one and says it no longer manages
+them, so whoever wants work left in one can take it, and says nothing when
+there are none. Class: `LeftWorktrees`, in the core.
 
-**Delete** — `POST /admin/users/delete?username=<name>`, the Delete button
-on the user's row: the user leaves the listing, with their work on every
-robot. Every session they have is forgotten, so their browsers are logged
-out, their benches and their children stop, which robots they work on is
-forgotten, and their worktree directory on each robot goes. Their **user
-branches** stay, and so does the mapping to them, so logging in again and
-being approved rebuilds the same worktree on the same branch with everything
-they committed, under the same slug, on the robot they are approved for.
-Refused, changing nothing, while they have work a robot's `develop` does not
-have — uncommitted files, or commits ahead, on any robot, including one they
-were taken off — naming it robot by robot, until the admin asks again with
-`force`; the page's Delete anyway is that second ask, so what the admin
-reads is what the server enforced and not a warning the page worked out for
-itself. The refusal is decided before the benches are stopped, so a user who
-keeps their work keeps their runs.
-
-**Commit** — `POST /git/commit` with a message: the **formatter** runs over
-every uncommitted `.java` file in the worktree first, and then every
-uncommitted change there becomes one commit on the user branch, authored
-by the username. The reply names the files the formatter changed
-(**formatted**), and the Edit tab reloads what is open so the editor shows
-the formatted text; a file with unsaved typing is left alone and its next
-save overwrites the formatting, which the next commit puts back. Nothing
-to commit is a success that says so. An empty
-message is refused. `GET /git/status` reports the uncommitted files
-(**changed**), the commits the branch has that `develop` lacks
-(**ahead**), the commits `develop` has that the branch lacks
-(**behind**), and the branch's tip (**head**), which moves on a commit
-and on any pull or push, whoever asked for it. It also says whether a
-**push** would land the user's work (**pushable**), which is what the Push
-button is offered by.
-
-**Formatter** — palantir-java-format, run in the server's own process over
-one file's text: imports ordered, the unused ones removed, then the text
-formatted — the three steps, in the order, that Spotless's
-`palantirJavaFormat` step runs in CI, at the one version
-`TeamCode/build.gradle` names for both. So what a commit writes is what
-`./gradlew :TeamCode:spotlessCheck` accepts, and a teammate's push never
-fails CI on formatting alone. Shelling out to `spotlessApply` per click
-would cost seconds of Gradle startup and would format files the user never
-touched. Only Commit formats: a save writes exactly what the editor sent.
-A file it cannot read or parse is committed as the user wrote it and named
-in the reply's **warning**, since a commit is a save point and a save point
-that refuses half-written code is no use. It reads javac's own trees, so
-the JVM running it needs the `--add-exports` that `javacExports` passes;
-the server checks it can format before it starts, rather than failing on
-someone's first Commit. Class: `JavaFormatter`.
-
-**Push** — `POST /git/push`: the user branch is merged into `develop` with
-a merge commit, and then the user branch and worktree are fast-forwarded
-to the new `develop`, so the user carries everyone's pushed work from
-then on. Where `develop` is checked out, normally the host checkout, the
-merge runs there so that working tree shows the pushed work; git refuses,
-changing nothing, if an uncommitted edit there would be overwritten.
-Checked out nowhere, only the branch moves. It needs a clean worktree
-(commit first) and refuses, changing nothing, on a **merge conflict**.
-A clean worktree with a commit `develop` lacks is **pushable**: the same
-question the push asks before it merges anything, asked in `GET
-/git/status` so the Push button is offered for exactly the presses that go
-somewhere — said by the server, since the server is what enforces it, as
-with **deletable**. A conflict counts as pushable: the press is how the
-user is sent to their coach.
-Then `develop` is pushed to the remote named `origin`, when there is
-one, whether or not anything was merged, so origin is current whenever
-the network allows; nothing is sent when origin already has it. A remote
-push that fails (the robot's wifi has no way out; origin has moved on)
-leaves the local merge in place, is never forced, and is reported to
-the user and, with the command to run, to the coach on the admin page.
-
-**Deploy** — beside Push in the Edit tab. It saves the open file and waits
-for that save to succeed before asking `POST /deploy?robot=<robot>`.
-Only an approved session can deploy, and a robot selection that changed
-before the request arrived is refused rather than deploying another
-worktree. The server runs that worktree's Gradle wrapper with
-`:TeamCode:installDebug`, using its current files, including uncommitted
-and untracked code. It does not commit, merge, pull, or push to git.
-The server's ADB connection is used; the SDK location from the host
-checkout's `local.properties`, when present, is passed through without
-writing one into the worktree. One deployment runs at a time; another
-request is refused until it finishes. A build still running after ten
-minutes is stopped, including its child processes. The page shows the
-result and the last 64 KiB of combined build and ADB output. Classes:
-`Deploy`, `GradleDeploy`; result decisions live in `simcore.Deployment`.
-
-**Pull** — `POST /git/pull`: `develop` is merged into the user branch, in
-the user's worktree, a fast-forward when it can be and a merge commit
-otherwise. `develop` does not change. Uncommitted edits stay uncommitted
-and ride along, except in a file the merge would change: those would be
-overwritten, so the pull refuses (commit first), naming only those files
-and changing nothing. It also refuses, changing nothing, on a merge
-conflict. The Pull button pulses, and wears the count, while the branch
-is behind. The admin can press Pull for a user too,
-`POST /admin/users/pull?robot=<robot>&username=<name>`: the same merge in
-that user's worktree on that robot, with the same refusals, so a teammate
-who has walked away from a stale branch is brought up to date without their
-browser. Each robot a user works on has its own Pull on their row, and a
-robot they do not work on is a 404. Their editor
-notices by the **head** in the status moving under it: a file with
-nothing typed since its last save is reloaded; one with unsaved typing
-is left alone, and its next save is the usual conflict with a reload to
-offer.
-
-**Merge conflict** — `develop` and the user branch changed the same lines
-since they diverged. Not the save **conflict** (a stale base version on
-`PUT /files`), which keeps its name. Push and Pull hit the same conflict,
-since both merge the same two branches, and both find it with
-`git merge-tree`, which touches no working tree, so either changes
-nothing anywhere, names the files, and tells the user to ask their
-coach. The admin page shows the coach the **recipe**, with the real path:
-
-```
-cd <the user's worktree>
-git merge develop         # resolve the conflicts in an editor
-git add -A && git commit  # then the user presses Push
-```
-
-The coach's merge *is* the pull, so Push is all that is left, and
-`develop` is never checked out to resolve anything. The commands are git's
-and the server writes them, like every other judgement it enforces; the
-page prints the lines it is handed rather than composing them itself.
-
-**Merge report** — How a **pull** or a **push** went, said once. It is
-handed the merge, which of the two it was, whom it happened to and whom it
-is being said to, and works out the rest: the status (200 when something or
-nothing happened, 409 otherwise), the sentence in the right **voice** (the
-user's own, or the admin's about them), the **recipe**, and the
-**severity** — how bad it is, and the one thing a page needs in order to
-draw it.
-
-Severity is why it exists. Both pages used to work it out for themselves,
-from the status code and the outcome's name, and they disagreed: a push
-that landed but could not reach `origin` was a warning on one and was
-folded in with conflicts on the other. Before that, the reply was a
-six-parameter method two of whose parameters were finished English
-sentences the caller composed, so adding an outcome meant touching the
-enum, a switch, three callers' prose and two partitions written in
-JavaScript. It is now a function of values, with no git and no listener in
-it, which is also how it is tested. Classes: `MergeReport`;
-`Worktrees.Remote.Outcome`.
-
-**Slug** — The username lowercased, every run of characters outside
-`[a-z0-9]` replaced by one `-`, trimmed of leading and trailing `-`, at
-most 32 characters, never empty. It names the branch and the worktree
-directory. Two usernames that collapse to one slug get `-2`, `-3`, … so
-the mapping is decided once and stored, never recomputed. It outlives the
-worktree: a deleted user's mapping stays, which is what gives them their
-own slug and their own branch back when they return.
-
-**Worktrees directory** — Where the worktrees live: under the state
-directory, at `worktrees/<root name>-<8 hex of SHA-256(root path)>/<slug>`
-for Reginald and `worktrees/<root name>-<8 hex>-nugget/<slug>` for Nugget,
-so two checkouts on one machine keep their worktrees apart and the admin
-can still read the directory name.
-
-**Version** — The SHA-256 of a file's bytes, as hex. A read returns the
-content, its version and the robot it was read on; a save carries the **base
-version** it was edited from and that robot, and is refused as a
-**conflict** (409, with the current content) when the file on disk has moved
-on, whether from another browser or from an IDE on the host. A save for a
-robot the login is no longer on is refused too (409, naming the robot it is
-on now), writing nothing: a file both robots edit can be byte for byte the
-same on each, so the version alone cannot tell the two apart, and a save
-typed on one must never land on the other.
-
-**State directory** — Where the coding server keeps what outlives the
-process: `sessions.json` (each with the robot it is on), `users.json` (the
-robots each user works on; a state directory from before it existed lets
-each user onto the robots of their approved logins), `editable.json`,
-`worktrees.json` (username to slug, path, and branch, per project root) —
-Reginald's, and `editable-nugget.json` and `worktrees-nugget.json`
-Nugget's — `settings.json` (what the admin
-set: the **resolution** the pages draw and the **simulation constants** they
-changed), the assets it
-fetched, and the worktrees themselves.
-It follows the XDG Base Directory convention:
-`$XDG_STATE_HOME/midnight-snackers/coding-server`, else
-`~/.local/state/midnight-snackers/coding-server`. Owner-only. Session
-secrets are stored there only as salted scrypt hashes. A store that
-exists but cannot be read stops the server from starting. Class:
-`StateStore`.
-
-**Editor bundle** — CodeMirror 6, built once by `tools/codemirror/build.sh`
-into `codemirror.js` under the test resources and served by the user
-listener at `/static/codemirror.js`. It is the one **static asset**: the
-`/static` route serves only names on its allowlist. The page reaches the
-bundle only through `window.CM`.
-
-**Part** — One piece of the dashboard page that starts on its own: the
-editor, the branch panel, the simulator, the launch sim, the header, the
-file list, the tabs. A part that throws is caught, named in a banner at the top of the
-page and recorded in `window.codingPage.broke`, and the others still
-start — so a browser that cannot run one part of the page still gives the
-rest, and never leaves the shell it was served as, which is what "nothing
-to show you" looks like too. The page asks for nothing an **older
-tablet's** browser has not got: an iPadOS 13 `MediaQueryList` carries
-`addListener` and not `addEventListener`, and the page feature-tests it
-the way CodeMirror feature-tests its own. Held by
-`tools/browser/dashboard.mjs`, which opens the page on an engine with
-those APIs taken away; see `doc/browser-tests.md`.
-
-**Diagnostic** — A build problem shown in the editor itself, in the lint
-gutter and under the text of the open file. The problems list under the
-editor shows the same problems for every file.
-
-**Navigator** — Answers, for a position in one of the worktree's main
-sources, which **symbol** is there (its qualified name and kind), where
-it is **defined** (a file, line and column in the sources, or nowhere
-when it comes from the SDK or the JDK), and every **usage** of it across
-the sources (a reference, never the declaration itself). The JDK's own
-compiler answers, through the `com.sun.source` Trees API, from the same
-kind of task the build runs, stopped after `analyze()`; no language
-server, no extra process. Cached by the build's source fingerprint, so
-an unchanged tree costs nothing. A file that does not compile still
-answers for the parts that do. Lines and columns are 1-based and count
-characters, never tab stops. In the Edit tab: F12 or Ctrl-click for the
-definition, Shift-F12 for the usages, at `GET /nav/definition` and
-`GET /nav/usages`. Class: `SourceNavigator`.
-
-**Source set** — Every `.java` file under the worktree's main source
-root, named by its root-relative key like the editable set. A user may
-**view** any file in it, read-only, at `GET /source/<key>`, so a jump to
-a definition lands somewhere the user can read; a user may **edit** only
-the editable set, as before, and the file list still shows only that.
-The source set is enumerated and matched exactly, never resolved against
-the filesystem.
+**Part** — One piece of the **local simulator**'s page that starts on its
+own: the simulator, the launch sim, the feeder sim, the tabs. A part that
+throws is caught, named in a banner at the top of the page and recorded in
+`window.simulatorPage.broke`, and the others still start — so a browser that
+cannot run one part of the page still gives the rest, and never leaves the
+shell it was served as, which is what "nothing to show you" looks like too.
+The page asks for nothing an **older tablet's** browser has not got: an
+iPadOS 13 `MediaQueryList` carries `addListener` and not `addEventListener`,
+and the page feature-tests it. Held by `tools/browser/dashboard.mjs`, which
+opens the page on an engine with those APIs taken away; see
+`doc/browser-tests.md`.
 
 **Build** — Compiling a project's main sources as they are on disk with
 the JDK's own compiler against the **libraries**, together with that
@@ -932,14 +615,10 @@ that is not a test, with the resources next to it copied along — cached
 by a fingerprint of all three trees. The simulator runs in the child against the sources it was
 just built with, so a simulator that does not fit them fails the build
 naming the seam, rather than the child failing at run time with a
-linkage error nobody can read. The Edit tab asks for a build after every
-save and shows the **problems** (file, line, message); a problem in the
-simulator has no file the user can open and says so in its message. In
-the coding server the project is the user's worktree, so one user's
-broken edit breaks only their own build, and a worktree on another
-version of the code than the server runs its own simulator, not the
-server's. Not the Android build: no Kotlin, no desugaring. Class:
-`SimBuild`.
+linkage error nobody can read. A run that does not compile shows the
+**problems** (file, line, message) on the Simulate tab; a problem in the
+simulator has no file the user can open and says so in its message. Not the
+Android build: no Kotlin, no desugaring. Class: `SimBuild`.
 
 ## The simulator
 
@@ -980,14 +659,10 @@ count, the way that port's motor is set to turn, so Road Runner's raw encoder,
 which undoes that, reads the same whichever way the drive motor is set.
 Classes: `DeadWheels`; `TheHubReportsAReversedMotorsCountNegatedTest`.
 
-**Bench** — The simulation core shared by the bench page and the coding
-server's Simulate tab: the catalog, the runs so far, and the routes that
-start a run and follow it. One run at a time per bench. The bench page
-has one; the coding server makes one per worktree through a **bench
-factory**, so one run at a time per user and two users may run at once,
-each in its own child JVM, and a user's status lists only their runs. A bench
-is for one **robot**, the user's, so a user's Simulate tab lists and runs
-their own robot's op modes and never the other's.
+**Bench** — The simulation core behind the **local simulator**'s page: the
+catalog, the runs so far, and the routes that start a run and follow it. One
+run at a time per bench. A bench is for one **robot**, so its Simulate tab
+lists and runs that robot's op modes and never the other's.
 Given a project it builds that project's robot and simulator before
 every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
@@ -999,11 +674,10 @@ configuration (`.run/Simulator.run.xml`), which prints the URL to open. It
 serves one bench for Reginald over the sources on disk as they were last
 saved, so the next Run runs the last save with no restart and a compile error
 names its file and line. It listens on loopback alone (port 21988,
-`SIMULATOR_PORT`), so nobody on the LAN reaches it, and it has no login, no
-editor and no git: the page at its root is the coding server's dashboard with
-`data-host="simulator"`, which drops the Edit tab, the branch panel and who
-is signed in, and opens on Simulate. Stopping the task stops any run and its
-child. The coding server is unchanged beside it. Classes: `LocalSimulator`;
+`SIMULATOR_PORT`), so nobody on the LAN reaches it, and it has no login: the
+page at its root is the simulator's own, `dashboard.html`, with the Simulate,
+Launch Sim and Feeder Sim tabs, and opens on Simulate. Stopping the task stops
+any run and its child. Classes: `LocalSimulator`;
 `SimulatorRunConfigurationTest`; `tools/browser/simulator.mjs`.
 
 **Waits** — How long a bench waits for each thing it waits for, said once by
@@ -1181,10 +855,10 @@ whichever robot it is told; an older child simulates Reginald alone, so the
 bench runs Reginald on it and refuses Nugget by name, with the fix, which is
 to pull `nugget-develop` — or, when that is older too, for the coach to merge
 `develop` into it. From version 6 the start line may carry the **simulation
-constants** the admin changed, and only those; an older child runs on the
+constants** that were changed, and only those; an older child runs on the
 constants it was built with, so the bench lets it run when none were changed
 and refuses it by name, with the fix, when any were: pull the robot's develop
-branch, or have the coach put the constants back as built. A tick's
+branch. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Every one of those decisions —
@@ -1452,8 +1126,8 @@ read and then regenerated with `--regenerate`.
 
 **What the suite costs** — What a run of the unit tests spends on the few
 things that are dear: a **child JVM** started, a **compile** of a project's
-sources, a **git** process, a session secret put through **scrypt**, a file
-**formatted**, a **node** process, and a **project copied** onto disk. Each is
+sources, a session secret put through **scrypt**, a **node** process, and a
+**project copied** onto disk. Each is
 counted where it is spent, inside the one adapter that reaches it, so the
 ledger is complete for the same reason nothing else may reach any of them at
 all: `CostIsCountedWhereItIsSpentTest` pins who may reach each one and holds
@@ -1479,14 +1153,7 @@ it as surely as more, a missing budget fails rather than passing for want of
 anything to compare, and a regenerating run fails because a run that wrote the
 answer down has not checked it. A ledger is one JVM's, so a run of part of the
 suite, or of the suite split across JVMs, says it **could not judge** rather
-than passing.
-
-A count that is the size of the codebase rather than what the tests do with it
-is printed and not pinned: every Java file in the project goes through the
-formatter once, so that one would move on any commit that adds a file, and a
-gate that fires on every such commit is one people turn off. The report stars
-the ones it only prints, and a budget line for one of them is refused, since it
-would judge nothing. Files: `Cost`; `suite-budget.json`.
+than passing. Every kind is pinned. Files: `Cost`; `suite-budget.json`.
 
 **A file of the repository** — A **suite budget**, a **golden trace**: written
 where somebody reads it in a diff, and holding nothing secret. None of them goes
@@ -1495,17 +1162,16 @@ into owner-only because session secrets live there — right there, and wrong on
 source tree, where it leaves a checked-out directory only the person who last
 regenerated something can read. Class: `RepoFile`.
 
-**Refresh assets** — The admin page's button, and what a coding server does
+**Refresh assets** — The admin page's button, and what the robot gateway does
 for itself at startup when it has fetched none: ask Onshape for the field
 assembly, build the field as it looks, fetch the five images the CAD cannot
 carry, and write them under the server's state directory. Nothing is written
 until every one has arrived and been checked, so a rename upstream stops a
-refresh rather than leaving half of one behind. The coding server serves what
-it fetched and falls back, asset by asset, to the **stand-in** committed for
-the tests — so a server that has never fetched still draws, and the admin page
-says which of the two it is drawing. The fetch is `main`'s to start rather than
-the server's, so no test that builds a coding server reaches the network.
-Classes: `Onshape`; `Gltf`; `FieldGlb`; `FieldAssets`; `CodingServer.Assets`.
+refresh rather than leaving half of one behind. The admin page says what was fetched
+and which resolutions are held; serving them to teammates' simulators is #188's.
+The fetch is `main`'s to start rather than the gateway's, so no test that
+builds a robot gateway reaches the network. Classes: `Onshape`; `Gltf`;
+`FieldGlb`; `FieldAssets`; `RobotGateway.Assets`.
 
 **Download** and **build** — The two halves of getting a field model, asked
 for separately because they cost such different things. A download is tens of
@@ -1519,10 +1185,8 @@ and not another download. **Refresh** is still there and is the two in one,
 which is what a server with nothing fetched runs at startup. At
 `POST /admin/assets/download`, `POST /admin/assets/build?resolution=…` and
 `POST /admin/assets/refresh?resolution=…`, with a button apiece on the admin
-page, and `POST /admin/assets/default?resolution=…` for the **resolution the
-pages draw**. A build asked for no resolution in particular builds that one,
-and so does the startup fetch: a server set to draw the cheap model does not
-fetch the dear one for nobody to look at.
+page. A build asked for no resolution in particular builds **high**, the one a
+page draws when it asks for none, and so does the startup fetch.
 
 **Resolution** — Which field a page draws, in three steps, each adding one
 thing to the one below it:
@@ -1540,16 +1204,13 @@ let go of, and the jump in bytes is **normals**. **High** adds back every part
 the export holds, which is the two thirds of the assembly that holds the field
 together and that nothing draws once the field is up.
 
-**Which one a page draws when it asks for none is the admin's**: *Pages draw*
-on the admin page, kept with the rest of the server's state so a restart draws
-what was set. It is **high** until somebody sets another — a field that does
-not look like the field is the thing worth avoiding, and whoever cannot afford
-it is the one who knows that — and a query string still says otherwise for one
-page with `?resolution=low`, `medium` or `high`. The setting reaches the pages
-as the one line they import for it, `field-default.js`: a coding server writes
-that line from the setting, every other server serves the copy committed beside
-the models, and the line is `FieldAssets`' to write either way, so what a page
-draws and what a server builds cannot drift apart by being said twice. A page
+**Which one a page draws when it asks for none** is **high** — a field that
+does not look like the field is the thing worth avoiding, and whoever cannot
+afford it is the one who knows that — and a query string says otherwise for one
+page with `?resolution=low`, `medium` or `high`. It reaches the pages as the one
+line they import for it, `field-default.js`, which every server serves as
+committed beside the models, and the line is `FieldAssets`' to write, so what a
+page draws and what a server builds cannot drift apart by being said twice. A page
 that asks for one nobody built draws the low one **and says on the page that it
 fell back** — which, on a server that has built nothing, is every page, said
 out loud rather than quietly. The **build** makes any of them, or `all`, from
@@ -1679,7 +1340,7 @@ against the back of the cell, the shot after a tip, and the preload's four
 launches at the code's own cadence into an empty cell, all four coming to
 rest in it. The throw is a steep one, into a mouth a hive holds five feet
 up. Both are **simulation constants**,
-so whoever measures them sets them on the admin page. The world moves in steps of at
+so whoever measures them changes what they were built as. The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
 `SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
 `Launch` and `Turntable`, in the **core**.
@@ -1777,8 +1438,8 @@ and chance above is a **simulation constant**, so a seed draws the robot from
 the constants a run was started on. Classes: `Noise` and `Draws`, in the
 **core**; `SimNoise`, which names the robot in a run's log; `SimRobot.setDown`.
 
-**Simulation constants** — The numbers the simulator was built with that are
-the admin's to change: the **noise** a seed draws a robot from (how far a
+**Simulation constants** — The numbers the simulator was built with that a
+run can be started on other values of: the **noise** a seed draws a robot from (how far a
 motor strays from its tuning, the battery, its sag and drain, traction, how a
 hand sets the robot down, and the loop and its hiccups), and the
 **mechanisms** nobody has measured yet (the launcher's throw and the
@@ -1791,19 +1452,8 @@ and grip — and the robot's own tuning are not among them: the one is the
 field's, the other the robot code's. The **Launch Sim**'s bounce, grip, drag and
 lift are something else again: **shot settings**, chosen per launch by whoever
 launches, kept per user, and never reaching a run: a run's **flight** flies on
-their defaults, which are the field's physics. The admin page lists them under
-*Simulation constants*, each with what it is, its unit, its range and what it
-was built as, and a set is saved whole, so what is left out goes back to how
-it was built; `GET /admin/constants` and `PUT /admin/constants` with what
-differs as `{"<name>": <number>}`. The server keeps them with the rest of its
-settings, so a restart runs what was set, and a settings file it cannot read
-stops it from starting. A saved constant that is a number past where its range
-now lets it go, as a throw saved before the throw's range was narrowed is, does
-not stop the server: it is used at the nearer end of its range, and the admin
-page shows it beside what was saved until the admin saves the constants again.
-Saving any other setting, as the field the pages draw is, keeps it saved as it
-was, so it is still shown after a restart. Every run a user starts is made on the constants as
-they were when it was started: its child is told the ones that were changed on
+their defaults, which are the field's physics. Every run is made on the
+constants as they were when it was started: its child is told the ones that were changed on
 its start line, its log names them, and `/status` says which they were. The
 core's calls that draw a seeded robot, launch a ball or turn the turntable
 name the constants rather than defaulting them, so none of them is made on the
@@ -1811,8 +1461,7 @@ built ones by forgetting to say. Classes: `Constant` and `Constants`, in the **c
 `SimConstants`, which reads and writes them; `SimBench.Run.constants`.
 
 **Seed** — Which robot an op mode's runs are made on, kept by the bench
-beside the op mode's start pose (in `start-poses.json`, so per user on
-the coding server): a whole number, drawn into a robot by the noise, or
+beside the op mode's start pose (in `start-poses.json`): a whole number, drawn into a robot by the noise, or
 none for the exact robot. Seed 1 until someone sets it, so a run is made
 on an imperfect robot unless someone asks for the exact one. Shown and
 edited in the op mode's row on the bench page and the Simulate tab (a
@@ -1953,9 +1602,8 @@ true pose as the op mode's time begins, in the same frame as every tick.
 It says nothing to the robot code, which believes what its localizer and
 its plan tell it, exactly as when a person sets the robot down on the
 real field. One per op mode, by name, kept by the bench in
-`start-poses.json` under its output directory (`TeamCode/build/sim`, the
-worktree's own on the coding server) so it outlives the server and each
-user has their own; the origin until someone places the robot.
+`start-poses.json` under its output directory (`TeamCode/build/sim`) so it
+outlives the simulator; the origin until someone places the robot.
 `GET /start?opmode=<name>` answers it and `PUT /start` places it, where
 the field allows, so a pose beyond a wall or in an obstacle lands
 against it. Chosen on
@@ -1972,12 +1620,11 @@ pair of flywheels, on the field, in as much detail as there is a measured basis
 for, and replayed. Its settings stand on the right of its view, with its launches
 under the view; under 760 px wide the page stacks them, the view first, then the
 settings, then the launches. `#launch`, with the view's options after a `?` as on
-Simulate. Like a run, a launch is a bench's, so a user's launches are theirs on the
-robot they are on. It runs no robot code, starts no child and changes nothing a run
+Simulate. Like a run, a launch is a bench's, so it is for the robot the bench is
+for. It runs no robot code, starts no child and changes nothing a run
 does; a run's balls in **flight** move on its engine and its defaults, but nothing a
-user sets here reaches a run. It runs in the coding server's own process, on the server's own
-**core** rather than the worktree's, since it is the server's physics and not a
-teammate's code. What the model is, where every number came from, what was left
+user sets here reaches a run. It runs in the simulator's own process, on its own
+**core**, since it is the simulator's physics and not the robot's code. What the model is, where every number came from, what was left
 out and why, and how to calibrate it is `doc/launch-sim.md`. Classes: `Shot`, in
 the **core**; `SimLaunches`; `SimLaunchPage`. Files: `launch.html`.
 
@@ -2281,8 +1928,8 @@ turning pollen round to the **ramp**, which lifts each into the flywheel, and th
 **launcher** throwing it, replayed with the **spinner**'s and ramp's loads traced
 against time. It is laid out as Launch Sim is: settings on the right of the view,
 the feeds under it. `#feeder`, with the view's options after a `?`. Like a launch, a
-feed is a bench's, so a user's feeds are theirs on the robot they are on. It runs no
-robot code and nothing set here reaches a run; it runs on the coding server's own
+feed is a bench's, so it is for the robot the bench is for. It runs no
+robot code and nothing set here reaches a run; it runs on the simulator's own
 **core**. What it simulates, where every number came from, what the physics showed
 and how to calibrate it is `doc/feeder-sim.md`. Classes: `Feed`, `FeedRun`, in the
 **core**; `SimFeeds`; `SimFeedPage`. Files: `feeder.html`.

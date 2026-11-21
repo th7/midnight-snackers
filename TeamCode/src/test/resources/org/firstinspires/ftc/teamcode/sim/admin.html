@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coding Server Admin</title>
+<title>Robot Gateway Admin</title>
 <style>
   :root {
     color-scheme: light;
@@ -34,7 +34,7 @@
   header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding: 16px 20px 0; max-width: 1200px; margin: 0 auto; }
   h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
   header .sub { color: var(--muted); margin: 0; }
-  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 16px 20px 24px; max-width: 1200px; margin: 0 auto; }
+  main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; padding: 16px 20px 24px; max-width: 1200px; margin: 0 auto; }
   @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
   .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
   .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
@@ -57,23 +57,6 @@
   .pill.bad { color: var(--bad); background: var(--bad-soft); }
   .pill.warn { color: var(--warn); background: var(--warn-soft); }
   .pill.muted { color: var(--muted); background: var(--hover); }
-  .pill.robot { color: var(--accent); background: var(--hover); font-weight: 600; }
-  .robots { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 10px; vertical-align: baseline; }
-  .robots label { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .robots label:has(input:checked) { color: var(--accent); border-color: var(--accent); }
-  .robots input { margin: 0; accent-color: var(--accent); }
-  .robots input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .work { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 6px 14px 6px 30px; border-top: 1px dashed var(--line); }
-  .work .what { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-  .work .branch { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .work .git { grid-column: 1 / 2; margin-top: 0; }
-  @media (max-width: 520px) {
-    .row.user-head, .work { grid-template-columns: minmax(0, 1fr); }
-    .row.user-head .actions, .work .actions { flex-wrap: wrap; }
-    .robots { display: flex; margin: 4px 0 2px; }
-  }
-  .robot-pick { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }
-  .robot-pick select { font: inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
   .user + .user { border-top: 1px solid var(--line); }
   .fold { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 0; border: 0; border-radius: 3px; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
   .fold:hover { filter: none; text-decoration: underline; }
@@ -84,55 +67,35 @@
   .sessions { background: var(--bg); border-top: 1px solid var(--line); }
   .sessions .row { padding-left: 30px; }
   .sessions .row .name { font-weight: 500; color: var(--muted); }
-  .crumbs { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--muted); display: flex; gap: 4px; flex-wrap: wrap; }
-  .crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
-  .crumbs a:hover { text-decoration: underline; }
-  #tree .row.dir { cursor: pointer; }
-  #tree .row.dir:hover { background: var(--hover); }
-  #tree .row.dir .name::before { content: "▸ "; color: var(--muted); }
   .urls { display: grid; gap: 4px; }
-  .recipe { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .recipe .why { color: var(--muted); }
-  .recipe .why.ok { color: var(--ok); }
-  .recipe .why.warn { color: var(--warn); }
-  .recipe .why.bad { color: var(--bad); }
-  .git { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; font-size: 12px; color: var(--muted); }
   .result { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
   .result.ok { color: var(--ok); }
   .result.warn { color: var(--warn); }
   .result.bad { color: var(--bad); }
-  button.pull { position: relative; }
-  button.pull .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent); }
-  button.pull.behind:not(:disabled) { animation: behind 1.6s ease-in-out infinite; }
-  @keyframes behind {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(47, 91, 215, 0.45); }
-    50% { box-shadow: 0 0 0 5px rgba(47, 91, 215, 0); }
+  @media (max-width: 520px) {
+    .row.user-head { grid-template-columns: minmax(0, 1fr); }
+    .row.user-head .actions { flex-wrap: wrap; }
   }
-  @media (prefers-reduced-motion: reduce) { button.pull.behind:not(:disabled) { animation: none; border-color: var(--accent); } }
-  .constants-note { margin: 0; padding: 10px 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
-  .constant-group { padding: 10px 14px 4px; }
-  .constant-group .name { font-weight: 600; }
-  .constant-group .meta { color: var(--muted); font-size: 12px; }
-  .constant { display: grid; grid-template-columns: minmax(0, 1fr) 7.5em minmax(0, 0.9fr); gap: 4px 10px; align-items: center; padding: 6px 14px; border-top: 1px solid var(--line); }
-  .constant.changed { box-shadow: inset 3px 0 0 var(--accent); }
-  .constant .name { overflow-wrap: anywhere; }
-  .constant input { font: inherit; width: 100%; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
-  .constant input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-  .constant .unit { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-  .constant .built { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
-  .constant:not(.changed) .built { display: none; }
-  .constant.past { box-shadow: inset 3px 0 0 var(--warn); }
-  .constant .saved { grid-column: 1 / -1; color: var(--warn); font-size: 12px; }
-  .constants-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
-  .constants-actions .result { flex: 1 1 12em; }
+  .models { display: grid; gap: 10px; padding: 12px 14px; }
+  .models p { margin: 0; }
+  .models label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .models select { font: inherit; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .models .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  #assets-said { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Coding server · admin</h1>
+  <h1>Robot gateway · admin</h1>
   <p class="sub">Only a browser on this machine can open this page.</p>
 </header>
 <main>
+  <section>
+    <div>
+      <p class="section-label">Users</p>
+      <div id="users" class="panel"></div>
+    </div>
+  </section>
   <section>
     <div>
       <p class="section-label">Tell teammates to open</p>
@@ -143,41 +106,10 @@
       <div id="relay" class="panel"><p class="empty">…</p></div>
     </div>
     <div>
-      <p class="section-label">Users</p>
-      <div id="users" class="panel"></div>
-    </div>
-  </section>
-  <section>
-    <div>
-      <p class="section-label">Files teammates can edit</p>
-      <div class="panel">
-        <label class="robot-pick" title="Each robot's teammates edit their own files, on their own branch">For
-          <select id="editable-robot"></select>
-        </label>
-        <div id="editable"></div>
-      </div>
-    </div>
-    <div>
-      <p class="section-label">Pick files</p>
-      <div class="panel">
-        <div id="crumbs" class="crumbs"></div>
-        <div id="tree"></div>
-      </div>
-    </div>
-  </section>
-  <section>
-    <div>
-      <p class="section-label">The field the pages draw</p>
-      <div class="panel">
+      <p class="section-label">Field models</p>
+      <div class="panel models">
         <p id="assets-state">&hellip;</p>
-        <label title="Which field a page draws when its query string asks for none by name.">Pages draw
-          <select id="default-resolution">
-            <option value="low">low (4 MB)</option>
-            <option value="medium">medium (28 MB)</option>
-            <option value="high">high (42 MB)</option>
-          </select>
-        </label>
-        <label title="Which one the buttons below build. A page can still ask for any that is built.">Build
+        <label title="Which one the buttons below build">Build
           <select id="assets-resolution">
             <option value="low">low (4 MB)</option>
             <option value="medium">medium (28 MB)</option>
@@ -185,24 +117,12 @@
             <option value="all">all three</option>
           </select>
         </label>
-        <button id="download-assets" type="button" title="Fetch the assembly and the textures from Onshape and keep them">Download</button>
-        <button id="build-assets" type="button" title="Build the models from the export already downloaded; no Onshape, under a second">Build</button>
-        <button id="refresh-assets" type="button" title="Download and then build, in one">Refresh assets</button>
-        <p id="assets-said" class="mono"></p>
-      </div>
-    </div>
-  </section>
-  <section>
-    <div>
-      <p class="section-label">Simulation constants</p>
-      <div class="panel">
-        <p class="constants-note">Every run a teammate starts on this server is made with these, from the moment they are saved. Hover over one for what it is and how far it may go.</p>
-        <div id="constants"></div>
-        <div class="constants-actions">
-          <button id="save-constants" type="button" class="primary">Save</button>
-          <button id="reset-constants" type="button" title="Every constant back to the value the simulator was built with">Back as built</button>
-          <span id="constants-said" class="result"></span>
+        <div class="buttons">
+          <button id="download-assets" type="button" title="Fetch the assembly and the textures from Onshape and keep them">Download</button>
+          <button id="build-assets" type="button" title="Build the models from the export already downloaded; no Onshape, under a second">Build</button>
+          <button id="refresh-assets" type="button" title="Download and then build, in one">Refresh assets</button>
         </div>
+        <p id="assets-said" class="mono"></p>
       </div>
     </div>
   </section>
@@ -215,33 +135,20 @@
   var downloadAssets = document.getElementById('download-assets');
   var buildAssets = document.getElementById('build-assets');
   var assetsResolution = document.getElementById('assets-resolution');
-  var defaultResolution = document.getElementById('default-resolution');
   var buttons = [downloadAssets, buildAssets, refreshAssets];
-  // What to build follows what the pages draw until somebody says otherwise, so that setting the
-  // pages to the cheap model and pressing Refresh does not fetch the dear one nobody will look at.
-  var pickedWhatToBuild = false;
-  assetsResolution.addEventListener('change', function () { pickedWhatToBuild = true; });
 
   function showAssets(json) {
     assetsState.textContent = json.complete
-      ? 'Drawing ' + json.drawing + '.'
-      : 'Drawing ' + json.drawing + '; this server has not fetched them from Onshape yet.';
+      ? 'The field models are fetched from Onshape.'
+      : 'The field models have not been fetched from Onshape yet.';
     var names = Object.keys(json.fetched || {});
     var resolution = json.resolution || {};
     var held = Object.keys(resolution).filter(function (name) { return resolution[name]; });
-    var fallsBack = !resolution[json.defaultResolution];
-    defaultResolution.value = json.defaultResolution;
-    if (!pickedWhatToBuild) {
-      assetsResolution.value = json.defaultResolution;
-    }
     assetsSaid.textContent = (names.length
       ? names.length + ' fetched, in ' + json.under
       : 'nothing fetched, so ' + json.under + ' is empty')
-      + (held.length ? '. Models held: ' + held.join(', ') + '.' : '')
-      + (json.downloaded ? ' The export is here, so Build needs no Onshape.' : ' Nothing downloaded to build from.')
-      + (fallsBack
-        ? ' A page asks for ' + json.defaultResolution + ' and falls back to low until that is built.'
-        : ' A page can ask for any of them with ?resolution=low|medium|high.');
+      + (held.length ? '. Models held: ' + held.join(', ') + '.' : '.')
+      + (json.downloaded ? ' The export is here, so Build needs no Onshape.' : ' Nothing downloaded to build from.');
     buildAssets.disabled = !json.downloaded;
   }
 
@@ -250,8 +157,6 @@
       .catch(function () { assetsState.textContent = 'The admin server did not answer about the assets.'; });
   }
 
-  // The dear half and the cheap one, asked for separately: a download is tens of seconds of Onshape,
-  // and a build is arithmetic on what it left behind, so changing the resolution need not fetch again.
   function ask(where, saying, failed) {
     buttons.forEach(function (button) { button.disabled = true; });
     assetsSaid.textContent = saying;
@@ -275,14 +180,6 @@
     return '?resolution=' + encodeURIComponent(assetsResolution.value);
   }
 
-  // What the pages draw is a setting rather than a query string somebody passes around, so choosing
-  // one says so at once: the server keeps it, every page reads it, and what comes back says whether
-  // it is built yet -- because a resolution nobody built is one every page falls back from.
-  defaultResolution.addEventListener('change', function () {
-    ask('/admin/assets/default?resolution=' + encodeURIComponent(defaultResolution.value),
-        'The pages will draw ' + defaultResolution.value + '\u2026', 'That could not be set');
-  });
-
   downloadAssets.addEventListener('click', function () {
     ask('/admin/assets/download', 'Fetching from Onshape\u2026 the export is about eleven megabytes.',
         'The download did not finish');
@@ -300,141 +197,17 @@
 
   loadAssets();
 
-  var constantsEl = document.getElementById('constants');
-  var constantsSaid = document.getElementById('constants-said');
-  var saveConstants = document.getElementById('save-constants');
-  var resetConstants = document.getElementById('reset-constants');
-  var constantsListed = [];
-
-  function inputOf(constant) {
-    return constantsEl.querySelector('input[data-name="' + constant.name + '"]');
-  }
-
-  function differs(constant, typed) {
-    return typed.trim() !== '' && Number(typed) !== constant.byDefault;
-  }
-
-  function showConstants(json) {
-    constantsListed = json.constants || [];
-    constantsEl.textContent = '';
-    (json.groups || []).forEach(function (group) {
-      var head = document.createElement('div');
-      head.className = 'constant-group';
-      head.innerHTML = '<div class="name"></div><div class="meta"></div>';
-      head.querySelector('.name').textContent = group.label;
-      head.querySelector('.meta').textContent = group.says;
-      constantsEl.appendChild(head);
-      constantsListed.filter(function (constant) { return constant.group === group.name; }).forEach(function (constant) {
-        var row = document.createElement('label');
-        var past = constant.saved !== undefined;
-        row.className = 'constant' + (constant.value !== constant.byDefault ? ' changed' : '') + (past ? ' past' : '');
-        row.title = constant.says + ' From ' + constant.least + ' to ' + constant.most + ' ' + constant.unit + '.';
-        row.innerHTML = '<span class="name"></span><input class="mono" type="number" step="any"><span class="unit"></span>'
-          + '<span class="built mono"></span>';
-        row.querySelector('.name').textContent = constant.label;
-        row.querySelector('.unit').textContent = constant.unit;
-        row.querySelector('.built').textContent = 'built ' + constant.byDefault;
-        if (past) {
-          var saved = document.createElement('span');
-          saved.className = 'saved';
-          saved.textContent = 'saved ' + constant.saved + ', past where it may now go, ' + constant.least + ' to '
-            + constant.most + ' ' + constant.unit + ': runs use ' + constant.value + ' until you save';
-          row.appendChild(saved);
-        }
-        var input = row.querySelector('input');
-        input.dataset.name = constant.name;
-        input.min = constant.least;
-        input.max = constant.most;
-        input.value = constant.value;
-        input.addEventListener('input', function () {
-          row.classList.toggle('changed', differs(constant, input.value));
-        });
-        constantsEl.appendChild(row);
-      });
-    });
-  }
-
-  function loadConstants() {
-    return fetch('/admin/constants').then(function (r) { return r.json(); }).then(showConstants)
-      .catch(function () { constantsSaid.textContent = 'The admin server did not answer about the constants.'; });
-  }
-
-  function askedConstants() {
-    var asked = {};
-    constantsListed.forEach(function (constant) {
-      var typed = inputOf(constant).value;
-      if (differs(constant, typed)) {
-        var number = Number(typed);
-        asked[constant.name] = isNaN(number) ? typed : number;
-      }
-    });
-    return asked;
-  }
-
-  function putConstants(asked, saying) {
-    saveConstants.disabled = true;
-    resetConstants.disabled = true;
-    constantsSaid.className = 'result';
-    constantsSaid.textContent = 'Saving\u2026';
-    fetch('/admin/constants', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(asked)
-    }).then(function (r) {
-      return r.text().then(function (text) { return { ok: r.ok, text: text }; });
-    }).then(function (answer) {
-      if (!answer.ok) {
-        constantsSaid.className = 'result bad';
-        constantsSaid.textContent = answer.text;
-        return;
-      }
-      showConstants(JSON.parse(answer.text));
-      constantsSaid.className = 'result ok';
-      constantsSaid.textContent = saying;
-    }).catch(function (wrong) {
-      constantsSaid.className = 'result bad';
-      constantsSaid.textContent = 'The constants could not be saved: ' + wrong;
-    }).then(function () {
-      saveConstants.disabled = false;
-      resetConstants.disabled = false;
-    });
-  }
-
-  saveConstants.addEventListener('click', function () {
-    putConstants(askedConstants(), 'Saved. The next run anyone starts is made with these.');
-  });
-
-  resetConstants.addEventListener('click', function () {
-    putConstants({}, 'Back as built. The next run anyone starts is made with these.');
-  });
-
-  loadConstants();
-
   var usersEl = document.getElementById('users');
-  var editableEl = document.getElementById('editable');
-  var treeEl = document.getElementById('tree');
-  var crumbsEl = document.getElementById('crumbs');
   var urlsEl = document.getElementById('urls');
   var relayEl = document.getElementById('relay');
-  var editableRobotEl = document.getElementById('editable-robot');
-  var editable = [];
-  var dir = '';
-  var robots = {};
+  var robotNames = { reginald: 'Reginald', nugget: 'Nugget' };
 
   function robotName(robot) {
-    return robots[robot] ? robots[robot].name : robot;
-  }
-
-  function developOf(robot) {
-    return robots[robot] ? robots[robot].develop : 'develop';
+    return robotNames[robot] || robot;
   }
 
   function keyOf(user) {
     return user.username;
-  }
-
-  function workKeyOf(user, work) {
-    return work.robot + '/' + user.username;
   }
 
   function post(path) {
@@ -486,29 +259,9 @@
     return el;
   }
 
-  function renderStatus(work) {
-    var status = work.status;
-    var git = document.createElement('div');
-    git.className = 'git';
-    if (!status) {
-      git.appendChild(pill('bad', 'no status', work.statusError || ''));
-      return git;
-    }
-    var changed = status.changed.length;
-    git.appendChild(pill(changed ? 'warn' : 'muted', changed ? plural(changed, 'file', 'files') + ' changed' : 'nothing to commit',
-        status.changed.join('\n')));
-    git.appendChild(pill(status.ahead ? 'ok' : 'muted', plural(status.ahead, 'commit', 'commits') + ' to push'));
-    git.appendChild(pill(status.behind ? 'warn' : 'muted', plural(status.behind, 'commit', 'commits') + ' to pull'));
-    return git;
-  }
-
   var stateClass = { pending: 'warn', approved: 'ok', denied: 'bad', revoked: 'muted' };
 
   var resultByUsername = {};
-  var resultByWork = {};
-  var pullingByWork = {};
-
-  var deleteArmedByUsername = {};
 
   var expandedByUsername = {};
 
@@ -527,164 +280,32 @@
     return chosen === undefined ? pendingCount(user) > 0 : chosen;
   }
 
-  function enabledWork(user) {
-    return user.robots.filter(function (work) { return work.enabled; });
-  }
-
-  function pull(user, work) {
-    var key = workKeyOf(user, work);
-    pullingByWork[key] = true;
-    renderUsers(lastUsers);
-    post('/admin/users/pull?robot=' + encodeURIComponent(work.robot) + '&username=' + encodeURIComponent(user.username))
-      .then(answered).catch(unreachable).then(function (reply) {
-        var result;
-        try { result = JSON.parse(reply.text); } catch (e) { result = { message: reply.text }; }
-
-        resultByWork[key] = {
-          text: result.message,
-          kind: result.severity === undefined ? 'bad' : result.severity
-        };
-        delete pullingByWork[key];
-        refresh();
-      });
-  }
-
-  function letOnto(user, work, enabled) {
-    post('/admin/users/robots?robot=' + encodeURIComponent(work.robot) + '&username=' + encodeURIComponent(user.username)
-        + '&enabled=' + (enabled ? 'true' : 'false'))
-      .then(answered).catch(unreachable).then(function (reply) {
-        if (reply.ok) {
-          delete resultByUsername[keyOf(user)];
-        } else {
-          resultByUsername[keyOf(user)] = { text: messageOf(reply), kind: 'bad', from: 'robots' };
-        }
-        refresh();
-      });
-  }
-
   function forget(user) {
     delete resultByUsername[keyOf(user)];
     delete expandedByUsername[keyOf(user)];
-    delete deleteArmedByUsername[keyOf(user)];
-    user.robots.forEach(function (work) {
-      delete resultByWork[workKeyOf(user, work)];
-      delete pullingByWork[workKeyOf(user, work)];
-    });
   }
 
   function remove(user) {
-    var armed = deleteArmedByUsername[keyOf(user)];
-    var path = '/admin/users/delete?username=' + encodeURIComponent(user.username) + (armed ? '&force=true' : '');
-    post(path).then(answered).catch(unreachable).then(function (reply) {
+    post('/admin/users/delete?username=' + encodeURIComponent(user.username)).then(answered).catch(unreachable).then(function (reply) {
       if (reply.ok) {
         forget(user);
       } else {
-        resultByUsername[keyOf(user)] = { text: messageOf(reply), kind: 'bad', from: 'delete' };
-        deleteArmedByUsername[keyOf(user)] = true;
+        resultByUsername[keyOf(user)] = { text: messageOf(reply), kind: 'bad' };
       }
       refresh();
     });
   }
 
   function metaOf(user) {
-    var parts = [];
-    var on = enabledWork(user).map(function (work) { return robotName(work.robot); });
-    parts.push(on.length ? 'works on ' + on.join(' and ') : 'on no robot yet');
-    parts.push(plural(user.sessions.length, 'login', 'logins'));
-    var open = [];
+    var robots = [];
     user.sessions.forEach(function (session) {
-      if (session.file && open.indexOf(session.file) < 0) { open.push(session.file); }
+      if (session.state === 'approved' && robots.indexOf(robotName(session.robot)) < 0) { robots.push(robotName(session.robot)); }
     });
-    if (open.length) { parts.push('editing ' + open.join(', ')); }
-    return parts.join(' · ');
-  }
-
-  function renderRobots(user) {
-    var el = document.createElement('span');
-    el.className = 'robots';
-    user.robots.forEach(function (work) {
-      var label = document.createElement('label');
-      label.title = work.enabled
-          ? user.username + ' works on ' + robotName(work.robot) + ', on ' + developOf(work.robot) + '; clear to take them off it'
-          : 'Let ' + user.username + ' work on ' + robotName(work.robot) + ' as well';
-      var box = document.createElement('input');
-      box.type = 'checkbox';
-      box.checked = work.enabled;
-      box.addEventListener('click', function (e) { e.stopPropagation(); });
-      box.addEventListener('change', function () { letOnto(user, work, box.checked); });
-      var name = document.createElement('span');
-      name.textContent = robotName(work.robot);
-      label.appendChild(box);
-      label.appendChild(name);
-      el.appendChild(label);
-    });
-    return el;
-  }
-
-  function renderWork(user, work) {
-    var key = workKeyOf(user, work);
-    var el = document.createElement('div');
-    el.className = 'work';
-    var what = document.createElement('div');
-    what.className = 'what';
-    what.appendChild(pill('robot', robotName(work.robot), 'What ' + user.username + ' has on ' + robotName(work.robot)));
-    var branch = document.createElement('span');
-    branch.className = 'branch mono';
-    branch.textContent = work.branch || 'no worktree yet';
-    if (work.worktree) { branch.title = work.worktree; }
-    what.appendChild(branch);
-    el.appendChild(what);
-    var actions = document.createElement('div');
-    actions.className = 'actions';
-    el.appendChild(actions);
-    if (work.worktree) {
-      el.appendChild(renderStatus(work));
-      var status = work.status;
-      var behind = status ? status.behind : 0;
-      var pullButton = button('Pull', 'pull' + (behind > 0 ? ' behind' : ''), function () { pull(user, work); });
-      if (behind > 0) {
-        var badge = document.createElement('span');
-        badge.className = 'badge';
-        badge.textContent = behind;
-        pullButton.appendChild(badge);
-      }
-      if (pullingByWork[key]) {
-        pullButton.disabled = true;
-        pullButton.title = 'pulling…';
-      } else if (!status) {
-        pullButton.disabled = true;
-        pullButton.title = 'git could not read the worktree';
-      } else {
-        pullButton.title = behind > 0 ? 'Bring ' + plural(behind, 'commit', 'commits') + ' from ' + developOf(work.robot) + ' into ' + user.username + '\'s branch'
-            : user.username + '\'s branch has everything on ' + developOf(work.robot);
-      }
-      actions.appendChild(pullButton);
-    }
-    var result = resultByWork[key];
-    if (result) {
-      var line = document.createElement('div');
-      line.className = 'result ' + result.kind;
-      line.textContent = result.text;
-      el.appendChild(line);
-    }
-    var last = work.lastMerge;
-
-    if (last && last.recipe && last.recipe.length) {
-      var recipe = document.createElement('pre');
-      recipe.className = 'recipe mono';
-      var why = document.createElement('div');
-      why.className = 'why ' + (last.severity || '');
-      why.textContent = last.op + ': ' + last.message;
-      recipe.appendChild(why);
-      recipe.appendChild(document.createTextNode(last.recipe.join('\n')));
-      el.appendChild(recipe);
-    }
-    return el;
+    return (robots.length ? 'in, for ' + robots.join(' and ') : 'not in') + ' · ' + plural(user.sessions.length, 'login', 'logins');
   }
 
   function renderSession(user, session) {
-    var meta = 'on ' + robotName(session.robot) + ' · ' + session.address + ' · ' + age(session.ageSeconds)
-        + (session.file ? ' · editing ' + session.file : '');
+    var meta = 'for ' + robotName(session.robot) + ' · ' + session.address + ' · ' + age(session.ageSeconds);
     var el = row('session ' + session.state, 'login ' + session.id, meta);
     var actions = el.querySelector('.actions');
     actions.appendChild(pill(stateClass[session.state], session.state));
@@ -697,14 +318,14 @@
       if (title) { b.title = title; }
       return b;
     }
-    var onto = 'Let this login in, on ' + robotName(session.robot) + ', and ' + user.username + ' onto ' + robotName(session.robot);
+    var letIn = 'Let this login in: adb from ' + session.address + ' then reaches the robot';
     if (session.state === 'pending') {
-      actions.appendChild(decide('/approve', 'Approve', 'primary', onto));
+      actions.appendChild(decide('/approve', 'Approve', 'primary', letIn));
       actions.appendChild(decide('/deny', 'Deny', 'danger'));
     } else if (session.state === 'approved') {
       actions.appendChild(decide('/revoke', 'Revoke', 'danger'));
     } else {
-      actions.appendChild(decide('/approve', 'Approve', '', onto));
+      actions.appendChild(decide('/approve', 'Approve', '', letIn));
     }
     return el;
   }
@@ -712,14 +333,6 @@
   function renderUser(user, index) {
     var pending = pendingCount(user);
     var expanded = isExpanded(user);
-    var armed = deleteArmedByUsername[keyOf(user)];
-    if (armed && user.deletable) {
-      delete deleteArmedByUsername[keyOf(user)];
-      armed = false;
-      if (resultByUsername[keyOf(user)] && resultByUsername[keyOf(user)].from === 'delete') {
-        delete resultByUsername[keyOf(user)];
-      }
-    }
     var listId = 'sessions-' + index;
     var el = document.createElement('div');
     el.className = 'user';
@@ -736,11 +349,9 @@
     fold.querySelector('.name').textContent = user.username;
     fold.addEventListener('click', function () {
       expandedByUsername[keyOf(user)] = !expanded;
-      delete deleteArmedByUsername[keyOf(user)];
       renderUsers(lastUsers);
     });
     left.appendChild(fold);
-    left.appendChild(renderRobots(user));
     var meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = metaOf(user);
@@ -757,11 +368,8 @@
     if (user.relayed) {
       actions.appendChild(pill('ok', 'relaying', 'An adb connection from where their approved login came from is open to the robot'));
     }
-    var branches = enabledWork(user).map(function (work) { return work.branch; }).filter(Boolean);
-    var deleteButton = button(armed ? 'Delete anyway' : 'Delete', 'danger', function () { remove(user); });
-    deleteButton.title = armed
-        ? 'Delete ' + user.username + ' anyway: ' + (branches.length ? branches.join(' and ') : 'their branches') + ' keep what they committed'
-        : 'Forget ' + user.username + '\'s logins and take their worktree on every robot; their branches stay';
+    var deleteButton = button('Delete', 'danger', function () { remove(user); });
+    deleteButton.title = 'Forget every login of ' + user.username + ' and close their adb connections';
     actions.appendChild(deleteButton);
 
     var result = resultByUsername[keyOf(user)];
@@ -771,10 +379,6 @@
       line.textContent = result.text;
       head.appendChild(line);
     }
-
-    enabledWork(user).forEach(function (work) {
-      el.appendChild(renderWork(user, work));
-    });
 
     var sessions = document.createElement('div');
     sessions.className = 'sessions';
@@ -796,111 +400,6 @@
     }
     users.forEach(function (user, index) {
       usersEl.appendChild(renderUser(user, index));
-    });
-  }
-
-  function ownOf(robot) {
-    return robots[robot] && robots[robot].own ? robots[robot].own : [];
-  }
-
-  function ownerOf(entry) {
-    var path = entry.type === 'dir' ? entry.path + '/' : entry.path;
-    var owner = null;
-    Object.keys(robots).forEach(function (robot) {
-      ownOf(robot).forEach(function (own) {
-        if (path.indexOf(own) === 0) { owner = robot; }
-      });
-    });
-    return owner;
-  }
-
-  function renderEditable() {
-    editableEl.innerHTML = '';
-    var name = robotName(editableRobot());
-    ownOf(editableRobot()).forEach(function (own) {
-      var el = row('', own, 'Every file here is ' + name + '\'s own');
-      el.querySelector('.actions').appendChild(pill('ok', 'always', name + '\'s teammates always edit ' + name + '\'s own files'));
-      editableEl.appendChild(el);
-    });
-    if (!editable.length) {
-      var empty = document.createElement('p');
-      empty.className = 'empty';
-      empty.textContent = 'Pick files below for ' + name + '\'s teammates to edit as well.';
-      editableEl.appendChild(empty);
-      return;
-    }
-    editable.forEach(function (path) {
-      var el = row('', path, '');
-      el.querySelector('.actions').appendChild(button('Remove', 'danger', function () {
-        post('/admin/files/remove?robot=' + encodeURIComponent(editableRobot()) + '&path=' + encodeURIComponent(path)).then(loadEditable);
-      }));
-      editableEl.appendChild(el);
-    });
-  }
-
-  function editableRobot() {
-    return editableRobotEl.value || 'reginald';
-  }
-
-  function loadEditable() {
-    return fetch('/admin/files?robot=' + encodeURIComponent(editableRobot())).then(function (r) { return r.json(); }).then(function (json) {
-      editable = json.files.map(function (f) { return f.path; });
-      renderEditable();
-      renderTreeButtons();
-    });
-  }
-
-  var lastTree = null;
-  function renderTreeButtons() {
-    if (lastTree) { renderTree(lastTree); }
-  }
-
-  function renderTree(json) {
-    lastTree = json;
-    crumbsEl.innerHTML = '';
-    var parts = json.dir ? json.dir.split('/') : [];
-    var rootLink = document.createElement('a');
-    rootLink.textContent = 'project';
-    rootLink.addEventListener('click', function () { browse(''); });
-    crumbsEl.appendChild(rootLink);
-    parts.forEach(function (part, i) {
-      crumbsEl.appendChild(document.createTextNode(' / '));
-      var link = document.createElement('a');
-      link.textContent = part;
-      link.addEventListener('click', function () { browse(parts.slice(0, i + 1).join('/')); });
-      crumbsEl.appendChild(link);
-    });
-    treeEl.innerHTML = '';
-    json.entries.forEach(function (entry) {
-      var el = row(entry.type, entry.name, '');
-      var actions = el.querySelector('.actions');
-      var owner = ownerOf(entry);
-      if (owner === editableRobot()) {
-        actions.appendChild(pill('ok', 'always editable', 'Every file of ' + robotName(owner) + '\'s own package is'));
-      } else if (owner) {
-        actions.appendChild(pill('muted', robotName(owner) + '\'s', 'Only ' + robotName(owner) + '\'s teammates edit ' + robotName(owner) + '\'s own files'));
-      }
-      if (entry.type === 'dir') {
-        el.addEventListener('click', function () { browse(entry.path); });
-      } else if (!owner && editable.indexOf(entry.path) >= 0) {
-        actions.appendChild(pill('ok', 'editable'));
-      } else if (!owner) {
-        actions.appendChild(button('Add', '', function () {
-          post('/admin/files/add?robot=' + encodeURIComponent(editableRobot()) + '&path=' + encodeURIComponent(entry.path)).then(function (r) {
-            if (!r.ok) { return r.text().then(alert); }
-            return loadEditable();
-          });
-        }));
-      }
-      treeEl.appendChild(el);
-    });
-  }
-
-  function browse(path) {
-    dir = path;
-    fetch('/admin/tree?dir=' + encodeURIComponent(dir)).then(function (r) {
-      if (!r.ok) { return r.text().then(function (t) { treeEl.innerHTML = '<p class="empty"></p>'; treeEl.firstChild.textContent = t; }); }
-      return r.json().then(renderTree);
     });
   }
 
@@ -930,17 +429,7 @@
     }).catch(function () {});
   }
 
-  editableRobotEl.addEventListener('change', loadEditable);
-
-  var told = fetch('/admin/info').then(function (r) { return r.json(); }).then(function (info) {
-    editableRobotEl.innerHTML = '';
-    info.robots.forEach(function (robot) {
-      robots[robot.robot] = robot;
-      var option = document.createElement('option');
-      option.value = robot.robot;
-      option.textContent = robot.name + ' (' + robot.develop + ')';
-      editableRobotEl.appendChild(option);
-    });
+  fetch('/admin/info').then(function (r) { return r.json(); }).then(function (info) {
     urlsEl.className = 'urls mono';
     urlsEl.innerHTML = '';
     if (!info.addresses.length) {
@@ -951,11 +440,8 @@
       line.textContent = 'http://' + address + ':' + info.userPort + '/';
       urlsEl.appendChild(line);
     });
-  });
-  told.catch(function () {}).then(function () {
-    loadEditable().then(function () { browse(''); });
-    refresh();
-  });
+  }).catch(function () {});
+  refresh();
   setInterval(refresh, 2000);
 })();
 </script>

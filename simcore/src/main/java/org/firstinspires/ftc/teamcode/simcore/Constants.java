@@ -44,55 +44,6 @@ public final class Constants {
         return Checked.ok(constants);
     }
 
-    public static final class Restored {
-        private final Constants constants;
-        private final EnumMap<Constant, Double> pastTheirRange;
-
-        private Restored(Constants constants, EnumMap<Constant, Double> pastTheirRange) {
-            this.constants = constants;
-            this.pastTheirRange = pastTheirRange;
-        }
-
-        public static Restored asSet(Constants constants) {
-            return new Restored(constants, new EnumMap<>(Constant.class));
-        }
-
-        public Constants constants() {
-            return constants;
-        }
-
-        public Map<Constant, Double> pastTheirRange() {
-            return new EnumMap<>(pastTheirRange);
-        }
-
-        public Map<Constant, Double> asSaved() {
-            EnumMap<Constant, Double> saved = new EnumMap<>(Constant.class);
-            saved.putAll(constants.changed());
-            saved.putAll(pastTheirRange);
-            return saved;
-        }
-    }
-
-    public static Checked<Restored> restored(Map<Constant, Double> saved) {
-        EnumMap<Constant, Double> nearest = new EnumMap<>(Constant.class);
-        EnumMap<Constant, Double> pastTheirRange = new EnumMap<>(Constant.class);
-        for (Map.Entry<Constant, Double> entry : saved.entrySet()) {
-            Constant constant = entry.getKey();
-            double value = entry.getValue();
-            Checked<Double> near = constant.nearestAdmitted(value);
-            if (near instanceof Checked.Rejected<Double> rejected) {
-                return Checked.rejected(rejected.rule());
-            }
-            if (near instanceof Checked.Ok<Double> admitted) {
-                nearest.put(constant, admitted.value());
-                if (constant.admits(value) instanceof Checked.Rejected<Double>) {
-                    pastTheirRange.put(constant, value);
-                }
-            }
-        }
-        return of(nearest).map(constants -> new Restored(constants, pastTheirRange));
-    }
-
     private record Ordered(Constant lower, Constant upper) {}
 
     private static List<Ordered> ordered() {

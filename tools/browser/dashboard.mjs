@@ -4,39 +4,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chrome, sim } from './bench.mjs';
 
-const FILES = [
-  { path: 'TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java', editors: [] },
-  { path: 'TeamCode/src/main/java/org/firstinspires/ftc/reginald/Drive.java', editors: ['ana'] }
-];
-const CONTENT = 'package org.firstinspires.ftc.reginald;\n\npublic final class Plans {\n}\n';
 const OPMODE = { name: 'BlueLeftAuto', kind: 'auto', group: 'Autonomous',
                  where: 'org.firstinspires.ftc.reginald.BlueLeftAuto', seed: null };
 
 const ANSWERS = {
-  '/me': { state: 'approved', username: 'mia', robot: 'nugget', robots: ['reginald', 'nugget'], branch: 'nugget/mia' },
-  '/files': { files: FILES },
-  '/git/status': { branch: 'nugget/mia', develop: 'nugget-develop', changed: [], behind: 0, ahead: 0, pushable: false,
-                   head: '0123456' },
-  '/build': { available: true, ok: true, problems: [] },
-  '/relay': { line: 'adb connect 10.0.0.2', port: 5555 },
   '/sim/catalog': [OPMODE],
   '/sim/status': { running: false, runs: [] }
 };
 
 const RUNS_ASKED = [];
-
-const SAVES = [];
-const DEPLOYS = [];
-const SAVE_GATE = gate();
-const DEPLOY_GATE = gate();
-let saveStatus = 200;
-let deployStatus = 200;
-
-const BRANCHES = { reginald: 'coding/mia', nugget: 'nugget/mia' };
-
-function onto(robot, robots) {
-  ANSWERS['/me'] = { ...ANSWERS['/me'], robot, robots, branch: BRANCHES[robot] };
-}
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ANSWERED = JSON.parse(fs.readFileSync(path.join(here, 'launch-answers.json'), 'utf8'));
@@ -235,42 +211,6 @@ function servedTheFeederSim(request, response, route) {
 function serve() {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
-    if (request.method === 'POST' && asked === '/robot') {
-      const robot = new URL(request.url, 'http://x').searchParams.get('robot');
-      if (!ANSWERS['/me'].robots.includes(robot)) {
-        response.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }).end('the admin has not let you work on ' + robot);
-        return;
-      }
-      onto(robot, ANSWERS['/me'].robots);
-      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify(ANSWERS['/me']));
-      return;
-    }
-    if (request.method === 'PUT' && asked.startsWith('/files/')) {
-      let body = '';
-      request.on('data', (chunk) => { body += chunk; });
-      request.on('end', () => {
-        SAVE_GATE.pass(() => {
-          if (saveStatus !== 200) {
-            response.writeHead(saveStatus, { 'Content-Type': 'text/plain; charset=utf-8' }).end('save refused');
-            return;
-          }
-          SAVES.push(JSON.parse(body));
-          json(response, { path: asked.slice('/files/'.length), version: 'v' + (SAVES.length + 1) });
-        });
-      });
-      return;
-    }
-    if (request.method === 'POST' && asked === '/deploy') {
-      DEPLOYS.push({ robot: new URL(request.url, 'http://x').searchParams.get('robot'),
-                     saved: SAVES.length ? SAVES[SAVES.length - 1].content : null });
-      DEPLOY_GATE.pass(() => json(response, {
-        ok: deployStatus === 200,
-        message: deployStatus === 200 ? 'deployed to the connected robot' : 'deployment failed',
-        output: 'gradle <diagnostics> & adb'
-      }, deployStatus));
-      return;
-    }
     if (servedTheLaunchSim(request, response, asked)) {
       return;
     }
@@ -284,26 +224,16 @@ function serve() {
       response.end(JSON.stringify({ id: RUNS_ASKED.length }));
       return;
     }
-    const answer = Object.prototype.hasOwnProperty.call(ANSWERS, asked) ? ANSWERS[asked]
-        : asked.startsWith('/files/') ? { path: asked.slice('/files/'.length), version: 'v1', content: CONTENT,
-                                          robot: ANSWERS['/me'].robot }
-        : null;
-    if (answer) {
-      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify(answer));
+    if (request.method === 'GET' && Object.prototype.hasOwnProperty.call(ANSWERS, asked)) {
+      json(response, ANSWERS[asked]);
       return;
     }
-    const file = asked === '/' ? path.join(sim, 'dashboard.html')
-        : asked === '/static/codemirror.js' ? path.join(sim, 'codemirror.js')
-        : null;
-    if (!file || !fs.existsSync(file)) {
-      response.writeHead(404).end('no route: ' + asked);
+    if (request.method === 'GET' && asked === '/') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      response.end(fs.readFileSync(path.join(sim, 'dashboard.html')));
       return;
     }
-    response.writeHead(200, {
-      'Content-Type': asked === '/' ? 'text/html; charset=utf-8' : 'application/javascript; charset=utf-8'
-    });
-    response.end(fs.readFileSync(file));
+    response.writeHead(404).end('no route: ' + asked);
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
@@ -326,10 +256,6 @@ const asAnOlderIpad = () => {
   delete Element.prototype.replaceChildren;
 };
 
-const withNoEditorBundle = () => {
-  Object.defineProperty(window, 'CM', { get: () => undefined, set: () => {}, configurable: true });
-};
-
 const wrong = [];
 function check(ok, saying) {
   if (!ok) {
@@ -346,47 +272,16 @@ async function opened(browser, base, asked = {}) {
   }
   await page.goto(base + '/', { waitUntil: 'load', timeout: 60_000 });
   const started = await page
-      .waitForFunction(() => window.codingPage && window.codingPage.started, null, { timeout: 15_000 })
+      .waitForFunction(() => window.simulatorPage && window.simulatorPage.started, null, { timeout: 15_000 })
       .then(() => true)
       .catch(() => false);
   return { page, threw, started };
 }
 
 async function itWorks(page, engine) {
-  await page.waitForFunction(() => document.querySelectorAll('#files li').length > 0, null, { timeout: 10_000 })
-      .catch(() => {});
-  const listed = await page.locator('#files li').count();
-  check(listed === FILES.length, `${engine}: ${listed} of ${FILES.length} editable files are listed`);
-
-  const who = await page.locator('#who').textContent();
-  check(who === 'mia', `${engine}: the header says "${who}" rather than who is signed in`);
-  await page.waitForFunction(() => !document.getElementById('adb').hidden, null, { timeout: 10_000 }).catch(() => {});
-  const adb = await page.locator('header .who').innerText();
-  check(adb.includes('adb connect 10.0.0.2'), `${engine}: the header does not give the adb connect line: "${adb}"`);
-  await page.waitForFunction(() => document.getElementById('robot').value === 'nugget', null, { timeout: 10_000 })
-      .catch(() => {});
-  const robot = await page.locator('#robot').inputValue();
-  check(robot === 'nugget', `${engine}: the header says "${robot}" rather than the robot they are on`);
-  const offered = await page.locator('#robot option').allInnerTexts();
-  check(JSON.stringify(offered) === JSON.stringify(['Reginald', 'Nugget']),
-      `${engine}: the header offers ${JSON.stringify(offered)} rather than both robots mia works on`);
-  await page.waitForFunction(() => /nugget-develop/.test(document.getElementById('push').title), null,
-      { timeout: 10_000 }).catch(() => {});
-  const push = await page.locator('#push').getAttribute('title');
-  check(/nugget-develop/.test(push), `${engine}: Push says "${push}" rather than the line it lands on`);
-
-  const opened = await page.locator('#files li').first().click({ timeout: 5_000 })
-      .then(() => true)
-      .catch(() => false);
-  check(opened, `${engine}: no file in the list could be opened`);
-  await page.waitForFunction(() => /class Plans/.test(document.getElementById('editor').textContent), null,
-      { timeout: 10_000 }).catch(() => {});
-  const shown = await page.locator('#editor').textContent();
-  check(/class Plans/.test(shown), `${engine}: the editor does not hold the file that was opened`);
-
-  await page.locator('nav [data-tab="simulate"]').click({ timeout: 5_000 });
-  check(await page.locator('#simulate').isVisible(), `${engine}: tapping Simulate does not open the tab`);
-  check(!(await page.locator('#edit').isVisible()), `${engine}: the Edit tab is still shown under Simulate`);
+  check(await page.locator('#simulate').isVisible(), `${engine}: the page does not open on Simulate`);
+  check(await page.locator('#edit, #editor, #files, #who, #robot, #adb').count() === 0,
+      `${engine}: the page still carries the editor or who is signed in`);
   await page.waitForFunction((name) => document.getElementById('opmodes').textContent.includes(name),
       OPMODE.name, { timeout: 10_000 }).catch(() => {});
   const opmodes = await page.locator('#opmodes').textContent();
@@ -421,132 +316,12 @@ async function aGameIsAskedForByTheBox(page, engine) {
   await box.uncheck();
 }
 
-async function aSaveSaysWhichRobotTheFileWasReadOn(page, engine) {
-  await page.locator('nav [data-tab="edit"]').click({ timeout: 5_000 });
-  const before = SAVES.length;
-  await page.locator('#editor .cm-content').click({ timeout: 5_000 });
-  await page.keyboard.type('x');
-  await page.waitForFunction(() => /saved/.test(document.getElementById('status').textContent), null,
-      { timeout: 10_000 }).catch(() => {});
-  const saved = SAVES.slice(before);
-  check(saved.length > 0 && saved.every((save) => save.robot === 'nugget'),
-      `${engine}: typing saved ${JSON.stringify(saved.map((save) => save.robot))} rather than on the robot it was read on`);
-}
-
-async function deploySavesFirstAndReportsTheInstall(page, engine) {
-  await page.locator('nav [data-tab="edit"]').click({ timeout: 5_000 });
-  const deploy = page.locator('#deploy');
-  check(await deploy.count() === 1, `${engine}: Edit offers no Deploy button`);
-  if (await deploy.count() !== 1) { return; }
-  check(await page.locator('#push + #deploy').count() === 1,
-      `${engine}: Deploy is not next to Push`);
-  const pushBox = await page.locator('#push').boundingBox();
-  const deployBox = await deploy.boundingBox();
-  check(pushBox.y === deployBox.y && deployBox.x > pushBox.x,
-      `${engine}: Deploy is not drawn beside Push`);
-  check(await deploy.isEnabled(), `${engine}: Deploy is disabled when there are no commits to push`);
-  SAVE_GATE.hold();
-  DEPLOY_GATE.hold();
-  const before = DEPLOYS.length;
-  await page.locator('#editor .cm-content').click();
-  await page.keyboard.type('deploy this edit');
-  await deploy.click();
-  try {
-    check(await untilSo(() => SAVE_GATE.holding() > 0), `${engine}: Deploy did not save the editor`);
-    await page.waitForTimeout(250);
-    check(DEPLOYS.length === before, `${engine}: Deploy ran before the save finished`);
-    check(await deploy.isDisabled(), `${engine}: Deploy can be pressed twice while saving`);
-    SAVE_GATE.release();
-    check(await untilSo(() => DEPLOYS.length > before), `${engine}: Deploy never ran after saving`);
-    check(DEPLOYS.length === before + 1 && DEPLOYS[before].robot === 'nugget'
-        && DEPLOYS[before].saved.includes('deploy this edit'),
-        `${engine}: Deploy did not use the saved edit on the selected robot: ${JSON.stringify(DEPLOYS.slice(before))}`);
-    await page.waitForTimeout(2200);
-    check(await deploy.isDisabled() && await page.locator('#pull').isDisabled(),
-        `${engine}: a status refresh allowed another deploy or a merge during installation`);
-    check((await page.locator('#git-result').textContent()).includes('deploying'),
-        `${engine}: no deployment progress is shown`);
-  } finally {
-    SAVE_GATE.release();
-    DEPLOY_GATE.release();
-  }
-  check(await untilTrue(page, () => document.getElementById('git-result').textContent.includes('deployed')),
-      `${engine}: deployment success is not shown`);
-  check(await page.locator('#deploy-output').textContent() === 'gradle <diagnostics> & adb',
-      `${engine}: deployment diagnostics were lost or read as HTML`);
-
-  deployStatus = 500;
-  await deploy.click();
-  check(await untilTrue(page, () => document.getElementById('git-result').textContent === 'deployment failed'),
-      `${engine}: deployment failure is not shown`);
-  check(await deploy.isEnabled(), `${engine}: a failed deployment cannot be retried`);
-  deployStatus = 200;
-
-  saveStatus = 500;
-  await page.locator('#editor .cm-content').click();
-  await page.keyboard.type('unsaved edit');
-  const after = DEPLOYS.length;
-  await deploy.click();
-  check(await untilTrue(page, () => document.getElementById('git-result').textContent.includes('could not save')),
-      `${engine}: a save failure does not explain why deployment was stopped`);
-  check(DEPLOYS.length === after, `${engine}: Deploy installed stale code after a save failed`);
-  saveStatus = 200;
-}
-
-async function aSwitchComesBackOnTheOtherRobot(page, engine) {
-  const [asked] = await Promise.all([
-    page.waitForRequest((request) => request.url().includes('/robot?'), { timeout: 10_000 }),
-    page.selectOption('#robot', 'reginald')
-  ]);
-  const url = new URL(asked.url());
-  check(asked.method() === 'POST' && url.search === '?robot=reginald',
-      `${engine}: switching to Reginald asked ${asked.method()} ${url.pathname + url.search}`);
-  await page.waitForFunction(() => window.codingPage && window.codingPage.started
-      && document.getElementById('robot').value === 'reginald'
-      && document.getElementById('branch').textContent === 'coding/mia', null, { timeout: 15_000 }).catch(() => {});
-  check(await page.locator('#robot').inputValue() === 'reginald'
-      && await page.locator('#branch').textContent() === 'coding/mia',
-      `${engine}: after switching, the page is not back on Reginald's branch`);
-
-  onto('nugget', ['nugget']);
-  await page.waitForFunction(() => document.getElementById('robot').value === 'nugget'
-      && document.getElementById('robot').disabled, null, { timeout: 15_000 }).catch(() => {});
-  check(await page.locator('#robot').inputValue() === 'nugget',
-      `${engine}: moved onto Nugget by the admin, the page stays on ${await page.locator('#robot').inputValue()}`);
-  check(await page.locator('#robot').isDisabled(),
-      `${engine}: on one robot alone, the header still offers a switch`);
-  onto('nugget', ['reginald', 'nugget']);
-}
-
 async function nothingBroke(page, threw, started, engine) {
   check(started, `${engine}: the page never reported itself started, so it stopped before it finished`);
-  const broke = started ? await page.evaluate(() => window.codingPage.broke) : [];
+  const broke = started ? await page.evaluate(() => window.simulatorPage.broke) : [];
   check(broke.length === 0,
       `${engine}: the page reported ${broke.map((b) => `${b.part}: ${b.message}`).join('; ')}`);
   check(threw.length === 0, `${engine}: the page threw ${threw.join('; ')}`);
-}
-
-async function theEditorFollowsTheSystemTheme(page, engine) {
-  const background = () => page.evaluate(() =>
-      getComputedStyle(document.querySelector('#editor .cm-editor')).backgroundColor);
-  await page.emulateMedia({ colorScheme: 'light' });
-  const light = await background();
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.waitForFunction((was) =>
-      getComputedStyle(document.querySelector('#editor .cm-editor')).backgroundColor !== was,
-  light, { timeout: 5_000 }).catch(() => {});
-  const dark = await background();
-  check(light !== dark, `${engine}: the editor stays ${light} when the system turns dark`);
-}
-
-async function itSaysWhatBroke(page) {
-  const seen = await page.locator('#broke').isVisible().catch(() => false);
-  check(seen, 'with no editor bundle the page says nothing at all');
-  if (!seen) {
-    return;
-  }
-  const said = await page.locator('#broke').textContent();
-  check(/CM|editor/i.test(said), `with no editor bundle the page says "${said}", which does not name the editor`);
 }
 
 const input = (page, name) => page.locator('#launch-setting-' + name);
@@ -1021,9 +796,6 @@ async function main() {
     const current = await opened(browser, base);
     await itWorks(current.page, 'this engine');
     await aGameIsAskedForByTheBox(current.page, 'this engine');
-    await theEditorFollowsTheSystemTheme(current.page, 'this engine');
-    await aSaveSaysWhichRobotTheFileWasReadOn(current.page, 'this engine');
-    await deploySavesFirstAndReportsTheInstall(current.page, 'this engine');
     await theLaunchSimWorks(current.page, 'this engine');
     await theFeederSimTabOpensItsViewer(current.page, 'this engine');
     await nothingBroke(current.page, current.threw, current.started, 'this engine');
@@ -1031,27 +803,9 @@ async function main() {
     const older = await opened(browser, base, { engine: asAnOlderIpad, viewport: { width: 810, height: 1080 } });
     await itWorks(older.page, 'an older iPad');
     await aGameIsAskedForByTheBox(older.page, 'an older iPad');
-    await theEditorFollowsTheSystemTheme(older.page, 'an older iPad');
-    await deploySavesFirstAndReportsTheInstall(older.page, 'an older iPad');
     await theLaunchSimWorks(older.page, 'an older iPad');
     await theFeederSimTabOpensItsViewer(older.page, 'an older iPad');
     await nothingBroke(older.page, older.threw, older.started, 'an older iPad');
-
-    await aSwitchComesBackOnTheOtherRobot(current.page, 'this engine');
-    await nothingBroke(current.page, current.threw, true, 'this engine, after switching');
-
-    const bare = await opened(browser, base, { engine: withNoEditorBundle });
-    await itSaysWhatBroke(bare.page);
-    const listed = await bare.page.locator('#files li').count();
-    check(listed === FILES.length, `with no editor bundle ${listed} of ${FILES.length} files are listed`);
-    await bare.page.locator('nav [data-tab="simulate"]').click({ timeout: 5_000 });
-    check(await bare.page.locator('#simulate').isVisible(),
-        'with no editor bundle the Simulate tab cannot be reached');
-    await bare.page.locator('nav [data-tab="launch"]').click({ timeout: 5_000 });
-    check(await bare.page.locator('#launch').isVisible(),
-        'with no editor bundle the Launch Sim tab cannot be reached');
-    check(await untilTrue(bare.page, (n) => document.querySelectorAll('#launch details.launch-group').length === n,
-        LAUNCH_GROUPS.length), 'with no editor bundle the Launch Sim tab sets out no settings');
   } catch (stuck) {
     wrong.push(String((stuck && stuck.message) || stuck));
   } finally {
@@ -1060,16 +814,13 @@ async function main() {
   }
 
   if (wrong.length) {
-    console.error('the coding server\'s dashboard did not start as it should:');
+    console.error('the simulator\'s page did not start as it should:');
     for (const saying of wrong) {
       console.error('  ' + saying);
     }
     process.exit(1);
   }
-  console.log('the dashboard says which robot it is on, switches to another the user works on and comes back on '
-      + 'it, follows the admin moving it, saves on the robot a file was read on, deploys only after saving, '
-      + 'shows installation progress and diagnostics, prevents duplicate deployments and refuses a failed save, '
-      + 'lists its files, opens one in the editor and reaches the Simulate tab, where a '
+  console.log('the simulator\'s page opens on the Simulate tab, where a '
       + 'run is a game only when the box says so and begins once the view under it has drawn the field, '
       + `and the Launch Sim tab, which sets the bench's ${LAUNCH_SETTINGS.length} settings out in its `
       + `${LAUNCH_GROUPS.length} groups to the right of a view at least 480 px wide and 300 px high with Launch in `
@@ -1080,8 +831,7 @@ async function main() {
       + 'settings when the bench says it no longer knows one, keeping only what the user changed and where they '
       + 'were typing, trying again after a reload fails and never over a number still being typed, and the '
       + `Feeder Sim tab, which sets out the bench's ${FEEDER.settings.groups.length} groups of feed settings and `
-      + 'opens the feeder\'s viewer, on this engine and on one shaped like an older iPad\'s, and '
-      + 'says so on the page when the editor cannot start, where both tabs are still reached.');
+      + 'opens the feeder\'s viewer, on this engine and on one shaped like an older iPad\'s.');
 }
 
 await main();

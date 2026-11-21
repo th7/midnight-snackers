@@ -72,8 +72,8 @@ used to.
 shape, built from FIRST's published STEP by `step_to_field.py`.
 
 `field.glb` is the field as it **looks**: the Onshape assembly's real
-tessellation, fillets and all, built by the coding server rather than kept in
-the repository. *Its* tessellation, and not one we choose -- see below. Press **Refresh assets** on the admin page, or start the server
+tessellation, fillets and all, built by the robot gateway rather than kept in
+the repository. *Its* tessellation, and not one we choose -- see below. Press **Refresh assets** on the admin page, or start the gateway
 without having fetched them and it fetches in the background. Classes:
 `Onshape`, `Gltf`, `FieldGlb`, `FieldAssets`.
 
@@ -95,10 +95,8 @@ and in the CAD's own materials. High adds the hardware back.
 A page draws at **high** unless it asks for less with `?resolution=low` or
 `medium` — or unless somebody picks another from the selector under the field,
 which is the same choice made while looking at it. Which one it draws when it
-asks for none is **Pages draw** on the admin page, kept with the rest of the
-server's state and read by every page as one served line, `field-default.js`;
-high is what a server says until an admin sets another, and what every server
-with no admin says. A page that asks for a resolution nobody built draws the
+asks for none is read by every page as one served line, `field-default.js`,
+committed as high. A page that asks for a resolution nobody built draws the
 low one and says so rather than failing. `all` builds the three. They sit side by side, so
 changing resolution is a query string rather than another fetch. None of it
 costs many more draw calls, because the scene is batched by material rather
@@ -155,17 +153,16 @@ different things. *Download* fetches the assembly and the textures from Onshape
 the state directory. *Build* makes the models from that export with no network
 at all, in under a second, so changing the resolution or rebuilding after a change
 to the pipeline costs nothing but the arithmetic. *Refresh assets* is the two in
-one, and is what a server with nothing fetched runs at startup — nothing
-fetched meaning the field its pages draw, so a server set to draw the cheap
-model does not fetch the dear one to sit unlooked at. A build with
+one, and is what the robot gateway runs at startup with nothing fetched. A
+build with
 nothing downloaded is refused and says to download first, rather than quietly
 reaching for the network: `FieldAssets.build` is handed no Onshape, so it could
 not fetch if it wanted to.
 
 The one in the repository is a **stand-in**: the model the tests draw, frozen,
 so the browser checks and the scene budget come out the same on any machine
-with no network. A server that has fetched draws what it fetched; one that has
-not draws the stand-in and says so on the admin page.
+with no network. What the robot gateway fetched is kept in its state directory,
+and serving it to teammates' simulators is #188's.
 
 They are not the same model and are not meant to be. A physics engine wants
 convex shapes and a renderer wants the detail, and one model cannot be good
@@ -200,7 +197,7 @@ resources (`vendor/`, MIT, in `doc/legal`) so the page loads nothing from the
 network -- the robot's wifi has none.
 
 **One page draws the field**: the live view, at `/runs/<id>/`, which under the
-coding server means **<http://localhost:21986/sim/runs/7/>**. It plays a run
+local simulator means **<http://localhost:21988/runs/7/>**. It plays a run
 back -- the robot where the simulator had it, the game pieces where they had
 rolled to, each hive leaning the way the run left it -- and it takes what is
 asked of it in the query string:
@@ -236,10 +233,9 @@ the goal tags: the tags where they are, in the perspective the lens gives, and
 nothing else. The field is hidden rather than absent, so a tag still leans with
 the hive it hangs on as the run plays.
 
-    node tools/browser/frames.mjs --bench http://localhost:21986/sim --run 3 --into frames/
+    node tools/browser/frames.mjs --bench http://localhost:21988 --run 3 --into frames/
 
-writes one PNG per loop at the camera's own resolution. The coding server wants
-an approved session, which `--cookie` carries.
+writes one PNG per loop at the camera's own resolution.
 
 Two things in it are assumed and must be measured before a pose read off these
 frames means anything. Both are written at the top of `webcam.js`:

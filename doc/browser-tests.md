@@ -100,47 +100,41 @@ for the page that draws the field, which it then never looked at; it asks for
 
 ## The other page a browser is the only witness to
 
-`tools/browser/dashboard.mjs` opens the **coding server's dashboard** -- the page
-teammates edit and simulate on -- the same way, over a throwaway server that answers
-`/me`, `/files`, `/git/status`, `/build` and `/sim/*` as the user listener does, with the
-real `dashboard.html` and the real editor bundle.
+`tools/browser/dashboard.mjs` opens the **simulator's page** -- the one the **local
+simulator** serves, with the Simulate, Launch Sim and Feeder Sim tabs -- the same way,
+over a throwaway server that answers `/` and `/sim/*` as the local simulator does, with
+the real `dashboard.html`.
 
-The page had been checked only by asserting that its source *contains* `new
-CM.EditorView(`, which says the page was written, never that it runs. It did not run on
-an iPad: the page asked its dark-mode media query for `addEventListener`, which an
-iPadOS 13 WebKit has not got, and the `TypeError` stopped the page's one script before it
-listed a file or wired a tab. What that looked like was an empty file list and tabs that
-did not move -- which is also what a server with nothing to show looks like.
+When the page also carried an editor, it had been checked only by asserting that its
+source *contains* the editor's constructor, which says the page was written, never that
+it runs. It did not run on an iPad: the page asked its dark-mode media query for
+`addEventListener`, which an iPadOS 13 WebKit has not got, and the `TypeError` stopped
+the page's one script before it wired a tab. What that looked like was tabs that did not
+move -- which is also what a server with nothing to show looks like.
 
-So the check opens the page three times:
+So the check opens the page twice:
 
-- **on this engine**, where the files list, a file opens in the editor, and the
-  Simulate tab opens and lists its op modes; a save names the robot the file was read
-  on; and, last, the header switches to the other robot the user works on and the page
-  comes back on it, follows the admin moving the login, and offers nothing to pick to a
-  user on one robot alone;
+- **on this engine**, where the Simulate tab opens and lists its op modes, a run is a
+  game only when the box says so, and the Launch Sim and Feeder Sim tabs set out their
+  settings and do what they offer;
 - **on an engine shaped like an older iPad's**, where `MediaQueryList` carries
   `addListener` and nothing else, and `ResizeObserver`, `requestIdleCallback`,
-  `structuredClone`, `Intl.Segmenter` and `replaceChildren` are missing -- every one of
-  which CodeMirror itself feature-tests, so a page that needs one is a page of ours that
-  forgot to. All of the above must still hold;
-- **with no editor bundle at all**, where the page has to *say so*: the file list and the
-  Simulate tab go on working, and the banner names the editor.
+  `structuredClone`, `Intl.Segmenter` and `replaceChildren` are missing, so a page that
+  needs one is a page of ours that forgot to feature-test it. All of the above must
+  still hold.
 
-That last one is the class of the bug rather than the instance. A page that cannot start
-a piece of itself must not be indistinguishable from a page with nothing to say. The page
-keeps `window.codingPage` -- `started`, and `broke` as a list of part and message -- for
-the check to read, and shows the same thing to whoever is looking at it.
+A page that cannot start a piece of itself must not be indistinguishable from a page with
+nothing to say. The page keeps `window.simulatorPage` -- `started`, and `broke` as a list
+of part and message -- for the check to read, and shows the same thing to whoever is
+looking at it.
 
-`tools/browser/simulator.mjs` opens the same `dashboard.html` as the **local
-simulator** serves it, with `data-host="simulator"` on its `<html>` in place of
-`data-host="coding-server"`, over a throwaway server that answers `/` and `/sim/*` and
-nothing else. There the page is titled Simulator, offers Simulate, Launch Sim and Feeder
-Sim alone, opens on Simulate even when it is asked for `#edit`, shows a checkout that does
-not compile by its file and line, runs an op mode and sets out both sims' settings, on
-this engine and on one shaped like an older iPad's. Every request it makes is recorded,
-and any outside `/sim` fails the check. What the editor, the branch panel and the header
-would have asked for is how a page that still carried them would show.
+`tools/browser/simulator.mjs` opens the same `dashboard.html` as the local simulator
+serves it, over a throwaway server that answers `/` and `/sim/*` and nothing else. There
+the page is titled Simulator, offers Simulate, Launch Sim and Feeder Sim alone, opens on
+Simulate even when it is asked for the `#edit` an old link may carry, shows a checkout
+that does not compile by its file and line, runs an op mode and sets out both sims'
+settings, on this engine and on one shaped like an older iPad's. Every request it makes
+is recorded, and any outside `/sim` fails the check.
 
 `tools/browser/launch.mjs` opens the **Launch Sim's page** the same way, over a
 throwaway server that answers `/launches/<id>/shot` with shots built by hand -- a lob
@@ -151,22 +145,18 @@ one that says the page and the server still agree, and `SimLaunchPageTest` fails
 the shot the server serves is no longer shaped as the one kept, saying to regenerate it
 with `-DsimTrace.regenerate=true`.
 
-`tools/browser/login.mjs` opens the **login page** the same way. A teammate says which
-robot to work on when they ask to join, since approving the login lets them onto that
-robot and its line is where the work lands, so the check holds the page to it in a
-browser: the form does not go while no robot is picked -- none is picked for anybody --
-and once one is, the login asks for that one.
+`tools/browser/login.mjs` opens the **robot gateway's login page** the same way. A
+teammate says which robot to work on when they ask to join, so the check holds the page
+to it in a browser: the form does not go while no robot is picked -- none is picked for
+anybody -- and once one is, the login asks for that one. Once the admin approves, the
+page shows the `adb connect` line from `/relay`, with Copy the one thing left to press.
 
 `tools/browser/admin.mjs` opens the **admin page**, where a name is one user however many
-robots they work on: each row has a box for each robot, ticked for the robots they work
-on, and lists their work on each of those -- its branch and its own Pull, which asks for
-that robot -- and each of their logins says which robot it is on. Ticking a box asks to
-let them onto that robot and clearing one asks to take them off it, and when the server
-refuses, the row says why and the box goes back to what the server holds. The files
-teammates may edit are picked for one robot at a time from the robots the server lists,
-each robot's own package shows as always editable with nothing to remove, the picker
-marks a file of either robot's package as whose it is rather than offering it, and a
-delete names the user alone.
+times they log in: each row lists their logins and the robot each is for, a pending one
+can be approved, a user can be deleted, and the relay panel says whose adb connection is
+relayed, whether the hub could be reached and what teammates open. The field models are
+built at the resolution picked, and the page asks for nothing the gateway no longer
+serves -- no files, no constants, no robots to let users onto.
 
 Chromium with an API deleted is not WebKit, and this cannot prove the page runs on a real
 iPad; no engine we can run here can. It proves the page needs nothing that engine has not

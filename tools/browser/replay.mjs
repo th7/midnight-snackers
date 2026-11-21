@@ -131,8 +131,8 @@ function served(page, live, ticks, game, liveGame, waiting) {
       return;
     }
     const withoutModel = asked.startsWith('/nomodel/');
-    // A coding server whose admin set the default to low serves that one line; everything else it
-    // serves is the same. Which is all the page has to go on, and all this has to stand in for.
+    // A server whose default is low serves that one line; everything else it serves is the
+    // same. Which is all the page has to go on, and all this has to stand in for.
     const toldToDrawLow = asked.startsWith('/default-low/');
     const relative = withoutModel ? asked.slice('/nomodel'.length)
         : toldToDrawLow ? asked.slice('/default-low'.length)

@@ -21,8 +21,7 @@ public final class FieldAssets {
 
     /**
      * The one line a page reads to learn which field to draw when its query string names none. It is
-     * an asset like the models it names, so a coding server serves it from the setting on its admin
-     * page and every other server serves the copy committed beside them.
+     * an asset like the models it names, and every server serves the copy committed beside them.
      */
     public static final String DEFAULT_RESOLUTION_FILE = "field-default.js";
 
@@ -82,9 +81,8 @@ public final class FieldAssets {
      * same sentence rather than two that have to be kept saying the same thing.
      */
     public static String defaultResolutionModule(Resolution drawn) {
-        return "// Which field a page draws when its query string names no resolution. A coding server writes this\n"
-                + "// line from the setting on its admin page; the copy committed here is what every other server\n"
-                + "// serves, and what a coding server serves until an admin says otherwise.\n"
+        return "// Which field a page draws when its query string names no resolution. The copy committed here\n"
+                + "// is what every server serves.\n"
                 + "export const DEFAULT_RESOLUTION = '" + drawn.asked + "';\n";
     }
 

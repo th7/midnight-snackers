@@ -6,7 +6,7 @@ import unittest
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 START = os.path.join(REPO, 'start')
-TASK = ':TeamCode:codingServer'
+TASK = ':TeamCode:robotGateway'
 APP_SETTING = 'ANDROID_STUDIO_APP'
 DEFAULT_APP = '/Applications/Android Studio.app'
 JAVA_HOME_IN_APP = os.path.join('Contents', 'jbr', 'Contents', 'Home')
@@ -25,7 +25,7 @@ def executable(path, text):
     os.chmod(path, 0o755)
 
 
-class StartRunsTheCodingServerWithAndroidStudiosJava(unittest.TestCase):
+class StartRunsTheRobotGatewayWithAndroidStudiosJava(unittest.TestCase):
     def setUp(self):
         scratch = tempfile.mkdtemp(prefix='start-')
         self.addCleanup(shutil.rmtree, scratch, True)
@@ -57,7 +57,7 @@ class StartRunsTheCodingServerWithAndroidStudiosJava(unittest.TestCase):
         with open(self.ran) as f:
             return f.read().splitlines()
 
-    def test_it_runs_the_coding_server_from_its_own_checkout_with_android_studios_java(self):
+    def test_it_runs_the_robot_gateway_from_its_own_checkout_with_android_studios_java(self):
         java_home = self.install_android_studio()
 
         code, out, err = self.start(self.app)

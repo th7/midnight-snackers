@@ -8,9 +8,6 @@ const OPMODE = { name: 'driveForward', kind: 'auto', group: 'Autonomous',
                  where: 'org.firstinspires.ftc.reginald.opmode.Autos', seed: null };
 const DOES_NOT_COMPILE = 'the sources do not compile:\n'
     + 'org/firstinspires/ftc/reginald/Plans.java:161: illegal start of expression';
-const AS_THE_CODING_SERVER_SERVES_IT = '<html lang="en" data-host="coding-server">';
-const AS_THE_SIMULATOR_SERVES_IT = '<html lang="en" data-host="simulator">';
-const THE_EDITOR = '<script src="/static/codemirror.js"></script>\n';
 const LIVE_VIEW = '<!doctype html><meta charset="utf-8"><title>Live view</title><body></body>';
 const VIEWER = '<!doctype html><meta charset="utf-8"><title>Viewer</title><body></body>';
 
@@ -32,17 +29,8 @@ function html(response, page) {
   response.end(page);
 }
 
-function once(page, asTheCodingServerServesIt, asTheSimulatorServesIt) {
-  if (page.split(asTheCodingServerServesIt).length !== 2) {
-    throw new Error('dashboard.html does not hold ' + asTheCodingServerServesIt + ' exactly once, '
-        + 'which LocalSimulator serves as "' + asTheSimulatorServesIt + '"');
-  }
-  return page.replace(asTheCodingServerServesIt, asTheSimulatorServesIt);
-}
-
 function thePage() {
-  const page = fs.readFileSync(path.join(sim, 'dashboard.html'), 'utf8');
-  return once(once(page, AS_THE_CODING_SERVER_SERVES_IT, AS_THE_SIMULATOR_SERVES_IT), THE_EDITOR, '');
+  return fs.readFileSync(path.join(sim, 'dashboard.html'), 'utf8');
 }
 
 function serve() {
@@ -119,7 +107,7 @@ async function opened(browser, base, engine) {
     await page.addInitScript(engine);
   }
   await page.goto(base + '/#edit', { waitUntil: 'load', timeout: 60_000 });
-  const started = await untilTrue(page, () => window.codingPage && window.codingPage.started);
+  const started = await untilTrue(page, () => window.simulatorPage && window.simulatorPage.started);
   return { page, threw, started };
 }
 
@@ -176,7 +164,7 @@ function itAskedForNothingButTheSimulator(engine, from) {
 function nothingBroke(page, threw, started, engine) {
   check(started, `${engine}: the page never said it had started`);
   check(threw.length === 0, `${engine}: the page threw ${threw.join('; ')}`);
-  return page.evaluate(() => window.codingPage.broke).then((broke) => check(broke.length === 0,
+  return page.evaluate(() => window.simulatorPage.broke).then((broke) => check(broke.length === 0,
       `${engine}: parts broke: ${JSON.stringify(broke)}`));
 }
 
@@ -204,13 +192,13 @@ async function main() {
   }
 
   if (wrong.length) {
-    console.error('the dashboard as the local simulator serves it did not start as it should:');
+    console.error('the simulator\'s page did not start as it should:');
     for (const saying of wrong) {
       console.error('  ' + saying);
     }
     process.exit(1);
   }
-  console.log('the dashboard as the local simulator serves it is titled Simulator, offers Simulate, Launch Sim '
+  console.log('the simulator\'s page is titled Simulator, offers Simulate, Launch Sim '
       + 'and Feeder Sim alone and opens on Simulate even when asked for #edit, shows a compile error with its '
       + 'file and line and lists the op modes once it is fixed, asks for a run and shows its live view, sets out '
       + 'the Launch Sim\'s and the Feeder Sim\'s settings, and asks for nothing outside /sim, on this engine and '

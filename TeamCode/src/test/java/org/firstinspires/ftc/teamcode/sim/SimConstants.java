@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
@@ -14,48 +13,8 @@ import org.firstinspires.ftc.teamcode.simcore.Constants;
 public final class SimConstants {
     private SimConstants() {}
 
-    public static JsonObject listing(Constants constants) {
-        return listing(constants, Map.of());
-    }
-
-    public static JsonObject listing(Constants constants, Map<Constant, Double> pastTheirRange) {
-        JsonArray groups = new JsonArray();
-        for (Constant.Group group : Constant.Group.values()) {
-            JsonObject one = new JsonObject();
-            one.addProperty("name", group.asked());
-            one.addProperty("label", group.label());
-            one.addProperty("says", group.says());
-            groups.add(one);
-        }
-        JsonArray listed = new JsonArray();
-        for (Constant constant : Constant.values()) {
-            JsonObject one = new JsonObject();
-            one.addProperty("name", constant.asked());
-            one.addProperty("group", constant.group().asked());
-            one.addProperty("label", constant.label());
-            one.addProperty("unit", constant.unit());
-            one.addProperty("says", constant.says());
-            one.addProperty("least", constant.least());
-            one.addProperty("most", constant.most());
-            one.addProperty("byDefault", constant.byDefault());
-            one.addProperty("value", constants.value(constant));
-            if (pastTheirRange.containsKey(constant)) {
-                one.addProperty("saved", pastTheirRange.get(constant));
-            }
-            listed.add(one);
-        }
-        JsonObject listing = new JsonObject();
-        listing.add("groups", groups);
-        listing.add("constants", listed);
-        return listing;
-    }
-
     public static JsonObject changed(Constants constants) {
         return numbersByName(constants.changed());
-    }
-
-    public static JsonObject saved(Constants.Restored restored) {
-        return numbersByName(restored.asSaved());
     }
 
     private static JsonObject numbersByName(Map<Constant, Double> numbers) {
@@ -68,10 +27,6 @@ public final class SimConstants {
 
     public static Checked<Constants> fromJson(JsonElement element) {
         return numbersByName(element).then(Constants::of);
-    }
-
-    public static Checked<Constants.Restored> restoredFromJson(JsonElement element) {
-        return numbersByName(element).then(Constants::restored);
     }
 
     private static Checked<Map<Constant, Double>> numbersByName(JsonElement element) {

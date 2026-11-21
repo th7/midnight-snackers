@@ -7,4 +7,4 @@ if [ ! -x "$JAVA_HOME/bin/java" ]; then
   exit 1
 fi
 export JAVA_HOME
-exec ./gradlew :TeamCode:codingServer "$@"
+exec ./gradlew :TeamCode:robotGateway "$@"

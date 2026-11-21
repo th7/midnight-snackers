@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 /**
  * A project on disk for a bench to build and run: the robot's sources, the simulator beside them,
  * and whatever a test has changed in either. Copying one is the dearest thing a test of the bench
- * or of the coding server does before a compile, so it is made here, in one place, and counted.
+ * or of the simulator does before a compile, so it is made here, in one place, and counted.
  */
 public final class SimProject {
 

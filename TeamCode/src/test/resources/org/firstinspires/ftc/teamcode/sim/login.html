@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coding Server</title>
+<title>Robot Gateway</title>
 <style>
   :root { color-scheme: light; --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc; --accent: #2f5bd7; --accent-ink: #ffffff; --bad: #c62828; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --accent: #7ea2ff; --accent-ink: #101318; --bad: #ff8a80; } }
@@ -11,7 +11,7 @@
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
-  form, .waiting { width: min(100%, 360px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 24px; display: grid; gap: 12px; }
+  form, .waiting, .ready { width: min(100%, 360px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 24px; display: grid; gap: 12px; }
   h1 { font-size: 18px; margin: 0; }
   p { margin: 0; color: var(--muted); }
   label { display: grid; gap: 6px; font-weight: 600; }
@@ -25,6 +25,8 @@
   button { font: inherit; padding: 8px 14px; border: 0; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .error { color: var(--bad); }
+  .line { display: flex; gap: 8px; align-items: center; }
+  code { flex: 1; min-width: 0; overflow-wrap: anywhere; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
   .spin { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
   @keyframes pulse { 50% { opacity: 0.25; } }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
@@ -32,8 +34,8 @@
 </head>
 <body>
 <form id="login">
-  <h1>Coding server</h1>
-  <p>Enter your name and pick the robot to work on now. The person at the host machine lets you in, and onto the robots you work on; once in, you can switch between them.</p>
+  <h1>Robot gateway</h1>
+  <p>Enter your name and pick the robot you work on. The person at the host machine lets you in, and then your laptop can reach the robot through this machine.</p>
   <label>Your name <input id="username" name="username" maxlength="32" autocomplete="username" required autofocus></label>
   <fieldset>
     <legend>Robot to work on</legend>
@@ -49,16 +51,45 @@
   <h1><span class="spin"></span>Waiting for approval</h1>
   <p id="status">Your request is on the admin's screen.</p>
 </div>
+<div id="ready" class="ready" hidden>
+  <h1>You're in</h1>
+  <p>Run this on your laptop to reach the robot, then deploy from Android Studio as usual.</p>
+  <div class="line"><code id="adb"></code><button id="copy" type="button">Copy</button></div>
+</div>
 <script>
 (function () {
   var form = document.getElementById('login');
   var waiting = document.getElementById('waiting');
   var error = document.getElementById('error');
   var status = document.getElementById('status');
+  var ready = document.getElementById('ready');
+  var adb = document.getElementById('adb');
+
+  function showReady() {
+    fetch('/relay').then(function (r) {
+      if (!r.ok) { throw new Error('not approved'); }
+      return r.json();
+    }).then(function (relay) {
+      adb.textContent = relay.line;
+      form.hidden = true; waiting.hidden = true; ready.hidden = false;
+      setTimeout(watchApproved, 5000);
+    }).catch(function () { setTimeout(poll, 2000); });
+  }
+
+  function watchApproved() {
+    fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
+      if (me.state === 'approved') { setTimeout(watchApproved, 5000); return; }
+      ready.hidden = true; waiting.hidden = false; poll();
+    }).catch(function () { setTimeout(watchApproved, 5000); });
+  }
+
+  document.getElementById('copy').addEventListener('click', function () {
+    if (navigator.clipboard) { navigator.clipboard.writeText(adb.textContent); }
+  });
 
   function poll() {
     fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
-      if (me.state === 'approved') { location.reload(); return; }
+      if (me.state === 'approved') { showReady(); return; }
       if (me.state === 'denied') { status.textContent = 'The admin said no this time.'; return; }
       if (me.state === 'revoked') { status.textContent = 'Your access was ended. Reload to ask again.'; return; }
       if (me.state === 'pending') { setTimeout(poll, 1000); return; }
@@ -78,7 +109,8 @@
   });
 
   fetch('/me').then(function (r) { return r.json(); }).then(function (me) {
-    if (me.state === 'pending') { form.hidden = true; waiting.hidden = false; poll(); }
+    if (me.state === 'approved') { showReady(); }
+    else if (me.state === 'pending') { form.hidden = true; waiting.hidden = false; poll(); }
     else if (me.state === 'denied' || me.state === 'revoked') { form.hidden = true; waiting.hidden = false; poll(); }
   });
 })();

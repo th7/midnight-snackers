@@ -455,10 +455,6 @@ public final class SimBench {
         }
     }
 
-    public interface Factory {
-        SimBench create(Path worktree, TeamRobot robot, Supplier<Constants> constants);
-    }
-
     private final TeamRobot robot;
     private final SimSources sources;
     private final Path outputDir;

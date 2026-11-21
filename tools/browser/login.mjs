@@ -4,6 +4,8 @@ import path from 'node:path';
 import { chrome, sim } from './bench.mjs';
 
 const LOGINS_ASKED = [];
+const RELAY = { line: 'adb connect 10.0.0.2:5555', port: 5555 };
+let approved = false;
 
 function answer(response, body) {
   response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -21,7 +23,12 @@ function serve() {
     }
     if (url.pathname === '/me') {
       const last = LOGINS_ASKED[LOGINS_ASKED.length - 1];
-      answer(response, last ? { state: 'pending', username: last.username, robot: last.robot } : { state: 'none' });
+      const state = approved ? 'approved' : 'pending';
+      answer(response, last ? { state, username: last.username, robot: last.robot } : { state: 'none' });
+      return;
+    }
+    if (url.pathname === '/relay' && approved) {
+      answer(response, RELAY);
       return;
     }
     if (url.pathname === '/') {
@@ -69,6 +76,17 @@ async function main() {
     check(await page.locator('#waiting').isVisible(), 'asking to join with a robot picked did not wait for the admin');
     check(JSON.stringify(LOGINS_ASKED) === JSON.stringify([{ username: 'mia', robot: 'nugget' }]),
         `the login asked for ${JSON.stringify(LOGINS_ASKED)} rather than mia on nugget`);
+
+    approved = true;
+    await page.waitForFunction(() => !document.getElementById('ready').hidden, null, { timeout: 10_000 })
+        .catch(() => {});
+    check(await page.locator('#ready').isVisible(), 'once the admin approved, the page did not say they are in');
+    const line = await page.locator('#adb').textContent();
+    check(line === RELAY.line, `once approved, the page gives "${line}" rather than the adb connect line`);
+    const doable = await page.locator('button:visible, input:visible, a:visible, select:visible, textarea:visible')
+        .evaluateAll((all) => all.map((one) => one.id || one.textContent.trim()));
+    check(JSON.stringify(doable) === JSON.stringify(['copy']),
+        `once approved, the page offers ${JSON.stringify(doable)} rather than copying the adb connect line alone`);
     check(threw.length === 0, `the page threw ${threw.join('; ')}`);
   } catch (stuck) {
     wrong.push(String((stuck && stuck.message) || stuck));
@@ -78,13 +96,14 @@ async function main() {
   }
 
   if (wrong.length) {
-    console.error('the coding server\'s login page did not ask as it should:');
+    console.error('the robot gateway\'s login page did not ask as it should:');
     for (const saying of wrong) {
       console.error('  ' + saying);
     }
     process.exit(1);
   }
-  console.log('the login page will not ask to join until a robot is picked, and asks for the one that was.');
+  console.log('the login page will not ask to join until a robot is picked, asks for the one that was, and once '
+      + 'the admin approves shows the adb connect line and nothing else to do.');
 }
 
 main();

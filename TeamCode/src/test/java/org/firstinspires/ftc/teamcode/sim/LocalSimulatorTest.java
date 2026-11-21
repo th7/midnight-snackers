@@ -58,14 +58,14 @@ public class LocalSimulatorTest {
     }
 
     @Test
-    public void thePageAtItsRootIsTheDashboardAsTheSimulatorsOwn() throws IOException {
+    public void thePageAtItsRootIsTheDashboard() throws IOException {
         over(aChildThatRunsUntilStopped());
 
         Reply page = send("GET", "/");
 
         assertEquals(200, page.status);
-        assertTrue(page.body, page.body.contains("<html lang=\"en\" data-host=\"simulator\">"));
-        assertFalse(page.body.contains("data-host=\"coding-server\""));
+        assertEquals(SimAssets.page("dashboard.html"), page.body);
+        assertTrue(page.body, page.body.contains("<title>Simulator</title>"));
     }
 
     @Test

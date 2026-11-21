@@ -32,20 +32,8 @@ repositories {
     }
 }
 
-// The one palantir-java-format version: Spotless runs it in CI, and the coding server runs the
-// same library in process over what a user commits, so what it commits is what spotlessCheck
-// accepts. Named once, in gradle.properties, and used in both places below; JavaFormatterTest fails
-// if the version on the test classpath ever stops being this one.
-
-// palantir-java-format reads javac's own trees. Its jar asks for the exports in its manifest,
-// which the JVM honours only on the module path, so a classpath run has to be told here. Both
-// JVMs that format -- the unit tests and the coding server -- get them.
-ext.javacExports = ['api', 'code', 'file', 'main', 'parser', 'tree', 'util'].collect {
-    "--add-exports=jdk.compiler/com.sun.tools.javac.${it}=ALL-UNNAMED".toString()
-}
-
 // Java formatting. CI runs the same check as the second line, so run the first before pushing:
-//   ./gradlew spotlessApply    formats every Java file of the simulator and the coding server
+//   ./gradlew spotlessApply    formats every Java file of the simulator and the robot gateway
 //   ./gradlew spotlessCheck    fails on any file the formatter would change
 // palantir-java-format has no options to argue about: 4-space indent, 120 columns.
 spotless {
@@ -53,22 +41,6 @@ spotless {
         target 'src/test/**/*.java'
         palantirJavaFormat(palantirJavaFormatVersion)
         removeUnusedImports()
-    }
-}
-
-// The unit tests, the bench and the coding server run on a plain JVM, not on Android. Say so --
-// after the Android plugin, which sets these classpaths to 'android' as it evaluates -- so that a
-// library published in both flavours resolves to its JVM one: palantir-java-format calls guava's
-// Suppliers as a java.util.function.Supplier, which only guava-jre implements.
-afterEvaluate {
-    configurations.matching { it.name.toLowerCase().endsWith('unittestruntimeclasspath') }.configureEach {
-        attributes {
-            attribute(
-                    org.gradle.api.attributes.java.TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
-                    objects.named(
-                            org.gradle.api.attributes.java.TargetJvmEnvironment,
-                            org.gradle.api.attributes.java.TargetJvmEnvironment.STANDARD_JVM))
-        }
     }
 }
 
@@ -80,9 +52,6 @@ afterEvaluate {
 
 tasks.withType(Test).configureEach {
     dependsOn ':simcore:gatesAndTests'
-    jvmArgs javacExports
-    // What Spotless is configured with, so the gate test can hold the classpath to it.
-    systemProperty 'palantirJavaFormat.version', palantirJavaFormatVersion
     // Gradle's own -D reaches this JVM, not the forked test one, so pass the golden-trace
     // regeneration flag through by hand; without this the command FlightTrace prints would run as an
     // ordinary check and look like the traces simply agreed.
@@ -145,29 +114,26 @@ dependencies {
     testImplementation "com.google.code.gson:gson:2.11.0"
     // dyn4j, the rigid-body engine the simulated robot, the walls, the obstacles and the balls move in
     testImplementation "org.dyn4j:dyn4j:6.0.0"
-    // scrypt, for the coding server's session store
+    // scrypt, for the robot gateway's session store
     testImplementation "org.bouncycastle:bcprov-jdk18on:1.79"
-    // the formatter the coding server runs before it commits: the version Spotless checks with
-    testImplementation "com.palantir.javaformat:palantir-java-format:$palantirJavaFormatVersion"
 }
 
 // The simulation bench runs on the unit test classpath, the only one where the FTC SDK loads on
-// a plain JVM. It is served by the coding server, which is the only way in.
+// a plain JVM. The simulator serves it to the browser on this machine.
 afterEvaluate {
-    // The coding server: teammates on the LAN edit the files the admin picks, after the admin
-    // approves them from a page only this machine can reach.
-    //   ./gradlew :TeamCode:codingServer
-    //       admin  http://localhost:21987/admin   users  http://<LAN address>:21986/
-    //   (CODING_ADMIN_PORT and CODING_USER_PORT override the port numbers)
-    tasks.register('codingServer', JavaExec) {
-        group = 'simulation'
-        description = 'Serve the coding server: admin on http://localhost:21987/admin, users on port 21986'
+    // The robot gateway: teammates on the LAN log in, the admin approves them from a page only this
+    // machine can reach, and an approved teammate's adb reaches the robot through it.
+    //   ./gradlew :TeamCode:robotGateway
+    //       admin  http://localhost:21987/admin   users  http://<LAN address>:21986/   robot  port 5555
+    //   (ROBOT_GATEWAY_ADMIN_PORT, ROBOT_GATEWAY_USER_PORT and ROBOT_RELAY_PORT override the port numbers)
+    tasks.register('robotGateway', JavaExec) {
+        group = 'robot'
+        description = 'Serve the robot gateway: admin on http://localhost:21987/admin, users on port 21986, adb on 5555'
         def unitTest = tasks.named('testDebugUnitTest').get()
         dependsOn unitTest.taskDependencies
         classpath = unitTest.classpath
-        mainClass = 'org.firstinspires.ftc.teamcode.sim.CodingServer'
+        mainClass = 'org.firstinspires.ftc.teamcode.sim.RobotGateway'
         workingDir = rootDir
-        jvmArgs javacExports
     }
 
     // The simulator a teammate runs from their own checkout, on this machine only. Android Studio's

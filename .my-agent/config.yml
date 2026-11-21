@@ -9,7 +9,7 @@
 #   - GITHUB_TOKEN                   # name only — value forwarded from host env
 #
 # ports:
-#   - "21986:21986"                 # the coding server's user port
+#   - "21986:21986"                 # the robot gateway's user port
 
 features:
   - all_recommended

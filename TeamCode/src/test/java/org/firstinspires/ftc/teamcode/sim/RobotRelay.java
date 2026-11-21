@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.simcore.HubState;
 import org.firstinspires.ftc.teamcode.simcore.Peer;
+import org.firstinspires.ftc.teamcode.simcore.PortSetting;
 import org.firstinspires.ftc.teamcode.simcore.RelayAdmission;
 
 final class RobotRelay {
@@ -57,7 +58,7 @@ final class RobotRelay {
     }
 
     static int port(Map<String, String> env) {
-        return CodingServer.port(env, PORT_ENV, RelayAdmission.ADB_PORT);
+        return Valid.value(PortSetting.of(env, PORT_ENV, RelayAdmission.ADB_PORT));
     }
 
     static InetSocketAddress hub(Map<String, String> env) {

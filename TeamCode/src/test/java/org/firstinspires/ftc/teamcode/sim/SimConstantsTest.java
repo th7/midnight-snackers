@@ -1,17 +1,13 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
@@ -34,42 +30,6 @@ public class SimConstantsTest {
     private static void assertRefused(String saying, Checked<Constants> read) {
         String said = read.fold(value -> "accepted " + value, rule -> rule);
         assertTrue(said, read instanceof Checked.Rejected && said.contains(saying));
-    }
-
-    @Test
-    public void theListingSaysEveryConstantInOrderWithWhatItIsWhereItMayGoAndWhereItIs() {
-        JsonObject listing = SimConstants.listing(constants(Constant.LAUNCH_THROW, 0.25));
-
-        JsonArray listed = listing.getAsJsonArray("constants");
-        List<String> names = new ArrayList<>();
-        for (JsonElement element : listed) {
-            names.add(element.getAsJsonObject().get("name").getAsString());
-        }
-        List<String> every = new ArrayList<>();
-        for (Constant constant : Constant.values()) {
-            every.add(constant.asked());
-        }
-        assertEquals(every, names);
-
-        JsonObject launchThrow = listed.get(Constant.LAUNCH_THROW.ordinal()).getAsJsonObject();
-        assertEquals("mechanisms", launchThrow.get("group").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.label(), launchThrow.get("label").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.unit(), launchThrow.get("unit").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.says(), launchThrow.get("says").getAsString());
-        assertEquals(Constant.LAUNCH_THROW.least(), launchThrow.get("least").getAsDouble(), 0);
-        assertEquals(Constant.LAUNCH_THROW.most(), launchThrow.get("most").getAsDouble(), 0);
-        assertEquals(
-                Constant.LAUNCH_THROW.byDefault(), launchThrow.get("byDefault").getAsDouble(), 0);
-        assertEquals(0.25, launchThrow.get("value").getAsDouble(), 0);
-        JsonObject spread = listed.get(Constant.MOTOR_SPREAD.ordinal()).getAsJsonObject();
-        assertEquals(Constant.MOTOR_SPREAD.byDefault(), spread.get("value").getAsDouble(), 0);
-
-        JsonArray groups = listing.getAsJsonArray("groups");
-        assertEquals(Constant.Group.values().length, groups.size());
-        JsonObject noise = groups.get(0).getAsJsonObject();
-        assertEquals("noise", noise.get("name").getAsString());
-        assertEquals(Constant.Group.NOISE.label(), noise.get("label").getAsString());
-        assertEquals(Constant.Group.NOISE.says(), noise.get("says").getAsString());
     }
 
     @Test
@@ -104,49 +64,6 @@ public class SimConstantsTest {
         assertRefused(
                 "Flattest battery may not be more than freshest battery",
                 SimConstants.fromJson(json("{\"flattest_volts\": 14}")));
-    }
-
-    @Test
-    public void savedConstantsPastTheirRangeAreReadAtTheNearerEndAndListedWithWhatWasSaved() {
-        Constants.Restored restored =
-                Valid.value(SimConstants.restoredFromJson(json("{\"launch_throw\": 0.5, \"hiccup_chance\": 0}")));
-
-        assertEquals(Constant.LAUNCH_THROW.most(), restored.constants().value(Constant.LAUNCH_THROW), 0);
-        assertEquals(0, restored.constants().value(Constant.HICCUP_CHANCE), 0);
-        JsonArray listed = SimConstants.listing(restored.constants(), restored.pastTheirRange())
-                .getAsJsonArray("constants");
-        JsonObject launchThrow = listed.get(Constant.LAUNCH_THROW.ordinal()).getAsJsonObject();
-        assertEquals(Constant.LAUNCH_THROW.most(), launchThrow.get("value").getAsDouble(), 0);
-        assertEquals(0.5, launchThrow.get("saved").getAsDouble(), 0);
-        for (JsonElement other : listed) {
-            if (other != launchThrow) {
-                assertFalse(other.toString(), other.getAsJsonObject().has("saved"));
-            }
-        }
-        assertEquals(
-                Constants.defaults(),
-                Valid.value(SimConstants.restoredFromJson(null)).constants());
-        assertTrue(
-                "saved as a number is still the rule",
-                SimConstants.restoredFromJson(json("{\"launch_throw\": \"fast\"}"))
-                        .fold(read -> "accepted " + read, rule -> rule)
-                        .contains("Launcher throw is a number"));
-        assertFalse(
-                "a listing of constants set on the page says nothing was saved past its range",
-                SimConstants.listing(restored.constants()).toString().contains("saved"));
-    }
-
-    @Test
-    public void constantsRestoredPastTheirRangeAreWrittenAsTheyWereSavedAndReadBackAsTheSame() {
-        Constants.Restored restored =
-                Valid.value(SimConstants.restoredFromJson(json("{\"launch_throw\": 0.5, \"hiccup_chance\": 0}")));
-
-        JsonObject written = SimConstants.saved(restored);
-
-        assertEquals("{\"hiccup_chance\":0.0,\"launch_throw\":0.5}", written.toString());
-        Constants.Restored again = Valid.value(SimConstants.restoredFromJson(written));
-        assertEquals(restored.constants(), again.constants());
-        assertEquals(restored.pastTheirRange(), again.pastTheirRange());
     }
 
     @Test

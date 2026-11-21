@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -45,20 +44,6 @@ public class TeamRobotTest {
     }
 
     @Test
-    public void eachRobotsUserBranchesAreItsOwnAndReginaldsAreWhereTheyAlwaysWere() {
-        assertEquals("coding/ada", TeamRobot.REGINALD.userBranch("ada"));
-        assertEquals("nugget/ada", TeamRobot.NUGGET.userBranch("ada"));
-    }
-
-    @Test
-    public void reginaldKeepsTheNamesFromBeforeThereWereTwoRobots() {
-        assertEquals("worktrees.json", TeamRobot.REGINALD.ownName("worktrees", ".json"));
-        assertEquals("worktrees-nugget.json", TeamRobot.NUGGET.ownName("worktrees", ".json"));
-        assertEquals("root-0a1b2c3d", TeamRobot.REGINALD.ownName("root-0a1b2c3d", ""));
-        assertEquals("root-0a1b2c3d-nugget", TeamRobot.NUGGET.ownName("root-0a1b2c3d", ""));
-    }
-
-    @Test
     public void aLoginStoredBeforeThereWereTwoRobotsIsReginalds() {
         assertEquals(TeamRobot.REGINALD, Valid.value(TeamRobot.stored(Optional.empty())));
         assertEquals(TeamRobot.NUGGET, Valid.value(TeamRobot.stored(Optional.of("nugget"))));
@@ -66,77 +51,9 @@ public class TeamRobotTest {
     }
 
     @Test
-    public void reginaldsLineMustBeThereAndNuggetsStartsFromItWhenItIsNot() {
-        assertEquals(new TeamRobot.WhenMissing.Required(), TeamRobot.REGINALD.whenMissing());
-        assertEquals(new TeamRobot.WhenMissing.StartsFrom(TeamRobot.REGINALD), TeamRobot.NUGGET.whenMissing());
-    }
-
-    @Test
     public void eachRobotsCodeIsAPackageOfItsOwn() {
         assertEquals("org.firstinspires.ftc.reginald", TeamRobot.REGINALD.javaPackage());
         assertEquals("org.firstinspires.ftc.nugget", TeamRobot.NUGGET.javaPackage());
-    }
-
-    @Test
-    public void aRobotsOwnFilesAreItsPackageInTheMainAndTheTestSources() {
-        assertEquals(
-                List.of(
-                        "TeamCode/src/main/java/org/firstinspires/ftc/nugget/",
-                        "TeamCode/src/test/java/org/firstinspires/ftc/nugget/"),
-                TeamRobot.NUGGET.ownDirectories());
-        assertEquals(
-                List.of(
-                        "TeamCode/src/main/java/org/firstinspires/ftc/reginald/",
-                        "TeamCode/src/test/java/org/firstinspires/ftc/reginald/"),
-                TeamRobot.REGINALD.ownDirectories());
-    }
-
-    @Test
-    public void aRobotOwnsEveryFileUnderItsPackageAndItsPackagesPackages() {
-        assertTrue(TeamRobot.NUGGET.owns("TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java"));
-        assertTrue(TeamRobot.NUGGET.owns("TeamCode/src/test/java/org/firstinspires/ftc/nugget/TankDriveTest.java"));
-        assertTrue(TeamRobot.REGINALD.owns("TeamCode/src/main/java/org/firstinspires/ftc/reginald/opmode/Auto.java"));
-    }
-
-    @Test
-    public void aRobotOwnsNothingOutsideItsPackage() {
-        for (String key : List.of(
-                "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/planrunner/Plan.java",
-                "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimChild.java",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nuggets/Other.java",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nugget",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nugget/",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nugget/../teamcode/sim/SimChild.java",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nugget/./TankDrive.java",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nugget//TankDrive.java",
-                "TeamCode/src/main/java/org/firstinspires/ftc/nugget/drive/",
-                "other/TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java",
-                "TeamCode/src/main/res/org/firstinspires/ftc/nugget/TankDrive.java",
-                "")) {
-            assertEquals(key, Optional.empty(), TeamRobot.ownerOf(key));
-        }
-    }
-
-    @Test
-    public void aFileInOneRobotsPackageIsThatRobotsAndNotTheOthers() {
-        String nuggets = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java";
-        String reginalds = "TeamCode/src/test/java/org/firstinspires/ftc/reginald/RobotTest.java";
-
-        assertEquals(Optional.of(TeamRobot.NUGGET), TeamRobot.ownerOf(nuggets));
-        assertEquals(Optional.of(TeamRobot.REGINALD), TeamRobot.ownerOf(reginalds));
-        assertFalse(TeamRobot.REGINALD.owns(nuggets));
-        assertFalse(TeamRobot.NUGGET.owns(reginalds));
-    }
-
-    @Test
-    public void theAdminPicksForARobotOnlyFilesThatAreNoRobotsOwn() {
-        String shared = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/planrunner/Plan.java";
-        String nuggets = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java";
-
-        assertEquals(new TeamRobot.Picking.Pickable(), TeamRobot.NUGGET.picking(shared));
-        assertEquals(new TeamRobot.Picking.Pickable(), TeamRobot.REGINALD.picking(shared));
-        assertEquals(new TeamRobot.Picking.ItsOwn(), TeamRobot.NUGGET.picking(nuggets));
-        assertEquals(new TeamRobot.Picking.OthersOwn(TeamRobot.NUGGET), TeamRobot.REGINALD.picking(nuggets));
     }
 
     @Test

@@ -15,14 +15,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * What the suite spends on the few things that are dear: a child JVM started, a project's sources
- * compiled, a git process run, a secret put through scrypt, a file formatted, node run, a project
- * tree copied onto disk. Each is counted where it is spent -- inside the one adapter that reaches
+ * compiled, a secret put through scrypt, node run, a project tree copied onto disk. Each is counted where it is spent -- inside the one adapter that reaches
  * it -- so the ledger is complete for the same reason nothing else may reach any of them at all,
  * which CostIsCountedWhereItIsSpentTest holds rather than a comment.
  *
  * <p>Counts are pinned in a budget and times are only ever printed: a count is the suite's and a
- * time is the machine's. A count that is the size of the codebase rather than what the tests do
- * with it is printed and not pinned; {@link Kind#pinned} says which.
+ * time is the machine's.
  */
 public final class Cost {
 
@@ -42,32 +40,19 @@ public final class Cost {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    private static final boolean PINNED = true;
-    private static final boolean PRINTED = false;
-
     public enum Kind {
-        CHILD_JVM("child-jvm", "a child JVM started", PINNED),
-        COMPILE("compile", "a project's sources compiled", PINNED),
-        GIT("git", "a git process run", PINNED),
-        PASSWORD_HASH("password-hash", "a session secret put through scrypt", PINNED),
-        // One gate puts every Java file in the project through the formatter, so this count is the
-        // size of the codebase rather than what the tests do with it: adding one source file would
-        // move it, and a gate that fires on every commit that adds a file is one people turn off.
-        FORMAT("format", "a Java file put through the formatter", PRINTED),
-        NODE("node", "a node process run", PINNED),
-        PROJECT_COPY("project-copy", "a project tree copied onto disk", PINNED),
-        GRADLE_DEPLOY("gradle-deploy", "a Gradle robot deployment attempted", PINNED);
+        CHILD_JVM("child-jvm", "a child JVM started"),
+        COMPILE("compile", "a project's sources compiled"),
+        PASSWORD_HASH("password-hash", "a session secret put through scrypt"),
+        NODE("node", "a node process run"),
+        PROJECT_COPY("project-copy", "a project tree copied onto disk");
 
         public final String key;
         public final String what;
 
-        /** Whether the budget judges this count, or the report only prints it. */
-        public final boolean pinned;
-
-        Kind(String key, String what, boolean pinned) {
+        Kind(String key, String what) {
             this.key = key;
             this.what = what;
-            this.pinned = pinned;
         }
 
         static Kind named(String key) {
@@ -207,9 +192,6 @@ public final class Cost {
         }
         List<String> missed = new ArrayList<>();
         for (Kind kind : Kind.values()) {
-            if (!kind.pinned) {
-                continue;
-            }
             Integer pinned = budget.get(kind);
             int spent = taken.get(kind).count;
             if (pinned == null) {
@@ -244,15 +226,9 @@ public final class Cost {
         for (Kind kind : Kind.values()) {
             Tally tally = taken.get(kind);
             out.append(String.format(
-                    Locale.ROOT,
-                    "  %-14s %5d %s %7.1fs   %s%n",
-                    kind.key,
-                    tally.count,
-                    kind.pinned ? " " : "*",
-                    tally.seconds,
-                    kind.what));
+                    Locale.ROOT, "  %-14s %5d %7.1fs   %s%n", kind.key, tally.count, tally.seconds, kind.what));
         }
-        out.append("  (a count is pinned in the budget unless it is starred; the time is what was spent\n");
+        out.append("  (a count is pinned in the budget; the time is what was spent\n");
         out.append("   inside the call, so a child JVM's own loading is in its run's time, not here)\n");
         return out.toString();
     }
@@ -260,9 +236,7 @@ public final class Cost {
     public static String budgetJson(Map<Kind, Tally> taken) {
         JsonObject budget = new JsonObject();
         for (Kind kind : Kind.values()) {
-            if (kind.pinned) {
-                budget.addProperty(kind.key, taken.get(kind).count);
-            }
+            budget.addProperty(kind.key, taken.get(kind).count);
         }
         return GSON.toJson(budget) + "\n";
     }
@@ -272,11 +246,6 @@ public final class Cost {
         Map<Kind, Integer> budget = new EnumMap<>(Kind.class);
         for (Map.Entry<String, com.google.gson.JsonElement> entry : read.entrySet()) {
             Kind kind = Kind.named(entry.getKey());
-            if (!kind.pinned) {
-                throw new IllegalStateException(kind.key
-                        + " is counted and printed, not pinned, so a budget line for it judges nothing."
-                        + " Take the line out of " + BUDGET + ".");
-            }
             budget.put(kind, entry.getValue().getAsInt());
         }
         return budget;

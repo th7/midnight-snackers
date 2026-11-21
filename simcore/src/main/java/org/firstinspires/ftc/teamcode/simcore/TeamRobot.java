@@ -6,47 +6,21 @@ import java.util.Locale;
 import java.util.Optional;
 
 public enum TeamRobot {
-    REGINALD("Reginald", "develop", "coding/", "", Drivebase.MECANUM, "reginald"),
-    NUGGET("Nugget", "nugget-develop", "nugget/", "-nugget", Drivebase.TANK, "nugget");
+    REGINALD("Reginald", "develop", Drivebase.MECANUM, "reginald"),
+    NUGGET("Nugget", "nugget-develop", Drivebase.TANK, "nugget");
 
     private static final String PACKAGES = "org.firstinspires.ftc.";
-    private static final String MAIN_SOURCES = "TeamCode/src/main/java/";
-    private static final String TEST_SOURCES = "TeamCode/src/test/java/";
 
     private final String displayName;
     private final String develop;
-    private final String branchPrefix;
-    private final String nameSuffix;
     private final Drivebase drivebase;
     private final String packageName;
 
-    TeamRobot(
-            String displayName,
-            String develop,
-            String branchPrefix,
-            String nameSuffix,
-            Drivebase drivebase,
-            String packageName) {
+    TeamRobot(String displayName, String develop, Drivebase drivebase, String packageName) {
         this.displayName = displayName;
         this.develop = develop;
-        this.branchPrefix = branchPrefix;
-        this.nameSuffix = nameSuffix;
         this.drivebase = drivebase;
         this.packageName = packageName;
-    }
-
-    public sealed interface WhenMissing permits WhenMissing.Required, WhenMissing.StartsFrom {
-        record Required() implements WhenMissing {}
-
-        record StartsFrom(TeamRobot robot) implements WhenMissing {}
-    }
-
-    public sealed interface Picking permits Picking.Pickable, Picking.ItsOwn, Picking.OthersOwn {
-        record Pickable() implements Picking {}
-
-        record ItsOwn() implements Picking {}
-
-        record OthersOwn(TeamRobot owner) implements Picking {}
     }
 
     public static Checked<TeamRobot> named(String asked) {
@@ -86,53 +60,7 @@ public enum TeamRobot {
         return develop;
     }
 
-    public String userBranch(String slug) {
-        return branchPrefix + slug;
-    }
-
-    public String ownName(String stem, String extension) {
-        return stem + nameSuffix + extension;
-    }
-
     public String javaPackage() {
         return PACKAGES + packageName;
-    }
-
-    public List<String> ownDirectories() {
-        String directory = javaPackage().replace('.', '/') + "/";
-        return List.of(MAIN_SOURCES + directory, TEST_SOURCES + directory);
-    }
-
-    public boolean owns(String key) {
-        for (String directory : ownDirectories()) {
-            if (key.startsWith(directory) && key.length() > directory.length() && isNamedByNames(key)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isNamedByNames(String key) {
-        String closed = key + "/";
-        return !key.endsWith("/") && !key.contains("//") && !closed.contains("/./") && !closed.contains("/../");
-    }
-
-    public static Optional<TeamRobot> ownerOf(String key) {
-        for (TeamRobot robot : values()) {
-            if (robot.owns(key)) {
-                return Optional.of(robot);
-            }
-        }
-        return Optional.empty();
-    }
-
-    public Picking picking(String key) {
-        return ownerOf(key)
-                .<Picking>map(owner -> owner == this ? new Picking.ItsOwn() : new Picking.OthersOwn(owner))
-                .orElse(new Picking.Pickable());
-    }
-
-    public WhenMissing whenMissing() {
-        return this == REGINALD ? new WhenMissing.Required() : new WhenMissing.StartsFrom(REGINALD);
     }
 }

@@ -2,8 +2,8 @@
 
 ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 "$ADB" kill-server &&
-"$ADB" -a start-server &&
+"$ADB" start-server &&
 "$ADB" connect 192.168.43.1:5555 &&
 "$ADB" devices -l
 
-JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home ./gradlew :TeamCode:codingServer
+JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home ./gradlew :TeamCode:robotGateway

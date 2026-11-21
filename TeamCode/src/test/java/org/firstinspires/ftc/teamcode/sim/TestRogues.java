@@ -210,7 +210,7 @@ public final class TestRogues {
         }
     }
 
-    /** Starts a {@link Parent}, the way the host starts the coding server. */
+    /** Starts a {@link Parent}, the way the host starts the robot gateway. */
     public static Process startParent(String... args) throws IOException {
         List<String> command = new ArrayList<>(
                 List.of(javaBin(), "-cp", System.getProperty("java.class.path"), Parent.class.getName()));

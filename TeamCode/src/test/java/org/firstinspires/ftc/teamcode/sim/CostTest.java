@@ -34,9 +34,7 @@ public class CostTest {
     private static Map<Cost.Kind, Integer> budgetOf(Object... pairs) {
         Map<Cost.Kind, Integer> budget = new LinkedHashMap<>();
         for (Cost.Kind kind : Cost.Kind.values()) {
-            if (kind.pinned) {
-                budget.put(kind, 0);
-            }
+            budget.put(kind, 0);
         }
         for (int i = 0; i < pairs.length; i += 2) {
             budget.put((Cost.Kind) pairs[i], (Integer) pairs[i + 1]);
@@ -48,32 +46,32 @@ public class CostTest {
     public void aTestsOwnLedgerIsNotTheOneTheSuiteIsKeeping() {
         Map<Cost.Kind, Cost.Tally> before = Cost.taken();
 
-        spend(Cost.Kind.GIT, 3);
+        spend(Cost.Kind.PROJECT_COPY, 3);
 
         assertEquals(
                 "a test that counts its own spending must not land in the suite's ledger",
-                before.get(Cost.Kind.GIT).count,
-                Cost.taken().get(Cost.Kind.GIT).count);
+                before.get(Cost.Kind.PROJECT_COPY).count,
+                Cost.taken().get(Cost.Kind.PROJECT_COPY).count);
         assertNotSame(before, Cost.taken());
     }
 
     @Test
     public void somethingExpensiveIsCountedOnceAndItsTimeAddedUp() {
-        try (Cost.Spent ignored = ledger.start(Cost.Kind.GIT)) {
+        try (Cost.Spent ignored = ledger.start(Cost.Kind.PROJECT_COPY)) {
             spendAbout(5);
         }
-        try (Cost.Spent ignored = ledger.start(Cost.Kind.GIT)) {
+        try (Cost.Spent ignored = ledger.start(Cost.Kind.PROJECT_COPY)) {
             spendAbout(5);
         }
 
-        Cost.Tally git = ledger.taken().get(Cost.Kind.GIT);
-        assertEquals(2, git.count);
-        assertTrue("both spells are in the time: " + git.seconds, git.seconds >= 0.008);
+        Cost.Tally tally = ledger.taken().get(Cost.Kind.PROJECT_COPY);
+        assertEquals(2, tally.count);
+        assertTrue("both spells are in the time: " + tally.seconds, tally.seconds >= 0.008);
     }
 
     @Test
     public void everyKindIsInTheLedgerEvenTheOnesNothingSpent() {
-        spend(Cost.Kind.GIT, 1);
+        spend(Cost.Kind.PROJECT_COPY, 1);
 
         Map<Cost.Kind, Cost.Tally> taken = ledger.taken();
 
@@ -126,9 +124,9 @@ public class CostTest {
 
     @Test
     public void aSuiteThatSpentWhatItIsBudgetedHasMetIt() {
-        spend(Cost.Kind.GIT, 3);
+        spend(Cost.Kind.PROJECT_COPY, 3);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.GIT, 3), true);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.PROJECT_COPY, 3), true);
 
         assertEquals(Cost.Verdict.Outcome.MET, verdict.outcome);
         assertTrue(verdict.ok());
@@ -163,20 +161,20 @@ public class CostTest {
 
     @Test
     public void aKindNoBudgetPinsIsNotJudgedSilently() {
-        spend(Cost.Kind.GIT, 1);
+        spend(Cost.Kind.PROJECT_COPY, 1);
         Map<Cost.Kind, Integer> budget = budgetOf();
-        budget.remove(Cost.Kind.GIT);
+        budget.remove(Cost.Kind.PROJECT_COPY);
 
         Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budget, true);
 
         assertEquals(Cost.Verdict.Outcome.MISSED, verdict.outcome);
-        assertTrue(verdict.said, verdict.said.contains(Cost.Kind.GIT.key));
+        assertTrue(verdict.said, verdict.said.contains(Cost.Kind.PROJECT_COPY.key));
         assertTrue(verdict.said, verdict.said.contains("pins"));
     }
 
     @Test
     public void aBudgetThatIsNotThereIsNotAPass() {
-        spend(Cost.Kind.GIT, 1);
+        spend(Cost.Kind.PROJECT_COPY, 1);
 
         Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), null, true);
 
@@ -186,9 +184,9 @@ public class CostTest {
 
     @Test
     public void aRunOfPartOfTheSuiteSaysItCouldNotJudgeRatherThanPassing() {
-        spend(Cost.Kind.GIT, 1);
+        spend(Cost.Kind.PROJECT_COPY, 1);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.GIT, 99), false);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.PROJECT_COPY, 99), false);
 
         assertEquals(Cost.Verdict.Outcome.COULD_NOT_JUDGE, verdict.outcome);
         assertTrue("it is not a failure either", verdict.ok());
@@ -211,53 +209,27 @@ public class CostTest {
     }
 
     @Test
-    public void aCountThatIsTheSizeOfTheCodebaseIsPrintedAndNotPinned() {
-        assertFalse("a Java file formatted is one per file in the project, not one per test", Cost.Kind.FORMAT.pinned);
-        Map<Cost.Kind, Cost.Tally> taken = new LinkedHashMap<>(ledger.taken());
-        taken.put(Cost.Kind.FORMAT, new Cost.Tally(9999, 0));
-
-        assertEquals(
-                "adding one source file would otherwise fail a gate about what the tests cost",
-                Cost.Verdict.Outcome.MET,
-                Cost.verdictOn(taken, budgetOf(), true).outcome);
-        assertTrue("it is still counted and still read", Cost.report(taken).contains("9999"));
-    }
-
-    @Test
-    public void aBudgetHoldsThePinnedKindsAndNoOthers() {
+    public void aBudgetPinsEveryKind() {
         Map<Cost.Kind, Integer> read = Cost.budgetFrom(Cost.budgetJson(ledger.taken()));
 
         for (Cost.Kind kind : Cost.Kind.values()) {
-            assertEquals(kind + " is pinned: " + kind.pinned, kind.pinned, read.containsKey(kind));
+            assertTrue(kind + " is pinned", read.containsKey(kind));
         }
-        assertTrue("and something is pinned, or this rule judges nothing", read.size() > 1);
     }
 
     @Test
     public void aBudgetSurvivesBeingWrittenAndReadBack() {
-        spend(Cost.Kind.GIT, 3);
+        spend(Cost.Kind.PROJECT_COPY, 3);
         spend(Cost.Kind.COMPILE, 7);
 
         Map<Cost.Kind, Integer> read = Cost.budgetFrom(Cost.budgetJson(ledger.taken()));
 
-        assertEquals(Integer.valueOf(3), read.get(Cost.Kind.GIT));
+        assertEquals(Integer.valueOf(3), read.get(Cost.Kind.PROJECT_COPY));
         assertEquals(Integer.valueOf(7), read.get(Cost.Kind.COMPILE));
         assertEquals(
-                "what is written is every pinned kind, so a new one is never silently unpinned",
-                java.util.Arrays.stream(Cost.Kind.values())
-                        .filter(kind -> kind.pinned)
-                        .count(),
+                "what is written is every kind, so a new one is never silently unpinned",
+                Cost.Kind.values().length,
                 read.size());
-    }
-
-    @Test
-    public void aBudgetPinningAKindOnlyPrintedIsNotReadPastInSilence() {
-        String json = "{\"child-jvm\": 1, \"" + Cost.Kind.FORMAT.key + "\": 358}";
-
-        IllegalStateException wrong = assertThrows(IllegalStateException.class, () -> Cost.budgetFrom(json));
-
-        assertTrue(wrong.getMessage(), wrong.getMessage().contains(Cost.Kind.FORMAT.key));
-        assertTrue("it says the line does nothing", wrong.getMessage().contains("printed"));
     }
 
     @Test
@@ -271,14 +243,14 @@ public class CostTest {
 
     @Test
     public void theTimesAreNeverJudged() {
-        spend(Cost.Kind.GIT, 1);
+        spend(Cost.Kind.PROJECT_COPY, 1);
         Map<Cost.Kind, Cost.Tally> slow = new LinkedHashMap<>(ledger.taken());
-        slow.put(Cost.Kind.GIT, new Cost.Tally(1, 600.0));
+        slow.put(Cost.Kind.PROJECT_COPY, new Cost.Tally(1, 600.0));
 
         assertEquals(
                 "a count is the suite's and a time is the machine's, so only the count is a verdict",
                 Cost.Verdict.Outcome.MET,
-                Cost.verdictOn(slow, budgetOf(Cost.Kind.GIT, 1), true).outcome);
+                Cost.verdictOn(slow, budgetOf(Cost.Kind.PROJECT_COPY, 1), true).outcome);
     }
 
     private String verdictIn(Path into) throws IOException {

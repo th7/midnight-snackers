@@ -8,7 +8,7 @@ against time. This page says what it simulates, where every number came from, wh
 showed, and how to calibrate it against the real feeder. Issue #180 asked for it, and
 `doc/plans/feeder-sim.md` is the plan it was built from.
 
-Like the Launch Sim it runs on the coding server's own **core**, not on a teammate's code: it runs
+Like the Launch Sim it runs on the simulator's own **core**, not on the robot's code: it runs
 no robot code and nothing set here reaches a run.
 
 ## Contents
@@ -235,8 +235,7 @@ Film the feeder from above and from the side at 240 fps or more, with a scale in
 - **Server (`TeamCode`).** `SimFeedsTest`: the defaults throw both pollen, refusals name their rule,
   the last settings fed are kept across a restart, feeds are listed newest first, the frames replay
   the spinner, ramp and pollen, the viewer is served, and each feed carries its drawing.
-  `CodingServerTest`: feeds are for approved sessions and each user's are their own, and the
-  Feeder Sim tab comes after Launch Sim. `SimFeedPageTest` holds the page's placeholders and the
+  `DashboardPageTest`: the Feeder Sim tab comes after Launch Sim. `SimFeedPageTest` holds the page's placeholders and the
   answers the browser check is given to the bench's shape.
 - **Browser checks.** `tools/browser/feeder.mjs` runs the bench's own default feed in the tab,
   sees both pollen thrown, replays it to the end and back, and sees a refused setting's rule beside

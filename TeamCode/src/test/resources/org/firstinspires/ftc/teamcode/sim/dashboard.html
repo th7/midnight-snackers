@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en" data-host="coding-server">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coding Server</title>
+<title>Simulator</title>
 <style>
   :root {
     color-scheme: light;
@@ -34,11 +34,6 @@
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); display: grid; grid-template-rows: auto 1fr; }
   header { display: flex; align-items: center; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   h1 { font-size: 16px; font-weight: 600; margin: 0; padding: 12px 0; }
-  header .who { color: var(--muted); margin: 0; margin-left: auto; }
-  header .who .robot { font: inherit; font-weight: 600; color: var(--ink); padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
-  header .who .robot:disabled { opacity: 1; border-color: transparent; background: none; padding: 0; appearance: none; -webkit-appearance: none; }
-  header .who .robot:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  header .who .adb code { color: var(--ink); user-select: all; }
   nav { display: flex; gap: 2px; align-self: stretch; }
   nav button { border: 0; border-radius: 0; background: none; padding: 12px 14px; color: var(--muted); font-weight: 600; box-shadow: inset 0 -2px 0 transparent; }
   nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
@@ -77,48 +72,15 @@
   .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
   aside { border-right: 1px solid var(--line); overflow: auto; padding: 12px 0; }
   .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 20px 8px; }
-  #files { list-style: none; margin: 0; padding: 0; }
-  #files li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 20px; cursor: pointer; }
-  #files li:hover { background: var(--hover); }
-  #files li.open { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
-  #files .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #files .dir { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #files .editors { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); padding: 8px 20px; }
 
-  .git { margin: 0 20px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 8px; }
-  .git .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-  .git .buttons button { position: relative; }
-  .git #changed { color: var(--muted); font-size: 12px; }
-  .git #git-result { font-size: 12px; min-height: 1.4em; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .git #git-result.ok { color: var(--ok); }
-  .git #git-result.bad { color: var(--bad); }
-  .git #git-result.warn { color: var(--warn); }
-  #deploy-output { margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
 
-  .git .badge { position: absolute; top: -8px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
-  @keyframes pull-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--warn-soft); } 50% { box-shadow: 0 0 0 7px var(--warn-soft); } }
-  .git button.behind { border-color: var(--warn); animation: pull-pulse 1.6s ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) { .git button.behind { animation: none; } }
-  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; min-height: 0; }
+  .stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
 
   .stage > .stage-head { grid-row: 1; }
   .stage > #run-message { grid-row: 2; }
-  .stage > #editor, .stage > #stage, .stage > .stage-empty { grid-row: 3; }
-  .stage > #problems { grid-row: 4; }
-  .stage > #usages { grid-row: 5; }
+  .stage > #stage, .stage > .stage-empty { grid-row: 3; }
 
-  #usages { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); background: var(--panel); max-height: 200px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-  #usages li { padding: 6px 20px; border-top: 1px solid var(--line); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
-  #usages li.head { cursor: default; color: var(--muted); font-family: system-ui, sans-serif; display: flex; gap: 12px; align-items: center; border-top: 0; }
-  #usages li.head button { margin-left: auto; padding: 1px 8px; font-size: 12px; }
-  #usages li:not(.head):hover { background: var(--hover); }
-  #usages li .where { color: var(--muted); }
-  #problems { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); background: var(--panel); max-height: 200px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-  #problems li { padding: 6px 20px; border-top: 1px solid var(--line); color: var(--bad); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
-  #problems li:first-child { border-top: 0; }
-  #problems li:hover { background: var(--hover); }
-  #problems li .where { color: var(--muted); }
   .stage-head { display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 1px solid var(--line); min-height: 44px; flex-wrap: wrap; }
   .stage-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
   .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
@@ -130,12 +92,6 @@
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
   button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
-  #editor { min-height: 0; overflow: hidden; background: var(--panel); }
-  #editor .cm-editor { height: 100%; }
-  #editor .cm-scroller { font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-  #editor .cm-editor.cm-focused { outline: 2px solid var(--focus); outline-offset: -2px; }
-  #editor.idle .cm-content { color: var(--muted); }
-  .placeholder { display: grid; place-items: center; color: var(--muted); }
   header .broke { flex-basis: 100%; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 6px; background: var(--bad-soft); color: var(--bad); }
 
   .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -224,50 +180,16 @@
 </style>
 </head>
 <body>
-<script src="/static/codemirror.js"></script>
 <header>
-  <h1>Coding server</h1>
+  <h1>Simulator</h1>
   <nav role="tablist">
-    <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
-    <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
+    <button role="tab" data-tab="simulate" aria-selected="true" aria-controls="simulate">Simulate</button>
     <button role="tab" data-tab="launch" aria-selected="false" aria-controls="launch">Launch Sim</button>
     <button role="tab" data-tab="feeder" aria-selected="false" aria-controls="feeder">Feeder Sim</button>
   </nav>
-  <p class="who">Signed in as <strong id="who">…</strong> for <select id="robot" class="robot" aria-label="The robot you are working on" disabled><option>…</option></select> on <span id="branch" class="mono">…</span><span id="adb" class="adb" hidden> · to deploy from Android Studio, first run <code id="adb-line" class="mono"></code></span></p>
   <p class="broke" id="broke" role="alert" hidden></p>
 </header>
-<main id="edit" class="panel" role="tabpanel">
-  <aside>
-    <p class="section-label">Your branch</p>
-    <div id="git" class="git">
-      <div id="changed">…</div>
-      <div class="buttons">
-        <button id="commit" type="button" disabled>Commit</button>
-        <button id="pull" type="button" title="Bring your robot's develop branch into your branch">Pull</button>
-        <button id="push" type="button" title="Land your commits on your robot's develop branch">Push</button>
-        <button id="deploy" type="button" title="Build and install this worktree's saved code on the connected robot, without committing or pushing">Deploy</button>
-      </div>
-      <div id="git-result" role="status"></div>
-      <pre id="deploy-output" aria-label="Deployment output" hidden></pre>
-    </div>
-    <p class="section-label">Files you can edit</p>
-    <ul id="files"></ul>
-    <p id="nofiles" class="empty" hidden>The admin has not picked any files yet.</p>
-  </aside>
-  <section class="stage">
-    <div class="stage-head">
-      <h2 id="title" class="mono">Pick a file on the left</h2>
-      <span id="status" class="pill muted" hidden></span>
-      <span id="build-status" class="pill muted" hidden></span>
-      <button id="reload" hidden>Load the host's version</button>
-      <span class="note" style="margin: 0 0 0 auto">F12 definition · Shift-F12 usages</span>
-    </div>
-    <div id="editor" class="idle"></div>
-    <ul id="problems" hidden></ul>
-    <ul id="usages" hidden></ul>
-  </section>
-</main>
-<main id="simulate" class="panel" role="tabpanel" hidden>
+<main id="simulate" class="panel" role="tabpanel">
   <aside>
     <div>
       <p class="section-label" style="margin-top: 12px">Op modes</p>
@@ -359,24 +281,18 @@
 </main>
 <script>
 (function () {
-  window.codingPage = { started: false, broke: [] };
+  window.simulatorPage = { started: false, broke: [] };
 
-  var HOST = document.documentElement.dataset.host === 'simulator'
-    ? { title: 'Simulator', editing: false, home: 'simulate',
-        whoToTell: 'whoever started the simulator',
-        toRestart: 'Start the Simulator run configuration in Android Studio again' }
-    : { title: 'Coding server', editing: true, home: 'edit',
-        whoToTell: 'whoever runs the coding server',
-        toRestart: 'Ask the admin to restart ./gradlew :TeamCode:codingServer' };
+  var TO_RESTART = 'Start the Simulator run configuration in Android Studio again';
 
   function broke(what, wrong) {
     var message = wrong && wrong.message ? wrong.message : String(wrong);
-    var already = window.codingPage.broke.some(function (b) { return b.part === what && b.message === message; });
+    var already = window.simulatorPage.broke.some(function (b) { return b.part === what && b.message === message; });
     if (already) { return; }
-    window.codingPage.broke.push({ part: what, message: message });
+    window.simulatorPage.broke.push({ part: what, message: message });
     var said = document.getElementById('broke');
     said.textContent = 'This browser could not start ' + what + ': ' + message
-        + '. Whatever else works still works. Tell ' + HOST.whoToTell + '.';
+        + '. Whatever else works still works. Tell whoever started the simulator.';
     said.hidden = false;
   }
 
@@ -390,662 +306,6 @@
 
   window.addEventListener('error', function (event) { broke('the page', event.error || event.message); });
 
-  var SAVE_DELAY_MS = 300;
-  var SWITCH_WAIT_MS = 10000;
-  var filesEl = document.getElementById('files');
-  var nofiles = document.getElementById('nofiles');
-  var editorHost = document.getElementById('editor');
-  var title = document.getElementById('title');
-  var status = document.getElementById('status');
-  var reload = document.getElementById('reload');
-  var buildStatus = document.getElementById('build-status');
-  var problemsEl = document.getElementById('problems');
-  var usagesEl = document.getElementById('usages');
-  var open = null;
-  var editableKeys = [];
-  var saveTimer = null;
-  var saving = false;
-  var saveFailed = false;
-  var dirtyWhileSaving = false;
-  var pendingSave = false;
-
-  var editable = null;
-  var theme = null;
-  var dark = null;
-  var view = null;
-  var lastProblems = [];
-  var settingDoc = false;
-
-  function themeFor() {
-    return dark.matches ? CM.oneDark : [];
-  }
-
-  function editorState(text, canEdit) {
-    return CM.EditorState.create({
-      doc: text,
-      extensions: [
-        CM.basicSetup,
-        CM.java(),
-        CM.lintGutter(),
-        CM.indentUnit.of('    '),
-        CM.keymap.of([
-          { key: 'Mod-s', run: function () { saveNow(); return true; } },
-          { key: 'F12', run: function () { navigate.definition(); return true; } },
-          { key: 'Shift-F12', run: function () { navigate.usages(); return true; } },
-          CM.indentWithTab
-        ]),
-        CM.EditorView.domEventHandlers({
-          mousedown: function (event, v) {
-            if (!(event.ctrlKey || event.metaKey) || event.button !== 0) { return false; }
-            var pos = v.posAtCoords({ x: event.clientX, y: event.clientY });
-            if (pos == null) { return false; }
-            v.dispatch({ selection: { anchor: pos } });
-            navigate.definition();
-            return true;
-          }
-        }),
-        editable.of(CM.EditorView.editable.of(canEdit)),
-        theme.of(themeFor()),
-        CM.EditorView.updateListener.of(function (update) {
-          if (update.docChanged && !settingDoc && open && open.version) { scheduleSave(); }
-        })
-      ]
-    });
-  }
-
-  function startEditor() {
-    editable = new CM.Compartment();
-    theme = new CM.Compartment();
-    dark = matchMedia('(prefers-color-scheme: dark)');
-    view = new CM.EditorView({ parent: editorHost, state: editorState('', false) });
-    var follow = function () { view.dispatch({ effects: theme.reconfigure(themeFor()) }); };
-    if (dark.addEventListener) { dark.addEventListener('change', follow); }
-    else { dark.addListener(follow); }
-  }
-
-  function setDoc(text, canEdit) {
-    if (!view) { return; }
-    settingDoc = true;
-    view.setState(editorState(text, canEdit !== false));
-    settingDoc = false;
-    editorHost.classList.remove('idle');
-  }
-
-  function docText() {
-    return view ? view.state.doc.toString() : '';
-  }
-
-  function setStatus(text, kind) {
-    status.textContent = text;
-    status.className = 'pill ' + kind;
-    status.hidden = !text;
-  }
-
-  function fileUrl(path) {
-    return '/files/' + path.split('/').map(encodeURIComponent).join('/');
-  }
-
-  function renderFiles(files) {
-    nofiles.hidden = files.length > 0;
-    editableKeys = files.map(function (file) { return file.path; });
-    filesEl.innerHTML = '';
-    files.forEach(function (file) {
-      var li = document.createElement('li');
-      li.className = open && open.path === file.path ? 'open' : '';
-      var slash = file.path.lastIndexOf('/');
-      var name = document.createElement('div');
-      name.innerHTML = '<div class="name"></div><div class="dir"></div>';
-      name.firstChild.textContent = slash < 0 ? file.path : file.path.slice(slash + 1);
-      name.lastChild.textContent = slash < 0 ? '' : file.path.slice(0, slash);
-      var editors = document.createElement('span');
-      editors.className = 'editors';
-      editors.textContent = file.editors.length ? file.editors.join(', ') : '';
-      editors.title = file.editors.length ? 'also open by ' + file.editors.join(', ') : '';
-      li.appendChild(name);
-      li.appendChild(editors);
-      li.addEventListener('click', function () { load(file.path); });
-      filesEl.appendChild(li);
-    });
-  }
-
-  function refreshFiles() {
-    fetch('/files').then(function (r) {
-      if (r.status === 403) { location.reload(); return null; }
-      return r.json();
-    }).then(function (json) {
-      if (json) { renderFiles(json.files); }
-    }).catch(function () {}).then(function () { setTimeout(refreshFiles, 2000); });
-  }
-
-  function load(path, line, column) {
-    if (!withoutTheEditor(path)) { return; }
-    fetch(fileUrl(path)).then(function (r) {
-      if (r.status === 403) { location.reload(); return; }
-      if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
-      return r.json().then(function (file) {
-        open = { path: file.path, version: file.version, robot: file.robot, readOnly: false };
-        title.textContent = file.path;
-        setDoc(file.content, true);
-        reload.hidden = true;
-        setStatus('saved', 'ok');
-        view.focus();
-        if (line) { goTo(line, column); }
-        showDiagnostics(lastProblems);
-        refreshNow();
-        scheduleCheck();
-      });
-    });
-  }
-
-  function viewSource(path, line, column) {
-    if (!withoutTheEditor(path)) { return; }
-    fetch('/source/' + path.split('/').map(encodeURIComponent).join('/')).then(function (r) {
-      if (r.status === 403) { location.reload(); return; }
-      if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
-      return r.json().then(function (file) {
-        open = { path: file.path, version: null, readOnly: true };
-        title.textContent = file.path;
-        setDoc(file.content, false);
-        reload.hidden = true;
-        setStatus('view only', 'muted');
-        view.focus();
-        if (line) { goTo(line, column); }
-        showDiagnostics(lastProblems);
-        refreshNow();
-      });
-    });
-  }
-
-  function withoutTheEditor(path) {
-    if (view) { return true; }
-    title.textContent = path;
-    setStatus('the editor did not start on this browser', 'bad');
-    return false;
-  }
-
-  function openAt(path, line, column) {
-    if (open && open.path === path) { goTo(line, column); return; }
-    if (editableKeys.indexOf(path) >= 0) { load(path, line, column); } else { viewSource(path, line, column); }
-  }
-
-  function refreshNow() {
-    fetch('/files').then(function (r) { return r.json(); }).then(function (json) { renderFiles(json.files); }).catch(function () {});
-  }
-
-  function scheduleSave() {
-    if (!open) { return; }
-    pendingSave = true;
-    setStatus('saving…', 'muted');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, SAVE_DELAY_MS);
-  }
-
-  function clean() {
-    return !!open && !!open.version && !pendingSave && !saving && !dirtyWhileSaving;
-  }
-
-  function reloadOpen() {
-    if (!open) { return; }
-    if (open.readOnly) { viewSource(open.path); }
-    else if (clean()) { load(open.path); }
-  }
-
-  function saveNow() {
-    if (!open || !open.version) { return; }
-    clearTimeout(saveTimer);
-    save();
-  }
-
-  function whenSaved() {
-    saveNow();
-    return new Promise(function (resolve) {
-      var waited = 0;
-      (function settled() {
-        if ((!pendingSave && !saving && !dirtyWhileSaving) || waited >= SWITCH_WAIT_MS) {
-          resolve(!open || open.readOnly || (!saveFailed && clean()));
-          return;
-        }
-        waited += 100;
-        setTimeout(settled, 100);
-      })();
-    });
-  }
-
-  function save() {
-    if (!open) { return; }
-    if (saving) { dirtyWhileSaving = true; return; }
-    saving = true;
-    saveFailed = true;
-    pendingSave = false;
-    var path = open.path;
-    var content = docText();
-    fetch(fileUrl(path), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ content: content, baseVersion: open.version, robot: open.robot })
-    }).then(function (r) {
-      if (r.status === 403) { location.reload(); return; }
-      if (r.status === 409) {
-        return r.json().then(function (current) {
-          open.version = null;
-          if (current.robot && current.robot !== open.robot) {
-            setStatus(current.message, 'bad');
-            reload.hidden = false;
-            reload.onclick = function () { location.reload(); };
-            return;
-          }
-          setStatus('changed on the host', 'warn');
-          reload.hidden = false;
-          reload.onclick = function () { load(path); };
-        });
-      }
-      if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); }); }
-      return r.json().then(function (written) {
-        if (open && open.path === path) {
-          open.version = written.version;
-          saveFailed = false;
-          setStatus(dirtyWhileSaving ? 'saving…' : 'saved', dirtyWhileSaving ? 'muted' : 'ok');
-        }
-        scheduleCheck();
-        if (git) { git.refresh(); }
-      });
-    }).catch(function () {
-      setStatus('could not reach the host', 'bad');
-    }).then(function () {
-      saving = false;
-      if (dirtyWhileSaving) { dirtyWhileSaving = false; if (open && open.version) { save(); } }
-    });
-  }
-
-  var CHECK_DELAY_MS = 400;
-  var checkTimer = null;
-  var checking = false;
-  var checkAgain = false;
-  var buildAvailable = true;
-
-  function setBuildStatus(text, kind) {
-    buildStatus.textContent = text;
-    buildStatus.className = 'pill ' + kind;
-    buildStatus.hidden = !text;
-  }
-
-  function scheduleCheck() {
-    if (!buildAvailable) { return; }
-    clearTimeout(checkTimer);
-    checkTimer = setTimeout(check, CHECK_DELAY_MS);
-  }
-
-  function check() {
-    if (checking) { checkAgain = true; return; }
-    checking = true;
-    setBuildStatus('checking…', 'muted');
-    fetch('/build').then(function (r) {
-      if (r.status === 403) { location.reload(); return null; }
-      return r.json();
-    }).then(function (result) {
-      if (!result) { return; }
-      if (result.available === false) { buildAvailable = false; setBuildStatus('', 'muted'); return; }
-      renderProblems(result.problems);
-      setBuildStatus(result.ok ? 'compiles' : result.problems.length + (result.problems.length === 1 ? ' error' : ' errors'), result.ok ? 'ok' : 'bad');
-    }).catch(function () {
-      setBuildStatus('could not check', 'bad');
-    }).then(function () {
-      checking = false;
-      if (checkAgain) { checkAgain = false; check(); }
-    });
-  }
-
-  function renderProblems(problems) {
-    lastProblems = problems;
-    showDiagnostics(problems);
-    problemsEl.innerHTML = '';
-    problemsEl.hidden = !problems.length;
-    problems.forEach(function (problem) {
-      var li = document.createElement('li');
-      var where = document.createElement('span');
-      where.className = 'where';
-      var name = problem.file ? problem.file.slice(problem.file.lastIndexOf('/') + 1) : '';
-      where.textContent = problem.file ? name + ':' + problem.line + '  ' : '';
-      li.appendChild(where);
-      li.appendChild(document.createTextNode(problem.message));
-      li.title = problem.file;
-      li.addEventListener('click', function () {
-        if (open && open.path === problem.file) { goToLine(problem.line); }
-        else if (problem.file) { load(problem.file, problem.line); }
-      });
-      problemsEl.appendChild(li);
-    });
-  }
-
-  function showDiagnostics(problems) {
-    if (!open || !view) { return; }
-    var doc = view.state.doc;
-    var diagnostics = [];
-    problems.forEach(function (problem) {
-      if (problem.file !== open.path || !problem.line) { return; }
-      var line = doc.line(Math.max(1, Math.min(problem.line, doc.lines)));
-      diagnostics.push({ from: line.from, to: line.to, severity: 'error', message: problem.message });
-    });
-    view.dispatch(CM.setDiagnostics(view.state, diagnostics));
-  }
-
-  function goToLine(line) {
-    goTo(line, 1);
-  }
-
-  function goTo(line, column) {
-    if (!view) { return; }
-    var doc = view.state.doc;
-    var l = doc.line(Math.max(1, Math.min(line, doc.lines)));
-    var pos = l.from + Math.max(0, Math.min((column || 1) - 1, l.length));
-    view.dispatch({ selection: { anchor: pos }, effects: CM.EditorView.scrollIntoView(pos, { y: 'center' }) });
-    view.focus();
-  }
-
-  var navigate = (function () {
-    function where() {
-      if (!open || !view) { return null; }
-      var head = view.state.selection.main.head;
-      var line = view.state.doc.lineAt(head);
-      return { file: open.path, line: line.number, column: head - line.from + 1 };
-    }
-
-    function ask(route) {
-      var at = where();
-      if (!at) { return Promise.resolve(null); }
-      var query = '?file=' + encodeURIComponent(at.file) + '&line=' + at.line + '&column=' + at.column;
-      return fetch(route + query).then(function (r) {
-        if (r.status === 403) { location.reload(); return null; }
-        if (r.status === 404) { return r.text().then(function (t) { setStatus(t.indexOf('nothing at') === 0 ? 'nothing to go to here' : t, 'muted'); return null; }); }
-        if (!r.ok) { return r.text().then(function (t) { setStatus(t, 'bad'); return null; }); }
-        return r.json();
-      }).catch(function () { setStatus('could not reach the host', 'bad'); return null; });
-    }
-
-    function definition() {
-      ask('/nav/definition').then(function (found) {
-        if (!found || found.available === false) { return; }
-        if (!found.file) { setStatus(found.symbol + ' is defined outside the project', 'muted'); return; }
-        openAt(found.file, found.line, found.column);
-      });
-    }
-
-    function usages() {
-      ask('/nav/usages').then(function (found) {
-        if (!found || found.available === false) { return; }
-        renderUsages(found);
-      });
-    }
-
-    function renderUsages(found) {
-      usagesEl.innerHTML = '';
-      var head = document.createElement('li');
-      head.className = 'head';
-      head.textContent = found.usages.length + (found.usages.length === 1 ? ' usage of ' : ' usages of ') + found.symbol;
-      var close = document.createElement('button');
-      close.type = 'button';
-      close.textContent = 'Close';
-      close.addEventListener('click', function () { usagesEl.hidden = true; });
-      head.appendChild(close);
-      usagesEl.appendChild(head);
-      found.usages.forEach(function (usage) {
-        var li = document.createElement('li');
-        var where = document.createElement('span');
-        where.className = 'where';
-        where.textContent = usage.file.slice(usage.file.lastIndexOf('/') + 1) + ':' + usage.line + '  ';
-        li.appendChild(where);
-        li.appendChild(document.createTextNode(usage.text));
-        li.title = usage.file;
-        li.addEventListener('click', function () { openAt(usage.file, usage.line, usage.column); });
-        usagesEl.appendChild(li);
-      });
-      usagesEl.hidden = false;
-    }
-
-    return { definition: definition, usages: usages };
-  })();
-
-  function theBranchPanel() {
-    var changedEl = document.getElementById('changed');
-    var commitButton = document.getElementById('commit');
-    var pullButton = document.getElementById('pull');
-    var pushButton = document.getElementById('push');
-    var deployButton = document.getElementById('deploy');
-    var deployOutput = document.getElementById('deploy-output');
-    var resultEl = document.getElementById('git-result');
-    var busy = false;
-    var behind = 0;
-    var head = null;
-
-    function say(text, kind) {
-      resultEl.textContent = text;
-      resultEl.className = kind || '';
-    }
-
-    function tipMoved(status) {
-      if (head === null || head === status.head || busy) { head = status.head; return; }
-      head = status.head;
-      reloadOpen();
-      refreshNow();
-      scheduleCheck();
-    }
-
-    function render(status) {
-      tipMoved(status);
-      var n = status.changed.length;
-      changedEl.textContent = n ? n + (n === 1 ? ' file changed' : ' files changed') + ' since your last commit' : 'nothing to commit';
-      changedEl.title = status.changed.join('\n');
-      commitButton.disabled = busy || !n;
-      behind = status.behind;
-      pullButton.classList.toggle('behind', behind > 0);
-      pullButton.disabled = busy;
-
-      deployButton.disabled = busy;
-      pushButton.disabled = busy || !status.pushable;
-      pushButton.title = status.pushable
-        ? status.ahead + (status.ahead === 1 ? ' commit' : ' commits') + ' to push'
-        : (n ? 'commit before you push' : 'nothing to push: ' + status.develop + ' has your work');
-      var badge = pullButton.querySelector('.badge');
-      if (behind > 0) {
-        if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; pullButton.appendChild(badge); }
-        badge.textContent = behind;
-        pullButton.title = behind + (behind === 1 ? ' commit' : ' commits') + ' on ' + status.develop + ' to pull';
-      } else if (badge) {
-        badge.remove();
-        pullButton.title = 'Bring ' + status.develop + ' into your branch';
-      }
-    }
-
-    function refresh() {
-      return fetch('/git/status').then(function (r) {
-        if (r.status === 403) { location.reload(); return null; }
-        return r.json();
-      }).then(function (status) {
-        if (status) { render(status); }
-      }).catch(function () {});
-    }
-
-    function startWork() {
-      busy = true;
-      commitButton.disabled = true;
-      pullButton.disabled = true;
-      pushButton.disabled = true;
-      deployButton.disabled = true;
-    }
-
-    function post(path, body) {
-      startWork();
-      return fetch(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify(body || {})
-      }).then(function (r) {
-        if (r.status === 403) { location.reload(); return null; }
-        return r.text().then(function (text) { return { status: r.status, ok: r.ok, text: text }; });
-      }).catch(function () {
-        return { status: 0, ok: false, text: 'could not reach the host' };
-      }).then(function (reply) {
-        busy = false;
-        return reply;
-      });
-    }
-
-    function commit() {
-      var message = prompt('What did you change? (one line for the commit)');
-      if (message === null) { return; }
-      if (!message.trim()) { say('a commit needs a message', 'bad'); return; }
-      saveNow();
-      post('/git/commit', { message: message.trim() }).then(function (reply) {
-        if (!reply) { return; }
-        if (!reply.ok) { say(reply.text, 'bad'); }
-        else {
-          var result = JSON.parse(reply.text);
-          if (result.warning) { say(result.message + '; ' + result.warning, 'warn'); }
-          else { say(result.message, result.committed ? 'ok' : ''); }
-
-          if (open && result.formatted.indexOf(open.path) >= 0) { reloadOpen(); }
-        }
-        head = null;
-        refresh();
-      });
-    }
-
-    function afterMerge(reply) {
-      if (!reply) { return; }
-      var result;
-      try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
-
-      var kind = result.severity;
-      say(result.message, kind);
-      if (reply.ok && result.outcome !== 'nothing') {
-        if (open) { load(open.path); }
-        refreshNow();
-        scheduleCheck();
-      }
-      head = null;
-      refresh();
-    }
-
-    function pull() {
-      saveNow();
-      post('/git/pull').then(afterMerge);
-    }
-
-    function push() {
-      saveNow();
-      post('/git/push').then(afterMerge);
-    }
-
-    function deploy() {
-      if (busy) { return; }
-      var robot = document.getElementById('robot').value;
-      startWork();
-      deployOutput.textContent = '';
-      deployOutput.hidden = true;
-      say('saving before deployment…');
-      whenSaved().then(function (saved) {
-        if (!saved) {
-          busy = false;
-          say('could not save the open file; deployment stopped', 'bad');
-          refresh();
-          return;
-        }
-        say('deploying this worktree to the connected robot…');
-        post('/deploy?robot=' + encodeURIComponent(robot)).then(function (reply) {
-          if (!reply) { return; }
-          var result;
-          try { result = JSON.parse(reply.text); } catch (e) { say(reply.text, 'bad'); refresh(); return; }
-          say(result.message, reply.ok && result.ok ? 'ok' : 'bad');
-          deployOutput.textContent = result.output || '';
-          deployOutput.hidden = !result.output;
-          refresh();
-        });
-      });
-    }
-
-    deployButton.addEventListener('click', deploy);
-    commitButton.addEventListener('click', commit);
-    pullButton.addEventListener('click', pull);
-    pushButton.addEventListener('click', push);
-    refresh();
-    setInterval(refresh, 2000);
-    return { refresh: refresh, say: say };
-  }
-
-  function robotName(robot) {
-    return robot ? robot.charAt(0).toUpperCase() + robot.slice(1) : '';
-  }
-
-  function whoIsSignedIn() {
-    var robotEl = document.getElementById('robot');
-    var on = null;
-    var offered = '';
-
-    function show(me) {
-      if (me.state !== 'approved') { location.reload(); return; }
-      if (on !== null && me.robot !== on) { location.reload(); return; }
-      on = me.robot;
-      document.getElementById('who').textContent = me.username;
-      document.getElementById('branch').textContent = me.branch || '';
-      var robots = me.robots || [me.robot];
-      if (robots.join(',') !== offered) {
-        offered = robots.join(',');
-        robotEl.innerHTML = '';
-        robots.forEach(function (robot) {
-          var option = document.createElement('option');
-          option.value = robot;
-          option.textContent = robotName(robot);
-          robotEl.appendChild(option);
-        });
-      }
-      robotEl.value = me.robot;
-      robotEl.disabled = robots.length < 2;
-      robotEl.title = robots.length < 2
-        ? 'The admin has let you onto ' + robotName(me.robot) + ' alone'
-        : 'Switch to another robot you work on; the page comes back on it';
-    }
-
-    function ask() {
-      return fetch('/me').then(function (r) { return r.json(); }).then(show);
-    }
-
-    fetch('/relay').then(function (r) { return r.ok ? r.json() : null; }).then(function (relay) {
-      if (!relay) { return; }
-      document.getElementById('adb-line').textContent = relay.line;
-      document.getElementById('adb').hidden = false;
-    }).catch(function () {});
-
-    robotEl.addEventListener('change', function () {
-      var asked = robotEl.value;
-      robotEl.disabled = true;
-      whenSaved().then(function () {
-        return fetch('/robot?robot=' + encodeURIComponent(asked), { method: 'POST' });
-      }).then(function (r) {
-        if (r.ok) { location.reload(); return; }
-        return r.text().then(function (text) {
-          robotEl.value = on;
-          robotEl.disabled = false;
-          if (git) { git.say(text, 'bad'); }
-        });
-      }).catch(function () {
-        robotEl.value = on;
-        robotEl.disabled = false;
-      });
-    });
-
-    ask();
-    setInterval(function () { ask().catch(function () {}); }, 3000);
-  }
-
-  function asTheSimulator() {
-    document.title = HOST.title;
-    document.querySelector('header h1').textContent = HOST.title;
-    ['nav [data-tab="edit"]', 'main#edit', 'header .who'].forEach(function (selector) {
-      var element = document.querySelector(selector);
-      element.parentNode.removeChild(element);
-    });
-  }
-
   var tabs = [];
   var tabOptions = '';
 
@@ -1054,13 +314,13 @@
     var mark = text.indexOf('?');
     var name = mark < 0 ? text : text.slice(0, mark);
     var known = name === 'simulate' || name === 'launch' || name === 'feeder';
-    return { name: known ? name : 'edit',
+    return { name: known ? name : 'simulate',
              options: known && mark >= 0 ? text.slice(mark + 1) : '' };
   }
 
   function showTab(hash) {
     var asked = tabOf(hash);
-    var name = asked.name === 'edit' && !HOST.editing ? HOST.home : asked.name;
+    var name = asked.name;
     tabOptions = asked.options;
     tabs.forEach(function (tab) {
       var on = tab.dataset.tab === name;
@@ -1285,7 +545,7 @@
         if (status) { renderStatus(status); }
         if (msg.textContent.indexOf('Lost') === 0) { msg.textContent = ''; }
       }).catch(function () {
-        msg.textContent = 'Lost the host. ' + HOST.toRestart;
+        msg.textContent = 'Lost the host. ' + TO_RESTART;
       }).then(function () {
         pollTimer = setTimeout(poll, running ? 500 : 2000);
       });
@@ -1387,7 +647,7 @@
     }
 
     function lost(e) {
-      say('Lost the host: ' + e + '. ' + HOST.toRestart, 'lost');
+      say('Lost the host: ' + e + '. ' + TO_RESTART, 'lost');
     }
 
     function decimalsOf(n) {
@@ -2157,7 +1417,7 @@
     }
 
     function lost(e) {
-      say('Lost the host: ' + e + '. ' + HOST.toRestart, true);
+      say('Lost the host: ' + e + '. ' + TO_RESTART, true);
     }
 
     function stepOf(setting) {
@@ -2500,25 +1760,14 @@
     return { enter: enter };
   }
 
-  var git = null;
   var simulate = null;
   var launch = null;
   var feeder = null;
-  if (HOST.editing) {
-    part('the editor', startEditor);
-    part('the branch panel', function () { git = theBranchPanel(); });
-  } else {
-    part('the host', asTheSimulator);
-  }
   part('the simulator', function () { simulate = theSimulateTab(); });
   part('the launch sim', function () { launch = theLaunchTab(); });
   part('the feeder sim', function () { feeder = theFeederTab(); });
-  if (HOST.editing) {
-    part('the header', whoIsSignedIn);
-    part('the file list', refreshFiles);
-  }
   part('the tabs', wireTabs);
-  window.codingPage.started = true;
+  window.simulatorPage.started = true;
 })();
 </script>
 </body>

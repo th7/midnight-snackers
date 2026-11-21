@@ -7,12 +7,13 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.PortSetting;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 /**
  * The simulator a teammate runs from their own checkout: one bench over the sources on disk, for
  * Reginald, served on loopback alone to the browser on the same machine. It serves the dashboard's
- * Simulate, Launch Sim and Feeder Sim tabs, told it is this host so it starts nothing else.
+ * Simulate, Launch Sim and Feeder Sim tabs.
  * <pre>
  * ./gradlew :TeamCode:simulator      (or the Simulator run configuration in Android Studio)
  * </pre>
@@ -22,9 +23,6 @@ public final class LocalSimulator {
     public static final int DEFAULT_PORT = 21988;
 
     static final String PAGE = "dashboard.html";
-    static final String AS_THE_CODING_SERVER_SERVES_IT = "<html lang=\"en\" data-host=\"coding-server\">";
-    static final String AS_THIS_HOST_SERVES_IT = "<html lang=\"en\" data-host=\"simulator\">";
-    static final String THE_EDITOR = "<script src=\"/static/codemirror.js\"></script>\n";
 
     private final SimBench bench;
     private final TinyHttpServer http;
@@ -35,25 +33,12 @@ public final class LocalSimulator {
     }
 
     public static LocalSimulator start(SimBench bench, int port, String whoRunsIt) {
-        String page = asThisHostServesIt(resource(PAGE));
+        String page = resource(PAGE);
         Router routes = new Router()
                 .route("GET", "/", (request, params) -> Response.html(page))
                 .mount("/sim", bench.routes(whoRunsIt));
         return new LocalSimulator(
                 bench, TinyHttpServer.start(InetAddress.getLoopbackAddress(), port, "simulator", routes));
-    }
-
-    static String asThisHostServesIt(String page) {
-        return once(once(page, AS_THE_CODING_SERVER_SERVES_IT, AS_THIS_HOST_SERVES_IT), THE_EDITOR, "");
-    }
-
-    private static String once(String page, String asTheCodingServerServesIt, String asThisHostServesIt) {
-        int at = page.indexOf(asTheCodingServerServesIt);
-        if (at < 0 || page.indexOf(asTheCodingServerServesIt, at + 1) >= 0) {
-            throw new IllegalStateException(PAGE + " must hold " + asTheCodingServerServesIt
-                    + " exactly once, which this host serves as \"" + asThisHostServesIt + "\"");
-        }
-        return page.replace(asTheCodingServerServesIt, asThisHostServesIt);
     }
 
     public static void main(String[] args) throws InterruptedException {
@@ -66,7 +51,9 @@ public final class LocalSimulator {
                 SimBench.Waits.ofTheBench(),
                 new JvmChild());
         LocalSimulator simulator = start(
-                bench, CodingServer.port(System.getenv(), PORT_ENV, DEFAULT_PORT), System.getProperty("user.name"));
+                bench,
+                Valid.value(PortSetting.of(System.getenv(), PORT_ENV, DEFAULT_PORT)),
+                System.getProperty("user.name"));
         Runtime.getRuntime().addShutdownHook(new Thread(simulator::stop, "simulator-stop"));
         System.out.println("Simulator: " + simulator.url());
         System.out.println(
