@@ -466,6 +466,7 @@ public final class SimBench {
     private final Child children;
     private final StartPoses startPoses;
     private final SimLaunches launches;
+    private final SimFeeds feeds;
     private final Supplier<Constants> constants;
     private final List<Run> runs = new ArrayList<>();
     private SimBuild.Result lastCheck;
@@ -530,6 +531,7 @@ public final class SimBench {
         this.clock = clock;
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
         this.launches = new SimLaunches(outputDir.resolve(SimLaunches.REMEMBERED_FILE), new OnDiskStore(), clock);
+        this.feeds = new SimFeeds(outputDir.resolve(SimFeeds.REMEMBERED_FILE), new OnDiskStore(), clock);
         this.constants = constants;
     }
 
@@ -630,6 +632,14 @@ public final class SimBench {
                 .route("GET", "/launches/{id}/", (request, params) -> SimLaunches.toTheViewer("../", params.get("id")))
                 .route("GET", "/launches/{id}/shot", (request, params) -> launches.shot(params.get("id")))
                 .route("GET", "/launches/{id}/frames.csv", (request, params) -> launches.frames(params.get("id")))
+                .route("GET", "/feed/settings", (request, params) -> feeds.settings())
+                .route("POST", "/feed", (request, params) -> feeds.feed(request.body))
+                .route("GET", "/feeds", (request, params) -> feeds.listing())
+                .route("GET", "/feeds/{id}", (request, params) -> feeds.fed(params.get("id")))
+                .route(
+                        "GET",
+                        "/feeds/{id}/frames/{chunk}",
+                        (request, params) -> feeds.frames(params.get("id"), params.get("chunk")))
                 .redirect("GET", "/runs/{id}", params -> "/runs/" + params.get("id") + "/")
                 .route("GET", "/runs/{id}/", (request, params) -> withRun(params, request, this::page))
                 .route(

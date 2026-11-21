@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 public final class Feed {
+    public static final double POLLEN_RADIUS_IN = Launcher.POLLEN_RADIUS_IN;
     static final String DEFAULTS_SOURCE = "doc/plans/feeder-sim.md, What the tab does: two pollen, one each side of"
             + " the arms against the wall, the spinner at full power, the ramp down at 0 and up at 35 degrees, over a run"
             + " of 3 s";
@@ -28,6 +29,12 @@ public final class Feed {
             + " feeder's faces at mu 0.30 and restitution 0.50, as Launcher uses";
     static final double FRICTION = 0.30;
     static final double RESTITUTION = 0.50;
+    static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: a run of 0.5 to 10 s, the ramp"
+            + " moved within it; the back sill above the floor's top at z 15 and below the top plate at z 96.12";
+    static final double SHORTEST_RUN_SECONDS = 0.5;
+    static final double LONGEST_RUN_SECONDS = 10;
+    static final double LOWEST_BACK_SILL_MM = 16;
+    static final double HIGHEST_BACK_SILL_MM = 95;
     static final String JAM_SOURCE = "doc/plans/feeder-sim.md, Phase 3, 9: a pollen that stalls the spinner jams the"
             + " feed: turning under a tenth of its unloaded speed for a tenth of a second, at any power but none";
     static final double JAMMED_BELOW_UNLOADED = 0.1;

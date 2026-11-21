@@ -1738,6 +1738,23 @@ public class CodingServerTest {
     }
 
     @Test
+    public void feedsAreForApprovedSessionsOnlyAndEachUsersAreTheirOwn() throws Exception {
+        String pending = login("carol");
+        String ada = approvedUser("ada");
+        String bob = approvedUser("bob");
+
+        assertEquals(403, user("GET", "/sim/feed/settings", pending).status);
+        assertEquals(403, user("POST", "/sim/feed", pending, "{}").status);
+        assertEquals(403, user("GET", "/sim/feeds", pending).status);
+        assertEquals(403, user("GET", "/sim/feeds/1/frames/0", null).status);
+        assertEquals(200, user("POST", "/sim/feed", ada, "{\"pollen\": 0, \"run\": 1.5}").status);
+        assertEquals("{\"feeds\":[]}", user("GET", "/sim/feeds", bob).body);
+        assertEquals(404, user("GET", "/sim/feeds/1", bob).status);
+        assertEquals(200, user("GET", "/sim/feeds/1", ada).status);
+        assertEquals(200, user("GET", "/sim/feeds/1/frames/0", ada).status);
+    }
+
+    @Test
     public void eachUserPlacesTheRobotOnTheirOwnBench() throws Exception {
         serverWith((worktree, robot, constants) -> new SimBench(
                 TeamRobot.REGINALD,
