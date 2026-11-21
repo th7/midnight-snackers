@@ -26,6 +26,7 @@ const ASSETS = '../../assets/';
 // The one line a server gets to say about what a page draws when nobody asks for a resolution by
 // name: the admin page's setting, served as an asset like the models it names.
 const DEFAULT_ASSET = 'field-default.js';
+const SAID = { low: "The low field committed with the project: this computer has kept none of the host's." };
 
 const wrong = [];
 function check(ok, saying) {
@@ -147,7 +148,7 @@ function served(page, live, ticks, game, liveGame, waiting) {
     const asset = relative.startsWith('/assets/') ? relative.slice('/assets/'.length) : null;
     if (toldToDrawLow && asset === DEFAULT_ASSET) {
       response.writeHead(200, { 'Content-Type': TYPES['.js'] });
-      response.end("export const DEFAULT_RESOLUTION = 'low';\n");
+      response.end("export const DEFAULT_RESOLUTION = 'low';\n" + `export const FIELD_SAID = ${JSON.stringify(SAID)};\n`);
       return;
     }
     const file = asset && path.resolve(sim, asset);
@@ -419,6 +420,8 @@ async function thePageDrawsTheResolutionTheServerSetsAsDefault(browser, base) {
     check(!/has not been built/.test(panels.problem || ''),
           `low is the committed model, so a page told to draw it fell back from nothing: "${panels.problem}"`);
     check(drawn === 'low', `the server said low and the page drew ${drawn}`);
+    const said = await open.evaluate(() => window.replayPage.said);
+    check(said.includes(SAID.low), `the page drew the committed low field and said "${said}", not which field it drew`);
   } finally {
     await open.close();
   }

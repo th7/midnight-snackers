@@ -49,7 +49,39 @@ adb connect 192.168.1.20
 The relay admits connections from the address your login came from, so log
 in from the computer you deploy from. If your address changes, log in again.
 
-## 5. Connect adb to the robot through the host
+## 5. The detailed field
+
+The project commits only the low field model. The host builds the medium and
+high ones from the field's CAD, with a key only the host holds, and offers
+them to every computer with an approved login. Tell the simulator where the
+host is with the `ROBOT_GATEWAY` environment variable, set to the same address
+as in step 4: once on Windows, in a terminal,
+
+```
+setx ROBOT_GATEWAY 192.168.1.20
+```
+
+and on a Mac `launchctl setenv ROBOT_GATEWAY 192.168.1.20`, which lasts until
+the Mac restarts. Then quit and reopen Android Studio, so that it and the
+simulator it starts see the setting. Add `:<port>` only if the admin moved the host's page off
+port 21986.
+
+Each time the simulator starts with the host in reach, it fetches the models
+the host built that it does not already hold, and the Run window says what
+it fetched. It keeps them on this computer:
+
+| | Where the field models are kept |
+|---|---|
+| Windows | `%LOCALAPPDATA%\midnight-snackers\field-models` |
+| Mac | `~/Library/Application Support/midnight-snackers/field-models` |
+
+and draws the most detailed one it holds, away from the host too. After the
+admin rebuilds the models, the next start on the LAN fetches the new ones. A
+fetch cut off partway leaves the model fetched before. The line under the
+field in the page says which model it draws. With nothing kept, that is the
+low field committed with the project.
+
+## 6. Connect adb to the robot through the host
 
 Android Studio keeps `adb` in its SDK, not on the `PATH`:
 
@@ -79,7 +111,7 @@ and on a Mac:
 with the line from the header in place of `192.168.1.20`. `adb devices` lists
 the robot as `192.168.1.20:5555  device`, named by the host's address.
 
-## 6. A first deploy
+## 7. A first deploy
 
 Pick the **TeamCode** run configuration and the robot in the device list
 beside it, and press Run. Android Studio builds the app, installs it on the
@@ -100,6 +132,12 @@ attaches as it would to a phone on a cable.
 - **The admin revoked the login.** Every connection relayed from that
   address closes, unless another approved login came from the same address.
   Log in again and ask for approval.
+
+- **The simulator draws the low field while the host has the detailed
+  ones.** The simulator's Run window says why: `ROBOT_GATEWAY` is not set,
+  the host could not be reached, or the host refused this computer because
+  no approved login came from its address. Log in from this computer again,
+  and restart the simulator once the admin approves you.
 
 ## For the admin
 

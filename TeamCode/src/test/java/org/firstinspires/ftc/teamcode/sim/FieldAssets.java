@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import org.firstinspires.ftc.teamcode.simcore.DrawnField;
 import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 
 public final class FieldAssets {
@@ -78,10 +79,15 @@ public final class FieldAssets {
      * the page's own source, so that the resolution a server serves and the one a page draws are the
      * same sentence rather than two that have to be kept saying the same thing.
      */
-    public static String defaultResolutionModule(Resolution drawn) {
-        return "// Which field a page draws when its query string names no resolution. The copy committed here\n"
-                + "// is what every server serves.\n"
-                + "export const DEFAULT_RESOLUTION = '" + drawn.asked + "';\n";
+    public static String defaultResolutionModule(FieldModel drawn, List<DrawnField> drawable) {
+        JsonObject said = new JsonObject();
+        for (DrawnField one : drawable) {
+            said.addProperty(one.model().asked(), one.said());
+        }
+        return "// Which field a page draws when its query string names no resolution, and what each field it can\n"
+                + "// draw is. The copy committed here is what a bench with nothing kept serves.\n"
+                + "export const DEFAULT_RESOLUTION = '" + drawn.asked() + "';\n"
+                + "export const FIELD_SAID = " + GSON.toJson(said) + ";\n";
     }
 
     /**

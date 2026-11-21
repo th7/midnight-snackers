@@ -473,6 +473,7 @@ let THREE = null;
 let scene = null;
 let drawing = null;
 let fieldProblem = '';
+let fieldSaid = '';
 let shotProblems = [];
 let sceneSettled = false;
 let swapping = false;
@@ -494,8 +495,12 @@ let views = null;
 let ghosts = [];
 let spinLabel = null;
 
+function problems() {
+  return [fieldProblem].concat(shotProblems).filter(Boolean).join(' ');
+}
+
 function sayProblems() {
-  fieldMsg.textContent = [fieldProblem].concat(shotProblems).filter(Boolean).join(' ');
+  fieldMsg.textContent = [problems(), fieldSaid].filter(Boolean).join(' ');
 }
 
 function disposed(object) {
@@ -1186,6 +1191,7 @@ async function drawTheField() {
         scene.robot.visible = false;
       }
       drawing = fellBack ? LOWEST : askedFor;
+      fieldSaid = (fieldscene.FIELD_SAID || {})[drawing] || '';
       if (fellBack) {
         fieldProblem = 'The field at ' + askedFor + ' resolution has not been built, so this is the low one.';
       }
@@ -1340,7 +1346,8 @@ describeShot(null);
 
 window.launchPage = {
   get settled() { return sceneSettled && !swapping; },
-  get problem() { return fieldMsg.textContent; },
+  get problem() { return problems(); },
+  get fieldSaid() { return fieldSaid; },
   get drawing() { return drawing; },
   get shown() { return shown.slice(); },
   get time() { return shot ? at.t : null; },

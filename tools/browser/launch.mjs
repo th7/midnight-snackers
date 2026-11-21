@@ -8,6 +8,7 @@ import { movedPieces } from './model.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const ASSETS = '../assets/';
+const SAID = { low: "The low field committed with the project: this computer has kept none of the host's." };
 const TITLE = 'Launch Sim';
 const PLACEHOLDERS = ['__ASSETS__', '__DATA__', '__FIELD__', '__IMPORTMAP__', '__TITLE__'];
 const GRAVITY_IN_PER_S2 = 386.09;
@@ -496,6 +497,11 @@ function served(page, shots) {
       return;
     }
     const asset = asked.startsWith('/assets/') ? asked.slice('/assets/'.length) : null;
+    if (asset === 'field-default.js') {
+      response.writeHead(200, { 'Content-Type': TYPES['.js'] });
+      response.end("export const DEFAULT_RESOLUTION = 'high';\n" + `export const FIELD_SAID = ${JSON.stringify(SAID)};\n`);
+      return;
+    }
     const file = asset && path.resolve(sim, asset);
     if (!file || !file.startsWith(path.resolve(sim)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       response.writeHead(404).end('no');
@@ -559,7 +565,7 @@ const hook = (where) => where.evaluate(() => {
     colliderMeshes: page.colliderMeshes, pieces: page.pieces, impactMarkers: page.impactMarkers,
     preview: page.preview, leaning: page.leaning, ownPieces: page.ownPieces, robotShown: page.robotShown,
     view: page.view, following: page.following, playing: page.playing, events: page.events,
-    spin: page.spin, background: page.background
+    spin: page.spin, background: page.background, fieldSaid: page.fieldSaid
   };
 });
 
@@ -586,6 +592,7 @@ async function theShotIsDrawnWhereItsFirstFrameIs(open, shot, state) {
   const first = shot.frames[0];
   check(state.drawing === 'low', `the page drew ${state.drawing}, not the low model it falls back to`);
   check(/has not been built/.test(state.problem), `the page did not say why it drew low: "${state.problem}"`);
+  check(state.fieldSaid === SAID.low, `the page drew the committed low field and said "${state.fieldSaid}" of it`);
   check(JSON.stringify(state.shown) === '[1]', `the page shows ${JSON.stringify(state.shown)} for #1`);
   check(state.ownPieces === 0, `the field drew ${state.ownPieces} pieces of its own besides the shot's`);
   check(state.robotShown === false, 'a robot is drawn on the launch page');

@@ -223,6 +223,7 @@ __IMPORTMAP__
   let drawing = 'flat', solid = null, settled = false, webcam = null, tags = null, cost = null;
   let framesWhenReady = null;
   let fieldProblem = '';
+  let fieldSaid = '';
   const asked = new URLSearchParams(location.search);
   const rec = JSON.parse(document.getElementById('recording').textContent);
   const ticks = rec.ticks;
@@ -1225,7 +1226,7 @@ __IMPORTMAP__
   if (!placing) renderController(driving() ? sent[selected] : recordedState(index));
 
   async function drawTheFieldModel() {
-    const { FieldScene, MODELS, DEFAULT_RESOLUTION, LOWEST_RESOLUTION } = await import(ASSETS + 'fieldscene.js');
+    const { FieldScene, MODELS, DEFAULT_RESOLUTION, LOWEST_RESOLUTION, FIELD_SAID } = await import(ASSETS + 'fieldscene.js');
     const view = new FieldScene({ canvas: solidCanvas, assets: ASSETS, background: token('--bg') });
     view.fit(solidCanvas.width, solidCanvas.height);
     // High unless asked for less, and down to the lowest -- which is always there, committed for the
@@ -1270,7 +1271,8 @@ __IMPORTMAP__
       fieldProblem = 'The field at ' + askedFor + ' resolution has not been built, so this is the low one.';
     }
     showTheFieldControls(askedFor);
-    fieldMsg.textContent = fellBack ? fieldProblem : '';
+    fieldSaid = (FIELD_SAID || {})[fellBack ? LOWEST_RESOLUTION : askedFor] || '';
+    fieldMsg.textContent = [fellBack ? fieldProblem : '', fieldSaid].filter(Boolean).join(' ');
     const { theGoalTags, theWebcamsView } = await import(ASSETS + 'webcam.js');
     tags = theGoalTags(view, Object.assign({}, FIELD, { robotIn: ROBOT_IN }), ASSETS,
                        why => { fieldProblem = why; fieldMsg.textContent = why; });
@@ -1389,6 +1391,7 @@ __IMPORTMAP__
     get drawing() { return drawing; },
     get problem() { return fieldProblem; },
     get said() { return fieldMsg.textContent; },
+    get fieldSaid() { return fieldSaid; },
     get loaded() { return solid && solid.loaded; },
     get drawnTriangles() { return solid ? solid.renderer.info.render.triangles : 0; },
     get framesWhenReady() { return framesWhenReady; },

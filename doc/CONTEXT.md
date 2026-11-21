@@ -592,9 +592,34 @@ saved, so the next Run runs the last save with no restart and a compile error
 names its file and line. It listens on loopback alone (port 21988,
 `SIMULATOR_PORT`), so nobody on the LAN reaches it, and it has no login: the
 page at its root is the simulator's own, `dashboard.html`, with the Simulate,
-Launch Sim and Feeder Sim tabs, and opens on Simulate. Stopping the task stops
-any run and its child. Classes: `LocalSimulator`;
-`SimulatorRunConfigurationTest`; `tools/browser/simulator.mjs`.
+Launch Sim and Feeder Sim tabs, and opens on Simulate. It draws the **kept
+field**. Stopping the task stops any run and its child. Classes:
+`LocalSimulator`; `SimulatorRunConfigurationTest`;
+`tools/browser/simulator.mjs`.
+
+**Kept field** — The field models a **local simulator** fetched from the host's
+**field offer** and keeps on its computer, so a client draws the detailed
+field with no Onshape key, away from the host too. `ROBOT_GATEWAY` says where
+the host is (`192.168.1.20`, or `192.168.1.20:<port>` when its user listener is
+not on 21986). At each start, before it prints its URL, the simulator reads the
+offer, with two seconds to connect, and fetches every model whose SHA-256
+differs from the one it keeps: so a model the admin rebuilt is fetched again,
+and one already kept is not. A model is kept only once all of it has arrived
+and matches the size and digest offered, written whole and moved into place,
+so a fetch cut off partway leaves the one kept before. The Run window says what
+was fetched, or why nothing was: no `ROBOT_GATEWAY`, no host in reach, a
+refusal (no approved login came from this address), or an offer in a version
+this simulator does not read. The models are kept on Windows under
+`%LOCALAPPDATA%\midnight-snackers\field-models`, on a Mac under
+`~/Library/Application Support/midnight-snackers/field-models` (not
+`Caches`, which macOS may empty), and elsewhere under `$XDG_DATA_HOME`, else
+`~/.local/share`, then `midnight-snackers/field-models`. The simulator serves
+what it keeps in place of the bench's own assets, and writes the page's
+`field-default.js` itself: the most detailed model kept is what a page draws
+when it asks for none, and `FIELD_SAID` gives a sentence for each model it can
+draw, which the page shows under the field. With nothing kept, that is the low
+field committed with the project, and the page says so. Classes: `KeptField`;
+`WhereTheHostIs`, `KeptModels`, `DrawnField` and `FieldOffer`, in the core.
 
 **Waits** — How long a bench waits for each thing it waits for, said once by
 name: a game's **autonomous period** and **TeleOp period**, both in simulated
@@ -1117,9 +1142,10 @@ together and that nothing draws once the field is up.
 does not look like the field is the thing worth avoiding, and whoever cannot
 afford it is the one who knows that — and a query string says otherwise for one
 page with `?resolution=low`, `medium` or `high`. It reaches the pages as the one
-line they import for it, `field-default.js`, which every server serves as
-committed beside the models, and the line is `FieldAssets`' to write, so what a
-page draws and what a server builds cannot drift apart by being said twice. A page
+line they import for it, `field-default.js`, which a bench serves as committed
+beside the models and the **local simulator** writes from its **kept field**,
+and the line is `FieldAssets`' to write, so what a page draws and what a server
+holds cannot drift apart by being said twice. A page
 that asks for one nobody built draws the low one **and says on the page that it
 fell back** — which, on a server that has built nothing, is every page, said
 out loud rather than quietly. The **build** makes any of them, or `all`, from

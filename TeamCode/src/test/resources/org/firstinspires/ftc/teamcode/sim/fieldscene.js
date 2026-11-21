@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { DEFAULT_RESOLUTION } from './field-default.js';
+import { DEFAULT_RESOLUTION, FIELD_SAID } from './field-default.js';
 
 export const FIELD_IN = 141.17;
 export const FLOOR_Z = 0;
@@ -24,7 +24,7 @@ export const OVERLAY_Z = 0.05;
 export const MODELS = { low: 'field.glb', medium: 'field-medium.glb', high: 'field-high.glb' };
 // Which of them a page draws when it asks for none of them by name is the server's to say -- an
 // admin sets it on the admin page -- so it is fetched with everything else rather than written here.
-export { DEFAULT_RESOLUTION };
+export { DEFAULT_RESOLUTION, FIELD_SAID };
 export const LOWEST_RESOLUTION = 'low';
 const SAME_PLACE_IN = 0.01;
 

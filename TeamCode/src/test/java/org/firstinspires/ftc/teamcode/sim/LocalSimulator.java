@@ -6,8 +6,12 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.KeptModels;
 import org.firstinspires.ftc.teamcode.simcore.PortSetting;
+import org.firstinspires.ftc.teamcode.simcore.WhereTheHostIs;
 
 /**
  * The simulator a teammate runs from their own checkout: one bench over the sources on disk, for
@@ -31,10 +35,11 @@ public final class LocalSimulator {
         this.http = http;
     }
 
-    public static LocalSimulator start(SimBench bench, int port, String whoRunsIt) {
+    public static LocalSimulator start(SimBench bench, int port, String whoRunsIt, KeptField field) {
         String page = resource(PAGE);
         Router routes = new Router()
                 .route("GET", "/", (request, params) -> Response.html(page))
+                .route("GET", "/sim/assets/{name*}", (request, params) -> field.serve(params.get("name")))
                 .mount("/sim", bench.routes(whoRunsIt));
         return new LocalSimulator(
                 bench, TinyHttpServer.start(InetAddress.getLoopbackAddress(), port, "simulator", routes));
@@ -48,14 +53,19 @@ public final class LocalSimulator {
                 checkout.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimBench.Waits.ofTheBench(),
                 new JvmChild());
-        LocalSimulator simulator = start(
-                bench,
-                Valid.value(PortSetting.of(System.getenv(), PORT_ENV, DEFAULT_PORT)),
-                System.getProperty("user.name"));
+        Map<String, String> env = System.getenv();
+        int port = Valid.value(PortSetting.of(env, PORT_ENV, DEFAULT_PORT));
+        WhereTheHostIs host = Valid.value(WhereTheHostIs.from(env));
+        KeptModels where =
+                Valid.value(KeptModels.of(System.getProperty("os.name"), env, System.getProperty("user.home")));
+        KeptField field = new KeptField(Path.of(where.root(), where.under().toArray(new String[0])), new OnDiskStore());
+        List<String> fetched = field.fetchFrom(host);
+        LocalSimulator simulator = start(bench, port, System.getProperty("user.name"), field);
         Runtime.getRuntime().addShutdownHook(new Thread(simulator::stop, "simulator-stop"));
         System.out.println("Simulator: " + simulator.url());
         System.out.println(
                 "  runs the sources in " + checkout + " as saved; this machine only; stop the task to stop it");
+        fetched.forEach(System.out::println);
         Thread.currentThread().join();
     }
 

@@ -19,6 +19,8 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.junit.After;
 import org.junit.Rule;
@@ -47,8 +49,12 @@ public class LocalSimulatorTest {
                 SimBench.Waits.ofTheBench(),
                 child,
                 new SystemClock());
-        simulator = LocalSimulator.start(bench, 0, "mia");
+        simulator = LocalSimulator.start(bench, 0, "mia", new KeptField(keptDir(), new OnDiskStore()));
         return simulator;
+    }
+
+    private Path keptDir() {
+        return folder.getRoot().toPath().resolve("field-models");
     }
 
     private static FakeChild aChildThatRunsUntilStopped() {
@@ -84,6 +90,19 @@ public class LocalSimulatorTest {
 
         assertEquals(catalog.body, 200, catalog.status);
         assertTrue(catalog.body, catalog.body.contains("\"name\":\"" + OP_MODE + "\""));
+    }
+
+    @Test
+    public void theBenchsAssetsAreServedWithTheFieldThisComputerKeptInPlaceOfTheCommittedOne() throws IOException {
+        Files.createDirectories(keptDir());
+        Files.write(keptDir().resolve("field-high.glb"), "the host's high field".getBytes(StandardCharsets.UTF_8));
+        over(aChildThatRunsUntilStopped());
+
+        assertEquals("the host's high field", send("GET", "/sim/assets/field-high.glb").body);
+        assertTrue(
+                send("GET", "/sim/assets/field-default.js").body,
+                send("GET", "/sim/assets/field-default.js").body.contains("DEFAULT_RESOLUTION = 'high'"));
+        assertEquals(200, send("GET", "/sim/assets/fieldscene.js").status);
     }
 
     @Test

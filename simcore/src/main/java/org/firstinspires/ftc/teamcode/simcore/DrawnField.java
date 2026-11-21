@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 public sealed interface DrawnField permits DrawnField.Committed, DrawnField.Kept {
@@ -11,6 +14,18 @@ public sealed interface DrawnField permits DrawnField.Committed, DrawnField.Kept
             }
         }
         return drawn;
+    }
+
+    static List<DrawnField> drawable(Set<FieldModel> kept) {
+        List<DrawnField> out = new ArrayList<>();
+        for (FieldModel one : FieldModel.values()) {
+            if (kept.contains(one)) {
+                out.add(new Kept(one));
+            } else if (one == FieldModel.LOW) {
+                out.add(new Committed());
+            }
+        }
+        return Collections.unmodifiableList(out);
     }
 
     FieldModel model();

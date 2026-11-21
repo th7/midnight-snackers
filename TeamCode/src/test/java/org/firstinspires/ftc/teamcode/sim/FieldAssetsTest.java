@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.firstinspires.ftc.teamcode.simcore.DrawnField;
+import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 import org.junit.Test;
 
 public class FieldAssetsTest {
@@ -376,14 +378,16 @@ public class FieldAssetsTest {
      */
     @Test
     public void theLineAPageReadsForTheDefaultIsTheServersToWrite() {
+        String low = FieldAssets.defaultResolutionModule(FieldModel.LOW, List.of(new DrawnField.Committed()));
+        assertTrue(low, low.contains("export const DEFAULT_RESOLUTION = 'low';\n"));
         assertTrue(
-                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.LOW),
-                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.LOW)
-                        .endsWith("export const DEFAULT_RESOLUTION = 'low';\n"));
+                low,
+                low.endsWith("export const FIELD_SAID = {\"low\":\"The low field committed with the project: this"
+                        + " computer has kept none of the host\\u0027s.\"};\n"));
         assertEquals(
                 "the committed " + FieldAssets.DEFAULT_RESOLUTION_FILE + " is not what this server writes for "
                         + FieldAssets.Resolution.DEFAULT.asked + "; write what this expects into it",
-                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.DEFAULT),
+                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.DEFAULT.model, List.of()),
                 SimAssets.page(FieldAssets.DEFAULT_RESOLUTION_FILE));
     }
 
