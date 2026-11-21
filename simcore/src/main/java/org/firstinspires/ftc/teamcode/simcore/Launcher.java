@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class Launcher implements Surroundings.Part {
     static final String CAD_SOURCE =
@@ -251,14 +252,14 @@ public final class Launcher implements Surroundings.Part {
     static final class Faces {
         private final List<WheelRing> wheel;
         private final List<HoodRing> hood;
-        private final Collider stop;
+        private final Optional<Collider> stop;
         private final Compliance wheelSurface;
         private final Compliance hoodSurface;
 
         private Faces(
                 List<WheelRing> wheel,
                 List<HoodRing> hood,
-                Collider stop,
+                Optional<Collider> stop,
                 Compliance wheelSurface,
                 Compliance hoodSurface) {
             this.wheel = wheel;
@@ -266,6 +267,11 @@ public final class Launcher implements Surroundings.Part {
             this.stop = stop;
             this.wheelSurface = wheelSurface;
             this.hoodSurface = hoodSurface;
+        }
+
+        static Checked<Faces> fedByARamp() {
+            return built().map(faces ->
+                    new Faces(faces.wheel, faces.hood, Optional.empty(), faces.wheelSurface, faces.hoodSurface));
         }
 
         static Checked<Faces> built() {
@@ -288,7 +294,11 @@ public final class Launcher implements Surroundings.Part {
                             .then(hoodSurface -> wheelRings()
                                     .then(wheelRings -> hoodRings()
                                             .then(hoodRings -> stop().map(stop -> new Faces(
-                                                    wheelRings, hoodRings, stop, wheelSurface, hoodSurface))))));
+                                                    wheelRings,
+                                                    hoodRings,
+                                                    Optional.of(stop),
+                                                    wheelSurface,
+                                                    hoodSurface))))));
         }
 
         private static Checked<List<WheelRing>> wheelRings() {
@@ -495,7 +505,7 @@ public final class Launcher implements Surroundings.Part {
         for (HoodRing ring : faces.hood) {
             ids.add(ring.id());
         }
-        ids.add(STOP);
+        faces.stop.ifPresent(stop -> ids.add(STOP));
         return ids;
     }
 
@@ -519,7 +529,9 @@ public final class Launcher implements Surroundings.Part {
                 return true;
             }
         }
-        return faces.stop.reaches(local, by) && faces.stop.near(local, 0).gap() <= by;
+        return faces.stop
+                .map(stop -> stop.reaches(local, by) && stop.near(local, 0).gap() <= by)
+                .orElse(false);
     }
 
     @Override
@@ -537,15 +549,16 @@ public final class Launcher implements Surroundings.Part {
         Vec3 local = local(centre);
         double r = radius.inches();
         List<Surroundings.Touch> touches = new ArrayList<>();
-        if (faces.stop.reaches(local, r + within)) {
-            Colliders.Near near = faces.stop.near(local, r);
-            if (near.gap() <= within) {
-                Vec3 normal = turned(near.normal());
-                Vec3 contact = centre.along(normal, -(r + near.gap()));
-                Surroundings.Touch.of(STOP, Surface.FRAME, normal, near.gap(), frameVelocityAt(contact), frameSpin)
-                        .fold(touch -> touches.add(touch), rule -> false);
-            }
-        }
+        faces.stop
+                .filter(stop -> stop.reaches(local, r + within))
+                .map(stop -> stop.near(local, r))
+                .filter(near -> near.gap() <= within)
+                .ifPresent(near -> {
+                    Vec3 normal = turned(near.normal());
+                    Vec3 contact = centre.along(normal, -(r + near.gap()));
+                    Surroundings.Touch.of(STOP, Surface.FRAME, normal, near.gap(), frameVelocityAt(contact), frameSpin)
+                            .fold(touch -> touches.add(touch), rule -> false);
+                });
         return touches;
     }
 

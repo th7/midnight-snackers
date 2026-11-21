@@ -303,6 +303,23 @@ public class LauncherAsAPartTest {
     }
 
     @Test
+    public void fedByARampInsteadItsNamesAreItsRingsAloneAndNothingStopsABallAtTheEntry() {
+        Launcher launcher = Launcher.placed(
+                Valid.value(Launcher.Faces.fedByARamp()), course(frame(0, 0, 0), frame(0, 0, 0)), wheel(0));
+        Set<String> expected = new HashSet<>();
+        for (double ring : RINGS_MM) {
+            expected.add(wheelId(ring));
+            expected.add(hoodId(ring));
+        }
+        Vec3 entry = onThePath(EXTENSION_FROM, wheelRing(0) + R);
+
+        assertEquals(expected, new HashSet<>(launcher.ids()));
+        assertEquals(10, launcher.ids().size());
+        assertEquals(List.of(), launcher.near(entry, POLLEN, 1));
+        assertTrue("the lead-in squeezes it still", depthOn(launcher, entry, hoodId(0)) > 0);
+    }
+
+    @Test
     public void aBallFedAtTheEntrySitsOneRadiusOffTheGrooveBottomTouchingTheStopBelowItAndGoesUpThePathAtTheFeed() {
         Launcher launcher = still(CLOSE_LAUNCH);
         Vec3 entry = onThePath(EXTENSION_FROM, wheelRing(0) + R);
