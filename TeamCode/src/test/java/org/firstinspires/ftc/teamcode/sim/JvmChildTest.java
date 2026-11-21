@@ -206,26 +206,46 @@ public class JvmChildTest {
         third.close();
     }
 
+    private record Left(Process parent, long child, Path scratch, long spawned) {}
+
+    private Left aParentThatLeftItsChildRunning(String... args) throws Exception {
+        Process parent = TestRogues.startParent(args);
+        spawned.add(ProcessTree.pid(parent));
+        BufferedReader out = new BufferedReader(new InputStreamReader(parent.getInputStream(), StandardCharsets.UTF_8));
+        long child = Long.parseLong(said(out, "child "));
+        spawned.add(child);
+        Path scratch = Paths.get(said(out, "scratch "));
+        long sleeper = Long.parseLong(said(out, "spawned "));
+        spawned.add(sleeper);
+        return new Left(parent, child, scratch, sleeper);
+    }
+
+    private static String said(BufferedReader out, String what) throws Exception {
+        String line = out.readLine();
+        assertNotNull("the parent never said its " + what.trim(), line);
+        assertTrue(line, line.startsWith(what));
+        return line.substring(what.length());
+    }
+
     @Test
     public void whenTheServerExitsTheChildrenItLeftRunningGoWithItAndTheirScratchToo() throws Exception {
-        Process parent = TestRogues.startParent();
-        String said;
-        String where;
-        try (BufferedReader out =
-                new BufferedReader(new InputStreamReader(parent.getInputStream(), StandardCharsets.UTF_8))) {
-            said = out.readLine();
-            where = out.readLine();
-        }
-        assertNotNull("the parent never said its child", said);
-        assertTrue(said, said.startsWith("child "));
-        long child = Long.parseLong(said.substring("child ".length()));
-        spawned.add(child);
-        assertNotNull("the parent never said where its child stands", where);
-        assertTrue(where, where.startsWith("scratch "));
-        Path scratch = Paths.get(where.substring("scratch ".length()));
-        assertTrue("the parent did not exit", parent.waitFor(20, java.util.concurrent.TimeUnit.SECONDS));
+        Left left = aParentThatLeftItsChildRunning();
+        assertTrue("the parent did not exit", left.parent.waitFor(20, java.util.concurrent.TimeUnit.SECONDS));
 
-        assertTrue("the child of a server that exited is still running", endsWithin(child, 10));
-        assertFalse(scratch + " outlived the server that made it", Files.exists(scratch));
+        assertTrue("the child of a server that exited is still running", endsWithin(left.child, 10));
+        assertTrue("what the child started outlived the server", endsWithin(left.spawned, 10));
+        assertFalse(left.scratch + " outlived the server that made it", Files.exists(left.scratch));
+    }
+
+    @Test
+    public void whenTheServerIsKilledOutrightItsChildEndsAnywayWithWhatItStartedAndItsScratch() throws Exception {
+        Left left = aParentThatLeftItsChildRunning(TestRogues.Parent.STAYS);
+
+        left.parent.destroyForcibly();
+
+        assertTrue("the parent was not killed", left.parent.waitFor(20, java.util.concurrent.TimeUnit.SECONDS));
+        assertTrue("the child of a server killed outright is still running", endsWithin(left.child, 10));
+        assertTrue("what the child started outlived the server killed outright", endsWithin(left.spawned, 10));
+        assertFalse(left.scratch + " outlived the server killed outright", Files.exists(left.scratch));
     }
 }

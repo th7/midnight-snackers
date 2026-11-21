@@ -24,6 +24,12 @@ public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
     private static final Gson GSON = new Gson();
 
+    /** The system property a child is told its scratch directory in, by {@link JvmChild}. */
+    public static final String SCRATCH = "sim.child.scratch";
+
+    /** What a child whose server is gone exits with, though nobody is left to read it. */
+    private static final int ORPHANED = 3;
+
     private SimChild() {}
 
     public static void main(String[] args) {
@@ -31,6 +37,7 @@ public final class SimChild {
         // the server kills the tree then, since a killed JVM runs no hook.
         Runtime.getRuntime()
                 .addShutdownHook(new Thread(ProcessTree::killDescendantsOfThisJvm, "sim-child-descendants"));
+        ProcessTree.whenTheParentOfThisJvmEnds(SimChild::endOrphaned);
         PrintStream protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
         protocol.println(SimRunStream.hello());
@@ -49,6 +56,19 @@ public final class SimChild {
                 + " | --run <op mode name> <seconds, or Infinity for no limit> <replay dir> ["
                 + SimRunStream.ROBOT_OPTION + "<robot>] [source...]");
         System.exit(2);
+    }
+
+    /**
+     * The server that started this child is gone without stopping it, killed outright: so nobody
+     * will read what it prints, kill what it started or delete its scratch, and it does all three.
+     */
+    private static void endOrphaned() {
+        ProcessTree.killDescendantsOfThisJvm();
+        String scratch = System.getProperty(SCRATCH);
+        if (scratch != null) {
+            JvmChild.deleteTree(Paths.get(scratch));
+        }
+        Runtime.getRuntime().halt(ORPHANED);
     }
 
     private record Asked(TeamRobot robot, List<String> sources) {

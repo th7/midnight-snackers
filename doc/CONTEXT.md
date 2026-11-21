@@ -964,6 +964,19 @@ every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
 runs on the current classpath. Class: `SimBench`.
 
+**Local simulator** — A teammate's own bench, run from their own checkout by
+`./gradlew :TeamCode:simulator` or Android Studio's **Simulator** run
+configuration (`.run/Simulator.run.xml`), which prints the URL to open. It
+serves one bench for Reginald over the sources on disk as they were last
+saved, so the next Run runs the last save with no restart and a compile error
+names its file and line. It listens on loopback alone (port 21988,
+`SIMULATOR_PORT`), so nobody on the LAN reaches it, and it has no login, no
+editor and no git: the page at its root is the coding server's dashboard with
+`data-host="simulator"`, which drops the Edit tab, the branch panel and who
+is signed in, and opens on Simulate. Stopping the task stops any run and its
+child. The coding server is unchanged beside it. Classes: `LocalSimulator`;
+`SimulatorRunConfigurationTest`; `tools/browser/simulator.mjs`.
+
 **Waits** — How long a bench waits for each thing it waits for, said once by
 name: a game's **autonomous period** and **TeleOp period**, both in simulated
 seconds; the **kill grace** a child has after Stop; the **startup** the op
@@ -1054,7 +1067,10 @@ none of the server's environment beyond what a JVM needs to start; its
 heap is capped, and it exits rather than limping on when that runs out;
 whatever it starts is killed with it — by the server when it is killed,
 by the child itself when it ends any other way, and by the server's own
-exit for any still running then; and no more run at once than the
+exit for any still running then; a server killed outright, as Windows'
+`TerminateProcess` kills when Gradle's task is stopped, runs no exit of its
+own, so a child watches the process that started it and, once it is gone,
+kills what it started, deletes its scratch and halts; and no more run at once than the
 machine has processors, one `JvmChild` being shared by every user's
 bench, so a start past that is refused and said. Classes: `JvmChild`;
 `ProcessTree`, which reaches `ProcessHandle`, missing from the

@@ -225,6 +225,7 @@ public final class JvmChild implements Child {
         command.add("-XX:+ExitOnOutOfMemoryError");
         command.add("-Duser.home=" + scratch);
         command.add("-Djava.io.tmpdir=" + scratch);
+        command.add("-D" + SimChild.SCRATCH + "=" + scratch);
         command.add("-cp");
         command.add(String.join(File.pathSeparator, classpath));
         command.add(SimChild.class.getName());
@@ -264,7 +265,7 @@ public final class JvmChild implements Child {
     }
 
     /** Deletes what a child left in its scratch directory; what cannot be deleted is left. */
-    private static void deleteTree(Path root) {
+    static void deleteTree(Path root) {
         try (Stream<Path> paths = Files.walk(root)) {
             paths.sorted(Comparator.reverseOrder()).forEach(path -> {
                 try {

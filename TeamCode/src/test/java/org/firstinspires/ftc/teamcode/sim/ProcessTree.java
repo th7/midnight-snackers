@@ -25,6 +25,7 @@ public final class ProcessTree {
     private static final Method DESCENDANTS = method("descendants");
     private static final Method DESTROY_FORCIBLY = method("destroyForcibly");
     private static final Method ON_EXIT = method("onExit");
+    private static final Method PARENT = method("parent");
     private static final Method TO_HANDLE = processMethod("toHandle");
 
     private ProcessTree() {}
@@ -65,6 +66,21 @@ public final class ProcessTree {
         } catch (ExecutionException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /**
+     * Runs this once the process that started this JVM has ended, however it ended, and at once if
+     * it already has. A process killed outright runs nothing of its own on the way out, as
+     * Windows' TerminateProcess kills, so what it started has to notice for itself. A parent that is
+     * not this JVM's to reap is polled, every 300 ms at first and at most every 5 s later on.
+     */
+    public static void whenTheParentOfThisJvmEnds(Runnable then) {
+        Optional<?> parent = (Optional<?>) call(PARENT, call(CURRENT, null));
+        if (parent.isEmpty()) {
+            then.run();
+            return;
+        }
+        ((CompletableFuture<?>) call(ON_EXIT, parent.get())).thenRun(then);
     }
 
     /** Kills the process with this pid, if it is still running. */

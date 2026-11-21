@@ -87,6 +87,27 @@ public final class TestRogues {
         }
     }
 
+    /** Says where it stands, starts a process that would outlive it, then never returns from its step. */
+    @Autonomous(name = "Spawns and hangs where it stands", group = "Test")
+    public static class SpawningAndHangingWhereItStandsAuto extends TestAuto {
+        @Override
+        public PlanPart getPlan() {
+            return new Step(
+                    "spawn and hang",
+                    () -> {
+                        System.err.println("cwd " + Paths.get("").toAbsolutePath());
+                        spawnASleeper();
+                        while (true) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                            }
+                        }
+                    },
+                    () -> false);
+        }
+    }
+
     /** Starts a process that would outlive it, then runs until it is stopped. */
     @Autonomous(name = "Spawns and runs", group = "Test")
     public static class SpawningAuto extends TestAuto {
@@ -148,24 +169,31 @@ public final class TestRogues {
     }
 
     /**
-     * A server in miniature: starts a child through {@link JvmChild}, lets its op mode hang, says
-     * the child's pid and where it stands, and exits without stopping it.
+     * A server in miniature: starts a child through {@link JvmChild}, lets its op mode start a process
+     * and hang, says the child's pid, where it stands and what it started, and then exits without
+     * stopping it, or, asked to stay, waits to be killed.
      */
     public static final class Parent {
+        public static final String STAYS = "stays";
+
         public static void main(String[] args) throws Exception {
             java.util.concurrent.CompletableFuture<String> cwd = new java.util.concurrent.CompletableFuture<>();
+            java.util.concurrent.CompletableFuture<String> spawned = new java.util.concurrent.CompletableFuture<>();
             Child.Running child = new JvmChild()
                     .onThisClasspath(
                             line -> {
                                 if (line.startsWith("cwd ")) {
                                     cwd.complete(line.substring("cwd ".length()));
                                 }
+                                if (line.startsWith("spawned ")) {
+                                    spawned.complete(line.substring("spawned ".length()));
+                                }
                             },
                             "--run",
-                            "Hangs where it stands",
+                            "Spawns and hangs where it stands",
                             "600",
                             Files.createTempDirectory("sim-parent").toString(),
-                            HangingWhereItStandsAuto.class.getName());
+                            SpawningAndHangingWhereItStandsAuto.class.getName());
             child.say(new Gson().toJson(SimDriverStation.startLine(new Pose2d(0, 0, 0))));
             for (String line = child.hear(); line != null; line = child.hear()) {
                 if (line.contains("started")) {
@@ -174,14 +202,21 @@ public final class TestRogues {
             }
             ProcessTree.childrenOfThisJvm().forEach(pid -> System.out.println("child " + pid));
             System.out.println("scratch " + cwd.get(20, java.util.concurrent.TimeUnit.SECONDS));
+            System.out.println("spawned " + spawned.get(20, java.util.concurrent.TimeUnit.SECONDS));
+            if (args.length > 0 && args[0].equals(STAYS)) {
+                Thread.sleep(600_000);
+            }
             System.exit(0);
         }
     }
 
     /** Starts a {@link Parent}, the way the host starts the coding server. */
-    public static Process startParent() throws IOException {
+    public static Process startParent(String... args) throws IOException {
+        List<String> command = new ArrayList<>(
+                List.of(javaBin(), "-cp", System.getProperty("java.class.path"), Parent.class.getName()));
+        command.addAll(List.of(args));
         try (Cost.Spent ignored = Cost.start(Cost.Kind.CHILD_JVM)) {
-            return new ProcessBuilder(javaBin(), "-cp", System.getProperty("java.class.path"), Parent.class.getName())
+            return new ProcessBuilder(command)
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
                     .start();
         }
