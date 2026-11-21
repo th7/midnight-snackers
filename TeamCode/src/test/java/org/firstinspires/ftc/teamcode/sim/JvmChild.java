@@ -264,6 +264,49 @@ public final class JvmChild implements Child {
         return process;
     }
 
+    /**
+     * A child orphaned by a server killed outright deletes its own scratch, but Windows will not
+     * delete the directory a process stands in, and the child stands in its scratch. So, if the
+     * directory is still there once the child emptied it, a sweeper that stands beside it removes
+     * it once the child has gone.
+     */
+    static void sweepOnceThisJvmEnds(Path scratch) {
+        if (!Files.exists(scratch)) {
+            return;
+        }
+        ProcessBuilder builder = new ProcessBuilder(
+                        Paths.get(System.getProperty("java.home"), "bin", "java")
+                                .toString(),
+                        "-cp",
+                        System.getProperty("java.class.path"),
+                        Sweeper.class.getName(),
+                        Long.toString(ProcessTree.pidOfThisJvm()),
+                        scratch.toString())
+                .directory(scratch.toAbsolutePath().getParent().toFile());
+        builder.environment().keySet().retainAll(PASSED_THROUGH);
+        try (Cost.Spent ignored = Cost.start(Cost.Kind.CHILD_JVM)) {
+            builder.start();
+        } catch (IOException ignored) {
+        }
+    }
+
+    /** Removes an orphaned child's scratch once the child has gone: see sweepOnceThisJvmEnds. */
+    public static final class Sweeper {
+        private static final long GIVES_UP_AFTER_SECONDS = 30;
+
+        private Sweeper() {}
+
+        public static void main(String[] args) throws InterruptedException {
+            Path scratch = Paths.get(args[1]);
+            ProcessTree.endsWithin(Long.parseLong(args[0]), GIVES_UP_AFTER_SECONDS);
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(GIVES_UP_AFTER_SECONDS);
+            while (Files.exists(scratch) && System.nanoTime() < until) {
+                deleteTree(scratch);
+                Thread.sleep(100);
+            }
+        }
+    }
+
     /** Deletes what a child left in its scratch directory; what cannot be deleted is left. */
     static void deleteTree(Path root) {
         try (Stream<Path> paths = Files.walk(root)) {

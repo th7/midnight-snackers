@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const sim = path.join(here, '..', '..', 'TeamCode', 'src', 'test', 'resources',
@@ -15,7 +15,7 @@ const problems = [];
 const check = (ok, said) => { if (!ok) problems.push(said); };
 
 function mirroredAddons() {
-  const three = JSON.stringify(path.join(vendor, 'three.module.min.js'));
+  const three = JSON.stringify(pathToFileURL(path.join(vendor, 'three.module.min.js')).href);
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'renderer-addons-'));
   const copy = (from, to) => {
     fs.mkdirSync(to, { recursive: true });
@@ -33,14 +33,14 @@ function mirroredAddons() {
   return root;
 }
 
-const THREE = await import(path.join(vendor, 'three.module.min.js'));
+const THREE = await import(pathToFileURL(path.join(vendor, 'three.module.min.js')).href);
 check(THREE.REVISION === '169', `three.js is revision ${THREE.REVISION}, and the page expects 169`);
 
 const addons = mirroredAddons();
 let scene = null;
 try {
-  const { GLTFLoader } = await import(path.join(addons, 'loaders', 'GLTFLoader.js'));
-  await import(path.join(addons, 'controls', 'OrbitControls.js'));
+  const { GLTFLoader } = await import(pathToFileURL(path.join(addons, 'loaders', 'GLTFLoader.js')).href);
+  await import(pathToFileURL(path.join(addons, 'controls', 'OrbitControls.js')).href);
   const bytes = fs.readFileSync(model);
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   scene = await new Promise((resolve, reject) =>

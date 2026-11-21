@@ -106,6 +106,14 @@ public class JvmChildTest {
         return ProcessTree.endsWithin(pid, seconds);
     }
 
+    private static boolean goneWithin(Path path, double seconds) throws InterruptedException {
+        long until = System.nanoTime() + (long) (seconds * 1e9);
+        while (Files.exists(path) && System.nanoTime() < until) {
+            Thread.sleep(50);
+        }
+        return !Files.exists(path);
+    }
+
     @Test
     public void whatAnOpModeWritesWhereItStandsLandsInTheChildsOwnScratchAndGoesWithIt() throws Exception {
         List<Path> serversOwn = List.of(
@@ -269,6 +277,6 @@ public class JvmChildTest {
         assertTrue("the parent was not killed", left.parent.waitFor(20, java.util.concurrent.TimeUnit.SECONDS));
         assertTrue("the child of a server killed outright is still running", left.childrenEndWithin(10));
         assertTrue("what the child started outlived the server killed outright", endsWithin(left.spawned, 10));
-        assertFalse(left.scratch + " outlived the server killed outright", Files.exists(left.scratch));
+        assertTrue(left.scratch + " outlived the server killed outright", goneWithin(left.scratch, 10));
     }
 }

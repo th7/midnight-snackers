@@ -64,6 +64,7 @@ public final class SimChild {
         String scratch = System.getProperty(SCRATCH);
         if (scratch != null) {
             JvmChild.deleteTree(Paths.get(scratch));
+            JvmChild.sweepOnceThisJvmEnds(Paths.get(scratch));
         }
         Runtime.getRuntime().halt(ORPHANED);
     }

@@ -45,6 +45,11 @@ public final class ProcessTree {
         killAll(descendants(call(CURRENT, null)));
     }
 
+    /** This JVM's own pid. */
+    public static long pidOfThisJvm() {
+        return (Long) call(PID, call(CURRENT, null));
+    }
+
     /** The pids of the processes this JVM started itself. */
     public static List<Long> childrenOfThisJvm() {
         return streamOf(call(CHILDREN, call(CURRENT, null)))
