@@ -32,6 +32,17 @@ public class FeedFingerprintTest {
         return fed.frames().size() + ":" + String.format("%016x", hash);
     }
 
+    private static String events(Feed.Fed fed) {
+        long hash = 0xcbf29ce484222325L;
+        for (Feed.Event event : fed.events()) {
+            hash = fold(hash, event.at().value());
+            if (event instanceof Feed.Event.Thrown thrown) {
+                hash = fold(fold(fold(hash, thrown.from()), thrown.velocity()), thrown.spin());
+            }
+        }
+        return fed.events().size() + ":" + String.format("%016x", hash);
+    }
+
     private static Feed.Fed theDefaultFeed() {
         return Valid.value(Valid.value(Feed.Plan.defaults()).run());
     }
@@ -45,9 +56,9 @@ public class FeedFingerprintTest {
     public void theDefaultFeedsWorkFramesEventsAndFinishArePinned() {
         Feed.Fed fed = theDefaultFeed();
 
-        assertEquals(884966L, fed.work());
-        assertEquals("751:281b6ee83a563736", frames(fed));
-        assertEquals("[]", fed.events().toString());
-        assertEquals("OutOfTime[at=3.0 s]", fed.finish().toString());
+        assertEquals(257930L, fed.work());
+        assertEquals("248:c919260c16c2c0d3", frames(fed));
+        assertEquals("2:032c7f0961f597b2", events(fed));
+        assertEquals("AllLeft[at=0.9880000000000001 s]", fed.finish().toString());
     }
 }

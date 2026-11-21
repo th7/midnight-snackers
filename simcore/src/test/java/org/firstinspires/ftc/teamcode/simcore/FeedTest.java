@@ -22,10 +22,10 @@ public class FeedTest {
     private static final double OVERLAP_WITHIN_IN = 0.02;
     private static final double TILT = StrictMath.toRadians(16.46);
 
-    private static final String LOWERED_SILL_SOURCE = "issue 180, The back sill: as drawn, at z 43.12, the wheel"
-            + " cannot draw a pollen out over it, so a feed that throws lowers it to z 20, 5 above the floor";
-    private static final double LOWERED_SILL_MM = 20;
-    private static final double BACK_HALF_WIDTH_MM = 40.6;
+    private static final String CAD_SILL_SOURCE =
+            "issue 180, The back sill: as drawn, at z 43.12, the wheel cannot" + " draw a pollen out over it";
+    private static final String DEFAULT_FEED_SOURCE = "issue 180, the session owner's decision of 21 November: the back"
+            + " sill at z 30 and the ramp up from 0.30 s to 1.20 s, so that the default feed throws both pollen";
     private static final String THROW_SOURCE = "doc/plans/runtime-flight.md, stage 4, Tests first: the launcher"
             + " throws at 70 +- 3 degrees, with backspin, antiparallel to the wheel's, with 0.9 <= S <= 1.2, where S,"
             + " the spin ratio, is |w| r / |v|";
@@ -33,11 +33,6 @@ public class FeedTest {
     private static final double THROWN_WITHIN_DEGREES = 3;
     private static final double LEAST_SPIN_RATIO = 0.9;
     private static final double MOST_SPIN_RATIO = 1.2;
-
-    private static Feeder.Shape aLoweredBackSill() {
-        return Valid.value(Valid.value(Feeder.Shape.cad())
-                .withBackWindow(Valid.value(Feeder.Window.of(BACK_HALF_WIDTH_MM, LOWERED_SILL_MM))));
-    }
 
     private static Feed.RampSchedule heldUp() {
         return Valid.value(Feed.RampSchedule.of(
@@ -176,12 +171,12 @@ public class FeedTest {
 
     @Test
     public void withTheRampUpAsThePollenPassesTheWheelTakesItAndItLeavesTheHoodAsStageFoursShotsDo() {
-        Feed.Fed fed = fed(plan().withShape(aLoweredBackSill())
-                .withPollen(List.of(at(90)))
-                .withRamp(heldUp())
-                .lasting(Valid.value(Seconds.of(2))));
+        Feed.Fed fed = fed(plan().withPollen(List.of(at(90))).withRamp(heldUp()).lasting(Valid.value(Seconds.of(2))));
+        Feed.Fed down =
+                fed(plan().withPollen(List.of(at(90))).withRamp(neverRaised()).lasting(Valid.value(Seconds.of(2))));
 
-        assertEquals(LOWERED_SILL_SOURCE + ": " + fed.events(), 1, fed.events().size());
+        assertEquals("with the ramp down: " + down.events(), List.of(), down.events());
+        assertEquals(DEFAULT_FEED_SOURCE + ": " + fed.events(), 1, fed.events().size());
         assertTrue(fed.events().toString(), fed.events().get(0) instanceof Feed.Event.Thrown);
         assertThrownAsStageFourThrows((Feed.Event.Thrown) fed.events().get(0));
         assertTrue(fed.finish().toString(), fed.finish() instanceof Feed.Finish.AllLeft);
@@ -224,10 +219,8 @@ public class FeedTest {
 
     @Test
     public void twoPollenWithTheRampHeldUpLeaveOneAtATimeAndNeverOverlap() {
-        Feed.Fed fed = fed(plan().withShape(aLoweredBackSill())
-                .withPollen(List.of(at(90), at(270)))
-                .withRamp(heldUp())
-                .lasting(Valid.value(Seconds.of(2.5))));
+        Feed.Fed fed = fed(
+                plan().withPollen(List.of(at(90), at(270))).withRamp(heldUp()).lasting(Valid.value(Seconds.of(2.5))));
 
         for (Feed.Frame frame : fed.frames()) {
             if (frame.pollen().size() == 2) {
@@ -263,5 +256,19 @@ public class FeedTest {
         assertTrue(Feed.Budget.ofWorkPerSecond(0) instanceof Checked.Rejected);
         assertTrue(Feed.Budget.ofWorkPerSecond(3_000_001) instanceof Checked.Rejected);
         assertTrue(Feed.Budget.ofWorkPerSecond(3_000_000) instanceof Checked.Ok);
+    }
+
+    @Test
+    public void theDefaultFeedThrowsBothPollenOneAtATimeAndTheCadsSillJamsIt() {
+        Feed.Fed fed = fed(Checked.ok(plan()));
+        Feed.Fed cad = fed(Checked.ok(plan().withShape(Valid.value(Feeder.Shape.cad()))));
+
+        assertEquals(DEFAULT_FEED_SOURCE + ": " + fed.events(), 2, fed.events().size());
+        assertTrue(fed.events().toString(), fed.events().get(0) instanceof Feed.Event.Thrown);
+        assertTrue(fed.events().toString(), fed.events().get(1) instanceof Feed.Event.Thrown);
+        assertTrue(fed.finish().toString(), fed.finish() instanceof Feed.Finish.AllLeft);
+        assertTrue(
+                CAD_SILL_SOURCE + ": " + cad.events(),
+                cad.events().stream().noneMatch(Feed.Event.Thrown.class::isInstance));
     }
 }

@@ -6,14 +6,18 @@ import java.util.List;
 
 public final class Feed {
     static final String DEFAULTS_SOURCE = "doc/plans/feeder-sim.md, What the tab does: two pollen, one each side of"
-            + " the arms against the wall, the spinner at full power, the ramp down at 0 and up at 35 degrees, raised at"
-            + " 0.40 s and lowered at 0.80 s, over a run of 3 s";
+            + " the arms against the wall, the spinner at full power, the ramp down at 0 and up at 35 degrees, over a run"
+            + " of 3 s";
     static final double FIRST_POLLEN_DEGREES = 90;
     static final double SECOND_POLLEN_DEGREES = 270;
     static final double DOWN_DEGREES = 0;
     static final double UP_DEGREES = 35;
-    static final double RAISED_AT_SECONDS = 0.4;
-    static final double LOWERED_AT_SECONDS = 0.8;
+    static final String DECIDED_SOURCE = "issue 180, the session owner's decision of 21 November: the CAD's back"
+            + " sill at z 43.12 holds a lifted pollen against the wheel, and 0.40 to 0.80 s misses both pollen, so the"
+            + " default feed lowers the back sill to z 30 and raises the ramp from 0.30 s to 1.20 s";
+    static final double BACK_SILL_MM = 30;
+    static final double RAISED_AT_SECONDS = 0.3;
+    static final double LOWERED_AT_SECONDS = 1.2;
     static final double RUN_SECONDS = 3;
     static final String FLYWHEEL_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the flywheel at stage 4's"
             + " default, the code's close launch of 1050 ticks a second at the 24.2 ticks a turn the launcher is tested"
@@ -166,6 +170,8 @@ public final class Feed {
 
         public static Checked<Plan> defaults() {
             return Feeder.Shape.cad()
+                    .then(cad -> Feeder.Window.of(Feeder.Window.BACK_HALF_WIDTH_MM, BACK_SILL_MM)
+                            .then(back -> cad.withBackWindow(back)))
                     .then(shape -> Feeder.RampAngle.ofDegrees(DOWN_DEGREES)
                             .then(down -> Feeder.RampAngle.ofDegrees(UP_DEGREES)
                                     .then(up -> Seconds.of(RAISED_AT_SECONDS)
