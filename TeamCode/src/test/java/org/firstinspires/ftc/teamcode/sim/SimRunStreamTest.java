@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -16,7 +15,6 @@ import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimRunStreamTest {
@@ -239,7 +237,7 @@ public class SimRunStreamTest {
     public void theChildSaysItsProtocolFirstAndABenchOfTheSameVersionConsumesIt() {
         String hello = SimRunStream.hello();
         assertEquals(1, hello.split("\n").length);
-        assertNull("a hello is consumed; the next line is content", SimRunStream.afterHello(hello, TeamRobot.REGINALD));
+        assertNull("a hello is consumed; the next line is content", SimRunStream.afterHello(hello));
         assertEquals(SimRunStream.PROTOCOL, SimRunStream.protocolOf(hello));
     }
 
@@ -259,7 +257,7 @@ public class SimRunStreamTest {
     @Test
     public void aVersionOneChildPrintsNoHelloSoItsFirstLineIsContentAndStillReads() {
         assertEquals(1, SimRunStream.OLDEST_PROTOCOL_READ);
-        assertEquals("a catalog line comes back as it was", "[]", SimRunStream.afterHello("[]", TeamRobot.REGINALD));
+        assertEquals("a catalog line comes back as it was", "[]", SimRunStream.afterHello("[]"));
         assertEquals(1, SimRunStream.protocolOf("[]"));
         Heard heard = new Heard();
         String[] versionOne = {
@@ -267,7 +265,7 @@ public class SimRunStreamTest {
             "{\"t\":0.5,\"x\":1.0,\"y\":2.0,\"heading\":0.0,\"step\":\"1. go\",\"powers\":[0.5,0.5,0.5,0.5],\"packets\":[]}",
             "{\"outcome\":\"done\"}",
         };
-        String first = SimRunStream.afterHello(versionOne[0], TeamRobot.REGINALD);
+        String first = SimRunStream.afterHello(versionOne[0]);
         assertEquals(versionOne[0], first);
         SimRunStream.accept(first, heard);
         SimRunStream.accept(versionOne[1], heard);
@@ -282,7 +280,7 @@ public class SimRunStreamTest {
     public void aChildOfANewerProtocolIsRefusedByName() {
         int newer = SimRunStream.PROTOCOL + 1;
         try {
-            SimRunStream.afterHello("{\"protocol\":" + newer + "}", TeamRobot.REGINALD);
+            SimRunStream.afterHello("{\"protocol\":" + newer + "}");
             fail("a newer child prints lines this bench cannot read");
         } catch (SimRunStream.WrongProtocol e) {
             assertEquals(newer, e.childProtocol);
@@ -297,7 +295,7 @@ public class SimRunStreamTest {
     public void aChildOlderThanTheOldestReadIsRefusedByName() {
         int older = SimRunStream.OLDEST_PROTOCOL_READ - 1;
         try {
-            SimRunStream.afterHello("{\"protocol\":" + older + "}", TeamRobot.REGINALD);
+            SimRunStream.afterHello("{\"protocol\":" + older + "}");
             fail("an older child prints lines this bench no longer reads");
         } catch (SimRunStream.WrongProtocol e) {
             assertEquals(older, e.childProtocol);
@@ -322,8 +320,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildOfThisVersionIsToldWhereToStartAndWhichRobot() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, TeamRobot.REGINALD, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, Constants.defaults());
 
         assertEquals(SimRunStream.PROTOCOL, handshake.protocol);
         assertFalse(handshake.message, handshake.refused());
@@ -334,8 +332,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforeTheSeedRunsWhenNoSeedIsAskedFor() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(3), new Pose2d(12, 0, 0), null, TeamRobot.REGINALD, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(3), new Pose2d(12, 0, 0), null, Constants.defaults());
 
         assertFalse(handshake.message, handshake.refused());
         assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), null, Constants.defaults()), handshake.startLine);
@@ -343,8 +341,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforeTheSeedIsRefusedOneByNameAndToldTheFix() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(3), StartPoses.ORIGIN, 1L, TeamRobot.REGINALD, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(3), StartPoses.ORIGIN, 1L, Constants.defaults());
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotSeed(3), handshake.outcome);
@@ -355,8 +353,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforePlacementRunsFromTheOriginAndPlacesItself() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(2), StartPoses.ORIGIN, null, TeamRobot.REGINALD, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(2), StartPoses.ORIGIN, null, Constants.defaults());
 
         assertFalse(handshake.message, handshake.refused());
         assertNull("it is not told where to start, because it cannot be", handshake.startLine);
@@ -364,8 +362,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforePlacementIsRefusedAnywhereElseByNameAndToldTheFix() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(2), new Pose2d(12, 0, 0), null, TeamRobot.REGINALD, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(2), new Pose2d(12, 0, 0), null, Constants.defaults());
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotPlace(2), handshake.outcome);
@@ -375,8 +373,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aVersionOneChildsFirstLineIsContent() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                "[{\"name\":\"an op mode\"}]", StartPoses.ORIGIN, null, TeamRobot.REGINALD, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake("[{\"name\":\"an op mode\"}]", StartPoses.ORIGIN, null, Constants.defaults());
 
         assertEquals(1, handshake.protocol);
         assertFalse(handshake.refused());
@@ -391,55 +389,18 @@ public class SimRunStreamTest {
                         SimRunStream.helloOf(SimRunStream.PROTOCOL + 1),
                         StartPoses.ORIGIN,
                         null,
-                        TeamRobot.REGINALD,
                         Constants.defaults()));
 
         assertEquals(SimRunStream.PROTOCOL + 1, wrong.childProtocol);
     }
 
     @Test
-    public void aChildThatSimulatesEachRobotSpeaksProtocolFive() {
-        assertEquals(5, SimRunStream.ROBOTS_PROTOCOL);
-        assertTrue(SimRunStream.ROBOTS_PROTOCOL > SimRunStream.SEEDED_PROTOCOL);
-        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.ROBOTS_PROTOCOL);
-    }
-
-    @Test
-    public void aChildIsToldWhichRobotItIsUnlessItIsReginaldWhomEveryChildSimulatesUntold() {
-        assertEquals(List.of(), SimRunStream.robotArguments(TeamRobot.REGINALD));
-        assertEquals(List.of("--robot=nugget"), SimRunStream.robotArguments(TeamRobot.NUGGET));
-    }
-
-    @Test
-    public void aChildFromBeforeThereWereTwoRobotsStillRunsReginald() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(4), new Pose2d(12, 0, 0), 3L, TeamRobot.REGINALD, Constants.defaults());
+    public void aSeededChildFromBeforeTheConstantsIsPlacedAndSeeded() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(4), new Pose2d(12, 0, 0), 3L, Constants.defaults());
 
         assertFalse(handshake.message, handshake.refused());
         assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, Constants.defaults()), handshake.startLine);
-    }
-
-    @Test
-    public void aChildFromBeforeThereWereTwoRobotsCannotRunNuggetAndSaysWhoseLineToPull() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(4), StartPoses.ORIGIN, null, TeamRobot.NUGGET, Constants.defaults());
-
-        assertTrue(handshake.refused());
-        assertEquals(Outcome.cannotSimulate(4, TeamRobot.NUGGET), handshake.outcome);
-        assertTrue(handshake.outcome, handshake.outcome.contains("Nugget"));
-        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.ROBOTS_PROTOCOL));
-        assertTrue(handshake.message, handshake.message.contains("Pull nugget-develop"));
-        assertNull("a refused run is sent nothing", handshake.startLine);
-    }
-
-    @Test
-    public void aChildOfThisProtocolIsPlacedAsNuggetAsItIsAsReginald() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, TeamRobot.NUGGET, Constants.defaults());
-
-        assertFalse(handshake.message, handshake.refused());
-        assertEquals(
-                SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, Constants.defaults()), handshake.startLine);
     }
 
     private static Constants throwing(double inPerSPerTickPerS) {
@@ -449,14 +410,14 @@ public class SimRunStreamTest {
     @Test
     public void aChildThatTakesTheConstantsSpeaksProtocolSix() {
         assertEquals(6, SimRunStream.CONSTANTS_PROTOCOL);
-        assertTrue(SimRunStream.CONSTANTS_PROTOCOL > SimRunStream.ROBOTS_PROTOCOL);
+        assertTrue(SimRunStream.CONSTANTS_PROTOCOL > SimRunStream.SEEDED_PROTOCOL);
         assertTrue(SimRunStream.PROTOCOL >= SimRunStream.CONSTANTS_PROTOCOL);
     }
 
     @Test
     public void aChildOfThisVersionIsToldTheConstantsTheAdminChanged() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, TeamRobot.REGINALD, throwing(0.25));
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, throwing(0.25));
 
         assertFalse(handshake.message, handshake.refused());
         assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, throwing(0.25)), handshake.startLine);
@@ -472,8 +433,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforeTheConstantsRunsWhenNoneWereChanged() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(5), new Pose2d(12, 0, 0), 3L, TeamRobot.NUGGET, Constants.defaults());
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(5), new Pose2d(12, 0, 0), 3L, Constants.defaults());
 
         assertFalse(handshake.message, handshake.refused());
         assertFalse(handshake.startLine.toString(), handshake.startLine.has("constants"));
@@ -481,29 +442,16 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforeTheConstantsIsRefusedChangedOnesByNameAndToldTheFix() {
-        SimRunStream.Handshake handshake = SimRunStream.handshake(
-                SimRunStream.helloOf(5), StartPoses.ORIGIN, null, TeamRobot.NUGGET, throwing(0.25));
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(5), StartPoses.ORIGIN, null, throwing(0.25));
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotTune(5), handshake.outcome);
         assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
         assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.CONSTANTS_PROTOCOL));
         assertTrue(handshake.message, handshake.message.contains("Launcher throw"));
-        assertTrue(handshake.message, handshake.message.contains("Pull nugget-develop"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
         assertTrue(handshake.message, handshake.message.contains("put the simulation constants back"));
         assertNull("a refused run is sent nothing", handshake.startLine);
-    }
-
-    @Test
-    public void aListingFromAChildFromBeforeThereWereTwoRobotsIsReginaldsAndNotNuggets() {
-        assertNull(SimRunStream.afterHello(SimRunStream.helloOf(4), TeamRobot.REGINALD));
-        assertNull(SimRunStream.afterHello(SimRunStream.hello(), TeamRobot.NUGGET));
-
-        SimRunStream.WrongProtocol refused = assertThrows(
-                SimRunStream.WrongProtocol.class,
-                () -> SimRunStream.afterHello(SimRunStream.helloOf(4), TeamRobot.NUGGET));
-
-        assertEquals(4, refused.childProtocol);
-        assertTrue(refused.getMessage(), refused.getMessage().contains("Pull nugget-develop"));
     }
 }

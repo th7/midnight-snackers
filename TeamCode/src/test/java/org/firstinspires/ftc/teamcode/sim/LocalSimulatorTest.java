@@ -20,7 +20,6 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,7 +42,6 @@ public class LocalSimulatorTest {
 
     private LocalSimulator over(FakeChild child) {
         SimBench bench = new SimBench(
-                TeamRobot.REGINALD,
                 FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)),
                 folder.getRoot().toPath().resolve("sim"),
                 SimBench.Waits.ofTheBench(),

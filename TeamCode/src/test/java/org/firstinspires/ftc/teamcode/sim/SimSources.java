@@ -5,11 +5,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public interface SimSources {
 
-    SimCatalog catalog(Child children, TeamRobot robot);
+    SimCatalog catalog(Child children);
 
     Optional<SimCatalog> known();
 
@@ -48,7 +47,7 @@ public interface SimSources {
         }
 
         @Override
-        public SimCatalog catalog(Child children, TeamRobot robot) {
+        public SimCatalog catalog(Child children) {
             return catalog;
         }
 
@@ -96,12 +95,12 @@ public interface SimSources {
         }
 
         @Override
-        public synchronized SimCatalog catalog(Child children, TeamRobot robot) {
+        public synchronized SimCatalog catalog(Child children) {
             Path classes = built();
             if (listed != null && classes.equals(listedFrom)) {
                 return listed;
             }
-            listed = SimBench.listOn(children, classes, robot);
+            listed = SimBench.listOn(children, classes);
             listedFrom = classes;
             return listed;
         }

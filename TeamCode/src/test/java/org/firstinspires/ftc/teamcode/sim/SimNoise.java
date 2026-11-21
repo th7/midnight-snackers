@@ -1,11 +1,8 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import java.util.Iterator;
-import java.util.Locale;
-import org.firstinspires.ftc.teamcode.simcore.Drivebase;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
+import org.firstinspires.ftc.teamcode.simcore.Wheel;
 
 public final class SimNoise {
     public static final Noise NONE = Noise.exact(
@@ -14,23 +11,21 @@ public final class SimNoise {
 
     private SimNoise() {}
 
-    public static String described(TeamRobot robot, Noise noise) {
-        Drivebase drivebase = robot.drivebase();
+    public static String described(Noise noise) {
         StringBuilder motors = new StringBuilder();
-        Iterator<String> names = drivebase.motors().iterator();
-        for (Noise.Motor motor : drivebase.perMotor(noise.motors())) {
+        for (Wheel wheel : Wheel.values()) {
+            Noise.Motor motor = noise.motors().of(wheel);
             motors.append(String.format(
                     " %s kSVolts x%.3f kVVoltSecondsPerTick x%.3f kAVoltSecondsSquaredPerTick x%.3f",
-                    names.next().toLowerCase(Locale.ROOT),
+                    shortNameOf(wheel),
                     motor.kSVolts(),
                     motor.kVVoltSecondsPerTick(),
                     motor.kAVoltSecondsSquaredPerTick()));
         }
         Noise.Battery battery = noise.battery();
         return String.format(
-                "%s, seed %d:%s; battery %.2f V sag %.2f V/power drain %.4f V/s; traction %.2f g;"
+                "seed %d:%s; battery %.2f V sag %.2f V/power drain %.4f V/s; traction %.2f g;"
                         + " set down +-%.2f in +-%.1f deg; loop %.0f ms spread %.2f hiccups %.0f%%",
-                robot.displayName(),
                 noise.seed(),
                 motors,
                 battery.freshVolts(),
@@ -42,5 +37,14 @@ public final class SimNoise {
                 noise.loop().period().value() * 1000,
                 noise.loop().spread(),
                 noise.loop().hiccupChance() * 100);
+    }
+
+    private static String shortNameOf(Wheel wheel) {
+        return switch (wheel) {
+            case LEFT_FRONT -> "lf";
+            case RIGHT_FRONT -> "rf";
+            case LEFT_BACK -> "lb";
+            case RIGHT_BACK -> "rb";
+        };
     }
 }

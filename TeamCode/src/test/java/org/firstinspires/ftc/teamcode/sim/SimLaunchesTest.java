@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.ShotSetting;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,12 +42,7 @@ public class SimLaunchesTest {
 
     private Router routes() {
         if (bench == null) {
-            bench = new SimBench(
-                    TeamRobot.REGINALD,
-                    SimCatalog.of(HangingAuto.class),
-                    null,
-                    outputDir(),
-                    SimBench.Waits.ofTheBench());
+            bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), SimBench.Waits.ofTheBench());
         }
         return bench.routes("ada");
     }
@@ -234,7 +228,6 @@ public class SimLaunchesTest {
     public void aSecondLaunchWhileOneIsBeingSimulatedIsRefused() throws Exception {
         HeldClock clock = new HeldClock();
         bench = new SimBench(
-                TeamRobot.REGINALD,
                 SimSources.ofThisClasspath(SimCatalog.of(HangingAuto.class)),
                 outputDir(),
                 SimBench.Waits.ofTheBench(),

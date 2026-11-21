@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, ON_REGINALD } from './bench.mjs';
+import { chrome } from './bench.mjs';
 import { asTheBenchServesIt } from './model.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +45,6 @@ function aRunToPlay(model) {
   return {
     name: NAME,
     kind: 'auto',
-    ...ON_REGINALD,
     live: false,
     outcome: 'done',
     ticks: [0, 1, 2].map((n) => ({
@@ -713,7 +712,7 @@ async function theWrittenPageIsSelfContained(browser, page) {
   }
 }
 
-async function eachDriveMotorIsNamedAsTheRobotNamesIt(browser, page, motors, powers) {
+async function eachDriveMotorIsNamedAsReginaldNamesIt(browser, page, motors, powers) {
   const where = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'replay-')), 'replay.html');
   fs.writeFileSync(where, page);
   const open = await browser.newPage({ viewport: { width: 1100, height: 900 } });
@@ -736,14 +735,6 @@ async function eachDriveMotorIsNamedAsTheRobotNamesIt(browser, page, motors, pow
   }
 }
 
-function aRunOnNugget(run) {
-  return Object.assign({}, run, {
-    robot: 'Nugget',
-    motors: ['L', 'R'],
-    ticks: run.ticks.map((tick) => Object.assign({}, tick, { powers: [0.5, -0.25] }))
-  });
-}
-
 async function main() {
   const template = fs.readFileSync(path.join(sim, 'replay.html'), 'utf8');
   const model = asTheBenchServesIt(JSON.parse(fs.readFileSync(path.join(sim, 'field.json'), 'utf8')), ROBOT_IN);
@@ -756,7 +747,7 @@ async function main() {
   }
 
   const following = {
-    name: NAME, kind: 'auto', robot: run.robot, motors: run.motors, live: true, outcome: null, ticks: []
+    name: NAME, kind: 'auto', live: true, outcome: null, ticks: []
   };
   const game = filled(template, model, Object.assign({}, run, { match: A_GAME }), ASSETS);
   const liveGame = { started: false, page: filled(template, model, Object.assign({}, following, { match: A_GAME }), ASSETS) };
@@ -785,10 +776,8 @@ async function main() {
     await aViewItsRunWentOnWithoutSaysTheRunIsRunning(browser, base, waiting, run.ticks);
     await freePlayOrbitsWithNoClock(browser, base);
     await theWrittenPageIsSelfContained(browser, filled(template, model, run, null));
-    await eachDriveMotorIsNamedAsTheRobotNamesIt(
-        browser, filled(template, model, run, null), run.motors, run.ticks[0].powers);
-    await eachDriveMotorIsNamedAsTheRobotNamesIt(
-        browser, filled(template, model, aRunOnNugget(run), null), ['L', 'R'], [0.5, -0.25]);
+    await eachDriveMotorIsNamedAsReginaldNamesIt(
+        browser, filled(template, model, run, null), ['LF', 'RF', 'LB', 'RB'], run.ticks[0].powers);
   } catch (stuck) {
     wrong.push(String(stuck && stuck.message));
   } finally {
@@ -806,8 +795,8 @@ async function main() {
   console.log(`the live view plays ${run.ticks.length} ticks of the field model and follows a run still `
       + 'adding them, and keeps the flat drawing for ?view=flat, for a model it cannot fetch, and for the '
       + 'page it writes to a file; a game is watched from its drivers\' area in either, following its robot '
-      + 'and turning and nothing more, with the time it has left; each robot\'s drive motors are named as it '
-      + 'names them, four on Reginald and two on Nugget; and a run that waits for its view begins only once '
+      + 'and turning and nothing more, with the time it has left; Reginald\'s four drive motors are named as it '
+      + 'names them; and a run that waits for its view begins only once '
       + 'the view has drawn the field.');
   if (!solid) {
     console.error('the live view never reported itself drawn');

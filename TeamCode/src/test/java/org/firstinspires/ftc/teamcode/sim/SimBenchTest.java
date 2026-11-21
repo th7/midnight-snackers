@@ -21,14 +21,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
-import org.firstinspires.ftc.teamcode.sim.TestNuggetOpModes.TankTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.MidLoopTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.RunState;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -143,7 +141,7 @@ public class SimBenchTest {
 
     @Test
     public void aRunsLineWaitsForWhoeverIsChangingTheRun() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         SimBench.Run run = bench
         .new Run(
                 1,
@@ -182,7 +180,7 @@ public class SimBenchTest {
 
     @Test
     public void aRunThroughTheChildEndsDoneWithItsTicksAndReplay() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Count to three").get(), "ada", SimBench.Mode.FREE_PLAY));
@@ -200,7 +198,6 @@ public class SimBenchTest {
         // The one test that waits out a silence, so the one that shortens it: the op mode never
         // comes back, so there is nothing here for a short wait to kill early.
         bench = new SimBench(
-                TeamRobot.REGINALD,
                 SimCatalog.of(HangingAuto.class),
                 null,
                 outputDir(),
@@ -243,12 +240,7 @@ public class SimBenchTest {
                 "the registrar must take longer than the run is given, or a run whose clock started at"
                         + " the child JVM would time out for the right answer by accident",
                 SlowRegistrar.SECONDS > budget);
-        bench = new SimBench(
-                TeamRobot.REGINALD,
-                SimCatalog.of(SlowRegistrar.class),
-                null,
-                outputDir(),
-                WAITS.autonomousPeriod(budget));
+        bench = new SimBench(SimCatalog.of(SlowRegistrar.class), null, outputDir(), WAITS.autonomousPeriod(budget));
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Slow to start").get(), "ada", SimBench.Mode.GAME));
@@ -261,7 +253,7 @@ public class SimBenchTest {
         Path project = folder.getRoot().toPath();
         sourceRootWith(project, tempAuto(2));
         try {
-            bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
+            bench = new SimBench(null, project, outputDir(), WAITS);
             fail("without a simulator of its own the child would run this server's, built for other robot sources");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("simulator"));
@@ -281,7 +273,7 @@ public class SimBenchTest {
                 SIM_CHILD,
                 "System.setOut(System.err);",
                 "System.setOut(System.err);\n        System.err.println(\"this project's simulator\");");
-        bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
+        bench = new SimBench(null, project, outputDir(), WAITS);
 
         assertTrue(bench.catalog().find(TEMP_NAME).isPresent());
         SimBench.Run run = await(bench.start(TEMP, "ada", SimBench.Mode.GAME));
@@ -291,33 +283,9 @@ public class SimBenchTest {
     }
 
     @Test
-    public void aNuggetBenchOverAProjectListsNuggetsOpModesAloneAndRunsThemOnTheSimulatedNugget() throws Exception {
-        Path project = SimProject.copiedTo(folder.getRoot().toPath())
-                .withTempAuto(tempAuto(2))
-                .withTempTank()
-                .root();
-        bench = new SimBench(TeamRobot.NUGGET, null, project, outputDir(), WAITS.teleOpPeriod(0.3));
-
-        SimCatalog listed = bench.catalog();
-        assertTrue(listed.find(SimProject.TEMP_TANK_NAME).isPresent());
-        assertFalse(
-                "Reginald's op modes are not Nugget's", listed.find(TEMP_NAME).isPresent());
-        SimBench.Run run =
-                await(bench.start(listed.find(SimProject.TEMP_TANK_NAME).get(), "ada", SimBench.Mode.GAME));
-
-        assertEquals(run.message() + "\n" + run.log(), "done", run.outcome());
-        assertTrue(run.log(), run.log().contains("Robot: Nugget"));
-        assertFalse(run.ticks().isEmpty());
-        for (SimRunStream.TickLine tick : run.ticks()) {
-            assertEquals(
-                    tick.text(), 2, json(tick.text()).getAsJsonArray("powers").size());
-        }
-    }
-
-    @Test
     public void anOpModeOnlyTheProjectHasIsListedFromTheProjectNotThisServer() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
-        bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
+        bench = new SimBench(null, project, outputDir(), WAITS);
 
         SimCatalog catalog = bench.catalog();
 
@@ -328,7 +296,7 @@ public class SimBenchTest {
 
     @Test
     public void eachOpModeHasASeedTheCatalogShowsAndARouteSets() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         String opMode = "opmode=" + encode("Count to three");
 
         assertEquals("{\"seed\":1}", routes().handle(get("/seed?" + opMode)).body);
@@ -384,7 +352,6 @@ public class SimBenchTest {
 
     private SimBench benchTunedBy(FakeChild child, AtomicReference<Constants> admin) {
         return new SimBench(
-                TeamRobot.REGINALD,
                 FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)),
                 outputDir(),
                 WAITS,
@@ -446,7 +413,7 @@ public class SimBenchTest {
     @Test
     public void savedEditsTakeEffectOnTheNextRunWithoutARestart() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
-        bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
+        bench = new SimBench(null, project, outputDir(), WAITS);
         SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
         assertEquals("Test", temp.group);
         assertEquals("org.firstinspires.ftc.reginald.benchtest.TempAuto", temp.where);
@@ -465,7 +432,7 @@ public class SimBenchTest {
     @Test
     public void checkCompilesWithoutRunningAndNeverUnderARun() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempAuto(100000));
-        bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS.autonomousPeriod(1.0));
+        bench = new SimBench(null, project, outputDir(), WAITS.autonomousPeriod(1.0));
         assertTrue(bench.check().problems.isEmpty());
         assertNull("nothing ran", bench.current());
         SimBench.Run run = bench.start(TEMP, "ada", SimBench.Mode.GAME);
@@ -537,14 +504,12 @@ public class SimBenchTest {
     }
 
     private SimBench benchWith(FakeChild child, SimBench.Waits waits) {
-        return new SimBench(
-                TeamRobot.REGINALD, SimCatalog.of(TestTeleOps.StickTeleOp.class), null, outputDir(), waits, child);
+        return new SimBench(SimCatalog.of(TestTeleOps.StickTeleOp.class), null, outputDir(), waits, child);
     }
 
     /** A bench whose every wait is judged on a clock that moves only when the test moves it. */
     private SimBench benchOn(FakeClock clock, FakeChild child, SimBench.Waits waits) {
         return new SimBench(
-                TeamRobot.REGINALD,
                 SimSources.ofThisClasspath(SimCatalog.of(TestTeleOps.StickTeleOp.class)),
                 outputDir(),
                 waits,
@@ -756,7 +721,7 @@ public class SimBenchTest {
         FakeChild child = FakeChild.thatSays(SimRunStream.hello()).thatStaysAliveSayingNothingMore();
         FakeSources sources =
                 FakeSources.listing(SimCatalog.of(StickTeleOp.class)).thatBuildForARunUntil(built);
-        bench = new SimBench(TeamRobot.REGINALD, sources, outputDir(), WAITS, child, new FakeClock());
+        bench = new SimBench(sources, outputDir(), WAITS, child, new FakeClock());
         SimBench.Run run = aRunThatWaitsForItsView();
         sources.awaitARunsBuild();
 
@@ -912,7 +877,7 @@ public class SimBenchTest {
      * prints is SimChildTest's; what this holds is what the bench does with either.
      */
     private SimBench benchOver(SimSources sources, Child child) {
-        return new SimBench(TeamRobot.REGINALD, sources, outputDir(), WAITS, child, new SystemClock());
+        return new SimBench(sources, outputDir(), WAITS, child, new SystemClock());
     }
 
     private SimBench benchOverAChild(FakeChild child) {
@@ -1060,69 +1025,15 @@ public class SimBenchTest {
         assertNull(bench.current());
     }
 
-    private SimBench nuggetBenchOver(SimSources sources, Child child) {
-        return new SimBench(TeamRobot.NUGGET, sources, outputDir(), WAITS, child, new SystemClock());
-    }
-
     @Test
-    public void aNuggetBenchTellsTheChildItStartsThatItIsNugget() throws Exception {
-        FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
-        bench = nuggetBenchOver(FakeSources.listing(SimCatalog.of(TankTeleOp.class)), child);
-
-        SimBench.Run run = await(bench.start(bench.catalog().find("Tank drive").get(), "ada", SimBench.Mode.FREE_PLAY));
-
-        assertEquals(run.message(), "done", run.outcome());
-        assertTrue(child.theLastStart().toString(), child.theLastStart().contains("--robot=nugget"));
-        assertEquals(TeamRobot.NUGGET, run.robot());
-    }
-
-    @Test
-    public void aReginaldBenchTellsTheChildNothingOfRobotsSoAChildFromBeforeThereWereTwoStillRuns() throws Exception {
-        FakeChild child = aChildSpeaking(SimRunStream.ROBOTS_PROTOCOL - 1);
+    public void aChildFromBeforeTheConstantsStillRunsWhenNoneWereChanged() throws Exception {
+        FakeChild child = aChildSpeaking(SimRunStream.CONSTANTS_PROTOCOL - 1);
         bench = benchOverAChild(child);
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Count to three").get(), "ada", SimBench.Mode.FREE_PLAY));
 
         assertEquals(run.message(), "done", run.outcome());
-        assertTrue(
-                child.theLastStart().toString(),
-                child.theLastStart().stream().noneMatch(argument -> argument.startsWith("--robot")));
-        assertEquals(TeamRobot.REGINALD, run.robot());
-    }
-
-    @Test
-    public void aChildFromBeforeThereWereTwoRobotsIsRefusedANuggetRunNamingNuggetsLine() throws Exception {
-        FakeChild child = aChildSpeaking(SimRunStream.ROBOTS_PROTOCOL - 1);
-        bench = nuggetBenchOver(FakeSources.listing(SimCatalog.of(TankTeleOp.class)), child);
-
-        SimBench.Run run = await(bench.start(bench.catalog().find("Tank drive").get(), "ada", SimBench.Mode.FREE_PLAY));
-
-        assertEquals(
-                run.message(),
-                SimRunStream.Outcome.cannotSimulate(SimRunStream.ROBOTS_PROTOCOL - 1, TeamRobot.NUGGET),
-                run.outcome());
-        assertTrue(run.message(), run.message().contains("Pull nugget-develop"));
-        assertEquals(0, run.ticks().size());
-        assertFalse("a refused run is not placed", aStartLineIsIn(child));
-    }
-
-    @Test
-    public void aNuggetBenchAsksTheChildForNuggetsOpModesAndRefusesAListingFromBeforeThereWereTwoRobots() {
-        FakeChild older = FakeChild.thatSays(SimRunStream.helloOf(SimRunStream.ROBOTS_PROTOCOL - 1), "[]");
-        bench = nuggetBenchOver(FakeSources.askingTheChild(), older);
-
-        try {
-            bench.catalog();
-            fail("a listing of Reginald's op modes must not be shown to Nugget's users");
-        } catch (SimRunStream.WrongProtocol e) {
-            assertEquals(SimRunStream.ROBOTS_PROTOCOL - 1, e.childProtocol);
-            assertTrue(e.getMessage(), e.getMessage().contains("Pull nugget-develop"));
-        }
-        assertEquals(List.of("--list", "--robot=nugget"), older.theLastStart());
-        Response listed = routes().handle(get("/catalog"));
-        assertEquals(500, listed.status);
-        assertTrue(listed.body, listed.body.contains("nugget-develop"));
     }
 
     @Test
@@ -1280,14 +1191,14 @@ public class SimBenchTest {
 
     @Test
     public void aBenchWithoutSourcesHasNothingToCheck() {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
 
         assertNull(bench.check());
     }
 
     @Test
     public void aTeleOpRunDrivesFromGamepadPostsAndStopEndsIt() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(StickTeleOp.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(StickTeleOp.class), null, outputDir(), WAITS);
         SimBench.Run run = bench.start(bench.catalog().find("Stick").get(), "ada", SimBench.Mode.FREE_PLAY);
         awaitRunning(run);
 
@@ -1326,11 +1237,7 @@ public class SimBenchTest {
     @Test
     public void aRunIsNotKilledForTakingLongerInRealTimeThanItsPeriodLastsInSimulatedTime() throws Exception {
         bench = new SimBench(
-                TeamRobot.REGINALD,
-                SimCatalog.of(TestTeleOps.SlowMachineTeleOp.class),
-                null,
-                outputDir(),
-                WAITS.teleOpPeriod(0.3));
+                SimCatalog.of(TestTeleOps.SlowMachineTeleOp.class), null, outputDir(), WAITS.teleOpPeriod(0.3));
 
         SimBench.Run run =
                 await(bench.start(bench.catalog().find("Slow machine").get(), "ada", SimBench.Mode.GAME));
@@ -1341,8 +1248,7 @@ public class SimBenchTest {
 
     @Test
     public void stopEndsAnAutoRunToo() throws Exception {
-        bench = new SimBench(
-                TeamRobot.REGINALD, SimCatalog.of(TestAutos.NeverDoneAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(TestAutos.NeverDoneAuto.class), null, outputDir(), WAITS);
         SimBench.Run run = bench.start(bench.catalog().find("Never done").get(), "ada", SimBench.Mode.FREE_PLAY);
         awaitRunning(run);
         long startedAt = System.nanoTime();
@@ -1385,7 +1291,7 @@ public class SimBenchTest {
 
     @Test
     public void anOpModeNobodyHasAndAMethodTheRouteDoesNotTakeAreRefused() {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(HangingAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(HangingAuto.class), null, outputDir(), WAITS);
 
         assertEquals(404, routes().handle(post("/run?opmode=org.example.Nope", "")).status);
         assertEquals(405, routes().handle(get("/run?opmode=" + TEMP_NAME)).status);
@@ -1474,7 +1380,7 @@ public class SimBenchTest {
 
     @Test
     public void aStartThatIsNotAPoseIsRefusedAndNothingIsRemembered() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         String start = "/start?opmode=" + encode("Count to three");
 
         assertEquals(400, routes().handle(put("/start", ORIGIN)).status);
@@ -1491,7 +1397,7 @@ public class SimBenchTest {
 
     @Test
     public void thePlacementPageShowsTheRobotWhereTheRunWillStart() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(ThreeLoopAuto.class), null, outputDir(), WAITS);
         routes().handle(put("/start?opmode=" + encode("Count to three"), "{\"x\": 12, \"y\": -6, \"heading\": 0.5}"));
 
         Response page = routes().handle(get("/place?opmode=" + encode("Count to three")));
@@ -1505,7 +1411,7 @@ public class SimBenchTest {
 
     @Test
     public void theLogKeepsWhatTheChildWroteToStderr() throws Exception {
-        bench = new SimBench(TeamRobot.REGINALD, SimCatalog.of(TestAutos.ChattyAuto.class), null, outputDir(), WAITS);
+        bench = new SimBench(SimCatalog.of(TestAutos.ChattyAuto.class), null, outputDir(), WAITS);
 
         SimBench.Run run = await(bench.start(bench.catalog().find("Chatty").get(), "ada", SimBench.Mode.FREE_PLAY));
 

@@ -9,7 +9,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimRecording implements SimReplayPage.Source {
     public static final class Tick {
@@ -105,7 +104,6 @@ public final class SimRecording implements SimReplayPage.Source {
 
     private final String name;
     private final String kind;
-    private final TeamRobot robot;
     private final List<Tick> ticks = new ArrayList<>();
     private String outcome = null;
 
@@ -114,13 +112,8 @@ public final class SimRecording implements SimReplayPage.Source {
     }
 
     public SimRecording(String name, String kind) {
-        this(name, kind, TeamRobot.REGINALD);
-    }
-
-    public SimRecording(String name, String kind, TeamRobot robot) {
         this.name = name;
         this.kind = kind;
-        this.robot = robot;
     }
 
     @Override
@@ -131,11 +124,6 @@ public final class SimRecording implements SimReplayPage.Source {
     @Override
     public String kind() {
         return kind;
-    }
-
-    @Override
-    public TeamRobot robot() {
-        return robot;
     }
 
     /** A recording knows the run it is and nothing of whether it was played as a match. */

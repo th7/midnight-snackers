@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
@@ -42,19 +41,17 @@ public final class SimChild {
         System.setOut(System.err);
         protocol.println(SimRunStream.hello());
         if (args.length >= 1 && args[0].equals("--list")) {
-            protocol.println(GSON.toJson(catalog(Asked.from(args, 1)).toJson()));
+            protocol.println(GSON.toJson(catalog(sourcesFrom(args, 1)).toJson()));
             System.exit(0);
         }
         if (args.length >= 4 && args[0].equals("--run")) {
-            Asked asked = Asked.from(args, 4);
             String outcome = run(
-                    asked.robot, catalog(asked), args[1], Double.parseDouble(args[2]), Paths.get(args[3]), protocol);
+                    catalog(sourcesFrom(args, 4)), args[1], Double.parseDouble(args[2]), Paths.get(args[3]), protocol);
             protocol.println(SimRunStream.finished(outcome));
             System.exit(0);
         }
-        System.err.println("usage: --list [" + SimRunStream.ROBOT_OPTION + "<robot>] [source...]"
-                + " | --run <op mode name> <seconds, or Infinity for no limit> <replay dir> ["
-                + SimRunStream.ROBOT_OPTION + "<robot>] [source...]");
+        System.err.println("usage: --list [source...]"
+                + " | --run <op mode name> <seconds, or Infinity for no limit> <replay dir> [source...]");
         System.exit(2);
     }
 
@@ -71,34 +68,26 @@ public final class SimChild {
         Runtime.getRuntime().halt(ORPHANED);
     }
 
-    private record Asked(TeamRobot robot, List<String> sources) {
-        static Asked from(String[] args, int from) {
-            List<String> rest = Arrays.asList(args).subList(from, args.length);
-            if (rest.isEmpty() || !rest.get(0).startsWith(SimRunStream.ROBOT_OPTION)) {
-                return new Asked(TeamRobot.REGINALD, rest);
-            }
-            TeamRobot robot = Valid.value(TeamRobot.named(rest.get(0).substring(SimRunStream.ROBOT_OPTION.length())));
-            return new Asked(robot, rest.subList(1, rest.size()));
-        }
+    private static List<String> sourcesFrom(String[] args, int from) {
+        return Arrays.asList(args).subList(from, args.length);
     }
 
-    private static SimCatalog catalog(Asked asked) {
-        if (asked.sources.isEmpty()) {
-            return SimCatalog.discover(asked.robot);
+    private static SimCatalog catalog(List<String> named) {
+        if (named.isEmpty()) {
+            return SimCatalog.discover();
         }
-        Class<?>[] sources = new Class<?>[asked.sources.size()];
+        Class<?>[] sources = new Class<?>[named.size()];
         for (int i = 0; i < sources.length; i++) {
             try {
-                sources[i] = Class.forName(asked.sources.get(i));
+                sources[i] = Class.forName(named.get(i));
             } catch (ClassNotFoundException e) {
-                throw new IllegalArgumentException("no such source of op modes: " + asked.sources.get(i), e);
+                throw new IllegalArgumentException("no such source of op modes: " + named.get(i), e);
             }
         }
         return SimCatalog.of(sources);
     }
 
-    private static String run(
-            TeamRobot robot, SimCatalog catalog, String name, double seconds, Path replayDir, PrintStream protocol) {
+    private static String run(SimCatalog catalog, String name, double seconds, Path replayDir, PrintStream protocol) {
         Optional<SimCatalog.Entry> entry = catalog.find(name);
         if (entry.isEmpty()) {
             return SimRunStream.Outcome.noOpModeNamed(name);
@@ -109,7 +98,7 @@ public final class SimChild {
         } catch (RuntimeException e) {
             return SimRunStream.Outcome.couldNotBuild(name, e);
         }
-        SimRecording recording = new SimRecording(entry.get().name, entry.get().kind, robot);
+        SimRecording recording = new SimRecording(entry.get().name, entry.get().kind);
         SimDriverStation driverStation = new SimDriverStation();
         Thread driver = new Thread(() -> readDriverStation(driverStation, recording), "sim-driver-station");
         driver.setDaemon(true);
@@ -122,8 +111,8 @@ public final class SimChild {
         }
         Long seed = driverStation.seed();
         Constants constants = driverStation.constants();
-        SimRobot sim = new SimRobot(robot, seed == null ? SimNoise.NONE : Noise.seeded(seed, constants), constants);
-        System.err.println("Robot: " + SimNoise.described(robot, sim.noise()));
+        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : Noise.seeded(seed, constants), constants);
+        System.err.println("Robot: " + SimNoise.described(sim.noise()));
         System.err.println("Constants: " + SimConstants.described(constants));
         sim.setDown(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");

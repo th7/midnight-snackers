@@ -9,7 +9,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class RunCost {
     public enum Stage {
@@ -154,11 +153,6 @@ public final class RunCost {
             }
 
             @Override
-            public TeamRobot robot() {
-                return recording.robot();
-            }
-
-            @Override
             public String ticksJson(int from) {
                 return SimRunStream.TickLine.array(kept.subList(Math.min(from, to), to));
             }
@@ -212,7 +206,7 @@ public final class RunCost {
     }
 
     public static void main(String[] args) {
-        SimCatalog catalog = SimCatalog.discover(TeamRobot.REGINALD);
+        SimCatalog catalog = SimCatalog.discover();
         SimBench.Waits game = SimBench.Waits.ofTheBench();
         List<SimCatalog.Entry> entries = new ArrayList<>();
         if (args.length == 0) {

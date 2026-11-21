@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.PortSetting;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 /**
  * The simulator a teammate runs from their own checkout: one bench over the sources on disk, for
@@ -44,7 +43,6 @@ public final class LocalSimulator {
     public static void main(String[] args) throws InterruptedException {
         Path checkout = Path.of("").toAbsolutePath();
         SimBench bench = new SimBench(
-                TeamRobot.REGINALD,
                 null,
                 checkout,
                 checkout.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),

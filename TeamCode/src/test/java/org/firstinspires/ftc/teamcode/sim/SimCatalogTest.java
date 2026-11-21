@@ -20,53 +20,24 @@ import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
-import org.firstinspires.ftc.teamcode.sim.TestNuggetOpModes.TankTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
-import org.firstinspires.ftc.teamcode.sim.discovered.nugget.Tank;
 import org.firstinspires.ftc.teamcode.sim.discovered.reginald.RedDriving;
 import org.firstinspires.ftc.teamcode.sim.discovered.reginald.Routines;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimCatalogTest {
-    private final SimCatalog catalog = SimCatalog.discover(TeamRobot.REGINALD, RedDriving.class.getPackageName());
+    private final SimCatalog catalog = SimCatalog.discover(RedDriving.class.getPackageName());
 
     @Test
-    public void nuggetsCatalogListsNuggetsOpModesAndNoneOfReginalds() {
-        SimCatalog nuggets = SimCatalog.discover(TeamRobot.NUGGET, Tank.class.getPackageName());
-
-        SimCatalog.Entry teleOp = nuggets.find("Tank").get();
-        assertEquals("teleop", teleOp.kind);
-        assertEquals("Nugget", teleOp.group);
-        assertEquals("org.firstinspires.ftc.teamcode.sim.discovered.nugget.Tank", teleOp.where);
-        assertNull("Nugget plays for no alliance", teleOp.alliance);
-        assertTrue(teleOp.opMode() instanceof Tank);
-        assertNotSame(teleOp.opMode(), teleOp.opMode());
-        assertEquals(
-                "a Reginald op mode in Nugget's package is still not Nugget's",
-                List.of("Tank"),
-                nuggets.entries().stream().map(e -> e.name).collect(Collectors.toList()));
-    }
-
-    @Test
-    public void reginaldsCatalogListsNoneOfNuggets() {
+    public void reginaldsCatalogListsNoOpModeThatIsNotReginaldsKind() {
         assertFalse(
-                "a Nugget op mode in Reginald's package is still not Reginald's",
-                catalog.find("Nugget's, among Reginald's").isPresent());
+                "an op mode in Reginald's package that does not extend Reginald's OpMode is not Reginald's",
+                catalog.find("Not Reginald's, among Reginald's").isPresent());
     }
 
     @Test
-    public void eachRobotsOpModesAreItsOwnPackages() {
-        assertEquals("org.firstinspires.ftc.reginald", SimCatalog.packageOf(TeamRobot.REGINALD));
-        assertEquals("org.firstinspires.ftc.nugget", SimCatalog.packageOf(TeamRobot.NUGGET));
-    }
-
-    @Test
-    public void aFixedCatalogListsNuggetsOpModesTooWhenItIsGivenThem() {
-        SimCatalog fixed = SimCatalog.of(TankTeleOp.class);
-
-        assertTrue(fixed.find("Tank drive").get().opMode() instanceof TankTeleOp);
-        assertEquals(List.of(TankTeleOp.class.getName()), fixed.sources());
+    public void reginaldsOpModesAreItsOwnPackage() {
+        assertEquals("org.firstinspires.ftc.reginald", SimCatalog.PACKAGE);
     }
 
     @Test
@@ -98,7 +69,7 @@ public class SimCatalogTest {
                 catalog.find("Tuning").isPresent());
         assertFalse(
                 "nested test op modes never reach the bench",
-                SimCatalog.discover(TeamRobot.REGINALD, ThreeLoopAuto.class.getPackageName())
+                SimCatalog.discover(ThreeLoopAuto.class.getPackageName())
                         .find("Count to three")
                         .isPresent());
     }

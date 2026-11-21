@@ -1,10 +1,10 @@
 package org.firstinspires.ftc.teamcode.sim.discovered.reginald;
 
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.nugget.NuggetOpMode;
 
-@TeleOp(name = "Nugget's, among Reginald's", group = "Nugget")
-public class Misplaced extends NuggetOpMode {
+@TeleOp(name = "Not Reginald's, among Reginald's", group = "Test")
+public class Misplaced extends OpMode {
     @Override
     public void init() {}
 

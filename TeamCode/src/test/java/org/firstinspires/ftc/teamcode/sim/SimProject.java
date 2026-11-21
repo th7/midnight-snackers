@@ -21,10 +21,6 @@ public final class SimProject {
     public static final String TEMP_AUTO =
             "TeamCode/src/main/java/org/firstinspires/ftc/reginald/benchtest/TempAuto.java";
 
-    /** Where a test writes Nugget's one TeleOp of its own, likewise. */
-    public static final String TEMP_TANK =
-            "TeamCode/src/main/java/org/firstinspires/ftc/nugget/benchtest/TempTank.java";
-
     public static final String HARDWARE =
             "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/Hardware.java";
     public static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
@@ -38,8 +34,6 @@ public final class SimProject {
     public static final String TEMP_NAME = "BenchTemp";
 
     public static final int TEMP_LOOPS_LINE = 10;
-
-    public static final String TEMP_TANK_NAME = "BenchTank";
 
     private final Path root;
 
@@ -86,21 +80,6 @@ public final class SimProject {
     /** This project's own {@code TempAuto.java}, replacing whatever was there. */
     public SimProject withTempAuto(String source) {
         return withSource(TEMP_AUTO, source);
-    }
-
-    /** This project's own {@code TempTank.java}: a Nugget TeleOp that drives both sides ahead. */
-    public SimProject withTempTank() {
-        return withSource(
-                TEMP_TANK,
-                "package org.firstinspires.ftc.nugget.benchtest;\n"
-                        + "import com.qualcomm.robotcore.eventloop.opmode.TeleOp;\n"
-                        + "import org.firstinspires.ftc.nugget.NuggetOpMode;\n"
-                        + "\n"
-                        + "@TeleOp(name = \"" + TEMP_TANK_NAME + "\", group = \"Test\")\n"
-                        + "public class TempTank extends NuggetOpMode {\n"
-                        + "    public void init() { }\n"
-                        + "    public void loop() { hardware().left.setPower(1); hardware().right.setPower(1); }\n"
-                        + "}\n");
     }
 
     private SimProject withSource(String key, String source) {

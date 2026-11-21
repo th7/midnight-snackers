@@ -18,7 +18,6 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -82,7 +81,6 @@ public class SimFeedPageTest {
     private Router routes() {
         if (bench == null) {
             bench = new SimBench(
-                    TeamRobot.REGINALD,
                     SimCatalog.of(HangingAuto.class),
                     null,
                     folder.getRoot().toPath().resolve("sim"),

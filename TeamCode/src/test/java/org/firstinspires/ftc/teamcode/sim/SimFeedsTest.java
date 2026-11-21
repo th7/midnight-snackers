@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -38,7 +37,6 @@ public class SimFeedsTest {
 
     private Router restarted() {
         SimBench bench = new SimBench(
-                TeamRobot.REGINALD,
                 SimCatalog.of(HangingAuto.class),
                 null,
                 folder.getRoot().toPath().resolve("sim"),

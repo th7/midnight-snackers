@@ -29,8 +29,6 @@ import org.dyn4j.geometry.Vector2;
 import org.dyn4j.geometry.hull.GiftWrap;
 import org.dyn4j.world.ValueMixer;
 import org.dyn4j.world.World;
-import org.firstinspires.ftc.nugget.NuggetHardware;
-import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
@@ -45,9 +43,7 @@ import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
 import org.firstinspires.ftc.teamcode.simcore.Drawn;
 import org.firstinspires.ftc.teamcode.simcore.Draws;
-import org.firstinspires.ftc.teamcode.simcore.DriveEncoders;
 import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
-import org.firstinspires.ftc.teamcode.simcore.Encoder;
 import org.firstinspires.ftc.teamcode.simcore.Feedforward;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
@@ -63,9 +59,7 @@ import org.firstinspires.ftc.teamcode.simcore.Rolling;
 import org.firstinspires.ftc.teamcode.simcore.Seat;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Sense;
-import org.firstinspires.ftc.teamcode.simcore.Sides;
 import org.firstinspires.ftc.teamcode.simcore.Stack;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.firstinspires.ftc.teamcode.simcore.Turntable;
 import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
@@ -121,10 +115,6 @@ public class SimRobot {
     public final FakeVoltageSensor voltageSensor = devices.voltageSensor;
     public final FakeDashboard dashboard = devices.dashboard;
 
-    private final TeamRobot teamRobot;
-
-    private final Build build;
-
     private final Noise noise;
 
     private Draws draws;
@@ -141,8 +131,6 @@ public class SimRobot {
     private Pose2d previous = new Pose2d(0, 0, 0);
 
     private DeadWheels deadWheels;
-
-    private DriveEncoders driveEncoders;
 
     private final Ball[] balls;
 
@@ -264,30 +252,21 @@ public class SimRobot {
     }
 
     public SimRobot(Noise noise) {
-        this(TeamRobot.REGINALD, noise, Constants.defaults());
+        this(noise, Constants.defaults());
     }
 
-    public SimRobot(TeamRobot teamRobot, Noise noise, Constants constants) {
-        this.teamRobot = teamRobot;
-        this.build = switch (teamRobot) {
-            case REGINALD -> new Reginald(devices);
-            case NUGGET -> new Nugget(devices, new FakeDcMotorEx(), new FakeDcMotorEx());
-        };
+    public SimRobot(Noise noise, Constants constants) {
         this.noise = noise;
         this.constants = constants;
         this.turntable =
                 Valid.value(Turntable.of(org.firstinspires.ftc.reginald.Turntable.TICKS_PER_REVOLUTION, constants));
         this.draws = noise.draws();
         this.drivetrain = Valid.value(Drivetrain.of(
-                teamRobot.drivebase(),
                 Valid.value(
                         Feedforward.of(drive.kSVolts, drive.kVVoltSecondsPerTick, drive.kAVoltSecondsSquaredPerTick)),
                 drive.inPerTick,
                 noise.motors()));
         this.deadWheels = Valid.value(DeadWheels.reginalds(drive.inPerTick));
-        PerWheel<Sense> mounted = teamRobot.drivebase().mounted();
-        this.driveEncoders = Valid.value(DriveEncoders.of(
-                new Sides<>(mounted.leftFront(), mounted.rightFront()), drive.inPerTick, drive.trackWidthTicks));
         voltageSensor.voltage = noise.battery().volts(Seconds.zero(), PerWheel.all(Power.none()));
         Settings settings = world.getSettings();
         settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
@@ -331,7 +310,7 @@ public class SimRobot {
         List<Field.Piece> moved = FIELD.movedPieces();
         Field.Piece aLoosePollen = FIELD.loosePieces().get(0);
         int held = moved.size();
-        balls = new Ball[held + build.preload()];
+        balls = new Ball[held + PRELOAD];
         for (int i = 0; i < balls.length; i++) {
             Field.Piece piece = i < held ? moved.get(i) : aLoosePollen;
             balls[i] = new Ball(piece.radius(), piece.kind(), ballBody(piece.radius()));
@@ -405,108 +384,16 @@ public class SimRobot {
         return body;
     }
 
-    private sealed interface Build permits Reginald, Nugget {
-        PerWheel<Drivetrain.Setting> wheels();
-
-        double[] powers();
-
-        int preload();
-
-        void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode);
-
-        void sense(DriveEncoders encoders, Twist perSecond);
-    }
-
-    private record Reginald(SimDevices devices) implements Build {
-        @Override
-        public PerWheel<Drivetrain.Setting> wheels() {
-            return new PerWheel<>(
-                    setting(devices.leftFront),
-                    setting(devices.rightFront),
-                    setting(devices.leftBack),
-                    setting(devices.rightBack));
-        }
-
-        @Override
-        public double[] powers() {
-            return new double[] {
-                devices.leftFront.power, devices.rightFront.power, devices.leftBack.power, devices.rightBack.power
-            };
-        }
-
-        @Override
-        public int preload() {
-            return PRELOAD;
-        }
-
-        @Override
-        public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
-            if (!(opMode instanceof OpMode reginalds)) {
-                throw notOf(TeamRobot.REGINALD, opMode);
-            }
-            reginalds.useHardware(devices.hardware());
-        }
-
-        @Override
-        public void sense(DriveEncoders encoders, Twist perSecond) {}
-    }
-
-    private record Nugget(SimDevices devices, FakeDcMotorEx left, FakeDcMotorEx right) implements Build {
-        @Override
-        public PerWheel<Drivetrain.Setting> wheels() {
-            return new Sides<>(setting(left), setting(right)).wheels();
-        }
-
-        @Override
-        public double[] powers() {
-            return new double[] {left.power, right.power};
-        }
-
-        @Override
-        public int preload() {
-            return 0;
-        }
-
-        @Override
-        public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
-            if (!(opMode instanceof NuggetOpMode nuggets)) {
-                throw notOf(TeamRobot.NUGGET, opMode);
-            }
-            nuggets.useHardware(NuggetHardware.builder()
-                    .left(left)
-                    .right(right)
-                    .voltageSensor(devices.voltageSensor)
-                    .dashboard(devices.dashboard)
-                    .nanoClock(devices::nanoTime)
-                    .build());
-        }
-
-        @Override
-        public void sense(DriveEncoders encoders, Twist perSecond) {
-            Sides<Encoder> read = encoders.read(perSecond, new Sides<>(senseOf(left), senseOf(right)));
-            left.currentPosition = read.left().position();
-            left.measuredVelocity = read.left().velocity();
-            right.currentPosition = read.right().position();
-            right.measuredVelocity = read.right().velocity();
-        }
-    }
-
-    private static IllegalArgumentException notOf(TeamRobot teamRobot, Object opMode) {
-        return new IllegalArgumentException(opMode.getClass().getName() + " is not one of "
-                + teamRobot.displayName() + "'s op modes, so the simulated " + teamRobot.displayName()
-                + " has no hardware to hand it");
-    }
-
-    public TeamRobot robot() {
-        return teamRobot;
-    }
-
     public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
-        build.wire(opMode);
+        if (!(opMode instanceof OpMode reginalds)) {
+            throw new IllegalArgumentException(opMode.getClass().getName()
+                    + " is not one of Reginald's op modes, so the simulated Reginald has no hardware to hand it");
+        }
+        reginalds.useHardware(devices.hardware());
     }
 
     public double[] powers() {
-        return build.powers();
+        return new double[] {leftFront.power, rightFront.power, leftBack.power, rightBack.power};
     }
 
     public Hardware hardware() {
@@ -799,7 +686,8 @@ public class SimRobot {
     private void substep(Seconds dt) {
         launcher.measuredVelocity = Flywheel.turnsAt(launcher.commandedVelocity);
         turnTable.currentPosition = turntable.turned(turnTable.currentPosition, Power.clamped(turnTable.power), dt);
-        PerWheel<Drivetrain.Setting> wheels = build.wheels();
+        PerWheel<Drivetrain.Setting> wheels =
+                new PerWheel<>(setting(leftFront), setting(rightFront), setting(leftBack), setting(rightBack));
         voltageSensor.voltage =
                 noise.battery().volts(Valid.value(Seconds.of(nanoTime() / 1e9)), wheels.map(Drivetrain.Setting::power));
 
@@ -841,8 +729,7 @@ public class SimRobot {
                         dual(accelerations.rightBack()),
                         dual(accelerations.rightFront())))
                 .value();
-        double sideways = teamRobot.drivebase().sideways(acceleration.line.y, velocity.y(), dt, noise.traction());
-        Vec2 pushed = heading.onTheField(new Vec2(acceleration.line.x, sideways));
+        Vec2 pushed = heading.onTheField(new Vec2(acceleration.line.x, acceleration.line.y));
         double mass = chassis.getMass().getMass();
         chassis.applyForce(new Vector2(pushed.x() * IN * mass, pushed.y() * IN * mass));
         chassis.applyTorque(acceleration.angle * chassis.getMass().getInertia());
@@ -971,8 +858,6 @@ public class SimRobot {
         Twist moved = new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle);
         deadWheels = deadWheels.moved(moved);
         DeadWheels.Reading reading = deadWheels.read(perSecond, senseOf(rightBack), senseOf(leftFront));
-        driveEncoders = driveEncoders.moved(moved);
-        build.sense(driveEncoders, perSecond);
         rightBack.currentPosition = reading.par().position();
         rightBack.measuredVelocity = reading.par().velocity();
         leftFront.currentPosition = reading.perp().position();

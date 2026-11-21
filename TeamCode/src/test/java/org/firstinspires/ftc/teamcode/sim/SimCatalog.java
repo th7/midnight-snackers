@@ -18,17 +18,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimCatalog {
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
+    public static final String PACKAGE = "org.firstinspires.ftc.reginald";
 
     /** The alliances an op mode can play for, as the field names them. */
     public static final List<String> ALLIANCES = List.of("Blue", "Red");
@@ -104,7 +103,7 @@ public final class SimCatalog {
         List<Entry> entries = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (Class<?> source : sources) {
-            List<Entry> found = entriesFrom(source, SimCatalog::anyRobots);
+            List<Entry> found = entriesFrom(source, OpMode.class::isAssignableFrom);
             if (found == null) {
                 throw new IllegalArgumentException(
                         source.getName() + " is neither an annotated op mode nor a registrar");
@@ -153,42 +152,22 @@ public final class SimCatalog {
         return json;
     }
 
-    public static String packageOf(TeamRobot robot) {
-        return robot.javaPackage();
-    }
-
-    private static Class<? extends com.qualcomm.robotcore.eventloop.opmode.OpMode> opModeOf(TeamRobot robot) {
-        return switch (robot) {
-            case REGINALD -> OpMode.class;
-            case NUGGET -> NuggetOpMode.class;
-        };
-    }
-
-    private static boolean anyRobots(Class<?> type) {
-        for (TeamRobot robot : TeamRobot.values()) {
-            if (opModeOf(robot).isAssignableFrom(type)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static SimCatalog discover(TeamRobot robot) {
-        return discover(robot, packageOf(robot));
+    public static SimCatalog discover() {
+        return discover(PACKAGE);
     }
 
     /**
      * The robot's op modes in a package and the packages under it, but for its Road Runner package,
      * whose tuning op modes are not ours to simulate.
      */
-    public static SimCatalog discover(TeamRobot robot, String javaPackage) {
+    public static SimCatalog discover(String javaPackage) {
         String roadRunner = javaPackage + ".roadrunner.";
         List<Entry> entries = new ArrayList<>();
         for (Class<?> type : Classpath.classesUnder(javaPackage)) {
             if (type.getName().startsWith(roadRunner)) {
                 continue;
             }
-            List<Entry> found = entriesFrom(type, opModeOf(robot)::isAssignableFrom);
+            List<Entry> found = entriesFrom(type, OpMode.class::isAssignableFrom);
             if (found != null) {
                 entries.addAll(found);
             }

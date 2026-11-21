@@ -26,7 +26,6 @@ import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flywheel;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimRobotTest {
@@ -1105,10 +1104,8 @@ public class SimRobotTest {
 
     @Test
     public void theLauncherThrowsAsHardAsTheLauncherThrowConstantSays() {
-        SimRobot harder = new SimRobot(
-                TeamRobot.REGINALD,
-                SimNoise.NONE,
-                constants(Constant.LAUNCH_THROW, 1.5 * Constant.LAUNCH_THROW.byDefault()));
+        SimRobot harder =
+                new SimRobot(SimNoise.NONE, constants(Constant.LAUNCH_THROW, 1.5 * Constant.LAUNCH_THROW.byDefault()));
 
         double[] asBuilt = thrownFrom(sim);
         double[] thrown = thrownFrom(harder);
@@ -1124,8 +1121,7 @@ public class SimRobotTest {
 
     @Test
     public void theMostTheLauncherThrowConstantAllowsStillThrowsTheCodesCloseLaunch() {
-        SimRobot most = new SimRobot(
-                TeamRobot.REGINALD, SimNoise.NONE, constants(Constant.LAUNCH_THROW, Constant.LAUNCH_THROW.most()));
+        SimRobot most = new SimRobot(SimNoise.NONE, constants(Constant.LAUNCH_THROW, Constant.LAUNCH_THROW.most()));
 
         double[] thrown = thrownFrom(most);
 
@@ -1177,9 +1173,7 @@ public class SimRobotTest {
     @Test
     public void theTurntableTurnsAsFastAsTheTurntableSpeedConstantSays() {
         SimRobot quicker = new SimRobot(
-                TeamRobot.REGINALD,
-                SimNoise.NONE,
-                constants(Constant.TURNTABLE_SPEED, 2 * Constant.TURNTABLE_SPEED.byDefault()));
+                SimNoise.NONE, constants(Constant.TURNTABLE_SPEED, 2 * Constant.TURNTABLE_SPEED.byDefault()));
         sim.turnTable.power = 1;
         quicker.turnTable.power = 1;
 
@@ -1297,7 +1291,7 @@ public class SimRobotTest {
     };
 
     static SimRobot throwing(double inPerSPerTickPerS) {
-        return new SimRobot(TeamRobot.REGINALD, SimNoise.NONE, constants(Constant.LAUNCH_THROW, inPerSPerTickPerS));
+        return new SimRobot(SimNoise.NONE, constants(Constant.LAUNCH_THROW, inPerSPerTickPerS));
     }
 
     private static void assertScoresAndStays(SimRobot sim, String alliance, String said) {
@@ -1663,6 +1657,34 @@ public class SimRobotTest {
             Math.abs(sim.rightBack.getCurrentPosition() - parallel) * MecanumDrive.PARAMS.inPerTick,
             Math.abs(sim.leftFront.getCurrentPosition() - perpendicular) * MecanumDrive.PARAMS.inPerTick
         };
+    }
+
+    public static final class NotReginalds extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
+        @Override
+        public void init() {}
+
+        @Override
+        public void loop() {}
+    }
+
+    @Test
+    public void itsPowersAreItsFourWheelsInTheOrderTheReplayPageNamesThem() {
+        SimRobot reginald = new SimRobot();
+        reginald.leftFront.power = 0.1;
+        reginald.rightFront.power = 0.2;
+        reginald.leftBack.power = 0.3;
+        reginald.rightBack.power = 0.4;
+
+        assertArrayEquals(new double[] {0.1, 0.2, 0.3, 0.4}, reginald.powers(), 0);
+    }
+
+    @Test
+    public void anOpModeThatIsNotReginaldsIsHandedNoHardware() {
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> new SimRobot().wire(new NotReginalds()));
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains(NotReginalds.class.getName()));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("Reginald"));
     }
 
     private void setPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
