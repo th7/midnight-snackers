@@ -146,11 +146,11 @@ public final class KeptField {
     }
 
     public Response serve(String name) {
-        if (FieldAssets.DEFAULT_RESOLUTION_FILE.equals(name)) {
+        if (SimAssets.DEFAULT_RESOLUTION_FILE.equals(name)) {
             Set<FieldModel> kept = kept();
             return Response.bytes(
                             "text/javascript; charset=utf-8",
-                            FieldAssets.defaultResolutionModule(
+                            SimAssets.defaultResolutionModule(
                                             DrawnField.of(kept).model(), DrawnField.drawable(kept))
                                     .getBytes(StandardCharsets.UTF_8))
                     .revalidated();

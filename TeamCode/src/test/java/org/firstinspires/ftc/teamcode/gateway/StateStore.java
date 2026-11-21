@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.sim;
+package org.firstinspires.ftc.teamcode.gateway;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -6,6 +6,8 @@ import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import org.firstinspires.ftc.teamcode.sim.OnDiskStore;
+import org.firstinspires.ftc.teamcode.sim.Store;
 
 final class StateStore {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.sim;
+package org.firstinspires.ftc.teamcode.gateway;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.firstinspires.ftc.teamcode.sim.SimField;
 import org.junit.Test;
 
 public class GltfTest {

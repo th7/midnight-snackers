@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { chrome, sim } from './bench.mjs';
+import { chrome, gateway } from './bench.mjs';
 
 const LOGINS_ASKED = [];
 const RELAY = { line: 'adb connect 10.0.0.2:5555', port: 5555 };
@@ -33,7 +33,7 @@ function serve() {
     }
     if (url.pathname === '/') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      response.end(fs.readFileSync(path.join(sim, 'login.html')));
+      response.end(fs.readFileSync(path.join(gateway, 'login.html')));
       return;
     }
     response.writeHead(404).end('no route: ' + url.pathname);

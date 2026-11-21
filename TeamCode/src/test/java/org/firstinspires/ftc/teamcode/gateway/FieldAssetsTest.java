@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.sim;
+package org.firstinspires.ftc.teamcode.gateway;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -16,8 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.simcore.DrawnField;
-import org.firstinspires.ftc.teamcode.simcore.FieldModel;
+import org.firstinspires.ftc.teamcode.sim.InMemoryStore;
+import org.firstinspires.ftc.teamcode.sim.SimAssets;
 import org.junit.Test;
 
 public class FieldAssetsTest {
@@ -368,27 +368,6 @@ public class FieldAssetsTest {
                     assertThrows(FieldAssets.NotAnAsset.class, () -> FieldAssets.theOneNamed(notOne));
             assertTrue(refused.getMessage(), refused.getMessage().contains("low, medium or high"));
         }
-    }
-
-    /**
-     * Which field a page draws when it names none is said in one place and read in another -- a
-     * server's setting, a line of JavaScript a page imports -- so the line is this server's to
-     * write, and the copy committed beside the models is what it writes for the built-in answer.
-     * Said twice by hand, the page and the server would drift apart without either saying so.
-     */
-    @Test
-    public void theLineAPageReadsForTheDefaultIsTheServersToWrite() {
-        String low = FieldAssets.defaultResolutionModule(FieldModel.LOW, List.of(new DrawnField.Committed()));
-        assertTrue(low, low.contains("export const DEFAULT_RESOLUTION = 'low';\n"));
-        assertTrue(
-                low,
-                low.endsWith("export const FIELD_SAID = {\"low\":\"The low field committed with the project: this"
-                        + " computer has kept none of the host\\u0027s.\"};\n"));
-        assertEquals(
-                "the committed " + FieldAssets.DEFAULT_RESOLUTION_FILE + " is not what this server writes for "
-                        + FieldAssets.Resolution.DEFAULT.asked + "; write what this expects into it",
-                FieldAssets.defaultResolutionModule(FieldAssets.Resolution.DEFAULT.model, List.of()),
-                SimAssets.page(FieldAssets.DEFAULT_RESOLUTION_FILE));
     }
 
     @Test

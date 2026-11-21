@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { chrome, sim } from './bench.mjs';
+import { chrome, gateway } from './bench.mjs';
 
 const USERS = {
   users: [
@@ -56,7 +56,7 @@ function serve() {
       answer(response, { ok: true });
     } else if (url.pathname === '/' || url.pathname === '/admin') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      response.end(fs.readFileSync(path.join(sim, 'admin.html')));
+      response.end(fs.readFileSync(path.join(gateway, 'admin.html')));
     } else {
       response.writeHead(404).end('no route: ' + url.pathname);
     }

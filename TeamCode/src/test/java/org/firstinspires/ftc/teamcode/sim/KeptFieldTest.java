@@ -7,18 +7,16 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 import org.firstinspires.ftc.teamcode.simcore.WhereTheHostIs;
 import org.junit.After;
 import org.junit.Rule;
@@ -26,7 +24,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class KeptFieldTest {
-    private static final int CHEAP_SCRYPT = 1 << 4;
     private static final byte[] HIGH = "the high field the host built".getBytes(StandardCharsets.UTF_8);
     private static final byte[] REBUILT_HIGH = "the high field the host built again".getBytes(StandardCharsets.UTF_8);
     private static final byte[] NOT_AS_OFFERED = "the high field the host built AGAIN".getBytes(StandardCharsets.UTF_8);
@@ -35,21 +32,13 @@ public class KeptFieldTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    private RobotGateway gateway;
     private FakeHost fake;
 
     @After
-    public void stopTheHosts() throws IOException {
-        if (gateway != null) {
-            gateway.stop();
-        }
+    public void stopTheHost() throws IOException {
         if (fake != null) {
             fake.close();
         }
-    }
-
-    private Path stateDir() {
-        return folder.getRoot().toPath().resolve("host-state");
     }
 
     private Path keptDir() {
@@ -60,55 +49,20 @@ public class KeptFieldTest {
         return new KeptField(keptDir(), new OnDiskStore());
     }
 
-    private RobotGateway host() {
-        gateway = RobotGateway.start(
-                InetAddress.getLoopbackAddress(),
-                0,
-                0,
-                stateDir(),
-                CHEAP_SCRYPT,
-                new RobotGateway.Assets() {
-                    @Override
-                    public FieldAssets.Refreshed download(Store store, Path into) {
-                        throw new AssertionError("no test reaches for Onshape");
-                    }
-
-                    @Override
-                    public FieldAssets.Refreshed build(
-                            Store store, Path into, List<FieldAssets.Resolution> resolutions) {
-                        throw new AssertionError("no test builds a model");
-                    }
-                },
-                0,
-                new InetSocketAddress(InetAddress.getLoopbackAddress(), 9));
-        return gateway;
+    private WhereTheHostIs hostOffering(Map<FieldModel, byte[]> models) throws IOException {
+        return hostAs(FakeHost.offeringWhole(models));
     }
 
-    private void hostBuilt(String file, byte[] bytes) throws IOException {
-        Path model = stateDir().resolve("assets").resolve(file);
-        Files.createDirectories(model.getParent());
-        Files.write(model, bytes);
-    }
-
-    private void approvedFromHere() throws IOException {
-        HttpURLConnection login =
-                (HttpURLConnection) new URL(gateway.userUrl() + "login?username=ada").openConnection();
-        login.setRequestMethod("POST");
-        assertEquals(200, login.getResponseCode());
-        login.disconnect();
-        HttpURLConnection approve =
-                (HttpURLConnection) new URL(gateway.adminUrl() + "admin/logins/1/approve").openConnection();
-        approve.setRequestMethod("POST");
-        assertEquals(200, approve.getResponseCode());
-        approve.disconnect();
+    private WhereTheHostIs hostAs(FakeHost replacing) throws IOException {
+        if (fake != null) {
+            fake.close();
+        }
+        fake = replacing;
+        return at(fake.port());
     }
 
     private static WhereTheHostIs at(int port) {
         return Valid.value(WhereTheHostIs.from(Map.of(WhereTheHostIs.ENV, "127.0.0.1:" + port)));
-    }
-
-    private WhereTheHostIs theGateway() {
-        return at(gateway.userPort());
     }
 
     private static WhereTheHostIs nowhere() throws IOException {
@@ -139,14 +93,11 @@ public class KeptFieldTest {
     }
 
     @Test
-    public void anApprovedClientKeepsTheModelsTheHostBuiltAndDrawsTheMostDetailed() throws IOException {
-        host();
-        hostBuilt("field.glb", LOW);
-        hostBuilt("field-high.glb", HIGH);
-        approvedFromHere();
+    public void aClientKeepsTheModelsTheHostOffersAndDrawsTheMostDetailed() throws IOException {
+        WhereTheHostIs host = hostOffering(Map.of(FieldModel.LOW, LOW, FieldModel.HIGH, HIGH));
         KeptField kept = kept();
 
-        List<String> said = kept.fetchFrom(theGateway());
+        List<String> said = kept.fetchFrom(host);
 
         assertTrue(said.toString(), said.toString().contains("high"));
         assertArrayEquals(HIGH, served(kept, "field-high.glb"));
@@ -158,12 +109,9 @@ public class KeptFieldTest {
 
     @Test
     public void awayFromTheHostTheClientStillDrawsWhatItKept() throws IOException {
-        host();
-        hostBuilt("field-high.glb", HIGH);
-        approvedFromHere();
-        kept().fetchFrom(theGateway());
-        gateway.stop();
-        gateway = null;
+        kept().fetchFrom(hostOffering(Map.of(FieldModel.HIGH, HIGH)));
+        fake.close();
+        fake = null;
         KeptField away = kept();
 
         List<String> said = away.fetchFrom(nowhere());
@@ -175,26 +123,21 @@ public class KeptFieldTest {
 
     @Test
     public void aModelTheHostRebuiltIsKeptAgainOnTheNextStart() throws IOException {
-        host();
-        hostBuilt("field-high.glb", HIGH);
-        approvedFromHere();
-        kept().fetchFrom(theGateway());
-        hostBuilt("field-high.glb", REBUILT_HIGH);
+        kept().fetchFrom(hostOffering(Map.of(FieldModel.HIGH, HIGH)));
+        WhereTheHostIs rebuilt = hostOffering(Map.of(FieldModel.HIGH, REBUILT_HIGH));
         KeptField next = kept();
 
-        next.fetchFrom(theGateway());
+        next.fetchFrom(rebuilt);
 
         assertArrayEquals(REBUILT_HIGH, served(next, "field-high.glb"));
     }
 
     @Test
     public void aModelAlreadyKeptAsTheHostBuiltItIsNotFetchedAgain() throws IOException {
-        host();
-        hostBuilt("field-high.glb", HIGH);
-        approvedFromHere();
-        kept().fetchFrom(theGateway());
+        WhereTheHostIs host = hostOffering(Map.of(FieldModel.HIGH, HIGH));
+        kept().fetchFrom(host);
 
-        List<String> said = kept().fetchFrom(theGateway());
+        List<String> said = kept().fetchFrom(host);
 
         assertTrue(said.toString(), said.toString().contains("already kept"));
     }
@@ -218,28 +161,24 @@ public class KeptFieldTest {
     }
 
     @Test
-    public void anAddressWithNoApprovedLoginIsRefusedAndKeepsNothing() throws IOException {
-        host();
-        hostBuilt("field-high.glb", HIGH);
+    public void anOfferTheHostRefusesKeepsNothingAndSaysWhatTheHostSaid() throws IOException {
+        WhereTheHostIs host = hostAs(FakeHost.refusing(403, "no approved login from this address"));
         KeptField kept = kept();
 
-        List<String> said = kept.fetchFrom(theGateway());
+        List<String> said = kept.fetchFrom(host);
 
-        assertTrue(said.toString(), said.toString().contains("no approved login"));
+        assertTrue(said.toString(), said.toString().contains("403: no approved login from this address"));
         assertEquals(List.of(), keptFiles());
         assertTrue(module(kept), module(kept).contains("committed with the project"));
     }
 
     @Test
     public void aFetchCutOffPartwayLeavesTheModelKeptBefore() throws IOException {
-        host();
-        hostBuilt("field-high.glb", HIGH);
-        approvedFromHere();
-        kept().fetchFrom(theGateway());
-        fake = FakeHost.offering(REBUILT_HIGH, REBUILT_HIGH.length / 2);
+        kept().fetchFrom(hostOffering(Map.of(FieldModel.HIGH, HIGH)));
+        WhereTheHostIs cutOff = hostAs(FakeHost.offering(REBUILT_HIGH, REBUILT_HIGH.length / 2));
         KeptField next = kept();
 
-        List<String> said = next.fetchFrom(at(fake.port()));
+        List<String> said = next.fetchFrom(cutOff);
 
         assertTrue(said.toString(), said.toString().contains("field-high.glb"));
         assertArrayEquals(HIGH, served(next, "field-high.glb"));
@@ -248,10 +187,10 @@ public class KeptFieldTest {
 
     @Test
     public void aModelThatArrivesWholeButNotAsOfferedIsNotKept() throws IOException {
-        fake = FakeHost.offering(REBUILT_HIGH, NOT_AS_OFFERED.length, NOT_AS_OFFERED);
+        WhereTheHostIs host = hostAs(FakeHost.offering(REBUILT_HIGH, NOT_AS_OFFERED.length, NOT_AS_OFFERED));
         KeptField kept = kept();
 
-        List<String> said = kept.fetchFrom(at(fake.port()));
+        List<String> said = kept.fetchFrom(host);
 
         assertTrue(said.toString(), said.toString().contains("field-high.glb"));
         assertEquals(List.of(), keptFiles());
@@ -259,10 +198,10 @@ public class KeptFieldTest {
 
     @Test
     public void anOfferInAVersionThisSimulatorDoesNotReadIsRefusedSayingToPull() throws IOException {
-        fake = FakeHost.answering("{\"version\":2,\"models\":[]}");
+        WhereTheHostIs host = hostAs(FakeHost.answering("{\"version\":2,\"models\":[]}"));
         KeptField kept = kept();
 
-        List<String> said = kept.fetchFrom(at(fake.port()));
+        List<String> said = kept.fetchFrom(host);
 
         assertTrue(said.toString(), said.toString().contains("version 2"));
         assertTrue(said.toString(), said.toString().contains("pull"));
@@ -307,6 +246,31 @@ public class KeptFieldTest {
             System.arraycopy(head, 0, model, 0, head.length);
             System.arraycopy(arriving, 0, model, head.length, sent);
             return new FakeHost(Map.of("/field", reply(200, offer, -1), "/field/field-high.glb", model));
+        }
+
+        static FakeHost offeringWhole(Map<FieldModel, byte[]> models) throws IOException {
+            Map<String, byte[]> replies = new java.util.HashMap<>();
+            StringBuilder offered = new StringBuilder();
+            for (Map.Entry<FieldModel, byte[]> one : models.entrySet()) {
+                FieldModel model = one.getKey();
+                byte[] bytes = one.getValue();
+                offered.append(offered.length() == 0 ? "" : ",")
+                        .append("{\"resolution\":\"" + model.asked() + "\",\"file\":\"" + model.file() + "\",\"bytes\":"
+                                + bytes.length + ",\"sha256\":\"" + sha256(bytes) + "\"}");
+                byte[] head = ("HTTP/1.1 200 OK\r\nContent-Type: model/gltf-binary\r\nContent-Length: " + bytes.length
+                                + "\r\nConnection: close\r\n\r\n")
+                        .getBytes(StandardCharsets.UTF_8);
+                byte[] whole = new byte[head.length + bytes.length];
+                System.arraycopy(head, 0, whole, 0, head.length);
+                System.arraycopy(bytes, 0, whole, head.length, bytes.length);
+                replies.put("/field/" + model.file(), whole);
+            }
+            replies.put("/field", reply(200, "{\"version\":1,\"models\":[" + offered + "]}", -1));
+            return new FakeHost(replies);
+        }
+
+        static FakeHost refusing(int status, String said) throws IOException {
+            return new FakeHost(Map.of("/field", reply(status, said, -1)));
         }
 
         static FakeHost answering(String offer) throws IOException {

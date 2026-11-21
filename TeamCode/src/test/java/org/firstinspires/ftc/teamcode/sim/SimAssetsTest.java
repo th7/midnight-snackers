@@ -14,9 +14,32 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.DrawnField;
+import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 import org.junit.Test;
 
 public class SimAssetsTest {
+    /**
+     * Which field a page draws when it names none is said in one place and read in another -- a
+     * server's setting, a line of JavaScript a page imports -- so the line is this server's to
+     * write, and the copy committed beside the models is what it writes for the built-in answer.
+     * Said twice by hand, the page and the server would drift apart without either saying so.
+     */
+    @Test
+    public void theLineAPageReadsForTheDefaultIsTheServersToWrite() {
+        String low = SimAssets.defaultResolutionModule(FieldModel.LOW, List.of(new DrawnField.Committed()));
+        assertTrue(low, low.contains("export const DEFAULT_RESOLUTION = 'low';\n"));
+        assertTrue(
+                low,
+                low.endsWith("export const FIELD_SAID = {\"low\":\"The low field committed with the project: this"
+                        + " computer has kept none of the host\\u0027s.\"};\n"));
+        assertEquals(
+                "the committed " + SimAssets.DEFAULT_RESOLUTION_FILE
+                        + " is not what this server writes for high; write what this expects into it",
+                SimAssets.defaultResolutionModule(FieldModel.HIGH, List.of()),
+                SimAssets.page(SimAssets.DEFAULT_RESOLUTION_FILE));
+    }
+
     private static byte[] onTheClasspath(String name) {
         try (InputStream in = SimField.class.getResourceAsStream(name)) {
             assertNotNull(name + " is not on the classpath", in);
@@ -119,9 +142,9 @@ public class SimAssetsTest {
         // Every model above the lowest is built rather than committed, so the page names files that
         // are not here until an admin builds them. The lowest is the stand-in and must be served.
         Set<String> built = new java.util.HashSet<>();
-        for (FieldAssets.Resolution one : FieldAssets.Resolution.values()) {
-            if (one != FieldAssets.Resolution.LOW) {
-                built.add(one.file);
+        for (FieldModel one : FieldModel.values()) {
+            if (one != FieldModel.LOW) {
+                built.add(one.file());
             }
         }
         for (String name : asked) {
@@ -131,8 +154,7 @@ public class SimAssetsTest {
             assertEquals(name + " is asked for by the live view and not served", 200, SimAssets.serve(name).status);
         }
         assertTrue(
-                "the lowest model is among them, and it is the committed one",
-                asked.contains(FieldAssets.Resolution.LOW.file));
+                "the lowest model is among them, and it is the committed one", asked.contains(FieldModel.LOW.file()));
         assertTrue("and the tag artwork", asked.stream().anyMatch(name -> name.startsWith("textures/")));
     }
 

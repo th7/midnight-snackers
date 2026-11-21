@@ -1,12 +1,17 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.DrawnField;
+import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 
 public final class SimAssets {
     private static final Map<String, String> TYPES = Map.of(
@@ -18,7 +23,31 @@ public final class SimAssets {
     private static final Pattern NAME =
             Pattern.compile("[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*" + "(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)*");
 
+    /**
+     * The one line a page reads to learn which field to draw when its query string names none. It is
+     * an asset like the models it names, and every server serves the copy committed beside them.
+     */
+    public static final String DEFAULT_RESOLUTION_FILE = "field-default.js";
+
+    private static final Gson GSON = new Gson();
+
     private SimAssets() {}
+
+    /**
+     * What a page imports to learn which field it draws by default, written here rather than kept in
+     * the page's own source, so that the resolution a server serves and the one a page draws are the
+     * same sentence rather than two that have to be kept saying the same thing.
+     */
+    public static String defaultResolutionModule(FieldModel drawn, List<DrawnField> drawable) {
+        JsonObject said = new JsonObject();
+        for (DrawnField one : drawable) {
+            said.addProperty(one.model().asked(), one.said());
+        }
+        return "// Which field a page draws when its query string names no resolution, and what each field it can\n"
+                + "// draw is. The copy committed here is what a bench with nothing kept serves.\n"
+                + "export const DEFAULT_RESOLUTION = '" + drawn.asked() + "';\n"
+                + "export const FIELD_SAID = " + GSON.toJson(said) + ";\n";
+    }
 
     public static Response serveUnder(Path under, Store store, String name) {
         if (name == null || !NAME.matcher(name).matches()) {

@@ -5,12 +5,12 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-final class SecondLoopback {
+public final class SecondLoopback {
     private static final String ADDRESS = "127.0.0.2";
 
     private SecondLoopback() {}
 
-    static InetAddress address() throws IOException {
+    public static InetAddress address() throws IOException {
         InetAddress second = InetAddress.getByName(ADDRESS);
         try (Socket probe = new Socket()) {
             probe.bind(new InetSocketAddress(second, 0));

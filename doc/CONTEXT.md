@@ -1144,7 +1144,7 @@ afford it is the one who knows that — and a query string says otherwise for on
 page with `?resolution=low`, `medium` or `high`. It reaches the pages as the one
 line they import for it, `field-default.js`, which a bench serves as committed
 beside the models and the **local simulator** writes from its **kept field**,
-and the line is `FieldAssets`' to write, so what a page draws and what a server
+and the line is `SimAssets`' to write, so what a page draws and what a server
 holds cannot drift apart by being said twice. A page
 that asks for one nobody built draws the low one **and says on the page that it
 fell back** — which, on a server that has built nothing, is every page, said

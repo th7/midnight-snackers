@@ -22,17 +22,4 @@ public class EnvironmentTest {
             assertTrue(expected.getMessage(), expected.getMessage().contains("SIM_LIVE"));
         }
     }
-
-    @Test
-    public void theRelayPortIsReadFromTheEnvironmentAndABadOneIsRefusedNamingIt() {
-        assertEquals(5555, RobotRelay.port(Map.of()));
-        assertEquals(6000, RobotRelay.port(Map.of("ROBOT_RELAY_PORT", " 6000 ")));
-
-        try {
-            RobotRelay.port(Map.of("ROBOT_RELAY_PORT", "65536"));
-            fail("accepted a relay port that is not one");
-        } catch (IllegalArgumentException expected) {
-            assertEquals("ROBOT_RELAY_PORT must be a port number from 0 to 65535, not '65536'", expected.getMessage());
-        }
-    }
 }

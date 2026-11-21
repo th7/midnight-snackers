@@ -132,7 +132,7 @@ afterEvaluate {
         def unitTest = tasks.named('testDebugUnitTest').get()
         dependsOn unitTest.taskDependencies
         classpath = unitTest.classpath
-        mainClass = 'org.firstinspires.ftc.teamcode.sim.RobotGateway'
+        mainClass = 'org.firstinspires.ftc.teamcode.gateway.RobotGateway'
         workingDir = rootDir
     }
 

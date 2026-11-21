@@ -10,6 +10,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const sim = path.join(here, '..', '..', 'TeamCode', 'src', 'test', 'resources',
                              'org', 'firstinspires', 'ftc', 'teamcode', 'sim');
 
+export const gateway = path.join(sim, '..', 'gateway');
+
 export const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',

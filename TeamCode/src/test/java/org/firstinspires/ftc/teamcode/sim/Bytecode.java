@@ -57,6 +57,16 @@ public final class Bytecode {
         }
     }
 
+    /** Whether a class file names anything in a package or under it, in a reference or a signature. */
+    public static boolean mentionsAnythingUnder(Path classFile, String packagePath) {
+        try {
+            String bytes = new String(Files.readAllBytes(classFile), StandardCharsets.ISO_8859_1);
+            return bytes.contains(packagePath + "/");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     /** The top-level classes among these that name any of those references. */
     public static Set<String> thatMentionAny(List<Path> classes, List<String> references) {
         Set<String> mentioning = new TreeSet<>();

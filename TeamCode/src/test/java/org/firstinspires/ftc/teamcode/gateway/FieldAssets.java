@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.sim;
+package org.firstinspires.ftc.teamcode.gateway;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -11,7 +11,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import org.firstinspires.ftc.teamcode.simcore.DrawnField;
+import org.firstinspires.ftc.teamcode.sim.SimPlacement;
+import org.firstinspires.ftc.teamcode.sim.Store;
 import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 
 public final class FieldAssets {
@@ -20,12 +21,6 @@ public final class FieldAssets {
 
     /** The assembly as Onshape exported it, kept so a build need not fetch it again. */
     public static final String EXPORT_FILE = "export.gltf";
-
-    /**
-     * The one line a page reads to learn which field to draw when its query string names none. It is
-     * an asset like the models it names, and every server serves the copy committed beside them.
-     */
-    public static final String DEFAULT_RESOLUTION_FILE = "field-default.js";
 
     /**
      * How much of the CAD a model is, in three steps, each adding one thing to the one below it.
@@ -72,22 +67,6 @@ public final class FieldAssets {
             }
             return null;
         }
-    }
-
-    /**
-     * What a page imports to learn which field it draws by default, written here rather than kept in
-     * the page's own source, so that the resolution a server serves and the one a page draws are the
-     * same sentence rather than two that have to be kept saying the same thing.
-     */
-    public static String defaultResolutionModule(FieldModel drawn, List<DrawnField> drawable) {
-        JsonObject said = new JsonObject();
-        for (DrawnField one : drawable) {
-            said.addProperty(one.model().asked(), one.said());
-        }
-        return "// Which field a page draws when its query string names no resolution, and what each field it can\n"
-                + "// draw is. The copy committed here is what a bench with nothing kept serves.\n"
-                + "export const DEFAULT_RESOLUTION = '" + drawn.asked() + "';\n"
-                + "export const FIELD_SAID = " + GSON.toJson(said) + ";\n";
     }
 
     /**
