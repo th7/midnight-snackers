@@ -389,9 +389,15 @@ at a time: a push that arrives during a run waits, and a run still waiting
 when a newer push comes is cancelled rather than judged, so it is never red,
 and the pushes that arrived meanwhile are judged together by the next run. A
 run judges `develop`'s tip as it is when the run starts, not the commit whose
-push started it, with the same commands as a local run:
-`./gradlew spotlessCheck`, `python3 tools/run_tests.py` and
-`./gradlew :TeamCode:testDebugUnitTest`. When every step of the judging is
+push started it: a tip job names that commit, and a job on each platform checks
+out the commit it named, so the two never judge different tips. Each runs the
+same commands as a local run. **Windows** judges what a teammate's computer
+runs, the client: `./gradlew spotlessCheck`, `python3 tools/run_tests.py client`
+and `./gradlew :TeamCode:testDebugUnitTest`. **Linux** judges the client with
+the same three, and the gateway, which runs on the host alone, with
+`python3 tools/run_tests.py gateway` and `./gradlew :TeamCode:gatewayTest`. The
+judging is green only when both platforms are, and the issue a red run opens
+names the platform of each check that failed. When every step of the judging is
 green and `main` has no commit `develop` lacks, a `main` that already has
 commits of `develop` the judged commit lacks stays where it is, whatever its
 workflows, and the run is green but leaves the issue as it is, open or not,
@@ -1057,7 +1063,9 @@ than passing for want of anything to compare, a regenerating run fails because
 a run that wrote the answer down has not checked it, and an intended change is
 read and then regenerated with `--regenerate`.
 
-**What the suite costs** — What a run of the unit tests spends on the few
+**What the suite costs** — What a run of one of the two unit-test suites, the
+client's (`testDebugUnitTest`) or the gateway's (`gatewayTest`, whose tests sit
+under the `gateway` package), spends on the few
 things that are dear: a **child JVM** started, a **compile** of a project's
 sources, a session secret put through **scrypt**, a **node** process, and a
 **project copied** onto disk. Each is
@@ -1086,7 +1094,15 @@ it as surely as more, a missing budget fails rather than passing for want of
 anything to compare, and a regenerating run fails because a run that wrote the
 answer down has not checked it. A ledger is one JVM's, so a run of part of the
 suite, or of the suite split across JVMs, says it **could not judge** rather
-than passing. Every kind is pinned. Files: `Cost`; `suite-budget.json`.
+than passing. Every kind is pinned, in a budget for each suite: the client's
+`sim/suite-budget.json`, judged on Linux and on Windows against the same file,
+and the gateway's `gateway/suite-budget.json`, judged on Linux. A run prints how
+many tests it ran on which platform and how many of them were **passed over**: a
+client test that cannot mean anything on one platform skips itself there only
+if `sim/passed-over.json` names it, with why, under that platform, and the judge
+fails on a skip it does not name and on a named test that ran.
+`ThePassedOverListNamesTestsThatExistTest` holds every name there to a test that
+exists. Files: `Cost`; `suite-budget.json`; `passed-over.json`.
 
 **A file of the repository** — A **suite budget**, a **golden trace**: written
 where somebody reads it in a diff, and holding nothing secret. None of them goes
