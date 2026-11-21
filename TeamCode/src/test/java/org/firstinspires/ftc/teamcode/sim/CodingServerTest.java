@@ -620,6 +620,8 @@ public class CodingServerTest {
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", onReginald).status);
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), onNugget).status);
         assertEquals(2, benches.size());
+        // A run stopped before its bench starts the child proves nothing, and starts one child fewer.
+        awaitSimStatus(onNugget, RUNNING);
 
         assertEquals(200, letOnto("ada", TeamRobot.NUGGET, false).status);
 
@@ -4426,6 +4428,8 @@ public class CodingServerTest {
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done"), ada).status);
         assertEquals(200, user("POST", "/sim/run?opmode=" + encode("Never done") + "&mode=game", bob).status);
         assertEquals(2, benches.size());
+        // A run stopped before its bench starts the child proves nothing, and starts one child fewer.
+        awaitSimStatus(ada, RUNNING);
 
         assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
 
