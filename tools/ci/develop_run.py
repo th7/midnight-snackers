@@ -94,6 +94,11 @@ class Commit(Validated):
         return None
 
 
+class Platform(Enum):
+    LINUX = 'Linux'
+    WINDOWS = 'Windows'
+
+
 @dataclass(frozen=True)
 class Step:
     step: str
@@ -107,59 +112,90 @@ class Check:
     command: str
 
 
+@dataclass(frozen=True)
+class Job:
+    job: str
+    platform: Platform
+    does: str
+    steps: tuple
+
+
 CHECKOUT = Step('checkout', "Check out develop's tip as it is now, or the pull request")
 NAMING = Step('judged', 'Name the judged commit')
+CHECKOUT_JUDGED = Step('checkout', 'Check out the commit the tip job named, keeping no credential')
 JAVA = Step('java', 'Java 21')
 GRADLE = Step('gradle', 'Gradle, its cache written by runs for develop and only read by pull requests')
 NODE = Step('node', 'Node 22')
 BROWSER = Step('browser', 'Browser for the page tests, with the shared libraries Chromium needs')
+BROWSER_ALONE = Step('browser', 'Browser for the page tests')
 FORMATTING = Check('formatting', 'Java formatting (same command as local; fix with ./gradlew spotlessApply)',
                    './gradlew spotlessCheck')
-TOOL_TESTS = Check('tool-tests', 'Tool tests (same command as local)', 'python3 tools/run_tests.py')
-UNIT_TESTS = Check('unit-tests', 'Unit tests (same command as local)', './gradlew :TeamCode:testDebugUnitTest')
+CLIENT_TOOLS = Check('client-tools', "The client's tool tests (same command as local)",
+                     'python3 tools/run_tests.py client')
+CLIENT_TESTS = Check('client-tests', "The client's unit tests (same command as local)",
+                     './gradlew :TeamCode:testDebugUnitTest')
+GATEWAY_TOOLS = Check('gateway-tools', "The gateway's tool tests (same command as local)",
+                      'python3 tools/run_tests.py gateway')
+GATEWAY_TESTS = Check('gateway-tests', "The gateway's unit tests (same command as local)",
+                      './gradlew :TeamCode:gatewayTest')
 RESULTS = Step('results', 'Test report and simulation replays')
-CHECKS = (FORMATTING, TOOL_TESTS, UNIT_TESTS)
-STEPS = (CHECKOUT, NAMING, JAVA, GRADLE, NODE, BROWSER, FORMATTING, TOOL_TESTS, UNIT_TESTS, RESULTS)
+TIP = Job('tip', Platform.LINUX, 'names the commit to judge', (CHECKOUT, NAMING))
+LINUX = Job('linux', Platform.LINUX, 'judges it', (CHECKOUT_JUDGED, JAVA, GRADLE, NODE, BROWSER, FORMATTING,
+                                                   CLIENT_TOOLS, CLIENT_TESTS, GATEWAY_TOOLS, GATEWAY_TESTS, RESULTS))
+WINDOWS = Job('windows', Platform.WINDOWS, 'judges it', (CHECKOUT_JUDGED, JAVA, GRADLE, NODE, BROWSER_ALONE,
+                                                         FORMATTING, CLIENT_TOOLS, CLIENT_TESTS, RESULTS))
+JOBS = (TIP, LINUX, WINDOWS)
+
+
+def checks_of(job):
+    return tuple(step for step in job.steps if isinstance(step, Check))
 
 
 @dataclass(frozen=True)
-class StepsEnded(Validated):
+class JobEnded(Validated):
+    job: Job
+    ended: Outcome
     outcomes: tuple
 
     @staticmethod
-    def broken(outcomes):
-        if not all_of(Outcome, outcomes) or len(outcomes) != len(STEPS):
-            return 'a judgement hands one outcome for each of the %d steps of the judging job' % len(STEPS)
+    def broken(job, ended, outcomes):
+        if job not in JOBS:
+            return 'a judgement names each job that judges by one the core knows'
+        if not isinstance(ended, Outcome) or not all_of(Outcome, outcomes) or len(outcomes) != len(job.steps):
+            return 'a judgement hands how the %s job ended and one outcome for each of its %d steps' % (
+                job.job, len(job.steps))
         return None
 
     def each(self):
-        return tuple(zip(STEPS, self.outcomes))
+        return tuple(zip(self.job.steps, self.outcomes))
+
+
+def jobs_in_order(jobs):
+    return isinstance(jobs, tuple) and tuple(each.job for each in jobs if isinstance(each, JobEnded)) == JOBS
 
 
 @dataclass(frozen=True)
 class Judged(Validated):
     commit: Commit
-    ended: Outcome
-    steps: StepsEnded
+    jobs: tuple
 
     @staticmethod
-    def broken(commit, ended, steps):
+    def broken(commit, jobs):
         if not isinstance(commit, Commit):
             return 'a judgement names the commit it judged'
-        if not isinstance(ended, Outcome) or not isinstance(steps, StepsEnded):
-            return 'a judgement says how its job ended and how each of its steps ended'
+        if not jobs_in_order(jobs):
+            return 'a judgement says how each job that judges ended, in the order the core names them'
         return None
 
 
 @dataclass(frozen=True)
 class NeverJudged(Validated):
-    ended: Outcome
-    steps: StepsEnded
+    jobs: tuple
 
     @staticmethod
-    def broken(ended, steps):
-        if not isinstance(ended, Outcome) or not isinstance(steps, StepsEnded):
-            return 'a judgement says how its job ended and how each of its steps ended'
+    def broken(jobs):
+        if not jobs_in_order(jobs):
+            return 'a judgement says how each job that judges ended, in the order the core names them'
         return None
 
 
@@ -250,12 +286,14 @@ class NeverLooked:
 
 @dataclass(frozen=True)
 class StepDidNotPass:
+    job: Job
     step: object
     outcome: Outcome
 
 
 @dataclass(frozen=True)
 class JudgingEnded:
+    job: Job
     ended: Outcome
 
 
@@ -445,24 +483,26 @@ def first_rejected(*read):
     return next((each for each in read if isinstance(each, Rejected)), None)
 
 
-def steps_ended(step_texts):
-    if not isinstance(step_texts, tuple) or len(step_texts) != len(STEPS):
-        return Rejected('a judgement hands one outcome for each of the %d steps of the judging job' % len(STEPS))
-    read = tuple(outcome(text) for text in step_texts)
+def job_ended(job, ended_text, step_texts):
+    if not isinstance(step_texts, tuple) or len(step_texts) != len(job.steps):
+        return Rejected('a judgement hands one outcome for each of the %d steps of the %s job' % (
+            len(job.steps), job.job))
+    read = (outcome(ended_text),) + tuple(outcome(text) for text in step_texts)
     rejected = first_rejected(*read)
     if rejected is not None:
         return rejected
-    return StepsEnded(read)
+    return JobEnded(job, read[0], read[1:])
 
 
-def judgement(ended_text, judged_text, subject_base64, step_texts):
-    ended = outcome(ended_text)
-    steps = steps_ended(step_texts)
-    rejected = first_rejected(ended, steps)
+def judgement(judged_text, subject_base64, job_texts):
+    if not isinstance(job_texts, tuple) or len(job_texts) != len(JOBS):
+        return Rejected('a judgement hands how each of the %d jobs that judge ended' % len(JOBS))
+    jobs = tuple(job_ended(job, *texts) for job, texts in zip(JOBS, job_texts))
+    rejected = first_rejected(*jobs)
     if rejected is not None:
         return rejected
     if judged_text == '':
-        return NeverJudged(ended, steps)
+        return NeverJudged(jobs)
     hashed = commit_hash(judged_text)
     subject = decoded(subject_base64)
     rejected = first_rejected(hashed, subject)
@@ -472,7 +512,7 @@ def judgement(ended_text, judged_text, subject_base64, step_texts):
     named = Commit(hashed, shown_subject(line))
     if isinstance(named, Rejected):
         return named
-    return Judged(named, ended, steps)
+    return Judged(named, jobs)
 
 
 def listed_commits(lines_base64):
@@ -525,19 +565,24 @@ def promoting(looking_text, found_text, main_tip_text, develop_tip_text, lacking
     return Looked(found, main_tip, develop_tip, lacking, ahead, found_workflows, pushed, shown_said(said), ended)
 
 
-def step_findings(steps):
-    return tuple(StepDidNotPass(step, did) for step, did in steps.each()
+def step_findings(ended):
+    return tuple(StepDidNotPass(ended.job, step, did) for step, did in ended.each()
                  if (isinstance(step, Check) and did is not Outcome.SUCCESS)
                  or did in (Outcome.FAILURE, Outcome.CANCELLED))
 
 
-def judging_findings(judgement_read):
-    unpassed = step_findings(judgement_read.steps)
-    if isinstance(judgement_read, NeverJudged):
-        return (NothingJudged(judgement_read.ended),) + unpassed
+def job_findings(ended):
+    unpassed = step_findings(ended)
     any_failed = any(finding.outcome is Outcome.FAILURE for finding in unpassed)
-    ended_badly = judgement_read.ended is not Outcome.SUCCESS and not any_failed
-    return unpassed + ((JudgingEnded(judgement_read.ended),) if ended_badly else ())
+    ended_badly = ended.ended is not Outcome.SUCCESS and not any_failed
+    return unpassed + ((JudgingEnded(ended.job, ended.ended),) if ended_badly else ())
+
+
+def judging_findings(judgement_read):
+    if isinstance(judgement_read, NeverJudged):
+        named = judgement_read.jobs[0]
+        return (NothingJudged(named.ended),) + step_findings(named)
+    return tuple(finding for ended in judgement_read.jobs for finding in job_findings(ended))
 
 
 def promotion(judgement_read, lacking_commits, ahead_commits, found_workflows):
@@ -590,18 +635,20 @@ def fenced(text):
 
 def described(found):
     if isinstance(found, StepDidNotPass) and found.outcome is Outcome.FAILURE and isinstance(found.step, Check):
-        return '**%s** failed: %s' % (found.step.name, code_span(found.step.command))
+        return '**%s** failed on %s: %s' % (found.step.name, found.job.platform.value, code_span(found.step.command))
     if isinstance(found, StepDidNotPass) and found.outcome is Outcome.FAILURE:
-        return '**%s** failed.' % found.step.name
+        return '**%s** failed on %s.' % (found.step.name, found.job.platform.value)
     if isinstance(found, StepDidNotPass) and found.outcome is Outcome.SKIPPED:
-        return '**%s** did not run, since a step before it did not pass.' % found.step.name
+        return '**%s** did not run on %s, since a step before it did not pass.' % (
+            found.step.name, found.job.platform.value)
     if isinstance(found, StepDidNotPass):
-        return '**%s** did not run to its end: its outcome is `%s`.' % (
-            found.step.name, found.outcome.value or 'unreported')
+        return '**%s** did not run to its end on %s: its outcome is `%s`.' % (
+            found.step.name, found.job.platform.value, found.outcome.value or 'unreported')
     if isinstance(found, JudgingEnded):
-        return 'The job that judged it ended `%s` though no check failed.' % found.ended.value
+        return 'The job that %s on %s ended `%s` though no check failed.' % (
+            found.job.does, found.job.platform.value, found.ended.value)
     if isinstance(found, NothingJudged):
-        return 'No commit was judged: the job that judges develop ended `%s` before it named one.' % (
+        return 'No commit was judged: the job that names the commit to judge ended `%s` before it named one.' % (
             found.ended.value or 'unreported')
     if isinstance(found, MainHasWhatDevelopLacks):
         count = len(found.commits)

@@ -4,13 +4,22 @@ import sys
 import develop_issue as issues
 import develop_run as run
 
-def outcome_of(step):
-    return 'STEP_' + step.step.upper().replace('-', '_')
+def named(text):
+    return text.upper().replace('-', '_')
 
 
-JUDGED = ('JUDGING_ENDED', 'JUDGED', 'SUBJECT')
-STEP_OUTCOMES = tuple(outcome_of(step) for step in run.STEPS)
-JUDGEMENT = JUDGED + STEP_OUTCOMES
+def ended_of(job):
+    return named(job.job) + '_ENDED'
+
+
+def outcome_of(job, step):
+    return 'STEP_%s_%s' % (named(job.job), named(step.step))
+
+
+JUDGED = ('JUDGED', 'SUBJECT')
+JOB_OUTCOMES = tuple(name for job in run.JOBS for name in (ended_of(job),) + tuple(outcome_of(job, step)
+                                                                                 for step in job.steps))
+JUDGEMENT = JUDGED + JOB_OUTCOMES
 WORKFLOWS = ('WORKFLOWS_CHANGED', 'WORKFLOWS_DIFFERING')
 LOOKING = ('LOOKING_ENDED', 'MAIN_FOUND', 'MAIN_TIP', 'DEVELOP_TIP', 'LACKING', 'MAIN_AHEAD') + WORKFLOWS
 PROMOTING = ('PROMOTING_ENDED', 'PUSHED', 'GIT_SAID')
@@ -18,7 +27,12 @@ RUN = ('GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID')
 
 
 def judgement_from(inputs):
-    return run.judgement(*inputs[:len(JUDGED)], inputs[len(JUDGED):len(JUDGEMENT)])
+    handed = inputs[len(JUDGED):len(JUDGEMENT)]
+    job_texts = []
+    for job in run.JOBS:
+        job_texts.append((handed[0], tuple(handed[1:1 + len(job.steps)])))
+        handed = handed[1 + len(job.steps):]
+    return run.judgement(*inputs[:len(JUDGED)], tuple(job_texts))
 
 
 def handed(environ, names):

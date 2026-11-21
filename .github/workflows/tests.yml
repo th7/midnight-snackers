@@ -16,9 +16,9 @@ defaults:
     shell: bash
 
 jobs:
-  unit-tests:
+  tip:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -26,14 +26,6 @@ jobs:
       subject: ${{ steps.judged.outputs.subject }}
       checkout: ${{ steps.checkout.outcome }}
       judged: ${{ steps.judged.outcome }}
-      java: ${{ steps.java.outcome }}
-      gradle: ${{ steps.gradle.outcome }}
-      node: ${{ steps.node.outcome }}
-      browser: ${{ steps.browser.outcome }}
-      formatting: ${{ steps.formatting.outcome }}
-      tool-tests: ${{ steps.tool-tests.outcome }}
-      unit-tests: ${{ steps.unit-tests.outcome }}
-      results: ${{ steps.results.outcome }}
     steps:
       - name: Check out develop's tip as it is now, or the pull request
         id: checkout
@@ -48,6 +40,32 @@ jobs:
           subject=$(git log -1 --format=%s HEAD | base64 -w0)
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "subject=$subject" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: tip
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      checkout: ${{ steps.checkout.outcome }}
+      java: ${{ steps.java.outcome }}
+      gradle: ${{ steps.gradle.outcome }}
+      node: ${{ steps.node.outcome }}
+      browser: ${{ steps.browser.outcome }}
+      formatting: ${{ steps.formatting.outcome }}
+      client-tools: ${{ steps.client-tools.outcome }}
+      client-tests: ${{ steps.client-tests.outcome }}
+      gateway-tools: ${{ steps.gateway-tools.outcome }}
+      gateway-tests: ${{ steps.gateway-tests.outcome }}
+      results: ${{ steps.results.outcome }}
+    steps:
+      - name: Check out the commit the tip job named, keeping no credential
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tip.outputs.commit }}
+          persist-credentials: false
       - name: Java 21
         id: java
         uses: actions/setup-java@v4
@@ -72,25 +90,96 @@ jobs:
       - name: Java formatting (same command as local; fix with ./gradlew spotlessApply)
         id: formatting
         run: ./gradlew spotlessCheck
-      - name: Tool tests (same command as local)
-        id: tool-tests
-        run: python3 tools/run_tests.py
-      - name: Unit tests (same command as local)
-        id: unit-tests
+      - name: The client's tool tests (same command as local)
+        id: client-tools
+        run: python3 tools/run_tests.py client
+      - name: The client's unit tests (same command as local)
+        id: client-tests
+        run: ./gradlew :TeamCode:testDebugUnitTest
+      - name: The gateway's tool tests (same command as local)
+        id: gateway-tools
+        run: python3 tools/run_tests.py gateway
+      - name: The gateway's unit tests (same command as local)
+        id: gateway-tests
+        run: ./gradlew :TeamCode:gatewayTest
+      - name: Test report and simulation replays
+        id: results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux
+          path: |
+            TeamCode/build/test-results/testDebugUnitTest/*.xml
+            TeamCode/build/test-results/gatewayTest/*.xml
+            TeamCode/build/sim/*.html
+            tools/browser/field-as-drawn.png
+
+  windows:
+    needs: tip
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      checkout: ${{ steps.checkout.outcome }}
+      java: ${{ steps.java.outcome }}
+      gradle: ${{ steps.gradle.outcome }}
+      node: ${{ steps.node.outcome }}
+      browser: ${{ steps.browser.outcome }}
+      formatting: ${{ steps.formatting.outcome }}
+      client-tools: ${{ steps.client-tools.outcome }}
+      client-tests: ${{ steps.client-tests.outcome }}
+      results: ${{ steps.results.outcome }}
+    steps:
+      - name: Check out the commit the tip job named, keeping no credential
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tip.outputs.commit }}
+          persist-credentials: false
+      - name: Java 21
+        id: java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle, its cache written by runs for develop and only read by pull requests
+        id: gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name != 'push' }}
+      - name: Node 22
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser for the page tests
+        id: browser
+        run: |
+          npm ci --prefix tools/browser
+          npx --prefix tools/browser playwright install chromium
+      - name: Java formatting (same command as local; fix with ./gradlew spotlessApply)
+        id: formatting
+        run: ./gradlew spotlessCheck
+      - name: The client's tool tests (same command as local)
+        id: client-tools
+        run: python3 tools/run_tests.py client
+      - name: The client's unit tests (same command as local)
+        id: client-tests
         run: ./gradlew :TeamCode:testDebugUnitTest
       - name: Test report and simulation replays
         id: results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-windows
           path: |
             TeamCode/build/test-results/testDebugUnitTest/*.xml
             TeamCode/build/sim/*.html
             tools/browser/field-as-drawn.png
 
   look:
-    needs: unit-tests
+    needs: [tip, linux, windows]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -107,7 +196,7 @@ jobs:
       - name: Check out the judged commit with every branch's history, keeping no credential
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
+          ref: ${{ needs.tip.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
           persist-credentials: false
       - name: Find where main stands, what main has that develop or the judged commit lacks, and the workflow files the commits since main change or main and the judged commit differ in
@@ -126,19 +215,33 @@ jobs:
       - name: Decide whether main moves
         id: decide
         env:
-          JUDGING_ENDED: ${{ needs.unit-tests.result }}
-          JUDGED: ${{ needs.unit-tests.outputs.commit }}
-          SUBJECT: ${{ needs.unit-tests.outputs.subject }}
-          STEP_CHECKOUT: ${{ needs.unit-tests.outputs.checkout }}
-          STEP_JUDGED: ${{ needs.unit-tests.outputs.judged }}
-          STEP_JAVA: ${{ needs.unit-tests.outputs.java }}
-          STEP_GRADLE: ${{ needs.unit-tests.outputs.gradle }}
-          STEP_NODE: ${{ needs.unit-tests.outputs.node }}
-          STEP_BROWSER: ${{ needs.unit-tests.outputs.browser }}
-          STEP_FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
-          STEP_TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
-          STEP_UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
-          STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
+          TIP_ENDED: ${{ needs.tip.result }}
+          JUDGED: ${{ needs.tip.outputs.commit }}
+          SUBJECT: ${{ needs.tip.outputs.subject }}
+          STEP_TIP_CHECKOUT: ${{ needs.tip.outputs.checkout }}
+          STEP_TIP_JUDGED: ${{ needs.tip.outputs.judged }}
+          LINUX_ENDED: ${{ needs.linux.result }}
+          STEP_LINUX_CHECKOUT: ${{ needs.linux.outputs.checkout }}
+          STEP_LINUX_JAVA: ${{ needs.linux.outputs.java }}
+          STEP_LINUX_GRADLE: ${{ needs.linux.outputs.gradle }}
+          STEP_LINUX_NODE: ${{ needs.linux.outputs.node }}
+          STEP_LINUX_BROWSER: ${{ needs.linux.outputs.browser }}
+          STEP_LINUX_FORMATTING: ${{ needs.linux.outputs.formatting }}
+          STEP_LINUX_CLIENT_TOOLS: ${{ needs.linux.outputs.client-tools }}
+          STEP_LINUX_CLIENT_TESTS: ${{ needs.linux.outputs.client-tests }}
+          STEP_LINUX_GATEWAY_TOOLS: ${{ needs.linux.outputs.gateway-tools }}
+          STEP_LINUX_GATEWAY_TESTS: ${{ needs.linux.outputs.gateway-tests }}
+          STEP_LINUX_RESULTS: ${{ needs.linux.outputs.results }}
+          WINDOWS_ENDED: ${{ needs.windows.result }}
+          STEP_WINDOWS_CHECKOUT: ${{ needs.windows.outputs.checkout }}
+          STEP_WINDOWS_JAVA: ${{ needs.windows.outputs.java }}
+          STEP_WINDOWS_GRADLE: ${{ needs.windows.outputs.gradle }}
+          STEP_WINDOWS_NODE: ${{ needs.windows.outputs.node }}
+          STEP_WINDOWS_BROWSER: ${{ needs.windows.outputs.browser }}
+          STEP_WINDOWS_FORMATTING: ${{ needs.windows.outputs.formatting }}
+          STEP_WINDOWS_CLIENT_TOOLS: ${{ needs.windows.outputs.client-tools }}
+          STEP_WINDOWS_CLIENT_TESTS: ${{ needs.windows.outputs.client-tests }}
+          STEP_WINDOWS_RESULTS: ${{ needs.windows.outputs.results }}
           LACKING: ${{ steps.main.outputs.lacking }}
           MAIN_AHEAD: ${{ steps.main.outputs.ahead }}
           WORKFLOWS_CHANGED: ${{ steps.main.outputs.changed }}
@@ -149,7 +252,7 @@ jobs:
         run: exit 1
 
   promote:
-    needs: [unit-tests, look]
+    needs: [tip, linux, windows, look]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -162,7 +265,7 @@ jobs:
       - name: Check out the judged commit with all of history and the built-in token, running none of its code
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
+          ref: ${{ needs.tip.outputs.commit || 'refs/heads/develop' }}
           fetch-depth: 0
       - name: Find where main stands now and whether develop holds it, as this job's checkout fetched them
         id: main
@@ -176,9 +279,9 @@ jobs:
           echo "along=$along" >> "$GITHUB_OUTPUT"
       - name: Move main to the judged commit, never by force, only from where the job that looks found it
         id: push
-        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.look.outputs.decision == 'move' && steps.main.outputs.tip == needs.look.outputs.main-tip
+        if: needs.linux.result == 'success' && needs.windows.result == 'success' && needs.look.result == 'success' && needs.look.outputs.decision == 'move' && steps.main.outputs.tip == needs.look.outputs.main-tip
         env:
-          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          JUDGED: ${{ needs.tip.outputs.commit }}
         run: |
           pushed=0
           git push origin "$JUDGED:refs/heads/main" > "$RUNNER_TEMP/git-said" 2>&1 || pushed=$?
@@ -187,14 +290,14 @@ jobs:
           echo "said=$said" >> "$GITHUB_OUTPUT"
           exit "$pushed"
       - name: Push nothing once main has moved along develop since the job that looks found it, saying so
-        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip && steps.main.outputs.along == 'true'
+        if: needs.linux.result == 'success' && needs.windows.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip && steps.main.outputs.along == 'true'
         env:
           FOUND: ${{ needs.look.outputs.main-tip }}
           NOW: ${{ steps.main.outputs.tip }}
         run: |
           echo "main moved along develop since the job that looks found it at $FOUND: its tip is now $NOW, which develop holds, so this run pushes nothing, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
       - name: Fail once main has moved since the job that looks found it to a tip this job could not find in develop, pushing nothing and saying so
-        if: needs.unit-tests.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip && steps.main.outputs.along != 'true'
+        if: needs.linux.result == 'success' && needs.windows.result == 'success' && needs.look.result == 'success' && steps.main.outputs.tip != needs.look.outputs.main-tip && steps.main.outputs.along != 'true'
         env:
           FOUND: ${{ needs.look.outputs.main-tip }}
           NOW: ${{ steps.main.outputs.tip }}
@@ -202,11 +305,11 @@ jobs:
           echo "main moved since the job that looks found it at $FOUND: its tip is now $NOW, which this job could not find in develop as its checkout fetched it, so this run pushes nothing and is red." >&2
           exit 1
       - name: Hold main where it was
-        if: needs.unit-tests.result != 'success' || needs.look.result != 'success'
+        if: needs.linux.result != 'success' || needs.windows.result != 'success' || needs.look.result != 'success'
         run: exit 1
 
   say:
-    needs: [unit-tests, look, promote]
+    needs: [tip, linux, windows, look, promote]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -248,24 +351,38 @@ jobs:
       - name: Check out the judged commit, keeping no credential
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.unit-tests.outputs.commit || 'refs/heads/develop' }}
+          ref: ${{ needs.tip.outputs.commit || 'refs/heads/develop' }}
           persist-credentials: false
       - name: Say what the run found
         id: say
         env:
-          JUDGING_ENDED: ${{ needs.unit-tests.result }}
-          JUDGED: ${{ needs.unit-tests.outputs.commit }}
-          SUBJECT: ${{ needs.unit-tests.outputs.subject }}
-          STEP_CHECKOUT: ${{ needs.unit-tests.outputs.checkout }}
-          STEP_JUDGED: ${{ needs.unit-tests.outputs.judged }}
-          STEP_JAVA: ${{ needs.unit-tests.outputs.java }}
-          STEP_GRADLE: ${{ needs.unit-tests.outputs.gradle }}
-          STEP_NODE: ${{ needs.unit-tests.outputs.node }}
-          STEP_BROWSER: ${{ needs.unit-tests.outputs.browser }}
-          STEP_FORMATTING: ${{ needs.unit-tests.outputs.formatting }}
-          STEP_TOOL_TESTS: ${{ needs.unit-tests.outputs.tool-tests }}
-          STEP_UNIT_TESTS: ${{ needs.unit-tests.outputs.unit-tests }}
-          STEP_RESULTS: ${{ needs.unit-tests.outputs.results }}
+          TIP_ENDED: ${{ needs.tip.result }}
+          JUDGED: ${{ needs.tip.outputs.commit }}
+          SUBJECT: ${{ needs.tip.outputs.subject }}
+          STEP_TIP_CHECKOUT: ${{ needs.tip.outputs.checkout }}
+          STEP_TIP_JUDGED: ${{ needs.tip.outputs.judged }}
+          LINUX_ENDED: ${{ needs.linux.result }}
+          STEP_LINUX_CHECKOUT: ${{ needs.linux.outputs.checkout }}
+          STEP_LINUX_JAVA: ${{ needs.linux.outputs.java }}
+          STEP_LINUX_GRADLE: ${{ needs.linux.outputs.gradle }}
+          STEP_LINUX_NODE: ${{ needs.linux.outputs.node }}
+          STEP_LINUX_BROWSER: ${{ needs.linux.outputs.browser }}
+          STEP_LINUX_FORMATTING: ${{ needs.linux.outputs.formatting }}
+          STEP_LINUX_CLIENT_TOOLS: ${{ needs.linux.outputs.client-tools }}
+          STEP_LINUX_CLIENT_TESTS: ${{ needs.linux.outputs.client-tests }}
+          STEP_LINUX_GATEWAY_TOOLS: ${{ needs.linux.outputs.gateway-tools }}
+          STEP_LINUX_GATEWAY_TESTS: ${{ needs.linux.outputs.gateway-tests }}
+          STEP_LINUX_RESULTS: ${{ needs.linux.outputs.results }}
+          WINDOWS_ENDED: ${{ needs.windows.result }}
+          STEP_WINDOWS_CHECKOUT: ${{ needs.windows.outputs.checkout }}
+          STEP_WINDOWS_JAVA: ${{ needs.windows.outputs.java }}
+          STEP_WINDOWS_GRADLE: ${{ needs.windows.outputs.gradle }}
+          STEP_WINDOWS_NODE: ${{ needs.windows.outputs.node }}
+          STEP_WINDOWS_BROWSER: ${{ needs.windows.outputs.browser }}
+          STEP_WINDOWS_FORMATTING: ${{ needs.windows.outputs.formatting }}
+          STEP_WINDOWS_CLIENT_TOOLS: ${{ needs.windows.outputs.client-tools }}
+          STEP_WINDOWS_CLIENT_TESTS: ${{ needs.windows.outputs.client-tests }}
+          STEP_WINDOWS_RESULTS: ${{ needs.windows.outputs.results }}
           LOOKING_ENDED: ${{ needs.look.result }}
           MAIN_FOUND: ${{ needs.look.outputs.main-tip }}
           MAIN_TIP: ${{ steps.main.outputs.tip }}
@@ -280,7 +397,7 @@ jobs:
         run: python3 tools/ci/develop_run_cli.py report "$RUNNER_TEMP/open-issues.json" >> "$GITHUB_OUTPUT"
 
   report:
-    needs: [unit-tests, look, promote, say]
+    needs: [tip, linux, windows, look, promote, say]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -354,7 +471,7 @@ jobs:
           gh issue comment --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue-body.md" -- "$ISSUE"
       - name: Close the issue, saying main now stands at the judged commit, only when every job before passed and that commit is still both develop's tip and main's
         id: close
-        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.develop.outputs.tip == needs.unit-tests.outputs.commit && steps.main.outputs.tip == needs.unit-tests.outputs.commit
+        if: needs.say.outputs.action == 'close' && needs.linux.result == 'success' && needs.windows.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.develop.outputs.tip == needs.tip.outputs.commit && steps.main.outputs.tip == needs.tip.outputs.commit
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUES: ${{ needs.say.outputs.issues }}
@@ -367,11 +484,11 @@ jobs:
           done
       - name: Say on the issue where develop's tip and main's now stand, when every job before passed, the core said close and only main's is still the judged commit
         id: behind
-        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.main.outputs.tip == needs.unit-tests.outputs.commit && steps.develop.outputs.tip != needs.unit-tests.outputs.commit
+        if: needs.say.outputs.action == 'close' && needs.linux.result == 'success' && needs.windows.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.main.outputs.tip == needs.tip.outputs.commit && steps.develop.outputs.tip != needs.tip.outputs.commit
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUES: ${{ needs.say.outputs.issues }}
-          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          JUDGED: ${{ needs.tip.outputs.commit }}
           DEVELOP_TIP: ${{ steps.develop.outputs.tip }}
           MAIN_TIP: ${{ steps.main.outputs.tip }}
         run: |
@@ -382,14 +499,14 @@ jobs:
           done
       - name: Write nothing to the issue once main has moved since this run looked at it, saying so, when every job before passed, the core said close and main's tip is not the judged commit
         id: moved
-        if: needs.say.outputs.action == 'close' && needs.unit-tests.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.main.outputs.tip != needs.unit-tests.outputs.commit
+        if: needs.say.outputs.action == 'close' && needs.linux.result == 'success' && needs.windows.result == 'success' && needs.look.result == 'success' && needs.promote.result == 'success' && needs.say.result == 'success' && steps.main.outputs.tip != needs.tip.outputs.commit
         env:
-          JUDGED: ${{ needs.unit-tests.outputs.commit }}
+          JUDGED: ${{ needs.tip.outputs.commit }}
           MAIN_TIP: ${{ steps.main.outputs.tip }}
         run: |
           echo "main moved since this run looked at it: its tip is now $MAIN_TIP, not the judged commit $JUDGED, so this run writes nothing to the issue, and a run that looks at main again, for a new push to develop or re-running all of this run's jobs, speaks for develop."
       - name: Open or comment on the issue saying only that the run is red, when nothing else said so
-        if: ${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && (failure() || needs.unit-tests.result != 'success' || needs.look.result != 'success' || needs.promote.result != 'success' || needs.say.result != 'success') }}
+        if: ${{ !cancelled() && steps.open.outcome != 'success' && steps.comment.outcome != 'success' && (failure() || needs.linux.result != 'success' || needs.windows.result != 'success' || needs.look.result != 'success' || needs.promote.result != 'success' || needs.say.result != 'success') }}
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: 'IMPORTANT: develop CI Failures'

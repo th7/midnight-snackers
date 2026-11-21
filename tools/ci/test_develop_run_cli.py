@@ -19,9 +19,9 @@ def b64(text):
 
 
 def gathered(**changed):
-    handed = {'JUDGING_ENDED': 'success', 'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': '',
+    handed = {'JUDGED': JUDGED, 'SUBJECT': b64('A wheel throws a ball\n'), 'LACKING': '',
               'MAIN_AHEAD': '', 'WORKFLOWS_CHANGED': '', 'WORKFLOWS_DIFFERING': ''}
-    handed.update({cli.outcome_of(step): 'success' for step in run.STEPS})
+    handed.update({name: 'success' for name in cli.JOB_OUTCOMES})
     handed.update(changed)
     return handed
 
@@ -92,22 +92,37 @@ class DecidingWhetherMainMoves(unittest.TestCase):
             self.assertEqual('', done.stdout)
             self.assertIn(name, done.stderr)
 
-    def test_the_outcome_of_each_step_of_the_judging_job_is_handed_under_a_name_of_its_own(self):
-        self.assertEqual(['STEP_CHECKOUT', 'STEP_JUDGED', 'STEP_JAVA', 'STEP_GRADLE', 'STEP_NODE', 'STEP_BROWSER',
-                          'STEP_FORMATTING', 'STEP_TOOL_TESTS', 'STEP_UNIT_TESTS', 'STEP_RESULTS'],
-                         [cli.outcome_of(step) for step in run.STEPS])
+    def test_how_each_job_ended_and_the_outcome_of_each_of_its_steps_is_handed_under_a_name_of_its_own(self):
+        self.assertEqual(['TIP_ENDED', 'STEP_TIP_CHECKOUT', 'STEP_TIP_JUDGED',
+                          'LINUX_ENDED', 'STEP_LINUX_CHECKOUT', 'STEP_LINUX_JAVA', 'STEP_LINUX_GRADLE', 'STEP_LINUX_NODE',
+                          'STEP_LINUX_BROWSER', 'STEP_LINUX_FORMATTING', 'STEP_LINUX_CLIENT_TOOLS',
+                          'STEP_LINUX_CLIENT_TESTS', 'STEP_LINUX_GATEWAY_TOOLS', 'STEP_LINUX_GATEWAY_TESTS',
+                          'STEP_LINUX_RESULTS',
+                          'WINDOWS_ENDED', 'STEP_WINDOWS_CHECKOUT', 'STEP_WINDOWS_JAVA', 'STEP_WINDOWS_GRADLE',
+                          'STEP_WINDOWS_NODE', 'STEP_WINDOWS_BROWSER', 'STEP_WINDOWS_FORMATTING',
+                          'STEP_WINDOWS_CLIENT_TOOLS', 'STEP_WINDOWS_CLIENT_TESTS', 'STEP_WINDOWS_RESULTS'],
+                         list(cli.JOB_OUTCOMES))
 
     def test_a_step_outcome_the_workflow_did_not_hand_fails_naming_it_and_hands_nothing(self):
-        environ = gathered()
-        del environ['STEP_BROWSER']
-        done = called('promotion', environ)
+        for name in ('STEP_LINUX_BROWSER', 'WINDOWS_ENDED', 'STEP_WINDOWS_CLIENT_TESTS'):
+            environ = gathered()
+            del environ[name]
+            done = called('promotion', environ)
 
-        self.assertEqual(2, done.returncode)
-        self.assertEqual('', done.stdout)
-        self.assertIn('STEP_BROWSER', done.stderr)
+            self.assertEqual(2, done.returncode)
+            self.assertEqual('', done.stdout)
+            self.assertIn(name, done.stderr)
+
+    def test_a_check_that_failed_on_windows_alone_hands_the_workflow_a_hold_naming_windows_in_the_log(self):
+        done = called('promotion', gathered(WINDOWS_ENDED='failure', STEP_WINDOWS_CLIENT_TESTS='failure'))
+
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual('decision=hold\n', done.stdout)
+        self.assertIn("**The client's unit tests (same command as local)** failed on Windows: "
+                      "`./gradlew :TeamCode:testDebugUnitTest`", done.stderr)
 
     def test_an_input_that_breaks_its_rule_fails_with_the_rule_and_hands_nothing(self):
-        done = called('promotion', gathered(STEP_UNIT_TESTS='passed'))
+        done = called('promotion', gathered(STEP_WINDOWS_CLIENT_TESTS='passed'))
 
         self.assertEqual(2, done.returncode)
         self.assertEqual('', done.stdout)
@@ -149,8 +164,8 @@ class SayingWhatTheRunFound(unittest.TestCase):
         return base64.b64decode(handed['body'], validate=True).decode('utf-8')
 
     def test_a_red_run_with_no_issue_open_hands_the_workflow_an_issue_to_open_and_writes_its_body(self):
-        done = self.report('[{"number": 7, "title": "Launch Sim"}]', JUDGING_ENDED='failure',
-                           STEP_UNIT_TESTS='failure', PUSHED='skipped', PROMOTING_ENDED='failure')
+        done = self.report('[{"number": 7, "title": "Launch Sim"}]', LINUX_ENDED='failure',
+                           STEP_LINUX_CLIENT_TESTS='failure', PUSHED='skipped', PROMOTING_ENDED='failure')
 
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertTrue(done.stdout.startswith('action=open\ntitle=IMPORTANT: develop CI Failures\nbody='), done.stdout)

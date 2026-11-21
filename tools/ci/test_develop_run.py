@@ -2,7 +2,7 @@ import base64
 import unittest
 
 import develop_run as run
-from develop_run import (Green, GreenButMovedOn, Hold, JudgingEnded, Judged, Looked, LookingEnded, StepDidNotPass, StepsEnded,
+from develop_run import (Green, GreenButMovedOn, Hold, JobEnded, JudgingEnded, Judged, Looked, LookingEnded, StepDidNotPass,
                          MainHasWhatDevelopLacks, MainMovedSinceTheLook, MainRefusedThePush, Move, NeverJudged, NeverLooked,
                          NothingJudged, Outcome, PromotingEnded, Red, Rejected, Stay, Stayed,
                          MainNeedsAMaintainerForWorkflows, WorkflowFiles, Workflows)
@@ -49,18 +49,39 @@ def commit(hash_text=JUDGED, subject=SUBJECT):
     return run.commit_line(hash_text + ' ' + subject)
 
 
-def steps_ended(**changed):
-    outcomes = {step.step: Outcome.SUCCESS for step in run.STEPS}
+def job_ended(job, ended=Outcome.SUCCESS, **changed):
+    outcomes = {step.step: Outcome.SUCCESS for step in job.steps}
     outcomes.update({key.replace('_', '-'): value for key, value in changed.items()})
-    return StepsEnded(tuple(outcomes[step.step] for step in run.STEPS))
+    return JobEnded(job, ended, tuple(outcomes[step.step] for step in job.steps))
 
 
-def texts(**changed):
-    return tuple(each.value for each in steps_ended(**changed).outcomes)
+def texts(job, ended=Outcome.SUCCESS, **changed):
+    read = job_ended(job, ended, **changed)
+    return read.ended.value, tuple(each.value for each in read.outcomes)
 
 
-def judged(ended=Outcome.SUCCESS, **outcomes):
-    return Judged(commit(), ended, steps_ended(**outcomes))
+def on_linux(ended=Outcome.SUCCESS, **outcomes):
+    return job_ended(run.LINUX, ended, **outcomes)
+
+
+def on_windows(ended=Outcome.SUCCESS, **outcomes):
+    return job_ended(run.WINDOWS, ended, **outcomes)
+
+
+def judged(ended=Outcome.SUCCESS, windows=None, **outcomes):
+    return Judged(commit(), (job_ended(run.TIP), on_linux(ended, **outcomes), windows or on_windows()))
+
+
+def unreported(job):
+    return JobEnded(job, Outcome.UNREPORTED, tuple(Outcome.UNREPORTED for _ in job.steps))
+
+
+def every_job():
+    return tuple(texts(job) for job in run.JOBS)
+
+
+def linux_did_not(step, outcome):
+    return StepDidNotPass(run.LINUX, step, outcome)
 
 
 def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ended=Outcome.SUCCESS, ahead=(), workflows=NO_WORKFLOWS,
@@ -75,11 +96,28 @@ class WhetherMainMoves(unittest.TestCase):
 
     def test_main_holds_naming_the_check_that_failed_and_the_checks_it_kept_from_running(self):
         self.assertEqual(
-            Hold((StepDidNotPass(run.FORMATTING, Outcome.FAILURE),
-                  StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
-                  StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
-            run.promotion(judged(Outcome.FAILURE, formatting=Outcome.FAILURE,
-                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), (), (), NO_WORKFLOWS))
+            Hold((linux_did_not(run.FORMATTING, Outcome.FAILURE),
+                  linux_did_not(run.CLIENT_TOOLS, Outcome.SKIPPED),
+                  linux_did_not(run.CLIENT_TESTS, Outcome.SKIPPED),
+                  linux_did_not(run.GATEWAY_TOOLS, Outcome.SKIPPED),
+                  linux_did_not(run.GATEWAY_TESTS, Outcome.SKIPPED))),
+            run.promotion(judged(Outcome.FAILURE, formatting=Outcome.FAILURE, client_tools=Outcome.SKIPPED,
+                                 client_tests=Outcome.SKIPPED, gateway_tools=Outcome.SKIPPED,
+                                 gateway_tests=Outcome.SKIPPED), (), (), NO_WORKFLOWS))
+
+    def test_main_holds_naming_windows_when_a_check_failed_there_alone(self):
+        windows = on_windows(Outcome.FAILURE, client_tests=Outcome.FAILURE)
+
+        self.assertEqual(Hold((StepDidNotPass(run.WINDOWS, run.CLIENT_TESTS, Outcome.FAILURE),)),
+                         run.promotion(judged(windows=windows), (), (), NO_WORKFLOWS))
+
+    def test_main_holds_naming_each_platform_a_check_failed_on(self):
+        windows = on_windows(Outcome.FAILURE, client_tests=Outcome.FAILURE)
+
+        self.assertEqual(Hold((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE),
+                               StepDidNotPass(run.WINDOWS, run.CLIENT_TESTS, Outcome.FAILURE))),
+                         run.promotion(judged(Outcome.FAILURE, windows=windows, client_tests=Outcome.FAILURE), (), (),
+                                       NO_WORKFLOWS))
 
     def test_main_holds_when_main_has_commits_develop_lacks_though_every_check_passed(self):
         stray = commit(STRAY, 'Fix the README on main')
@@ -90,57 +128,65 @@ class WhetherMainMoves(unittest.TestCase):
         stray = commit(STRAY, 'Fix the README on main')
 
         self.assertEqual(
-            Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), MainHasWhatDevelopLacks((stray,)))),
-            run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (stray,), (), NO_WORKFLOWS))
+            Hold((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE), MainHasWhatDevelopLacks((stray,)))),
+            run.promotion(judged(Outcome.FAILURE, client_tests=Outcome.FAILURE), (stray,), (), NO_WORKFLOWS))
 
     def test_main_holds_when_the_judging_job_ended_badly_after_every_check_passed(self):
-        self.assertEqual(Hold((JudgingEnded(Outcome.FAILURE),)), run.promotion(judged(Outcome.FAILURE), (), (), NO_WORKFLOWS))
+        self.assertEqual(Hold((JudgingEnded(run.LINUX, Outcome.FAILURE),)),
+                         run.promotion(judged(Outcome.FAILURE), (), (), NO_WORKFLOWS))
+
+    def test_main_holds_when_the_windows_job_ended_badly_after_every_check_passed(self):
+        self.assertEqual(Hold((JudgingEnded(run.WINDOWS, Outcome.FAILURE),)),
+                         run.promotion(judged(windows=on_windows(Outcome.FAILURE)), (), (), NO_WORKFLOWS))
 
     def test_main_holds_when_the_judging_job_ended_before_its_checks_reported(self):
         self.assertEqual(
-            Hold((StepDidNotPass(run.FORMATTING, Outcome.UNREPORTED),
-                  StepDidNotPass(run.TOOL_TESTS, Outcome.UNREPORTED),
-                  StepDidNotPass(run.UNIT_TESTS, Outcome.UNREPORTED),
-                  JudgingEnded(Outcome.CANCELLED))),
-            run.promotion(judged(Outcome.CANCELLED, formatting=Outcome.UNREPORTED,
-                                 tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED), (), (), NO_WORKFLOWS))
+            Hold((linux_did_not(run.FORMATTING, Outcome.UNREPORTED),
+                  linux_did_not(run.CLIENT_TOOLS, Outcome.UNREPORTED),
+                  linux_did_not(run.CLIENT_TESTS, Outcome.UNREPORTED),
+                  linux_did_not(run.GATEWAY_TOOLS, Outcome.UNREPORTED),
+                  linux_did_not(run.GATEWAY_TESTS, Outcome.UNREPORTED),
+                  JudgingEnded(run.LINUX, Outcome.CANCELLED))),
+            run.promotion(judged(Outcome.CANCELLED, formatting=Outcome.UNREPORTED, client_tools=Outcome.UNREPORTED,
+                                 client_tests=Outcome.UNREPORTED, gateway_tools=Outcome.UNREPORTED,
+                                 gateway_tests=Outcome.UNREPORTED), (), (), NO_WORKFLOWS))
 
     def test_main_holds_when_no_commit_was_judged_naming_the_step_that_failed_before_one_was(self):
-        never = NeverJudged(Outcome.FAILURE, steps_ended(checkout=Outcome.FAILURE, judged=Outcome.SKIPPED,
-                                                         java=Outcome.SKIPPED, gradle=Outcome.SKIPPED,
-                                                         node=Outcome.SKIPPED, browser=Outcome.SKIPPED,
-                                                         formatting=Outcome.SKIPPED, tool_tests=Outcome.SKIPPED,
-                                                         unit_tests=Outcome.SKIPPED))
+        never = NeverJudged((job_ended(run.TIP, Outcome.FAILURE, checkout=Outcome.FAILURE, judged=Outcome.SKIPPED),
+                             unreported(run.LINUX), unreported(run.WINDOWS)))
 
-        self.assertEqual(Hold((NothingJudged(Outcome.FAILURE), StepDidNotPass(run.CHECKOUT, Outcome.FAILURE),
-                               StepDidNotPass(run.FORMATTING, Outcome.SKIPPED),
-                               StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
-                               StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
+        self.assertEqual(Hold((NothingJudged(Outcome.FAILURE), StepDidNotPass(run.TIP, run.CHECKOUT, Outcome.FAILURE))),
                          run.promotion(never, (), (), NO_WORKFLOWS))
 
     def test_main_holds_naming_a_step_before_the_checks_that_failed_and_the_checks_it_kept_from_running(self):
         self.assertEqual(
-            Hold((StepDidNotPass(run.BROWSER, Outcome.FAILURE),
-                  StepDidNotPass(run.FORMATTING, Outcome.SKIPPED),
-                  StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),
-                  StepDidNotPass(run.UNIT_TESTS, Outcome.SKIPPED))),
+            Hold((linux_did_not(run.BROWSER, Outcome.FAILURE),
+                  linux_did_not(run.FORMATTING, Outcome.SKIPPED),
+                  linux_did_not(run.CLIENT_TOOLS, Outcome.SKIPPED),
+                  linux_did_not(run.CLIENT_TESTS, Outcome.SKIPPED),
+                  linux_did_not(run.GATEWAY_TOOLS, Outcome.SKIPPED),
+                  linux_did_not(run.GATEWAY_TESTS, Outcome.SKIPPED))),
             run.promotion(judged(Outcome.FAILURE, browser=Outcome.FAILURE, formatting=Outcome.SKIPPED,
-                                 tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), (), (), NO_WORKFLOWS))
+                                 client_tools=Outcome.SKIPPED, client_tests=Outcome.SKIPPED,
+                                 gateway_tools=Outcome.SKIPPED, gateway_tests=Outcome.SKIPPED), (), (), NO_WORKFLOWS))
 
     def test_main_holds_when_the_report_could_not_be_kept_though_every_check_passed(self):
-        self.assertEqual(Hold((StepDidNotPass(run.RESULTS, Outcome.FAILURE),)),
+        self.assertEqual(Hold((linux_did_not(run.RESULTS, Outcome.FAILURE),)),
                          run.promotion(judged(Outcome.FAILURE, results=Outcome.FAILURE), (), (), NO_WORKFLOWS))
 
     def test_a_step_cancelled_while_it_ran_is_named_with_the_checks_it_kept_from_their_end(self):
         self.assertEqual(
-            Hold((StepDidNotPass(run.GRADLE, Outcome.CANCELLED),
-                  StepDidNotPass(run.FORMATTING, Outcome.UNREPORTED),
-                  StepDidNotPass(run.TOOL_TESTS, Outcome.UNREPORTED),
-                  StepDidNotPass(run.UNIT_TESTS, Outcome.UNREPORTED),
-                  JudgingEnded(Outcome.CANCELLED))),
+            Hold((linux_did_not(run.GRADLE, Outcome.CANCELLED),
+                  linux_did_not(run.FORMATTING, Outcome.UNREPORTED),
+                  linux_did_not(run.CLIENT_TOOLS, Outcome.UNREPORTED),
+                  linux_did_not(run.CLIENT_TESTS, Outcome.UNREPORTED),
+                  linux_did_not(run.GATEWAY_TOOLS, Outcome.UNREPORTED),
+                  linux_did_not(run.GATEWAY_TESTS, Outcome.UNREPORTED),
+                  JudgingEnded(run.LINUX, Outcome.CANCELLED))),
             run.promotion(judged(Outcome.CANCELLED, gradle=Outcome.CANCELLED, node=Outcome.UNREPORTED,
                                  browser=Outcome.UNREPORTED, formatting=Outcome.UNREPORTED,
-                                 tool_tests=Outcome.UNREPORTED, unit_tests=Outcome.UNREPORTED,
+                                 client_tools=Outcome.UNREPORTED, client_tests=Outcome.UNREPORTED,
+                                 gateway_tools=Outcome.UNREPORTED, gateway_tests=Outcome.UNREPORTED,
                                  results=Outcome.UNREPORTED), (), (), NO_WORKFLOWS))
 
     def test_main_stays_where_it_is_when_it_already_has_commits_of_develop_the_judged_commit_lacks(self):
@@ -156,8 +202,8 @@ class WhetherMainMoves(unittest.TestCase):
     def test_main_holds_for_a_failed_check_though_main_already_has_commits_the_judged_commit_lacks(self):
         later = commit(STRAY, 'A later commit of develop')
 
-        self.assertEqual(Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),)),
-                         run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (), (later,), NO_WORKFLOWS))
+        self.assertEqual(Hold((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE),)),
+                         run.promotion(judged(Outcome.FAILURE, client_tests=Outcome.FAILURE), (), (later,), NO_WORKFLOWS))
 
     def test_main_holds_for_a_maintainer_when_the_commits_since_main_change_a_workflow_though_every_check_passed(self):
         self.assertEqual(Hold((MainNeedsAMaintainerForWorkflows(commit(), TESTS_YML),)),
@@ -176,8 +222,8 @@ class WhetherMainMoves(unittest.TestCase):
         self.assertEqual(Stay(commit(), (later,)), run.promotion(judged(), (), (later,), TESTS_YML))
 
     def test_main_holds_for_a_failed_check_alone_when_the_commits_since_main_also_change_a_workflow(self):
-        self.assertEqual(Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),)),
-                         run.promotion(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), (), (), TESTS_YML))
+        self.assertEqual(Hold((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE),)),
+                         run.promotion(judged(Outcome.FAILURE, client_tests=Outcome.FAILURE), (), (), TESTS_YML))
 
     def test_main_holds_for_what_develop_lacks_alone_when_the_commits_since_main_also_change_a_workflow(self):
         stray = commit(STRAY, 'Fix the README on main')
@@ -224,7 +270,8 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
         stray = commit(STRAY, 'Fix the README on main')
         for promoting, judgement, held_for in (
                 (looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE, main=LATER),
-                 judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE)),
+                 judged(Outcome.FAILURE, client_tests=Outcome.FAILURE),
+                 linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE)),
                 (looked(lacking=(stray,), pushed=Outcome.SKIPPED, ended=Outcome.FAILURE, main=LATER), judged(),
                  MainHasWhatDevelopLacks((stray,))),
                 (looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE, workflows=TESTS_YML, main=LATER), judged(),
@@ -259,15 +306,15 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
     def test_a_run_that_held_main_is_red_for_the_reasons_it_held(self):
         promoting = looked(pushed=Outcome.SKIPPED, ended=Outcome.FAILURE)
 
-        self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),), promoting),
-                         run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
+        self.assertEqual(Red((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE),), promoting),
+                         run.verdict(judged(Outcome.FAILURE, client_tests=Outcome.FAILURE), promoting))
 
     def test_a_run_whose_look_at_main_ended_before_it_found_main_is_red_for_that_and_for_the_judging(self):
         promoting = NeverLooked(Outcome.FAILURE)
 
-        self.assertEqual(Red((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE), LookingEnded(Outcome.FAILURE)),
+        self.assertEqual(Red((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE), LookingEnded(Outcome.FAILURE)),
                              promoting),
-                         run.verdict(judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE), promoting))
+                         run.verdict(judged(Outcome.FAILURE, client_tests=Outcome.FAILURE), promoting))
 
     def test_a_run_that_should_have_moved_main_but_never_pushed_is_red(self):
         promoting = looked(pushed=Outcome.UNREPORTED, ended=Outcome.FAILURE)
@@ -281,22 +328,32 @@ class WhatARunForDevelopEndsAs(unittest.TestCase):
 
 
 class WhatTheReasonsSay(unittest.TestCase):
-    def test_a_failed_check_is_named_with_the_command_that_failed(self):
-        said = run.reasons((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),))
+    def test_a_failed_check_is_named_with_the_platform_and_the_command_that_failed(self):
+        said = run.reasons((StepDidNotPass(run.WINDOWS, run.CLIENT_TESTS, Outcome.FAILURE),))
 
-        self.assertIn('**%s** failed: `%s`' % (run.UNIT_TESTS.name, run.UNIT_TESTS.command), said)
+        self.assertEqual("**The client's unit tests (same command as local)** failed on Windows: "
+                         "`./gradlew :TeamCode:testDebugUnitTest`", said)
 
-    def test_a_failed_step_that_is_not_a_check_is_named_by_its_step_name(self):
-        self.assertEqual('**%s** failed.' % run.BROWSER.name, run.reasons((StepDidNotPass(run.BROWSER, Outcome.FAILURE),)))
+    def test_a_gateway_check_that_failed_is_named_with_its_own_command(self):
+        said = run.reasons((linux_did_not(run.GATEWAY_TESTS, Outcome.FAILURE),))
+
+        self.assertEqual("**The gateway's unit tests (same command as local)** failed on Linux: "
+                         "`./gradlew :TeamCode:gatewayTest`", said)
+
+    def test_a_failed_step_that_is_not_a_check_is_named_by_its_step_name_and_platform(self):
+        self.assertEqual('**%s** failed on Linux.' % run.BROWSER.name,
+                         run.reasons((linux_did_not(run.BROWSER, Outcome.FAILURE),)))
+        self.assertEqual('**%s** failed on Windows.' % run.BROWSER_ALONE.name,
+                         run.reasons((StepDidNotPass(run.WINDOWS, run.BROWSER_ALONE, Outcome.FAILURE),)))
 
     def test_a_step_cancelled_while_it_ran_is_said_so(self):
-        self.assertEqual('**%s** did not run to its end: its outcome is `cancelled`.' % run.GRADLE.name,
-                         run.reasons((StepDidNotPass(run.GRADLE, Outcome.CANCELLED),)))
+        self.assertEqual('**%s** did not run to its end on Linux: its outcome is `cancelled`.' % run.GRADLE.name,
+                         run.reasons((linux_did_not(run.GRADLE, Outcome.CANCELLED),)))
 
     def test_a_check_kept_from_running_is_said_not_to_have_run(self):
-        said = run.reasons((StepDidNotPass(run.TOOL_TESTS, Outcome.SKIPPED),))
+        said = run.reasons((StepDidNotPass(run.WINDOWS, run.CLIENT_TOOLS, Outcome.SKIPPED),))
 
-        self.assertIn('**%s** did not run' % run.TOOL_TESTS.name, said)
+        self.assertIn('**%s** did not run on Windows' % run.CLIENT_TOOLS.name, said)
 
     def test_what_main_lacks_is_named_commit_by_commit_with_the_merge_that_fixes_it(self):
         said = run.reasons((MainHasWhatDevelopLacks((commit(STRAY, 'Fix the README on main'),)),))
@@ -376,10 +433,12 @@ class WhatTheReasonsSay(unittest.TestCase):
             self.assertIn('and 10 more.', said)
 
     def test_a_run_that_judged_nothing_says_so(self):
-        self.assertIn('No commit was judged', run.reasons((NothingJudged(Outcome.FAILURE),)))
+        self.assertEqual('No commit was judged: the job that names the commit to judge ended `failure` before it named '
+                         'one.', run.reasons((NothingJudged(Outcome.FAILURE),)))
 
-    def test_a_judging_job_that_ended_badly_says_how_it_ended(self):
-        self.assertIn('ended `cancelled`', run.reasons((JudgingEnded(Outcome.CANCELLED),)))
+    def test_a_judging_job_that_ended_badly_says_on_which_platform_and_how_it_ended(self):
+        self.assertEqual('The job that judges it on Windows ended `cancelled` though no check failed.',
+                         run.reasons((JudgingEnded(run.WINDOWS, Outcome.CANCELLED),)))
 
     def test_a_mover_that_ended_before_it_pushed_says_how_it_ended(self):
         self.assertEqual('The job that moves main ended `failure` before it pushed.',
@@ -406,7 +465,7 @@ class WhatTheReasonsSay(unittest.TestCase):
         self.assertIn('and 10 more', said)
 
     def test_each_reason_is_a_paragraph_of_its_own(self):
-        said = run.reasons((StepDidNotPass(run.FORMATTING, Outcome.FAILURE), JudgingEnded(Outcome.FAILURE)))
+        said = run.reasons((linux_did_not(run.FORMATTING, Outcome.FAILURE), JudgingEnded(run.LINUX, Outcome.FAILURE)))
 
         self.assertEqual(2, len(said.split('\n\n')))
 
@@ -431,15 +490,15 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
 
     def test_a_subject_whose_base64_holds_a_character_beyond_ascii_is_refused_by_the_rule(self):
         self.assertEqual(Rejected("what the workflow gathered is base64, and 'é' is not"),
-                         run.judgement('success', JUDGED, 'é', texts()))
+                         run.judgement(JUDGED, 'é', every_job()))
 
     def test_a_control_character_in_a_subject_is_shown_escaped_so_the_subject_stays_one_line(self):
-        read = run.judgement('success', JUDGED, b64('Fix the thing\r```\rrest\x1b[31m\u2028end\n'), texts())
+        read = run.judgement(JUDGED, b64('Fix the thing\r```\rrest\x1b[31m\u2028end\n'), every_job())
 
         self.assertEqual('Fix the thing\\x0d```\\x0drest\\x1b[31m\\u2028end', read.commit.subject)
 
     def test_a_subject_longer_than_can_be_shown_is_cut_short_saying_how_much_was_left_out(self):
-        read = run.judgement('success', JUDGED, b64('x' * 70000 + '\n'), texts())
+        read = run.judgement(JUDGED, b64('x' * 70000 + '\n'), every_job())
 
         self.assertEqual('x' * run.SUBJECT_SHOWN + '… (%d more characters)' % (70000 - run.SUBJECT_SHOWN),
                          read.commit.subject)
@@ -451,7 +510,7 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
                          run.listed_commits(b64(printed))[0].subject)
 
     def test_a_subject_is_never_cut_inside_the_escape_of_a_character(self):
-        read = run.judgement('success', JUDGED, b64('x' * (run.SUBJECT_SHOWN - 2) + '\r\n'), texts())
+        read = run.judgement(JUDGED, b64('x' * (run.SUBJECT_SHOWN - 2) + '\r\n'), every_job())
 
         self.assertEqual('x' * (run.SUBJECT_SHOWN - 2) + '… (1 more character)', read.commit.subject)
 
@@ -467,28 +526,34 @@ class ReadingWhatTheWorkflowGathered(unittest.TestCase):
         self.assertEqual('z' * run.SAID_SHOWN + '\n… (%d more characters)\n' % (70000 - run.SAID_SHOWN), read.said)
 
     def test_a_judgement_with_no_commit_named_is_one_that_judged_nothing(self):
-        before_naming = dict(checkout=Outcome.FAILURE, judged=Outcome.SKIPPED, java=Outcome.SKIPPED,
-                             gradle=Outcome.SKIPPED, node=Outcome.SKIPPED, browser=Outcome.SKIPPED,
-                             formatting=Outcome.SKIPPED, tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED)
+        tip = dict(checkout=Outcome.FAILURE, judged=Outcome.SKIPPED)
+        never_ran = ('', ('',) * len(run.LINUX.steps)), ('', ('',) * len(run.WINDOWS.steps))
 
-        self.assertEqual(NeverJudged(Outcome.FAILURE, steps_ended(**before_naming)),
-                         run.judgement('failure', '', '', texts(**before_naming)))
+        self.assertEqual(NeverJudged((job_ended(run.TIP, Outcome.FAILURE, **tip), unreported(run.LINUX),
+                                      unreported(run.WINDOWS))),
+                         run.judgement('', '', (texts(run.TIP, Outcome.FAILURE, **tip),) + never_ran))
 
     def test_a_judgement_reads_the_subject_git_printed_without_its_newline(self):
-        self.assertEqual(Judged(commit(), Outcome.SUCCESS, steps_ended()),
-                         run.judgement('success', JUDGED, b64(SUBJECT + '\n'), texts()))
+        self.assertEqual(judged(),
+                         run.judgement(JUDGED, b64(SUBJECT + '\n'), every_job()))
 
-    def test_a_judgement_reads_one_outcome_for_each_step_of_the_judging_job(self):
-        for wrong in (texts()[:-1], texts() + ('success',)):
-            self.assertEqual(Rejected('a judgement hands one outcome for each of the %d steps of the judging job'
-                                      % len(run.STEPS)),
-                             run.judgement('success', JUDGED, b64(SUBJECT + '\n'), wrong))
-        passed = tuple('passed' if step is run.JAVA else 'success' for step in run.STEPS)
+    def test_a_judgement_reads_one_outcome_for_each_step_of_each_job(self):
+        ended, steps = texts(run.WINDOWS)
+        for wrong in (steps[:-1], steps + ('success',)):
+            self.assertEqual(Rejected('a judgement hands one outcome for each of the %d steps of the windows job'
+                                      % len(run.WINDOWS.steps)),
+                             run.judgement(JUDGED, b64(SUBJECT + '\n'), every_job()[:2] + ((ended, wrong),)))
+        passed = tuple('passed' if step is run.JAVA else 'success' for step in run.LINUX.steps)
 
-        self.assertIsInstance(run.judgement('success', JUDGED, b64(SUBJECT + '\n'), passed), Rejected)
+        self.assertIsInstance(run.judgement(JUDGED, b64(SUBJECT + '\n'), (texts(run.TIP), ('success', passed),
+                                                                           texts(run.WINDOWS))), Rejected)
+
+    def test_a_judgement_reads_how_each_of_the_jobs_ended(self):
+        self.assertEqual(Rejected('a judgement hands how each of the 3 jobs that judge ended'),
+                         run.judgement(JUDGED, b64(SUBJECT + '\n'), every_job()[:2]))
 
     def test_a_subject_that_is_not_base64_is_refused(self):
-        self.assertIsInstance(run.judgement('success', JUDGED, 'not base64!', texts()),
+        self.assertIsInstance(run.judgement(JUDGED, 'not base64!', every_job()),
                               Rejected)
 
     def test_what_main_lacks_is_read_from_the_lines_git_log_printed(self):
@@ -727,12 +792,16 @@ class MakingAValueDirectly(unittest.TestCase):
             self.assertEqual(Rejected(run.WORKFLOWS_RULE), Workflows(*wrong), wrong)
 
     def test_a_judgement_made_directly_is_held_to_a_commit_and_outcomes(self):
-        self.assertIsInstance(Judged(JUDGED, Outcome.SUCCESS, steps_ended()), Rejected)
-        self.assertIsInstance(Judged(commit(), 'success', steps_ended()), Rejected)
-        self.assertIsInstance(StepsEnded(('success',) * len(run.STEPS)), Rejected)
-        self.assertIsInstance(StepsEnded((Outcome.SUCCESS,) * (len(run.STEPS) - 1)), Rejected)
-        self.assertIsInstance(NeverJudged('failure', steps_ended()), Rejected)
-        self.assertIsInstance(NeverJudged(Outcome.FAILURE, None), Rejected)
+        jobs = judged().jobs
+        self.assertIsInstance(Judged(JUDGED, jobs), Rejected)
+        self.assertIsInstance(Judged(commit(), jobs[:2]), Rejected)
+        self.assertIsInstance(Judged(commit(), (jobs[1], jobs[0], jobs[2])), Rejected)
+        self.assertIsInstance(JobEnded(run.LINUX, 'success', jobs[1].outcomes), Rejected)
+        self.assertIsInstance(JobEnded(run.LINUX, Outcome.SUCCESS, ('success',) * len(run.LINUX.steps)), Rejected)
+        self.assertIsInstance(JobEnded(run.LINUX, Outcome.SUCCESS, jobs[1].outcomes[:-1]), Rejected)
+        self.assertIsInstance(JobEnded(run.LINUX, Outcome.SUCCESS, jobs[2].outcomes), Rejected)
+        self.assertIsInstance(NeverJudged(jobs[:2]), Rejected)
+        self.assertIsInstance(NeverJudged(None), Rejected)
 
 
 class WhatTheWorkflowIsHanded(unittest.TestCase):
@@ -754,7 +823,7 @@ class WhatTheWorkflowIsHanded(unittest.TestCase):
         self.assertEqual('main moves to `%s` `%s`.' % (JUDGED, SUBJECT), run.explained(Move(commit())))
 
     def test_the_log_of_a_hold_gives_its_reasons(self):
-        hold = Hold((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),))
+        hold = Hold((linux_did_not(run.CLIENT_TESTS, Outcome.FAILURE),))
 
         self.assertEqual('main holds where it was:\n\n' + run.reasons(hold.findings), run.explained(hold))
 

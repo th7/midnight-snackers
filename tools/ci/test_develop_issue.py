@@ -4,7 +4,7 @@ import unittest
 import develop_issue as issues
 import develop_run as run
 from develop_issue import Close, CommentOn, LeaveAlone, LeaveAloneSinceMainMoved, Open, OpenIssue
-from develop_run import (Judged, Looked, MainHasWhatDevelopLacks, NeverJudged, StepDidNotPass, StepsEnded,
+from develop_run import (Judged, Looked, MainHasWhatDevelopLacks, NeverJudged, StepDidNotPass, JobEnded,
                          NeverLooked, Outcome, Rejected)
 
 JUDGED = 'a' * 40
@@ -28,22 +28,24 @@ def commit(hash_text=JUDGED, subject=SUBJECT):
     return run.commit_line(hash_text + ' ' + subject)
 
 
-def steps_ended(**changed):
-    outcomes = {step.step: Outcome.SUCCESS for step in run.STEPS}
+def job_ended(job, ended=Outcome.SUCCESS, **changed):
+    outcomes = {step.step: Outcome.SUCCESS for step in job.steps}
     outcomes.update({key.replace('_', '-'): value for key, value in changed.items()})
-    return StepsEnded(tuple(outcomes[step.step] for step in run.STEPS))
+    return JobEnded(job, ended, tuple(outcomes[step.step] for step in job.steps))
 
 
-def texts(**changed):
-    return tuple(each.value for each in steps_ended(**changed).outcomes)
+def texts(ended=Outcome.SUCCESS, **linux):
+    return tuple((each.ended.value, tuple(one.value for one in each.outcomes))
+                 for each in (job_ended(run.TIP), job_ended(run.LINUX, ended, **linux), job_ended(run.WINDOWS)))
 
 
-def judged(ended=Outcome.SUCCESS, the_commit=None, **outcomes):
-    return Judged(the_commit or commit(), ended, steps_ended(**outcomes))
+def judged(ended=Outcome.SUCCESS, the_commit=None, windows=None, **outcomes):
+    return Judged(the_commit or commit(), (job_ended(run.TIP), job_ended(run.LINUX, ended, **outcomes),
+                                           windows or job_ended(run.WINDOWS)))
 
 
 def failed():
-    return judged(Outcome.FAILURE, unit_tests=Outcome.FAILURE)
+    return judged(Outcome.FAILURE, client_tests=Outcome.FAILURE)
 
 
 def looked(lacking=(), pushed=Outcome.SUCCESS, said='', ahead=(), workflows=(), ended=None, develop=JUDGED, main=MAIN,
@@ -179,7 +181,17 @@ class WhatTheIssueSays(unittest.TestCase):
         body = issues.issue_action(failed(), held(), (), link()).body
 
         self.assertIn('develop was judged red at `%s` `%s`' % (JUDGED, SUBJECT), body)
-        self.assertIn(run.reasons((StepDidNotPass(run.UNIT_TESTS, Outcome.FAILURE),)), body)
+        self.assertIn(run.reasons((StepDidNotPass(run.LINUX, run.CLIENT_TESTS, Outcome.FAILURE),)), body)
+
+    def test_a_red_run_names_the_platform_of_each_check_that_failed(self):
+        windows = job_ended(run.WINDOWS, Outcome.FAILURE, client_tests=Outcome.FAILURE)
+        body = issues.issue_action(judged(Outcome.FAILURE, windows=windows, gateway_tests=Outcome.FAILURE), held(), (),
+                                   link()).body
+
+        self.assertIn("**The gateway's unit tests (same command as local)** failed on Linux: "
+                      "`./gradlew :TeamCode:gatewayTest`", body)
+        self.assertIn("**The client's unit tests (same command as local)** failed on Windows: "
+                      "`./gradlew :TeamCode:testDebugUnitTest`", body)
         self.assertIn('main stays where it was, at `%s`.' % MAIN, body)
         self.assertIn(RUN, body)
 
@@ -197,10 +209,11 @@ class WhatTheIssueSays(unittest.TestCase):
 
     def test_a_red_run_whose_judging_failed_before_any_check_names_the_step_that_failed(self):
         body = issues.issue_action(judged(Outcome.FAILURE, browser=Outcome.FAILURE, formatting=Outcome.SKIPPED,
-                                          tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED), held(), (),
+                                          client_tools=Outcome.SKIPPED, client_tests=Outcome.SKIPPED,
+                                          gateway_tools=Outcome.SKIPPED, gateway_tests=Outcome.SKIPPED), held(), (),
                                    link()).body
 
-        self.assertIn('**%s** failed.' % run.BROWSER.name, body)
+        self.assertIn('**%s** failed on Linux.' % run.BROWSER.name, body)
 
     def test_a_red_run_for_what_main_lacks_names_those_commits_and_the_fix(self):
         stray = commit(STRAY, 'Fix the README on main')
@@ -234,14 +247,13 @@ class WhatTheIssueSays(unittest.TestCase):
         self.assertIn(RUN, body)
 
     def test_a_red_run_that_judged_nothing_and_never_looked_at_main_says_main_stays_where_it_was(self):
-        never = NeverJudged(Outcome.FAILURE, steps_ended(judged=Outcome.FAILURE, java=Outcome.SKIPPED,
-                                                         gradle=Outcome.SKIPPED, node=Outcome.SKIPPED,
-                                                         browser=Outcome.SKIPPED, formatting=Outcome.SKIPPED,
-                                                         tool_tests=Outcome.SKIPPED, unit_tests=Outcome.SKIPPED))
+        never_ran = tuple(job_ended(job, Outcome.UNREPORTED, **{step.step.replace('-', '_'): Outcome.UNREPORTED
+                                                                for step in job.steps}) for job in (run.LINUX, run.WINDOWS))
+        never = NeverJudged((job_ended(run.TIP, Outcome.FAILURE, judged=Outcome.FAILURE),) + never_ran)
         body = issues.issue_action(never, NeverLooked(Outcome.FAILURE), (), link()).body
 
         self.assertIn('judged no commit', body)
-        self.assertIn('**%s** failed.' % run.NAMING.name, body)
+        self.assertIn('**%s** failed on Linux.' % run.NAMING.name, body)
         self.assertIn('main stays where it was.', body)
         self.assertIn(RUN, body)
 
@@ -257,7 +269,7 @@ class WhatTheIssueSays(unittest.TestCase):
 
     def test_backticks_in_a_subject_never_close_its_quote_early(self):
         tricky = commit(JUDGED, 'Say `x` and ``` then @everyone')
-        body = issues.issue_action(judged(Outcome.FAILURE, tricky, unit_tests=Outcome.FAILURE), held(), (),
+        body = issues.issue_action(judged(Outcome.FAILURE, tricky, client_tests=Outcome.FAILURE), held(), (),
                                    link()).body
 
         self.assertIn('```` Say `x` and ``` then @everyone ````', body)
@@ -265,7 +277,7 @@ class WhatTheIssueSays(unittest.TestCase):
 
     def test_a_carriage_return_in_a_subject_never_breaks_the_head_line_so_the_reasons_and_the_run_stay_outside_code(self):
         for printed in ('Fix the thing\r```\rrest\n', 'Fix the thing\r===\n'):
-            tricky = run.judgement('failure', JUDGED, b64(printed), texts(unit_tests=Outcome.FAILURE))
+            tricky = run.judgement(JUDGED, b64(printed), texts(Outcome.FAILURE, client_tests=Outcome.FAILURE))
             body = issues.issue_action(tricky, held(), (), link()).body
             head, _, rest = body.partition('\n')
 
@@ -277,10 +289,10 @@ class WhatTheIssueSays(unittest.TestCase):
     def test_the_body_stays_under_github_s_limit_in_utf_8_bytes_however_long_and_wide_what_it_quotes(self):
         for character in ('x', '\U0001f600'):
             endless = character * 70000
-            judged_long = run.judgement('failure', JUDGED, b64(endless), texts(formatting=Outcome.FAILURE,
-                                                                               unit_tests=Outcome.FAILURE))
+            judged_long = run.judgement(JUDGED, b64(endless), texts(Outcome.FAILURE, formatting=Outcome.FAILURE,
+                                                                    client_tests=Outcome.FAILURE))
             strays = b64(''.join('%040x %s\n' % (n, endless) for n in range(1, 61)))
-            green_long = run.judgement('success', JUDGED, b64(endless), texts())
+            green_long = run.judgement(JUDGED, b64(endless), texts())
             bodies = [issues.issue_action(judged_long, promoting, (), link()).body for promoting in (
                 run.promoting('failure', MAIN, MAIN, JUDGED, strays, '', '', '', 'failure', 'skipped', ''),
                 run.promoting('success', MAIN, MAIN, JUDGED, '', '', '', '', 'failure', 'failure', b64(endless)),
