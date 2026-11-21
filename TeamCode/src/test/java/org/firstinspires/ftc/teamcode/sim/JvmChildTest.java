@@ -206,23 +206,46 @@ public class JvmChildTest {
         third.close();
     }
 
-    private record Left(Process parent, long child, Path scratch, long spawned) {}
+    /**
+     * The parent names every child it has, which on Windows is more than the child JVM: a process
+     * started without a console of its own is given a console host as a child of its own too.
+     */
+    private record Left(Process parent, List<Long> children, Path scratch, long spawned) {
+        boolean childrenEndWithin(double seconds) throws InterruptedException {
+            for (long child : children) {
+                if (!endsWithin(child, seconds)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
 
     private Left aParentThatLeftItsChildRunning(String... args) throws Exception {
         Process parent = TestRogues.startParent(args);
         spawned.add(ProcessTree.pid(parent));
         BufferedReader out = new BufferedReader(new InputStreamReader(parent.getInputStream(), StandardCharsets.UTF_8));
-        long child = Long.parseLong(said(out, "child "));
-        spawned.add(child);
-        Path scratch = Paths.get(said(out, "scratch "));
-        long sleeper = Long.parseLong(said(out, "spawned "));
+        List<Long> children = new ArrayList<>();
+        String line = heard(out, "child ");
+        while (line.startsWith("child ")) {
+            children.add(Long.parseLong(line.substring("child ".length())));
+            line = heard(out, "scratch ");
+        }
+        assertFalse("the parent named no child", children.isEmpty());
+        spawned.addAll(children);
+        Path scratch = Paths.get(said(line, "scratch "));
+        long sleeper = Long.parseLong(said(heard(out, "spawned "), "spawned "));
         spawned.add(sleeper);
-        return new Left(parent, child, scratch, sleeper);
+        return new Left(parent, children, scratch, sleeper);
     }
 
-    private static String said(BufferedReader out, String what) throws Exception {
+    private static String heard(BufferedReader out, String what) throws Exception {
         String line = out.readLine();
         assertNotNull("the parent never said its " + what.trim(), line);
+        return line;
+    }
+
+    private static String said(String line, String what) {
         assertTrue(line, line.startsWith(what));
         return line.substring(what.length());
     }
@@ -232,7 +255,7 @@ public class JvmChildTest {
         Left left = aParentThatLeftItsChildRunning();
         assertTrue("the parent did not exit", left.parent.waitFor(20, java.util.concurrent.TimeUnit.SECONDS));
 
-        assertTrue("the child of a server that exited is still running", endsWithin(left.child, 10));
+        assertTrue("the child of a server that exited is still running", left.childrenEndWithin(10));
         assertTrue("what the child started outlived the server", endsWithin(left.spawned, 10));
         assertFalse(left.scratch + " outlived the server that made it", Files.exists(left.scratch));
     }
@@ -244,7 +267,7 @@ public class JvmChildTest {
         left.parent.destroyForcibly();
 
         assertTrue("the parent was not killed", left.parent.waitFor(20, java.util.concurrent.TimeUnit.SECONDS));
-        assertTrue("the child of a server killed outright is still running", endsWithin(left.child, 10));
+        assertTrue("the child of a server killed outright is still running", left.childrenEndWithin(10));
         assertTrue("what the child started outlived the server killed outright", endsWithin(left.spawned, 10));
         assertFalse(left.scratch + " outlived the server killed outright", Files.exists(left.scratch));
     }

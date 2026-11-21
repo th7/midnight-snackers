@@ -96,5 +96,26 @@ class LineEndingsTest(unittest.TestCase):
             self.assertEqual(b'class Plans {\n    int loops = %d;\n}\n' % loops, committed,
                              'committed with ' + asked[-1])
 
+    def test_a_windows_clone_checks_out_text_as_committed_so_a_test_reading_a_file_reads_the_same_bytes_anywhere(self):
+        origin = os.path.join(self.scratch, 'origin')
+        os.makedirs(os.path.join(origin, 'resources'))
+        shutil.copy(ATTRIBUTES, origin)
+        committed = b"export const DEFAULT_RESOLUTION = 'high';\nexport const FIELD_SAID = {};\n"
+        with open(os.path.join(origin, 'resources', 'field-default.js'), 'wb') as f:
+            f.write(committed)
+        identity = ('user.name=test', 'user.email=test@example.com', 'core.autocrlf=false', 'init.defaultBranch=main')
+        git('init', '-q', cwd=origin, config=identity)
+        git('add', '-A', cwd=origin, config=identity)
+        git('commit', '-qm', 'as committed', cwd=origin, config=identity)
+
+        clone = os.path.join(self.scratch, 'clone')
+        windows = identity[:2] + ('core.autocrlf=true',)
+        git('clone', '-q', '-c', 'core.autocrlf=true', origin, clone, cwd=self.scratch, config=windows)
+
+        with open(os.path.join(clone, 'resources', 'field-default.js'), 'rb') as f:
+            self.assertEqual(committed, f.read(), 'a clone made as Git for Windows makes one by default, '
+                             + GIT_FOR_WINDOWS_CHECKS_OUT_WITH_AUTOCRLF + ', checked a text file out CRLF')
+
+
 if __name__ == '__main__':
     unittest.main()

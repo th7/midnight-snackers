@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -356,18 +357,21 @@ public class SimBuildTest {
 
     @Test
     public void theLibrariesAreThisJvmsJarsWithoutThisServersOwnCode() {
-        List<String> libraries = SimBuild.libraries();
-        String gson = locationOf(com.google.gson.Gson.class);
-        String serverRobot = locationOf(org.firstinspires.ftc.reginald.opmode.OpMode.class);
-        String serverSimulator = locationOf(SimBuild.class);
-        String serverCore = locationOf(Checked.class);
+        List<Path> libraries = new ArrayList<>();
+        for (String library : SimBuild.libraries()) {
+            libraries.add(Paths.get(library).toAbsolutePath().normalize());
+        }
+        Path gson = locationOf(com.google.gson.Gson.class);
+        Path serverRobot = locationOf(org.firstinspires.ftc.reginald.opmode.OpMode.class);
+        Path serverSimulator = locationOf(SimBuild.class);
+        Path serverCore = locationOf(Checked.class);
 
-        assertTrue(libraries.toString(), libraries.contains(gson));
+        assertTrue(gson + " in " + libraries, libraries.contains(gson));
         assertFalse("this server's robot classes: " + serverRobot, libraries.contains(serverRobot));
         assertFalse("this server's simulator: " + serverSimulator, libraries.contains(serverSimulator));
         assertFalse("this server's core: " + serverCore, libraries.contains(serverCore));
-        for (String library : libraries) {
-            assertTrue(library, Files.isRegularFile(Paths.get(library)));
+        for (Path library : libraries) {
+            assertTrue(library.toString(), Files.isRegularFile(library));
         }
     }
 
@@ -386,13 +390,14 @@ public class SimBuildTest {
         assertEquals(List.of(library.toString()), libraries);
     }
 
-    private static String locationOf(Class<?> type) {
+    private static Path locationOf(Class<?> type) {
         try {
             return Paths.get(type.getProtectionDomain()
                             .getCodeSource()
                             .getLocation()
                             .toURI())
-                    .toString();
+                    .toAbsolutePath()
+                    .normalize();
         } catch (java.net.URISyntaxException e) {
             throw new IllegalStateException(e);
         }
