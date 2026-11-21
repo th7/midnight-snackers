@@ -1,12 +1,549 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
-public final class Feeder {
+import java.util.ArrayList;
+import java.util.List;
+
+public final class Feeder implements Surroundings.Part {
     static final String CAD_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: the Onshape part studio Feeder"
             + " (b57b76498365b6a963155c10, e/0296dc8087bbd2d78083cd41) read on 16 November, in mm in the feeder"
             + " frame: z up the feeder's axis from the floor slab's underside, -y toward the robot's back, +x toward"
             + " its right";
 
-    private Feeder() {}
+    static final String FLOOR = "Feeder floor";
+    static final String WALL = "Feeder wall";
+    static final String TOP_PLATE = "Feeder top plate";
+    static final String HUB = "Spinner hub";
+    static final String FIRST_ARM = "Spinner's first arm";
+    static final String SECOND_ARM = "Spinner's second arm";
+    static final String RAMP_BAR = "Ramp bar";
+    static final String ROBOT_CENTRE_SOURCE = "Launcher's frame is centred 204 mm behind Reginald's front, x forward, y"
+            + " left, z up: its axle, at Reginald's Y 217, is AXLE_BEHIND_CENTRE_MM behind that";
+    static final double ROBOT_CENTRE_BACK_MM = 204;
+
+    private final Faces faces;
+    private final Placing placing;
+    private final Motion motion;
+    private final GridTime time;
+    private final double clockwise;
+    private final double raised;
+    private final Vec3 spinnerSpin;
+    private final Vec3 rampSpin;
+    private final Vec3 pivot;
+
+    private Feeder(Faces faces, Placing placing, Motion motion, GridTime time) {
+        this.faces = faces;
+        this.placing = placing;
+        this.motion = motion;
+        this.time = time;
+        this.clockwise = motion.clockwiseAt(time);
+        this.raised = motion.raisedAt(time);
+        this.spinnerSpin = placing.direction(new Vec3(0, 0, -motion.clockwiseRate));
+        this.rampSpin = placing.direction(new Vec3(0, motion.raisedRate, 0));
+        this.pivot = placing.world(new Vec3(faces.pivotX, 0, faces.pivotZ));
+    }
+
+    static Checked<Feeder> placed(Shape shape, Launcher.Frame frame, Motion motion) {
+        return Faces.of(shape).map(faces -> new Feeder(faces, Placing.of(shape, frame), motion, motion.began));
+    }
+
+    Feeder moved(Motion next) {
+        return new Feeder(faces, placing, next, next.began);
+    }
+
+    Motion motion() {
+        return motion;
+    }
+
+    static final class Motion {
+        private final GridTime began;
+        private final double clockwise;
+        private final double clockwiseRate;
+        private final double raised;
+        private final double raisedRate;
+
+        private Motion(GridTime began, double clockwise, double clockwiseRate, double raised, double raisedRate) {
+            this.began = began;
+            this.clockwise = clockwise;
+            this.clockwiseRate = clockwiseRate;
+            this.raised = raised;
+            this.raisedRate = raisedRate;
+        }
+
+        static Motion still(GridTime at, Spinner.Turning spinner, RampAngle ramp) {
+            return new Motion(at, spinner.radians(), 0, StrictMath.toRadians(ramp.degrees()), 0);
+        }
+
+        static Checked<Motion> of(
+                GridTime began,
+                Seconds over,
+                Spinner.Turning spinnerFrom,
+                Spinner.Turning spinnerTo,
+                RampAngle rampFrom,
+                RampAngle rampTo) {
+            double seconds = over.value();
+            if (!(seconds > 0)) {
+                return Checked.rejected("a feeder's spinner and ramp move over more than 0 s, not " + seconds);
+            }
+            double from = StrictMath.toRadians(rampFrom.degrees());
+            return Checked.ok(new Motion(
+                    began,
+                    spinnerFrom.radians(),
+                    (spinnerTo.radians() - spinnerFrom.radians()) / seconds,
+                    from,
+                    (StrictMath.toRadians(rampTo.degrees()) - from) / seconds));
+        }
+
+        private double since(GridTime time) {
+            return time.seconds() - began.seconds();
+        }
+
+        double clockwiseAt(GridTime time) {
+            return clockwise + clockwiseRate * since(time);
+        }
+
+        double raisedAt(GridTime time) {
+            return raised + raisedRate * since(time);
+        }
+
+        @Override
+        public String toString() {
+            return "from " + began + " the spinner at " + clockwise + " rad clockwise turning " + clockwiseRate
+                    + " rad/s and the ramp at " + raised + " rad rising " + raisedRate + " rad/s";
+        }
+    }
+
+    private static final class Placing {
+        private final Vec3 origin;
+        private final Vec3 x;
+        private final Vec3 y;
+        private final Vec3 z;
+
+        private Placing(Vec3 origin, Vec3 x, Vec3 y, Vec3 z) {
+            this.origin = origin;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        static Placing of(Shape shape, Launcher.Frame frame) {
+            double cos = StrictMath.cos(frame.yaw());
+            double sin = StrictMath.sin(frame.yaw());
+            Vec3 middle = shape.mount.inReginald(Vec3.zero());
+            Vec3 local = new Vec3(ROBOT_CENTRE_BACK_MM - middle.y(), middle.x(), middle.z())
+                    .times(1 / Launcher.MILLIMETRES_PER_INCH);
+            Vec3 origin = new Vec3(frame.x(), frame.y(), 0).plus(turned(local, cos, sin));
+            return new Placing(
+                    origin,
+                    axis(shape, new Vec3(1, 0, 0), middle, cos, sin),
+                    axis(shape, new Vec3(0, 1, 0), middle, cos, sin),
+                    axis(shape, new Vec3(0, 0, 1), middle, cos, sin));
+        }
+
+        private static Vec3 axis(Shape shape, Vec3 feeder, Vec3 middle, double cos, double sin) {
+            Vec3 along = shape.mount.inReginald(feeder).minus(middle);
+            return turned(new Vec3(-along.y(), along.x(), along.z()), cos, sin);
+        }
+
+        private static Vec3 turned(Vec3 local, double cos, double sin) {
+            return new Vec3(cos * local.x() - sin * local.y(), sin * local.x() + cos * local.y(), local.z());
+        }
+
+        Vec3 feeder(Vec3 world) {
+            Vec3 off = world.minus(origin);
+            return new Vec3(off.dot(x), off.dot(y), off.dot(z));
+        }
+
+        Vec3 direction(Vec3 feeder) {
+            return x.times(feeder.x()).plus(y.times(feeder.y())).plus(z.times(feeder.z()));
+        }
+
+        Vec3 world(Vec3 feeder) {
+            return origin.plus(direction(feeder));
+        }
+    }
+
+    private enum Mover {
+        STILL,
+        SPINNER,
+        RAMP
+    }
+
+    private record Found(String id, Vec3 normal, double gap, Mover mover) {}
+
+    private record Opening(
+            double halfWidth, double sill, double side, double cornerY, String sillId, String left, String right) {
+        boolean holds(Vec3 onTheWall) {
+            return StrictMath.abs(onTheWall.x()) < halfWidth && onTheWall.y() * side > 0 && onTheWall.z() > sill;
+        }
+    }
+
+    private static final class Faces {
+        private final double floorTop;
+        private final double wallRadius;
+        private final double plateUnderside;
+        private final List<Opening> openings;
+        private final double backFlatY;
+        private final double frontFlatY;
+        private final double notchHalfWidth;
+        private final double notchInnerEndY;
+        private final double slotFromX;
+        private final double slotToX;
+        private final double slotFromY;
+        private final double slotToY;
+        private final double hubRadius;
+        private final double armBottom;
+        private final double armTop;
+        private final double armFarthest;
+        private final Collider firstArm;
+        private final Collider secondArm;
+        private final double pivotX;
+        private final double pivotZ;
+        private final double rounding;
+        private final double barFarthest;
+        private final Collider bar;
+
+        private Faces(Shape shape, Collider firstArm, Collider secondArm, Collider bar) {
+            Room room = shape.room;
+            this.floorTop = inches(room.floorTop);
+            this.wallRadius = inches(room.wallRadius);
+            this.plateUnderside = inches(room.plateUnderside);
+            this.openings = List.of(opening(shape.front, 1, "front"), opening(shape.back, -1, "back"));
+            this.backFlatY = inches(shape.plate.backFlatY);
+            this.frontFlatY = inches(shape.plate.frontFlatY);
+            this.notchHalfWidth = inches(shape.plate.notchHalfWidth);
+            this.notchInnerEndY = inches(shape.plate.notchInnerEndY);
+            this.slotFromX = inches(shape.slot.fromX);
+            this.slotToX = inches(shape.slot.toX);
+            this.slotFromY = inches(shape.slot.fromY);
+            this.slotToY = inches(shape.slot.toY);
+            Arms arms = shape.arms;
+            this.hubRadius = inches(arms.hubRadius);
+            this.armBottom = inches(arms.armBottom);
+            this.armTop = inches(arms.armTop);
+            this.armFarthest =
+                    inches(StrictMath.max(arms.hubRadius, StrictMath.hypot(arms.armReach, arms.armThickness / 2)));
+            this.firstArm = firstArm;
+            this.secondArm = secondArm;
+            Bar drawn = shape.bar;
+            this.pivotX = inches(drawn.pivotX);
+            this.pivotZ = inches(drawn.pivotZ);
+            this.rounding = inches(drawn.rounding);
+            double farthest = 0;
+            for (double x : new double[] {drawn.freeEndX, drawn.padX}) {
+                for (double z : new double[] {drawn.topAsDrawn, drawn.topAsDrawn - drawn.height}) {
+                    farthest = StrictMath.max(farthest, StrictMath.hypot(x - drawn.pivotX, z - drawn.pivotZ));
+                }
+            }
+            this.barFarthest = inches(farthest);
+            this.bar = bar;
+        }
+
+        static Checked<Faces> of(Shape shape) {
+            Arms arms = shape.arms;
+            double half = inches(arms.armThickness / 2);
+            double reach = inches(arms.armReach);
+            double bottom = inches(arms.armBottom);
+            double top = inches(arms.armTop);
+            Bar drawn = shape.bar;
+            double round = drawn.rounding;
+            return Collider.box(FIRST_ARM, Surface.FRAME, new Vec3(-half, 0, bottom), new Vec3(half, reach, top))
+                    .then(first -> Collider.box(
+                                    SECOND_ARM, Surface.FRAME, new Vec3(-half, -reach, bottom), new Vec3(half, 0, top))
+                            .then(second -> Collider.box(
+                                            RAMP_BAR,
+                                            Surface.FRAME,
+                                            new Vec3(
+                                                            drawn.freeEndX + round,
+                                                            drawn.middleY - drawn.width / 2 + round,
+                                                            drawn.topAsDrawn - drawn.height + round)
+                                                    .times(1 / Launcher.MILLIMETRES_PER_INCH),
+                                            new Vec3(
+                                                            drawn.padX - round,
+                                                            drawn.middleY + drawn.width / 2 - round,
+                                                            drawn.topAsDrawn - round)
+                                                    .times(1 / Launcher.MILLIMETRES_PER_INCH))
+                                    .map(bar -> new Faces(shape, first, second, bar))));
+        }
+
+        private Opening opening(Window window, double side, String where) {
+            double halfWidth = inches(window.halfWidth);
+            return new Opening(
+                    halfWidth,
+                    inches(window.sill),
+                    side,
+                    StrictMath.sqrt(wallRadius * wallRadius - halfWidth * halfWidth),
+                    "Feeder " + where + " sill",
+                    "Feeder " + where + " window's left side",
+                    "Feeder " + where + " window's right side");
+        }
+
+        List<String> ids() {
+            List<String> ids = new ArrayList<>();
+            ids.add(FLOOR);
+            ids.add(WALL);
+            for (Opening opening : openings) {
+                ids.add(opening.sillId());
+                ids.add(opening.left());
+                ids.add(opening.right());
+            }
+            ids.add(TOP_PLATE);
+            ids.add(HUB);
+            ids.add(FIRST_ARM);
+            ids.add(SECOND_ARM);
+            ids.add(RAMP_BAR);
+            return ids;
+        }
+
+        boolean reaches(Vec3 centre, double by) {
+            double lowest = StrictMath.min(floorTop, pivotZ - barFarthest);
+            return StrictMath.hypot(centre.x(), centre.y()) <= wallRadius + by
+                    && centre.z() >= lowest - by
+                    && centre.z() <= plateUnderside + by;
+        }
+
+        double sweep(double clockwiseRate, double raisedRate) {
+            return StrictMath.abs(clockwiseRate) * armFarthest + StrictMath.abs(raisedRate) * barFarthest;
+        }
+
+        List<Found> near(Vec3 centre, double radius, double within, double clockwise, double raised) {
+            List<Found> found = new ArrayList<>();
+            floor(found, centre, radius, within);
+            wall(found, centre, radius, within);
+            plate(found, centre, radius, within);
+            spinner(found, centre, radius, within, clockwise);
+            ramp(found, centre, radius, within, raised);
+            return found;
+        }
+
+        private static void nearest(
+                List<Found> found,
+                String id,
+                Vec3 centre,
+                Vec3 nearest,
+                Vec3 otherwise,
+                double radius,
+                double within,
+                Mover mover) {
+            Vec3 off = centre.minus(nearest);
+            double distance = StrictMath.sqrt(off.dot(off));
+            double gap = distance - radius;
+            if (gap <= within) {
+                found.add(new Found(id, distance > 0 ? off.times(1 / distance) : otherwise, gap, mover));
+            }
+        }
+
+        private void floor(List<Found> found, Vec3 centre, double radius, double within) {
+            double x = centre.x(), y = centre.y();
+            double out = StrictMath.hypot(x, y);
+            if (out > wallRadius) {
+                x = x * wallRadius / out;
+                y = y * wallRadius / out;
+            } else if (x > slotFromX && x < slotToX && y > slotFromY && y < slotToY) {
+                double toFromX = x - slotFromX, toToX = slotToX - x, toFromY = y - slotFromY, toToY = slotToY - y;
+                double least = StrictMath.min(StrictMath.min(toFromX, toToX), StrictMath.min(toFromY, toToY));
+                if (least == toFromX) {
+                    x = slotFromX;
+                } else if (least == toToX) {
+                    x = slotToX;
+                } else if (least == toFromY) {
+                    y = slotFromY;
+                } else {
+                    y = slotToY;
+                }
+            }
+            nearest(found, FLOOR, centre, new Vec3(x, y, floorTop), new Vec3(0, 0, 1), radius, within, Mover.STILL);
+        }
+
+        private void wall(List<Found> found, Vec3 centre, double radius, double within) {
+            double out = StrictMath.hypot(centre.x(), centre.y());
+            double alongX = out > 0 ? centre.x() / out : 1, alongY = out > 0 ? centre.y() / out : 0;
+            Vec3 onTheWall =
+                    new Vec3(alongX * wallRadius, alongY * wallRadius, clamp(centre.z(), floorTop, plateUnderside));
+            Vec3 inward = new Vec3(-alongX, -alongY, 0);
+            for (Opening opening : openings) {
+                if (opening.holds(onTheWall)) {
+                    nearest(
+                            found,
+                            opening.sillId(),
+                            centre,
+                            new Vec3(onTheWall.x(), onTheWall.y(), opening.sill()),
+                            inward,
+                            radius,
+                            within,
+                            Mover.STILL);
+                    double z = clamp(centre.z(), opening.sill(), plateUnderside);
+                    double y = opening.side() * opening.cornerY();
+                    nearest(
+                            found,
+                            opening.left(),
+                            centre,
+                            new Vec3(-opening.halfWidth(), y, z),
+                            inward,
+                            radius,
+                            within,
+                            Mover.STILL);
+                    nearest(
+                            found,
+                            opening.right(),
+                            centre,
+                            new Vec3(opening.halfWidth(), y, z),
+                            inward,
+                            radius,
+                            within,
+                            Mover.STILL);
+                    return;
+                }
+            }
+            nearest(found, WALL, centre, onTheWall, inward, radius, within, Mover.STILL);
+        }
+
+        private void plate(List<Found> found, Vec3 centre, double radius, double within) {
+            double x = centre.x(), y = clamp(centre.y(), backFlatY, frontFlatY);
+            if (StrictMath.abs(x) < notchHalfWidth && y < notchInnerEndY) {
+                double endX = clamp(centre.x(), -notchHalfWidth, notchHalfWidth);
+                double sideX = centre.x() < 0 ? -notchHalfWidth : notchHalfWidth;
+                double sideY = clamp(centre.y(), backFlatY, notchInnerEndY);
+                double toEnd = StrictMath.hypot(centre.x() - endX, centre.y() - notchInnerEndY);
+                double toSide = StrictMath.hypot(centre.x() - sideX, centre.y() - sideY);
+                x = toEnd <= toSide ? endX : sideX;
+                y = toEnd <= toSide ? notchInnerEndY : sideY;
+            }
+            nearest(
+                    found,
+                    TOP_PLATE,
+                    centre,
+                    new Vec3(x, y, plateUnderside),
+                    new Vec3(0, 0, -1),
+                    radius,
+                    within,
+                    Mover.STILL);
+        }
+
+        private void spinner(List<Found> found, Vec3 centre, double radius, double within, double clockwise) {
+            double out = StrictMath.hypot(centre.x(), centre.y());
+            double across = out - hubRadius;
+            double above = StrictMath.max(armBottom - centre.z(), centre.z() - armTop);
+            if (across <= 0 && above <= 0) {
+                double gap = StrictMath.max(across, above) - radius;
+                if (gap <= within) {
+                    Vec3 normal = across > above
+                            ? (out > 0 ? new Vec3(centre.x() / out, centre.y() / out, 0) : new Vec3(1, 0, 0))
+                            : new Vec3(0, 0, centre.z() > armTop ? 1 : -1);
+                    found.add(new Found(HUB, normal, gap, Mover.SPINNER));
+                }
+            } else {
+                double reach = StrictMath.min(out, hubRadius);
+                Vec3 nearest = new Vec3(
+                        out > 0 ? centre.x() * reach / out : 0,
+                        out > 0 ? centre.y() * reach / out : 0,
+                        clamp(centre.z(), armBottom, armTop));
+                nearest(found, HUB, centre, nearest, new Vec3(0, 0, 1), radius, within, Mover.SPINNER);
+            }
+            double cos = StrictMath.cos(clockwise), sin = StrictMath.sin(clockwise);
+            Vec3 turned =
+                    new Vec3(centre.x() * cos - centre.y() * sin, centre.x() * sin + centre.y() * cos, centre.z());
+            for (Collider arm : List.of(firstArm, secondArm)) {
+                if (arm.reaches(turned, radius + within)) {
+                    Colliders.Near near = arm.near(turned, radius);
+                    if (near.gap() <= within) {
+                        Vec3 n = near.normal();
+                        found.add(new Found(
+                                arm.name(),
+                                new Vec3(n.x() * cos + n.y() * sin, -n.x() * sin + n.y() * cos, n.z()),
+                                near.gap(),
+                                Mover.SPINNER));
+                    }
+                }
+            }
+        }
+
+        private void ramp(List<Found> found, Vec3 centre, double radius, double within, double raised) {
+            double cos = StrictMath.cos(raised), sin = StrictMath.sin(raised);
+            double out = centre.x() - pivotX, up = centre.z() - pivotZ;
+            Vec3 drawn = new Vec3(pivotX + out * cos - up * sin, centre.y(), pivotZ + out * sin + up * cos);
+            double reach = radius + rounding;
+            if (bar.reaches(drawn, reach + within)) {
+                Colliders.Near near = bar.near(drawn, reach);
+                if (near.gap() <= within) {
+                    Vec3 n = near.normal();
+                    found.add(new Found(
+                            RAMP_BAR,
+                            new Vec3(n.x() * cos + n.z() * sin, n.y(), n.z() * cos - n.x() * sin),
+                            near.gap(),
+                            Mover.RAMP));
+                }
+            }
+        }
+
+        private static double clamp(double value, double least, double most) {
+            return StrictMath.max(least, StrictMath.min(most, value));
+        }
+
+        private static double inches(double millimetres) {
+            return millimetres / Launcher.MILLIMETRES_PER_INCH;
+        }
+    }
+
+    @Override
+    public List<String> ids() {
+        return faces.ids();
+    }
+
+    @Override
+    public boolean reaches(Vec3 centre, double by) {
+        return faces.reaches(placing.feeder(centre), by);
+    }
+
+    @Override
+    public double sweep() {
+        return faces.sweep(motion.clockwiseRate, motion.raisedRate);
+    }
+
+    @Override
+    public boolean moving() {
+        return motion.clockwiseRate != 0 || motion.raisedRate != 0;
+    }
+
+    @Override
+    public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
+        List<Surroundings.Touch> touches = new ArrayList<>();
+        double r = radius.inches();
+        Vec3 inFeeder = placing.feeder(centre);
+        if (!faces.reaches(inFeeder, r + within)) {
+            return touches;
+        }
+        for (Found found : faces.near(inFeeder, r, within, clockwise, raised)) {
+            Vec3 normal = placing.direction(found.normal());
+            Vec3 contact = centre.along(normal, -(r + found.gap()));
+            Vec3 spin =
+                    found.mover() == Mover.SPINNER ? spinnerSpin : found.mover() == Mover.RAMP ? rampSpin : Vec3.zero();
+            Vec3 about = found.mover() == Mover.RAMP ? pivot : placing.origin;
+            Vec3 velocity = spin.cross(contact.minus(about));
+            Surroundings.Touch.of(found.id(), Surface.FRAME, normal, found.gap(), velocity, spin)
+                    .fold(touch -> touches.add(touch), rule -> false);
+        }
+        return touches;
+    }
+
+    @Override
+    public boolean squeezes() {
+        return false;
+    }
+
+    @Override
+    public List<Surroundings.Overlap> squeezing(Vec3 centre, Length radius) {
+        return List.of();
+    }
+
+    @Override
+    public Feeder at(GridTime then) {
+        return new Feeder(faces, placing, motion, then);
+    }
+
+    @Override
+    public String toString() {
+        return "the feeder at " + time + ", " + motion;
+    }
 
     private static boolean finite(double... measures) {
         for (double measure : measures) {
