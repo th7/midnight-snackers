@@ -414,6 +414,97 @@ public class RobotGatewayTest {
     }
 
     @Test
+    public void anApprovedAddressIsOfferedTheModelsTheHostBuiltWithNoCookie() throws IOException {
+        gatewayWith(new Writing());
+        admin("POST", "/admin/assets/refresh?resolution=low");
+        admin("POST", "/admin/assets/build?resolution=high");
+        approvedUser("ada");
+
+        Reply offered = user("GET", "/field", null);
+
+        assertEquals(offered.body, 200, offered.status);
+        assertEquals(
+                "{\"version\":1,\"models\":["
+                        + "{\"resolution\":\"low\",\"file\":\"field.glb\",\"bytes\":17,"
+                        + "\"sha256\":\"431eab46959ac990d34c3a80f475db662121e75830e02f201209e2db9307cc0f\"},"
+                        + "{\"resolution\":\"high\",\"file\":\"field-high.glb\",\"bytes\":22,"
+                        + "\"sha256\":\"47b0fe386d7ef525acfca5899e41e3e160d08880c45bc8240fc4b76deec009d4\"}]}",
+                offered.body);
+    }
+
+    @Test
+    public void anApprovedAddressFetchesAModelTheHostBuilt() throws IOException {
+        gatewayWith(new Writing());
+        admin("POST", "/admin/assets/refresh?resolution=high");
+        approvedUser("ada");
+
+        Reply model = user("GET", "/field/field-high.glb", null);
+
+        assertEquals(200, model.status);
+        assertEquals("fetched field-high.glb", model.body);
+        assertEquals("model/gltf-binary", model.header("Content-Type"));
+    }
+
+    @Test
+    public void aHostThatBuiltNothingOffersNoModels() throws IOException {
+        approvedUser("ada");
+
+        Reply offered = user("GET", "/field", null);
+
+        assertEquals("{\"version\":1,\"models\":[]}", offered.body);
+        assertEquals(404, user("GET", "/field/field-high.glb", null).status);
+    }
+
+    @Test
+    public void onlyABuiltModelIsServedNotTheExportOrAnythingElseInTheStateDirectory() throws IOException {
+        gatewayWith(new Writing());
+        admin("POST", "/admin/assets/refresh?resolution=high");
+        approvedUser("ada");
+
+        assertEquals(404, user("GET", "/field/" + FieldAssets.EXPORT_FILE, null).status);
+        assertEquals(404, user("GET", "/field/textures/BIOBUZZ_Panel_Resized.png", null).status);
+        assertEquals(404, user("GET", "/field/..%2Fsessions.json", null).status);
+    }
+
+    @Test
+    public void anAddressWithNoApprovedLoginIsRefusedTheModels() throws IOException {
+        gatewayWith(new Writing());
+        admin("POST", "/admin/assets/refresh?resolution=high");
+
+        assertEquals("nobody has logged in", 403, user("GET", "/field", null).status);
+        String cookie = login("ada");
+        assertEquals("a pending login", 403, user("GET", "/field", cookie).status);
+        assertEquals("a pending login", 403, user("GET", "/field/field-high.glb", cookie).status);
+        admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
+        admin("POST", "/admin/logins/" + idOf("ada") + "/revoke");
+        assertEquals("a revoked login", 403, user("GET", "/field/field-high.glb", cookie).status);
+    }
+
+    @Test
+    public void anAddressOtherThanTheApprovedLoginsIsRefusedTheModels() throws IOException {
+        gatewayWith(new Writing());
+        admin("POST", "/admin/assets/refresh?resolution=high");
+        approvedUser("ada");
+        InetAddress another = SecondLoopback.address();
+
+        try (Socket client = new Socket()) {
+            client.setSoTimeout(10_000);
+            client.bind(new InetSocketAddress(another, 0));
+            client.connect(
+                    new InetSocketAddress(
+                            InetAddress.getLoopbackAddress(), gateway().userPort()),
+                    2_000);
+            client.getOutputStream()
+                    .write("GET /field/field-high.glb HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
+                            .getBytes(StandardCharsets.UTF_8));
+            String reply = new String(client.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+            assertTrue(reply, reply.startsWith("HTTP/1.0 403"));
+            assertTrue(reply, reply.contains("no approved login came from 127.0.0.2"));
+        }
+    }
+
+    @Test
     public void aGatewayThatHasFetchedNothingSaysSo() throws IOException {
         Reply said = admin("GET", "/admin/assets");
 

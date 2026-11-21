@@ -18,10 +18,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +33,7 @@ import java.util.stream.Stream;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.FieldOffer;
 import org.firstinspires.ftc.teamcode.simcore.GatewayPorts;
 import org.firstinspires.ftc.teamcode.simcore.HubState;
 import org.firstinspires.ftc.teamcode.simcore.LeftWorktrees;
@@ -347,11 +350,57 @@ public final class RobotGateway {
                 .guard(request ->
                         isApproved(sessionOf(request)) ? null : Response.error(403, "not an approved session"))
                 .route("GET", "/relay", (request, params) -> relayLine(request));
+        Router offeredByAddress = new Router()
+                .guard(this::admittedByAddress)
+                .route("GET", "/field", (request, params) -> fieldOffered())
+                .route("GET", "/field/{file}", (request, params) -> fieldModel(params.get("file")));
         return new Router()
                 .route("GET", "/", (request, params) -> Response.html(page("login.html")))
                 .route("POST", "/login", (request, params) -> login(request))
                 .route("GET", "/me", (request, params) -> Response.json(GSON.toJson(me(sessionOf(request)))))
-                .mount("", approved);
+                .mount("", approved)
+                .mount("", offeredByAddress);
+    }
+
+    private Response admittedByAddress(Request request) {
+        return Peer.of(request.remoteAddress == null ? "" : request.remoteAddress.getHostAddress())
+                .then(peer -> relayAdmission().admit(peer))
+                .fold(users -> null, rule -> Response.error(403, rule));
+    }
+
+    private Response fieldOffered() {
+        JsonArray models = new JsonArray();
+        for (FieldAssets.Resolution one : FieldAssets.Resolution.values()) {
+            assetStore.readIfThere(assetsDir.resolve(one.file)).ifPresent(bytes -> {
+                JsonObject model = new JsonObject();
+                model.addProperty("resolution", one.asked);
+                model.addProperty("file", one.file);
+                model.addProperty("bytes", bytes.length);
+                model.addProperty("sha256", sha256(bytes));
+                models.add(model);
+            });
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("version", FieldOffer.VERSION);
+        body.add("models", models);
+        return Response.json(GSON.toJson(body));
+    }
+
+    private Response fieldModel(String file) {
+        for (FieldAssets.Resolution one : FieldAssets.Resolution.values()) {
+            if (one.file.equals(file)) {
+                return SimAssets.serveUnder(assetsDir, assetStore, file);
+            }
+        }
+        return Response.error(404, "the host serves only the field models it built");
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("every JVM has SHA-256", e);
+        }
     }
 
     private static boolean isApproved(Session session) {

@@ -288,8 +288,9 @@ replaces each. Which ports it listens on is decided in the **core**. Classes:
 **Routes** — What each listener answers, said once as a table of method,
 path pattern and handler: the user listener's public routes (the login page,
 `POST /login`, `GET /me`), then the **approved routes** behind one guard (403
-for anything but an approved session), which is `GET /relay` alone; the admin
-listener's routes. A path no route knows is a 404, a path known by another
+for anything but an approved session), which is `GET /relay` alone, then the
+**field offer** behind the relay's own guard (403 for an address no approved
+login came from); the admin listener's routes. A path no route knows is a 404, a path known by another
 method a 405. The bench's routes are one table too, **mounted** at the root
 of the **local simulator**'s page. Class: `Router`.
 
@@ -351,6 +352,17 @@ hub is assumed to take several adb clients at once, the host's own among
 them, so nothing takes turns. `doc/client-setup.md` takes a new client from a
 clone to a first deploy. Classes: `RobotRelay`; `RelayAdmission` and `Peer`,
 in the core; `FakeHub`.
+
+**Field offer** — The field models the robot gateway built, served on the
+user listener to an address an approved login came from, the relay's own
+admission, so a teammate's **local simulator** needs no cookie and no key:
+`GET /field` names the offer's version, and per model built its resolution,
+file, size and SHA-256, lowest first; `GET /field/<file>` serves one. Only a
+built model is served: neither the export, the textures nor anything else in
+the **state directory**. The offer is a wire format between a host and clients
+built from other checkouts, so it carries a version, and a client refuses one
+it does not read, saying to pull. Classes: `RobotGateway`; `FieldOffer` and
+`FieldModel`, in the core.
 
 **Hub state** — Whether the host could open a connection to the hub's adb port
 when it last tried: *untried*, *reachable* or *unreachable*, with why and when.
@@ -1064,7 +1076,8 @@ assembly, build the field as it looks, fetch the five images the CAD cannot
 carry, and write them under the server's state directory. Nothing is written
 until every one has arrived and been checked, so a rename upstream stops a
 refresh rather than leaving half of one behind. The admin page says what was fetched
-and which resolutions are held; serving them to teammates' simulators is #188's.
+and which resolutions are held, and the **field offer** serves the models it
+built to teammates' simulators.
 The fetch is `main`'s to start rather than the gateway's, so no test that
 builds a robot gateway reaches the network. Classes: `Onshape`; `Gltf`;
 `FieldGlb`; `FieldAssets`; `RobotGateway.Assets`.

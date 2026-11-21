@@ -11,9 +11,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import org.firstinspires.ftc.teamcode.simcore.FieldModel;
 
 public final class FieldAssets {
-    public static final String FIELD_GLB = "field.glb";
+    public static final String FIELD_GLB = FieldModel.LOW.file();
     public static final String TEXTURES_UNDER = "textures";
 
     /** The assembly as Onshape exported it, kept so a build need not fetch it again. */
@@ -35,14 +36,9 @@ public final class FieldAssets {
      * that -- which is why which one the pages draw is a setting on the admin page.
      */
     public enum Resolution {
-        LOW("low", FIELD_GLB, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.A_COLOUR_APIECE),
-        MEDIUM(
-                "medium",
-                "field-medium.glb",
-                FieldGlb.NO_GRID,
-                FieldGlb.Keep.WHAT_WE_DRAW,
-                FieldGlb.Shading.AS_THE_CAD_DREW_IT),
-        HIGH("high", "field-high.glb", FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART, FieldGlb.Shading.AS_THE_CAD_DREW_IT);
+        LOW(FieldModel.LOW, FieldGlb.GRID_IN, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.A_COLOUR_APIECE),
+        MEDIUM(FieldModel.MEDIUM, FieldGlb.NO_GRID, FieldGlb.Keep.WHAT_WE_DRAW, FieldGlb.Shading.AS_THE_CAD_DREW_IT),
+        HIGH(FieldModel.HIGH, FieldGlb.NO_GRID, FieldGlb.Keep.EVERY_PART, FieldGlb.Shading.AS_THE_CAD_DREW_IT);
 
         /**
          * What a page draws, what a server builds for itself, and what the admin page offers first,
@@ -51,15 +47,17 @@ public final class FieldAssets {
          */
         public static final Resolution DEFAULT = HIGH;
 
+        public final FieldModel model;
         public final String asked;
         public final String file;
         public final double grid;
         public final FieldGlb.Keep keep;
         public final FieldGlb.Shading shading;
 
-        Resolution(String asked, String file, double grid, FieldGlb.Keep keep, FieldGlb.Shading shading) {
-            this.asked = asked;
-            this.file = file;
+        Resolution(FieldModel model, double grid, FieldGlb.Keep keep, FieldGlb.Shading shading) {
+            this.model = model;
+            this.asked = model.asked();
+            this.file = model.file();
             this.grid = grid;
             this.keep = keep;
             this.shading = shading;
