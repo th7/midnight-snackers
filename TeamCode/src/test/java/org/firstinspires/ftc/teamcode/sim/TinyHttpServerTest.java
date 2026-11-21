@@ -14,12 +14,10 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -126,7 +124,7 @@ public class TinyHttpServerTest {
         server =
                 TinyHttpServer.start(InetAddress.getLoopbackAddress(), 0, "test-admin", request -> Response.json("{}"));
         assertTrue(server.bindAddress().isLoopbackAddress());
-        InetAddress lan = firstNonLoopbackAddress();
+        InetAddress lan = LanAddress.first();
 
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(lan, server.port()), 2000);
@@ -134,17 +132,6 @@ public class TinyHttpServerTest {
         } catch (ConnectException | SocketTimeoutException refused) {
         }
         assertEquals(200, get("/").status);
-    }
-
-    private static InetAddress firstNonLoopbackAddress() throws IOException {
-        for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-            for (InetAddress address : Collections.list(nic.getInetAddresses())) {
-                if (!address.isLoopbackAddress() && !address.isLinkLocalAddress() && address.getAddress().length == 4) {
-                    return address;
-                }
-            }
-        }
-        throw new AssertionError("could not judge: this machine has no non-loopback IPv4 address to connect from");
     }
 
     @Test

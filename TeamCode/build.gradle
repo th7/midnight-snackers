@@ -170,6 +170,19 @@ afterEvaluate {
         jvmArgs javacExports
     }
 
+    // The simulator a teammate runs from their own checkout, on this machine only. Android Studio's
+    // Simulator run configuration, under .run/, starts it.
+    //   ./gradlew :TeamCode:simulator      http://127.0.0.1:21988/   (SIMULATOR_PORT overrides)
+    tasks.register('simulator', JavaExec) {
+        group = 'simulation'
+        description = 'Serve the simulator for the sources in this checkout on http://127.0.0.1:21988/, this machine only'
+        def unitTest = tasks.named('testDebugUnitTest').get()
+        dependsOn unitTest.taskDependencies
+        classpath = unitTest.classpath
+        mainClass = 'org.firstinspires.ftc.teamcode.sim.LocalSimulator'
+        workingDir = rootDir
+    }
+
     //   ./gradlew :TeamCode:runCost [--args='<op mode> [seconds]']
     tasks.register('runCost', JavaExec) {
         group = 'simulation'
