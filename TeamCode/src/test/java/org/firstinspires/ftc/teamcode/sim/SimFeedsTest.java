@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -94,7 +95,7 @@ public class SimFeedsTest {
 
     @Test
     public void theDefaultsGiveAFeedThatThrowsBothPollen() {
-        JsonObject summary = json(get("/feeds/" + feed("{}"))).getAsJsonObject("summary");
+        JsonObject summary = json(get("/feeds/" + feed("{}") + "/feed")).getAsJsonObject("summary");
 
         assertEquals(2, summary.get("thrown").getAsInt());
         assertEquals("all left", summary.getAsJsonObject("ending").get("kind").getAsString());
@@ -173,5 +174,34 @@ public class SimFeedsTest {
         assertEquals(35, half.getAsJsonArray("ramp").get(0).getAsDouble(), 1e-9);
         assertEquals(180, half.getAsJsonArray("spinner").get(0).getAsDouble(), 10);
         assertEquals(0, frames.get(frames.size() - 1).getAsJsonArray("pollen").size());
+    }
+
+    @Test
+    public void theViewerIsServedAtFeedsAndAFeedsNumberLeadsToItsPlaceInTheViewer() {
+        int id = feed(A_SECOND_AND_A_HALF);
+
+        Response viewer = get("/feeds/");
+        assertEquals(200, viewer.status);
+        assertTrue(viewer.body, viewer.body.contains("<title>Feeder Sim</title>"));
+        assertEquals(308, get("/feeds/" + id).status);
+        assertEquals("./#" + id, get("/feeds/" + id).headers.get("Location"));
+        assertEquals("../#" + id, get("/feeds/" + id + "/").headers.get("Location"));
+        assertEquals(404, get("/feeds/" + (id + 1) + "/feed").status);
+    }
+
+    @Test
+    public void aFeedCarriesTheDrawingOfTheFeederAndTheLauncherInInches() {
+        JsonObject drawing =
+                json(get("/feeds/" + feed(A_SECOND_AND_A_HALF) + "/feed")).getAsJsonObject("drawing");
+
+        JsonObject feeder = drawing.getAsJsonObject("feeder");
+        assertEquals(1.18268, feeder.getAsJsonArray("origin").get(0).getAsDouble(), 1e-4);
+        assertEquals(0.95901, feeder.getAsJsonArray("z").get(2).getAsDouble(), 1e-4);
+        assertEquals(-1, feeder.getAsJsonArray("x").get(1).getAsDouble(), 1e-4);
+        assertEquals(3.23898, feeder.getAsJsonObject("inches").get("wallRadius").getAsDouble(), 1e-4);
+        JsonObject launcher = drawing.getAsJsonObject("launcher");
+        assertEquals(7.08661, launcher.getAsJsonArray("origin").get(2).getAsDouble(), 1e-4);
+        assertEquals(
+                -64.8, launcher.getAsJsonObject("inches").get("hoodFromDegrees").getAsDouble(), 0);
     }
 }

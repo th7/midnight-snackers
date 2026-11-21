@@ -204,6 +204,22 @@
   #launches td .use { padding: 1px 8px; font-size: 12px; }
   #launches input.compare { margin: 0; }
   .launches .empty { padding: 8px 20px 0; }
+  #feeder.panel { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view settings" "feeds settings"; }
+  #feeder .launch-view { grid-area: view; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
+  #feeder .launch-settings { grid-area: settings; border-right: 0; border-left: 1px solid var(--line); padding: 0 0 20px; min-height: 0; overflow: auto; overflow-x: hidden; }
+  #feeder .launches { grid-area: feeds; border-top: 1px solid var(--line); max-height: 32vh; overflow: auto; min-width: 0; padding: 10px 0 12px; }
+  @media (max-width: 760px) {
+    #feeder.panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "view" "settings" "feeds"; overflow-y: auto; }
+    #feeder .launch-view { height: 62vh; min-height: 320px; }
+    #feeder .launch-settings { border-left: 0; border-top: 1px solid var(--line); min-height: auto; overflow: visible; }
+    #feeder .launches { max-height: none; min-height: auto; overflow: visible; }
+  }
+  .setting .rule { grid-column: 1 / -1; margin: 0; color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
+  #feeds { table-layout: auto; }
+  #feeds th, #feeds td { overflow: visible; text-overflow: clip; }
+  #feeds td.since { color: var(--muted); white-space: normal; min-width: 9em; overflow-wrap: anywhere; }
+  #feeds td.actions a { margin-right: 8px; }
+  #feeds td .use { padding: 1px 8px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -214,6 +230,7 @@
     <button role="tab" data-tab="edit" aria-selected="true" aria-controls="edit">Edit</button>
     <button role="tab" data-tab="simulate" aria-selected="false" aria-controls="simulate">Simulate</button>
     <button role="tab" data-tab="launch" aria-selected="false" aria-controls="launch">Launch Sim</button>
+    <button role="tab" data-tab="feeder" aria-selected="false" aria-controls="feeder">Feeder Sim</button>
   </nav>
   <p class="who">Signed in as <strong id="who">…</strong> for <select id="robot" class="robot" aria-label="The robot you are working on" disabled><option>…</option></select> on <span id="branch" class="mono">…</span></p>
   <p class="broke" id="broke" role="alert" hidden></p>
@@ -309,6 +326,34 @@
       </table>
     </div>
     <p id="launches-none" class="empty">No launches yet. Set the launch and press Launch; each one is listed here.</p>
+  </section>
+</main>
+<main id="feeder" class="panel" role="tabpanel" hidden>
+  <section class="launch-view">
+    <div class="stage-head">
+      <h2 id="feeder-title">No feed yet</h2>
+      <span id="feeder-state" class="launch-state"></span>
+    </div>
+    <iframe id="feeder-stage" title="The feed, drawn in the feeder and the launcher"></iframe>
+  </section>
+  <aside class="launch-settings" aria-label="Feed settings">
+    <div class="launch-bar">
+      <button id="feeder-go" class="primary" type="button" disabled>Feed</button>
+      <button id="feeder-defaults" type="button" disabled>Defaults</button>
+      <p id="feeder-message" class="launch-message" role="status"></p>
+    </div>
+    <p id="feeder-forgot" class="launch-forgot" hidden></p>
+    <div id="feeder-groups"></div>
+  </aside>
+  <section class="launches" aria-label="Feeds">
+    <p class="section-label">Feeds</p>
+    <div class="launches-table" id="feeds-table" hidden>
+      <table id="feeds">
+        <thead><tr><th>#</th><th>Ending</th><th>Thrown</th><th>Changed from the defaults</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="feeds-none" class="empty">No feeds yet. Set the feed and press Feed; each one is listed here.</p>
   </section>
 </main>
 <script>
@@ -984,7 +1029,7 @@
     var text = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var mark = text.indexOf('?');
     var name = mark < 0 ? text : text.slice(0, mark);
-    var known = name === 'simulate' || name === 'launch';
+    var known = name === 'simulate' || name === 'launch' || name === 'feeder';
     return { name: known ? name : 'edit',
              options: known && mark >= 0 ? text.slice(mark + 1) : '' };
   }
@@ -1002,6 +1047,7 @@
     if (location.hash !== want) { history.replaceState(null, '', want); }
     if (name === 'simulate' && simulate) { simulate.enter(); simulate.again(); }
     if (name === 'launch' && launch) { launch.enter(); }
+    if (name === 'feeder' && feeder) { feeder.enter(); }
   }
 
   function withTabOptions(url) {
@@ -2032,13 +2078,413 @@
     return { enter: enter };
   }
 
+  function theFeederTab() {
+    var VIEWER = '/sim/feeds/';
+    var ENDING_PILLS = { 'all left': 'ok', 'at rest': 'muted', 'out of time': 'warn', 'too much work': 'bad' };
+    var view = document.getElementById('feeder-stage');
+    var title = document.getElementById('feeder-title');
+    var state = document.getElementById('feeder-state');
+    var go = document.getElementById('feeder-go');
+    var defaults = document.getElementById('feeder-defaults');
+    var message = document.getElementById('feeder-message');
+    var forgot = document.getElementById('feeder-forgot');
+    var groupsHost = document.getElementById('feeder-groups');
+    var band = document.querySelector('#feeds tbody');
+    var none = document.getElementById('feeds-none');
+    var bandTable = document.getElementById('feeds-table');
+
+    var entries = {};
+    var order = [];
+    var ready = false;
+    var settingsAsked = false;
+    var feeding = false;
+    var feeds = [];
+    var shownId = null;
+    var refusal = null;
+    var viewOpenedWith = null;
+    var viewLoaded = false;
+
+    function has(object, key) {
+      return !!object && Object.prototype.hasOwnProperty.call(object, key);
+    }
+
+    function el(tag, className, text) {
+      var made = document.createElement(tag);
+      if (className) { made.className = className; }
+      if (text !== undefined && text !== null) { made.textContent = text; }
+      return made;
+    }
+
+    function clear(node) {
+      while (node.firstChild) { node.removeChild(node.firstChild); }
+    }
+
+    function finite(n) {
+      return typeof n === 'number' && isFinite(n);
+    }
+
+    function short(n) {
+      return finite(n) ? String(Math.round(n * 10000) / 10000) : '–';
+    }
+
+    function say(text, bad) {
+      message.textContent = text;
+      if (bad) { message.classList.add('bad'); } else { message.classList.remove('bad'); }
+    }
+
+    function lost(e) {
+      say('Lost the host: ' + e + '. Ask the admin to restart ./gradlew :TeamCode:codingServer', true);
+    }
+
+    function stepOf(setting) {
+      if (setting.whole) { return '1'; }
+      var span = setting.most - setting.least;
+      var places = Math.min(4, Math.max(2, span > 0 ? 2 - Math.floor(Math.log(span) / Math.LN10) : 2));
+      return (1 / Math.pow(10, places)).toFixed(places);
+    }
+
+    function rangeOf(setting) {
+      var unit = setting.unit ? ' ' + setting.unit : '';
+      return short(setting.least) + ' to ' + short(setting.most) + unit + '; ' + short(setting.byDefault) + ' unless changed.';
+    }
+
+    function unreadable(entry) {
+      return !!entry.input.validity && entry.input.validity.badInput;
+    }
+
+    function valueOf(entry) {
+      var typed = entry.input.value.trim();
+      var number = typed === '' ? NaN : Number(typed);
+      return finite(number) ? number : entry.setting.byDefault;
+    }
+
+    function formValues() {
+      var values = {};
+      order.forEach(function (name) { values[name] = valueOf(entries[name]); });
+      return values;
+    }
+
+    function showProblems() {
+      var bad = order.filter(function (name) { return unreadable(entries[name]); });
+      order.forEach(function (name) {
+        var entry = entries[name];
+        var refused = refusal !== null && refusal.setting === name;
+        var said = bad.indexOf(name) >= 0 ? 'This is not a number. Fix it, or clear it to use the default.'
+          : refused ? refusal.rule : '';
+        entry.rule.textContent = said;
+        entry.rule.hidden = !said;
+        if (said) { entry.input.setAttribute('aria-invalid', 'true'); } else { entry.input.removeAttribute('aria-invalid'); }
+        if (entry.reset) { entry.reset.classList.toggle('unneeded', valueOf(entry) === entry.setting.byDefault); }
+      });
+      if (refusal !== null && (refusal.setting === null || !has(entries, refusal.setting))) {
+        say(refusal.rule, true);
+      }
+      return bad;
+    }
+
+    function afterChange(entry) {
+      if (refusal !== null && (entry === null || refusal.setting === entry.setting.name || refusal.setting === null)) {
+        refusal = null;
+        say('', false);
+      }
+      showProblems();
+    }
+
+    function fill(values) {
+      order.forEach(function (name) {
+        var entry = entries[name];
+        entry.input.value = String(has(values, name) && finite(values[name]) ? values[name] : entry.setting.byDefault);
+      });
+      refusal = null;
+      afterChange(null);
+    }
+
+    function settingRow(setting) {
+      var id = 'feeder-setting-' + setting.name;
+      var row = el('div', 'setting');
+      row.setAttribute('data-setting', setting.name);
+      var label = el('label', 'setting-label', setting.label);
+      label.htmlFor = id;
+      var input = document.createElement('input');
+      input.id = id;
+      input.name = setting.name;
+      input.type = 'number';
+      input.min = String(setting.least);
+      input.max = String(setting.most);
+      input.step = stepOf(setting);
+      input.setAttribute('aria-describedby', id + '-says ' + id + '-rule');
+      var control = el('span', 'control');
+      control.appendChild(input);
+      if (setting.unit) { control.appendChild(el('span', 'unit', setting.unit)); }
+      var reset = el('button', 'reset unneeded', 'reset');
+      reset.type = 'button';
+      reset.setAttribute('aria-label', 'Put ' + setting.label + ' back to ' + short(setting.byDefault));
+      control.appendChild(reset);
+      var rule = el('p', 'rule');
+      rule.id = id + '-rule';
+      rule.hidden = true;
+      rule.setAttribute('role', 'alert');
+      var says = el('p', 'says', setting.says + ' ' + rangeOf(setting));
+      says.id = id + '-says';
+      row.appendChild(label);
+      row.appendChild(control);
+      row.appendChild(rule);
+      row.appendChild(says);
+      var entry = { setting: setting, input: input, rule: rule, reset: reset, details: null };
+      reset.addEventListener('click', function () { input.value = String(setting.byDefault); afterChange(entry); });
+      input.addEventListener('input', function () { afterChange(entry); });
+      input.addEventListener('change', function () { afterChange(entry); });
+      entries[setting.name] = entry;
+      order.push(setting.name);
+      return row;
+    }
+
+    function renderSettings(listing) {
+      clear(groupsHost);
+      entries = {};
+      order = [];
+      (listing.groups || []).forEach(function (listed) {
+        var details = el('details', 'launch-group');
+        details.setAttribute('data-group', listed.name);
+        details.open = true;
+        var summary = el('summary');
+        summary.appendChild(el('span', '', listed.label));
+        details.appendChild(summary);
+        if (listed.says) { details.appendChild(el('p', 'says group-says', listed.says)); }
+        (listing.settings || []).forEach(function (setting) {
+          if (setting.group !== listed.name) { return; }
+          details.appendChild(settingRow(setting));
+          entries[setting.name].details = details;
+        });
+        groupsHost.appendChild(details);
+      });
+      var start = {};
+      (listing.settings || []).forEach(function (setting) {
+        start[setting.name] = has(setting, 'value') ? setting.value : setting.byDefault;
+      });
+      forgot.textContent = listing.forgot || '';
+      forgot.hidden = !listing.forgot;
+      fill(start);
+    }
+
+    function setGo() {
+      go.disabled = feeding || !ready;
+      go.textContent = feeding ? 'Simulating…' : 'Feed';
+      defaults.disabled = !ready;
+    }
+
+    function problemOf(text) {
+      try {
+        var problem = JSON.parse(text);
+        if (problem && typeof problem.rule === 'string') {
+          return { setting: typeof problem.setting === 'string' ? problem.setting : null, rule: problem.rule };
+        }
+      } catch (e) {
+        return { setting: null, rule: text };
+      }
+      return { setting: null, rule: text };
+    }
+
+    function refusedFor(problem) {
+      refusal = problem;
+      showProblems();
+      if (problem.setting !== null && has(entries, problem.setting)) {
+        var entry = entries[problem.setting];
+        entry.details.open = true;
+        try { entry.input.scrollIntoView({ block: 'center' }); } catch (e) { entry.input.scrollIntoView(); }
+      }
+    }
+
+    function feedNow() {
+      if (feeding || !ready) { return; }
+      var bad = showProblems();
+      if (bad.length) {
+        entries[bad[0]].input.focus();
+        return;
+      }
+      feeding = true;
+      refusal = null;
+      say('', false);
+      showProblems();
+      setGo();
+      fetch('/sim/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(formValues())
+      }).then(function (r) {
+        if (r.status === 403) { location.reload(); return; }
+        return r.text().then(function (text) {
+          if (r.status === 400) { refusedFor(problemOf(text)); return; }
+          if (!r.ok) { say('Could not feed: ' + text, true); return; }
+          shownId = JSON.parse(text).id;
+          openView();
+          return loadFeeds();
+        });
+      }).catch(lost).then(function () {
+        feeding = false;
+        setGo();
+      });
+    }
+
+    function viewerShown() {
+      try {
+        var shown = view.contentWindow ? view.contentWindow.location : null;
+        return shown && shown.pathname === VIEWER ? shown : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function openView() {
+      var fragment = shownId === null ? '' : '#' + shownId;
+      var shown = viewLoaded && viewOpenedWith === tabOptions ? viewerShown() : null;
+      if (shown) {
+        if (shown.hash !== fragment) { shown.hash = fragment; }
+        return;
+      }
+      var want = withTabOptions(VIEWER) + fragment;
+      if (view.getAttribute('src') !== want) {
+        viewOpenedWith = tabOptions;
+        viewLoaded = false;
+        view.setAttribute('src', want);
+      }
+    }
+
+    view.addEventListener('load', function () { viewLoaded = true; });
+
+    function feedOf(id) {
+      var found = null;
+      feeds.forEach(function (one) { if (one.id === id) { found = one; } });
+      return found;
+    }
+
+    function endingPill(ending) {
+      var kind = ending && ending.kind ? ending.kind : '';
+      var pill = el('span', 'pill ' + (has(ENDING_PILLS, kind) ? ENDING_PILLS[kind] : 'muted'), kind || '?');
+      if (ending && ending.says) { pill.title = ending.says; }
+      return pill;
+    }
+
+    function thrownSaying(one) {
+      var at = (one.thrownAt || []).map(function (t) { return short(Math.round(t * 1000) / 1000) + ' s'; });
+      return one.thrown + ' thrown' + (at.length ? ' (' + at.join(', ') + ')' : '');
+    }
+
+    function changedSaying(one) {
+      var changed = one.changed || {};
+      var names = Object.keys(changed);
+      if (!names.length) { return 'the defaults'; }
+      return names.map(function (name) {
+        var entry = has(entries, name) ? entries[name] : null;
+        var unit = entry && entry.setting.unit ? ' ' + entry.setting.unit : '';
+        return (entry ? entry.setting.label : name) + ' ' + short(changed[name]) + unit;
+      }).join(', ');
+    }
+
+    function renderHead() {
+      clear(state);
+      title.textContent = shownId === null ? 'No feed yet' : 'Feed ' + shownId;
+      var one = shownId === null ? null : feedOf(shownId);
+      if (!one) { return; }
+      state.appendChild(endingPill(one.ending));
+      state.appendChild(el('span', '', thrownSaying(one)));
+      if (finite(one.computeSeconds)) {
+        state.appendChild(el('span', '', 'computed in ' + Math.round(one.computeSeconds * 1000) + ' ms'
+            + (finite(one.realTime) ? ', ' + one.realTime.toFixed(2) + '× real time' : '')));
+      }
+    }
+
+    function renderFeeds() {
+      clear(band);
+      none.hidden = feeds.length > 0;
+      bandTable.hidden = !feeds.length;
+      feeds.forEach(function (one) {
+        var tr = el('tr', one.id === shownId ? 'current' : '');
+        tr.setAttribute('data-id', String(one.id));
+        tr.appendChild(el('td', 'mono', String(one.id)));
+        var pill = el('td');
+        pill.appendChild(endingPill(one.ending));
+        tr.appendChild(pill);
+        tr.appendChild(el('td', '', thrownSaying(one)));
+        var since = changedSaying(one);
+        var sinceCell = el('td', 'since', since);
+        sinceCell.title = since;
+        tr.appendChild(sinceCell);
+        var actions = el('td', 'actions');
+        var link = el('a', 'show', 'show');
+        link.href = withTabOptions(VIEWER) + '#' + one.id;
+        link.addEventListener('click', function (e) { e.preventDefault(); show(one.id); });
+        actions.appendChild(link);
+        var again = el('button', 'use', 'use these settings');
+        again.type = 'button';
+        again.title = 'Put the settings of feed ' + one.id + ' into the form';
+        again.addEventListener('click', function () {
+          fill(one.changed || {});
+          say('The form holds the settings of feed ' + one.id + '.', false);
+        });
+        actions.appendChild(again);
+        tr.appendChild(actions);
+        band.appendChild(tr);
+      });
+    }
+
+    function show(id) {
+      shownId = id;
+      openView();
+      renderHead();
+      renderFeeds();
+    }
+
+    function loadFeeds() {
+      return fetch('/sim/feeds', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (!r.ok) { return r.text().then(function (t) { say(t, true); return null; }); }
+        return r.json();
+      }).then(function (listing) {
+        if (!listing) { return; }
+        feeds = listing.feeds || [];
+        if (shownId === null && feeds.length) { shownId = feeds[0].id; }
+        openView();
+        renderHead();
+        renderFeeds();
+      }).catch(lost);
+    }
+
+    function loadSettings() {
+      if (settingsAsked) { return; }
+      settingsAsked = true;
+      fetch('/sim/feed/settings', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (!r.ok) { return r.text().then(function (t) { settingsAsked = false; say(t, true); return null; }); }
+        return r.json();
+      }).then(function (listing) {
+        if (!listing) { return; }
+        ready = true;
+        renderSettings(listing);
+        setGo();
+      }).catch(function (e) { settingsAsked = false; lost(e); });
+    }
+
+    go.addEventListener('click', feedNow);
+    defaults.addEventListener('click', function () { fill({}); say('', false); });
+
+    function enter() {
+      loadSettings();
+      loadFeeds().then(openView);
+    }
+
+    return { enter: enter };
+  }
+
   var git = null;
   var simulate = null;
   var launch = null;
+  var feeder = null;
   part('the editor', startEditor);
   part('the branch panel', function () { git = theBranchPanel(); });
   part('the simulator', function () { simulate = theSimulateTab(); });
   part('the launch sim', function () { launch = theLaunchTab(); });
+  part('the feeder sim', function () { feeder = theFeederTab(); });
   part('the header', whoIsSignedIn);
   part('the file list', refreshFiles);
   part('the tabs', wireTabs);

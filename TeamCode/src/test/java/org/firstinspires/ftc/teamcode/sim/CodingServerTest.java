@@ -1749,8 +1749,10 @@ public class CodingServerTest {
         assertEquals(403, user("GET", "/sim/feeds/1/frames/0", null).status);
         assertEquals(200, user("POST", "/sim/feed", ada, "{\"pollen\": 0, \"run\": 1.5}").status);
         assertEquals("{\"feeds\":[]}", user("GET", "/sim/feeds", bob).body);
-        assertEquals(404, user("GET", "/sim/feeds/1", bob).status);
-        assertEquals(200, user("GET", "/sim/feeds/1", ada).status);
+        assertEquals(403, user("GET", "/sim/feeds/", pending).status);
+        assertEquals(200, user("GET", "/sim/feeds/", bob).status);
+        assertEquals(404, user("GET", "/sim/feeds/1/feed", bob).status);
+        assertEquals(200, user("GET", "/sim/feeds/1/feed", ada).status);
         assertEquals(200, user("GET", "/sim/feeds/1/frames/0", ada).status);
     }
 
@@ -1968,6 +1970,27 @@ public class CodingServerTest {
         assertTrue(
                 "and before the tabs, so the tab it is opened on can enter it",
                 launchSim < page.indexOf("part('the tabs', wireTabs)"));
+    }
+
+    @Test
+    public void theDashboardHasAFeederSimTabAfterLaunchSim() {
+        String page = SimAssets.page("dashboard.html");
+
+        assertTrue(page, page.contains("data-tab=\"feeder\" aria-selected=\"false\" aria-controls=\"feeder\""));
+        assertTrue(page, page.contains("<main id=\"feeder\" class=\"panel\" role=\"tabpanel\" hidden>"));
+        assertTrue(page, page.contains("id=\"feeder-stage\""));
+        assertTrue(page, page.contains("'/sim/feed/settings'"));
+        assertTrue(page, page.contains("'/sim/feed'"));
+        assertTrue(page, page.contains("'/sim/feeds'"));
+        assertTrue(page, page.contains("'/sim/feeds/'"));
+        assertTrue(
+                "the Feeder Sim tab comes after Launch Sim",
+                page.indexOf("data-tab=\"launch\"") < page.indexOf("data-tab=\"feeder\""));
+        int feederSim = page.indexOf("part('the feeder sim', ");
+        assertTrue("the feeder sim starts as a part of its own", feederSim >= 0);
+        assertTrue(
+                "and before the tabs, so the tab it is opened on can enter it",
+                feederSim < page.indexOf("part('the tabs', wireTabs)"));
     }
 
     @Test
@@ -2538,7 +2561,9 @@ public class CodingServerTest {
             "#nonsense",
             "#edit?resolution=low",
             "#launch",
-            "#launch?resolution=low"
+            "#launch?resolution=low",
+            "#feeder",
+            "#feeder?resolution=low"
         };
 
         String[] got = tabsOnTheDashboard(asked);
@@ -2553,6 +2578,8 @@ public class CodingServerTest {
         assertEquals("and options only mean something to the tab that reads them", "edit ", got[7]);
         assertEquals("the Launch Sim tab is a tab of its own", "launch ", got[8]);
         assertEquals("and its view is drawn as it is asked to be", "launch resolution=low", got[9]);
+        assertEquals("the Feeder Sim tab is a tab of its own", "feeder ", got[10]);
+        assertEquals("feeder resolution=low", got[11]);
     }
 
     private String[] tabsOnTheDashboard(String[] asked) throws Exception {

@@ -259,6 +259,7 @@ final class SimFeeds {
         feed.addProperty("frames", run.frames().size());
         feed.addProperty("chunks", chunks.size());
         feed.addProperty("pollenRadius", Feed.POLLEN_RADIUS_IN);
+        feed.add("drawing", drawing(run.drawing()));
         feeds.add(new Kept(id, summary, GSON.toJson(feed), chunks));
         while (feeds.size() > MOST_KEPT || (feeds.size() > 1 && keptBytes() > MOST_KEPT_BYTES)) {
             feeds.remove(0);
@@ -299,8 +300,23 @@ final class SimFeeds {
         return Response.json(GSON.toJson(listing));
     }
 
+    Response viewer() {
+        return Response.html(SimFeedPage.viewer());
+    }
+
+    static Response toTheViewer(String from, String id) {
+        if (!isAFeedNumber(id)) {
+            return Response.error(404, "a feed is a number, and that is not one");
+        }
+        return new Response(308, "text/plain; charset=utf-8", "").withHeader("Location", from + "#" + id);
+    }
+
+    private static boolean isAFeedNumber(String id) {
+        return id != null && id.matches("[0-9]{1,9}");
+    }
+
     private synchronized Optional<Kept> find(String id) {
-        if (id == null || !id.matches("[0-9]{1,9}")) {
+        if (!isAFeedNumber(id)) {
             return Optional.empty();
         }
         for (Kept kept : feeds) {
@@ -471,6 +487,27 @@ final class SimFeeds {
     private static double round(double value, int places) {
         double scale = Math.pow(10, places);
         return Math.round(value * scale) / scale;
+    }
+
+    private static JsonObject drawing(Feed.Drawing drawing) {
+        JsonObject drawn = new JsonObject();
+        drawn.add("feeder", drawn(drawing.feeder(), drawing.feederInches()));
+        drawn.add("launcher", drawn(drawing.launcher(), drawing.launcherInches()));
+        return drawn;
+    }
+
+    private static JsonObject drawn(Feed.Axes axes, Map<String, Double> inches) {
+        JsonObject part = new JsonObject();
+        part.add("origin", vector(axes.origin(), 5));
+        part.add("x", vector(axes.x(), 6));
+        part.add("y", vector(axes.y(), 6));
+        part.add("z", vector(axes.z(), 6));
+        JsonObject measures = new JsonObject();
+        for (Map.Entry<String, Double> measure : inches.entrySet()) {
+            measures.addProperty(measure.getKey(), round(measure.getValue(), 5));
+        }
+        part.add("inches", measures);
+        return part;
     }
 
     private static JsonArray vector(Vec3 v, int places) {

@@ -38,7 +38,7 @@ def main():
         return 2
     if not result.wasSuccessful():
         return 1
-    for check in (renderer_check, browser_check, dashboard_check, login_check, admin_check, replay_check, launch_check, cost_check):
+    for check in (renderer_check, browser_check, dashboard_check, login_check, admin_check, replay_check, launch_check, feeder_check, cost_check):
         began = time.monotonic()
         wrong = check()
         took.append((check.__name__.replace('_check', ''), time.monotonic() - began))
@@ -96,6 +96,10 @@ def replay_check():
 
 def launch_check():
     return in_a_browser('launch.mjs')
+
+
+def feeder_check():
+    return in_a_browser('feeder.mjs')
 
 
 def cost_check():

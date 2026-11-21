@@ -46,6 +46,7 @@ const PROPERTIES = [...new Set(LAUNCH_SETTINGS.filter((s) => s.property).map((s)
 const PREVIEW = ANSWERED.preview;
 const SUMMARIES = ANSWERED.launches.launches.slice().reverse();
 const TOO_STEEP_RULE = ANSWERED.refused.rule;
+const FEEDER = JSON.parse(fs.readFileSync(path.join(here, 'feeder-answers.json'), 'utf8'));
 
 const REMEMBERED = { temperature: 25 };
 const FORGOT = 'Went back to the default for what was kept of spin_rate (there is no such setting now).';
@@ -209,6 +210,27 @@ function servedTheLaunchSim(request, response, route) {
   return false;
 }
 
+let feederViewerLoads = 0;
+const FEEDER_VIEWER = '<!doctype html><meta charset="utf-8"><title>Feeder Sim</title><body></body>';
+
+function servedTheFeederSim(request, response, route) {
+  if (request.method === 'GET' && route === '/sim/feed/settings') {
+    json(response, FEEDER.settings);
+    return true;
+  }
+  if (request.method === 'GET' && route === '/sim/feeds') {
+    json(response, { feeds: [] });
+    return true;
+  }
+  if (request.method === 'GET' && route === '/sim/feeds/') {
+    feederViewerLoads += 1;
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(FEEDER_VIEWER);
+    return true;
+  }
+  return false;
+}
+
 function serve() {
   const server = http.createServer((request, response) => {
     const asked = decodeURIComponent(request.url.split('?')[0]);
@@ -249,6 +271,9 @@ function serve() {
       return;
     }
     if (servedTheLaunchSim(request, response, asked)) {
+      return;
+    }
+    if (servedTheFeederSim(request, response, asked)) {
       return;
     }
     if (request.method === 'POST' && asked === '/sim/run') {
@@ -968,6 +993,22 @@ async function theLaunchSimWorks(page, engine) {
   await noReloadTakesTextTheUserIsStillTyping(page, engine);
 }
 
+async function theFeederSimTabOpensItsViewer(page, engine) {
+  const loads = feederViewerLoads;
+  await page.locator('nav [data-tab="feeder"]').click({ timeout: 5_000 });
+  check(await page.locator('#feeder').isVisible(), `${engine}: tapping Feeder Sim does not open the tab`);
+  check(!(await page.locator('#launch').isVisible()), `${engine}: the Launch Sim tab is still shown under Feeder Sim`);
+  check(await untilTrue(page, () => {
+    const frame = document.getElementById('feeder-stage');
+    return !!frame.contentWindow && frame.contentWindow.location.pathname === '/sim/feeds/'
+        && frame.contentDocument.title === 'Feeder Sim';
+  }), `${engine}: the Feeder Sim tab does not open the feeder's viewer`);
+  check(feederViewerLoads === loads + 1, `${engine}: the feeder's viewer was loaded ${feederViewerLoads - loads} times`);
+  check(await untilTrue(page, (n) => document.querySelectorAll('#feeder details.launch-group').length === n,
+      FEEDER.settings.groups.length), `${engine}: the Feeder Sim tab does not set out its settings' groups`);
+  check(page.url().endsWith('#feeder'), `${engine}: the Feeder Sim tab is at ${page.url()}, not #feeder`);
+}
+
 async function main() {
   const server = await serve();
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -980,6 +1021,7 @@ async function main() {
     await aSaveSaysWhichRobotTheFileWasReadOn(current.page, 'this engine');
     await deploySavesFirstAndReportsTheInstall(current.page, 'this engine');
     await theLaunchSimWorks(current.page, 'this engine');
+    await theFeederSimTabOpensItsViewer(current.page, 'this engine');
     await nothingBroke(current.page, current.threw, current.started, 'this engine');
 
     const older = await opened(browser, base, { engine: asAnOlderIpad, viewport: { width: 810, height: 1080 } });
@@ -988,6 +1030,7 @@ async function main() {
     await theEditorFollowsTheSystemTheme(older.page, 'an older iPad');
     await deploySavesFirstAndReportsTheInstall(older.page, 'an older iPad');
     await theLaunchSimWorks(older.page, 'an older iPad');
+    await theFeederSimTabOpensItsViewer(older.page, 'an older iPad');
     await nothingBroke(older.page, older.threw, older.started, 'an older iPad');
 
     await aSwitchComesBackOnTheOtherRobot(current.page, 'this engine');
@@ -1031,8 +1074,9 @@ async function main() {
       + 'drawn, takes a launch\'s settings back, marks the setting a launch was refused for, keeps a launch\'s '
       + 'refusal in sight until the form changes, sends nothing while a number cannot be read, and reloads the '
       + 'settings when the bench says it no longer knows one, keeping only what the user changed and where they '
-      + 'were typing, trying again after a reload fails and never over a number still being typed, on '
-      + 'this engine and on one shaped like an older iPad\'s, and '
+      + 'were typing, trying again after a reload fails and never over a number still being typed, and the '
+      + `Feeder Sim tab, which sets out the bench's ${FEEDER.settings.groups.length} groups of feed settings and `
+      + 'opens the feeder\'s viewer, on this engine and on one shaped like an older iPad\'s, and '
       + 'says so on the page when the editor cannot start, where both tabs are still reached.');
 }
 

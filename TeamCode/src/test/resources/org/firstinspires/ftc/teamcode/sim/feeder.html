@@ -1,0 +1,1115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+__IMPORTMAP__
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ee; --panel: #ffffff; --ink: #1f1d19; --muted: #6e6a61; --line: #d9d6cc; --grid: #ebe8df;
+    --accent: #2f5bd7; --accent-ink: #ffffff; --focus: #2f5bd7; --row: #eef2fd;
+    --good: #2e7d32; --near: #a15c00; --plain: #6e6a61; --bad: #c62828; --pill-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --grid: #2a2c31;
+      --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff; --row: #262c3d;
+      --good: #66bb6a; --near: #ffb74d; --plain: #9c988f; --bad: #ff8a80; --pill-ink: #101318;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181b; --panel: #202226; --ink: #ebe9e3; --muted: #9c988f; --line: #35373d; --grid: #2a2c31;
+    --accent: #7ea2ff; --accent-ink: #101318; --focus: #7ea2ff; --row: #262c3d;
+    --good: #66bb6a; --near: #ffb74d; --plain: #9c988f; --bad: #ff8a80; --pill-ink: #101318;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 8px 12px 16px; max-width: 1320px; margin: 0 auto; }
+  @media (min-width: 960px) {
+    main { grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; padding: 14px 20px 20px; }
+    aside { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow: auto; }
+  }
+  .stage { min-width: 0; }
+  .head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; min-height: 1.6em; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--pill-ink); background: var(--plain); }
+  .pill.good { background: var(--good); } .pill.near { background: var(--near); } .pill.bad { background: var(--bad); }
+  .view canvas { display: block; width: 100%; height: clamp(220px, 50vh, 620px); border: 1px solid var(--line); border-radius: 6px; background: var(--bg); touch-action: none; cursor: grab; }
+  .view canvas:active { cursor: grabbing; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 8px; }
+  button, select { font: inherit; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover, select:hover { border-color: var(--ink); }
+  button:disabled, select:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visible, summary:focus-visible, canvas:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #play { min-width: 5.5em; }
+  .time { margin-left: auto; }
+  .scrubber { position: relative; flex: 1 1 100%; height: 24px; }
+  #scrub { width: 100%; height: 24px; margin: 0; accent-color: var(--accent); }
+  .marks { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; pointer-events: none; }
+  .mark { position: absolute; top: 2px; bottom: 2px; width: 3px; margin-left: -1px; border-radius: 2px; }
+  .mark.thrown { background: var(--good); } .mark.fell { background: var(--near); } .mark.jammed { background: var(--bad); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+  .legend i { display: inline-block; width: 3px; height: 11px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .problem { color: var(--bad); font-size: 13px; margin: 6px 0 0; min-height: 1em; }
+  .traces { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 14px; margin: 12px 0 0; }
+  .trace { margin: 0; min-width: 0; }
+  .trace figcaption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .trace figcaption .value { color: var(--ink); }
+  .trace canvas { display: block; width: 100%; height: 96px; cursor: crosshair; }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 14px 10px; align-self: start; min-width: 0; }
+  details { border-top: 1px solid var(--line); padding: 6px 0; }
+  details:first-child { border-top: 0; }
+  summary { cursor: pointer; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 2px 0; }
+  dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 6px 0 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: break-word; }
+  #summary p { margin: 6px 0 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 13px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); padding: 2px 4px; }
+  td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  td.words { white-space: normal; overflow-wrap: break-word; width: 100%; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr[aria-current="true"] { background: var(--row); }
+  .empty { color: var(--muted); margin: 6px 0 0; }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  kbd { font: 11px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="stage">
+    <div class="head">
+      <h1 id="title"></h1>
+      <span id="ending-pill" class="pill" hidden></span>
+    </div>
+    <div class="view">
+      <canvas id="feeder" aria-label="the feeder cut away, its spinner and ramp, the flywheel and hood, and the pollen"></canvas>
+    </div>
+    <div class="controls">
+      <button id="play" type="button" disabled>Play</button>
+      <button id="back" type="button" aria-label="one frame back" disabled>&larr;</button>
+      <button id="on" type="button" aria-label="one frame on" disabled>&rarr;</button>
+      <select id="speed" aria-label="playback speed">
+        <option value="0.05">0.05x</option><option value="0.1">0.1x</option><option value="0.25" selected>0.25x</option>
+        <option value="0.5">0.5x</option><option value="1">1x</option><option value="2">2x</option>
+      </select>
+      <span class="time mono" id="time"></span>
+      <div class="scrubber">
+        <input type="range" id="scrub" min="0" max="0" step="any" value="0" aria-label="time" disabled>
+        <div class="marks" id="marks"></div>
+      </div>
+    </div>
+    <p class="legend"><span><i style="background: var(--good)"></i>thrown from the hood</span><span><i style="background: var(--near)"></i>fell out of the feeder</span><span><i style="background: var(--bad)"></i>jammed</span></p>
+    <p class="problem" id="problem" role="status"></p>
+    <div class="traces" id="traces"></div>
+  </section>
+  <aside>
+    <details open>
+      <summary>Feed</summary>
+      <div id="summary"><p class="empty">No feed shown. Run one on the Feeder Sim tab.</p></div>
+    </details>
+    <details open>
+      <summary>Now</summary>
+      <dl id="now"></dl>
+    </details>
+    <details open>
+      <summary>Thrown</summary>
+      <table id="thrown" class="mono">
+        <thead><tr><th title="seconds">t</th><th>pollen</th><th title="how fast it left the hood">in/s</th><th title="degrees above level">angle</th><th>spin rpm</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="none-thrown" hidden>None was thrown.</p>
+    </details>
+    <details open>
+      <summary>Events</summary>
+      <table id="events" class="mono">
+        <thead><tr><th title="seconds">t</th><th>what</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="no-events" hidden>Nothing happened.</p>
+    </details>
+    <details>
+      <summary>Settings changed</summary>
+      <dl id="changed"></dl>
+    </details>
+    <p class="hint"><kbd>space</kbd> play/pause, <kbd>&larr;</kbd> <kbd>&rarr;</kbd> one frame, <kbd>shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> the events, <kbd>home</kbd> <kbd>end</kbd>. Drag to orbit, scroll to zoom. Click a trace to go to that time. Inches, robot frame: +x forward, +y to the robot's left, +z up.</p>
+  </aside>
+</main>
+<script type="module">
+const ASSETS = __ASSETS__;
+
+const POLLEN_COLOUR = '#ffef3f';
+const HOLE_COLOUR = '#2b2606';
+const HOLE_TO_BALL = 0.2 / 1.4;
+const HOLE_EDGES = 12;
+const FEEDER_COLOUR = '#8a95a3';
+const SPINNER_COLOUR = '#3f6fd0';
+const RAMP_COLOUR = '#e0590b';
+const WHEEL_COLOUR = '#4a4d55';
+const SPOKE_COLOUR = '#e8e6df';
+const HOOD_COLOUR = '#3f8fd0';
+const SEE_THROUGH = 0.28;
+const FLOOR_THICKNESS_IN = 0.2;
+const WALL_STEPS = 144;
+const HOOD_ANGLE_STEPS = 48;
+const HOOD_ACROSS_STEPS = 12;
+const WHEEL_HUB_IN = 0.3;
+const SPOKES = 4;
+const SAME_TIME_S = 1e-9;
+const RPM_PER_RAD_S = 60 / (2 * Math.PI);
+const KINDS = { thrown: 'thrown', 'fell out': 'fell', jammed: 'jammed' };
+const TONES = { 'all left': 'good', 'at rest': 'plain', 'out of time': 'near', 'too much work': 'bad' };
+const TRACES = [
+  { name: 'Spinner speed', unit: 'rev/s', of: (f) => f.spinner[1], digits: 2 },
+  { name: 'Spinner load', unit: 'N·m', of: (f) => f.spinner[2], digits: 3 },
+  { name: 'Ramp angle', unit: '°', of: (f) => f.ramp[0], digits: 1 },
+  { name: 'Ramp torque', unit: 'N·m', of: (f) => f.ramp[1], digits: 3 }
+];
+
+const canvas = document.getElementById('feeder');
+const title = document.getElementById('title');
+const endingPill = document.getElementById('ending-pill');
+const play = document.getElementById('play');
+const back = document.getElementById('back');
+const on = document.getElementById('on');
+const speed = document.getElementById('speed');
+const time = document.getElementById('time');
+const scrub = document.getElementById('scrub');
+const marks = document.getElementById('marks');
+const problemLine = document.getElementById('problem');
+const tracesHost = document.getElementById('traces');
+const summaryBox = document.getElementById('summary');
+const nowList = document.getElementById('now');
+const thrownRows = document.querySelector('#thrown tbody');
+const noneThrown = document.getElementById('none-thrown');
+const eventRows = document.querySelector('#events tbody');
+const noEvents = document.getElementById('no-events');
+const changedList = document.getElementById('changed');
+
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => Math.hypot(a[0], a[1], a[2]);
+const unit = (a) => { const n = norm(a); return n > 0 ? scale(a, 1 / n) : [0, 0, 0]; };
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const finite = (n) => typeof n === 'number' && isFinite(n);
+const fixed = (v, digits) => (finite(v) ? v.toFixed(digits) : '–');
+const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const said = (why) => (why && why.message ? why.message : String(why));
+const radians = (degrees) => degrees * Math.PI / 180;
+
+let THREE = null;
+let renderer = null;
+let scene3 = null;
+let camera = null;
+let controls = null;
+let parts = null;
+let feed = null;
+let at = { k: 0, t: 0 };
+let playing = false;
+let lastNow = null;
+let drawProblem = '';
+let feedProblem = '';
+let sceneSettled = false;
+let loading = false;
+let hovered = null;
+
+function holeDirections() {
+  const out = [];
+  for (const axis of [0, 1, 2]) {
+    for (const sign of [1, -1]) {
+      const d = [0, 0, 0];
+      d[axis] = sign;
+      out.push(d);
+    }
+  }
+  for (const [a, b] of [[0, 1], [0, 2], [1, 2]]) {
+    for (const sa of [1, -1]) {
+      for (const sb of [1, -1]) {
+        const d = [0, 0, 0];
+        d[a] = sa * Math.SQRT1_2;
+        d[b] = sb * Math.SQRT1_2;
+        out.push(d);
+      }
+    }
+  }
+  const third = 1 / Math.sqrt(3);
+  for (const sx of [1, -1]) {
+    for (const sy of [1, -1]) {
+      for (const sz of [1, -1]) {
+        out.push([sx * third, sy * third, sz * third]);
+      }
+    }
+  }
+  return out;
+}
+const HOLES = holeDirections();
+
+function holesGeometry(radius) {
+  const r = radius * HOLE_TO_BALL;
+  const out = radius * 1.006;
+  const positions = [];
+  for (const d of HOLES) {
+    const helper = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const u = unit(cross(helper, d));
+    const v = cross(d, u);
+    const middle = scale(d, out);
+    for (let i = 0; i < HOLE_EDGES; i++) {
+      const a0 = i / HOLE_EDGES * 2 * Math.PI;
+      const a1 = (i + 1) / HOLE_EDGES * 2 * Math.PI;
+      const p0 = add(middle, add(scale(u, r * Math.cos(a0)), scale(v, r * Math.sin(a0))));
+      const p1 = add(middle, add(scale(u, r * Math.cos(a1)), scale(v, r * Math.sin(a1))));
+      positions.push(...middle, ...p0, ...p1);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function holedBall(radius) {
+  const ball = new THREE.Group();
+  const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 32, 20),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(POLLEN_COLOUR), roughness: 0.55, metalness: 0 }));
+  const holes = new THREE.Mesh(holesGeometry(radius), new THREE.MeshBasicMaterial({ color: new THREE.Color(HOLE_COLOUR) }));
+  ball.add(shell, holes);
+  return ball;
+}
+
+function solid(colour) {
+  return new THREE.MeshStandardMaterial({ color: new THREE.Color(colour), roughness: 0.6, metalness: 0.1 });
+}
+
+function seeThrough(colour) {
+  return new THREE.MeshStandardMaterial({ color: new THREE.Color(colour), roughness: 0.7, metalness: 0,
+                                          transparent: true, opacity: SEE_THROUGH, depthWrite: false,
+                                          side: THREE.DoubleSide });
+}
+
+function placedBy(axes) {
+  const group = new THREE.Group();
+  const v = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+  group.matrix.makeBasis(v(axes.x), v(axes.y), v(axes.z)).setPosition(v(axes.origin));
+  group.matrixAutoUpdate = false;
+  return group;
+}
+
+function triangles(positions) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function wallTop(m, a) {
+  const x = m.wallRadius * Math.cos(a);
+  const y = m.wallRadius * Math.sin(a);
+  if (y > 0 && Math.abs(x) < m.frontHalfWidth) {
+    return m.frontSill;
+  }
+  if (y < 0 && Math.abs(x) < m.backHalfWidth) {
+    return m.backSill;
+  }
+  return m.plateUnderside;
+}
+
+function wallGeometry(m) {
+  const edges = [];
+  for (let i = 0; i <= WALL_STEPS; i++) {
+    edges.push(i / WALL_STEPS * 2 * Math.PI);
+  }
+  for (const [half, side] of [[m.frontHalfWidth, 1], [m.backHalfWidth, -1]]) {
+    const y = side * Math.sqrt(Math.max(0, m.wallRadius * m.wallRadius - half * half));
+    for (const x of [-half, half]) {
+      const a = Math.atan2(y, x);
+      edges.push(a < 0 ? a + 2 * Math.PI : a);
+    }
+  }
+  edges.sort((a, b) => a - b);
+  const positions = [];
+  const quad = (a, b, c, d) => positions.push(...a, ...b, ...c, ...a, ...c, ...d);
+  const inner = m.wallRadius;
+  const outer = m.wallOuterRadius;
+  const bottom = m.floorTop;
+  let before = null;
+  for (let i = 0; i + 1 < edges.length; i++) {
+    const a0 = edges[i];
+    const a1 = edges[i + 1];
+    if (a1 - a0 < 1e-9) {
+      continue;
+    }
+    const top = wallTop(m, (a0 + a1) / 2);
+    const at = (r, a, z) => [r * Math.cos(a), r * Math.sin(a), z];
+    quad(at(inner, a0, bottom), at(inner, a1, bottom), at(inner, a1, top), at(inner, a0, top));
+    quad(at(outer, a0, bottom), at(outer, a0, top), at(outer, a1, top), at(outer, a1, bottom));
+    quad(at(inner, a0, top), at(inner, a1, top), at(outer, a1, top), at(outer, a0, top));
+    if (before !== null && before !== top) {
+      const low = Math.min(before, top);
+      const high = Math.max(before, top);
+      quad(at(inner, a0, low), at(outer, a0, low), at(outer, a0, high), at(inner, a0, high));
+    }
+    before = top;
+  }
+  return triangles(positions);
+}
+
+function arcTo(path, radius, from, to) {
+  const steps = Math.max(2, Math.ceil(Math.abs(to - from) / (Math.PI / 48)));
+  for (let i = 1; i <= steps; i++) {
+    const a = from + (to - from) * i / steps;
+    path.lineTo(radius * Math.cos(a), radius * Math.sin(a));
+  }
+}
+
+function plateShape(m) {
+  const r = m.wallOuterRadius;
+  const backY = Math.max(m.backFlatY, -r * 0.999);
+  const frontY = Math.min(m.frontFlatY, r * 0.999);
+  const backX = Math.sqrt(r * r - backY * backY);
+  const frontX = Math.sqrt(r * r - frontY * frontY);
+  const shape = new THREE.Shape();
+  shape.moveTo(m.notchHalfWidth, backY);
+  shape.lineTo(backX, backY);
+  arcTo(shape, r, Math.atan2(backY, backX), Math.atan2(frontY, frontX));
+  shape.lineTo(-frontX, frontY);
+  arcTo(shape, r, Math.atan2(frontY, -frontX), Math.atan2(backY, -backX) + 2 * Math.PI);
+  shape.lineTo(-m.notchHalfWidth, backY);
+  shape.lineTo(-m.notchHalfWidth, m.notchInnerEndY);
+  shape.lineTo(m.notchHalfWidth, m.notchInnerEndY);
+  shape.closePath();
+  return shape;
+}
+
+function floorShape(m) {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, m.wallOuterRadius, 0, 2 * Math.PI, false);
+  const slot = new THREE.Path();
+  slot.moveTo(m.slotFromX, m.slotFromY);
+  slot.lineTo(m.slotFromX, m.slotToY);
+  slot.lineTo(m.slotToX, m.slotToY);
+  slot.lineTo(m.slotToX, m.slotFromY);
+  slot.closePath();
+  shape.holes.push(slot);
+  return shape;
+}
+
+function slab(shape, from, depth, material) {
+  const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 48 }), material);
+  mesh.position.z = from;
+  return mesh;
+}
+
+function boxBetween(from, to, material) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(to[0] - from[0], to[1] - from[1], to[2] - from[2]), material);
+  mesh.position.set((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2);
+  return mesh;
+}
+
+function feederDrawn(drawn) {
+  const m = drawn.inches;
+  const feeder = placedBy(drawn);
+  feeder.add(slab(floorShape(m), m.floorTop - FLOOR_THICKNESS_IN, FLOOR_THICKNESS_IN, seeThrough(FEEDER_COLOUR)));
+  feeder.add(new THREE.Mesh(wallGeometry(m), seeThrough(FEEDER_COLOUR)));
+  feeder.add(slab(plateShape(m), m.plateUnderside, m.plateTop - m.plateUnderside, seeThrough(FEEDER_COLOUR)));
+  const spinner = new THREE.Group();
+  const tall = m.armTop - m.armBottom;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(m.hubRadius, m.hubRadius, tall, 32), solid(SPINNER_COLOUR));
+  hub.rotation.x = Math.PI / 2;
+  hub.position.z = (m.armTop + m.armBottom) / 2;
+  spinner.add(hub);
+  spinner.add(boxBetween([-m.armHalfThickness, 0, m.armBottom], [m.armHalfThickness, m.armReach, m.armTop], solid(SPINNER_COLOUR)));
+  spinner.add(boxBetween([-m.armHalfThickness, -m.armReach, m.armBottom], [m.armHalfThickness, 0, m.armTop], solid(SPINNER_COLOUR)));
+  feeder.add(spinner);
+  const ramp = new THREE.Group();
+  ramp.position.set(m.pivotX, 0, m.pivotZ);
+  ramp.add(boxBetween(
+      [m.barFreeEndX - m.pivotX, m.barMiddleY - m.barWidth / 2, m.barTop - m.barHeight - m.pivotZ],
+      [m.barPadX - m.pivotX, m.barMiddleY + m.barWidth / 2, m.barTop - m.pivotZ],
+      solid(RAMP_COLOUR)));
+  feeder.add(ramp);
+  return { feeder, spinner, ramp };
+}
+
+function hoodGeometry(m) {
+  const half = m.ringsEachSide * m.ringApart;
+  const from = radians(m.hoodFromDegrees);
+  const to = radians(m.hoodToDegrees);
+  const positions = [];
+  const indices = [];
+  for (let i = 0; i <= HOOD_ANGLE_STEPS; i++) {
+    const a = from + (to - from) * i / HOOD_ANGLE_STEPS;
+    for (let j = 0; j <= HOOD_ACROSS_STEPS; j++) {
+      const across = -half + 2 * half * j / HOOD_ACROSS_STEPS;
+      const r = m.hoodTorus + Math.sqrt(Math.max(0, m.hoodTube * m.hoodTube - across * across));
+      positions.push(r * Math.cos(a), across, r * Math.sin(a));
+    }
+  }
+  const row = HOOD_ACROSS_STEPS + 1;
+  for (let i = 0; i < HOOD_ANGLE_STEPS; i++) {
+    for (let j = 0; j < HOOD_ACROSS_STEPS; j++) {
+      const p = i * row + j;
+      indices.push(p, p + row, p + 1, p + 1, p + row, p + row + 1);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function wheelGeometry(m) {
+  const half = m.ringsEachSide * m.ringApart;
+  const profile = [new THREE.Vector2(WHEEL_HUB_IN, -half)];
+  const steps = 24;
+  for (let i = 0; i <= steps; i++) {
+    const across = -half + 2 * half * i / steps;
+    profile.push(new THREE.Vector2(m.wheelTorus - Math.sqrt(Math.max(0, m.wheelTube * m.wheelTube - across * across)), across));
+  }
+  profile.push(new THREE.Vector2(WHEEL_HUB_IN, half));
+  return new THREE.LatheGeometry(profile, 64);
+}
+
+function launcherDrawn(drawn) {
+  const m = drawn.inches;
+  const launcher = placedBy(drawn);
+  const wheel = new THREE.Group();
+  wheel.add(new THREE.Mesh(wheelGeometry(m), solid(WHEEL_COLOUR)));
+  const half = m.ringsEachSide * m.ringApart;
+  const reach = m.flange - WHEEL_HUB_IN;
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < SPOKES; i++) {
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(reach, 0.02, 0.12), solid(SPOKE_COLOUR));
+      const a = i / SPOKES * 2 * Math.PI;
+      spoke.position.set((WHEEL_HUB_IN + reach / 2) * Math.cos(a), side * (half + 0.012), -(WHEEL_HUB_IN + reach / 2) * Math.sin(a));
+      spoke.rotation.y = a;
+      wheel.add(spoke);
+    }
+  }
+  launcher.add(wheel);
+  launcher.add(new THREE.Mesh(hoodGeometry(m), seeThrough(HOOD_COLOUR)));
+  return { launcher, wheel, radiansPerSecond: m.wheelRadiansPerSecond };
+}
+
+function emptied(group) {
+  for (const child of group.children.slice()) {
+    group.remove(child);
+    child.traverse((o) => {
+      if (o.geometry) {
+        o.geometry.dispose();
+      }
+      if (o.material) {
+        for (const one of [].concat(o.material)) {
+          one.dispose();
+        }
+      }
+    });
+  }
+}
+
+function sayProblems() {
+  problemLine.textContent = [drawProblem, feedProblem].filter(Boolean).join(' ');
+}
+
+function frameAt(t) {
+  const frames = feed.frames;
+  let lo = 0;
+  let hi = frames.length - 1;
+  while (lo < hi) {
+    const middle = Math.ceil((lo + hi) / 2);
+    if (frames[middle].t <= t + SAME_TIME_S) {
+      lo = middle;
+    } else {
+      hi = middle - 1;
+    }
+  }
+  return lo;
+}
+
+function row(list, term, value) {
+  const dt = document.createElement('dt');
+  dt.textContent = term;
+  const dd = document.createElement('dd');
+  dd.textContent = value;
+  list.append(dt, dd);
+}
+
+function cells(tr, values) {
+  for (const value of values) {
+    const td = document.createElement('td');
+    td.textContent = value;
+    tr.appendChild(td);
+  }
+}
+
+function pollenNamed(event) {
+  return Array.isArray(event.pollen) ? event.pollen.join(', ') : event.pollen;
+}
+
+function eventSays(event) {
+  const pollen = pollenNamed(event);
+  if (event.kind === 'thrown') {
+    return pollen + ' thrown from the hood at ' + fixed(event.speed, 0) + ' in/s';
+  }
+  if (event.kind === 'fell out') {
+    return pollen + ' fell out of the feeder';
+  }
+  if (event.kind === 'jammed') {
+    return 'the spinner jammed on ' + (pollen || 'nothing it could name');
+  }
+  return event.kind;
+}
+
+function seekRow(tr, t) {
+  tr.tabIndex = 0;
+  tr.dataset.t = String(t);
+}
+
+function describeFeed() {
+  summaryBox.replaceChildren();
+  thrownRows.replaceChildren();
+  eventRows.replaceChildren();
+  changedList.replaceChildren();
+  marks.replaceChildren();
+  endingPill.hidden = true;
+  if (!feed) {
+    title.textContent = document.title;
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = 'No feed shown. Run one on the Feeder Sim tab.';
+    summaryBox.appendChild(empty);
+    noneThrown.hidden = true;
+    noEvents.hidden = true;
+    return;
+  }
+  const json = feed.json;
+  const summary = json.summary || {};
+  const ending = summary.ending || {};
+  title.textContent = 'Feed ' + json.id;
+  endingPill.textContent = ending.kind || '?';
+  endingPill.className = 'pill ' + (TONES[ending.kind] || '');
+  endingPill.title = ending.says || '';
+  endingPill.hidden = false;
+  const started = feed.frames[0].pollen.length;
+  const headline = document.createElement('p');
+  headline.textContent = feed.thrown + ' of ' + started + ' thrown' + (ending.says ? '; ' + ending.says + ' at ' + fixed(ending.t, 3) + ' s.' : '.');
+  summaryBox.appendChild(headline);
+  const costs = document.createElement('dl');
+  row(costs, 'Simulated', fixed(summary.seconds, 3) + ' s');
+  row(costs, 'Computed in', fixed(summary.computeSeconds * 1000, 0) + ' ms, ' + fixed(summary.realTime, 2) + '× real time');
+  row(costs, 'Work', finite(summary.work) ? summary.work.toLocaleString('en-US') + ' units' : '–');
+  row(costs, 'Flywheel', fixed(feed.wheel * RPM_PER_RAD_S, 0) + ' rpm');
+  summaryBox.appendChild(costs);
+  const thrown = json.events.filter((e) => e.kind === 'thrown');
+  noneThrown.hidden = thrown.length > 0;
+  for (const event of thrown) {
+    const tr = document.createElement('tr');
+    seekRow(tr, event.t);
+    cells(tr, [fixed(event.t, 3), event.pollen, fixed(event.speed, 0), fixed(event.angle, 1) + '°',
+               fixed(norm(event.spin || [0, 0, 0]) * RPM_PER_RAD_S, 0)]);
+    thrownRows.appendChild(tr);
+  }
+  noEvents.hidden = json.events.length > 0;
+  const span = Math.max(feed.end - feed.start, SAME_TIME_S);
+  for (const event of json.events) {
+    const tr = document.createElement('tr');
+    seekRow(tr, event.t);
+    cells(tr, [fixed(event.t, 3)]);
+    const what = document.createElement('td');
+    what.className = 'words';
+    what.textContent = eventSays(event);
+    tr.appendChild(what);
+    eventRows.appendChild(tr);
+    const mark = document.createElement('span');
+    mark.className = 'mark ' + (KINDS[event.kind] || '');
+    mark.style.left = (100 * (event.t - feed.start) / span) + '%';
+    mark.title = fixed(event.t, 3) + ' s: ' + eventSays(event);
+    marks.appendChild(mark);
+  }
+  const settings = Array.isArray(json.settings) ? json.settings : [];
+  const changed = summary.changed || {};
+  const names = Object.keys(changed);
+  if (!names.length) {
+    row(changedList, 'None', 'every setting is its default');
+  }
+  for (const name of names) {
+    const setting = settings.find((s) => s.name === name);
+    row(changedList, setting ? setting.label : name, String(changed[name]) + (setting && setting.unit ? ' ' + setting.unit : ''));
+  }
+}
+
+function traceDrawn(trace) {
+  const box = trace.canvas;
+  const width = Math.max(1, box.clientWidth);
+  const height = Math.max(1, box.clientHeight);
+  const ratio = window.devicePixelRatio || 1;
+  if (box.width !== Math.round(width * ratio) || box.height !== Math.round(height * ratio)) {
+    box.width = Math.round(width * ratio);
+    box.height = Math.round(height * ratio);
+  }
+  const g = box.getContext('2d');
+  g.setTransform(ratio, 0, 0, ratio, 0, 0);
+  g.clearRect(0, 0, width, height);
+  if (!feed) {
+    return;
+  }
+  const values = feed.frames.map(trace.of);
+  let lo = Math.min(0, ...values);
+  let hi = Math.max(0, ...values);
+  if (hi - lo < 1e-9) {
+    hi = lo + 1;
+  }
+  const pad = { left: 4, right: 4, top: 16, bottom: 14 };
+  const span = Math.max(feed.end - feed.start, SAME_TIME_S);
+  const x = (t) => pad.left + (width - pad.left - pad.right) * (t - feed.start) / span;
+  const y = (v) => pad.top + (height - pad.top - pad.bottom) * (hi - v) / (hi - lo);
+  g.strokeStyle = token('--grid');
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(pad.left, Math.round(y(0)) + 0.5);
+  g.lineTo(width - pad.right, Math.round(y(0)) + 0.5);
+  g.stroke();
+  g.fillStyle = token('--muted');
+  g.font = '10px ui-monospace, Menlo, monospace';
+  g.textBaseline = 'top';
+  g.fillText(fixed(hi, trace.digits), pad.left + 2, 0);
+  g.textBaseline = 'bottom';
+  g.fillText(fixed(lo, trace.digits) + '   ' + fixed(feed.start, 1) + '–' + fixed(feed.end, 2) + ' s', pad.left + 2, height);
+  g.strokeStyle = token('--accent');
+  g.lineWidth = 2;
+  g.lineJoin = 'round';
+  g.beginPath();
+  feed.frames.forEach((frame, i) => {
+    if (i === 0) {
+      g.moveTo(x(frame.t), y(values[i]));
+    } else {
+      g.lineTo(x(frame.t), y(values[i]));
+    }
+  });
+  g.stroke();
+  const cursorAt = (t, colour, dash) => {
+    g.strokeStyle = colour;
+    g.lineWidth = 1;
+    g.setLineDash(dash);
+    g.beginPath();
+    g.moveTo(Math.round(x(t)) + 0.5, pad.top - 4);
+    g.lineTo(Math.round(x(t)) + 0.5, height - pad.bottom);
+    g.stroke();
+    g.setLineDash([]);
+  };
+  if (hovered && hovered.trace === trace) {
+    cursorAt(hovered.t, token('--muted'), [3, 3]);
+  }
+  cursorAt(at.t, token('--ink'), []);
+  const k = hovered && hovered.trace === trace ? frameAt(hovered.t) : at.k;
+  const v = values[k];
+  g.fillStyle = token('--accent');
+  g.beginPath();
+  g.arc(x(feed.frames[k].t), y(v), 4, 0, 2 * Math.PI);
+  g.fill();
+  g.strokeStyle = token('--panel');
+  g.lineWidth = 2;
+  g.stroke();
+  trace.value.textContent = (hovered && hovered.trace === trace ? 'at ' + fixed(feed.frames[k].t, 3) + ' s: ' : '')
+      + fixed(v, trace.digits) + ' ' + trace.unit;
+}
+
+function buildTraces() {
+  return TRACES.map((asked) => {
+    const figure = document.createElement('figure');
+    figure.className = 'trace';
+    const caption = document.createElement('figcaption');
+    const name = document.createElement('span');
+    name.textContent = asked.name + ' (' + asked.unit + ')';
+    const value = document.createElement('span');
+    value.className = 'value mono';
+    caption.append(name, value);
+    const box = document.createElement('canvas');
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', asked.name + ' against time; click to go to a time');
+    figure.append(caption, box);
+    tracesHost.appendChild(figure);
+    const trace = Object.assign({}, asked, { canvas: box, value });
+    const timeAt = (event) => {
+      const rect = box.getBoundingClientRect();
+      const s = clamp((event.clientX - rect.left - 4) / Math.max(1, rect.width - 8), 0, 1);
+      return feed.start + s * (feed.end - feed.start);
+    };
+    box.addEventListener('pointermove', (event) => {
+      if (!feed) {
+        return;
+      }
+      hovered = { trace, t: timeAt(event) };
+      traceDrawn(trace);
+    });
+    box.addEventListener('pointerleave', () => {
+      hovered = null;
+      traceDrawn(trace);
+    });
+    box.addEventListener('click', (event) => {
+      if (!feed) {
+        return;
+      }
+      setPlaying(false);
+      goTo(timeAt(event));
+    });
+    return trace;
+  });
+}
+const traces = buildTraces();
+
+function show() {
+  const frame = feed ? feed.frames[at.k] : null;
+  nowList.replaceChildren();
+  if (!frame) {
+    time.textContent = '';
+    for (const trace of traces) {
+      traceDrawn(trace);
+      trace.value.textContent = '';
+    }
+    return;
+  }
+  time.textContent = fixed(at.t, 3) + ' / ' + fixed(feed.end, 3) + ' s';
+  scrub.value = String(at.t);
+  row(nowList, 'Spinner', fixed(frame.spinner[0], 1) + '° · ' + fixed(frame.spinner[1], 2) + ' rev/s · ' + fixed(frame.spinner[2], 3) + ' N·m');
+  row(nowList, 'Ramp', fixed(frame.ramp[0], 1) + '° · ' + fixed(frame.ramp[1], 3) + ' N·m');
+  row(nowList, 'In the feeder', frame.pollen.length ? frame.pollen.map((p) => p.name).join(', ') : 'nothing');
+  for (const tr of eventRows.querySelectorAll('tr')) {
+    tr.setAttribute('aria-current', String(Math.abs(Number(tr.dataset.t) - frame.t) < 0.004));
+  }
+  for (const trace of traces) {
+    traceDrawn(trace);
+  }
+  if (!parts) {
+    return;
+  }
+  parts.spinner.rotation.z = -radians(frame.spinner[0]);
+  parts.ramp.rotation.y = radians(frame.ramp[0]);
+  parts.wheel.rotation.y = -parts.radiansPerSecond * at.t;
+  for (const [name, ball] of parts.balls) {
+    const seen = frame.pollen.find((p) => p.name === name);
+    ball.visible = !!seen;
+    if (seen) {
+      ball.position.set(seen.at[0], seen.at[1], seen.at[2]);
+      ball.quaternion.set(seen.turn[1], seen.turn[2], seen.turn[3], seen.turn[0]);
+    }
+  }
+}
+
+function goTo(t) {
+  if (!feed || !finite(t)) {
+    return;
+  }
+  const clamped = clamp(t, feed.start, feed.end);
+  at = { k: frameAt(clamped), t: clamped };
+  show();
+}
+
+function stepBy(frames) {
+  if (!feed) {
+    return;
+  }
+  const k = clamp(at.k + frames, 0, feed.frames.length - 1);
+  at = { k, t: feed.frames[k].t };
+  show();
+}
+
+function toEvent(direction) {
+  if (!feed) {
+    return;
+  }
+  const events = feed.json.events;
+  const next = direction > 0
+    ? events.find((e) => e.t > at.t + SAME_TIME_S)
+    : events.slice().reverse().find((e) => e.t < at.t - SAME_TIME_S);
+  if (next) {
+    goTo(next.t);
+  }
+}
+
+function setPlaying(wanting) {
+  playing = !!(wanting && feed && feed.end > feed.start);
+  lastNow = null;
+  if (playing && at.t >= feed.end - SAME_TIME_S) {
+    goTo(feed.start);
+  }
+  play.textContent = playing ? 'Pause' : 'Play';
+}
+
+function advance(now) {
+  if (lastNow !== null) {
+    goTo(Math.min(feed.end, at.t + (now - lastNow) / 1000 * parseFloat(speed.value)));
+  }
+  lastNow = now;
+  if (at.t >= feed.end - SAME_TIME_S) {
+    setPlaying(false);
+  }
+}
+
+function fit() {
+  if (!renderer) {
+    return;
+  }
+  const width = Math.max(1, canvas.clientWidth);
+  const height = Math.max(1, canvas.clientHeight);
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  for (const trace of traces) {
+    traceDrawn(trace);
+  }
+}
+
+function loop(now) {
+  if (playing) {
+    advance(now);
+  }
+  controls.update();
+  renderer.render(scene3, camera);
+}
+
+function framed(drawing) {
+  const a = drawing.feeder.origin;
+  const b = drawing.launcher.origin;
+  const middle = new THREE.Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  controls.target.copy(middle);
+  camera.position.set(middle.x + 12, middle.y - 20, middle.z + 10);
+  controls.update();
+}
+
+function partsFor(json) {
+  const scenery = new THREE.Group();
+  const feeder = feederDrawn(json.drawing.feeder);
+  const launcher = launcherDrawn(json.drawing.launcher);
+  scenery.add(feeder.feeder, launcher.launcher);
+  const balls = new Map();
+  for (const seen of json.frames0) {
+    const ball = holedBall(json.pollenRadius);
+    balls.set(seen.name, ball);
+    scenery.add(ball);
+  }
+  return { scenery, spinner: feeder.spinner, ramp: feeder.ramp, wheel: launcher.wheel,
+           radiansPerSecond: launcher.radiansPerSecond, balls };
+}
+
+async function drawTheScene() {
+  if (ASSETS === null) {
+    throw new Error('this page came without the bench’s assets, so it has nothing to draw with');
+  }
+  THREE = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  scene3 = new THREE.Scene();
+  scene3.background = new THREE.Color(token('--bg'));
+  THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+  camera = new THREE.PerspectiveCamera(30, 1, 0.1, 500);
+  camera.up.set(0, 0, 1);
+  controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.minDistance = 4;
+  controls.maxDistance = 120;
+  scene3.add(new THREE.HemisphereLight(0xffffff, 0x8a8577, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(-20, -30, 40);
+  scene3.add(sun);
+  fit();
+  renderer.setAnimationLoop(loop);
+}
+
+async function fetched(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (response.status === 404) {
+    throw new Error('there is no ' + url + ' on this bench');
+  }
+  if (!response.ok) {
+    throw new Error(url + ' could not be fetched: the bench answered ' + response.status);
+  }
+  return response.json();
+}
+
+async function feedNumbered(id) {
+  const json = await fetched(id + '/feed');
+  const frames = [];
+  for (let chunk = 0; chunk < json.chunks; chunk++) {
+    const sent = await fetched(id + '/frames/' + chunk);
+    frames.push(...sent.frames);
+  }
+  if (!frames.length) {
+    throw new Error('feed ' + id + ' has no frames');
+  }
+  return {
+    json: Object.assign({}, json, { frames0: frames[0].pollen }),
+    frames,
+    start: frames[0].t,
+    end: frames[frames.length - 1].t,
+    thrown: json.events.filter((e) => e.kind === 'thrown').length,
+    wheel: json.drawing && json.drawing.launcher ? json.drawing.launcher.inches.wheelRadiansPerSecond : NaN
+  };
+}
+
+let sceneDrawn = null;
+let swaps = 0;
+
+async function showTheFragment() {
+  const mine = ++swaps;
+  loading = true;
+  const text = location.hash.replace(/^#/, '').split(',')[0].trim();
+  let next = null;
+  feedProblem = '';
+  if (text !== '' && !/^[0-9]{1,9}$/.test(text)) {
+    feedProblem = '“' + text + '” is not a feed number.';
+  } else if (text !== '') {
+    try {
+      next = await feedNumbered(text);
+    } catch (why) {
+      feedProblem = 'Feed ' + text + ' could not be shown: ' + said(why) + '.';
+    }
+  }
+  await sceneDrawn;
+  if (mine !== swaps) {
+    return;
+  }
+  setPlaying(false);
+  feed = next;
+  if (parts) {
+    emptied(parts.scenery);
+    scene3.remove(parts.scenery);
+    parts = null;
+  }
+  if (feed && scene3) {
+    try {
+      parts = partsFor(feed.json);
+      scene3.add(parts.scenery);
+      framed(feed.json.drawing);
+    } catch (why) {
+      drawProblem = 'The feeder could not be drawn: ' + said(why);
+    }
+  }
+  scrub.min = String(feed ? feed.start : 0);
+  scrub.max = String(feed ? feed.end : 0);
+  for (const control of [play, back, on, scrub]) {
+    control.disabled = !feed;
+  }
+  at = { k: 0, t: feed ? feed.start : 0 };
+  describeFeed();
+  show();
+  sayProblems();
+  loading = false;
+}
+
+play.addEventListener('click', () => setPlaying(!playing));
+back.addEventListener('click', () => { setPlaying(false); stepBy(-1); });
+on.addEventListener('click', () => { setPlaying(false); stepBy(1); });
+scrub.addEventListener('input', () => { setPlaying(false); goTo(parseFloat(scrub.value)); });
+
+function goToRow(event) {
+  const tr = event.target.closest('tr[data-t]');
+  if (!tr) {
+    return;
+  }
+  if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  setPlaying(false);
+  goTo(Number(tr.dataset.t));
+}
+for (const body of [thrownRows, eventRows]) {
+  body.addEventListener('click', goToRow);
+  body.addEventListener('keydown', goToRow);
+}
+
+document.addEventListener('keydown', (event) => {
+  const tag = event.target && event.target.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || !feed) {
+    return;
+  }
+  if (event.code === 'Space') {
+    if (tag === 'BUTTON' || tag === 'SUMMARY' || tag === 'TR') {
+      return;
+    }
+    event.preventDefault();
+    setPlaying(!playing);
+  } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    event.preventDefault();
+    setPlaying(false);
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    if (event.shiftKey) {
+      toEvent(direction);
+    } else {
+      stepBy(direction);
+    }
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    setPlaying(false);
+    goTo(feed.start);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    setPlaying(false);
+    goTo(feed.end);
+  }
+});
+
+window.addEventListener('resize', fit);
+function themeChanged() {
+  if (scene3) {
+    scene3.background = new THREE.Color(token('--bg'));
+  }
+  for (const trace of traces) {
+    traceDrawn(trace);
+  }
+}
+if (window.matchMedia) {
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  if (dark.addEventListener) {
+    dark.addEventListener('change', themeChanged);
+  } else if (dark.addListener) {
+    dark.addListener(themeChanged);
+  }
+}
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+title.textContent = document.title;
+
+window.feederPage = {
+  get settled() { return sceneSettled && !loading; },
+  get problem() { return problemLine.textContent; },
+  get shown() { return feed ? feed.json.id : null; },
+  get time() { return feed ? at.t : null; },
+  get end() { return feed ? feed.end : null; },
+  get frame() { return feed ? at.k : null; },
+  get playing() { return playing; },
+  get thrown() { return feed ? feed.thrown : null; },
+  get pollen() {
+    return parts ? [...parts.balls].map(([name, ball]) => ({
+      name, position: [ball.position.x, ball.position.y, ball.position.z], visible: ball.visible
+    })) : [];
+  },
+  get spinnerDegrees() { return parts ? -parts.spinner.rotation.z * 180 / Math.PI : null; },
+  get rampDegrees() { return parts ? parts.ramp.rotation.y * 180 / Math.PI : null; },
+  get background() { return scene3 && scene3.background ? '#' + scene3.background.getHexString() : null; },
+  goTo: (t) => goTo(t)
+};
+
+sceneDrawn = drawTheScene().catch((why) => {
+  drawProblem = 'This browser could not draw the feeder: ' + said(why);
+  sayProblems();
+}).finally(() => {
+  sceneSettled = true;
+});
+window.addEventListener('hashchange', showTheFragment);
+showTheFragment();
+</script>
+</body>
+</html>

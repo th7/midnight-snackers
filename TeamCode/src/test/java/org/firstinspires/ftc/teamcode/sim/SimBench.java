@@ -635,7 +635,10 @@ public final class SimBench {
                 .route("GET", "/feed/settings", (request, params) -> feeds.settings())
                 .route("POST", "/feed", (request, params) -> feeds.feed(request.body))
                 .route("GET", "/feeds", (request, params) -> feeds.listing())
-                .route("GET", "/feeds/{id}", (request, params) -> feeds.fed(params.get("id")))
+                .route("GET", "/feeds/", (request, params) -> feeds.viewer())
+                .route("GET", "/feeds/{id}", (request, params) -> SimFeeds.toTheViewer("./", params.get("id")))
+                .route("GET", "/feeds/{id}/", (request, params) -> SimFeeds.toTheViewer("../", params.get("id")))
+                .route("GET", "/feeds/{id}/feed", (request, params) -> feeds.fed(params.get("id")))
                 .route(
                         "GET",
                         "/feeds/{id}/frames/{chunk}",

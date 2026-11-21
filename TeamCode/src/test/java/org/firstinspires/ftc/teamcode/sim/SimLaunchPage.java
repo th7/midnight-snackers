@@ -25,7 +25,7 @@ final class SimLaunchPage {
                 .replace("__DATA__", "{}");
     }
 
-    private static String importMap(String assetsUnder) {
+    static String importMap(String assetsUnder) {
         return "<script type=\"importmap\">\n{\"imports\": {\"three\": \"" + assetsUnder
                 + "vendor/three.module.min.js\", \"three/addons/\": \"" + assetsUnder + "vendor/jsm/\"}}\n</script>";
     }
