@@ -720,6 +720,26 @@ public class ContactsTest {
     }
 
     @Test
+    public void eachContactSaysTheImpulseItGaveTheBallSoWhatPressesItFeelsTheOpposite() {
+        Ball shape = pollen(0.634);
+        Surfaces surfaces = everywhere(bounce(0.55, 0.2, 0.2), 0.1, 0.06, 0);
+        Contacts.Body sliding = body("pollen", shape, new Vec3(300, 0, -10), Vec3.zero());
+
+        Contacts.Resolved resolved = pressed(surfaces, new Contacts.Pressing(sliding, FLOOR, UP, false));
+
+        double pushed = 10 * shape.kilograms();
+        assertEquals(1, resolved.pushes().size());
+        Contacts.Push push = resolved.pushes().get(0);
+        assertEquals("pollen", push.ball());
+        assertEquals("the floor", push.against());
+        assertVec(
+                "stopping its fall, rubbed back at the friction limit",
+                new Vec3(-0.2 * pushed, 0, pushed),
+                push.impulse(),
+                1e-12);
+    }
+
+    @Test
     public void nothingPressingIsNothingResolved() {
         Contacts.Resolved resolved = Contacts.resolve(everywhere(bounce(0.55, 0.5, 0.2), 0.1, 0.06, 0.04), List.of());
 

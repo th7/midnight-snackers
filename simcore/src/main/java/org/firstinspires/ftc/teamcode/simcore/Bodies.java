@@ -3,7 +3,9 @@ package org.firstinspires.ftc.teamcode.simcore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -276,6 +278,12 @@ final class Bodies {
             List<Seen> slept,
             Seen after) {}
 
+    record Tally(Vec3 impulse, Vec3 moment) {
+        Tally plus(Vec3 at, Vec3 given) {
+            return new Tally(impulse.plus(given), moment.plus(at.cross(given)));
+        }
+    }
+
     private record Kin(Vec3 at, Vec3 velocity, Vec3 spin) {}
 
     private record Leaning(Body one, Body other) {}
@@ -410,6 +418,8 @@ final class Bodies {
     private long work;
     private long window;
     private long windowBegan;
+    private Set<String> tallied = Collections.emptySet();
+    private Map<String, Tally> tallies = new LinkedHashMap<>();
 
     private Bodies(
             Surroundings surroundings,
@@ -470,8 +480,21 @@ final class Bodies {
         for (Body body : bodies) {
             copied.add(body.copy());
         }
-        return new Bodies(
+        Bodies copy = new Bodies(
                 surroundings, air, surfaces, stepping, watching, copied, steps, now, work, window, windowBegan);
+        copy.tallied = tallied;
+        copy.tallies = new LinkedHashMap<>(tallies);
+        return copy;
+    }
+
+    void tallying(Set<String> faces) {
+        tallied = Collections.unmodifiableSet(new HashSet<>(faces));
+    }
+
+    Map<String, Tally> takeTallies() {
+        Map<String, Tally> taken = Collections.unmodifiableMap(tallies);
+        tallies = new LinkedHashMap<>();
+        return taken;
     }
 
     Surroundings surroundings() {
@@ -1163,6 +1186,7 @@ final class Bodies {
             return Optional.empty();
         }
         Contacts.Resolved resolved = Contacts.resolve(surfaces, pressing);
+        tally(resolved);
         for (Contacts.Body moved : resolved.bodies()) {
             for (Body body : bodies) {
                 if (body.name.equals(moved.name()) && body.life == Life.AWAKE) {
@@ -1172,6 +1196,18 @@ final class Bodies {
             }
         }
         return Optional.of(resolved);
+    }
+
+    private void tally(Contacts.Resolved resolved) {
+        for (Contacts.Push push : resolved.pushes()) {
+            if (tallied.contains(push.against())) {
+                named(push.ball())
+                        .ifPresent(body -> tallies.put(
+                                push.against(),
+                                tallies.getOrDefault(push.against(), new Tally(Vec3.zero(), Vec3.zero()))
+                                        .plus(body.at.along(push.normal(), -body.radius()), push.impulse())));
+            }
+        }
     }
 
     private void project() {

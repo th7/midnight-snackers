@@ -23,7 +23,9 @@ public final class Contacts {
 
     public record Pressing(Body ball, Against against, Vec3 normal, boolean fresh) {}
 
-    public record Resolved(List<Body> bodies, List<Hit> hits) {}
+    public record Resolved(List<Body> bodies, List<Hit> hits, List<Push> pushes) {}
+
+    public record Push(String ball, String against, Vec3 normal, Vec3 impulse) {}
 
     public record Hit(
             String ball,
@@ -85,7 +87,14 @@ public final class Contacts {
                 hits.add(contact.hit());
             }
         }
-        return new Resolved(Collections.unmodifiableList(bodies), Collections.unmodifiableList(hits));
+        List<Push> pushes = new ArrayList<>();
+        for (Contact contact : contacts) {
+            pushes.add(contact.push());
+        }
+        return new Resolved(
+                Collections.unmodifiableList(bodies),
+                Collections.unmodifiableList(hits),
+                Collections.unmodifiableList(pushes));
     }
 
     private static double magnitude(Vec3 vector) {
@@ -248,6 +257,10 @@ public final class Contacts {
             }
             Vec3 rolling = across(a.spin.minus(b.spin), normal);
             a.spin = a.spin.minus(rolling.times(StrictMath.min(1, most / magnitude(rolling))));
+        }
+
+        Push push() {
+            return new Push(ball, against, normal, normal.times(pushed).plus(rubbed));
         }
 
         Hit hit() {

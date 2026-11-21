@@ -84,6 +84,25 @@ public class BodiesTest {
     }
 
     @Test
+    public void whatTheTalliedFacesGaveTheBallsIsTakenOnceAndHoldsTheImpulseAndItsMomentAboutTheOrigin() {
+        Bodies bodies = unwatched();
+        add(bodies, "resting", new Vec3(10, 5, R), Vec3.zero(), new Bodies.Start.Awake(Bodies.Sleep.NEVER));
+        bodies.tallying(Set.of(Colliders.FLOOR));
+
+        stepFor(bodies, 100);
+        Bodies.Tally floor = bodies.takeTallies().get(Colliders.FLOOR);
+
+        double heldUp = 0.0249 * 386.09 * 0.01;
+        assertEquals("its weight for 100 steps of 0.1 ms", 0.09613641, heldUp, 1e-8);
+        assertEquals(0, floor.impulse().x(), 1e-9);
+        assertEquals(0, floor.impulse().y(), 1e-9);
+        assertEquals(heldUp, floor.impulse().z(), 1e-6);
+        assertEquals("pushed up under (10, 5, 0)", 5 * heldUp, floor.moment().x(), 1e-5);
+        assertEquals(-10 * heldUp, floor.moment().y(), 1e-5);
+        assertTrue("taken", bodies.takeTallies().isEmpty());
+    }
+
+    @Test
     public void anEnginesStepIsMoreThanNothingAndAtMostTheLongestAShotMayTake() {
         List<String> said = List.of(
                 rejection(Bodies.Step.of(Seconds.zero())),
