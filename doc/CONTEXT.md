@@ -469,6 +469,35 @@ decides per session at `POST /admin/logins/<id>/approve|deny|revoke`. A
 revoked session is still a session; only a **delete** takes sessions away,
 and it takes all of that user's at once.
 
+**Robot relay** — How a teammate's own Android Studio reaches the robot: the
+coding server listens on every interface (port 5555, adb's own, so `adb
+connect <host>` needs no port; `ROBOT_RELAY_PORT`) and passes each connection
+it admits on to the hub's adb port (`192.168.43.1:5555`, `ROBOT_HUB_ADDRESS`),
+byte for byte in both directions, so the teammate's own adb server treats the
+robot as an ordinary network device and Run, Logcat and the debugger work from
+their machine. It admits a connection only from an address an approved
+**session** came from, and closes any other before the hub hears a byte of
+it; that an address can be spoofed is accepted, as a fence against accidents.
+Revoking a login, or deleting its user, closes every connection relayed from
+its address unless another approved login came from the same one. A hub that
+does not answer within three seconds closes the client's connection rather
+than leaving it hanging. Whom it admits, which connections a change closes,
+who is listed as relaying and the line a teammate runs are decided in the
+**core**; the relay decides nothing. An approved login reads its line at `GET
+/relay`, which the dashboard's header shows; the **user listing** says per
+user whether a connection relayed for them is open (**relayed**), and under
+`relay` the port, the hub and the **hub state**. The hub is assumed to take
+several adb clients at once, the host's own among them, so nothing takes
+turns. `doc/client-setup.md` takes a new client from a clone to a first
+deploy. Classes: `RobotRelay`; `RelayAdmission` and `Peer`, in the core;
+`FakeHub`.
+
+**Hub state** — Whether the host could open a connection to the hub's adb port
+when it last tried: *untried*, *reachable* or *unreachable*, with why and when.
+It is tried for each client the relay admits, and by a probe that opens and
+closes a connection while the admin page is open, no more often than every ten
+seconds. Class: `HubState`, in the core.
+
 **Editable set** — The files a **robot**'s users may edit: every one of
 that robot's **own files** in the user's worktree, and on top of them the
 files the admin has picked for that robot, each named by its **key**. The

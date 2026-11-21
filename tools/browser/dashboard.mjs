@@ -18,6 +18,7 @@ const ANSWERS = {
   '/git/status': { branch: 'nugget/mia', develop: 'nugget-develop', changed: [], behind: 0, ahead: 0, pushable: false,
                    head: '0123456' },
   '/build': { available: true, ok: true, problems: [] },
+  '/relay': { line: 'adb connect 10.0.0.2', port: 5555 },
   '/sim/catalog': [OPMODE],
   '/sim/status': { running: false, runs: [] }
 };
@@ -359,6 +360,9 @@ async function itWorks(page, engine) {
 
   const who = await page.locator('#who').textContent();
   check(who === 'mia', `${engine}: the header says "${who}" rather than who is signed in`);
+  await page.waitForFunction(() => !document.getElementById('adb').hidden, null, { timeout: 10_000 }).catch(() => {});
+  const adb = await page.locator('header .who').innerText();
+  check(adb.includes('adb connect 10.0.0.2'), `${engine}: the header does not give the adb connect line: "${adb}"`);
   await page.waitForFunction(() => document.getElementById('robot').value === 'nugget', null, { timeout: 10_000 })
       .catch(() => {});
   const robot = await page.locator('#robot').inputValue();

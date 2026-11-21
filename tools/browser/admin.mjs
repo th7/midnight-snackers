@@ -46,6 +46,7 @@ const USERS = {
     {
       username: 'ada',
       deletable: true,
+      relayed: true,
       robots: [workOn('reginald', 'coding/ada'), workOn('nugget', 'nugget/ada')],
       sessions: [
         { id: 1, robot: 'reginald', address: '10.0.0.5', state: 'approved', ageSeconds: 5, file: null },
@@ -55,13 +56,16 @@ const USERS = {
     {
       username: 'bob',
       deletable: true,
+      relayed: false,
       robots: [workOn('reginald', 'coding/bob'), workOn('nugget', null)],
       sessions: [
         { id: 3, robot: 'reginald', address: '10.0.0.7', state: 'approved', ageSeconds: 20, file: null },
         { id: 4, robot: 'nugget', address: '10.0.0.7', state: 'pending', ageSeconds: 2, file: null }
       ]
     }
-  ]
+  ],
+  relay: { port: 5555, hub: '192.168.43.1:5555', hubState: 'unreachable', hubWhy: 'Connect timed out',
+           hubCheckedSecondsAgo: 4, connect: ['adb connect 10.0.0.2'] }
 };
 
 const LAST_ROBOT = 'ada cannot be taken off Reginald: a user works on at least one robot, and Reginald is the only one '
@@ -203,6 +207,16 @@ async function main() {
     const bobsWork = await bob.locator('.work').allInnerTexts();
     check(bobsWork.length === 1 && bobsWork[0].includes('coding/bob'),
         `bob's work is shown as ${JSON.stringify(bobsWork)} rather than on Reginald alone`);
+    check((await ada.locator('.user-head').innerText()).includes('relaying'),
+        'ada, whose adb connection is relayed, is not shown relaying');
+    check(!(await bob.locator('.user-head').innerText()).includes('relaying'),
+        'bob, who has no relayed connection, is shown relaying');
+    await page.waitForFunction(() => document.getElementById('relay').textContent.includes('192.168.43.1'), null,
+        { timeout: 10_000 }).catch(() => {});
+    const relay = await page.locator('#relay').innerText();
+    for (const saying of ['192.168.43.1:5555', 'unreachable', 'Connect timed out', 'checked 4s ago', 'adb connect 10.0.0.2']) {
+      check(relay.includes(saying), `the relay panel does not say ${saying}: ${JSON.stringify(relay)}`);
+    }
     const bobsLogins = await bob.locator('.sessions .row').allInnerTexts();
     check(bobsLogins.length === 2 && bobsLogins[0].includes('Reginald') && bobsLogins[1].includes('Nugget'),
         `bob's logins do not say which robot each is on: ${JSON.stringify(bobsLogins)}`);
@@ -380,6 +394,7 @@ async function main() {
       + 'picks files for one robot at a time, '
       + 'shows each robot\'s own package as always editable and never offers it, '
       + 'deletes a user, '
+      + 'says whose adb connection is relayed and whether the hub could be reached, '
       + 'and shows the simulation constants and any saved past where it may now go, '
       + 'saves those that differ from how they were built, '
       + 'says why a set is refused, and puts them back as built.');

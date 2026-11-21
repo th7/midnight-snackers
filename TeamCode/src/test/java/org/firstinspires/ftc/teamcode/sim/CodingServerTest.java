@@ -19,6 +19,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -161,7 +163,18 @@ public class CodingServerTest {
             return made;
         };
         server = CodingServer.start(
-                root, recorded, InetAddress.getLoopbackAddress(), 0, 0, stateDir(), scryptN, assets, git(), deploy);
+                root,
+                recorded,
+                InetAddress.getLoopbackAddress(),
+                0,
+                0,
+                stateDir(),
+                scryptN,
+                assets,
+                git(),
+                deploy,
+                0,
+                relayedTo());
         return server;
     }
 
@@ -374,7 +387,9 @@ public class CodingServerTest {
         assertEquals(400, wrong.status);
         assertTrue(wrong.body, wrong.body.contains("bender"));
         assertNull("a login that did not say is no session", none.sessionCookie());
-        assertEquals("{\"users\":[]}", admin("GET", "/admin/users").body);
+        assertEquals(
+                "[]",
+                json(admin("GET", "/admin/users").body).getAsJsonArray("users").toString());
     }
 
     @Test
@@ -984,7 +999,9 @@ public class CodingServerTest {
         assertEquals(
                 "{\"deleted\":true,\"username\":\"ada\",\"branches\":[\"coding/ada\",\"nugget/ada\"],\"logins\":2}",
                 deleted.body);
-        assertEquals("{\"users\":[]}", admin("GET", "/admin/users").body);
+        assertEquals(
+                "[]",
+                json(admin("GET", "/admin/users").body).getAsJsonArray("users").toString());
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", onReginald).body);
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", onNugget).body);
         assertFalse(Files.exists(reginalds));
@@ -4590,6 +4607,235 @@ public class CodingServerTest {
             }
         }
         return true;
+    }
+
+    private FakeHub hub;
+
+    private InetSocketAddress hubAddress = null;
+
+    private FakeHub hub() {
+        if (hub == null) {
+            hub = FakeHub.start();
+        }
+        return hub;
+    }
+
+    private InetSocketAddress relayedTo() {
+        return hubAddress == null ? hub().address() : hubAddress;
+    }
+
+    @After
+    public void stopTheHub() {
+        if (hub != null) {
+            hub.close();
+        }
+    }
+
+    private Socket relayed() throws IOException {
+        return relayedFrom(InetAddress.getLoopbackAddress());
+    }
+
+    private Socket relayedFrom(InetAddress from) throws IOException {
+        Socket client = new Socket();
+        client.setSoTimeout(10_000);
+        client.bind(new InetSocketAddress(from, 0));
+        client.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), server().relayPort()), 2_000);
+        return client;
+    }
+
+    private static String echoed(Socket client, String text) throws IOException {
+        client.getOutputStream().write(text.getBytes(StandardCharsets.UTF_8));
+        client.getOutputStream().flush();
+        return new String(client.getInputStream().readNBytes(text.length()), StandardCharsets.UTF_8);
+    }
+
+    private static void assertClosedByTheRelay(Socket client) throws IOException {
+        try {
+            assertEquals(
+                    "the relay closed the connection",
+                    -1,
+                    client.getInputStream().read());
+        } catch (java.net.SocketException reset) {
+            assertTrue(
+                    reset.getMessage(),
+                    reset.getMessage().toLowerCase(java.util.Locale.ROOT).contains("reset"));
+        } catch (java.net.SocketTimeoutException e) {
+            throw new AssertionError("the relay left the connection hanging", e);
+        }
+    }
+
+    private JsonObject userListed(String username) throws IOException {
+        for (var element : json(admin("GET", "/admin/users").body).getAsJsonArray("users")) {
+            JsonObject user = element.getAsJsonObject();
+            if (user.get("username").getAsString().equals(username)) {
+                return user;
+            }
+        }
+        throw new AssertionError("no user " + username + " is listed");
+    }
+
+    private JsonObject relayListed() throws IOException {
+        return json(admin("GET", "/admin/users").body).getAsJsonObject("relay");
+    }
+
+    private void awaitListedRelaying(String username, boolean relaying) throws Exception {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (userListed(username).get("relayed").getAsBoolean() != relaying) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError(username + " is never listed with relayed " + relaying);
+            }
+            Thread.sleep(10);
+        }
+    }
+
+    @Test
+    public void aClientFromWhereAnApprovedLoginCameFromIsRelayedToTheHub() throws IOException {
+        approvedUser("ada");
+
+        try (Socket client = relayed()) {
+            assertEquals("CNXN host::", echoed(client, "CNXN host::"));
+        }
+        assertEquals("CNXN host::", hub().received());
+    }
+
+    @Test
+    public void aClientFromWhereOnlyAPendingLoginCameFromIsClosedWithoutReachingTheHub() throws IOException {
+        login("ada");
+
+        try (Socket client = relayed()) {
+            client.getOutputStream().write("CNXN host::".getBytes(StandardCharsets.UTF_8));
+            assertClosedByTheRelay(client);
+        }
+        assertEquals("", hub().received());
+    }
+
+    @Test
+    public void aClientFromAnotherAddressThanTheApprovedLoginsIsClosedWithoutReachingTheHub() throws IOException {
+        approvedUser("ada");
+        InetAddress another = SecondLoopback.address();
+
+        try (Socket client = relayedFrom(another)) {
+            client.getOutputStream().write("CNXN host::".getBytes(StandardCharsets.UTF_8));
+            assertClosedByTheRelay(client);
+        }
+        assertEquals("", hub().received());
+    }
+
+    @Test
+    public void theRelayListensOnEveryInterface() {
+        assertTrue(server().relayBindAddress().isAnyLocalAddress());
+    }
+
+    @Test
+    public void revokingALoginClosesTheConnectionsRelayedForWhereItCameFrom() throws IOException {
+        approvedUser("ada");
+
+        try (Socket client = relayed()) {
+            echoed(client, "x");
+            assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/revoke").status);
+
+            assertClosedByTheRelay(client);
+        }
+    }
+
+    @Test
+    public void revokingALoginLeavesTheConnectionOpenWhileAnotherApprovedLoginSharesItsAddress() throws IOException {
+        approvedUser("ada");
+        approvedUser("bob");
+
+        try (Socket client = relayed()) {
+            echoed(client, "x");
+            assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/revoke").status);
+
+            assertEquals("y", echoed(client, "y"));
+        }
+    }
+
+    @Test
+    public void deletingAUserClosesTheConnectionsRelayedForWhereTheirLoginsCameFrom() throws IOException {
+        approvedUser("ada");
+
+        try (Socket client = relayed()) {
+            echoed(client, "x");
+            assertEquals(200, admin("POST", "/admin/users/delete?username=ada").status);
+
+            assertClosedByTheRelay(client);
+        }
+    }
+
+    @Test
+    public void theUserListingSaysWhoseConnectionIsRelayed() throws Exception {
+        approvedUser("ada");
+        login("bob");
+        assertFalse(userListed("ada").get("relayed").getAsBoolean());
+
+        try (Socket client = relayed()) {
+            echoed(client, "x");
+
+            assertTrue(userListed("ada").get("relayed").getAsBoolean());
+            assertFalse(userListed("bob").get("relayed").getAsBoolean());
+        }
+        awaitListedRelaying("ada", false);
+    }
+
+    @Test
+    public void theUserListingSaysWhereTheRelayListensAndWhichHubItReaches() throws IOException {
+        JsonObject relay = relayListed();
+
+        assertEquals(server().relayPort(), relay.get("port").getAsInt());
+        assertEquals("127.0.0.1:" + hub().address().getPort(), relay.get("hub").getAsString());
+        for (JsonElement line : relay.getAsJsonArray("connect")) {
+            assertTrue(line.getAsString(), line.getAsString().startsWith("adb connect "));
+            assertTrue(line.getAsString(), line.getAsString().endsWith(":" + server().relayPort()));
+        }
+        assertTrue(relay.toString(), relay.getAsJsonArray("connect").size() > 0);
+    }
+
+    @Test
+    public void theUserListingSaysAHubThatCannotBeReached() throws Exception {
+        hubAddress = FakeHub.nobodyListening();
+        relayListed();
+
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        JsonObject relay = relayListed();
+        while (!relay.get("hubState").getAsString().equals("unreachable")) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("the hub is never listed as unreachable: " + relay);
+            }
+            Thread.sleep(10);
+            relay = relayListed();
+        }
+        assertFalse(relay.get("hubWhy").getAsString().isEmpty());
+        assertTrue(relay.get("hubCheckedSecondsAgo").getAsLong() >= 0);
+    }
+
+    @Test
+    public void theUserListingSaysAHubThatWasReached() throws Exception {
+        approvedUser("ada");
+        try (Socket client = relayed()) {
+            echoed(client, "x");
+        }
+
+        assertEquals("reachable", relayListed().get("hubState").getAsString());
+    }
+
+    @Test
+    public void anApprovedLoginIsToldTheAdbConnectLineForTheAddressItReachedTheHostBy() throws IOException {
+        String cookie = approvedUser("ada");
+
+        Reply relay = user("GET", "/relay", cookie);
+
+        assertEquals(relay.body, 200, relay.status);
+        assertEquals(
+                "adb connect 127.0.0.1:" + server().relayPort(),
+                json(relay.body).get("line").getAsString());
+    }
+
+    @Test
+    public void aLoginNotApprovedIsToldNoAdbConnectLine() throws IOException {
+        String cookie = login("ada");
+
+        assertEquals(403, user("GET", "/relay", cookie).status);
     }
 
     private String login(String username) throws IOException {

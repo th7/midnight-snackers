@@ -37,6 +37,7 @@ public final class TinyHttpServer {
 
         public final String body;
         public final InetAddress remoteAddress;
+        public final InetAddress localAddress;
 
         public Request(
                 String method,
@@ -44,13 +45,15 @@ public final class TinyHttpServer {
                 Map<String, String> query,
                 Map<String, String> headers,
                 String body,
-                InetAddress remoteAddress) {
+                InetAddress remoteAddress,
+                InetAddress localAddress) {
             this.method = method;
             this.path = path;
             this.query = query;
             this.headers = headers;
             this.body = body;
             this.remoteAddress = remoteAddress;
+            this.localAddress = localAddress;
         }
 
         public static Request of(String method, String target, String body) {
@@ -62,6 +65,7 @@ public final class TinyHttpServer {
                     method + " " + target,
                     headers,
                     body.getBytes(StandardCharsets.UTF_8),
+                    InetAddress.getLoopbackAddress(),
                     InetAddress.getLoopbackAddress());
         }
 
@@ -371,7 +375,8 @@ public final class TinyHttpServer {
             byte[] body = in.readNBytes((int) length);
             Response response;
             try {
-                response = handler.apply(parse(requestLine, headers, body, connection.getInetAddress()));
+                response = handler.apply(
+                        parse(requestLine, headers, body, connection.getInetAddress(), connection.getLocalAddress()));
             } catch (RuntimeException e) {
                 response = Response.error(500, e.toString());
             }
@@ -425,7 +430,11 @@ public final class TinyHttpServer {
     }
 
     private static Request parse(
-            String requestLine, Map<String, String> headers, byte[] body, InetAddress remoteAddress) {
+            String requestLine,
+            Map<String, String> headers,
+            byte[] body,
+            InetAddress remoteAddress,
+            InetAddress localAddress) {
         String[] parts = requestLine.split(" ");
         String method = parts.length > 0 ? parts[0] : "GET";
         String target = parts.length > 1 ? parts[1] : "/";
@@ -449,7 +458,8 @@ public final class TinyHttpServer {
                 query,
                 Collections.unmodifiableMap(headers),
                 new String(body, StandardCharsets.UTF_8),
-                remoteAddress);
+                remoteAddress,
+                localAddress);
     }
 
     private static void write(OutputStream out, Sent sent) throws IOException {

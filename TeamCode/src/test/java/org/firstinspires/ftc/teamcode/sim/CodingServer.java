@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -42,6 +43,9 @@ import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Deployment;
+import org.firstinspires.ftc.teamcode.simcore.HubState;
+import org.firstinspires.ftc.teamcode.simcore.Peer;
+import org.firstinspires.ftc.teamcode.simcore.RelayAdmission;
 import org.firstinspires.ftc.teamcode.simcore.Robots;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
@@ -225,6 +229,7 @@ public final class CodingServer {
     private final Router userRoutes = userRoutes();
     private final TinyHttpServer admin;
     private final TinyHttpServer users;
+    private final RobotRelay relay;
     private final SecureRandom random = new SecureRandom();
 
     private final Map<Integer, Session> sessions = new LinkedHashMap<>();
@@ -284,7 +289,9 @@ public final class CodingServer {
             int scryptN,
             Assets assets,
             Git git,
-            Deploy deploy) {
+            Deploy deploy,
+            int relayPort,
+            InetSocketAddress hub) {
         this.deploy = deploy;
         this.scryptN = scryptN;
         this.assets = assets;
@@ -301,6 +308,7 @@ public final class CodingServer {
         loadUsers();
         loadSettings();
         this.assetsDir = this.stateDir.resolve(ASSETS_DIR);
+        this.relay = RobotRelay.start(null, relayPort, hub, this::relayAdmission);
         this.admin = TinyHttpServer.start(adminBind, adminPort, "coding-admin", adminRoutes());
         this.users = TinyHttpServer.start(userPort, "coding-users", this::handleUser);
     }
@@ -373,8 +381,37 @@ public final class CodingServer {
             Assets assets,
             Git git,
             Deploy deploy) {
+        return start(
+                root,
+                benches,
+                adminBind,
+                adminPort,
+                userPort,
+                stateDir,
+                scryptN,
+                assets,
+                git,
+                deploy,
+                0,
+                RobotRelay.hub(Map.of()));
+    }
+
+    static CodingServer start(
+            Path root,
+            SimBench.Factory benches,
+            InetAddress adminBind,
+            int adminPort,
+            int userPort,
+            Path stateDir,
+            int scryptN,
+            Assets assets,
+            Git git,
+            Deploy deploy,
+            int relayPort,
+            InetSocketAddress hub) {
         JavaFormatter.check();
-        return new CodingServer(root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets, git, deploy);
+        return new CodingServer(
+                root, benches, adminBind, adminPort, userPort, stateDir, scryptN, assets, git, deploy, relayPort, hub);
     }
 
     static Path stateDir(Map<String, String> env) {
@@ -405,17 +442,27 @@ public final class CodingServer {
                 children,
                 constants);
         Map<String, String> env = System.getenv();
+        Path absolute = root.toAbsolutePath().normalize();
         CodingServer server = start(
                 root,
                 benches,
                 InetAddress.getLoopbackAddress(),
                 port(env, ADMIN_PORT_ENV, DEFAULT_ADMIN_PORT),
                 port(env, USER_PORT_ENV, DEFAULT_USER_PORT),
-                stateDir(env));
+                stateDir(env),
+                SCRYPT_N,
+                fromOnshape(),
+                new RealGit("git", absolute),
+                new GradleDeploy(root),
+                RobotRelay.port(env),
+                RobotRelay.hub(env));
         System.out.println("Coding server");
         System.out.println("  admin  " + server.adminUrl() + "admin   (this machine only)");
         System.out.println(
                 "  users  http://<this machine's LAN address>:" + server.userPort() + "/   (Ctrl-C to stop)");
+        System.out.println("  robot  "
+                + RelayAdmission.connectLine("<this machine's LAN address>", server.relayPort())
+                + "   relays to the hub at " + server.relay.hubAddress());
         System.out.println("  state  " + server.stateDir);
         for (Worktrees worktrees : server.worktreesByRobot.values()) {
             System.out.println("  trees  " + worktrees.directory() + "   ("
@@ -465,9 +512,18 @@ public final class CodingServer {
         return users.bindAddress();
     }
 
+    public int relayPort() {
+        return relay.port();
+    }
+
+    public InetAddress relayBindAddress() {
+        return relay.bindAddress();
+    }
+
     public void stop() {
         admin.stop();
         users.stop();
+        relay.stop();
         synchronized (benchByWork) {
             for (SimBench bench : benchByWork.values()) {
                 bench.stop();
@@ -527,6 +583,7 @@ public final class CodingServer {
                 .route("POST", "/deploy", (request, params) -> deploy(sessionOf(request), robotAskedIn(request)))
                 .route("POST", "/robot", (request, params) -> switchRobot(sessionOf(request), robotAskedIn(request)))
                 .route("GET", "/build", (request, params) -> Response.json(GSON.toJson(buildCheck(sessionOf(request)))))
+                .route("GET", "/relay", (request, params) -> relayLine(request))
                 .route(
                         "GET",
                         "/static/{name}",
@@ -568,6 +625,54 @@ public final class CodingServer {
 
     private static boolean isApproved(Session session) {
         return session != null && session.state == State.APPROVED;
+    }
+
+    private synchronized RelayAdmission relayAdmission() {
+        List<RelayAdmission.Login> logins = new ArrayList<>();
+        for (Session session : sessions.values()) {
+            String address = session.address == null ? "" : session.address.getHostAddress();
+            Peer.of(address)
+                    .fold(
+                            from -> logins.add(
+                                    new RelayAdmission.Login(session.username, from, session.state == State.APPROVED)),
+                            rule -> false);
+        }
+        return RelayAdmission.of(logins);
+    }
+
+    private Response swept(Response response) {
+        relay.sweep();
+        return response;
+    }
+
+    private Response relayLine(Request request) {
+        JsonObject body = new JsonObject();
+        body.addProperty("line", RelayAdmission.connectLine(request.localAddress.getHostAddress(), relay.port()));
+        body.addProperty("port", relay.port());
+        return Response.json(GSON.toJson(body));
+    }
+
+    private JsonObject relayListed(long now) {
+        relay.probeIfDue();
+        HubState hub = relay.hubState();
+        JsonObject body = new JsonObject();
+        body.addProperty("port", relay.port());
+        body.addProperty("hub", relay.hubAddress());
+        body.addProperty("hubState", hub.said());
+        body.addProperty("hubWhy", hub.why());
+        JsonArray connect = new JsonArray();
+        List<String> lan = lanAddresses();
+        for (String address : lan.isEmpty() ? List.of("<this machine's LAN address>") : lan) {
+            connect.add(RelayAdmission.connectLine(address, relay.port()));
+        }
+        body.add("connect", connect);
+        body.add(
+                "hubCheckedSecondsAgo",
+                hub.checkedAtMillis().isPresent()
+                        ? GSON.toJsonTree(
+                                Math.max(0, (now - hub.checkedAtMillis().getAsLong()) / 1000))
+                        : JsonNull.INSTANCE);
+        return body;
     }
 
     private Response handleUser(Request request) {
@@ -1215,7 +1320,7 @@ public final class CodingServer {
                         "POST",
                         "/admin/users/delete",
                         (request, params) ->
-                                deleteUser(request.query("username"), "true".equals(request.query("force"))))
+                                swept(deleteUser(request.query("username"), "true".equals(request.query("force")))))
                 .route(
                         "POST",
                         "/admin/users/robots",
@@ -1236,7 +1341,7 @@ public final class CodingServer {
                 .route(
                         "POST",
                         "/admin/logins/{id}/{decision}",
-                        (request, params) -> decide(params.get("id"), params.get("decision")))
+                        (request, params) -> swept(decide(params.get("id"), params.get("decision"))))
                 .route("GET", "/admin/tree", (request, params) -> tree(request.query("dir")))
                 .route("GET", "/admin/files", (request, params) -> editableFiles(robotAskedIn(request)))
                 .route(
@@ -1464,8 +1569,8 @@ public final class CodingServer {
         return Response.error(404, "not an editable file: " + path);
     }
 
-    private String info() {
-        JsonArray addresses = new JsonArray();
+    private static List<String> lanAddresses() {
+        List<String> addresses = new ArrayList<>();
         try {
             for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 for (InetAddress address : Collections.list(nic.getInetAddresses())) {
@@ -1478,6 +1583,12 @@ public final class CodingServer {
             }
         } catch (SocketException e) {
         }
+        return addresses;
+    }
+
+    private String info() {
+        JsonArray addresses = new JsonArray();
+        lanAddresses().forEach(addresses::add);
         JsonObject body = new JsonObject();
         body.addProperty("userPort", users.port());
         body.addProperty("root", root.toString());
@@ -1502,11 +1613,13 @@ public final class CodingServer {
     private synchronized String users() {
         JsonArray list = new JsonArray();
         long now = System.currentTimeMillis();
+        List<String> relaying = relayAdmission().relaying(relay.openPeers());
         Map<String, JsonObject> byUsername = new LinkedHashMap<>();
         for (Session session : sessions.values()) {
             JsonObject user = byUsername.get(session.username);
             if (user == null) {
                 user = userListed(session.username);
+                user.addProperty("relayed", relaying.contains(session.username));
                 byUsername.put(session.username, user);
                 list.add(user);
             }
@@ -1521,6 +1634,7 @@ public final class CodingServer {
         }
         JsonObject root = new JsonObject();
         root.add("users", list);
+        root.add("relay", relayListed(now));
         return GSON.toJson(root);
     }
 

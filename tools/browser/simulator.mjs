@@ -129,7 +129,7 @@ async function itCarriesTheSimulatorAlone(page, engine) {
   check(heading === 'Simulator', `${engine}: the page is headed "${heading}"`);
   const tabs = await page.locator('nav [data-tab]').evaluateAll((all) => all.map((tab) => tab.dataset.tab));
   check(tabs.join(',') === 'simulate,launch,feeder', `${engine}: the page offers the tabs ${tabs.join(', ')}`);
-  check(await page.locator('#edit, #editor, #files, #git, #who, #robot').count() === 0,
+  check(await page.locator('#edit, #editor, #files, #git, #who, #robot, #adb').count() === 0,
       `${engine}: the page still carries the editor, the branch panel or who is signed in`);
   check(await page.locator('#simulate').isVisible(), `${engine}: the page does not open on Simulate`);
   check(page.url().endsWith('#simulate'), `${engine}: the page is at ${page.url()}, not #simulate`);

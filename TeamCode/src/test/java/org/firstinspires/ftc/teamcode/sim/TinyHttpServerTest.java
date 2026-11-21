@@ -120,6 +120,19 @@ public class TinyHttpServerTest {
     }
 
     @Test
+    public void theAddressTheRequestReachedTheServerByIsOnTheRequest() throws IOException {
+        server(request -> Response.json("{}"));
+        InetAddress second = SecondLoopback.address();
+
+        HttpURLConnection connection = (HttpURLConnection)
+                new URL("http://" + second.getHostAddress() + ":" + server.port() + "/").openConnection();
+        assertEquals(200, connection.getResponseCode());
+        connection.disconnect();
+
+        assertEquals(second, seen.get().localAddress);
+    }
+
+    @Test
     public void aLoopbackBoundServerIsUnreachableFromTheLan() throws IOException {
         server =
                 TinyHttpServer.start(InetAddress.getLoopbackAddress(), 0, "test-admin", request -> Response.json("{}"));

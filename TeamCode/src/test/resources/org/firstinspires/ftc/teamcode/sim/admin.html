@@ -139,6 +139,10 @@
       <div class="panel"><div id="urls" class="urls mono empty">…</div></div>
     </div>
     <div>
+      <p class="section-label">Robot relay</p>
+      <div id="relay" class="panel"><p class="empty">…</p></div>
+    </div>
+    <div>
       <p class="section-label">Users</p>
       <div id="users" class="panel"></div>
     </div>
@@ -411,6 +415,7 @@
   var treeEl = document.getElementById('tree');
   var crumbsEl = document.getElementById('crumbs');
   var urlsEl = document.getElementById('urls');
+  var relayEl = document.getElementById('relay');
   var editableRobotEl = document.getElementById('editable-robot');
   var editable = [];
   var dir = '';
@@ -749,6 +754,9 @@
     if (pending) {
       actions.appendChild(pill('warn', plural(pending, 'login', 'logins') + ' to decide'));
     }
+    if (user.relayed) {
+      actions.appendChild(pill('ok', 'relaying', 'An adb connection from where their approved login came from is open to the robot'));
+    }
     var branches = enabledWork(user).map(function (work) { return work.branch; }).filter(Boolean);
     var deleteButton = button(armed ? 'Delete anyway' : 'Delete', 'danger', function () { remove(user); });
     deleteButton.title = armed
@@ -896,8 +904,30 @@
     });
   }
 
+  var hubStateClass = { reachable: 'ok', unreachable: 'bad', untried: 'muted' };
+  var hubStateText = { reachable: 'reachable', unreachable: 'unreachable', untried: 'not tried yet' };
+
+  function renderRelay(relay) {
+    relayEl.innerHTML = '';
+    if (!relay) { return; }
+    var hub = row('hub', 'Hub at ' + relay.hub, '');
+    var checked = relay.hubCheckedSecondsAgo === null ? '' : 'checked ' + age(relay.hubCheckedSecondsAgo);
+    hub.querySelector('.meta').textContent = relay.hubWhy ? relay.hubWhy + (checked ? ' · ' + checked : '') : checked;
+    hub.querySelector('.actions').appendChild(pill(hubStateClass[relay.hubState] || 'muted',
+        hubStateText[relay.hubState] || relay.hubState,
+        'Whether this machine could open a connection to the hub\'s adb port when it last tried'));
+    relayEl.appendChild(hub);
+    var told = row('told', 'Approved teammates run', '');
+    told.querySelector('.meta').className = 'meta mono';
+    told.querySelector('.meta').textContent = relay.connect.join('   or   ');
+    relayEl.appendChild(told);
+  }
+
   function refresh() {
-    fetch('/admin/users').then(function (r) { return r.json(); }).then(function (json) { renderUsers(json.users); }).catch(function () {});
+    fetch('/admin/users').then(function (r) { return r.json(); }).then(function (json) {
+      renderUsers(json.users);
+      renderRelay(json.relay);
+    }).catch(function () {});
   }
 
   editableRobotEl.addEventListener('change', loadEditable);
