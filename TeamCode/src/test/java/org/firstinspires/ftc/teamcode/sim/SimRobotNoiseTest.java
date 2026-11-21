@@ -104,26 +104,6 @@ public class SimRobotNoiseTest {
     }
 
     @Test
-    public void theDeadWheelsReadTheTrueMotionEvenWhileTheWheelsSlip() {
-        SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction(40)));
-        Localizer localizer = robotLocalizer(sim);
-        MecanumDrive drive = robotDrive(sim, localizer);
-        localizer.update();
-
-        setPowers(sim, 0.6, 1, 0.6, 1);
-        for (int i = 0; i < 40; i++) {
-            sim.step(0.025);
-            localizer.update();
-        }
-
-        Pose2d truePose = sim.pose();
-        Pose2d estimated = localizer.pose();
-        assertEquals(truePose.position.x, estimated.position.x, 0.5);
-        assertEquals(truePose.position.y, estimated.position.y, 0.5);
-        assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
-    }
-
-    @Test
     public void withoutNoiseSettingDownIsPlacingExactly() {
         SimRobot sim = new SimRobot();
 

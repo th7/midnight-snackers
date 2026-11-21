@@ -23,9 +23,10 @@ the drawing of a robot in `roadrunner`, the drive runner that follows an action
 a loop at a time in `control`, and the dashboard it draws on in `hardware`;
 its test sources hold the simulator, the coding server and the fakes.
 Nothing outside a robot's package uses that robot's code, and every op mode
-is in a robot's package, and a test says both: a class moves into `teamcode`
-when a second robot needs it, rather than being reached for across.
-Class: `EachRobotKeepsToItsOwnPackageTest`.
+is in a robot's package: a class moves into `teamcode` when a second robot
+needs it, rather than being reached for across. No test holds the robot code
+to this or to anything else: the tests and CI judge the simulator and the
+coding server, and the robot code is the team's to change.
 
 **Subsystem** — One part of the robot, and now only that: something the
 robot ticks, which is to say a `Loopable` that lives directly in
@@ -1225,32 +1226,18 @@ nothing for one held in the robot), how many balls the robot **holds**, how
 many each alliance has **scored**, and for a TeleOp what each gamepad read.
 Class: `SimRecording`.
 
-**Golden trace** — What the robot code wrote to the four wheel motors,
-tick by tick, kept in a file under
-`TeamCode/src/test/resources/.../sim/traces` and compared against the next
-run. A run is the same tick for tick every time it is made, so the powers
-are too, and a change in how any intent reaches the wheels — the mixing,
-the saturation, the feedforward, the voltage compensation — arrives as a
-diff with a tick number on it. It holds only what the code **commanded**,
-never where the robot went: the pose is the physics engine's answer to the
-powers, and a rigid-body simulation compounds a difference in its last
-digit into a visibly different path. For the same reason a trace is a
-prefix of a run, long enough that every intent runs many times over and
-short enough that a difference too small to be ours has not grown into
-one. A trace is a change detector, not a judgement: it cannot tell a
-regression from a change somebody meant, so an intended diff is read and
-then **regenerated**, and a regenerating run fails, because a run that
-wrote the answer down has not checked it. A missing file fails too, rather
-than passing for want of anything to compare. Classes: `SimTrace`;
-`WheelPowerTraceTest`.
-
-**Drive intents** — The test TeleOp a golden trace of the driver's side is
-taken from: it gives the drive each axis alone, then all three at once
-hard enough that a wheel saturates, then a pose to steer to, on a schedule
-of its own rather than from a gamepad, so a run of it is the same tick for
-tick. Between it and an auto that follows a trajectory, every way an
-intent reaches the wheels is traced. Class:
-`TestTeleOps.DriveIntentsTeleOp`.
+**Golden trace** — What the simulator's flight did, sample by sample, kept
+in a file under `TeamCode/src/test/resources/.../sim/traces` and compared
+against the next run. A run is the same every time it is made, so a change
+in how the engine moves a ball arrives as a diff with a sample number on it.
+A trace is a change detector, not a judgement: it cannot tell a regression
+from a change somebody meant, so an intended diff is read and then
+**regenerated**, and a regenerating run fails, because a run that wrote the
+answer down has not checked it. A missing file fails too, rather than
+passing for want of anything to compare. No trace holds what the robot code
+commanded: that is the team's to change. Classes: `FlightTrace`,
+`FlightTraceTest`; `SimTrace` names where traces live and the flag that
+regenerates them.
 
 **Replay** — A run's ticks written as a single self-contained HTML page
 with the field, the true pose, and play/pause/scrub controls, named after

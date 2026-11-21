@@ -62,46 +62,4 @@ public final class TestTeleOps {
             }
         }
     }
-
-    @TeleOp(name = "Drive intents", group = "Test")
-    public static class DriveIntentsTeleOp extends OpMode {
-        public static final double PHASE_SECONDS = 0.4;
-
-        public static final double SECONDS = PHASE_SECONDS * 5;
-
-        private long startedAtNanos;
-
-        public DriveIntentsTeleOp() {
-            super(Alliance.RELATIVE);
-        }
-
-        @Override
-        public void init() {
-            super.init();
-            startedAtNanos = robot.nanoClock.getAsLong();
-        }
-
-        @Override
-        protected void onLoop() {
-            double elapsed = (robot.nanoClock.getAsLong() - startedAtNanos) / 1e9;
-            int phase = (int) (elapsed / PHASE_SECONDS);
-            switch (phase) {
-                case 0:
-                    robot.drive.manual(0.6f, 0, 0);
-                    break;
-                case 1:
-                    robot.drive.manual(0, 0.6f, 0);
-                    break;
-                case 2:
-                    robot.drive.manual(0, 0, 0.6f);
-                    break;
-                case 3:
-                    robot.drive.manual(0.5f, 0.5f, 0.5f);
-                    break;
-                default:
-                    robot.drive.toward(robot.nav.pose(24, 12, Math.PI / 4));
-                    break;
-            }
-        }
-    }
 }

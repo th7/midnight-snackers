@@ -13,8 +13,6 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.nugget.NuggetHardware;
 import org.firstinspires.ftc.nugget.NuggetOpMode;
 import org.firstinspires.ftc.nugget.NuggetTeleOp;
-import org.firstinspires.ftc.nugget.TankLocalizer;
-import org.firstinspires.ftc.nugget.Trajectories;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -56,22 +54,6 @@ public class SimNuggetTest {
         }
     }
 
-    public static final class LocalizingTeleOp extends NuggetTeleOp {
-        TankLocalizer localizer;
-
-        @Override
-        public void init() {
-            super.init();
-            localizer = new TankLocalizer(hardware(), Trajectories.PARAMS, new Pose2d(0, 0, 0));
-        }
-
-        @Override
-        public void loop() {
-            localizer.loop();
-            super.loop();
-        }
-    }
-
     private static <T extends OpMode> T started(SimRobot sim, T opMode) {
         sim.wire(opMode);
         opMode.telemetry = new FakeTelemetry();
@@ -88,34 +70,6 @@ public class SimNuggetTest {
             opMode.loop();
             sim.step(SimRunner.LOOP_SECONDS);
         }
-    }
-
-    @Test
-    public void theLeftStickPushedForwardDrivesNuggetStraightAhead() {
-        NuggetTeleOp teleOp = started(nugget, new NuggetTeleOp());
-        nugget.setPose(CLEAR_OF_EVERYTHING);
-        teleOp.gamepad1.left_stick_y = -1;
-
-        drive(nugget, teleOp, 1);
-
-        Pose2d pose = nugget.pose();
-        assertTrue("a foot or more ahead in a second: " + pose, pose.position.x > CLEAR_OF_EVERYTHING.position.x + 12);
-        assertEquals("and not an inch aside", 0, pose.position.y, 0.01);
-        assertEquals("still facing ahead", 0, pose.heading.toDouble(), 0.001);
-    }
-
-    @Test
-    public void theRightStickPushedLeftTurnsNuggetCounterclockwiseWhereItStands() {
-        NuggetTeleOp teleOp = started(nugget, new NuggetTeleOp());
-        nugget.setPose(ROOM_TO_TURN);
-        teleOp.gamepad1.right_stick_x = -1;
-
-        drive(nugget, teleOp, 0.5);
-
-        Pose2d pose = nugget.pose();
-        assertTrue("turned counterclockwise: " + pose, pose.heading.toDouble() > 0.3);
-        assertEquals("where it stood", ROOM_TO_TURN.position.x, pose.position.x, 0.01);
-        assertEquals("where it stood", ROOM_TO_TURN.position.y, pose.position.y, 0.01);
     }
 
     @Test
@@ -204,45 +158,6 @@ public class SimNuggetTest {
     }
 
     @Test
-    public void nuggetBelievesItIsWhereTheSimulatorHasTakenIt() {
-        Pose2d start = new Pose2d(-48, -48, 0);
-        LocalizingTeleOp teleOp = started(nugget, new LocalizingTeleOp());
-        nugget.setPose(start);
-
-        teleOp.gamepad1.left_stick_y = -0.5f;
-        drive(nugget, teleOp, 1);
-        teleOp.gamepad1.left_stick_y = 0;
-        teleOp.gamepad1.right_stick_x = -0.5f;
-        drive(nugget, teleOp, 0.5);
-        teleOp.gamepad1.left_stick_y = -0.5f;
-        teleOp.gamepad1.right_stick_x = 0.3f;
-        drive(nugget, teleOp, 1);
-
-        teleOp.localizer.loop();
-
-        Pose2d truth = start.inverse().times(nugget.pose());
-        Pose2d believed = teleOp.localizer.pose();
-        assertTrue("it went somewhere: " + truth, truth.position.norm() > 12);
-        assertEquals("x, having gone to " + truth, truth.position.x, believed.position.x, 0.25);
-        assertEquals("y, having gone to " + truth, truth.position.y, believed.position.y, 0.25);
-        assertEquals("heading, having gone to " + truth, 0, truth.heading.minus(believed.heading), 0.001);
-    }
-
-    @Test
-    public void nuggetBelievesItHasTurnedAsFarAsTheSimulatorHasTurnedIt() {
-        LocalizingTeleOp teleOp = started(nugget, new LocalizingTeleOp());
-        nugget.setPose(ROOM_TO_TURN);
-        teleOp.gamepad1.right_stick_x = -0.5f;
-
-        drive(nugget, teleOp, 1);
-        teleOp.localizer.loop();
-
-        double turned = nugget.pose().heading.toDouble();
-        assertTrue("it turned a good way: " + turned, turned > 1);
-        assertEquals(turned, teleOp.localizer.pose().heading.toDouble(), 0.001);
-    }
-
-    @Test
     public void nuggetTurningAsItDrivesGripsTheFloorRatherThanSlidingOutOfTheTurn() {
         NuggetTeleOp teleOp = started(nugget, new NuggetTeleOp());
         nugget.setPose(new Pose2d(-48, -48, 0));
@@ -263,17 +178,6 @@ public class SimNuggetTest {
     public void nuggetHasNowhereToHoldABallSoItStartsWithNone() {
         assertEquals(0, nugget.held());
         assertEquals("where Reginald is preloaded", SimRobot.PRELOAD, new SimRobot().held());
-    }
-
-    @Test
-    public void nuggetsPowersAreItsLeftMotorsThenItsRightsAsItsMotorsAreNamed() {
-        NuggetTeleOp teleOp = started(nugget, new NuggetTeleOp());
-        teleOp.gamepad1.right_stick_x = -0.4f;
-
-        teleOp.loop();
-
-        assertArrayEquals(new double[] {-0.4, 0.4}, nugget.powers(), 1e-6);
-        assertEquals(TeamRobot.NUGGET.drivebase().motors().size(), nugget.powers().length);
     }
 
     @Test

@@ -29,7 +29,6 @@ import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flywheel;
 import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
-import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
@@ -97,15 +96,6 @@ public class SimRobotTest {
         assertTrue("moving within a tenth of a second: " + early, early > 0);
         assertTrue("but well short of full speed: " + early, early < MAX_SPEED_IN_PER_S * 0.1 * 0.5);
         assertTrue("and still accelerating: " + later, later < MAX_SPEED_IN_PER_S * 0.5 && later > early);
-    }
-
-    @Test
-    public void theRobotsOwnDriveSetsEveryWheelToBrake() {
-        robotDrive();
-
-        for (FakeDcMotorEx wheel : wheelsOf(sim)) {
-            assertEquals(DcMotor.ZeroPowerBehavior.BRAKE, wheel.getZeroPowerBehavior());
-        }
     }
 
     @Test
@@ -224,56 +214,6 @@ public class SimRobotTest {
         assertEquals(0, pose.position.x, 0.01);
         assertEquals(0, pose.position.y, 0.01);
         assertTrue("heading=" + pose.heading.toDouble(), pose.heading.toDouble() > 0.5);
-    }
-
-    @Test
-    public void theRobotsOwnLocalizerTracksTheTruePose() {
-        Localizer localizer = robotLocalizer(sim);
-        MecanumDrive drive = robotDrive(sim, localizer);
-        localizer.update();
-
-        setPowers(0.6, 0.9, 0.6, 0.9);
-        for (int i = 0; i < 40; i++) {
-            sim.step(0.025);
-            localizer.update();
-        }
-
-        Pose2d truePose = sim.pose();
-        Pose2d estimated = localizer.pose();
-        assertTrue(
-                "the arc should have turned the robot; heading=" + truePose.heading.toDouble(),
-                Math.abs(truePose.heading.toDouble()) > 0.2);
-        assertEquals(truePose.position.x, estimated.position.x, 0.5);
-        assertEquals(truePose.position.y, estimated.position.y, 0.5);
-        assertEquals(truePose.heading.toDouble(), estimated.heading.toDouble(), 0.02);
-    }
-
-    @Test
-    public void theRobotsOwnLocalizerReadsACreepingRobotAsCreeping() {
-        SimRobot creeper = new SimRobot(SimNoise.NONE.withMotors(Valid.value(Noise.Motor.of(0.9, 1, 1))));
-        Localizer localizer = robotLocalizer(creeper);
-        MecanumDrive drive = new MecanumDrive(
-                new Wheels(creeper.leftFront, creeper.leftBack, creeper.rightBack, creeper.rightFront),
-                () -> creeper.imu,
-                creeper.voltageSensor,
-                localizer,
-                creeper::nanoTime);
-        localizer.update();
-
-        double power = MecanumDrive.PARAMS.kSVolts / SimRobot.BATTERY_VOLTS;
-        creeper.leftFront.setPower(power);
-        creeper.rightFront.setPower(power);
-        creeper.leftBack.setPower(power);
-        creeper.rightBack.setPower(power);
-        creeper.step(3.0);
-
-        double creep = 0.1
-                * MecanumDrive.PARAMS.kSVolts
-                / MecanumDrive.PARAMS.kVVoltSecondsPerTick
-                * MecanumDrive.PARAMS.inPerTick;
-        localizer.update();
-        assertEquals("inches per second", creep, localizer.velocity().linearVel.norm(), 0.02);
-        assertEquals("a multiple of the hub's step", 0, Math.round(creeper.rightBack.getVelocity()) % 20);
     }
 
     @Test

@@ -58,9 +58,9 @@ public class JavaFormatterTest {
     }
 
     @Test
-    public void everyJavaFileInThisProjectIsAlreadyWhatTheFormatterWouldWrite() throws Exception {
-        List<Path> sources = javaFilesUnderSrc();
-        assertTrue("no Java found under " + Paths.get("src").toAbsolutePath(), sources.size() > 10);
+    public void everyJavaFileOfTheSimulatorIsAlreadyWhatTheFormatterWouldWrite() throws Exception {
+        List<Path> sources = javaFilesUnderTheSimulatorsSources();
+        assertTrue("no Java found under " + SIMULATOR_SOURCES.toAbsolutePath(), sources.size() > 10);
         List<String> differ = new ArrayList<>();
         for (Path source : sources) {
             String text = new String(Files.readAllBytes(source), StandardCharsets.UTF_8);
@@ -82,9 +82,10 @@ public class JavaFormatterTest {
                 differ);
     }
 
-    private static List<Path> javaFilesUnderSrc() throws IOException {
-        Path src = Paths.get("src");
-        try (Stream<Path> walk = Files.walk(src)) {
+    private static final Path SIMULATOR_SOURCES = Paths.get("src", "test");
+
+    private static List<Path> javaFilesUnderTheSimulatorsSources() throws IOException {
+        try (Stream<Path> walk = Files.walk(SIMULATOR_SOURCES)) {
             List<Path> files = new ArrayList<>(walk.filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().endsWith(".java"))
                     .toList());

@@ -30,7 +30,7 @@ public class CostIsCountedWhereItIsSpentTest {
     /** Who spends each kind. Nothing else may name it, and nothing here may fail to. */
     private static final Map<Cost.Kind, Set<String>> SPENT_BY = new LinkedHashMap<>(Map.of(
             Cost.Kind.CHILD_JVM, Set.of("JvmChild", "TestRogues"),
-            Cost.Kind.COMPILE, Set.of("SimBuild", "SourceNavigator", "MainSources"),
+            Cost.Kind.COMPILE, Set.of("SimBuild", "SourceNavigator"),
             Cost.Kind.GIT, Set.of("RealGit", "GitFixture"),
             Cost.Kind.PASSWORD_HASH, Set.of("CodingServer", "CodingServerTest"),
             Cost.Kind.FORMAT, Set.of("JavaFormatter"),

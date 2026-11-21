@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class ClasspathTest {
@@ -34,15 +33,5 @@ public class ClasspathTest {
 
         assertEquals(Map.of(), scan.unreadable);
         assertTrue(scan.classes.size() + " classes", scan.classes.size() > 50);
-    }
-
-    @Test
-    public void everyClassInEachRobotsPackageLoadsOnThisJvm() {
-        for (TeamRobot robot : TeamRobot.values()) {
-            Classpath.Scan scan = Classpath.scan(robot.javaPackage());
-
-            assertEquals(Map.of(), scan.unreadable);
-            assertTrue(robot.javaPackage() + " has no classes", scan.classes.size() > 0);
-        }
     }
 }

@@ -45,12 +45,12 @@ ext.javacExports = ['api', 'code', 'file', 'main', 'parser', 'tree', 'util'].col
 }
 
 // Java formatting. CI runs the same check as the second line, so run the first before pushing:
-//   ./gradlew spotlessApply    formats every Java file under TeamCode and simcore
+//   ./gradlew spotlessApply    formats every Java file of the simulator and the coding server
 //   ./gradlew spotlessCheck    fails on any file the formatter would change
 // palantir-java-format has no options to argue about: 4-space indent, 120 columns.
 spotless {
     java {
-        target 'src/**/*.java'
+        target 'src/test/**/*.java'
         palantirJavaFormat(palantirJavaFormatVersion)
         removeUnusedImports()
     }
@@ -84,7 +84,7 @@ tasks.withType(Test).configureEach {
     // What Spotless is configured with, so the gate test can hold the classpath to it.
     systemProperty 'palantirJavaFormat.version', palantirJavaFormatVersion
     // Gradle's own -D reaches this JVM, not the forked test one, so pass the golden-trace
-    // regeneration flag through by hand; without this the command SimTrace prints would run as an
+    // regeneration flag through by hand; without this the command FlightTrace prints would run as an
     // ordinary check and look like the traces simply agreed.
     if (System.getProperty('simTrace.regenerate') != null) {
         systemProperty 'simTrace.regenerate', System.getProperty('simTrace.regenerate')
