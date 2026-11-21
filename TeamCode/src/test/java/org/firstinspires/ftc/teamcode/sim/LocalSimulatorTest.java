@@ -69,6 +69,16 @@ public class LocalSimulatorTest {
     }
 
     @Test
+    public void itsPageAsksForNoEditorSinceItServesNone() throws IOException {
+        over(aChildThatRunsUntilStopped());
+
+        Reply page = send("GET", "/");
+
+        assertFalse(page.body, page.body.contains("/static/"));
+        assertEquals(404, send("GET", "/static/codemirror.js").status);
+    }
+
+    @Test
     public void theBenchIsMountedWhereTheDashboardAsksForIt() throws IOException {
         over(aChildThatRunsUntilStopped());
 

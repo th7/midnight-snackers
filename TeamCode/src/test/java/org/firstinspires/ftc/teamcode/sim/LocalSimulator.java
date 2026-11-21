@@ -24,6 +24,7 @@ public final class LocalSimulator {
     static final String PAGE = "dashboard.html";
     static final String AS_THE_CODING_SERVER_SERVES_IT = "<html lang=\"en\" data-host=\"coding-server\">";
     static final String AS_THIS_HOST_SERVES_IT = "<html lang=\"en\" data-host=\"simulator\">";
+    static final String THE_EDITOR = "<script src=\"/static/codemirror.js\"></script>\n";
 
     private final SimBench bench;
     private final TinyHttpServer http;
@@ -43,12 +44,16 @@ public final class LocalSimulator {
     }
 
     static String asThisHostServesIt(String page) {
-        int at = page.indexOf(AS_THE_CODING_SERVER_SERVES_IT);
-        if (at < 0 || page.indexOf(AS_THE_CODING_SERVER_SERVES_IT, at + 1) >= 0) {
-            throw new IllegalStateException(PAGE + " must open with " + AS_THE_CODING_SERVER_SERVES_IT
-                    + " exactly once, which this host serves as " + AS_THIS_HOST_SERVES_IT);
+        return once(once(page, AS_THE_CODING_SERVER_SERVES_IT, AS_THIS_HOST_SERVES_IT), THE_EDITOR, "");
+    }
+
+    private static String once(String page, String asTheCodingServerServesIt, String asThisHostServesIt) {
+        int at = page.indexOf(asTheCodingServerServesIt);
+        if (at < 0 || page.indexOf(asTheCodingServerServesIt, at + 1) >= 0) {
+            throw new IllegalStateException(PAGE + " must hold " + asTheCodingServerServesIt
+                    + " exactly once, which this host serves as \"" + asThisHostServesIt + "\"");
         }
-        return page.replace(AS_THE_CODING_SERVER_SERVES_IT, AS_THIS_HOST_SERVES_IT);
+        return page.replace(asTheCodingServerServesIt, asThisHostServesIt);
     }
 
     public static void main(String[] args) throws InterruptedException {

@@ -360,6 +360,14 @@
 (function () {
   window.codingPage = { started: false, broke: [] };
 
+  var HOST = document.documentElement.dataset.host === 'simulator'
+    ? { title: 'Simulator', editing: false, home: 'simulate',
+        whoToTell: 'whoever started the simulator',
+        toRestart: 'Start the Simulator run configuration in Android Studio again' }
+    : { title: 'Coding server', editing: true, home: 'edit',
+        whoToTell: 'whoever runs the coding server',
+        toRestart: 'Ask the admin to restart ./gradlew :TeamCode:codingServer' };
+
   function broke(what, wrong) {
     var message = wrong && wrong.message ? wrong.message : String(wrong);
     var already = window.codingPage.broke.some(function (b) { return b.part === what && b.message === message; });
@@ -367,7 +375,7 @@
     window.codingPage.broke.push({ part: what, message: message });
     var said = document.getElementById('broke');
     said.textContent = 'This browser could not start ' + what + ': ' + message
-        + '. Whatever else works still works. Tell whoever runs the coding server.';
+        + '. Whatever else works still works. Tell ' + HOST.whoToTell + '.';
     said.hidden = false;
   }
 
@@ -1022,6 +1030,15 @@
     setInterval(function () { ask().catch(function () {}); }, 3000);
   }
 
+  function asTheSimulator() {
+    document.title = HOST.title;
+    document.querySelector('header h1').textContent = HOST.title;
+    ['nav [data-tab="edit"]', 'main#edit', 'header .who'].forEach(function (selector) {
+      var element = document.querySelector(selector);
+      element.parentNode.removeChild(element);
+    });
+  }
+
   var tabs = [];
   var tabOptions = '';
 
@@ -1036,7 +1053,7 @@
 
   function showTab(hash) {
     var asked = tabOf(hash);
-    var name = asked.name;
+    var name = asked.name === 'edit' && !HOST.editing ? HOST.home : asked.name;
     tabOptions = asked.options;
     tabs.forEach(function (tab) {
       var on = tab.dataset.tab === name;
@@ -1261,7 +1278,7 @@
         if (status) { renderStatus(status); }
         if (msg.textContent.indexOf('Lost') === 0) { msg.textContent = ''; }
       }).catch(function () {
-        msg.textContent = 'Lost the host. Ask the admin to restart ./gradlew :TeamCode:codingServer';
+        msg.textContent = 'Lost the host. ' + HOST.toRestart;
       }).then(function () {
         pollTimer = setTimeout(poll, running ? 500 : 2000);
       });
@@ -1363,7 +1380,7 @@
     }
 
     function lost(e) {
-      say('Lost the host: ' + e + '. Ask the admin to restart ./gradlew :TeamCode:codingServer', 'lost');
+      say('Lost the host: ' + e + '. ' + HOST.toRestart, 'lost');
     }
 
     function decimalsOf(n) {
@@ -2133,7 +2150,7 @@
     }
 
     function lost(e) {
-      say('Lost the host: ' + e + '. Ask the admin to restart ./gradlew :TeamCode:codingServer', true);
+      say('Lost the host: ' + e + '. ' + HOST.toRestart, true);
     }
 
     function stepOf(setting) {
@@ -2480,13 +2497,19 @@
   var simulate = null;
   var launch = null;
   var feeder = null;
-  part('the editor', startEditor);
-  part('the branch panel', function () { git = theBranchPanel(); });
+  if (HOST.editing) {
+    part('the editor', startEditor);
+    part('the branch panel', function () { git = theBranchPanel(); });
+  } else {
+    part('the host', asTheSimulator);
+  }
   part('the simulator', function () { simulate = theSimulateTab(); });
   part('the launch sim', function () { launch = theLaunchTab(); });
   part('the feeder sim', function () { feeder = theFeederTab(); });
-  part('the header', whoIsSignedIn);
-  part('the file list', refreshFiles);
+  if (HOST.editing) {
+    part('the header', whoIsSignedIn);
+    part('the file list', refreshFiles);
+  }
   part('the tabs', wireTabs);
   window.codingPage.started = true;
 })();

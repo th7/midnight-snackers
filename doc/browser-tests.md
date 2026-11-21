@@ -132,6 +132,16 @@ a piece of itself must not be indistinguishable from a page with nothing to say.
 keeps `window.codingPage` -- `started`, and `broke` as a list of part and message -- for
 the check to read, and shows the same thing to whoever is looking at it.
 
+`tools/browser/simulator.mjs` opens the same `dashboard.html` as the **local
+simulator** serves it, with `data-host="simulator"` on its `<html>` in place of
+`data-host="coding-server"`, over a throwaway server that answers `/` and `/sim/*` and
+nothing else. There the page is titled Simulator, offers Simulate, Launch Sim and Feeder
+Sim alone, opens on Simulate even when it is asked for `#edit`, shows a checkout that does
+not compile by its file and line, runs an op mode and sets out both sims' settings, on
+this engine and on one shaped like an older iPad's. Every request it makes is recorded,
+and any outside `/sim` fails the check. What the editor, the branch panel and the header
+would have asked for is how a page that still carried them would show.
+
 `tools/browser/launch.mjs` opens the **Launch Sim's page** the same way, over a
 throwaway server that answers `/launches/<id>/shot` with shots built by hand -- a lob
 into a cell, a spinning bounce, a shot over a wall -- and with the shot the bench itself
