@@ -11,6 +11,13 @@ public final class Power {
         return new Power(0);
     }
 
+    public static Checked<Power> of(double power) {
+        if (!(power >= -1 && power <= 1)) {
+            return Checked.rejected("a power is from -1 to 1, not " + power);
+        }
+        return Checked.ok(new Power(power));
+    }
+
     public static Power clamped(double power) {
         if (Double.isNaN(power)) {
             return none();

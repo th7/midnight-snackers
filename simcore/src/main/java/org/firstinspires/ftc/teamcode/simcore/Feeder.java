@@ -17,6 +17,155 @@ public final class Feeder {
         return true;
     }
 
+    public static final class Torque {
+        private final double newtonMetres;
+
+        private Torque(double newtonMetres) {
+            this.newtonMetres = newtonMetres;
+        }
+
+        public static Checked<Torque> ofNewtonMetres(double newtonMetres) {
+            if (!Double.isFinite(newtonMetres)) {
+                return Checked.rejected("a torque is a finite number of N m, not " + newtonMetres);
+            }
+            return Checked.ok(new Torque(newtonMetres));
+        }
+
+        public double newtonMetres() {
+            return newtonMetres;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Torque that && Double.compare(newtonMetres, that.newtonMetres) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Double.hashCode(newtonMetres);
+        }
+
+        @Override
+        public String toString() {
+            return newtonMetres + " N m";
+        }
+    }
+
+    public static final class Spinner {
+        static final String SERVO_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the REV Smart Robot Servo"
+                + " (REV-41-1097) in continuous mode, 0.14 s per 60 degrees and 13.5 kg cm at 6 V by the vendor,"
+                + " scaled to the Hub's 5 V: 1.0 rev/s unloaded and 1.1 N m at stall";
+        static final double FULL_SPEED_REV_PER_S = 1.0;
+        static final double STALL_NEWTON_METRES = 1.1;
+        static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the spinner's speed at full"
+                + " power is set from 0.2 to 3 rev/s, and its stall torque from 0.1 to 5 N m";
+        static final double LEAST_FULL_SPEED_REV_PER_S = 0.2;
+        static final double MOST_FULL_SPEED_REV_PER_S = 3;
+        static final double LEAST_STALL_NEWTON_METRES = 0.1;
+        static final double MOST_STALL_NEWTON_METRES = 5;
+
+        private final double fullSpeed;
+        private final double stall;
+
+        private Spinner(double fullSpeed, double stall) {
+            this.fullSpeed = fullSpeed;
+            this.stall = stall;
+        }
+
+        public static Checked<Spinner> of(double fullSpeedRevPerS, double stallNewtonMetres) {
+            if (!(fullSpeedRevPerS >= LEAST_FULL_SPEED_REV_PER_S && fullSpeedRevPerS <= MOST_FULL_SPEED_REV_PER_S)) {
+                return Checked.rejected(
+                        "a spinner's speed at full power, unloaded, is from " + LEAST_FULL_SPEED_REV_PER_S + " to "
+                                + MOST_FULL_SPEED_REV_PER_S + " rev/s, not " + fullSpeedRevPerS);
+            }
+            if (!(stallNewtonMetres >= LEAST_STALL_NEWTON_METRES && stallNewtonMetres <= MOST_STALL_NEWTON_METRES)) {
+                return Checked.rejected("a spinner's stall torque is from " + LEAST_STALL_NEWTON_METRES + " to "
+                        + MOST_STALL_NEWTON_METRES + " N m, not " + stallNewtonMetres);
+            }
+            return Checked.ok(new Spinner(fullSpeedRevPerS, stallNewtonMetres));
+        }
+
+        public static Spinner revSmartRobotServo() {
+            return new Spinner(FULL_SPEED_REV_PER_S, STALL_NEWTON_METRES);
+        }
+
+        public Turning next(Turning from, Power power, Torque load, Seconds step) {
+            double speed = fullSpeed * power.value() * StrictMath.max(0, 1 - load.newtonMetres() / stall);
+            return new Turning(from.radians + speed * Flywheel.WHOLE_TURN * step.value(), speed);
+        }
+
+        @Override
+        public String toString() {
+            return "a spinner servo turning " + fullSpeed + " rev/s unloaded, stalling at " + stall + " N m";
+        }
+
+        public static final class Turning {
+            private final double radians;
+            private final double revolutionsPerSecond;
+
+            private Turning(double radians, double revolutionsPerSecond) {
+                this.radians = radians;
+                this.revolutionsPerSecond = revolutionsPerSecond;
+            }
+
+            public static Turning still() {
+                return new Turning(0, 0);
+            }
+
+            public double radians() {
+                return radians;
+            }
+
+            public double revolutionsPerSecond() {
+                return revolutionsPerSecond;
+            }
+        }
+    }
+
+    public static final class Ramp {
+        static final String SERVO_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the REV Smart Robot Servo"
+                + " (REV-41-1097) in angular mode, 0.14 s per 60 degrees at 6 V by the vendor, scaled to the Hub's 5 V:"
+                + " 0.168 s per 60 degrees, and held at its angle whatever the load";
+        static final double SECONDS_PER_SIXTY_DEGREES = 0.168;
+        static final double SIXTY_DEGREES = 60;
+        static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the ramp servo's speed is set"
+                + " from 0.05 to 1 s per 60 degrees";
+        static final double LEAST_SECONDS_PER_SIXTY_DEGREES = 0.05;
+        static final double MOST_SECONDS_PER_SIXTY_DEGREES = 1;
+
+        private final double secondsPerSixtyDegrees;
+
+        private Ramp(double secondsPerSixtyDegrees) {
+            this.secondsPerSixtyDegrees = secondsPerSixtyDegrees;
+        }
+
+        public static Checked<Ramp> of(double secondsPerSixtyDegrees) {
+            if (!(secondsPerSixtyDegrees >= LEAST_SECONDS_PER_SIXTY_DEGREES
+                    && secondsPerSixtyDegrees <= MOST_SECONDS_PER_SIXTY_DEGREES)) {
+                return Checked.rejected("a ramp servo's speed is from " + LEAST_SECONDS_PER_SIXTY_DEGREES + " to "
+                        + MOST_SECONDS_PER_SIXTY_DEGREES + " s per 60 degrees, not " + secondsPerSixtyDegrees);
+            }
+            return Checked.ok(new Ramp(secondsPerSixtyDegrees));
+        }
+
+        public static Ramp revSmartRobotServo() {
+            return new Ramp(SECONDS_PER_SIXTY_DEGREES);
+        }
+
+        public RampAngle next(RampAngle from, RampAngle commanded, Torque load, Seconds step) {
+            double most = SIXTY_DEGREES * step.value() / secondsPerSixtyDegrees;
+            double toGo = commanded.degrees - from.degrees;
+            return StrictMath.abs(toGo) <= most
+                    ? commanded
+                    : new RampAngle(from.degrees + StrictMath.copySign(most, toGo));
+        }
+
+        @Override
+        public String toString() {
+            return "a ramp servo slewing " + secondsPerSixtyDegrees + " s per 60 degrees";
+        }
+    }
+
     public static final class RampAngle {
         static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the ramp is set from 0 to 60"
                 + " degrees, raised from where the CAD draws it";
@@ -86,7 +235,7 @@ public final class Feeder {
         }
     }
 
-    public static final class Spinner {
+    public static final class Arms {
         static final String SHAPE_SOURCE = "doc/plans/feeder-sim.md, Questions for the team, 2: not drawn, so the"
                 + " plan's for now, a hub of r 10 and two arms opposite, 4 thick, from the hub to r 50, from 2 above"
                 + " the floor to z 80";
@@ -102,7 +251,7 @@ public final class Feeder {
         private final double armBottom;
         private final double armTop;
 
-        private Spinner(double hubRadius, double armThickness, double armReach, double armBottom, double armTop) {
+        private Arms(double hubRadius, double armThickness, double armReach, double armBottom, double armTop) {
             this.hubRadius = hubRadius;
             this.armThickness = armThickness;
             this.armReach = armReach;
@@ -110,7 +259,7 @@ public final class Feeder {
             this.armTop = armTop;
         }
 
-        public static Checked<Spinner> of(
+        public static Checked<Arms> of(
                 double hubRadiusMm, double armThicknessMm, double armReachMm, double armBottomMm, double armTopMm) {
             if (!finite(hubRadiusMm, armThicknessMm, armReachMm, armBottomMm, armTopMm)) {
                 return Checked.rejected("a spinner is measured in finite mm");
@@ -127,7 +276,7 @@ public final class Feeder {
                 return Checked.rejected("a spinner's arms stand higher at their top than their bottom, not from z "
                         + armBottomMm + " to z " + armTopMm);
             }
-            return Checked.ok(new Spinner(hubRadiusMm, armThicknessMm, armReachMm, armBottomMm, armTopMm));
+            return Checked.ok(new Arms(hubRadiusMm, armThicknessMm, armReachMm, armBottomMm, armTopMm));
         }
 
         @Override
@@ -550,7 +699,7 @@ public final class Feeder {
         private final Window back;
         private final Plate plate;
         private final Slot slot;
-        private final Spinner spinner;
+        private final Arms arms;
         private final Bar bar;
         private final Wheel wheel;
         private final Mount mount;
@@ -561,7 +710,7 @@ public final class Feeder {
                 Window back,
                 Plate plate,
                 Slot slot,
-                Spinner spinner,
+                Arms arms,
                 Bar bar,
                 Wheel wheel,
                 Mount mount) {
@@ -570,7 +719,7 @@ public final class Feeder {
             this.back = back;
             this.plate = plate;
             this.slot = slot;
-            this.spinner = spinner;
+            this.arms = arms;
             this.bar = bar;
             this.wheel = wheel;
             this.mount = mount;
@@ -582,14 +731,14 @@ public final class Feeder {
                 Window back,
                 Plate plate,
                 Slot slot,
-                Spinner spinner,
+                Arms arms,
                 Bar bar,
                 Wheel wheel,
                 Mount mount) {
             return front.through(room)
                     .then(cut -> back.through(room))
                     .then(cut -> plate.over(room))
-                    .then(cut -> fitted(room, front, back, plate, slot, spinner, bar, wheel, mount));
+                    .then(cut -> fitted(room, front, back, plate, slot, arms, bar, wheel, mount));
         }
 
         private static Checked<Shape> fitted(
@@ -598,26 +747,26 @@ public final class Feeder {
                 Window back,
                 Plate plate,
                 Slot slot,
-                Spinner spinner,
+                Arms arms,
                 Bar bar,
                 Wheel wheel,
                 Mount mount) {
             if (!slot.fits(bar)) {
                 return Checked.rejected("a ramp bar fits " + slot + " through the floor; not " + bar);
             }
-            if (!(spinner.armBottom > room.floorTop)) {
+            if (!(arms.armBottom > room.floorTop)) {
                 return Checked.rejected(
-                        "a spinner's arms stand above the floor at z " + room.floorTop + "; not " + spinner);
+                        "a spinner's arms stand above the floor at z " + room.floorTop + "; not " + arms);
             }
-            if (!(spinner.armTop < wheel.lowest())) {
+            if (!(arms.armTop < wheel.lowest())) {
                 return Checked.rejected("a spinner's arms stand under the wheel, whose lowest point is at z "
-                        + wheel.lowest() + "; not " + spinner);
+                        + wheel.lowest() + "; not " + arms);
             }
-            if (!(spinner.armReach < bar.nearestToTheAxis())) {
+            if (!(arms.armReach < bar.nearestToTheAxis())) {
                 return Checked.rejected("a spinner's arms stop short of the raised bar, r " + bar.nearestToTheAxis()
-                        + " from the axis, unless cut away above it; not " + spinner);
+                        + " from the axis, unless cut away above it; not " + arms);
             }
-            return Checked.ok(new Shape(room, front, back, plate, slot, spinner, bar, wheel, mount));
+            return Checked.ok(new Shape(room, front, back, plate, slot, arms, bar, wheel, mount));
         }
 
         public static Checked<Shape> cad() {
@@ -635,13 +784,13 @@ public final class Feeder {
         }
 
         private static Checked<Shape> cad(Room room, Window front, Window back, Plate plate, Slot slot) {
-            return Spinner.of(
-                            Spinner.HUB_RADIUS_MM,
-                            Spinner.ARM_THICKNESS_MM,
-                            Spinner.ARM_REACH_MM,
-                            Spinner.ARM_BOTTOM_MM,
-                            Spinner.ARM_TOP_MM)
-                    .then(spinner -> Bar.of(
+            return Arms.of(
+                            Arms.HUB_RADIUS_MM,
+                            Arms.ARM_THICKNESS_MM,
+                            Arms.ARM_REACH_MM,
+                            Arms.ARM_BOTTOM_MM,
+                            Arms.ARM_TOP_MM)
+                    .then(arms -> Bar.of(
                                     Bar.PIVOT_X_MM,
                                     Bar.PIVOT_Z_MM,
                                     Bar.TOP_AS_DRAWN_MM,
@@ -656,27 +805,27 @@ public final class Feeder {
                                             .then(tilt -> Mount.of(
                                                     new Vec3(0, Mount.ORIGIN_BACK_MM, Mount.ORIGIN_UP_MM), tilt))
                                             .then(mount ->
-                                                    of(room, front, back, plate, slot, spinner, bar, wheel, mount)))));
+                                                    of(room, front, back, plate, slot, arms, bar, wheel, mount)))));
         }
 
-        public Checked<Shape> with(Spinner other) {
+        public Checked<Shape> with(Arms other) {
             return of(room, front, back, plate, slot, other, bar, wheel, mount);
         }
 
         public Checked<Shape> withFrontWindow(Window other) {
-            return of(room, other, back, plate, slot, spinner, bar, wheel, mount);
+            return of(room, other, back, plate, slot, arms, bar, wheel, mount);
         }
 
         public Checked<Shape> withBackWindow(Window other) {
-            return of(room, front, other, plate, slot, spinner, bar, wheel, mount);
+            return of(room, front, other, plate, slot, arms, bar, wheel, mount);
         }
 
         public Checked<Shape> with(Plate other) {
-            return of(room, front, back, other, slot, spinner, bar, wheel, mount);
+            return of(room, front, back, other, slot, arms, bar, wheel, mount);
         }
 
         public Checked<Shape> with(Bar other) {
-            return of(room, front, back, plate, slot, spinner, other, wheel, mount);
+            return of(room, front, back, plate, slot, arms, other, wheel, mount);
         }
 
         public Checked<Double> barTopMm(double drawnXMm, RampAngle raised) {
@@ -707,13 +856,13 @@ public final class Feeder {
         public Checked<Seat> seatedAgainstTheWall(Length pollen) {
             double radius = pollen.inches() * Launcher.MILLIMETRES_PER_INCH;
             double centre = room.wallRadius - radius;
-            double hubClearance = centre - radius - spinner.hubRadius;
+            double hubClearance = centre - radius - arms.hubRadius;
             if (!(hubClearance >= 0)) {
                 return Checked.rejected("a pollen seated against the wall clears the spinner's hub, not a pollen of r "
                         + radius + " mm, which overlaps it by " + -hubClearance);
             }
-            return Checked.ok(new Seat(
-                    hubClearance, room.wallRadius - centre - radius, centre - radius - spinner.armThickness / 2));
+            return Checked.ok(
+                    new Seat(hubClearance, room.wallRadius - centre - radius, centre - radius - arms.armThickness / 2));
         }
 
         public double floorTopMm() {

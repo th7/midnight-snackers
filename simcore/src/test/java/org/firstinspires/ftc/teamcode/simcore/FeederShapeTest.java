@@ -44,21 +44,21 @@ public class FeederShapeTest {
 
     @Test
     public void aSpinnerWhoseArmsReachR54IsRefusedForTheRaisedBar() {
-        Feeder.Spinner reachingFurther = Valid.value(Feeder.Spinner.of(10, 4, 54, 17, 80));
+        Feeder.Arms reachingFurther = Valid.value(Feeder.Arms.of(10, 4, 54, 17, 80));
 
         assertRejected("raised bar", cad.with(reachingFurther));
     }
 
     @Test
     public void anArmTallerThanTheRoomUnderTheWheelIsRefused() {
-        Feeder.Spinner tallerArms = Valid.value(Feeder.Spinner.of(10, 4, 50, 17, 84));
+        Feeder.Arms tallerArms = Valid.value(Feeder.Arms.of(10, 4, 50, 17, 84));
 
         assertRejected("under the wheel", cad.with(tallerArms));
     }
 
     @Test
     public void aSpinnerWhoseArmsReachIntoTheFloorIsRefused() {
-        Feeder.Spinner intoTheFloor = Valid.value(Feeder.Spinner.of(10, 4, 50, 14, 80));
+        Feeder.Arms intoTheFloor = Valid.value(Feeder.Arms.of(10, 4, 50, 14, 80));
 
         assertRejected("above the floor", cad.with(intoTheFloor));
     }
