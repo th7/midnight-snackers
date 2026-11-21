@@ -234,7 +234,7 @@ public class SimReplayPageTest {
 
     @Test
     public void aPageNamesTheRobotItsRunWasOnAndItsDriveMotorsInTheOrderTheirPowersAreRecorded() {
-        SimRecording nugget = new SimRecording("Nugget TeleOp", SimCatalog.TELEOP, TeamRobot.NUGGET);
+        SimRecording nugget = new SimRecording("Tank drive", SimCatalog.TELEOP, TeamRobot.NUGGET);
         nugget.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "", new double[] {0.5, -0.5}, List.of())
                 .tick());
         nugget.finish("stopped");
@@ -257,7 +257,7 @@ public class SimReplayPageTest {
         assertEquals(
                 new Gson().toJsonTree(TeamRobot.NUGGET.drivebase().motors()),
                 recordingIn(SimReplayPage.placement(
-                                "Nugget TeleOp", SimCatalog.TELEOP, TeamRobot.NUGGET, StartPoses.ORIGIN))
+                                "Tank drive", SimCatalog.TELEOP, TeamRobot.NUGGET, StartPoses.ORIGIN))
                         .get("motors"));
     }
 

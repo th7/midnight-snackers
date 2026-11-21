@@ -12,9 +12,9 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.nugget.NuggetHardware;
 import org.firstinspires.ftc.nugget.NuggetOpMode;
-import org.firstinspires.ftc.nugget.NuggetTeleOp;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
+import org.firstinspires.ftc.teamcode.sim.TestNuggetOpModes.TankTeleOp;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -45,12 +45,6 @@ public class SimNuggetTest {
         public void loop() {
             hardware().left.setPower(1);
             hardware().right.setPower(1);
-        }
-    }
-
-    public static final class CountingTeleOp extends NuggetTeleOp {
-        NuggetHardware devices() {
-            return hardware();
         }
     }
 
@@ -87,7 +81,7 @@ public class SimNuggetTest {
     @Test
     public void aSeededNuggetIsItsOwnImperfectRobotAndStillCannotSlideSideways() {
         SimRobot seeded = new SimRobot(TeamRobot.NUGGET, Noise.seeded(7, Constants.defaults()), Constants.defaults());
-        NuggetTeleOp teleOp = started(seeded, new NuggetTeleOp());
+        TankTeleOp teleOp = started(seeded, new TankTeleOp());
         seeded.setPose(CLEAR_OF_EVERYTHING);
         teleOp.gamepad1.left_stick_y = -1;
 
@@ -103,7 +97,7 @@ public class SimNuggetTest {
 
     @Test
     public void nuggetsDriveMotorsCountHowFarTheirSideHasGoneAhead() {
-        CountingTeleOp teleOp = started(nugget, new CountingTeleOp());
+        TankTeleOp teleOp = started(nugget, new TankTeleOp());
         nugget.setPose(CLEAR_OF_EVERYTHING);
         teleOp.gamepad1.left_stick_y = -1;
 
@@ -119,7 +113,7 @@ public class SimNuggetTest {
 
     @Test
     public void turningCounterclockwiseCountsTheLeftSideBackAndTheRightAheadByTheSimulatedTrack() {
-        CountingTeleOp teleOp = started(nugget, new CountingTeleOp());
+        TankTeleOp teleOp = started(nugget, new TankTeleOp());
         nugget.setPose(ROOM_TO_TURN);
         teleOp.gamepad1.right_stick_x = -1;
 
@@ -147,7 +141,7 @@ public class SimNuggetTest {
 
     @Test
     public void aNuggetOpModeIsHandedTheSimulatorsClockBatteryAndDashboard() {
-        CountingTeleOp teleOp = started(nugget, new CountingTeleOp());
+        TankTeleOp teleOp = started(nugget, new TankTeleOp());
 
         drive(nugget, teleOp, 0.5);
 
@@ -159,7 +153,7 @@ public class SimNuggetTest {
 
     @Test
     public void nuggetTurningAsItDrivesGripsTheFloorRatherThanSlidingOutOfTheTurn() {
-        NuggetTeleOp teleOp = started(nugget, new NuggetTeleOp());
+        TankTeleOp teleOp = started(nugget, new TankTeleOp());
         nugget.setPose(new Pose2d(-48, -48, 0));
         teleOp.gamepad1.left_stick_y = -0.6f;
         teleOp.gamepad1.right_stick_x = -0.3f;
@@ -199,11 +193,11 @@ public class SimNuggetTest {
         IllegalArgumentException reginalds =
                 assertThrows(IllegalArgumentException.class, () -> nugget.wire(new TestTeleOps.StickTeleOp()));
         IllegalArgumentException nuggets =
-                assertThrows(IllegalArgumentException.class, () -> new SimRobot().wire(new NuggetTeleOp()));
+                assertThrows(IllegalArgumentException.class, () -> new SimRobot().wire(new TankTeleOp()));
 
         assertTrue(reginalds.getMessage(), reginalds.getMessage().contains("Nugget"));
         assertTrue(reginalds.getMessage(), reginalds.getMessage().contains(TestTeleOps.StickTeleOp.class.getName()));
         assertTrue(nuggets.getMessage(), nuggets.getMessage().contains("Reginald"));
-        assertTrue(nuggets.getMessage(), nuggets.getMessage().contains(NuggetTeleOp.class.getName()));
+        assertTrue(nuggets.getMessage(), nuggets.getMessage().contains(TankTeleOp.class.getName()));
     }
 }

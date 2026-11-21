@@ -17,11 +17,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.firstinspires.ftc.reginald.Localizer;
 import org.firstinspires.ftc.reginald.Turntable;
-import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -67,8 +64,8 @@ public class SimRobotTest {
     }
 
     @Test
-    public void withTheRobotsMotorDirectionsForwardPowerDrivesStraightAheadAndReachesNearMaxSpeed() {
-        robotDrive();
+    public void withTheWheelsMountedForwardPowerDrivesStraightAheadAndReachesNearMaxSpeed() {
+        mountedWheels();
         sim.setPose(new Pose2d(-60, 0, 0));
         setPowers(1, 1, 1, 1);
 
@@ -85,7 +82,7 @@ public class SimRobotTest {
 
     @Test
     public void theRobotTakesTimeToGetUpToSpeed() {
-        robotDrive();
+        mountedWheels();
         setPowers(1, 1, 1, 1);
 
         sim.step(0.1);
@@ -125,7 +122,7 @@ public class SimRobotTest {
 
     @Test
     public void aWheelRollingAtZeroPowerWithNoBehaviorSetIsRefusedRatherThanGuessedAt() {
-        robotDrive();
+        mountedWheels();
         sim.setPose(new Pose2d(-60, 0, 0));
         setPowers(1, 1, 1, 1);
         sim.step(0.5);
@@ -151,7 +148,7 @@ public class SimRobotTest {
 
     @Test
     public void theParallelDeadWheelIsReadOnTheRightBackPortAndThePerpendicularOneOnTheLeftFronts() {
-        robotDrive();
+        mountedWheels();
         sim.setPose(new Pose2d(-30, 0, 0));
         setPowers(0.5, 0.5, 0.5, 0.5);
         sim.step(0.5);
@@ -175,7 +172,7 @@ public class SimRobotTest {
 
     @Test
     public void aDeadWheelReadsTheSameThroughRoadRunnersEncoderWhicheverWayItsPortsMotorIsSet() {
-        robotDrive();
+        mountedWheels();
         sim.setPose(new Pose2d(-30, 0, 0));
         setPowers(0.5, 0.5, 0.5, 0.5);
         sim.step(0.5);
@@ -195,7 +192,7 @@ public class SimRobotTest {
 
     @Test
     public void powerBelowStaticFrictionDoesNotMove() {
-        robotDrive();
+        mountedWheels();
         setPowers(0.05, 0.05, 0.05, 0.05);
 
         sim.step(0.5);
@@ -205,7 +202,7 @@ public class SimRobotTest {
 
     @Test
     public void oppositeSidesSpinTheRobotInPlace() {
-        robotDrive();
+        mountedWheels();
         setPowers(-1, 1, -1, 1);
 
         sim.step(0.5);
@@ -243,7 +240,7 @@ public class SimRobotTest {
 
     @Test
     public void aPlacedRobotStartsFromRest() {
-        robotDrive();
+        mountedWheels();
         setPowers(1, 1, 1, 1);
         sim.step(1.0);
         setPowers(0, 0, 0, 0);
@@ -257,7 +254,7 @@ public class SimRobotTest {
 
     @Test
     public void theWallStopsTheRobotWhereItsFrontEdgeMeetsIt() {
-        robotDrive();
+        mountedWheels();
         double wall = SimPlacement.FIELD_SIZE_IN / 2;
         double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(wall - halfRobot - 10, 0, 0));
@@ -273,7 +270,7 @@ public class SimRobotTest {
 
     @Test
     public void everyWallStopsTheRobot() {
-        robotDrive();
+        mountedWheels();
         double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
 
         sim.setPose(new Pose2d(-edge + 5, 0, 0));
@@ -294,7 +291,7 @@ public class SimRobotTest {
 
     @Test
     public void aTurnedRobotStopsWhereItsCornerMeetsTheWall() {
-        robotDrive();
+        mountedWheels();
         double wall = SimPlacement.FIELD_SIZE_IN / 2;
         double cornerReach = SimPlacement.ROBOT_SIZE_IN / 2 * Math.sqrt(2);
         sim.setPose(new Pose2d(wall - cornerReach - 10, 0, Math.PI / 4));
@@ -311,7 +308,7 @@ public class SimRobotTest {
 
     @Test
     public void drivingDiagonallyIntoTheWallSlidesAlongIt() {
-        robotDrive();
+        mountedWheels();
         double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(edge, 0, 0));
         setPowers(0, 1, 1, 0);
@@ -327,28 +324,26 @@ public class SimRobotTest {
 
     @Test
     public void againstTheWallTheDeadWheelsReadTheRobotStandingStillNotTheWheelsSpinning() {
-        Localizer localizer = robotLocalizer(sim);
-        MecanumDrive drive = robotDrive(sim, localizer);
+        mountedWheels();
         double edge = SimPlacement.FIELD_SIZE_IN / 2 - SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(edge - 10, 0, 0));
-        localizer.setPose(sim.pose());
-        localizer.update();
+        int parallel = sim.rightBack.getCurrentPosition();
+        int perpendicular = sim.leftFront.getCurrentPosition();
         setPowers(1, 1, 1, 1);
 
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
-            localizer.update();
         }
 
-        Pose2d estimated = localizer.pose();
+        double[] rolled = deadWheelsRolled(sim, parallel, perpendicular);
         assertEquals(edge, sim.pose().position.x, CONTACT);
-        assertEquals(edge, estimated.position.x, 0.5);
-        assertEquals(0, estimated.position.y, 0.5);
+        assertEquals("the ten inches it went ahead", 10, rolled[0], 0.5);
+        assertEquals("and none aside", 0, rolled[1], 0.5);
     }
 
     @Test
     public void aFlowerStopsTheRobotWhereItsFrontEdgeMeetsIt() {
-        robotDrive();
+        mountedWheels();
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
@@ -367,7 +362,7 @@ public class SimRobotTest {
 
     @Test
     public void drivingDiagonallyIntoAFlowerSlidesAlongItWithoutEnteringIt() {
-        robotDrive();
+        mountedWheels();
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
@@ -390,7 +385,7 @@ public class SimRobotTest {
 
     @Test
     public void theRobotDrivesUnderTheHivesBetweenTheFramesLegs() {
-        robotDrive();
+        mountedWheels();
         sim.setPose(new Pose2d(-14, -8, 0));
         setPowers(1, 1, 1, 1);
 
@@ -403,7 +398,7 @@ public class SimRobotTest {
 
     @Test
     public void theFrameStopsTheRobotAtItsNearestPart() {
-        robotDrive();
+        mountedWheels();
         double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         double y = -28;
         double nearestFace = Double.POSITIVE_INFINITY;
@@ -436,26 +431,24 @@ public class SimRobotTest {
 
     @Test
     public void againstAFlowerTheDeadWheelsReadTheRobotStandingStill() {
-        Localizer localizer = robotLocalizer(sim);
-        MecanumDrive drive = robotDrive(sim, localizer);
+        mountedWheels();
         double[][] flower = cornersOf("Flower Assembly <4>");
         double face = maxY(flower);
         double x = (minX(flower) + maxX(flower)) / 2;
         double halfRobot = SimPlacement.ROBOT_SIZE_IN / 2;
         sim.setPose(new Pose2d(x, face + halfRobot + 10, -Math.PI / 2));
-        localizer.setPose(sim.pose());
-        localizer.update();
+        int parallel = sim.rightBack.getCurrentPosition();
+        int perpendicular = sim.leftFront.getCurrentPosition();
         setPowers(1, 1, 1, 1);
 
         for (int i = 0; i < 40; i++) {
             sim.step(0.025);
-            localizer.update();
         }
 
-        Pose2d estimated = localizer.pose();
+        double[] rolled = deadWheelsRolled(sim, parallel, perpendicular);
         assertEquals(face + halfRobot, sim.pose().position.y, CONTACT);
-        assertEquals(face + halfRobot, estimated.position.y, 0.5);
-        assertEquals(x, estimated.position.x, 0.5);
+        assertEquals("the ten inches it went ahead", 10, rolled[0], 0.5);
+        assertEquals("and none aside", 0, rolled[1], 0.5);
     }
 
     private static double[][] corners(Pose2d pose) {
@@ -534,7 +527,7 @@ public class SimRobotTest {
 
     @Test
     public void theRobotPushesALooseBallAheadOfIt() {
-        robotDrive();
+        mountedWheels();
         sim.place(sim.balls().get(0), 10, -40);
         sim.setPose(new Pose2d(-8, -40, 0));
         setPowers(1, 1, 1, 1);
@@ -553,7 +546,7 @@ public class SimRobotTest {
 
     @Test
     public void aPushedBallRollsOnThenComesToRestInsideTheWalls() {
-        robotDrive();
+        mountedWheels();
         sim.place(sim.balls().get(0), 10, -40);
         sim.setPose(new Pose2d(-8, -40, 0));
         setPowers(1, 1, 1, 1);
@@ -575,7 +568,7 @@ public class SimRobotTest {
 
     @Test
     public void aBallPinnedAgainstTheWallStopsTheRobotShortOfIt() {
-        robotDrive();
+        mountedWheels();
         double wall = SimPlacement.FIELD_SIZE_IN / 2;
         sim.place(sim.balls().get(0), 60, -40);
         sim.setPose(new Pose2d(42, -40, 0));
@@ -595,7 +588,7 @@ public class SimRobotTest {
 
     @Test
     public void aBallPressedAgainstTheWallRollsAlongBetweenItAndTheRobotDrivingAlongIt() {
-        robotDrive();
+        mountedWheels();
         double wall = SimPlacement.FIELD_SIZE_IN / 2;
         double side = SimPlacement.ROBOT_SIZE_IN / 2;
         SimRobot.Piece ball = sim.balls().get(0);
@@ -627,7 +620,7 @@ public class SimRobotTest {
 
     @Test
     public void aBallRolledAlongTheWallRollsOnWhenTheRobotLetsGoAndComesToRest() {
-        robotDrive();
+        mountedWheels();
         double wall = SimPlacement.FIELD_SIZE_IN / 2;
         SimRobot.Piece ball = sim.balls().get(0);
         sim.place(ball, wall - BALL, -40);
@@ -651,7 +644,7 @@ public class SimRobotTest {
 
     @Test
     public void aBallPinnedAgainstAnObstacleStopsTheRobotShortOfIt() {
-        robotDrive();
+        mountedWheels();
 
         Field.Obstacle bar =
                 SimRobot.FIELD.obstacle("Frame <1> / Sheet Metal Foot Bar <1>").orElseThrow();
@@ -672,7 +665,7 @@ public class SimRobotTest {
 
     @Test
     public void aBallPushesTheBallInFrontOfIt() {
-        robotDrive();
+        mountedWheels();
         sim.place(sim.balls().get(0), 10, -40);
         sim.place(sim.balls().get(1), 10 + 2 * BALL + 0.5, -40);
         sim.setPose(new Pose2d(-8, -40, 0));
@@ -692,7 +685,7 @@ public class SimRobotTest {
 
     @Test
     public void aRollingBallStopsAtAnObstacle() {
-        robotDrive();
+        mountedWheels();
         Field.Obstacle bar =
                 SimRobot.FIELD.obstacle("Frame <1> / Sheet Metal Foot Bar <1>").orElseThrow();
         double face = minX(Points.footprint(bar));
@@ -816,7 +809,7 @@ public class SimRobotTest {
         Field.Flower flower = SimRobot.FIELD.flower("Flower Assembly <1>").orElseThrow();
         SimRobot.Piece bottom = bottomOf(flower);
         double lane = flower.axis().y() + 0.8;
-        robotDrive();
+        mountedWheels();
         sim.place(sim.balls().get(0), flower.axis().x() - 50, lane);
         sim.setPose(new Pose2d(flower.axis().x() - 50 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 1, lane, 0));
         setPowers(1, 1, 1, 1);
@@ -852,7 +845,7 @@ public class SimRobotTest {
         SimRobot.Piece bottom = bottomOf(flower);
 
         double lane = flower.axis().y() + 0.8;
-        robotDrive();
+        mountedWheels();
         sim.place(sim.balls().get(0), flower.axis().x() - 10, lane);
         sim.setPose(new Pose2d(flower.axis().x() - 10 - BALL - SimPlacement.ROBOT_SIZE_IN / 2 - 2, lane, 0));
         setPowers(1, 1, 1, 1);
@@ -1633,7 +1626,7 @@ public class SimRobotTest {
     }
 
     private static double rollOutAfterTheCut(SimRobot sim, DcMotor.ZeroPowerBehavior behavior) {
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
         for (FakeDcMotorEx wheel : wheelsOf(sim)) {
             wheel.setZeroPowerBehavior(behavior);
         }
@@ -1647,26 +1640,29 @@ public class SimRobotTest {
         return sim.pose().position.x - cutAt;
     }
 
-    private MecanumDrive robotDrive() {
-        return robotDrive(sim, robotLocalizer(sim));
+    private void mountedWheels() {
+        mountedWheels(sim);
     }
 
     private static FakeDcMotorEx[] wheelsOf(SimRobot sim) {
         return new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack};
     }
 
-    private static Localizer robotLocalizer(SimRobot sim) {
-        return new Localizer(
-                sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime, Prints.NOWHERE);
+    /** The four wheels as Reginald mounts them: braking, the back pair turned round to face the front pair. */
+    private static void mountedWheels(SimRobot sim) {
+        for (FakeDcMotorEx wheel : new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack}) {
+            wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        }
+        sim.leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
+        sim.rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
-    private static MecanumDrive robotDrive(SimRobot sim, Localizer localizer) {
-        return new MecanumDrive(
-                new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),
-                () -> sim.imu,
-                sim.voltageSensor,
-                localizer,
-                sim::nanoTime);
+    /** How far the parallel and the perpendicular dead wheel have rolled since they read these counts, in inches. */
+    private static double[] deadWheelsRolled(SimRobot sim, int parallel, int perpendicular) {
+        return new double[] {
+            Math.abs(sim.rightBack.getCurrentPosition() - parallel) * MecanumDrive.PARAMS.inPerTick,
+            Math.abs(sim.leftFront.getCurrentPosition() - perpendicular) * MecanumDrive.PARAMS.inPerTick
+        };
     }
 
     private void setPowers(double leftFront, double rightFront, double leftBack, double rightBack) {

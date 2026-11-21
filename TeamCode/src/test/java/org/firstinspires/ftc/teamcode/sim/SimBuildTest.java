@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,6 +17,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.junit.Rule;
 import org.junit.Test;
@@ -418,9 +420,19 @@ public class SimBuildTest {
         SimBuild.Result result = build.build();
 
         assertNotNull(result.diagnostics, result.classes);
-        assertTrue(Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/reginald/opmode/AutoOp.class")));
-        assertTrue(
-                Files.isRegularFile(result.classes.resolve("org/firstinspires/ftc/reginald/opmode/PlanOpModes.class")));
+        assertTrue(result.diagnostics, result.problems.isEmpty());
+        try (Stream<Path> sources = Files.walk(real)) {
+            for (Path source : (Iterable<Path>) sources.filter(p -> p.toString().endsWith(".java"))::iterator) {
+                String name = real.relativize(source).toString().replace(File.separatorChar, '/');
+                if (name.endsWith("package-info.java")) {
+                    continue;
+                }
+                String compiled = name.substring(0, name.length() - ".java".length()) + ".class";
+                assertTrue(
+                        "every source has its class: " + compiled,
+                        Files.isRegularFile(result.classes.resolve(compiled)));
+            }
+        }
     }
 
     @Test

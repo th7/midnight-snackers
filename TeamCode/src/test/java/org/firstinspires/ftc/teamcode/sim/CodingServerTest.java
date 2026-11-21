@@ -37,6 +37,8 @@ import java.util.regex.Pattern;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.sim.discovered.nugget.Tank;
+import org.firstinspires.ftc.teamcode.sim.discovered.reginald.RedDriving;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
@@ -761,12 +763,12 @@ public class CodingServerTest {
                 "{\"files\":[{\"path\":\"TeamCode/Plans.java\"}]}", admin("GET", "/admin/files?robot=reginald").body);
     }
 
-    private static final String REGINALDS = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
+    private static final String REGINALDS = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Ours.java";
 
     private static final String REGINALDS_TEST =
-            "TeamCode/src/test/java/org/firstinspires/ftc/reginald/opmode/AutoOpTest.java";
+            "TeamCode/src/test/java/org/firstinspires/ftc/reginald/sub/OursTest.java";
 
-    private static final String NUGGETS = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/TankDrive.java";
+    private static final String NUGGETS = "TeamCode/src/main/java/org/firstinspires/ftc/nugget/Ours.java";
 
     private static final String SHARED = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/planrunner/Plan.java";
 
@@ -803,7 +805,7 @@ public class CodingServerTest {
         String version = json(user("GET", "/files/" + REGINALDS_TEST, ada).body)
                 .get("version")
                 .getAsString();
-        Reply written = user("PUT", "/files/" + REGINALDS_TEST, ada, edit("class AutoOpTest { int more; }\n", version));
+        Reply written = user("PUT", "/files/" + REGINALDS_TEST, ada, edit("class OursTest { int more; }\n", version));
         assertEquals(written.body, 200, written.status);
         assertEquals(200, user("GET", "/files/" + NUGGETS, bob).status);
         assertEquals(404, user("GET", "/files/" + NUGGETS, ada).status);
@@ -863,7 +865,7 @@ public class CodingServerTest {
             Files.write(outside.resolve("Secret.java"), "shh".getBytes(StandardCharsets.UTF_8));
             Path nugget =
                     worktreeOf("bob", TeamRobot.NUGGET).resolve("TeamCode/src/main/java/org/firstinspires/ftc/nugget");
-            Files.delete(nugget.resolve("TankDrive.java"));
+            Files.delete(nugget.resolve("Ours.java"));
             Files.delete(nugget);
             Files.createSymbolicLink(nugget, outside);
 
@@ -1650,10 +1652,10 @@ public class CodingServerTest {
     public void oneUsersBrokenEditDoesNotBreakAnothers() throws Exception {
         // the real project, whose resources are not all text: a real git carries the bytes
         aRealRepository();
-        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
+        SimBenchTest.projectWith(root, SimBenchTest.tempAuto(2));
         committed("the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
+        String key = SimProject.TEMP_AUTO;
         String ada = approvedUser("ada");
         String bob = approvedUser("bob");
         String version =
@@ -1664,7 +1666,7 @@ public class CodingServerTest {
                                 "PUT",
                                 "/files/" + key,
                                 ada,
-                                edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version))
+                                edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version))
                         .status);
 
         Reply adas = user("GET", "/sim/catalog", ada);
@@ -1672,13 +1674,13 @@ public class CodingServerTest {
 
         assertEquals(500, adas.status);
         assertEquals(bobs.body, 200, bobs.status);
-        assertTrue(bobs.body, bobs.body.contains("\"name\":\"Temp\""));
+        assertTrue(bobs.body, bobs.body.contains("\"name\":\"" + SimBenchTest.TEMP_NAME + "\""));
         assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, bob).status);
         assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, ada).status);
         String bobsRun = awaitSimStatus(bob, "\"outcome\":\"done\"");
         assertTrue(bobsRun, bobsRun.contains("\"loops\":2"));
         String adasRun = awaitSimStatus(ada, "\"outcome\":\"build failed\"");
-        assertTrue(adasRun, adasRun.contains("Plans.java:" + SimBenchTest.TEMP_LOOPS_LINE));
+        assertTrue(adasRun, adasRun.contains("TempAuto.java:" + SimBenchTest.TEMP_LOOPS_LINE));
     }
 
     @Test
@@ -1686,7 +1688,10 @@ public class CodingServerTest {
         List<TeamRobot> madeFor = new ArrayList<>();
         serverWith((worktree, robot, constants) -> {
             madeFor.add(robot);
-            return new SimBench(robot, SimCatalog.discover(robot), null, worktree.resolve("TeamCode/build/sim"), WAITS);
+            String opModes =
+                    robot == TeamRobot.NUGGET ? Tank.class.getPackageName() : RedDriving.class.getPackageName();
+            return new SimBench(
+                    robot, SimCatalog.discover(robot, opModes), null, worktree.resolve("TeamCode/build/sim"), WAITS);
         });
         String ada = approvedUser("ada");
         String nell = approvedUser("nell", TeamRobot.NUGGET);
@@ -1695,10 +1700,10 @@ public class CodingServerTest {
         Reply nells = user("GET", "/sim/catalog", nell);
 
         assertEquals(List.of(TeamRobot.REGINALD, TeamRobot.NUGGET), madeFor);
-        assertTrue(adas.body, adas.body.contains("\"name\":\"driveForward\""));
-        assertFalse(adas.body, adas.body.contains("Nugget TeleOp"));
-        assertTrue(nells.body, nells.body.contains("\"name\":\"Nugget TeleOp\""));
-        assertFalse(nells.body, nells.body.contains("driveForward"));
+        assertTrue(adas.body, adas.body.contains("\"name\":\"Red driving\""));
+        assertFalse(adas.body, adas.body.contains("\"name\":\"Tank\""));
+        assertTrue(nells.body, nells.body.contains("\"name\":\"Tank\""));
+        assertFalse(nells.body, nells.body.contains("Red driving"));
     }
 
     @Test
@@ -1825,16 +1830,16 @@ public class CodingServerTest {
     public void anEditSavedInTheEditorDrivesTheNextRun() throws Exception {
         // the real project, whose resources are not all text: a real git carries the bytes
         aRealRepository();
-        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
+        SimBenchTest.projectWith(root, SimBenchTest.tempAuto(2));
         committed("the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
+        String key = SimProject.TEMP_AUTO;
         String cookie = approvedUser("ada");
-        assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"Temp\""));
+        assertTrue(user("GET", "/sim/catalog", cookie).body.contains("\"name\":\"" + SimBenchTest.TEMP_NAME + "\""));
 
         String version =
                 json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
-        assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempPlans(4), version)).status);
+        assertEquals(200, user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(4), version)).status);
         Reply started = user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, cookie);
 
         assertEquals(started.body, 200, started.status);
@@ -1848,17 +1853,17 @@ public class CodingServerTest {
     public void aBrokenEditIsReportedByTheRunAndTheCatalog() throws Exception {
         // the real project, whose resources are not all text: a real git carries the bytes
         aRealRepository();
-        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "));
+        SimBenchTest.projectWith(root, SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "));
         committed("the broken auto");
         serverWith(sourcesBench());
         String cookie = approvedUser("ada");
 
         Reply catalog = user("GET", "/sim/catalog", cookie);
         assertEquals(500, catalog.status);
-        assertTrue(catalog.body, catalog.body.contains("Plans.java:" + SimBenchTest.TEMP_LOOPS_LINE));
+        assertTrue(catalog.body, catalog.body.contains("TempAuto.java:" + SimBenchTest.TEMP_LOOPS_LINE));
         assertEquals(200, user("POST", "/sim/run?opmode=" + SimBenchTest.TEMP_NAME, cookie).status);
         String status = awaitSimStatus(cookie, "\"outcome\":\"build failed\"");
-        assertTrue(status, status.contains("Plans.java:" + SimBenchTest.TEMP_LOOPS_LINE));
+        assertTrue(status, status.contains("TempAuto.java:" + SimBenchTest.TEMP_LOOPS_LINE));
     }
 
     @Test
@@ -1886,10 +1891,10 @@ public class CodingServerTest {
     public void aSaveCanBeCheckedAndProblemsNameTheEditorsFileAndLine() throws Exception {
         // the real project, whose resources are not all text: a real git carries the bytes
         aRealRepository();
-        SimBenchTest.projectWith(root, SimBenchTest.tempPlans(2));
+        SimBenchTest.projectWith(root, SimBenchTest.tempAuto(2));
         committed("the auto");
         serverWith(sourcesBench());
-        String key = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
+        String key = SimProject.TEMP_AUTO;
         String cookie = approvedUser("ada");
 
         Reply good = user("GET", "/build", cookie);
@@ -1898,7 +1903,7 @@ public class CodingServerTest {
 
         String version =
                 json(user("GET", "/files/" + key, cookie).body).get("version").getAsString();
-        user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempPlans(2).replace("loops = 0", "loops = "), version));
+        user("PUT", "/files/" + key, cookie, edit(SimBenchTest.tempAuto(2).replace("loops = 0", "loops = "), version));
         Reply broken = user("GET", "/build", cookie);
         assertEquals(200, broken.status);
         JsonObject body = json(broken.body);
@@ -4190,7 +4195,7 @@ public class CodingServerTest {
         Files.createDirectories(own.getParent());
         Files.write(
                 own,
-                "package org.firstinspires.ftc.reginald;\npublic class Plans {}\n".getBytes(StandardCharsets.UTF_8));
+                "package org.firstinspires.ftc.reginald;\npublic class Ours {}\n".getBytes(StandardCharsets.UTF_8));
         String cookie = navigatingUser();
 
         Reply source = user("GET", "/source/" + REGINALDS, cookie);

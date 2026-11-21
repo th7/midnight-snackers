@@ -14,43 +14,45 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.util.List;
-import org.firstinspires.ftc.nugget.NuggetTeleOp;
+import java.util.stream.Collectors;
 import org.firstinspires.ftc.reginald.opmode.AutoOp;
-import org.firstinspires.ftc.reginald.opmode.PlanOpModes;
-import org.firstinspires.ftc.reginald.opmode.RedTeleOp;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.sim.TestNuggetOpModes.TankTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.sim.discovered.nugget.Tank;
+import org.firstinspires.ftc.teamcode.sim.discovered.reginald.RedDriving;
+import org.firstinspires.ftc.teamcode.sim.discovered.reginald.Routines;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.Test;
 
 public class SimCatalogTest {
-    private final SimCatalog catalog = SimCatalog.discover(TeamRobot.REGINALD);
+    private final SimCatalog catalog = SimCatalog.discover(TeamRobot.REGINALD, RedDriving.class.getPackageName());
 
     @Test
     public void nuggetsCatalogListsNuggetsOpModesAndNoneOfReginalds() {
-        SimCatalog nuggets = SimCatalog.discover(TeamRobot.NUGGET);
+        SimCatalog nuggets = SimCatalog.discover(TeamRobot.NUGGET, Tank.class.getPackageName());
 
-        SimCatalog.Entry teleOp = nuggets.find("Nugget TeleOp").get();
+        SimCatalog.Entry teleOp = nuggets.find("Tank").get();
         assertEquals("teleop", teleOp.kind);
         assertEquals("Nugget", teleOp.group);
-        assertEquals(NuggetTeleOp.class.getName(), teleOp.where);
+        assertEquals("org.firstinspires.ftc.teamcode.sim.discovered.nugget.Tank", teleOp.where);
         assertNull("Nugget plays for no alliance", teleOp.alliance);
-        assertTrue(teleOp.opMode() instanceof NuggetTeleOp);
+        assertTrue(teleOp.opMode() instanceof Tank);
         assertNotSame(teleOp.opMode(), teleOp.opMode());
-        assertFalse(nuggets.find("driveForward").isPresent());
-        assertFalse(nuggets.find("RedTeleOp").isPresent());
+        assertEquals(
+                "a Reginald op mode in Nugget's package is still not Nugget's",
+                List.of("Tank"),
+                nuggets.entries().stream().map(e -> e.name).collect(Collectors.toList()));
     }
 
     @Test
     public void reginaldsCatalogListsNoneOfNuggets() {
-        assertFalse(catalog.find("Nugget TeleOp").isPresent());
-        for (SimCatalog.Entry entry : catalog.entries()) {
-            assertFalse(entry.where, entry.where.startsWith(SimCatalog.packageOf(TeamRobot.NUGGET) + "."));
-        }
+        assertFalse(
+                "a Nugget op mode in Reginald's package is still not Reginald's",
+                catalog.find("Nugget's, among Reginald's").isPresent());
     }
 
     @Test
@@ -61,25 +63,20 @@ public class SimCatalogTest {
 
     @Test
     public void aFixedCatalogListsNuggetsOpModesTooWhenItIsGivenThem() {
-        SimCatalog fixed = SimCatalog.of(NuggetTeleOp.class);
+        SimCatalog fixed = SimCatalog.of(TankTeleOp.class);
 
-        assertTrue(fixed.find("Nugget TeleOp").get().opMode() instanceof NuggetTeleOp);
-        assertEquals(List.of(NuggetTeleOp.class.getName()), fixed.sources());
+        assertTrue(fixed.find("Tank drive").get().opMode() instanceof TankTeleOp);
+        assertEquals(List.of(TankTeleOp.class.getName()), fixed.sources());
     }
 
     @Test
-    public void listsEveryAutoThePlanRegistrarRegisters() {
-        SimCatalog.Entry forward = catalog.find("driveForward").get();
+    public void listsEveryAutoARegistrarInThePackageRegisters() {
+        SimCatalog.Entry forward = catalog.find("forward").get();
 
         assertEquals("auto", forward.kind);
-        assertEquals("Autonomous", forward.group);
-        assertEquals("Plans.driveForward()", forward.where);
-        FakeOpModeManager registrar = new FakeOpModeManager();
-        PlanOpModes.register(registrar);
-        for (FakeOpModeManager.Registration registration : registrar.registrations) {
-            assertTrue(
-                    registration.meta.name, catalog.find(registration.meta.name).isPresent());
-        }
+        assertEquals("Routines", forward.group);
+        assertEquals("Routines.forward()", forward.where);
+        assertEquals("Routines.back()", catalog.find("back").get().where);
         assertTrue(
                 "discovered, so another JVM lists the same without being told where to look",
                 catalog.sources().isEmpty());
@@ -87,69 +84,58 @@ public class SimCatalogTest {
 
     @Test
     public void listsEveryAnnotatedTeleOpToo() {
-        SimCatalog.Entry red = catalog.find("RedTeleOp").get();
+        SimCatalog.Entry red = catalog.find("Red driving").get();
 
         assertEquals("teleop", red.kind);
-        assertEquals("TeleOp", red.group);
-        assertEquals(RedTeleOp.class.getName(), red.where);
-        assertTrue(catalog.find("BlueTeleOp").isPresent());
+        assertEquals("Driving", red.group);
+        assertEquals("org.firstinspires.ftc.teamcode.sim.discovered.reginald.RedDriving", red.where);
+        assertTrue(catalog.find("Blue driving").isPresent());
+        assertFalse(
+                "an abstract base is no op mode to run",
+                catalog.find("Unfinished").isPresent());
         assertFalse(
                 "Road Runner's tuning op modes are not ours to simulate",
-                catalog.find("LocalizationTest").isPresent());
+                catalog.find("Tuning").isPresent());
         assertFalse(
                 "nested test op modes never reach the bench",
-                catalog.find("Count to three").isPresent());
-        assertFalse(
-                "nested test op modes never reach the bench",
-                catalog.find("Stick").isPresent());
+                SimCatalog.discover(TeamRobot.REGINALD, ThreeLoopAuto.class.getPackageName())
+                        .find("Count to three")
+                        .isPresent());
     }
 
     @Test
     public void autosComeBeforeTeleOpsEachSortedByName() {
-        List<SimCatalog.Entry> entries = catalog.entries();
-
-        int firstTeleOp = entries.size();
-        for (int i = 0; i < entries.size(); i++) {
-            if (entries.get(i).kind.equals("teleop")) {
-                firstTeleOp = Math.min(firstTeleOp, i);
-            } else {
-                assertTrue("auto " + entries.get(i).name + " listed after a TeleOp", i < firstTeleOp);
-            }
-        }
-        assertTrue(firstTeleOp < entries.size());
-        for (int i = 1; i < entries.size(); i++) {
-            if (entries.get(i - 1).kind.equals(entries.get(i).kind)) {
-                assertTrue(entries.get(i - 1).name.compareTo(entries.get(i).name) <= 0);
-            }
-        }
+        assertEquals(
+                List.of("back", "forward", "Blue driving", "Red driving"),
+                catalog.entries().stream().map(e -> e.name).collect(Collectors.toList()));
     }
 
     @Test
     public void aRegisteredInstanceIsTheOpModeEveryTimeAsOnTheRobotAndAnAnnotatedClassIsBuiltAfresh() {
-        SimCatalog.Entry plan = catalog.find("driveForward").get();
-        SimCatalog.Entry teleOp = catalog.find("RedTeleOp").get();
+        SimCatalog.Entry plan = catalog.find("forward").get();
+        SimCatalog.Entry teleOp = catalog.find("Red driving").get();
 
         assertSame(plan.opMode(), plan.opMode());
         assertTrue(plan.opMode() instanceof AutoOp);
         assertNotSame(teleOp.opMode(), teleOp.opMode());
-        assertTrue(teleOp.opMode() instanceof RedTeleOp);
+        assertTrue(teleOp.opMode() instanceof RedDriving);
         assertFalse(catalog.find("org.example.Nope").isPresent());
     }
 
     @Test
     public void aFixedCatalogListsTheOpModesAndRegistrarsItIsGivenAndRemembersThem() {
-        SimCatalog fixed = SimCatalog.of(StickTeleOp.class, ThreeLoopAuto.class, PlanOpModes.class);
+        SimCatalog fixed = SimCatalog.of(StickTeleOp.class, ThreeLoopAuto.class, Routines.class);
 
         SimCatalog.Entry count = fixed.find("Count to three").get();
         assertEquals("auto", count.kind);
         assertEquals(ThreeLoopAuto.class.getName(), count.where);
-        assertEquals("Plans.driveForward()", fixed.find("driveForward").get().where);
+        assertEquals("Routines.forward()", fixed.find("forward").get().where);
         SimCatalog.Entry stick = fixed.entries().get(fixed.entries().size() - 1);
         assertEquals("Stick", stick.name);
         assertEquals("teleop", stick.kind);
         assertEquals("Test", stick.group);
         assertEquals(
-                List.of(StickTeleOp.class.getName(), ThreeLoopAuto.class.getName(), PlanOpModes.class.getName()),
+                List.of(StickTeleOp.class.getName(), ThreeLoopAuto.class.getName(), Routines.class.getName()),
                 fixed.sources());
     }
 
@@ -205,17 +191,17 @@ public class SimCatalogTest {
 
     @Test
     public void eachOpModeSaysWhichAllianceItPlaysForAndOneThatPlaysForNoneSaysNone() {
-        assertEquals("Blue", catalog.find("BlueTeleOp").get().alliance);
-        assertEquals("Red", catalog.find("RedTeleOp").get().alliance);
+        assertEquals("Blue", catalog.find("Blue driving").get().alliance);
+        assertEquals("Red", catalog.find("Red driving").get().alliance);
         assertNull(
                 "a plan relative to where the robot starts plays for nobody",
-                catalog.find("driveForward").get().alliance);
+                catalog.find("forward").get().alliance);
 
         SimCatalog parsed = SimCatalog.fromJson(catalog.toJson());
 
-        assertEquals("Red", parsed.find("RedTeleOp").get().alliance);
-        assertEquals("Blue", parsed.find("BlueTeleOp").get().alliance);
-        assertNull(parsed.find("driveForward").get().alliance);
+        assertEquals("Red", parsed.find("Red driving").get().alliance);
+        assertEquals("Blue", parsed.find("Blue driving").get().alliance);
+        assertNull(parsed.find("forward").get().alliance);
     }
 
     @Test
@@ -241,8 +227,8 @@ public class SimCatalogTest {
         JsonArray listed = catalog.toJson();
         SimCatalog parsed = SimCatalog.fromJson(listed);
 
-        assertEquals("teleop", parsed.find("RedTeleOp").get().kind);
-        assertEquals("Plans.driveForward()", parsed.find("driveForward").get().where);
+        assertEquals("teleop", parsed.find("Red driving").get().kind);
+        assertEquals("Routines.forward()", parsed.find("forward").get().where);
         assertTrue(parsed.sources().isEmpty());
 
         JsonArray json = new Gson()

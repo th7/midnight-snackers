@@ -95,33 +95,35 @@ public class SimChildTest {
     }
 
     @Test
-    public void listPrintsTheRealAutosAsOneJsonLine() throws Exception {
-        Output output = run(JvmChild.launchOnThisClasspath("--list"));
+    public void listPrintsTheOpModesOfTheSourcesItIsGivenAsOneJsonLine() throws Exception {
+        Output output = run(
+                JvmChild.launchOnThisClasspath("--list", ThreeLoopAuto.class.getName(), StickTeleOp.class.getName()));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertEquals(output.stdout.toString(), 2, output.stdout.size());
         assertEquals("the child says its protocol before anything else", SimRunStream.hello(), output.stdout.get(0));
         SimCatalog catalog =
                 SimCatalog.fromJson(new Gson().fromJson(output.stdout.get(1), com.google.gson.JsonArray.class));
-        assertTrue(catalog.find("driveForward").isPresent());
-        assertEquals("Plans.driveForward()", catalog.find("driveForward").get().where);
-        assertTrue(catalog.find("RedTeleOp").isPresent());
-        assertEquals("auto", catalog.find("driveForward").get().kind);
-        assertEquals("teleop", catalog.find("RedTeleOp").get().kind);
+        assertEquals(
+                ThreeLoopAuto.class.getName(), catalog.find("Count to three").get().where);
+        assertEquals("auto", catalog.find("Count to three").get().kind);
+        assertEquals("teleop", catalog.find("Stick").get().kind);
+        assertEquals(2, catalog.entries().size());
     }
 
     @Test
-    public void listForNuggetPrintsNuggetsOpModesAndNoneOfReginalds() throws Exception {
+    public void listWithNoSourcesPrintsWhatDiscoveryFindsInTheNamedRobotsPackage() throws Exception {
         Output output = run(JvmChild.launchOnThisClasspath("--list", "--robot=nugget"));
 
         assertEquals(output.stderr, 0, output.exitCode);
         assertEquals(output.stdout.toString(), 2, output.stdout.size());
         assertEquals(SimRunStream.hello(), output.stdout.get(0));
-        SimCatalog catalog =
+        SimCatalog listed =
                 SimCatalog.fromJson(new Gson().fromJson(output.stdout.get(1), com.google.gson.JsonArray.class));
-        assertEquals("teleop", catalog.find("Nugget TeleOp").get().kind);
-        assertFalse(catalog.find("driveForward").isPresent());
-        assertFalse(catalog.find("RedTeleOp").isPresent());
+        assertEquals(
+                SimCatalog.fromJson(SimCatalog.discover(TeamRobot.NUGGET).toJson())
+                        .toJson(),
+                listed.toJson());
     }
 
     @Test
@@ -135,7 +137,12 @@ public class SimChildTest {
     @Test
     public void aNuggetTeleOpRunDrivesTheSimulatedNuggetAndRecordsItsTwoMotors() throws Exception {
         Process child = JvmChild.launchOnThisClasspath(
-                "--run", "Nugget TeleOp", "30", folder.getRoot().toString(), "--robot=nugget");
+                "--run",
+                "Tank drive",
+                "30",
+                folder.getRoot().toString(),
+                "--robot=nugget",
+                TestNuggetOpModes.TankTeleOp.class.getName());
         StringBuilder stderr = new StringBuilder();
         Thread drain = new Thread(() -> {
             try (BufferedReader err =
@@ -192,7 +199,7 @@ public class SimChildTest {
         synchronized (stderr) {
             assertTrue(stderr.toString(), stderr.toString().contains("Robot: Nugget"));
         }
-        assertTrue(Files.isRegularFile(folder.getRoot().toPath().resolve("Nugget TeleOp.html")));
+        assertTrue(Files.isRegularFile(folder.getRoot().toPath().resolve("Tank drive.html")));
     }
 
     @Test

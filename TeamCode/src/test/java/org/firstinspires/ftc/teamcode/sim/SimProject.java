@@ -17,7 +17,14 @@ import java.util.stream.Stream;
  */
 public final class SimProject {
 
-    public static final String PLANS = "TeamCode/src/main/java/org/firstinspires/ftc/reginald/Plans.java";
+    /** Where a test writes Reginald's one auto of its own, in a package of Reginald's the robot's code never uses. */
+    public static final String TEMP_AUTO =
+            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/benchtest/TempAuto.java";
+
+    /** Where a test writes Nugget's one TeleOp of its own, likewise. */
+    public static final String TEMP_TANK =
+            "TeamCode/src/main/java/org/firstinspires/ftc/nugget/benchtest/TempTank.java";
+
     public static final String HARDWARE =
             "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/Hardware.java";
     public static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
@@ -27,10 +34,12 @@ public final class SimProject {
     public static final String SIM_RUN_STREAM =
             "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRunStream.java";
 
-    /** The name the plans below register their op mode under, and the line its loop count is on. */
-    public static final String TEMP_NAME = "Temp";
+    /** The name the auto below is listed under, and the line its loop count is on. */
+    public static final String TEMP_NAME = "BenchTemp";
 
-    public static final int TEMP_LOOPS_LINE = 8;
+    public static final int TEMP_LOOPS_LINE = 10;
+
+    public static final String TEMP_TANK_NAME = "BenchTank";
 
     private final Path root;
 
@@ -47,7 +56,11 @@ public final class SimProject {
         return new SimProject(root);
     }
 
-    /** The robot's sources and the simulator, as they are in this checkout, copied under a root. */
+    /**
+     * The robot's sources and the simulator, as they are in this checkout, copied under a root. The
+     * simulator compiles against the robot's hardware, so it needs the robot's sources beside it; a
+     * test names none of the robot's own op modes, and runs the ones it writes itself.
+     */
     public static SimProject copiedTo(Path root) {
         try (Cost.Spent spent = Cost.start(Cost.Kind.PROJECT_COPY)) {
             copyTree(here("src/main/java"), root.resolve("TeamCode/src/main/java"));
@@ -70,9 +83,28 @@ public final class SimProject {
         copyTree(here("../simcore/src/main/java"), root.resolve("simcore/src/main/java"));
     }
 
-    /** This project's own {@code Plans.java}, replacing whatever was there. */
-    public SimProject withPlans(String source) {
-        Path file = root.resolve(PLANS);
+    /** This project's own {@code TempAuto.java}, replacing whatever was there. */
+    public SimProject withTempAuto(String source) {
+        return withSource(TEMP_AUTO, source);
+    }
+
+    /** This project's own {@code TempTank.java}: a Nugget TeleOp that drives both sides ahead. */
+    public SimProject withTempTank() {
+        return withSource(
+                TEMP_TANK,
+                "package org.firstinspires.ftc.nugget.benchtest;\n"
+                        + "import com.qualcomm.robotcore.eventloop.opmode.TeleOp;\n"
+                        + "import org.firstinspires.ftc.nugget.NuggetOpMode;\n"
+                        + "\n"
+                        + "@TeleOp(name = \"" + TEMP_TANK_NAME + "\", group = \"Test\")\n"
+                        + "public class TempTank extends NuggetOpMode {\n"
+                        + "    public void init() { }\n"
+                        + "    public void loop() { hardware().left.setPower(1); hardware().right.setPower(1); }\n"
+                        + "}\n");
+    }
+
+    private SimProject withSource(String key, String source) {
+        Path file = root.resolve(key);
         try {
             Files.createDirectories(file.getParent());
             Files.write(file, source.getBytes(StandardCharsets.UTF_8));
@@ -104,26 +136,25 @@ public final class SimProject {
         return root.resolve("TeamCode/src/main/java");
     }
 
-    /** A {@code Plans.java} whose one auto is done after so many loops. */
-    public static String tempPlans(int loops) {
-        return tempPlans(loops, "Test");
+    /** A {@code TempAuto.java} that is done after so many loops. */
+    public static String tempAuto(int loops) {
+        return tempAuto(loops, "Test");
     }
 
-    public static String tempPlans(int loops, String group) {
-        return "package org.firstinspires.ftc.reginald;\n"
-                + "import org.firstinspires.ftc.reginald.opmode.Auto;\n"
-                + "import org.firstinspires.ftc.teamcode.base.Loopable;\n"
+    public static String tempAuto(int loops, String group) {
+        return "package org.firstinspires.ftc.reginald.benchtest;\n"
+                + "import com.qualcomm.robotcore.eventloop.opmode.Autonomous;\n"
+                + "import org.firstinspires.ftc.reginald.opmode.AutoOp;\n"
+                + "import org.firstinspires.ftc.teamcode.base.Alliance;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
                 + "\n"
-                + "public class Plans implements Loopable {\n"
+                + "@Autonomous(name = \"" + TEMP_NAME + "\", group = \"" + group + "\")\n"
+                + "public class TempAuto extends AutoOp {\n"
                 + "    private int loops = 0;\n"
-                + "    public Plans(Object... whateverTheRobotHandsIt) { }\n"
-                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group
-                + "\", alliance = org.firstinspires.ftc.teamcode.base.Alliance.RELATIVE)\n"
-                + "    public PlanPart temp() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
+                + "    public TempAuto() { super(Alliance.RELATIVE); }\n"
+                + "    public PlanPart getPlan() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"
-                + "    public void loop() { }\n"
                 + "}\n";
     }
 

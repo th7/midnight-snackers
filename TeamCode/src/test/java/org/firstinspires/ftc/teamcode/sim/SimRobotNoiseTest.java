@@ -5,10 +5,10 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import org.firstinspires.ftc.reginald.Localizer;
-import org.firstinspires.ftc.reginald.hardware.Wheels;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.Traction;
@@ -34,7 +34,7 @@ public class SimRobotNoiseTest {
         Noise.Motor weaker = motor(1, 1.15, 1);
         SimRobot sim =
                 new SimRobot(SimNoise.NONE.withMotor(Wheel.RIGHT_FRONT, weaker).withMotor(Wheel.RIGHT_BACK, weaker));
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
         sim.setPose(OPEN);
 
         setPowers(sim, 1, 1, 1, 1);
@@ -47,7 +47,7 @@ public class SimRobotNoiseTest {
     @Test
     public void theBatteryReadsFreshThenSagsUnderLoadAndDrainsWithTime() {
         SimRobot sim = new SimRobot(SimNoise.NONE.withBattery(Valid.value(Noise.Battery.of(13.8, 0.2, 0.004))));
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
 
         assertEquals(13.8, sim.voltageSensor.getVoltage(), 1e-9);
 
@@ -75,7 +75,7 @@ public class SimRobotNoiseTest {
     public void aWheelCannotAccelerateTheRobotHarderThanTraction() {
         double traction = 40;
         SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction(traction)));
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
         sim.setPose(OPEN);
 
         setPowers(sim, 1, 1, 1, 1);
@@ -90,7 +90,7 @@ public class SimRobotNoiseTest {
     public void aWheelCannotBrakeTheRobotHarderThanTractionEither() {
         double traction = 40;
         SimRobot sim = new SimRobot(SimNoise.NONE.withTraction(traction(traction)));
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
         sim.step(0.5);
@@ -149,7 +149,7 @@ public class SimRobotNoiseTest {
     }
 
     private static double freeSpeed(SimRobot sim) {
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
         sim.step(2.0);
@@ -159,7 +159,7 @@ public class SimRobotNoiseTest {
     }
 
     private static double speedAfterHalfASecond(SimRobot sim) {
-        robotDrive(sim, robotLocalizer(sim));
+        mountedWheels(sim);
         sim.setPose(OPEN);
         setPowers(sim, 1, 1, 1, 1);
         sim.step(0.5);
@@ -172,18 +172,13 @@ public class SimRobotNoiseTest {
         return (sim.pose().position.x - x0) / 0.005;
     }
 
-    private static Localizer robotLocalizer(SimRobot sim) {
-        return new Localizer(
-                sim.rightBack, sim.leftFront, () -> sim.imu, new Pose2d(0, 0, 0), sim::nanoTime, Prints.NOWHERE);
-    }
-
-    private static MecanumDrive robotDrive(SimRobot sim, Localizer localizer) {
-        return new MecanumDrive(
-                new Wheels(sim.leftFront, sim.leftBack, sim.rightBack, sim.rightFront),
-                () -> sim.imu,
-                sim.voltageSensor,
-                localizer,
-                sim::nanoTime);
+    /** The four wheels as Reginald mounts them: braking, the back pair turned round to face the front pair. */
+    private static void mountedWheels(SimRobot sim) {
+        for (FakeDcMotorEx wheel : new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack}) {
+            wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        }
+        sim.leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
+        sim.rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
     private static void setPowers(

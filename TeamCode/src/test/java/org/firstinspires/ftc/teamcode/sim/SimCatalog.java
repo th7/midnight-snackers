@@ -27,8 +27,6 @@ import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class SimCatalog {
-    public static final String ROADRUNNER_PACKAGE = TeamRobot.REGINALD.javaPackage() + ".roadrunner";
-
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
 
@@ -176,9 +174,18 @@ public final class SimCatalog {
     }
 
     public static SimCatalog discover(TeamRobot robot) {
+        return discover(robot, packageOf(robot));
+    }
+
+    /**
+     * The robot's op modes in a package and the packages under it, but for its Road Runner package,
+     * whose tuning op modes are not ours to simulate.
+     */
+    public static SimCatalog discover(TeamRobot robot, String javaPackage) {
+        String roadRunner = javaPackage + ".roadrunner.";
         List<Entry> entries = new ArrayList<>();
-        for (Class<?> type : Classpath.classesUnder(packageOf(robot))) {
-            if (type.getName().startsWith(ROADRUNNER_PACKAGE + ".")) {
+        for (Class<?> type : Classpath.classesUnder(javaPackage)) {
+            if (type.getName().startsWith(roadRunner)) {
                 continue;
             }
             List<Entry> found = entriesFrom(type, opModeOf(robot)::isAssignableFrom);

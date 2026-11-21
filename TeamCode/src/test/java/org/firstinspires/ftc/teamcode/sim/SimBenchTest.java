@@ -18,14 +18,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import org.firstinspires.ftc.nugget.NuggetTeleOp;
-import org.firstinspires.ftc.reginald.opmode.PlanOp;
-import org.firstinspires.ftc.reginald.opmode.RedTeleOp;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.sim.TestNuggetOpModes.TankTeleOp;
+import org.firstinspires.ftc.teamcode.sim.TestTeleOps.MidLoopTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
@@ -82,12 +79,8 @@ public class SimBenchTest {
         return SimProject.simulatorOnlyIn(project).root();
     }
 
-    static Path projectWith(Path project, String plans) {
-        return SimProject.copiedTo(project).withPlans(plans).root();
-    }
-
-    static Path realProjectCopiedUnder(Path project) {
-        return SimProject.copiedTo(project).root();
+    static Path projectWith(Path project, String tempAuto) {
+        return SimProject.copiedTo(project).withTempAuto(tempAuto).root();
     }
 
     static void edit(Path project, String relative, String from, String to) {
@@ -99,23 +92,22 @@ public class SimBenchTest {
     static final String SIM_DEVICES = SimProject.SIM_DEVICES;
     static final String SIM_CHILD = SimProject.SIM_CHILD;
     static final String SIM_RUN_STREAM = SimProject.SIM_RUN_STREAM;
-    static final SimCatalog.Entry BLUE_TELEOP =
-            new SimCatalog.Entry("BlueTeleOp", "TeleOp", SimCatalog.TELEOP, "", "Blue", null);
-
     static final String TEMP_NAME = SimProject.TEMP_NAME;
+
+    static final SimCatalog.Entry TEMP = new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null, null);
 
     static final int TEMP_LOOPS_LINE = SimProject.TEMP_LOOPS_LINE;
 
-    static String tempPlans(int loops, String group) {
-        return SimProject.tempPlans(loops, group);
+    static String tempAuto(int loops, String group) {
+        return SimProject.tempAuto(loops, group);
     }
 
-    static String tempPlans(int loops) {
-        return SimProject.tempPlans(loops);
+    static String tempAuto(int loops) {
+        return SimProject.tempAuto(loops);
     }
 
-    static Path sourceRootWith(Path project, String source) {
-        return SimProject.at(project).withPlans(source).sourceRoot();
+    static Path sourceRootWith(Path project, String tempAuto) {
+        return SimProject.at(project).withTempAuto(tempAuto).sourceRoot();
     }
 
     private static SimBench.Run await(SimBench.Run run) throws InterruptedException {
@@ -240,8 +232,7 @@ public class SimBenchTest {
                             .setFlavor(OpModeMeta.Flavor.AUTONOMOUS)
                             .setName("Slow to start")
                             .build(),
-                    new PlanOp(
-                            Alliance.RELATIVE, "SlowRegistrar", plans -> new Step("forever", () -> {}, () -> false)));
+                    new TestAutos.NeverDoneAuto());
         }
     }
 
@@ -268,7 +259,7 @@ public class SimBenchTest {
     @Test
     public void aBenchOverAProjectNeedsTheProjectsSimulator() throws Exception {
         Path project = folder.getRoot().toPath();
-        sourceRootWith(project, tempPlans(2));
+        sourceRootWith(project, tempAuto(2));
         try {
             bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
             fail("without a simulator of its own the child would run this server's, built for other robot sources");
@@ -280,7 +271,7 @@ public class SimBenchTest {
 
     @Test
     public void theChildRunsTheProjectsOwnSimulatorNotThisServers() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
+        Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
 
         edit(project, HARDWARE, "public static Builder builder()", "public static Builder wiring()");
         edit(project, HARDWARE, "return builder()", "return wiring()");
@@ -290,10 +281,10 @@ public class SimBenchTest {
                 SIM_CHILD,
                 "System.setOut(System.err);",
                 "System.setOut(System.err);\n        System.err.println(\"this project's simulator\");");
-        bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS.teleOpPeriod(0.3));
+        bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
 
-        assertTrue(bench.catalog().find("BlueTeleOp").isPresent());
-        SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada", SimBench.Mode.GAME));
+        assertTrue(bench.catalog().find(TEMP_NAME).isPresent());
+        SimBench.Run run = await(bench.start(TEMP, "ada", SimBench.Mode.GAME));
 
         assertEquals(run.message() + "\n" + run.log(), "done", run.outcome());
         assertTrue(run.log(), run.log().contains("this project's simulator"));
@@ -301,18 +292,18 @@ public class SimBenchTest {
 
     @Test
     public void aNuggetBenchOverAProjectListsNuggetsOpModesAloneAndRunsThemOnTheSimulatedNugget() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
+        Path project = SimProject.copiedTo(folder.getRoot().toPath())
+                .withTempAuto(tempAuto(2))
+                .withTempTank()
+                .root();
         bench = new SimBench(TeamRobot.NUGGET, null, project, outputDir(), WAITS.teleOpPeriod(0.3));
 
         SimCatalog listed = bench.catalog();
-        assertTrue(listed.find("Nugget TeleOp").isPresent());
+        assertTrue(listed.find(SimProject.TEMP_TANK_NAME).isPresent());
         assertFalse(
-                "Reginald's op modes are not Nugget's",
-                listed.find("BlueTeleOp").isPresent());
-        assertFalse(
-                "Reginald's op modes are not Nugget's",
-                listed.find("driveForward").isPresent());
-        SimBench.Run run = await(bench.start(listed.find("Nugget TeleOp").get(), "ada", SimBench.Mode.GAME));
+                "Reginald's op modes are not Nugget's", listed.find(TEMP_NAME).isPresent());
+        SimBench.Run run =
+                await(bench.start(listed.find(SimProject.TEMP_TANK_NAME).get(), "ada", SimBench.Mode.GAME));
 
         assertEquals(run.message() + "\n" + run.log(), "done", run.outcome());
         assertTrue(run.log(), run.log().contains("Robot: Nugget"));
@@ -324,17 +315,15 @@ public class SimBenchTest {
     }
 
     @Test
-    public void aClassTheProjectLacksIsMissingNotThisServers() throws Exception {
-        Path project = realProjectCopiedUnder(folder.getRoot().toPath());
-        Files.delete(project.resolve("TeamCode/src/main/java/org/firstinspires/ftc/reginald/opmode/BlueTeleOp.java"));
+    public void anOpModeOnlyTheProjectHasIsListedFromTheProjectNotThisServer() throws Exception {
+        Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
         bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
 
         SimCatalog catalog = bench.catalog();
 
-        assertTrue(catalog.find("RedTeleOp").isPresent());
-        assertFalse(
-                "this server has a BlueTeleOp; the project does not",
-                catalog.find("BlueTeleOp").isPresent());
+        assertTrue(
+                "this server has no " + TEMP_NAME + "; the project does",
+                catalog.find(TEMP_NAME).isPresent());
     }
 
     @Test
@@ -456,16 +445,16 @@ public class SimBenchTest {
 
     @Test
     public void savedEditsTakeEffectOnTheNextRunWithoutARestart() throws Exception {
-        Path project = projectWith(folder.getRoot().toPath(), tempPlans(2));
+        Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
         bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS);
         SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
         assertEquals("Test", temp.group);
-        assertEquals("Plans.temp()", temp.where);
+        assertEquals("org.firstinspires.ftc.reginald.benchtest.TempAuto", temp.where);
         assertEquals(
                 2,
                 await(bench.start(temp, "ada", SimBench.Mode.FREE_PLAY)).ticks().size());
 
-        sourceRootWith(folder.getRoot().toPath(), tempPlans(4, "Test v2"));
+        sourceRootWith(folder.getRoot().toPath(), tempAuto(4, "Test v2"));
 
         SimBench.Run second = await(bench.start(temp, "ada", SimBench.Mode.FREE_PLAY));
         assertEquals("done", second.outcome());
@@ -475,17 +464,16 @@ public class SimBenchTest {
 
     @Test
     public void checkCompilesWithoutRunningAndNeverUnderARun() throws Exception {
-        Path project = projectWith(folder.getRoot().toPath(), tempPlans(100000));
+        Path project = projectWith(folder.getRoot().toPath(), tempAuto(100000));
         bench = new SimBench(TeamRobot.REGINALD, null, project, outputDir(), WAITS.autonomousPeriod(1.0));
         assertTrue(bench.check().problems.isEmpty());
         assertNull("nothing ran", bench.current());
-        SimBench.Run run = bench.start(
-                new SimCatalog.Entry(TEMP_NAME, "Test", SimCatalog.AUTO, "", null, null), "ada", SimBench.Mode.GAME);
+        SimBench.Run run = bench.start(TEMP, "ada", SimBench.Mode.GAME);
         while (!"running".equals(run.phase()) && run.outcome() == null) {
             Thread.sleep(10);
         }
 
-        sourceRootWith(folder.getRoot().toPath(), tempPlans(2).replace("loops = 0", "loops = "));
+        sourceRootWith(folder.getRoot().toPath(), tempAuto(2).replace("loops = 0", "loops = "));
         SimBuild.Result during = bench.check();
 
         assertTrue(
@@ -968,7 +956,7 @@ public class SimBenchTest {
     @Test
     public void aBuildThatFailsIsTheRunsOutcomeAndTheCatalogsToo() throws Exception {
         for (String diagnostics : List.of(
-                "Plans.java:" + TEMP_LOOPS_LINE + ": illegal start of expression",
+                "TempAuto.java:" + TEMP_LOOPS_LINE + ": illegal start of expression",
                 SimBuild.SIMULATOR_DOES_NOT_FIT + "\nsimulator sim/SimDevices.java:41: builder() is not public")) {
             FakeChild child = new FakeChild();
             bench = benchOver(
@@ -1079,10 +1067,9 @@ public class SimBenchTest {
     @Test
     public void aNuggetBenchTellsTheChildItStartsThatItIsNugget() throws Exception {
         FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
-        bench = nuggetBenchOver(FakeSources.listing(SimCatalog.of(NuggetTeleOp.class)), child);
+        bench = nuggetBenchOver(FakeSources.listing(SimCatalog.of(TankTeleOp.class)), child);
 
-        SimBench.Run run =
-                await(bench.start(bench.catalog().find("Nugget TeleOp").get(), "ada", SimBench.Mode.FREE_PLAY));
+        SimBench.Run run = await(bench.start(bench.catalog().find("Tank drive").get(), "ada", SimBench.Mode.FREE_PLAY));
 
         assertEquals(run.message(), "done", run.outcome());
         assertTrue(child.theLastStart().toString(), child.theLastStart().contains("--robot=nugget"));
@@ -1107,10 +1094,9 @@ public class SimBenchTest {
     @Test
     public void aChildFromBeforeThereWereTwoRobotsIsRefusedANuggetRunNamingNuggetsLine() throws Exception {
         FakeChild child = aChildSpeaking(SimRunStream.ROBOTS_PROTOCOL - 1);
-        bench = nuggetBenchOver(FakeSources.listing(SimCatalog.of(NuggetTeleOp.class)), child);
+        bench = nuggetBenchOver(FakeSources.listing(SimCatalog.of(TankTeleOp.class)), child);
 
-        SimBench.Run run =
-                await(bench.start(bench.catalog().find("Nugget TeleOp").get(), "ada", SimBench.Mode.FREE_PLAY));
+        SimBench.Run run = await(bench.start(bench.catalog().find("Tank drive").get(), "ada", SimBench.Mode.FREE_PLAY));
 
         assertEquals(
                 run.message(),
@@ -1150,7 +1136,7 @@ public class SimBenchTest {
         } catch (SimRunStream.WrongProtocol e) {
             assertEquals(newer, e.childProtocol);
         }
-        SimBench.Run run = await(bench.start(BLUE_TELEOP, "ada", SimBench.Mode.FREE_PLAY));
+        SimBench.Run run = await(bench.start(TEMP, "ada", SimBench.Mode.FREE_PLAY));
 
         assertEquals(run.message(), SimRunStream.Outcome.wrongProtocol(newer), run.outcome());
         assertTrue(run.message(), run.message().contains("protocol " + newer));
@@ -1221,9 +1207,9 @@ public class SimBenchTest {
     @Test
     public void aGameIsWatchedFromTheAlliancesOwnAreaAndFreePlayFromWhereverYouLike() throws Exception {
         bench = benchOver(
-                FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class, RedTeleOp.class)),
+                FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class, MidLoopTeleOp.class)),
                 aChildSpeaking(SimRunStream.PROTOCOL));
-        SimCatalog.Entry red = bench.catalog().find("RedTeleOp").get();
+        SimCatalog.Entry red = bench.catalog().find("Mid loop").get();
         SimCatalog.Entry nobodys = bench.catalog().find("Count to three").get();
 
         com.google.gson.JsonObject redGame = matchOn(await(bench.start(red, "ada", SimBench.Mode.GAME)));

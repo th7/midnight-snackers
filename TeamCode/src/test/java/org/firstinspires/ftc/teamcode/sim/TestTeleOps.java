@@ -41,7 +41,11 @@ public final class TestTeleOps {
             if (gamepad1.crossWasPressed()) {
                 presses++;
             }
-            robot.drive.manual(-gamepad1.left_stick_y, 0, 0);
+            double ahead = -gamepad1.left_stick_y;
+            hardware().leftFront.setPower(ahead);
+            hardware().rightFront.setPower(ahead);
+            hardware().leftBack.setPower(ahead);
+            hardware().rightBack.setPower(ahead);
         }
     }
 
