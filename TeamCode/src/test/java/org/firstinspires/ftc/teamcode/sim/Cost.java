@@ -35,8 +35,24 @@ public final class Cost {
 
     public static final String JUDGED_BY = "suiteCost.judgedBy";
 
-    public static final Path BUDGET = Paths.get(
-            "src", "test", "resources", "org", "firstinspires", "ftc", "teamcode", "sim", "suite-budget.json");
+    /** The Gradle task whose tests these are, so a missed budget can say which command pins it. */
+    public static final String SUITE = "suiteCost.suite";
+
+    /** The budget the build holds this suite to; each suite names a file of its own. */
+    public static final String BUDGET = "suiteCost.budget";
+
+    /** A suite, by the task that runs it, and the file that pins what it spends. */
+    public record Suite(String task, Path budget) {
+        static Suite named() {
+            String task = System.getProperty(SUITE);
+            String budget = System.getProperty(BUDGET);
+            return task == null || budget == null ? null : new Suite(task, Paths.get(budget));
+        }
+
+        String pinsAgain() {
+            return "./gradlew :TeamCode:" + task + " --rerun -D" + REGENERATE + "=true";
+        }
+    }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -63,7 +79,7 @@ public final class Cost {
             }
             throw new IllegalStateException(key
                     + " is not a kind of cost. A budget naming one that no longer exists is not read past in"
-                    + " silence: take the line out of " + BUDGET + ", or put the kind back.");
+                    + " silence: take the line out of the budget, or put the kind back.");
         }
     }
 
@@ -175,20 +191,20 @@ public final class Cost {
         }
     }
 
-    public static Verdict verdictOn(Map<Kind, Tally> taken, Map<Kind, Integer> budget, boolean whole) {
+    public static Verdict verdictOn(Map<Kind, Tally> taken, Map<Kind, Integer> budget, boolean whole, Suite suite) {
         if (!whole) {
             return new Verdict(
                     Verdict.Outcome.COULD_NOT_JUDGE,
                     "this was part of the suite, or the suite split across JVMs, so what it cost could not"
-                            + " judge the budget in " + BUDGET + ": a ledger is one JVM's, and only the whole"
-                            + " suite in one JVM spends the whole of what is pinned. Run"
-                            + " ./gradlew :TeamCode:testDebugUnitTest to check it.");
+                            + " judge the budget in " + suite.budget() + ": a ledger is one JVM's, and only the"
+                            + " whole suite in one JVM spends the whole of what is pinned. Run"
+                            + " ./gradlew :TeamCode:" + suite.task() + " to check it.");
         }
         if (budget == null) {
             return new Verdict(
                     Verdict.Outcome.MISSED,
-                    "there is no budget at " + BUDGET.toAbsolutePath() + ", so nothing is being checked."
-                            + " Pin what the suite spends with " + how());
+                    "there is no budget at " + suite.budget().toAbsolutePath() + ", so nothing is being checked."
+                            + " Pin what the suite spends with " + suite.pinsAgain());
         }
         List<String> missed = new ArrayList<>();
         for (Kind kind : Kind.values()) {
@@ -208,17 +224,13 @@ public final class Cost {
             }
         }
         if (missed.isEmpty()) {
-            return new Verdict(Verdict.Outcome.MET, "the suite cost what " + BUDGET + " pins.");
+            return new Verdict(Verdict.Outcome.MET, "the suite cost what " + suite.budget() + " pins.");
         }
         return new Verdict(
                 Verdict.Outcome.MISSED,
-                "the suite no longer costs what " + BUDGET + " pins:\n  " + String.join("\n  ", missed)
+                "the suite no longer costs what " + suite.budget() + " pins:\n  " + String.join("\n  ", missed)
                         + "\nA budget is a change detector, not a ceiling. If the change is one you meant, read it"
-                        + " and then pin it with " + how());
-    }
-
-    private static String how() {
-        return "./gradlew :TeamCode:testDebugUnitTest --rerun -D" + REGENERATE + "=true";
+                        + " and then pin it with " + suite.pinsAgain());
     }
 
     public static String report(Map<Kind, Tally> taken) {
@@ -256,13 +268,26 @@ public final class Cost {
      * person reads, and the verdict the build fails on. Written once, as the JVM goes.
      */
     static void writeUp(Path into) {
-        writeUp(into, BUDGET, Boolean.parseBoolean(System.getProperty(WHOLE, "false")), Boolean.getBoolean(REGENERATE));
+        writeUp(
+                into,
+                Suite.named(),
+                Boolean.parseBoolean(System.getProperty(WHOLE, "false")),
+                Boolean.getBoolean(REGENERATE));
     }
 
-    static void writeUp(Path into, Path budgetFile, boolean whole, boolean regenerate) {
+    static void writeUp(Path into, Suite suite, boolean whole, boolean regenerate) {
         Map<Kind, Tally> taken = taken();
         RepoFile.write(into.resolve("ledger.json"), budgetJson(taken).getBytes(StandardCharsets.UTF_8));
         RepoFile.write(into.resolve("report.txt"), report(taken).getBytes(StandardCharsets.UTF_8));
+        if (suite == null) {
+            write(
+                    into,
+                    Verdict.Outcome.MISSED,
+                    "the build named no suite (" + SUITE + ") or no budget (" + BUDGET + ") for these tests, so"
+                            + " nothing is being checked. TeamCode/build.gradle names both for each suite.");
+            return;
+        }
+        Path budgetFile = suite.budget();
         if (whole && regenerate) {
             RepoFile.write(budgetFile, budgetJson(taken).getBytes(StandardCharsets.UTF_8));
             write(
@@ -277,7 +302,7 @@ public final class Cost {
                 .readIfThere(budgetFile)
                 .map(bytes -> budgetFrom(new String(bytes, StandardCharsets.UTF_8)))
                 .orElse(null);
-        Verdict verdict = verdictOn(taken, budget, whole);
+        Verdict verdict = verdictOn(taken, budget, whole, suite);
         write(into, verdict.outcome, verdict.said);
     }
 

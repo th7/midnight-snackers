@@ -44,10 +44,32 @@ spotless {
     }
 }
 
-def costDir = layout.buildDirectory.dir('sim/cost').get().asFile
+def costRoot = layout.buildDirectory.dir('sim/cost').get().asFile
+def testSources = 'src/test/resources/org/firstinspires/ftc/teamcode'
+def gatewayPackage = 'org/firstinspires/ftc/teamcode/gateway/**'
 
+// Two suites, each a whole run with a budget of its own. The client's is everything but the
+// gateway: what a teammate's computer runs, judged on Linux and on Windows. The gateway's runs on
+// the host alone, and is judged on Linux. A test sits in one or the other by its package.
+//   ./gradlew :TeamCode:testDebugUnitTest    the client's suite
+//   ./gradlew :TeamCode:gatewayTest          the gateway's suite
 afterEvaluate {
-    tasks.withType(Test).names.each { judgeTheCostOf(tasks.named(it, Test), costDir) }
+    def client = tasks.named('testDebugUnitTest', Test)
+    client.configure {
+        exclude gatewayPackage
+        systemProperty 'suiteCost.budget', "${testSources}/sim/suite-budget.json"
+    }
+    tasks.register('gatewayTest', Test) {
+        group = 'verification'
+        description = "Runs the gateway's suite: logins, approvals, the state directory, the relay and the field build"
+        testClassesDirs = client.get().testClassesDirs
+        classpath = client.get().classpath
+        dependsOn client.get().taskDependencies
+        include gatewayPackage
+        systemProperty 'suiteCost.budget', "${testSources}/gateway/suite-budget.json"
+    }
+    judgeTheCostOf(client, new File(costRoot, client.name), file("${testSources}/sim/passed-over.json"))
+    judgeTheCostOf(tasks.named('gatewayTest', Test), new File(costRoot, 'gatewayTest'), null)
 }
 
 tasks.withType(Test).configureEach {
@@ -67,12 +89,14 @@ tasks.withType(Test).configureEach {
     // What the suite costs. The test JVM keeps a ledger of the dear things -- child JVMs, compiles,
     // git, password hashes, formatting, node, project copies -- and writes it, a report and a
     // verdict as it goes.
+    def costDir = new File(costRoot, name)
     systemProperty 'suiteCost.ledger', costDir.absolutePath
+    systemProperty 'suiteCost.suite', name
     // What writes them is the JVM's agent, so they are written whatever the tests are: left to the
     // first test that touched the ledger, a run of one class that spends nothing counted would
     // write nothing, and the cost judge would fail it. The jar is only a manifest naming Cost. The JVM loads
     // an agent's class from the classpath, which makes it the very Cost the tests count into.
-    def costAgent = layout.buildDirectory.file('sim/cost-agent.jar').get().asFile
+    def costAgent = new File(costRoot, "${name}-agent.jar")
     jvmArgs "-javaagent:${costAgent.absolutePath}".toString()
     // Gradle's own -D reaches this JVM and not the forked one, as with simTrace.regenerate above.
     if (System.getProperty('suiteCost.regenerate') != null) {

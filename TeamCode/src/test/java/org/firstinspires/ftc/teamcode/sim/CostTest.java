@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,6 +29,8 @@ public class CostTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
+
+    private static final Cost.Suite SUITE = new Cost.Suite("testDebugUnitTest", Paths.get("suite-budget.json"));
 
     private final Cost.Ledger ledger = new Cost.Ledger();
 
@@ -126,7 +129,7 @@ public class CostTest {
     public void aSuiteThatSpentWhatItIsBudgetedHasMetIt() {
         spend(Cost.Kind.PROJECT_COPY, 3);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.PROJECT_COPY, 3), true);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.PROJECT_COPY, 3), true, SUITE);
 
         assertEquals(Cost.Verdict.Outcome.MET, verdict.outcome);
         assertTrue(verdict.ok());
@@ -136,7 +139,7 @@ public class CostTest {
     public void spendingMoreThanTheBudgetNamesTheKindTheCountsAndHowToRepinIt() {
         spend(Cost.Kind.CHILD_JVM, 5);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.CHILD_JVM, 2), true);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.CHILD_JVM, 2), true, SUITE);
 
         assertEquals(Cost.Verdict.Outcome.MISSED, verdict.outcome);
         assertFalse(verdict.ok());
@@ -150,7 +153,7 @@ public class CostTest {
     public void spendingLessThanTheBudgetMissesItToo() {
         spend(Cost.Kind.CHILD_JVM, 1);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.CHILD_JVM, 4), true);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.CHILD_JVM, 4), true, SUITE);
 
         assertEquals(
                 "a budget is a change detector, not a ceiling: cheaper is a change too",
@@ -165,7 +168,7 @@ public class CostTest {
         Map<Cost.Kind, Integer> budget = budgetOf();
         budget.remove(Cost.Kind.PROJECT_COPY);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budget, true);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budget, true, SUITE);
 
         assertEquals(Cost.Verdict.Outcome.MISSED, verdict.outcome);
         assertTrue(verdict.said, verdict.said.contains(Cost.Kind.PROJECT_COPY.key));
@@ -176,7 +179,7 @@ public class CostTest {
     public void aBudgetThatIsNotThereIsNotAPass() {
         spend(Cost.Kind.PROJECT_COPY, 1);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), null, true);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), null, true, SUITE);
 
         assertEquals(Cost.Verdict.Outcome.MISSED, verdict.outcome);
         assertTrue(verdict.said, verdict.said.contains("nothing is being checked"));
@@ -186,7 +189,7 @@ public class CostTest {
     public void aRunOfPartOfTheSuiteSaysItCouldNotJudgeRatherThanPassing() {
         spend(Cost.Kind.PROJECT_COPY, 1);
 
-        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.PROJECT_COPY, 99), false);
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.PROJECT_COPY, 99), false, SUITE);
 
         assertEquals(Cost.Verdict.Outcome.COULD_NOT_JUDGE, verdict.outcome);
         assertTrue("it is not a failure either", verdict.ok());
@@ -250,7 +253,7 @@ public class CostTest {
         assertEquals(
                 "a count is the suite's and a time is the machine's, so only the count is a verdict",
                 Cost.Verdict.Outcome.MET,
-                Cost.verdictOn(slow, budgetOf(Cost.Kind.PROJECT_COPY, 1), true).outcome);
+                Cost.verdictOn(slow, budgetOf(Cost.Kind.PROJECT_COPY, 1), true, SUITE).outcome);
     }
 
     private String verdictIn(Path into) throws IOException {
@@ -265,7 +268,7 @@ public class CostTest {
         Path budget = sources.resolve("suite-budget.json");
         Path into = folder.newFolder("pinning").toPath();
 
-        Cost.writeUp(into, budget, true, true);
+        Cost.writeUp(into, new Cost.Suite("testDebugUnitTest", budget), true, true);
 
         assertEquals(
                 "a budget is a file of the repository, so pinning one must not shut its directory",
@@ -280,7 +283,11 @@ public class CostTest {
     public void whatIsWrittenUpIsTheLedgerTheReportAndTheVerdict() throws IOException {
         Path into = folder.newFolder("nothing-pinned").toPath();
 
-        Cost.writeUp(into, folder.getRoot().toPath().resolve("no-budget-here.json"), true, false);
+        Cost.writeUp(
+                into,
+                new Cost.Suite("testDebugUnitTest", folder.getRoot().toPath().resolve("no-budget-here.json")),
+                true,
+                false);
 
         assertEquals(
                 Cost.budgetJson(Cost.taken()),
@@ -294,7 +301,11 @@ public class CostTest {
     public void aRunThatIsNotTheWholeSuiteWritesUpThatItCouldNotJudge() throws IOException {
         Path into = folder.newFolder("part-of-it").toPath();
 
-        Cost.writeUp(into, folder.getRoot().toPath().resolve("no-budget-here.json"), false, false);
+        Cost.writeUp(
+                into,
+                new Cost.Suite("testDebugUnitTest", folder.getRoot().toPath().resolve("no-budget-here.json")),
+                false,
+                false);
 
         assertTrue(verdictIn(into), verdictIn(into).startsWith("COULD_NOT_JUDGE"));
         assertTrue("and it is still readable", Files.isRegularFile(into.resolve("report.txt")));
@@ -307,6 +318,41 @@ public class CostTest {
                         + " judgeTheCostOf, so nothing prints what they cost or fails on a budget they missed, and a run"
                         + " that missed it would pass",
                 System.getProperty(Cost.JUDGED_BY));
+    }
+
+    @Test
+    public void theBuildNamesTheSuiteTheseTestsRunInAndTheBudgetItIsJudgedAgainst() {
+        assertNotNull(
+                "no " + Cost.SUITE + ": the build ran these tests without naming their suite, so a missed budget"
+                        + " could not say which command pins it again",
+                System.getProperty(Cost.SUITE));
+        assertNotNull(
+                "no " + Cost.BUDGET + ": the build ran these tests without naming the budget their suite is held"
+                        + " to, and each suite has one of its own",
+                System.getProperty(Cost.BUDGET));
+    }
+
+    @Test
+    public void aMissedBudgetNamesItsSuitesFileAndTheCommandThatPinsItAgain() {
+        spend(Cost.Kind.CHILD_JVM, 5);
+        Cost.Suite gateway = new Cost.Suite("gatewayTest", Paths.get("gateway", "suite-budget.json"));
+
+        Cost.Verdict verdict = Cost.verdictOn(ledger.taken(), budgetOf(Cost.Kind.CHILD_JVM, 2), true, gateway);
+
+        assertTrue(
+                verdict.said,
+                verdict.said.contains(Paths.get("gateway", "suite-budget.json").toString()));
+        assertTrue(verdict.said, verdict.said.contains("./gradlew :TeamCode:gatewayTest --rerun"));
+    }
+
+    @Test
+    public void aRunWhoseBuildNamedNoBudgetIsNotAPass() throws IOException {
+        Path into = folder.newFolder("unnamed").toPath();
+
+        Cost.writeUp(into, null, true, false);
+
+        assertTrue(verdictIn(into), verdictIn(into).startsWith("MISSED"));
+        assertTrue(verdictIn(into), verdictIn(into).contains(Cost.BUDGET));
     }
 
     @Test

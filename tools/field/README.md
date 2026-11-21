@@ -254,6 +254,7 @@ they hang on, and moves as the hive leans.
 
 ## Running the tests
 
-The scripts under `tools/` are tested by the same command locally and in CI:
+The scripts under `tools/` are tested by the same command locally and in CI,
+with the gateway's suite, on Linux:
 
-    python3 tools/run_tests.py
+    python3 tools/run_tests.py gateway

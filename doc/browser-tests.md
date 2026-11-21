@@ -50,7 +50,7 @@ verdict and a coin toss.
 
 ## The test
 
-`tools/browser/check.mjs`, driven by Playwright, run by `python3 tools/run_tests.py` with
+`tools/browser/check.mjs`, driven by Playwright, run by `python3 tools/run_tests.py client` with
 everything else. It serves the simulator's resource directory over a throwaway HTTP
 server -- the live view at `/runs/1/`, its assets under `/assets`, exactly as the
 bench lays them out -- opens the page, and asks what nothing else can ask:
@@ -73,7 +73,7 @@ results, because the first question about a page that did not draw is what it di
 Building the field scene in software is the dear thing here: a four megabyte model, three
 hundred parts, eleven materials merged, and a frame that takes a tenth of a second to
 rasterise. Everything else these checks do is free beside it, so the number that matters
-is how many times a page builds one, and `python3 tools/run_tests.py` prints what each
+is how many times a page builds one, and `python3 tools/run_tests.py client` prints what each
 check took so that number is not guessed at:
 
 ```

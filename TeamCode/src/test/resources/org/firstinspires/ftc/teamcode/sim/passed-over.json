@@ -1,0 +1,7 @@
+{
+  "windows": {
+    "org.firstinspires.ftc.teamcode.sim.CostTest.pinningWhatTheSuiteSpentLeavesTheSourceTreeAsItFoundIt": "it holds a directory's POSIX permissions as they were, and Windows has none to keep",
+    "org.firstinspires.ftc.teamcode.sim.RepoFileTest.writingAFileOfTheRepositoryLeavesItsDirectoryAsItFoundIt": "it holds a directory's POSIX permissions as they were, and Windows has none to keep",
+    "org.firstinspires.ftc.teamcode.sim.RepoFileTest.theStateStoreIsStillTheOneThatLocksADirectoryDown": "it holds that the state store makes a directory owner-only by POSIX permissions, which Windows has not"
+  }
+}

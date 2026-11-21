@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 import tempfile
@@ -48,7 +49,7 @@ class WhatThePythonSuiteDiscovers(unittest.TestCase):
 
         gathered = run_tests.python_suite(self.tools, ['gone_epsilon', 'gone_zeta'], unittest.TestLoader())
 
-        self.assertEqual('tools/gone_zeta is gone; this runner names it in PACKAGES.', gathered)
+        self.assertEqual('tools/gone_zeta is gone; this runner names it in SUITES.', gathered)
 
     def test_a_test_module_that_does_not_import_is_named(self):
         self.package('broken_eta', {'test_broken_eta_imports.py': 'import a_module_nobody_wrote\n'})
@@ -58,8 +59,37 @@ class WhatThePythonSuiteDiscovers(unittest.TestCase):
         self.assertIsInstance(gathered, str)
         self.assertIn('test_broken_eta_imports', gathered)
 
-    def test_the_runner_names_every_package_whose_tests_it_runs(self):
-        self.assertEqual(['field', 'ci', 'suite_cost', 'start'], run_tests.PACKAGES)
+    def test_the_gateway_s_suite_runs_every_python_package_and_the_client_s_none(self):
+        self.assertEqual(['field', 'ci', 'suite_cost', 'start'], run_tests.SUITES['gateway'].packages)
+        self.assertEqual([], run_tests.SUITES['client'].packages)
+
+
+class WhichSuiteEachPageCheckIsIn(unittest.TestCase):
+    def test_the_login_and_admin_pages_are_the_gateway_s_and_every_other_page_check_the_client_s(self):
+        self.assertEqual(['login.mjs', 'admin.mjs'], scripts_of('gateway', 'browser'))
+        self.assertEqual(['check.mjs', 'dashboard.mjs', 'simulator.mjs', 'replay.mjs', 'launch.mjs', 'feeder.mjs',
+                          'cost.mjs'], scripts_of('client', 'browser'))
+        self.assertEqual(['check.mjs'], scripts_of('client', 'renderer'))
+
+    def test_every_script_in_the_browser_tools_is_a_check_one_suite_runs_or_one_that_is_not_a_check(self):
+        not_checks = {'bench.mjs', 'model.mjs', 'frames.mjs'}
+        scripts = sorted(name for name in os.listdir(os.path.join(TOOLS, 'browser')) if name.endswith('.mjs'))
+
+        run = sorted(scripts_of('client', 'browser') + scripts_of('gateway', 'browser'))
+
+        self.assertEqual(sorted(set(scripts) - not_checks), run)
+
+    def test_a_run_that_names_no_suite_is_refused_naming_both(self):
+        said = io.StringIO()
+
+        refused = run_tests.main([], said)
+
+        self.assertEqual(2, refused)
+        self.assertEqual('say which suite: client or gateway\n', said.getvalue())
+
+
+def scripts_of(suite, where):
+    return [check.script for check in run_tests.SUITES[suite].checks if check.where == where]
 
 
 if __name__ == '__main__':

@@ -5,16 +5,34 @@ import subprocess
 import sys
 import time
 import unittest
+from collections import namedtuple
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-PACKAGES = ['field', 'ci', 'suite_cost', 'start']
+
+
+class Check(namedtuple('Check', 'where script')):
+    @property
+    def name(self):
+        return self.script[:-len('.mjs')] if self.where == 'browser' else self.where
+
+
+class Suite(namedtuple('Suite', 'packages checks')):
+    pass
+
+
+SUITES = {
+    'client': Suite([], [Check('renderer', 'check.mjs')] + [Check('browser', script) for script in (
+        'check.mjs', 'dashboard.mjs', 'simulator.mjs', 'replay.mjs', 'launch.mjs', 'feeder.mjs', 'cost.mjs')]),
+    'gateway': Suite(['field', 'ci', 'suite_cost', 'start'],
+                     [Check('browser', script) for script in ('login.mjs', 'admin.mjs')]),
+}
 
 def python_suite(tools, packages, loader):
     suite = unittest.TestSuite()
     for package in packages:
         directory = os.path.join(tools, package)
         if not os.path.isdir(directory):
-            return 'tools/' + package + ' is gone; this runner names it in PACKAGES.'
+            return 'tools/' + package + ' is gone; this runner names it in SUITES.'
         sys.path.insert(0, directory)
         found = loader.discover(directory, pattern='test_*.py', top_level_dir=directory)
         if loader.errors:
@@ -24,24 +42,29 @@ def python_suite(tools, packages, loader):
         suite.addTests(found)
     return suite
 
-def main():
-    suite = python_suite(TOOLS, PACKAGES, unittest.TestLoader())
-    if isinstance(suite, str):
-        print(suite, file=sys.stderr)
+def main(arguments, stderr=sys.stderr):
+    chosen = SUITES.get(arguments[0]) if len(arguments) == 1 else None
+    if chosen is None:
+        print('say which suite: ' + ' or '.join(sorted(SUITES)), file=stderr)
         return 2
-    began = time.monotonic()
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    took = [('python', time.monotonic() - began)]
-    if result.testsRun == 0:
-        print('No tests were discovered under tools/. That is a broken runner, not a pass.',
-              file=sys.stderr)
-        return 2
-    if not result.wasSuccessful():
-        return 1
-    for check in (renderer_check, browser_check, dashboard_check, simulator_check, login_check, admin_check, replay_check, launch_check, feeder_check, cost_check):
+    took = []
+    if chosen.packages:
+        suite = python_suite(TOOLS, chosen.packages, unittest.TestLoader())
+        if isinstance(suite, str):
+            print(suite, file=stderr)
+            return 2
         began = time.monotonic()
-        wrong = check()
-        took.append((check.__name__.replace('_check', ''), time.monotonic() - began))
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        took.append(('python', time.monotonic() - began))
+        if result.testsRun == 0:
+            print('No tests were discovered under tools/. That is a broken runner, not a pass.', file=stderr)
+            return 2
+        if not result.wasSuccessful():
+            return 1
+    for check in chosen.checks:
+        began = time.monotonic()
+        wrong = run_check(check)
+        took.append((check.name, time.monotonic() - began))
         if wrong:
             print_times_never_judged(took)
             return wrong
@@ -66,47 +89,15 @@ def node_at(*where):
                       'deliberately.')
     return (node, check), None
 
-def renderer_check():
-    run, wrong = node_at('renderer', 'check.mjs')
-    if wrong:
-        print(wrong, file=sys.stderr)
-        return 2
-    print()
-    return subprocess.call(list(run))
-
-def browser_check():
-    return in_a_browser('check.mjs')
-
-
-def dashboard_check():
-    return in_a_browser('dashboard.mjs')
-
-
-def simulator_check():
-    return in_a_browser('simulator.mjs')
-
-def login_check():
-    return in_a_browser('login.mjs')
-
-
-def admin_check():
-    return in_a_browser('admin.mjs')
-
-
-def replay_check():
-    return in_a_browser('replay.mjs')
-
-
-def launch_check():
-    return in_a_browser('launch.mjs')
-
-
-def feeder_check():
-    return in_a_browser('feeder.mjs')
-
-
-def cost_check():
-    return in_a_browser('cost.mjs')
+def run_check(check):
+    if check.where == 'renderer':
+        run, wrong = node_at('renderer', check.script)
+        if wrong:
+            print(wrong, file=sys.stderr)
+            return 2
+        print()
+        return subprocess.call(list(run))
+    return in_a_browser(check.script)
 
 
 def in_a_browser(script):
@@ -123,4 +114,4 @@ def in_a_browser(script):
     return subprocess.call(list(run))
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

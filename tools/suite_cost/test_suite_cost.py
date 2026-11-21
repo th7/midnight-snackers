@@ -1,5 +1,6 @@
 import json
 import os
+import platform
 import shutil
 import subprocess
 import tempfile
@@ -39,7 +40,7 @@ def costDir = layout.buildDirectory.dir('cost').get().asFile
 tasks.named('test', Test) {
     systemProperty 'suiteCost.ledger', costDir.absolutePath
 }
-judgeTheCostOf(tasks.named('test', Test), costDir)
+judgeTheCostOf(tasks.named('test', Test), costDir, file('passed-over.json'))
 ''' % groovy(JUDGE)
 
 TEST = '''import java.nio.charset.StandardCharsets;
@@ -47,6 +48,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 public class SpendsTest {
@@ -58,12 +60,22 @@ public class SpendsTest {
         %s
         Assert.assertTrue("this fixture's test fails when it is asked to", %s);
     }
-}
+%s}
 '''
+
+PASSES_ITSELF_OVER = '''
+    @Test
+    public void meansNothingHere() {
+        Assume.assumeTrue("this fixture's second test passes itself over", false);
+    }
+'''
+SKIPPED = 'SpendsTest.meansNothingHere'
+WHY = 'there is nothing for it to mean on this platform'
+THIS_PLATFORM = {'Linux': 'linux', 'Darwin': 'mac', 'Windows': 'windows'}[platform.system()]
 
 
 class TheCostOfATestRunIsJudgedWhateverItsTestsDid(unittest.TestCase):
-    def run_fixture(self, verdict, passes):
+    def run_fixture(self, verdict, passes, skips=False, passed_over=None):
         fixture = tempfile.mkdtemp(prefix='suite-cost-')
         self.addCleanup(shutil.rmtree, fixture, True)
         with open(os.path.join(fixture, 'settings.gradle'), 'w') as f:
@@ -78,7 +90,11 @@ class TheCostOfATestRunIsJudgedWhateverItsTestsDid(unittest.TestCase):
                   'Files.write(ledger.resolve("verdict.txt"), %s.getBytes(StandardCharsets.UTF_8));'
                   % json.dumps(verdict))
         with open(os.path.join(sources, 'SpendsTest.java'), 'w') as f:
-            f.write(TEST % (json.dumps(REPORT), writes, 'true' if passes else 'false'))
+            f.write(TEST % (json.dumps(REPORT), writes, 'true' if passes else 'false',
+                            PASSES_ITSELF_OVER if skips else ''))
+        if passed_over is not None:
+            with open(os.path.join(fixture, 'passed-over.json'), 'w') as f:
+                json.dump(passed_over, f)
         run = subprocess.run(
             [GRADLEW, '-p', fixture, '--no-daemon', '--console=plain', 'test'],
             cwd=fixture, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=RUN_SECONDS)
@@ -128,3 +144,27 @@ class TheCostOfATestRunIsJudgedWhateverItsTestsDid(unittest.TestCase):
         self.assertEqual(0, code, output)
         self.assertSaid(REPORT, output)
         self.assertSaid(MET, output)
+
+    def test_a_run_says_how_many_tests_it_ran_on_which_platform_and_how_many_it_passed_over(self):
+        code, output = self.run_fixture('MET\n' + MET, passes=True, skips=True,
+                                        passed_over={THIS_PLATFORM: {SKIPPED: WHY}})
+
+        self.assertEqual(0, code, output)
+        self.assertSaid('test ran 2 tests on %s, 1 of them passed over:' % THIS_PLATFORM, output)
+        self.assertSaid('  %s -- %s' % (SKIPPED, WHY), output)
+
+    def test_a_test_passed_over_that_the_list_does_not_name_for_this_platform_fails_the_run_naming_it(self):
+        code, output = self.run_fixture('MET\n' + MET, passes=True, skips=True,
+                                        passed_over={'elsewhere': {SKIPPED: WHY}})
+
+        self.assertNotEqual(0, code, output)
+        self.assertSaid(SKIPPED, output)
+        self.assertSaid('passed over on %s without being named' % THIS_PLATFORM, output)
+
+    def test_a_test_the_list_names_for_this_platform_that_ran_after_all_fails_the_run_naming_it(self):
+        code, output = self.run_fixture('MET\n' + MET, passes=True,
+                                        passed_over={THIS_PLATFORM: {'SpendsTest.writesUpWhatItCost': WHY}})
+
+        self.assertNotEqual(0, code, output)
+        self.assertSaid('named as passed over on %s, but ran: SpendsTest.writesUpWhatItCost' % THIS_PLATFORM,
+                        output)

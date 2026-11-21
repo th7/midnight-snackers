@@ -1,17 +1,50 @@
-ext.judgeTheCostOf = { TaskProvider<Test> test, File costDir ->
+// A test that cannot mean anything on some platform passes itself over there, and is named, with
+// why, in the suite's passed-over list under that platform: {"windows": {"pkg.Class.method": "why"}}.
+// A suite without a list may pass nothing over anywhere.
+ext.platformJudged = {
+    def os = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    os.contains('windows') ? 'windows' : os.contains('mac') ? 'mac' : os.contains('linux') ? 'linux' : os
+}
+
+ext.judgeTheCostOf = { TaskProvider<Test> test, File costDir, File passedOver ->
     def judge = tasks.register("${test.name}Cost") {
         group = 'verification'
         description = "Prints what ${test.name} cost and fails on a budget it missed, whether its tests passed or not"
         def results = test.flatMap { it.reports.junitXml.outputLocation }
+        def suiteName = test.name
         doLast {
-            def slowest = results.get().asFile.listFiles({ f -> f.name.endsWith('.xml') } as FileFilter)
-            if (slowest) {
-                def classes = slowest.collect { new groovy.xml.XmlSlurper().parse(it) }
+            def slowest = results.get().asFile.listFiles({ f -> f.name.endsWith('.xml') } as FileFilter) ?: []
+            def suites = slowest.collect { new groovy.xml.XmlSlurper().parse(it) }
+            if (suites) {
+                def classes = suites
                         .collect { [name: it.@name.text().tokenize('.').last(), seconds: it.@time.text() as double] }
                         .sort { -it.seconds }
                 println()
                 println("the slowest test classes (${String.format('%.1f', classes.sum { it.seconds })}s over ${classes.size()})")
                 classes.take(8).each { println(String.format('  %-40s %6.1fs', it.name, it.seconds)) }
+            }
+
+            def platform = platformJudged()
+            def ran = suites.sum(0) { it.@tests.text() as int }
+            def skipped = suites.collectMany { suite ->
+                suite.testcase.findAll { it.skipped.size() > 0 }.collect { "${it.@classname.text()}.${it.@name.text()}".toString() }
+            }.sort()
+            def listed = (passedOver != null && passedOver.exists()
+                    ? (new groovy.json.JsonSlurper().parse(passedOver)[platform] ?: [:]) : [:])
+            println()
+            println("${suiteName} ran ${ran} tests on ${platform}, ${skipped.size()} of them passed over${skipped ? ':' : '.'}")
+            skipped.each { println("  ${it} -- ${listed[it] ?: 'named nowhere'}") }
+            def wrong = []
+            def unnamed = skipped.findAll { !listed.containsKey(it) }
+            if (unnamed) {
+                wrong << ("passed over on ${platform} without being named in ${passedOver ?: 'a passed-over list, which this suite has none of'}: " +
+                        unnamed.join(', ') + '. A test passed over in silence is a test nobody ran: make it mean ' +
+                        'something here, or name it there with why it cannot.')
+            }
+            def ranAnyway = listed.keySet().findAll { !skipped.contains(it) }.sort()
+            if (ranAnyway) {
+                wrong << ("named as passed over on ${platform}, but ran: " + ranAnyway.join(', ') +
+                        ". Take it out of ${passedOver}.")
             }
 
             def verdict = new File(costDir, 'verdict.txt')
@@ -30,10 +63,14 @@ ext.judgeTheCostOf = { TaskProvider<Test> test, File costDir ->
             def outcome = lines[0].trim()
             def said = lines.length > 1 ? lines[1].trim() : ''
             if (outcome == 'MISSED') {
-                throw new GradleException(said)
+                wrong.add(0, said)
+            } else {
+                println()
+                println(said)
             }
-            println()
-            println(said)
+            if (wrong) {
+                throw new GradleException(wrong.join('\n'))
+            }
         }
     }
     test.configure {
