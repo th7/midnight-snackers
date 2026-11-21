@@ -152,7 +152,8 @@ final class FeedRun {
                 Collections.unmodifiableList(events),
                 finish.orElse(new Feed.Finish.OutOfTime(seconds(bodies.now()))),
                 bodies.work(),
-                seconds(bodies.now()));
+                seconds(bodies.now()),
+                new Feed.Drawing(feeder.axes(), feeder.measures(), launcher.axes(), launcher.measures()));
     }
 
     private Optional<Feed.Finish> finish() {

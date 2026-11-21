@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.simcore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public final class Feed {
     public static final double POLLEN_RADIUS_IN = Launcher.POLLEN_RADIUS_IN;
@@ -314,5 +315,11 @@ public final class Feed {
         record TooMuchWork(Seconds at) implements Finish {}
     }
 
-    public record Fed(List<Frame> frames, List<Event> events, Finish finish, long work, Seconds simulated) {}
+    public record Axes(Vec3 origin, Vec3 x, Vec3 y, Vec3 z) {}
+
+    public record Drawing(
+            Axes feeder, Map<String, Double> feederInches, Axes launcher, Map<String, Double> launcherInches) {}
+
+    public record Fed(
+            List<Frame> frames, List<Event> events, Finish finish, long work, Seconds simulated, Drawing drawing) {}
 }

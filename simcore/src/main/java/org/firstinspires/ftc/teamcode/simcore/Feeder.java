@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.simcore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,6 +49,14 @@ public final class Feeder implements Surroundings.Part {
 
     static Checked<Feeder> placed(Shape shape, Launcher.Frame frame, Motion motion) {
         return Faces.of(shape).map(faces -> new Feeder(faces, Placing.of(shape, frame), motion, motion.began));
+    }
+
+    Feed.Axes axes() {
+        return new Feed.Axes(placing.origin, placing.x, placing.y, placing.z);
+    }
+
+    Map<String, Double> measures() {
+        return faces.measures;
     }
 
     Feeder moved(Motion next) {
@@ -268,9 +277,11 @@ public final class Feeder implements Surroundings.Part {
         private final double rounding;
         private final double barFarthest;
         private final Collider bar;
+        private final Map<String, Double> measures;
 
         private Faces(Shape shape, Collider firstArm, Collider secondArm, Collider bar) {
             Room room = shape.room;
+            this.measures = measures(shape);
             this.floorTop = inches(room.floorTop);
             this.wallRadius = inches(room.wallRadius);
             this.plateUnderside = inches(room.plateUnderside);
@@ -303,6 +314,45 @@ public final class Feeder implements Surroundings.Part {
             }
             this.barFarthest = inches(farthest);
             this.bar = bar;
+        }
+
+        private static Map<String, Double> measures(Shape shape) {
+            Map<String, Double> mm = new LinkedHashMap<>();
+            mm.put("floorTop", shape.room.floorTop);
+            mm.put("wallRadius", shape.room.wallRadius);
+            mm.put("wallOuterRadius", Room.WALL_OUTER_RADIUS_MM);
+            mm.put("plateUnderside", shape.room.plateUnderside);
+            mm.put("plateTop", Room.PLATE_TOP_MM);
+            mm.put("frontHalfWidth", shape.front.halfWidth);
+            mm.put("frontSill", shape.front.sill);
+            mm.put("backHalfWidth", shape.back.halfWidth);
+            mm.put("backSill", shape.back.sill);
+            mm.put("backFlatY", shape.plate.backFlatY);
+            mm.put("frontFlatY", shape.plate.frontFlatY);
+            mm.put("notchHalfWidth", shape.plate.notchHalfWidth);
+            mm.put("notchInnerEndY", shape.plate.notchInnerEndY);
+            mm.put("slotFromX", shape.slot.fromX);
+            mm.put("slotToX", shape.slot.toX);
+            mm.put("slotFromY", shape.slot.fromY);
+            mm.put("slotToY", shape.slot.toY);
+            mm.put("hubRadius", shape.arms.hubRadius);
+            mm.put("armHalfThickness", shape.arms.armThickness / 2);
+            mm.put("armReach", shape.arms.armReach);
+            mm.put("armBottom", shape.arms.armBottom);
+            mm.put("armTop", shape.arms.armTop);
+            mm.put("pivotX", shape.bar.pivotX);
+            mm.put("pivotZ", shape.bar.pivotZ);
+            mm.put("barFreeEndX", shape.bar.freeEndX);
+            mm.put("barPadX", shape.bar.padX);
+            mm.put("barMiddleY", shape.bar.middleY);
+            mm.put("barWidth", shape.bar.width);
+            mm.put("barTop", shape.bar.topAsDrawn);
+            mm.put("barHeight", shape.bar.height);
+            Map<String, Double> inches = new LinkedHashMap<>();
+            for (Map.Entry<String, Double> measure : mm.entrySet()) {
+                inches.put(measure.getKey(), inches(measure.getValue()));
+            }
+            return Collections.unmodifiableMap(inches);
         }
 
         static Checked<Faces> of(Shape shape) {
@@ -817,6 +867,10 @@ public final class Feeder implements Surroundings.Part {
         static final double FLOOR_TOP_MM = 15;
         static final double WALL_RADIUS_MM = 82.27;
         static final double PLATE_UNDERSIDE_MM = 96.12;
+        static final String DRAWN_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: the wall's outer r 88.62 and"
+                + " the top plate's top at z 113.12, drawn but met by no pollen";
+        static final double WALL_OUTER_RADIUS_MM = 88.62;
+        static final double PLATE_TOP_MM = 113.12;
 
         private final double floorTop;
         private final double wallRadius;

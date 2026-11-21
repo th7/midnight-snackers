@@ -2,7 +2,9 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -483,6 +485,26 @@ public final class Launcher implements Surroundings.Part {
 
     Placed where() {
         return where;
+    }
+
+    Feed.Axes axes() {
+        return new Feed.Axes(world(hub()), turned(new Vec3(-1, 0, 0)), turned(axle()), new Vec3(0, 0, 1));
+    }
+
+    Map<String, Double> measures() {
+        Map<String, Double> measures = new LinkedHashMap<>();
+        measures.put("wheelTorus", inches(WHEEL_TORUS_MM));
+        measures.put("wheelTube", inches(WHEEL_TUBE_MM));
+        measures.put("flange", inches(FLANGE_MM));
+        measures.put("hoodTorus", inches(HOOD_TORUS_MM));
+        measures.put("hoodTube", inches(HOOD_TUBE_MM));
+        measures.put("hoodFromDegrees", HOOD_FROM_DEGREES);
+        measures.put("hoodToDegrees", HOOD_TO_DEGREES);
+        measures.put("extensionFromDegrees", EXTENSION_FROM_DEGREES);
+        measures.put("ringApart", inches(RING_APART_MM));
+        measures.put("ringsEachSide", (double) RINGS_EACH_SIDE);
+        measures.put("wheelRadiansPerSecond", wheel.radiansPerSecond());
+        return Collections.unmodifiableMap(measures);
     }
 
     Vec3 entry(Length radius) {
