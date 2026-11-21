@@ -2228,3 +2228,55 @@ cost here that is about four times real time, and every launch says what it actu
 cost ("computed in 112 ms, 0.06x real time"), which is printed and never judged. Method:
 `Shot.tooMuchWork`.
 
+
+## The feeder sim
+
+**Feeder Sim** — The dashboard's fourth tab, after Launch Sim: Reginald's **feeder**
+turning pollen round to the **ramp**, which lifts each into the flywheel, and the
+**launcher** throwing it, replayed with the **spinner**'s and ramp's loads traced
+against time. It is laid out as Launch Sim is: settings on the right of the view,
+the feeds under it. `#feeder`, with the view's options after a `?`. Like a launch, a
+feed is a bench's, so a user's feeds are theirs on the robot they are on. It runs no
+robot code and nothing set here reaches a run; it runs on the coding server's own
+**core**. What it simulates, where every number came from, what the physics showed
+and how to calibrate it is `doc/feeder-sim.md`. Classes: `Feed`, `FeedRun`, in the
+**core**; `SimFeeds`; `SimFeedPage`. Files: `feeder.html`.
+
+**Feeder** — The round bowl the pollen wait in, as the engine meets it: its floor
+with the ramp's slot, its wall with the front and back windows, its top plate with
+the notch the flywheel reaches through, the **spinner** and the **ramp** bar, each a
+named collider. Its measures are the CAD's except the spinner, which is not drawn;
+the back window's sill is a setting, 30 mm by default where the CAD has 43.12. It is
+placed in Reginald by the CAD's transform, tilted 16.46° and rising toward the back,
+and a feed sends its axes and measures with it, so the view draws what the physics
+meets. Class: `Feeder`, in the **core**.
+
+**Spinner** — The hub and two arms on a REV Smart Robot Servo in continuous mode
+that turn the pollen round the **feeder**, clockwise seen from above. Its speed is
+its full speed times its power, less in proportion to the torque the pollen load it
+with, and none at its stall torque: 1.0 rev/s and 1.1 N·m at the Hub's 5 V. Turning
+under a tenth of its unloaded speed for a tenth of a second while powered is a
+**jam**, reported once naming the pollen touching it. Class: `Feeder.Spinner`, in
+the **core**.
+
+**Ramp** — The bar under the **feeder**'s floor at the back, on a second Smart Robot
+Servo in angular mode, that swings up through the slot and lifts a passing pollen
+into the flywheel; it rises toward the end away from its servo. It slews to its
+commanded angle at 0.168 s per 60° and holds it whatever the load, reporting the
+torque it holds against. A **feed** raises it at one time and lowers it at another.
+Class: `Feeder.Ramp`, in the **core**.
+
+**Feed** — One run of the **feeder** from the pollen at rest against its wall,
+with the spinner, ramp and flywheel commanded every 4 ms, until every pollen has
+left, everything is at rest, its time runs out or it has done **too much work**,
+held to the same three million units a simulated second a **shot** is. On the way it
+reports each pollen *thrown* from the hood (where, how fast, at what angle, with
+what spin), each that *fell out* of a window, and each **jam**. A feed is a value,
+and the same settings give the same feed bit for bit. Its settings are chosen per
+feed on the tab's right and refused naming the rule they break, the last ones fed
+are remembered per user and robot in `feed-settings.json` with how many feeds there
+have been, so a feed's number is never used again.
+`GET /sim/feed/settings`, `POST /sim/feed`, `GET /sim/feeds`, `GET /sim/feeds/`
+(the view, with the feed to show in its fragment, `#7`), `GET /sim/feeds/<id>/feed`
+and `GET /sim/feeds/<id>/frames/<chunk>`. Classes: `Feed`, `FeedRun`, `FeedSetting`,
+`FeedSettings`, in the **core**; `SimFeeds`.

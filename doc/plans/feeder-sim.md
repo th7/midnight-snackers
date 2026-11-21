@@ -182,13 +182,16 @@ work.
 | Spinner speed at full power, unloaded | 1.0 rev/s | 0.2 to 3 |
 | Spinner stall torque | 1.1 N·m | 0.1 to 5 |
 | Ramp down / up | 0° / 35° | 0° to 60°, down below up |
-| Ramp raised at / lowered at | 0.40 s / 0.80 s | within the run, raised before lowered |
+| Ramp raised at / lowered at | 0.30 s / 1.20 s | within the run, raised before lowered |
+| Back sill | 30 mm, where the CAD has 43.12 | 16 to 95 mm |
 | Ramp servo speed | 0.168 s per 60° | 0.05 to 1 |
 | Flywheel speed | stage 4's default | as the Launch Sim |
 | Run length | 3 s | 0.5 to 10 |
 
 The defaults for the servos are the REV Smart Robot Servo's 0.14 s/60° and
-13.5 kg·cm at 6 V (vendor), scaled to 5 V. A setting out of range, or ramp
+13.5 kg·cm at 6 V (vendor), scaled to 5 V. The ramp's times and the back sill were decided on 21 November (issue
+#180): the CAD's sill holds a lifted pollen against the wheel, and 0.40 to
+0.80 s misses both pollen. A setting out of range, or ramp
 times out of order, is refused with the rule it breaks, as the Launch Sim
 refuses.
 
