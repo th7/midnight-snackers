@@ -7,9 +7,8 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 ## The robot
 
-**Where things live** — Each robot's code is a package of its own, its
-**own files**: `org.firstinspires.ftc.reginald` is Reginald and
-`org.firstinspires.ftc.nugget` is Nugget (see **Nugget**). `reginald` holds
+**Where things live** — The robot's code is a package of its own, its
+**own files**: `org.firstinspires.ftc.reginald` is Reginald. `reginald` holds
 the **Robot** and nothing but the subsystems it is made of, so the list of
 files is the list of parts. Underneath it: `opmode` (what the driver station
 lists and how a plan becomes one), `hardware` (the devices and what is wired
@@ -269,92 +268,6 @@ nothing is agreeing, which is when it is worth reading; it is now an answer
 rather than an exception. Classes: `DetectionFilter`;
 `DetectionFilter.Agreed`.
 
-## Nugget
-
-**Nugget** — The team's second robot, whose work lands on `nugget-develop`
-(see **Robot**, under the robot gateway). Its code is a package of its own,
-`org.firstinspires.ftc.nugget`, beside Reginald's `org.firstinspires.ftc.reginald`
-and the shared `teamcode` (see **Where things live**). Its op modes extend `NuggetOpMode`, which is how the simulator knows
-them for Nugget's and hands them Nugget's hardware rather than the robot
-controller's configuration. Class: `NuggetOpMode`.
-
-**Tank drive** — Nugget's two drive motors, `leftDrive` and `rightDrive` in
-the robot's configuration, one to a side. They are mounted facing each other,
-so one turns opposite the other: the left is reversed, and a positive power
-drives either side forward. Straight and counterclockwise are mixed into a
-left and a right power and, like Reginald's **Wheels**, a command asking more
-of a side than it has is scaled down whole rather than clipped, so the robot
-turns as sharply as it was pointed, slower. Both brake when asked for nothing.
-Its TeleOp drives it from the sticks Reginald's drivers use: the left stick
-forward and back, the right stick across to turn. Nugget's hardware is those
-two motors, the battery's voltage, the dashboard and the **clock**, which is
-the robot's own as Reginald's is and the simulated one in the simulator, and
-it is **whole or not at all**, as Reginald's is. Classes: `TankDrive`;
-`NuggetHardware`; `NuggetTeleOp`.
-
-**Tank localizer** — Where Nugget believes it is, from how far each side has
-gone by its drive motor's encoder: both sides ahead take it ahead the way it
-faces, and the right side going further than the left turns it
-counterclockwise by the difference over the track. It has nothing else to go
-on, so a side that slips sideways, as a tank does in a tight turn, moves Nugget
-somewhere it does not know about. Like Reginald's **Localizer** it reads the
-encoders once a loop, on Nugget's own **clock**, and whoever owns it ticks it
-first. What it measures in — the inches a tick and the track — is Road
-Runner's model of Nugget, and nobody has measured the real one yet, so it is
-the **simulated Nugget**'s, which a test holds it to. Classes:
-`TankLocalizer`; `Trajectories.Params`.
-
-**Trajectories** — How Nugget drives along a path Road Runner has built: from
-the pose the **tank localizer** believes, a path of splines and turns within
-Nugget's limits of speed, turning and acceleration, followed a loop at a time
-by an action that asks the **tank drive** for each side's power. A tank cannot
-move sideways, so a Ramsete controller steers it back onto its path by turning.
-What the path asks of its speed and turning, and of how fast each is changing,
-is fed forward through Nugget's model of its motors, so it keeps up with the
-path rather than lagging behind it and swinging wide of the corners. A turn in
-place is an action too, corrected toward the heading it should have by then.
-What Nugget is, to Road Runner — the inches a tick, the track, its motors, its
-limits and its gains — is one set of parameters, and until someone measures
-the real Nugget it is the **simulated Nugget**'s. Classes: `Trajectories`;
-`Trajectories.Params`.
-
-**RoadRunner example** — Nugget's autonomous op mode, listed on the driver
-station and the Simulate tab as *Nugget RoadRunner Example* under Nugget, and
-the example of a **plan** that drives with Road Runner. Set down on the blue
-side at (-24, -44) facing the back wall, it drives a lap of the field around the
-middle — along the blue side, the back wall, the red side and the audience
-wall — and spins once where it started. Each of those is a **step** of its
-plan, which builds its path from wherever Nugget believes it is when the step
-begins, so no leg inherits where the one before meant to finish. It ticks its
-localizer, then whatever action is being followed, then its plan, and it is
-done when its plan is, well within the autonomous period. In the simulator, set
-it down where its plan says it starts. Class: `RoadRunnerExample`.
-
-**Simulated Nugget** — Nugget as the simulator runs it: the same 18-inch
-rigid body Reginald is, on the same field, pushed by two motors rather than
-four. Each side's motor turns both of that side's simulated wheels, so the
-robot drives and turns and cannot strafe, nor slide out of a turn: a tank's
-wheels grip the floor sideways, as hard as the floor's traction allows, where
-Reginald's mecanum rollers let it slide and only its motors push it that way.
-The two motors are mounted
-mirror-image, the left one reversed: code that forgets to reverse it spins
-Nugget where it stands, as it would on the floor. A side is one motor, so both
-its wheels share that motor's **noise**, drawn as the front wheel's. It has no
-hopper, so it starts holding no balls, and nothing else of Reginald's: no
-intake, launcher, turntable, camera, dead wheels or IMU. Its motors are
-modelled as Reginald's, tuned the same, because nobody has measured Nugget's.
-Its drive powers are recorded left then right. Classes: `Drivebase`;
-`Drivebase.sideways`; `Sides`; `SimRobot`.
-
-**Drive encoders** — What Nugget knows of how it has moved: each drive motor
-counts how far its side has gone, in the ticks Reginald's motors are modelled
-in, and reports it as the SDK does, the way the motor turns. So a motor
-reversed to match its mounting counts ahead as its side goes ahead, and one
-that is not counts ahead as its side goes back. The sides turn as the
-simulator's own wheels do, each as far off the centre as Reginald's track says,
-and a hub reports their speed to the nearest twenty ticks a second, as it does
-a dead wheel's. Classes: `DriveEncoders` and `Encoder`, in the core.
-
 ## The robot gateway
 
 **Robot gateway** — The host process that lets teammates on the LAN reach
@@ -399,13 +312,8 @@ open exactly while a session of theirs is pending, so a login waiting to
 be decided is never hidden; folded shut, the row still carries the
 pending count.
 
-**Robot** — One of the team's robots: **Reginald** or **Nugget**. A login is
-for no robot: a teammate asks to join with a username alone
-(`POST /login?username=<name>`). Which robots the simulator knows, what each
-is called and what its lines are named is said once, in the **core**. Class:
-`TeamRobot`, in the core.
-
-**User** — A teammate on the LAN who has logged in with a username. Users
+**User** — A teammate on the LAN who has logged in with a username alone
+(`POST /login?username=<name>`); a login is for no robot. Users
 reach only the user listener. A user is their username, so one user is one
 row of the listing however many times they log in.
 
@@ -455,15 +363,14 @@ on the user's row: the user leaves the listing. Every session they have is
 forgotten, so their browsers are logged out and their relayed connections
 close. A user nobody knows is a 404.
 
-**Develop branch** — The permanent branch the team's work lands on:
-`develop` for Reginald and `nugget-develop` for Nugget. Teammates push to it
+**Develop branch** — The permanent branch the team's work lands on,
+`develop`. Teammates push to it
 from their own clones. Getting `develop` to `main` is CI's: a **run
 for develop** whose every step is green moves `main` to the commit it judged,
 unless `main` is already past it; a run that would move `main` past a change to
 a workflow file, as when its commits since `main` change one, holds `main` red
 instead, naming those files, until a maintainer pushes `main` to the judged
-commit by hand and re-runs the failed jobs. Anything that moves between the
-two robots' lines is the coach's job.
+commit by hand and re-runs the failed jobs.
 
 **Run for develop** — What CI does each time `develop` is pushed. Runs go one
 at a time: a push that arrives during a run waits, and a run still waiting
@@ -633,14 +540,11 @@ total. What is left outside it is the rigid-body engine and what reads and
 writes it. A project's own core is built with its simulator. Classes:
 `GatesTest`; `SimBuild`.
 
-**Drivebase** — How a robot's drive motors turn the four wheels of the rigid
-body the simulator pushes, said once per robot in the core. Reginald's is
-**mecanum**: a motor to each wheel, the back pair mounted mirror-image to the
-front. Nugget's is a **tank**: a motor to each side turning both of that side's
-wheels, the left mounted mirror-image to the right. A drivebase also names its
-motors, in the order their powers are recorded, and says which of the noise
-drawn per wheel each motor has. Classes: `Drivebase`; `TeamRobot.drivebase`;
-`Drivetrain`.
+**Drivebase** — How Reginald's drive motors turn the four wheels of the rigid
+body the simulator pushes, said once in the core: **mecanum**, a motor to each
+wheel, the back pair mounted mirror-image to the front. Its motors' powers are
+recorded `LF`, `RF`, `LB`, `RB`, and each motor has the noise drawn for its
+wheel. Classes: `Wheel`; `Drivetrain`.
 
 **Turned around** — Reginald's drivetrain, dead wheels and all, now faces the
 other way: what was its front is its back. Each drive motor's cable was moved
@@ -662,8 +566,7 @@ Classes: `DeadWheels`; `TheHubReportsAReversedMotorsCountNegatedTest`.
 
 **Bench** — The simulation core behind the **local simulator**'s page: the
 catalog, the runs so far, and the routes that start a run and follow it. One
-run at a time per bench. A bench is for one **robot**, so its Simulate tab
-lists and runs that robot's op modes and never the other's.
+run at a time per bench. Its Simulate tab lists and runs Reginald's op modes.
 Given a project it builds that project's robot and simulator before
 every run, and refuses a project with no simulator of its own, since the
 child would fall through to the server's; without one (the tests) it
@@ -799,10 +702,9 @@ in its build, in its child, and to the navigator — rather than quietly
 the server's. Method: `SimBuild.libraries()`.
 
 **Catalog** — The op modes the simulator can run, exactly as the robot
-controller lists them for one robot: every concrete op mode of that robot's
-own kind, under that robot's own package, that carries the
-`@Autonomous` or `@TeleOp` annotation — Reginald's `opmode.OpMode` under
-`reginald`, Nugget's `NuggetOpMode` under `nugget` — plus whatever a
+controller lists them: every concrete op mode of Reginald's own kind,
+`opmode.OpMode`, under its own package, `reginald`, that carries the
+`@Autonomous` or `@TeleOp` annotation, plus whatever a
 **registrar** (a
 static method annotated `@OpModeRegistrar`) registers, found by calling
 the registrar itself. The autos are registered that way: each `@Auto`
@@ -824,12 +726,10 @@ mode appears without a restart. Class: `SimCatalog`.
 built classes — the project's robot sources and its simulator, built
 together — and the libraries, nothing else. Every class identity is
 consistent, static state starts clean, and a hung op mode is a process
-that can be killed. It is told which **robot** it is with `--robot=nugget`, and
-is Reginald when it is told nothing, which is what every child was before
-there were two. It says its **protocol** first, builds that robot's catalog,
+that can be killed. It says its **protocol** first, builds the catalog,
 waits to be **placed**, then prints the run stream; the op mode's own output
-goes to stderr, after a line naming the robot the run is on, and which of its
-imperfect selves. Its standard
+goes to stderr, after a line naming which of the robot's imperfect selves
+the run is on. Its standard
 input is the driver station, one line at a time: the first places the
 robot and says which robot (its seed, or none for the exact robot), and
 until it comes Stop ends the run unstarted; when the input ends, the run ends stopped. Class: `SimChild`.
@@ -851,15 +751,12 @@ pose and refuses it by name, with the fix, otherwise. From version 4 the
 start line may carry the op mode's seed and the child runs the robot
 drawn from it; an older child runs the exact robot whatever it is told,
 so the bench lets it run when that is the op mode's robot and refuses it
-by name, with the fix, when a seed is set. From version 5 the child simulates
-whichever robot it is told; an older child simulates Reginald alone, so the
-bench runs Reginald on it and refuses Nugget by name, with the fix, which is
-to pull `nugget-develop` — or, when that is older too, for the coach to merge
-`develop` into it. From version 6 the start line may carry the **simulation
+by name, with the fix, when a seed is set. Version 5 named the robot a child
+simulated, when there were two; it is retired and its number is never used
+again, and a version 5 child is read as any other. From version 6 the start line may carry the **simulation
 constants** that were changed, and only those; an older child runs on the
 constants it was built with, so the bench lets it run when none were changed
-and refuses it by name, with the fix, when any were: pull the robot's develop
-branch. A tick's
+and refuses it by name, with the fix, when any were: pull `develop`. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Every one of those decisions —
@@ -887,10 +784,9 @@ protocol*, or *child exited with code N*. It starts from the op mode's
 **start pose**, on the op mode's **seed**, as they were when the run was
 started, and it is a **game** or **free play**. An **auto run** is done when
 its plan is, and in a game times out when the plan is not done within the
-autonomous period (30 s of simulated time). An op mode **runs a plan**, whichever
-robot's it is, by saying whether its plan is done and which step it is on, and
-the run records that step every loop; Reginald's autos do, and so does
-Nugget's **RoadRunner example**. A **TeleOp run** has no plan: it is
+autonomous period (30 s of simulated time). An op mode **runs a plan** by saying
+whether its plan is done and which step it is on, and the run records that step
+every loop; Reginald's autos do. A **TeleOp run** has no plan: it is
 driven from the controller until the driver presses Stop, or in a game is done
 when its **period** is over (2:00, a match's driver-controlled period). In free
 play neither kind has a limit. Either kind is *stopped* when the driver presses
@@ -938,9 +834,8 @@ pressed, tick by tick, and the keys go back to play/pause and stepping.
 
 **Tick** — One entry in a run's recording, one per op mode loop: the true
 pose, the plan's current step (empty for a TeleOp), the drive powers — one per
-drive motor, in the order the robot's **drivebase** names them, `LF`, `RF`,
-`LB`, `RB` on Reginald and `L`, `R` on Nugget, which is how the replay page
-labels them — the
+drive motor, in the order the **drivebase** names them, `LF`, `RF`, `LB`,
+`RB`, which is how the replay page labels them — the
 dashboard packets drawn that loop, where the balls are (each as x, y, z, or
 nothing for one held in the robot), how many balls the robot **holds**, how
 many each alliance has **scored**, and for a TeleOp what each gamepad read.

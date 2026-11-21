@@ -633,7 +633,7 @@ fails at the earliest layer that can name it.
 - `robot.json` gains **`internals`**: each part's numbers in its own frame
   (robot, feeder, rotor, ramp). Each entry is marked `measured`, from the
   CAD's exact faces in the 13 October snapshot, naming the part, or `assumed`,
-  inferred here, naming why. Nugget's file has none.
+  inferred here, naming why.
 - In the core, **`Internals`** holds the scoop, the plates, the cross rail,
   the roller, the feeder's plates, the fence, the rotor, the fin and the fixed
   piece, with the fin's half-round section. It refuses, naming the rule:
@@ -715,7 +715,6 @@ Tests first:
    - each to 0.01 mm where this plan gives two decimals.
 6. `SimChassisTest`:
    - Reginald's internals load.
-   - Nugget's file has none.
    - A refused part fails the load, naming the rule.
 7. Every existing test and golden trace passes unchanged, the Launch Sim's
    fingerprints among them.
@@ -879,8 +878,7 @@ from batch 3a, and the engine tells each drive the load it took.
   roller's speed, and the flywheel's `AngularSpeed`. It refuses a value that
   is not finite, or a rotor that turns more than a quarter turn in a step,
   naming the rule. `SimRobot` steps `Flight` every substep (at most 5 ms), so
-  a quarter turn is far above any real step. Nugget, with no launcher and no
-  internals, passes none, as in stage 4. (Stage 2's test part is already
+  a quarter turn is far above any real step. (Stage 2's test part is already
   called `Carried`, so this value is not.)
 - **What comes back.** `Flight.step`'s `Stepped` gains, beside the landings,
   each moving part's torque about its axis over the step (the sum over its
@@ -1176,7 +1174,6 @@ Then implement, and update `doc/CONTEXT.md`:
   robot group, turned by the tick's angles. Held balls are drawn where they
   are. Each ball has a mark, so its turning shows.
 - **Flat drawing:** held balls are drawn inside the robot's outline.
-- Nugget has no internals and draws none.
 
 Tests first:
 
@@ -1194,7 +1191,6 @@ Tests first:
    - A tick with none of the new fields replays.
 4. `check.mjs`:
    - More than 20 balls are still drawn.
-   - A Nugget run draws no internals.
 5. `cost.mjs`: the budget includes the internals, at no more draws than they
    have materials. `scene-budget.json` is regenerated.
 6. The stream of a 150 s game is measured and recorded; it grows by no more

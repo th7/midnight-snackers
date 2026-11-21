@@ -1,8 +1,8 @@
 # Reginald: the simulated robot takes the shape of the CAD
 
 Today the simulator has no robot shape. It has one number, 18 inches, and
-uses it as each robot's length, width and height: Reginald and Nugget are
-the same 18-inch body. The cube is built again by `Chassis.SIZE_IN`, by
+uses it as the robot's length, width and height: Reginald is an 18-inch
+body. The cube is built again by `Chassis.SIZE_IN`, by
 `Placement.corners`, by the `SimRobot` rectangle (`SimPlacement.ROBOT_SIZE_IN`),
 by the replay page (`robotFaces`, `insideTheWalls`, `under`), by
 `fieldscene.js` `#robotOf` (which falls back to 18), by `model.mjs`, by the
@@ -18,7 +18,7 @@ Onshape document *FTC 2026*
 The document is not finished. This plan says what the CAD gives us, what the
 team decided where the CAD is unfinished or wrong, what we still infer, and
 the batches that turn the cube into Reginald. Each batch lists its tests
-first. Nugget has no CAD and keeps the 18-inch cube throughout.
+first.
 
 ---
 
@@ -110,12 +110,11 @@ No batch waits on these. Each makes the next update cheaper:
 
 ---
 
-## Batch 1 · each robot has a shape, not a size
+## Batch 1 · the robot has a shape, not a size
 
-This is a refactor, and nothing moves. Each robot's shape becomes a validated
-value in the core. It is read from a committed file beside `field.json`:
-`robot.json` for Reginald and `robot-nugget.json` for Nugget, named by
-`TeamRobot.ownName`. Both start as today's 18-in cube, so every existing test
+This is a refactor, and nothing moves. The robot's shape becomes a validated
+value in the core. It is read from a committed file beside `field.json`,
+`robot.json`. It starts as today's 18-in cube, so every existing test
 and every golden trace passes unchanged. That unchanged result proves the
 seam is right before any number changes.
 
@@ -124,7 +123,7 @@ In the core:
   strictly contains the origin. Any other ring is refused, naming the rule.
 - **`Chassis`** becomes a robot's shape: footprint, **height**, and
   **intake**. The intake is either a **mouth** (half-width and reach on the
-  front edge) or none, since Nugget has no intake. A mouth wider than the
+  front edge) or none. A mouth wider than the
   footprint's front is refused.
 - `Chassis.againstTheFront` asks the mouth instead of `SIZE_IN / 2`.
 - `Placement` takes the `Chassis`:
@@ -178,13 +177,12 @@ Tests first:
    - An asymmetric footprint turning in place keeps its pose's position,
      because the mass is at the origin.
    - Driven into a wall, its front-most point stops at the wall.
-   - Nugget runs on its own file.
-6. `SimFieldTest`: `field.json` has obstacle footprints for every robot's
+6. `SimFieldTest`: `field.json` has obstacle footprints for the robot's
    height. A missing height fails, naming the height and the command that
    regenerates the file.
 7. `test_step_to_field.py`:
-   - The heights come from the robot files.
-   - An obstacle that widens above a robot's height is cut at that height.
+   - The height comes from the robot file.
+   - An obstacle that widens above the robot's height is cut at that height.
 8. `SimReplayPageTest`: every placeholder is filled, and the page carries the
    run's robot's shape.
 9. `tools/browser/replay.mjs`:
@@ -196,7 +194,7 @@ Tests first:
 Then implement, and update `doc/CONTEXT.md`:
 - new entries: **Chassis** (a robot's shape), **Footprint**, **Intake mouth**,
   **Robot frame**
-- entries that say "18-inch": **Simulated robot**, **Simulated Nugget**,
+- entries that say "18-inch": **Simulated robot**,
   **Placement**, **Flat drawing**, **Field**
 
 ## Batch 2 · Reginald comes from Onshape
@@ -290,9 +288,9 @@ Then implement, and update `doc/CONTEXT.md`:
 
 This batch commits the reduction's `robot.json`. Reginald becomes about
 16.8 × 14.8 in and 10.26 in tall, with an 8.63 in intake mouth at the roller.
-The launch is still today's. Nugget's file stays the cube.
+The launch is still today's.
 
-Tests first. Each reads its numbers from the committed robot files, not from
+Tests first. Each reads its numbers from the committed robot file, not from
 literals.
 
 1. `SimRobotTest`:
@@ -303,20 +301,17 @@ literals.
    - The height is Reginald's, so `Reaches` filters by it.
 2. `SimPlacementTest`: placed beyond a wall at 30°, Reginald lands touching
    it with his own furthest point.
-3. `field.json` is regenerated with footprints cut at 10.26 in and at 18 in,
-   and `SimFieldTest` and `test_step_to_field.py` pass. Reginald no longer
-   meets an obstacle that clears his height. Nugget meets exactly what it
-   met before.
-4. Golden traces:
-   - Nugget's pass unchanged.
-   - Reginald's: run them, read the diffs, then regenerate. Expect the drive
-     traces to differ where the robot touches something or where the inertia
-     changed, and nowhere before that.
+3. `field.json` is regenerated with footprints cut at 10.26 in, and
+   `SimFieldTest` and `test_step_to_field.py` pass. Reginald no longer
+   meets an obstacle that clears his height.
+4. Golden traces: run them, read the diffs, then regenerate. Expect the drive
+   traces to differ where the robot touches something or where the inertia
+   changed, and nowhere before that.
 5. `tools/browser/scene-budget.json` is regenerated for the new footprint
    prism.
 
 Then implement, and update `doc/CONTEXT.md`: **Simulated robot** gives
-Reginald's size, and **Field** gives the heights its obstacles are cut at.
+Reginald's size, and **Field** gives the height its obstacles are cut at.
 
 ## Batch 4 · Reginald is drawn as Reginald
 
@@ -332,8 +327,6 @@ Reginald's size, and **Field** gives the heights its obstacles are cut at.
 - The webcam view still hides the robot.
 - A page that cannot fetch `robot.glb` draws the prism and says on the page
   that it fell back, as the field does.
-- Nugget has no model, and is drawn as its prism with no fall-back notice,
-  because nothing failed.
 
 Tests first:
 
@@ -344,7 +337,6 @@ Tests first:
      here.
    - At heading 0 and at heading 90° the model's front points along +x and
      +y respectively.
-   - A Nugget run draws Nugget's prism and no notice.
 2. `replay.mjs`: the flat drawing puts the front colour at the roller's edge.
 3. `check.mjs`: when `robot.glb` returns 404, the page draws the prism and
    says it fell back.

@@ -45,8 +45,8 @@ class ReadingTheSubset(unittest.TestCase):
         self.assertEqual({'run': 'one\ntwo'}, parse(lines('run: |-', '  one', '  two')))
 
     def test_a_flow_sequence_of_scalars_is_a_list(self):
-        self.assertEqual({'branches': ['develop', 'nugget-develop']},
-                         parse(lines('branches: [develop, nugget-develop]')))
+        self.assertEqual({'branches': ['develop', 'main']},
+                         parse(lines('branches: [develop, main]')))
 
     def test_an_empty_flow_mapping_is_an_empty_dict(self):
         self.assertEqual({'permissions': {}}, parse(lines('permissions: {}')))
