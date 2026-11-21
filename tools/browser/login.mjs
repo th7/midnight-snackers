@@ -16,15 +16,15 @@ function serve() {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url, 'http://x');
     if (request.method === 'POST' && url.pathname === '/login') {
-      const asked = { username: url.searchParams.get('username'), robot: url.searchParams.get('robot') };
+      const asked = Object.fromEntries(url.searchParams);
       LOGINS_ASKED.push(asked);
-      answer(response, { state: 'pending', username: asked.username, robot: asked.robot });
+      answer(response, { state: 'pending', username: asked.username });
       return;
     }
     if (url.pathname === '/me') {
       const last = LOGINS_ASKED[LOGINS_ASKED.length - 1];
       const state = approved ? 'approved' : 'pending';
-      answer(response, last ? { state, username: last.username, robot: last.robot } : { state: 'none' });
+      answer(response, last ? { state, username: last.username } : { state: 'none' });
       return;
     }
     if (url.pathname === '/relay' && approved) {
@@ -59,23 +59,22 @@ async function main() {
     page.on('pageerror', (e) => threw.push(String((e && e.message) || e)));
     await page.goto(base + '/', { waitUntil: 'load', timeout: 60_000 });
 
-    for (const name of ['Reginald', 'Nugget']) {
-      check(await page.getByLabel(name, { exact: true }).isVisible(), `the login page offers no ${name}`);
-    }
-    await page.fill('#username', 'mia');
+    const asked = await page.locator('#login input:visible').evaluateAll((all) => all.map((one) => one.id));
+    check(JSON.stringify(asked) === JSON.stringify(['username']),
+        `the login page asks for ${JSON.stringify(asked)} rather than a username alone`);
     await page.click('#login button[type="submit"]');
     check(!(await page.evaluate(() => document.getElementById('login').checkValidity())),
-        'the form would go without a robot picked');
+        'the form would go without a username');
     check(LOGINS_ASKED.length === 0,
-        `a login went without a robot picked: ${JSON.stringify(LOGINS_ASKED)}`);
+        `a login went without a username: ${JSON.stringify(LOGINS_ASKED)}`);
 
-    await page.getByLabel('Nugget', { exact: true }).check();
+    await page.fill('#username', 'mia');
     await page.click('#login button[type="submit"]');
     await page.waitForFunction(() => !document.getElementById('waiting').hidden, null, { timeout: 10_000 })
         .catch(() => {});
-    check(await page.locator('#waiting').isVisible(), 'asking to join with a robot picked did not wait for the admin');
-    check(JSON.stringify(LOGINS_ASKED) === JSON.stringify([{ username: 'mia', robot: 'nugget' }]),
-        `the login asked for ${JSON.stringify(LOGINS_ASKED)} rather than mia on nugget`);
+    check(await page.locator('#waiting').isVisible(), 'asking to join with a username did not wait for the admin');
+    check(JSON.stringify(LOGINS_ASKED) === JSON.stringify([{ username: 'mia' }]),
+        `the login asked for ${JSON.stringify(LOGINS_ASKED)} rather than mia and nothing else`);
 
     approved = true;
     await page.waitForFunction(() => !document.getElementById('ready').hidden, null, { timeout: 10_000 })
@@ -102,7 +101,7 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('the login page will not ask to join until a robot is picked, asks for the one that was, and once '
+  console.log('the login page asks for a username and nothing else, will not ask to join without one, and once '
       + 'the admin approves shows the adb connect line and nothing else to do.');
 }
 

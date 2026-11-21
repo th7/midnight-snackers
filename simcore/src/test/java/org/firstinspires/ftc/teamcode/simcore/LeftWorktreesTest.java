@@ -16,13 +16,12 @@ public class LeftWorktreesTest {
         assertEquals(
                 List.of(
                         "  trees  /state/worktrees/midnight-snackers-1a2b3c4d",
-                        "  trees  /state/worktrees/midnight-snackers-1a2b3c4d-nugget",
+                        "  trees  /state/worktrees/midnight-snackers-5e6f7a8b",
                         "         left by the coding server: the robot gateway no longer manages them and never"
                                 + " changes or deletes them;",
-                        "         to rescue work nobody pushed, push the branch checked out in one (coding/<name>,"
-                                + " or nugget/<name> for Nugget) with git by hand"),
+                        "         to rescue work nobody pushed, push the branch checked out in one with git by hand"
+                                + " (git -C <tree> branch --show-current names it)"),
                 LeftWorktrees.notice(List.of(
-                        "/state/worktrees/midnight-snackers-1a2b3c4d",
-                        "/state/worktrees/midnight-snackers-1a2b3c4d-nugget")));
+                        "/state/worktrees/midnight-snackers-1a2b3c4d", "/state/worktrees/midnight-snackers-5e6f7a8b")));
     }
 }

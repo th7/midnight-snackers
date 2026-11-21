@@ -9,16 +9,16 @@ const USERS = {
       username: 'ada',
       relayed: true,
       sessions: [
-        { id: 1, robot: 'reginald', address: '10.0.0.5', state: 'approved', ageSeconds: 5 },
-        { id: 2, robot: 'nugget', address: '10.0.0.6', state: 'approved', ageSeconds: 9 }
+        { id: 1, address: '10.0.0.5', state: 'approved', ageSeconds: 5 },
+        { id: 2, address: '10.0.0.6', state: 'approved', ageSeconds: 9 }
       ]
     },
     {
       username: 'bob',
       relayed: false,
       sessions: [
-        { id: 3, robot: 'reginald', address: '10.0.0.7', state: 'approved', ageSeconds: 20 },
-        { id: 4, robot: 'nugget', address: '10.0.0.7', state: 'pending', ageSeconds: 2 }
+        { id: 3, address: '10.0.0.7', state: 'approved', ageSeconds: 20 },
+        { id: 4, address: '10.0.0.7', state: 'pending', ageSeconds: 2 }
       ]
     }
   ],
@@ -106,12 +106,14 @@ async function main() {
         'the admin page does not say what teammates open');
 
     const bobsLogins = await bob.locator('.sessions .row').allInnerTexts();
-    check(bobsLogins.length === 2 && bobsLogins[0].includes('Reginald') && bobsLogins[1].includes('Nugget'),
-        `bob's logins do not say which robot each is on: ${JSON.stringify(bobsLogins)}`);
+    check(bobsLogins.length === 2 && bobsLogins.every((login) => login.includes('10.0.0.7')),
+        `bob's logins do not say where each came from: ${JSON.stringify(bobsLogins)}`);
+    const heads = [...rows, ...bobsLogins].join('\n');
+    check(!/robot|reginald|for /i.test(heads), `the admin page names a robot for a user or a login: ${heads}`);
 
     const [approving] = await Promise.all([
       page.waitForRequest((request) => request.url().includes('/admin/logins/'), { timeout: 10_000 }),
-      bob.locator('.sessions .row').filter({ hasText: 'Nugget' }).getByRole('button', { name: 'Approve' }).click()
+      bob.locator('.sessions .row').filter({ hasText: 'login 4' }).getByRole('button', { name: 'Approve' }).click()
     ]);
     check(new URL(approving.url()).pathname === '/admin/logins/4/approve',
         `approving bob's login asked ${new URL(approving.url()).pathname}`);
@@ -151,7 +153,7 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('the admin page lists each user\'s logins and the robot each is for, approves a login, deletes a '
+  console.log('the admin page lists each user\'s logins and where each came from, and no robot, approves a login, deletes a '
       + 'user, says whose adb connection is relayed, whether the hub could be reached and what teammates open, '
       + 'builds the field models at the resolution picked, and asks for nothing the gateway no longer serves.');
 }

@@ -4,7 +4,6 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -34,7 +33,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.bouncycastle.crypto.generators.SCrypt;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -158,15 +156,14 @@ public class RobotGatewayTest {
 
     @Test
     public void loggingInCreatesAPendingSessionTheAdminCanSee() throws IOException {
-        Reply login = user("POST", "/login?robot=reginald&username=ada", null);
+        Reply login = user("POST", "/login?username=ada", null);
 
         assertEquals(200, login.status);
         String cookie = login.sessionCookie();
         assertNotNull(login.header("Set-Cookie"), cookie);
         assertTrue(login.header("Set-Cookie"), login.header("Set-Cookie").contains("HttpOnly"));
         assertTrue(login.header("Set-Cookie"), login.header("Set-Cookie").contains("SameSite=Strict"));
-        assertEquals(
-                "{\"state\":\"pending\",\"username\":\"ada\",\"robot\":\"reginald\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"pending\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
         String logins = admin("GET", "/admin/users").body;
         assertTrue(logins, logins.contains("\"username\":\"ada\""));
         assertTrue(logins, logins.contains("\"state\":\"pending\""));
@@ -177,7 +174,7 @@ public class RobotGatewayTest {
     @Test
     public void theAdminListingGathersEachUsersLoginsUnderThem() throws IOException {
         login("ada");
-        login("ada", TeamRobot.NUGGET);
+        login("ada");
         admin("POST", "/admin/logins/" + idOf("ada") + "/approve");
         login("bob");
         admin("POST", "/admin/logins/" + idOf("bob") + "/deny");
@@ -196,9 +193,8 @@ public class RobotGatewayTest {
         assertTrue(
                 logins.toString(), older.get("id").getAsInt() < newer.get("id").getAsInt());
         assertEquals("pending", older.get("state").getAsString());
-        assertEquals("reginald", older.get("robot").getAsString());
         assertEquals("approved", newer.get("state").getAsString());
-        assertEquals("nugget", newer.get("robot").getAsString());
+        assertFalse("a login is for no robot", older.has("robot") || newer.has("robot"));
         assertEquals(1, bob.getAsJsonArray("sessions").size());
         assertEquals("denied", newestSessionOf("bob").get("state").getAsString());
     }
@@ -210,9 +206,7 @@ public class RobotGatewayTest {
 
         assertEquals(200, admin("POST", "/admin/logins/" + idOf("ada") + "/approve").status);
 
-        assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\"}",
-                user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
         String page = user("GET", "/", cookie).body;
         assertEquals("one page, which shows what the session's state calls for", waiting, page);
         assertTrue(page, page.contains("'/relay'"));
@@ -264,41 +258,27 @@ public class RobotGatewayTest {
     }
 
     @Test
-    public void aLoginMustSayWhichRobotItIsFor() throws IOException {
-        Reply none = user("POST", "/login?username=ada", null);
-        Reply wrong = user("POST", "/login?robot=bender&username=ada", null);
+    public void aLoginIsAUsernameAloneAndARobotItNamesIsNotHeard() throws IOException {
+        Reply login = user("POST", "/login?username=ada&robot=nugget", null);
 
-        assertEquals(400, none.status);
-        assertTrue(none.body, none.body.contains("reginald") && none.body.contains("nugget"));
-        assertEquals(400, wrong.status);
-        assertTrue(wrong.body, wrong.body.contains("bender"));
-        assertNull("a login that did not say is no session", none.sessionCookie());
-        assertEquals(
-                "[]",
-                json(admin("GET", "/admin/users").body).getAsJsonArray("users").toString());
+        assertEquals(200, login.status);
+        assertEquals("{\"state\":\"pending\",\"username\":\"ada\"}", login.body);
+        assertEquals("{\"state\":\"pending\",\"username\":\"ada\"}", user("GET", "/me", login.sessionCookie()).body);
+        assertFalse(storedSession("ada").has("robot"));
     }
 
     @Test
-    public void theLoginPageAsksWhichRobotAndChoosesNoneForYou() throws IOException {
+    public void theLoginPageAsksForAUsernameAndNothingElse() throws IOException {
         String page = user("GET", "/", null).body;
 
-        Matcher inputs = Pattern.compile("<input[^>]*name=\"robot\"[^>]*>").matcher(page);
-        List<String> offered = new ArrayList<>();
+        Matcher inputs = Pattern.compile("<input[^>]*>").matcher(page);
+        List<String> asked = new ArrayList<>();
         while (inputs.find()) {
-            String input = inputs.group();
-            assertFalse("nobody is put on a robot they did not pick: " + input, input.contains("checked"));
-            assertTrue(input, input.contains("required"));
-            Matcher value = Pattern.compile("value=\"([^\"]*)\"").matcher(input);
-            assertTrue(input, value.find());
-            offered.add(value.group(1));
+            asked.add(inputs.group());
         }
-        List<String> robots = new ArrayList<>();
-        for (TeamRobot robot : TeamRobot.values()) {
-            robots.add(robot.asked());
-            assertTrue(page, page.contains(">" + robot.displayName() + "<"));
-        }
-        assertEquals(robots, offered);
-        assertTrue("what was picked is what is asked for", page.contains("'&robot='"));
+        assertEquals(asked.toString(), 1, asked.size());
+        assertTrue(asked.get(0), asked.get(0).contains("id=\"username\""));
+        assertFalse(page, page.contains("robot="));
     }
 
     @Test
@@ -307,9 +287,7 @@ public class RobotGatewayTest {
 
         admin("POST", "/admin/logins/" + idOf("mallory") + "/deny");
 
-        assertEquals(
-                "{\"state\":\"denied\",\"username\":\"mallory\",\"robot\":\"reginald\"}",
-                user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"denied\",\"username\":\"mallory\"}", user("GET", "/me", cookie).body);
         assertEquals(403, user("GET", "/relay", cookie).status);
     }
 
@@ -321,8 +299,7 @@ public class RobotGatewayTest {
         admin("POST", "/admin/logins/" + idOf("ada") + "/revoke");
 
         assertEquals(403, user("GET", "/relay", cookie).status);
-        assertEquals(
-                "{\"state\":\"revoked\",\"username\":\"ada\",\"robot\":\"reginald\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"revoked\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -346,20 +323,20 @@ public class RobotGatewayTest {
     @Test
     public void tooManyPendingLoginsAreRefused() throws IOException {
         for (int i = 0; i < RobotGateway.MAX_PENDING_LOGINS; i++) {
-            assertEquals(200, user("POST", "/login?robot=reginald&username=user" + i, null).status);
+            assertEquals(200, user("POST", "/login?username=user" + i, null).status);
         }
 
-        assertEquals(429, user("POST", "/login?robot=reginald&username=onemore", null).status);
+        assertEquals(429, user("POST", "/login?username=onemore", null).status);
     }
 
     @Test
     public void usernamesAreCheckedBeforeASessionExists() throws IOException {
-        assertEquals(400, user("POST", "/login?robot=reginald&username=", null).status);
+        assertEquals(400, user("POST", "/login?username=", null).status);
         assertEquals(400, user("POST", "/login", null).status);
-        assertEquals(400, user("POST", "/login?robot=reginald&username=" + "a".repeat(33), null).status);
-        assertEquals(400, user("POST", "/login?robot=reginald&username=tab%09here", null).status);
-        assertEquals(405, user("GET", "/login?robot=reginald&username=ada", null).status);
-        assertEquals(200, user("POST", "/login?robot=reginald&username=" + "a".repeat(32), null).status);
+        assertEquals(400, user("POST", "/login?username=" + "a".repeat(33), null).status);
+        assertEquals(400, user("POST", "/login?username=tab%09here", null).status);
+        assertEquals(405, user("GET", "/login?username=ada", null).status);
+        assertEquals(200, user("POST", "/login?username=" + "a".repeat(32), null).status);
         assertTrue(admin("GET", "/admin/users").body.contains("\"username\":\"" + "a".repeat(32) + "\""));
     }
 
@@ -549,9 +526,7 @@ public class RobotGatewayTest {
 
         restart();
 
-        assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\"}",
-                user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
         assertEquals(id, idOf("ada"));
         assertEquals(200, user("GET", "/relay", cookie).status);
     }
@@ -562,15 +537,12 @@ public class RobotGatewayTest {
 
         restart();
 
-        assertEquals(
-                "{\"state\":\"pending\",\"username\":\"bob\",\"robot\":\"reginald\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"pending\",\"username\":\"bob\"}", user("GET", "/me", cookie).body);
         JsonObject session = newestSessionOf("bob");
         assertEquals("pending", session.get("state").getAsString());
         assertEquals("127.0.0.1", session.get("address").getAsString());
         admin("POST", "/admin/logins/" + idOf("bob") + "/approve");
-        assertEquals(
-                "{\"state\":\"approved\",\"username\":\"bob\",\"robot\":\"reginald\"}",
-                user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"bob\"}", user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -580,8 +552,7 @@ public class RobotGatewayTest {
 
         restart();
 
-        assertEquals(
-                "{\"state\":\"revoked\",\"username\":\"ada\",\"robot\":\"reginald\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"revoked\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
         assertEquals(403, user("GET", "/relay", cookie).status);
     }
 
@@ -634,15 +605,14 @@ public class RobotGatewayTest {
                 settings);
         String cookie = "session=7." + SECRET_THE_CODING_SERVER_HANDED_OUT;
 
-        assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"nugget\"}", user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
         assertEquals(200, user("GET", "/relay", cookie).status);
-        assertEquals(
-                "a login stored before there were two robots is Reginald's",
-                "reginald",
-                newestSessionOf("bob").get("robot").getAsString());
+        assertEquals("pending", newestSessionOf("bob").get("state").getAsString());
         login("cy");
         assertEquals("9", idOf("cy"));
+        assertFalse(
+                "the robot a login was once for is read, dropped on the next write and never written again",
+                readString(sessionsFile()).contains("\"robot\""));
         assertEquals(users, readString(stateDir().resolve("users.json")));
         assertEquals(settings, readString(stateDir().resolve("settings.json")));
     }
@@ -701,9 +671,7 @@ public class RobotGatewayTest {
         restart();
         assertEquals("{\"state\":\"none\"}", user("GET", "/me", forged).body);
         assertEquals(403, user("GET", "/relay", forged).status);
-        assertEquals(
-                "{\"state\":\"approved\",\"username\":\"ada\",\"robot\":\"reginald\"}",
-                user("GET", "/me", cookie).body);
+        assertEquals("{\"state\":\"approved\",\"username\":\"ada\"}", user("GET", "/me", cookie).body);
     }
 
     @Test
@@ -785,7 +753,7 @@ public class RobotGatewayTest {
     @Test
     public void deletingAUserEndsEveryOneOfTheirLogins() throws IOException {
         String cookie = approvedUser("ada");
-        String second = login("ada", TeamRobot.NUGGET);
+        String second = login("ada");
         approvedUser("bob");
 
         Reply deleted = admin("POST", "/admin/users/delete?username=ada");
@@ -1100,21 +1068,13 @@ public class RobotGatewayTest {
     }
 
     private String approvedUser(String name) throws IOException {
-        return approvedUser(name, TeamRobot.REGINALD);
-    }
-
-    private String approvedUser(String name, TeamRobot robot) throws IOException {
-        String cookie = login(name, robot);
+        String cookie = login(name);
         assertEquals(200, admin("POST", "/admin/logins/" + idOf(name) + "/approve").status);
         return cookie;
     }
 
     private String login(String username) throws IOException {
-        return login(username, TeamRobot.REGINALD);
-    }
-
-    private String login(String username, TeamRobot robot) throws IOException {
-        Reply login = user("POST", "/login?robot=" + robot.asked() + "&username=" + username, null);
+        Reply login = user("POST", "/login?username=" + username, null);
         assertEquals(200, login.status);
         return login.sessionCookie();
     }

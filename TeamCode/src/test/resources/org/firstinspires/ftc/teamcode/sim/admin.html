@@ -200,12 +200,6 @@
   var usersEl = document.getElementById('users');
   var urlsEl = document.getElementById('urls');
   var relayEl = document.getElementById('relay');
-  var robotNames = { reginald: 'Reginald', nugget: 'Nugget' };
-
-  function robotName(robot) {
-    return robotNames[robot] || robot;
-  }
-
   function keyOf(user) {
     return user.username;
   }
@@ -297,15 +291,12 @@
   }
 
   function metaOf(user) {
-    var robots = [];
-    user.sessions.forEach(function (session) {
-      if (session.state === 'approved' && robots.indexOf(robotName(session.robot)) < 0) { robots.push(robotName(session.robot)); }
-    });
-    return (robots.length ? 'in, for ' + robots.join(' and ') : 'not in') + ' · ' + plural(user.sessions.length, 'login', 'logins');
+    var approved = user.sessions.some(function (session) { return session.state === 'approved'; });
+    return (approved ? 'in' : 'not in') + ' · ' + plural(user.sessions.length, 'login', 'logins');
   }
 
   function renderSession(user, session) {
-    var meta = 'for ' + robotName(session.robot) + ' · ' + session.address + ' · ' + age(session.ageSeconds);
+    var meta = session.address + ' · ' + age(session.ageSeconds);
     var el = row('session ' + session.state, 'login ' + session.id, meta);
     var actions = el.querySelector('.actions');
     actions.appendChild(pill(stateClass[session.state], session.state));

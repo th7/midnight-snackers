@@ -387,8 +387,8 @@ models**. There is no admin login; being on the machine is the credential.
 **User listing** — `GET /admin/users` and the roster it draws on the admin
 page: every user with a session, in the order they first logged in, one row
 to a name, each with the **sessions** they have made, oldest first, each
-saying which robot it is for, whether a connection relayed for them is open
-(**relayed**), and a Delete button. Under `relay` it gives the relay's port,
+saying where it came from and its state, whether a connection relayed for
+them is open (**relayed**), and a Delete button. Under `relay` it gives the relay's port,
 the hub, the **hub state** and the line approved teammates run. Logging in
 again adds a session to the user, never a second row; a **delete** takes the
 row away.
@@ -399,12 +399,11 @@ open exactly while a session of theirs is pending, so a login waiting to
 be decided is never hidden; folded shut, the row still carries the
 pending count.
 
-**Robot** — One of the team's robots: **Reginald** or **Nugget**. A teammate
-picks one when they ask to join (`POST /login?username=<name>&robot=reginald`
-or `robot=nugget`), and a login that names none is refused before any session
-exists; a login stored before there were two robots is Reginald's. Which
-robots there are, what each is called and what its lines are named is said
-once, in the **core**. Class: `TeamRobot`, in the core.
+**Robot** — One of the team's robots: **Reginald** or **Nugget**. A login is
+for no robot: a teammate asks to join with a username alone
+(`POST /login?username=<name>`). Which robots the simulator knows, what each
+is called and what its lines are named is said once, in the **core**. Class:
+`TeamRobot`, in the core.
 
 **User** — A teammate on the LAN who has logged in with a username. Users
 reach only the user listener. A user is their username, so one user is one
@@ -580,11 +579,13 @@ Files: `.github/workflows/tests.yml`; `tools/ci/develop_run.py`;
 
 
 **State directory** — Where the robot gateway keeps what outlives the
-process: `sessions.json` (each login, with the robot it is for) and the
+process: `sessions.json` (each login) and the
 **field models** it fetched. It is where the coding server kept its state and
 stays there, so the logins the coding server approved stay approved; the
 `users.json`, `settings.json`, `editable.json` and `worktrees.json` it left
-are no longer read and are left as they are. It follows the XDG Base
+are no longer read and are left as they are. The robot a session was once for,
+its retired `robot` field, is read past and dropped the next time the
+sessions are written, and that name is never written again. It follows the XDG Base
 Directory convention: `$XDG_STATE_HOME/midnight-snackers/coding-server`, else
 `~/.local/state/midnight-snackers/coding-server`. Owner-only. Session secrets
 are stored there only as salted scrypt hashes. A store that exists but cannot

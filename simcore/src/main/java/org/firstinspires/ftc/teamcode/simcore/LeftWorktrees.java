@@ -17,8 +17,8 @@ public final class LeftWorktrees {
         }
         lines.add("         left by the coding server: the robot gateway no longer manages them and never changes or"
                 + " deletes them;");
-        lines.add("         to rescue work nobody pushed, push the branch checked out in one (coding/<name>, or"
-                + " nugget/<name> for Nugget) with git by hand");
+        lines.add("         to rescue work nobody pushed, push the branch checked out in one with git by hand"
+                + " (git -C <tree> branch --show-current names it)");
         return Collections.unmodifiableList(lines);
     }
 }

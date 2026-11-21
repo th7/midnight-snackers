@@ -26,19 +26,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.bouncycastle.crypto.generators.SCrypt;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.GatewayPorts;
 import org.firstinspires.ftc.teamcode.simcore.HubState;
 import org.firstinspires.ftc.teamcode.simcore.LeftWorktrees;
 import org.firstinspires.ftc.teamcode.simcore.Peer;
 import org.firstinspires.ftc.teamcode.simcore.RelayAdmission;
-import org.firstinspires.ftc.teamcode.simcore.TeamRobot;
 
 public final class RobotGateway {
     public static final int MAX_PENDING_LOGINS = 20;
@@ -68,7 +65,6 @@ public final class RobotGateway {
     private static final class Session {
         final int id;
         final String username;
-        final TeamRobot robot;
         final InetAddress address;
         final long createdAtMillis;
         final Secret secret;
@@ -76,17 +72,9 @@ public final class RobotGateway {
 
         String token;
 
-        Session(
-                int id,
-                String username,
-                TeamRobot robot,
-                InetAddress address,
-                long createdAtMillis,
-                Secret secret,
-                State state) {
+        Session(int id, String username, InetAddress address, long createdAtMillis, Secret secret, State state) {
             this.id = id;
             this.username = username;
-            this.robot = robot;
             this.address = address;
             this.createdAtMillis = createdAtMillis;
             this.secret = secret;
@@ -101,7 +89,6 @@ public final class RobotGateway {
             JsonObject item = new JsonObject();
             item.addProperty("id", id);
             item.addProperty("username", username);
-            item.addProperty("robot", robot.asked());
             item.addProperty("address", addressSaid());
             item.addProperty("state", state.name().toLowerCase(Locale.ROOT));
             item.addProperty("createdAtMillis", createdAtMillis);
@@ -119,15 +106,9 @@ public final class RobotGateway {
                     throw new IllegalStateException("not an address: " + address);
                 }
             }
-            TeamRobot robot = TeamRobot.stored(
-                            Optional.ofNullable(item.get("robot")).map(JsonElement::getAsString))
-                    .fold(found -> found, rule -> {
-                        throw new IllegalStateException(rule);
-                    });
             return new Session(
                     item.get("id").getAsInt(),
                     item.get("username").getAsString(),
-                    robot,
                     parsed,
                     item.get("createdAtMillis").getAsLong(),
                     Secret.fromJson(item.getAsJsonObject("secret")),
@@ -434,11 +415,6 @@ public final class RobotGateway {
         if (username.isEmpty() || username.length() > MAX_USERNAME_LENGTH || !printable(username)) {
             return Response.error(400, "username must be 1 to " + MAX_USERNAME_LENGTH + " printable characters");
         }
-        String robotAsked = request.query("robot");
-        Checked<TeamRobot> asked = TeamRobot.named(robotAsked == null ? "" : robotAsked);
-        if (!(asked instanceof Checked.Ok<TeamRobot> chosen)) {
-            return Response.error(400, "choose your robot: " + asked.fold(accepted -> "", rule -> rule));
-        }
         Session session;
         synchronized (this) {
             if (pendingCount() >= MAX_PENDING_LOGINS) {
@@ -451,7 +427,6 @@ public final class RobotGateway {
             session = new Session(
                     id,
                     username,
-                    chosen.value(),
                     request.remoteAddress,
                     System.currentTimeMillis(),
                     Secret.of(secret, random, scryptN),
@@ -481,7 +456,6 @@ public final class RobotGateway {
         }
         body.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
         body.addProperty("username", session.username);
-        body.addProperty("robot", session.robot.asked());
         return body;
     }
 
@@ -673,7 +647,6 @@ public final class RobotGateway {
             }
             JsonObject login = new JsonObject();
             login.addProperty("id", session.id);
-            login.addProperty("robot", session.robot.asked());
             login.addProperty("address", session.addressSaid());
             login.addProperty("state", session.state.name().toLowerCase(Locale.ROOT));
             login.addProperty("ageSeconds", (now - session.createdAtMillis) / 1000);
