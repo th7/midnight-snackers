@@ -45,7 +45,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
         if (driverStationTelemetry == null) {
             driverStationTelemetry = telemetry;
         }
-        telemetry = new MultipleTelemetry(driverStationTelemetry, hardware.dashboard.telemetry());
+        telemetry = new MultipleTelemetry(driverStationTelemetry, hardware.dashboard().telemetry());
         robot = new Robot(hardware, alliance, telemetry, gamepad1, gamepad2);
     }
 

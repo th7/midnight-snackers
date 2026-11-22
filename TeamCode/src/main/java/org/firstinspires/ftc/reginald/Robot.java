@@ -52,30 +52,34 @@ public final class Robot implements Loopable {
         this.gamepad2 = gamepad2;
         this.telemetry = telemetry;
         this.channels = new Channels(telemetry);
-        this.dashboard = hardware.dashboard;
+        this.dashboard = hardware.dashboard();
 
-        this.nanoClock = hardware.nanoClock;
+        this.nanoClock = hardware.nanoClock();
 
         /* launcher = new Launcher(
-          hardware.launcher,
-          hardware.topGate,
-          hardware.bottomGate,
+          hardware.motor("launcher"),
+          hardware.servo("topGate"),
+          hardware.servo("bottomGate"),
           nanoClock,
         channels.channel(Launcher.CHANNEL)); */
-        intake = new Intake(hardware.intake);
-        // camera = new Camera(hardware.aprilTags, nanoClock, channels.channel(Camera.CHANNEL));
-        //  turntable = new Turntable(hardware.turnTable, channels.channel(Turntable.CHANNEL));
+        intake = new Intake(hardware.motor("intake"));
+        // camera = new Camera(hardware.aprilTags(), nanoClock, channels.channel(Camera.CHANNEL));
+        //  turntable = new Turntable(hardware.motor("turnTable"), channels.channel(Turntable.CHANNEL));
 
-        wheels = new Wheels(hardware.leftFront, hardware.leftBack, hardware.rightBack, hardware.rightFront);
+        wheels = new Wheels(
+                hardware.motor("leftFront"),
+                hardware.motor("leftBack"),
+                hardware.motor("rightBack"),
+                hardware.motor("rightFront"));
 
         localizer = new Localizer(
-                hardware.rightBack,
-                hardware.leftFront,
-                hardware.imu,
+                hardware.motor("rightBack"),
+                hardware.motor("leftFront"),
+                hardware.imu(),
                 new Pose2d(0, 0, 0),
                 nanoClock,
                 channels.channel(Localizer.CHANNEL));
-        mecanumDrive = new MecanumDrive(wheels, hardware.imu, hardware.voltageSensor, localizer, nanoClock);
+        mecanumDrive = new MecanumDrive(wheels, hardware.imu(), hardware.voltageSensor(), localizer, nanoClock);
         drive = new Drive(wheels, mecanumDrive, localizer, dashboard, channels.channel(Drive.CHANNEL));
         nav = new Nav(localizer, alliance);
         brain = new Brain(drive, nav, alliance, channels.channel(Brain.CHANNEL));

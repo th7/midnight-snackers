@@ -48,13 +48,13 @@ public class SimDevicesTest {
     public void theHardwareIsWhatTheRobotsOwnLookupsFindOnTheSimulatorsClockAndDashboard() {
         Hardware hardware = devices.hardware();
 
-        assertSame(devices.motor("leftFront"), hardware.leftFront);
-        assertSame(devices.motor("rightBack"), hardware.rightBack);
-        assertSame(devices.motor("intake"), hardware.intake);
-        assertSame(devices.voltageSensor, hardware.voltageSensor);
-        assertSame(devices.imu, hardware.imu.get());
-        assertSame(devices.dashboard, hardware.dashboard);
-        assertEquals(0, hardware.nanoClock.getAsLong());
+        assertSame(devices.motor("leftFront"), hardware.motor("leftFront"));
+        assertSame(devices.motor("rightBack"), hardware.motor("rightBack"));
+        assertSame(devices.motor("intake"), hardware.motor("intake"));
+        assertSame(devices.voltageSensor, hardware.voltageSensor());
+        assertSame(devices.imu, hardware.imu().get());
+        assertSame(devices.dashboard, hardware.dashboard());
+        assertEquals(0, hardware.nanoClock().getAsLong());
     }
 
     @Test
@@ -86,7 +86,7 @@ public class SimDevicesTest {
     }
 
     @Test
-    public void aConfigurationWithoutADeviceTheRobotAsksForFailsItsHardwareWithTheSdksOwnMessage() {
+    public void aDeviceTheConfigurationLacksIsRefusedWhenTheRobotAsksForItWithTheSdksOwnMessage() {
         List<Configuration.Device> withoutTheIntake = Configuration.reginalds().devices().stream()
                 .filter(device -> !device.name().equals("intake"))
                 .toList();
@@ -96,7 +96,9 @@ public class SimDevicesTest {
                 Constants.defaults(),
                 Directions.reginalds()));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, withoutAnIntake::hardware);
+        Hardware hardware = withoutAnIntake.hardware();
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> hardware.motor("intake"));
 
         assertEquals(
                 SDK_HARDWARE_MAP,
@@ -204,18 +206,18 @@ public class SimDevicesTest {
     @Test
     public void theClockStartsAtNothingAndMovesOnlyWhenItIsAdvanced() {
         Hardware hardware = devices.hardware();
-        assertEquals(0, hardware.nanoClock.getAsLong());
+        assertEquals(0, hardware.nanoClock().getAsLong());
 
         devices.advance(0.02);
-        assertEquals(0.02, hardware.nanoClock.getAsLong() / 1e9, DELTA);
+        assertEquals(0.02, hardware.nanoClock().getAsLong() / 1e9, DELTA);
 
         devices.advance(1.5);
-        assertEquals(1.52, hardware.nanoClock.getAsLong() / 1e9, DELTA);
+        assertEquals(1.52, hardware.nanoClock().getAsLong() / 1e9, DELTA);
     }
 
     @Test
     public void aDeviceHoldsWhatWasWrittenToItWhileTimePasses() {
-        devices.hardware().intake.setPower(0.4);
+        devices.hardware().motor("intake").setPower(0.4);
 
         devices.advance(5);
 
@@ -226,7 +228,7 @@ public class SimDevicesTest {
     public void theSimulatedRobotIsTheSameSeamWithAWorldBehindIt() {
         Hardware hardware = new SimRobot().hardware();
 
-        assertEquals(0, hardware.nanoClock.getAsLong());
-        assertEquals(SimDevices.BATTERY_VOLTS, hardware.voltageSensor.getVoltage(), DELTA);
+        assertEquals(0, hardware.nanoClock().getAsLong());
+        assertEquals(SimDevices.BATTERY_VOLTS, hardware.voltageSensor().getVoltage(), DELTA);
     }
 }

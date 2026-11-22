@@ -353,7 +353,7 @@ Then implement, and update `doc/CONTEXT.md`: **Field scene**,
 This batch changes the robot code as well as the simulator.
 
 - `Turntable` goes, from the robot code and from the core, with its tests.
-- The `turnTable` motor leaves `Hardware` and `SimDevices`.
+- The `turnTable` motor leaves `SimDevices`, and nothing asks `Hardware` for it.
 - `Brain` stops aiming the turntable each loop. `Nav.launchPose` already
   faces the target, so the auto-shoot plans and the driver's held aim turn
   the robot.
@@ -446,8 +446,8 @@ This batch changes the robot code as well as the simulator.
 
 - **Hardware.** `topGate` and `bottomGate` give way to **`spindexer`**, a
   `CRServo`, and **`ramp`**, a `Servo`. The Control Hub's configuration must
-  name both before this lands on the robot. Hardware is whole or not at all,
-  so a hub without them will not start an op mode. Changing the hub's
+  name both before this lands on the robot. The launcher asks the hardware for
+  both when it is built, so a hub without them will not start an op mode. Changing the hub's
   configuration is the team's job.
 - **In the core, `Spindexer`:**
   - It holds four pockets, each empty or holding a ball, and the spindexer's

@@ -86,6 +86,10 @@ public class SimBenchTest {
         SimProject.at(project).edited(relative, from, to);
     }
 
+    private static String whose(String hardware) {
+        return "public String whose() { return \"" + hardware + "\"; }\n";
+    }
+
     static final String HARDWARE = SimProject.HARDWARE;
     static final String SIM_ROBOT = SimProject.SIM_ROBOT;
     static final String SIM_DEVICES = SimProject.SIM_DEVICES;
@@ -266,9 +270,9 @@ public class SimBenchTest {
     public void theChildRunsTheProjectsOwnSimulatorNotThisServers() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
 
-        edit(project, HARDWARE, "public static Builder builder()", "public static Builder wiring()");
-        edit(project, HARDWARE, "return builder()", "return wiring()");
-        edit(project, SIM_DEVICES, "Hardware.builder()", "Hardware.wiring()");
+        edit(project, HARDWARE, "LongSupplier nanoClock();", "LongSupplier nanoClock();\n\n    String whose();");
+        edit(project, HARDWARE, "return new Hardware() {", "return new Hardware() {\n" + whose("the robot's"));
+        edit(project, SIM_DEVICES, "return new Hardware() {", "return new Hardware() {\n" + whose("the simulator's"));
         edit(
                 project,
                 SIM_CHILD,
