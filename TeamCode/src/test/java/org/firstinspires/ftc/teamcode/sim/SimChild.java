@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimChild {
     private static final long STREAM_PERIOD_MILLIS = 20;
@@ -69,6 +70,12 @@ public final class SimChild {
         Runtime.getRuntime().halt(ORPHANED);
     }
 
+    static SimRobot robotFor(Long seed, Constants constants) {
+        return new SimRobot(
+                RobotDescription.reginalds().with(constants),
+                seed == null ? SimNoise.NONE : Noise.seeded(seed, constants));
+    }
+
     private static List<String> sourcesFrom(String[] args, int from) {
         return Arrays.asList(args).subList(from, args.length);
     }
@@ -112,7 +119,7 @@ public final class SimChild {
         }
         Long seed = driverStation.seed();
         Constants constants = driverStation.constants();
-        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : Noise.seeded(seed, constants));
+        SimRobot sim = robotFor(seed, constants);
         System.err.println("Robot: " + SimNoise.described(sim.noise()));
         System.err.println("Constants: " + SimConstants.described(constants));
         sim.setDown(start.get());

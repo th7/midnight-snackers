@@ -5,18 +5,26 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 
 import com.qualcomm.hardware.motors.RevRoboticsUltraPlanetaryHdHexMotor;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.configuration.annotations.MotorType;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 import java.util.List;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
+import org.firstinspires.ftc.teamcode.simcore.Facing;
+import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Turning;
 import org.junit.Test;
 
@@ -80,7 +88,8 @@ public class SimDevicesTest {
         List<Configuration.Device> withoutTheIntake = Configuration.reginalds().devices().stream()
                 .filter(device -> !device.name().equals("intake"))
                 .toList();
-        SimDevices withoutAnIntake = new SimDevices(Valid.value(Configuration.of(withoutTheIntake)));
+        SimDevices withoutAnIntake = new SimDevices(RobotDescription.of(
+                Valid.value(Configuration.of(withoutTheIntake)), HubMounting.reginalds(), Constants.defaults()));
 
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, withoutAnIntake::hardware);
 
@@ -137,6 +146,39 @@ public class SimDevicesTest {
         assertEquals(EncoderReads.PARALLEL_DEAD_WHEEL, devices.encoderOf("rightBack"));
         assertEquals(EncoderReads.NOTHING, devices.encoderOf("leftBack"));
         assertEquals(EncoderReads.OWN_MOTOR, devices.encoderOf("intake"));
+    }
+
+    @Test
+    public void theImuSitsOnTheRobotAsTheDescriptionMountsIt() {
+        SimDevices logoDown = new SimDevices(RobotDescription.of(
+                Configuration.reginalds(),
+                Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
+                Constants.defaults()));
+        logoDown.imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.DOWN, RevHubOrientationOnRobot.UsbFacingDirection.RIGHT)));
+        devices.imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT, RevHubOrientationOnRobot.UsbFacingDirection.UP)));
+        logoDown.imu.yawRadians = 0.3;
+        devices.imu.yawRadians = 0.3;
+
+        assertEquals(0.3, logoDown.imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS), 1e-5);
+        assertEquals(0.3, devices.imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS), 1e-5);
+    }
+
+    @Test
+    public void everyMountingTheCoreTakesIsOneTheSdkNames() {
+        int mountings = 0;
+        for (Facing logo : Facing.values()) {
+            for (Facing usb : Facing.values()) {
+                Checked<HubMounting> mounting = HubMounting.of(logo, usb);
+                if (mounting instanceof Checked.Ok<HubMounting> ok) {
+                    SimDevices.sdkMounting(ok.value());
+                    mountings++;
+                }
+            }
+        }
+
+        assertEquals("six ways for the logo to face, four for the USB ports across it", 24, mountings);
     }
 
     @Test

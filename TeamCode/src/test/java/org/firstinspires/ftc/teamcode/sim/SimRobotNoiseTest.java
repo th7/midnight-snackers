@@ -7,8 +7,8 @@ import static org.junit.Assert.assertTrue;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.Traction;
@@ -16,9 +16,8 @@ import org.firstinspires.ftc.teamcode.simcore.Wheel;
 import org.junit.Test;
 
 public class SimRobotNoiseTest {
-    private static final double MAX_SPEED_IN_PER_S = (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kSVolts)
-            / MecanumDrive.PARAMS.kVVoltSecondsPerTick
-            * MecanumDrive.PARAMS.inPerTick;
+    private static final double MAX_SPEED_IN_PER_S = (SimRobot.BATTERY_VOLTS - Constant.DRIVE_KS_VOLTS.byDefault())
+            / Constant.DRIVE_KV_VOLT_SECONDS_PER_IN.byDefault();
 
     private static final Pose2d OPEN = new Pose2d(-60, 0, 0);
 
@@ -64,9 +63,8 @@ public class SimRobotNoiseTest {
     public void aFresherBatteryDrivesFaster() {
         SimRobot fresh = new SimRobot(SimNoise.NONE.withBattery(Valid.value(Noise.Battery.of(13.8, 0, 0))));
 
-        double expected = (13.8 - MecanumDrive.PARAMS.kSVolts)
-                / MecanumDrive.PARAMS.kVVoltSecondsPerTick
-                * MecanumDrive.PARAMS.inPerTick;
+        double expected =
+                (13.8 - Constant.DRIVE_KS_VOLTS.byDefault()) / Constant.DRIVE_KV_VOLT_SECONDS_PER_IN.byDefault();
         assertEquals(expected, freeSpeed(fresh), 0.03 * expected);
         assertTrue(freeSpeed(fresh) > freeSpeed(new SimRobot()) + 3);
     }

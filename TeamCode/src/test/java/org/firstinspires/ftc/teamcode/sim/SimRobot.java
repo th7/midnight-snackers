@@ -30,7 +30,6 @@ import org.dyn4j.world.ValueMixer;
 import org.dyn4j.world.World;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.opmode.OpMode;
-import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
@@ -42,7 +41,8 @@ import org.firstinspires.ftc.teamcode.simcore.Drawn;
 import org.firstinspires.ftc.teamcode.simcore.Draws;
 import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
 import org.firstinspires.ftc.teamcode.simcore.Encoder;
-import org.firstinspires.ftc.teamcode.simcore.Feedforward;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
@@ -52,6 +52,7 @@ import org.firstinspires.ftc.teamcode.simcore.Nest;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.PerWheel;
 import org.firstinspires.ftc.teamcode.simcore.Power;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Rolling;
 import org.firstinspires.ftc.teamcode.simcore.RunMode;
 import org.firstinspires.ftc.teamcode.simcore.Seat;
@@ -72,7 +73,6 @@ public class SimRobot {
 
     public static final double MAX_STEP_SECONDS = 0.005;
 
-    private static final double ROBOT_MASS_KG = 15;
 
     private static final double BALL_MASS_KG = Nest.BALL_MASS_KG;
 
@@ -90,24 +90,22 @@ public class SimRobot {
 
     private static final double WALL_THICKNESS_M = 1;
 
-    private final SimDevices devices = new SimDevices();
+    private final SimDevices devices;
 
-    public final FakeDcMotorEx leftFront = devices.motor("leftFront");
-    public final FakeDcMotorEx rightFront = devices.motor("rightFront");
-    public final FakeDcMotorEx leftBack = devices.motor("leftBack");
-    public final FakeDcMotorEx rightBack = devices.motor("rightBack");
-    public final FakeDcMotorEx intake = devices.motor("intake");
-    public final FakeImu imu = devices.imu;
-    public final FakeVoltageSensor voltageSensor = devices.voltageSensor;
-    public final FakeDashboard dashboard = devices.dashboard;
+    public final FakeDcMotorEx leftFront;
+    public final FakeDcMotorEx rightFront;
+    public final FakeDcMotorEx leftBack;
+    public final FakeDcMotorEx rightBack;
+    public final FakeDcMotorEx intake;
+    public final FakeImu imu;
+    public final FakeVoltageSensor voltageSensor;
+    public final FakeDashboard dashboard;
 
     private final Noise noise;
 
     private Draws draws;
 
-    private final MecanumDrive.Params drive = MecanumDrive.PARAMS;
-    private final MecanumKinematics kinematics =
-            new MecanumKinematics(drive.inPerTick * drive.trackWidthTicks, drive.inPerTick / drive.lateralInPerTick);
+    private final MecanumKinematics kinematics;
     private final Drivetrain drivetrain;
     private final World<Body> world = new World<>();
     private final Body chassis;
@@ -245,14 +243,26 @@ public class SimRobot {
     }
 
     public SimRobot(Noise noise) {
+        this(RobotDescription.reginalds(), noise);
+    }
+
+    public SimRobot(RobotDescription description, Noise noise) {
+        this.devices = new SimDevices(description);
+        this.leftFront = devices.motor("leftFront");
+        this.rightFront = devices.motor("rightFront");
+        this.leftBack = devices.motor("leftBack");
+        this.rightBack = devices.motor("rightBack");
+        this.intake = devices.motor("intake");
+        this.imu = devices.imu;
+        this.voltageSensor = devices.voltageSensor;
+        this.dashboard = devices.dashboard;
         this.noise = noise;
         this.draws = noise.draws();
-        this.drivetrain = Valid.value(Drivetrain.of(
-                Valid.value(
-                        Feedforward.of(drive.kSVolts, drive.kVVoltSecondsPerTick, drive.kAVoltSecondsSquaredPerTick)),
-                drive.inPerTick,
-                noise.motors()));
-        this.deadWheels = Valid.value(DeadWheels.reginalds(drive.inPerTick));
+        Constants constants = description.constants();
+        this.kinematics = new MecanumKinematics(
+                constants.value(Constant.TRACK_WIDTH_IN), constants.value(Constant.LATERAL_MULTIPLIER));
+        this.drivetrain = Valid.value(description.drivetrain(noise.motors()));
+        this.deadWheels = Valid.value(description.deadWheels());
         for (String name : devices.motorNames()) {
             ports.put(name, HubPort.State.fresh());
             applied.put(name, Power.none());
@@ -286,7 +296,8 @@ public class SimRobot {
         chassis = new Body();
         BodyFixture footprint = chassis.addFixture(
                 Geometry.createRectangle(SimPlacement.ROBOT_SIZE_IN * IN, SimPlacement.ROBOT_SIZE_IN * IN));
-        footprint.setDensity(ROBOT_MASS_KG / (SimPlacement.ROBOT_SIZE_IN * IN * SimPlacement.ROBOT_SIZE_IN * IN));
+        footprint.setDensity(constants.value(Constant.MASS_KG)
+                / (SimPlacement.ROBOT_SIZE_IN * IN * SimPlacement.ROBOT_SIZE_IN * IN));
         footprint.setFriction(0);
         footprint.setRestitution(0);
         footprint.setFilter(new Reaches(0, SimPlacement.ROBOT_SIZE_IN));

@@ -7,9 +7,9 @@ import org.junit.Test;
 
 public class DeadWheelsTest {
     private static final double IN_PER_TICK = 0.0005;
-    private static final double PAR_Y_TICKS = 600;
-    private static final double PERP_X_TICKS = 5000;
-    private static final DeadWheels AT_REST = Valid.value(DeadWheels.of(IN_PER_TICK, PAR_Y_TICKS, PERP_X_TICKS));
+    private static final double PAR_Y_IN = -0.3;
+    private static final double PERP_X_IN = 2.5;
+    private static final DeadWheels AT_REST = Valid.value(DeadWheels.at(IN_PER_TICK, PAR_Y_IN, PERP_X_IN));
     private static final Twist STILL = new Twist(new Vec2(0, 0), 0);
 
     private static final double DELTA = 1e-9;
@@ -31,39 +31,21 @@ public class DeadWheelsTest {
     }
 
     @Test
-    public void turningInPlaceTurnsEachWheelByItsOffset() {
+    public void turningInPlaceRollsEachWheelAsFarAsItSitsFromTheCentre() {
         DeadWheels.Counts counts = AT_REST.moved(new Twist(new Vec2(0, 0), 0.1)).counts(STILL);
 
-        assertEquals(60, counts.par().ticks(), DELTA);
-        assertEquals(500, counts.perp().ticks(), DELTA);
+        assertEquals("0.3 in right of the centre, rolling ahead as the robot turns left", 60, counts.par().ticks(), DELTA);
+        assertEquals("2.5 in ahead of the centre, rolling left", 500, counts.perp().ticks(), DELTA);
     }
 
     @Test
-    public void reginaldsDeadWheelsCountATurnInPlaceAsTheyDidBeforeTheRobotWasTurnedAround() {
-        DeadWheels.Counts counts = Valid.value(DeadWheels.reginalds(IN_PER_TICK))
-                .moved(new Twist(new Vec2(0, 0), 0.1))
-                .counts(STILL);
+    public void reginaldsDeadWheelsWhereTheyNowSitCountATurnInPlace() {
+        DeadWheels reginalds = Valid.value(DeadWheels.at(0.0005433029, -0.25, -3.5));
 
-        assertEquals(
-                "610.3 ticks off the centre, counting back",
-                -61.03360642343223,
-                counts.par().ticks(),
-                DELTA);
-        assertEquals(
-                "5186.6 ticks off the centre, counting back",
-                -518.6563208836955,
-                counts.perp().ticks(),
-                DELTA);
-    }
+        DeadWheels.Counts counts = reginalds.moved(new Twist(new Vec2(0, 0), 0.1)).counts(STILL);
 
-    @Test
-    public void reginaldsDeadWheelsCountDrivingAheadAsTheyCountedDrivingBackBeforeTheRobotWasTurnedAround() {
-        DeadWheels.Counts counts = Valid.value(DeadWheels.reginalds(IN_PER_TICK))
-                .moved(new Twist(new Vec2(1, 1), 0))
-                .counts(STILL);
-
-        assertEquals(2000, counts.par().ticks(), DELTA);
-        assertEquals(2000, counts.perp().ticks(), DELTA);
+        assertEquals("a quarter inch right of the centre", 46.0148473347004, counts.par().ticks(), 1e-9);
+        assertEquals("three and a half inches behind it", -644.2078626858056, counts.perp().ticks(), 1e-9);
     }
 
     @Test
@@ -83,15 +65,15 @@ public class DeadWheelsTest {
     public void theVelocityIsTheMotionInTicksASecondAsTheWheelsSeeIt() {
         DeadWheels.Counts counts = AT_REST.counts(new Twist(new Vec2(10, 5), 0.5));
 
-        assertEquals(10 / 0.0005 + 600 * 0.5, counts.par().ticksPerSecond(), DELTA);
-        assertEquals(5 / 0.0005 + 5000 * 0.5, counts.perp().ticksPerSecond(), DELTA);
+        assertEquals(10 / 0.0005 + 0.3 / 0.0005 * 0.5, counts.par().ticksPerSecond(), DELTA);
+        assertEquals(5 / 0.0005 + 2.5 / 0.0005 * 0.5, counts.perp().ticksPerSecond(), DELTA);
     }
 
     @Test
-    public void deadWheelsHaveAPositiveDistanceATickAndFiniteOffsets() {
-        assertTrue(DeadWheels.of(0, PAR_Y_TICKS, PERP_X_TICKS) instanceof Checked.Rejected);
-        assertTrue(DeadWheels.of(Double.NaN, PAR_Y_TICKS, PERP_X_TICKS) instanceof Checked.Rejected);
-        assertTrue(DeadWheels.of(IN_PER_TICK, Double.POSITIVE_INFINITY, PERP_X_TICKS) instanceof Checked.Rejected);
-        assertTrue(DeadWheels.of(IN_PER_TICK, PAR_Y_TICKS, Double.NaN) instanceof Checked.Rejected);
+    public void deadWheelsHaveAPositiveDistanceATickAndSitAFiniteWayFromTheCentre() {
+        assertTrue(DeadWheels.at(0, PAR_Y_IN, PERP_X_IN) instanceof Checked.Rejected);
+        assertTrue(DeadWheels.at(Double.NaN, PAR_Y_IN, PERP_X_IN) instanceof Checked.Rejected);
+        assertTrue(DeadWheels.at(IN_PER_TICK, Double.POSITIVE_INFINITY, PERP_X_IN) instanceof Checked.Rejected);
+        assertTrue(DeadWheels.at(IN_PER_TICK, PAR_Y_IN, Double.NaN) instanceof Checked.Rejected);
     }
 }

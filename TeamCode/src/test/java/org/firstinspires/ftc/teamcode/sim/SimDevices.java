@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.hardware.motors.RevRoboticsUltraPlanetaryHdHexMotor;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.CRServoImpl;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -22,12 +23,14 @@ import org.firstinspires.ftc.teamcode.fakes.FakeServoController;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
+import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.MotorType;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimDevices {
     public static final double BATTERY_VOLTS = 12.5;
 
-    public final FakeImu imu = new FakeImu();
+    public final FakeImu imu;
     public final FakeVoltageSensor voltageSensor = new FakeVoltageSensor(BATTERY_VOLTS);
     public final FakeDashboard dashboard = new FakeDashboard();
     public final FakeServoController servos = new FakeServoController();
@@ -41,12 +44,13 @@ public final class SimDevices {
     private long nanos = 0;
 
     public SimDevices() {
-        this(Configuration.reginalds());
+        this(RobotDescription.reginalds());
     }
 
-    public SimDevices(Configuration configuration) {
+    public SimDevices(RobotDescription description) {
+        imu = FakeImu.mounted(sdkMounting(description.hub()));
         int servoPort = 0;
-        for (Configuration.Device device : configuration.devices()) {
+        for (Configuration.Device device : description.configuration().devices()) {
             String name = device.name();
             if (device instanceof Configuration.Motor motor) {
                 FakeDcMotorEx fake = new FakeDcMotorEx(sdkType(motor.type()));
@@ -66,6 +70,12 @@ public final class SimDevices {
                 hardwareMap.voltageSensor.put(name, voltageSensor);
             }
         }
+    }
+
+    static RevHubOrientationOnRobot sdkMounting(HubMounting hub) {
+        return new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.valueOf(hub.logo().name()),
+                RevHubOrientationOnRobot.UsbFacingDirection.valueOf(hub.usb().name()));
     }
 
     static MotorConfigurationType sdkType(MotorType type) {

@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.google.gson.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,6 +21,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ChattyAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
@@ -330,6 +333,28 @@ public class SimChildTest {
         assertTrue(output.stderr, output.stderr.contains(SimNoise.described(Noise.seeded(7, grippier))));
         assertTrue(output.stderr, output.stderr.contains("traction 0.90 g"));
         assertTrue(output.stderr, output.stderr.contains("Constants: " + SimConstants.described(grippier)));
+    }
+
+    @Test
+    public void theConstantsOnTheStartLineMakeTheRobotEvenWithoutASeed() {
+        Constants heavyFooted = Valid.value(Constants.of(java.util.Map.of(Constant.DRIVE_KV_VOLT_SECONDS_PER_IN, 1.0)));
+
+        double asBuilt = aheadInASecond(SimChild.robotFor(null, Constants.defaults()));
+        double slower = aheadInASecond(SimChild.robotFor(null, heavyFooted));
+
+        assertTrue(asBuilt + " in as built, " + slower + " in with kV 1 V per in/s", slower < asBuilt / 2);
+    }
+
+    private static double aheadInASecond(SimRobot sim) {
+        for (FakeDcMotorEx wheel : new FakeDcMotorEx[] {sim.leftFront, sim.rightFront, sim.leftBack, sim.rightBack}) {
+            wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            wheel.setPower(1);
+        }
+        sim.leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
+        sim.rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
+        sim.setPose(new Pose2d(-60, 0, 0));
+        sim.step(1);
+        return sim.pose().position.x + 60;
     }
 
     @Test

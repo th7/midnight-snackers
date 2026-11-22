@@ -1199,7 +1199,14 @@ mechanism, where the launcher's flywheels are mounted) and the **noise** a seed
 draws from. Its defaults are a file in the repository; a teammate's edits on the
 Robot tab are their own, over those defaults, and each run is made on the
 description as it stood when the run started. The robot code's own tuning is only
-what the code believes, never the description.
+what the code believes, never the description. The fake IMU reads the robot's
+turn through the hub's mounting as the SDK's own helper would read it, so code that
+takes the hub to sit otherwise reads what that robot would: Reginald's code takes
+the hub to sit logo down, USB right, where the description sits it logo right, USB
+up, and reads its yaw half a turn off and its turn rate about the wrong axis. Its
+dead wheels' offsets differ from the description's too, so it believes the wrong
+place after a turn. Classes: `RobotDescription` and `HubMounting`, in the **core**;
+`FakeImu`.
 
 **Configuration** — The hub's devices by name and kind (a motor's kind is the SDK
 motor type it is configured as), and what each motor port's encoder port reads, as
@@ -1400,13 +1407,17 @@ the constants a run was started on. Classes: `Noise` and `Draws`, in the
 **Simulation constants** — The numbers the simulator was built with that a
 run can be started on other values of: the **noise** a seed draws a robot from (how far a
 motor strays from its tuning, the battery, its sag and drain, traction, how a
-hand sets the robot down, and the loop and its hiccups). Each has a range it may go in, and the ones that come in
+hand sets the robot down, and the loop and its hiccups), and the physical truth of
+the **robot description** (the drive's feedforward per inch, its track width,
+lateral multiplier and mass, and the dead wheels' tick and where they sit). Each has a range it may go in, and the ones that come in
 pairs — the flattest and freshest battery, the least and most traction, the
 shortest loop, the loop, and the shortest and longest hiccup — must be the
-right way round, so a set is checked whole and is either taken whole or
+right way round. No set may let a wheel turn faster than the chassis may move,
+with the freshest battery and the drive's kS and kV at their weakest by the motor
+spread. So a set is checked whole and is either taken whole or
 refused, saying which and why. The world's physics — gravity, a ball's bounce
-and grip — and the robot's own tuning are not among them: the one is the
-field's, the other the robot code's. The **Launch Sim**'s bounce, grip, drag and
+and grip — and the robot code's own tuning are not among them: the one is the
+field's, the other only what the code believes. The **Launch Sim**'s bounce, grip, drag and
 lift are something else again: **shot settings**, chosen per launch by whoever
 launches, kept per user, and never reaching a run: a run's **flight** flies on
 their defaults, which are the field's physics. Every run is made on the

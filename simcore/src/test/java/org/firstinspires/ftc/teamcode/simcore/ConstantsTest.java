@@ -56,6 +56,21 @@ public class ConstantsTest {
     }
 
     @Test
+    public void reginaldsPhysicalTruthAsBuiltIsTheTunedDriveWithTheDeadWheelsWhereTheyNowSit() {
+        Constants built = Constants.defaults();
+
+        assertEquals(0.9891921306123841, built.value(Constant.DRIVE_KS_VOLTS), 0);
+        assertEquals(0.2358092252159611, built.value(Constant.DRIVE_KV_VOLT_SECONDS_PER_IN), 0);
+        assertEquals(0.09202969466940081, built.value(Constant.DRIVE_KA_VOLT_SECONDS_SQUARED_PER_IN), 0);
+        assertEquals(13.751919701544644, built.value(Constant.TRACK_WIDTH_IN), 0);
+        assertEquals(1.1829409108696243, built.value(Constant.LATERAL_MULTIPLIER), 0);
+        assertEquals(15, built.value(Constant.MASS_KG), 0);
+        assertEquals(0.0005433029, built.value(Constant.DEAD_WHEEL_IN_PER_TICK), 0);
+        assertEquals(-0.25, built.value(Constant.PARALLEL_DEAD_WHEEL_Y_IN), 0);
+        assertEquals(-3.5, built.value(Constant.PERPENDICULAR_DEAD_WHEEL_X_IN), 0);
+    }
+
+    @Test
     public void everyConstantSaysWhatItIsInWhatUnitAndWhereItMayGo() {
         for (Constant constant : Constant.values()) {
             assertFalse(constant.name(), constant.label().isBlank());
@@ -125,6 +140,24 @@ public class ConstantsTest {
                 Valid.value(of(Constant.FLATTEST_VOLTS, 13, Constant.FRESHEST_VOLTS, 13))
                         .value(Constant.FRESHEST_VOLTS),
                 0);
+    }
+
+    @Test
+    public void noWheelMayTurnFasterThanTheChassisMayMoveWhereverTheDriveAndItsNoiseAreSet() {
+        Checked<Constants> tooFast = of(
+                Constant.DRIVE_KV_VOLT_SECONDS_PER_IN, 0.2,
+                Constant.DRIVE_KS_VOLTS, 0,
+                Constant.FRESHEST_VOLTS, 20,
+                Constant.MOTOR_SPREAD, 0.5);
+
+        assertRejected("at most 180.0 in/s", tooFast);
+        assertRejected("not 200.0", tooFast);
+        assertTrue(of(
+                        Constant.DRIVE_KV_VOLT_SECONDS_PER_IN, 0.25,
+                        Constant.DRIVE_KS_VOLTS, 0,
+                        Constant.FRESHEST_VOLTS, 20,
+                        Constant.MOTOR_SPREAD, 0.5)
+                instanceof Checked.Ok);
     }
 
     @Test

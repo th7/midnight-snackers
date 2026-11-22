@@ -113,10 +113,77 @@ public enum Constant {
             0.001,
             2),
     LONGEST_HICCUP_SECONDS(
-            Group.NOISE, "Longest hiccup", "s", "The longest a hiccup lasts.", Noise.LONGEST_HICCUP_SECONDS, 0.001, 2);
+            Group.NOISE, "Longest hiccup", "s", "The longest a hiccup lasts.", Noise.LONGEST_HICCUP_SECONDS, 0.001, 2),
+    DRIVE_KS_VOLTS(
+            Group.DRIVE,
+            "Drive kS",
+            "V",
+            "The voltage a drive motor spends overcoming friction before its wheel moves at all.",
+            0.9891921306123841,
+            0,
+            6),
+    DRIVE_KV_VOLT_SECONDS_PER_IN(
+            Group.DRIVE,
+            "Drive kV",
+            "V per in/s",
+            "The voltage a drive motor spends on each inch a second its wheel rolls.",
+            0.2358092252159611,
+            0.01,
+            2),
+    DRIVE_KA_VOLT_SECONDS_SQUARED_PER_IN(
+            Group.DRIVE,
+            "Drive kA",
+            "V per in/s^2",
+            "The voltage a drive motor spends on each inch a second its wheel gains every second.",
+            0.09202969466940081,
+            0.001,
+            1),
+    TRACK_WIDTH_IN(
+            Group.DRIVE,
+            "Track width",
+            "in",
+            "How far apart the left and right wheels act when the robot turns.",
+            13.751919701544644,
+            4,
+            36),
+    LATERAL_MULTIPLIER(
+            Group.DRIVE,
+            "Lateral multiplier",
+            "times",
+            "How many times further the wheels roll to strafe an inch than to drive one ahead.",
+            1.1829409108696243,
+            1,
+            3),
+    MASS_KG(Group.DRIVE, "Mass", "kg", "What the whole robot weighs.", 15, 1, 30),
+    DEAD_WHEEL_IN_PER_TICK(
+            Group.DEAD_WHEELS,
+            "Dead wheel tick",
+            "in",
+            "How far a dead wheel rolls for each tick its encoder counts.",
+            0.0005433029,
+            0.00001,
+            0.01),
+    PARALLEL_DEAD_WHEEL_Y_IN(
+            Group.DEAD_WHEELS,
+            "Parallel dead wheel, left of centre",
+            "in",
+            "How far left of the robot's centre the dead wheel that rolls ahead sits; right is negative.",
+            -0.25,
+            -9,
+            9),
+    PERPENDICULAR_DEAD_WHEEL_X_IN(
+            Group.DEAD_WHEELS,
+            "Perpendicular dead wheel, ahead of centre",
+            "in",
+            "How far ahead of the robot's centre the dead wheel that rolls sideways sits; behind is negative.",
+            -3.5,
+            -9,
+            9);
 
     public enum Group {
-        NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model.");
+        NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
+        DRIVE("Drive", "How the drivetrain moves the robot: its motors' feedforward, its wheels' spacing and its weight."),
+        DEAD_WHEELS("Dead wheels", "Where the odometry wheels sit on the robot and how far each rolls a tick.");
 
         private final String label;
         private final String says;

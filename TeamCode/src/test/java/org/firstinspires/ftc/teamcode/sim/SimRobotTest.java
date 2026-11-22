@@ -17,7 +17,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
@@ -31,9 +30,8 @@ public class SimRobotTest {
 
     private static final double CONTACT = 0.1;
 
-    private static final double MAX_SPEED_IN_PER_S = (SimRobot.BATTERY_VOLTS - MecanumDrive.PARAMS.kSVolts)
-            / MecanumDrive.PARAMS.kVVoltSecondsPerTick
-            * MecanumDrive.PARAMS.inPerTick;
+    private static final double MAX_SPEED_IN_PER_S = (SimRobot.BATTERY_VOLTS - Constant.DRIVE_KS_VOLTS.byDefault())
+            / Constant.DRIVE_KV_VOLT_SECONDS_PER_IN.byDefault();
 
     private static final double CLOSE_SHOT_IN_PER_S = 199.395;
 
@@ -1086,20 +1084,6 @@ public class SimRobotTest {
     }
 
     @Test
-    public void theRobotDrivesNoFasterThanTheFastestRobotTheLaunchAllowsForWhateverTheNoiseConstantsAllow() {
-        MecanumDrive.Params drive = MecanumDrive.PARAMS;
-        double weakest = 1 - Constant.MOTOR_SPREAD.most();
-        double fastestWheel = (Constant.FRESHEST_VOLTS.most() - drive.kSVolts * weakest)
-                / (drive.kVVoltSecondsPerTick * weakest)
-                * drive.inPerTick;
-
-        assertTrue(
-                "a wheel turns at most " + fastestWheel
-                        + " in/s, where its motor's kS and kV leave its battery's volts",
-                fastestWheel <= Chassis.MOST_SPEED_IN_PER_S);
-    }
-
-    @Test
     public void aRobotJustBuiltAndLeftAloneCostsItsFlightNoWork() {
         long built = sim.flightWork();
 
@@ -1521,8 +1505,8 @@ public class SimRobotTest {
     /** How far the parallel and the perpendicular dead wheel have rolled since they read these counts, in inches. */
     private static double[] deadWheelsRolled(SimRobot sim, int parallel, int perpendicular) {
         return new double[] {
-            Math.abs(sim.rightBack.getCurrentPosition() - parallel) * MecanumDrive.PARAMS.inPerTick,
-            Math.abs(sim.leftFront.getCurrentPosition() - perpendicular) * MecanumDrive.PARAMS.inPerTick
+            Math.abs(sim.rightBack.getCurrentPosition() - parallel) * Constant.DEAD_WHEEL_IN_PER_TICK.byDefault(),
+            Math.abs(sim.leftFront.getCurrentPosition() - perpendicular) * Constant.DEAD_WHEEL_IN_PER_TICK.byDefault()
         };
     }
 

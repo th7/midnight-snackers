@@ -41,6 +41,16 @@ public final class Constants {
                         + " against " + upper + " " + pair.upper().unit());
             }
         }
+        double weakest = 1 - constants.value(Constant.MOTOR_SPREAD);
+        double fastest = (constants.value(Constant.FRESHEST_VOLTS) - constants.value(Constant.DRIVE_KS_VOLTS) * weakest)
+                / (constants.value(Constant.DRIVE_KV_VOLT_SECONDS_PER_IN) * weakest);
+        if (!(fastest <= Chassis.MOST_SPEED_IN_PER_S)) {
+            return Checked.rejected("a wheel turns at most " + Chassis.MOST_SPEED_IN_PER_S + " in/s, where the freshest"
+                    + " battery meets the drive's kS and kV at their weakest by the motor spread, not " + fastest
+                    + " in/s: raise " + Constant.DRIVE_KV_VOLT_SECONDS_PER_IN.label() + ", or lower "
+                    + Constant.FRESHEST_VOLTS.label().toLowerCase(Locale.ROOT) + " or "
+                    + Constant.MOTOR_SPREAD.label().toLowerCase(Locale.ROOT));
+        }
         return Checked.ok(constants);
     }
 
