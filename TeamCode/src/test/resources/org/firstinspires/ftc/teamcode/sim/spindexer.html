@@ -91,7 +91,7 @@ __IMPORTMAP__
       <span id="ending-pill" class="pill" hidden></span>
     </div>
     <div class="view">
-      <canvas id="feeder" aria-label="the feeder cut away, its spinner and ramp, the flywheel and hood, and the pollen"></canvas>
+      <canvas id="spindexer" aria-label="the spindexer cut away, its spinner and ramp, the flywheel and hood, and the pollen"></canvas>
     </div>
     <div class="controls">
       <button id="play" type="button" disabled>Play</button>
@@ -107,14 +107,14 @@ __IMPORTMAP__
         <div class="marks" id="marks"></div>
       </div>
     </div>
-    <p class="legend"><span><i style="background: var(--good)"></i>thrown from the hood</span><span><i style="background: var(--near)"></i>fell out of the feeder</span><span><i style="background: var(--bad)"></i>jammed</span></p>
+    <p class="legend"><span><i style="background: var(--good)"></i>thrown from the hood</span><span><i style="background: var(--near)"></i>fell out of the spindexer</span><span><i style="background: var(--bad)"></i>jammed</span></p>
     <p class="problem" id="problem" role="status"></p>
     <div class="traces" id="traces"></div>
   </section>
   <aside>
     <details open>
       <summary>Feed</summary>
-      <div id="summary"><p class="empty">No feed shown. Run one on the Feeder Sim tab.</p></div>
+      <div id="summary"><p class="empty">No feed shown. Run one on the Spindexer Sim tab.</p></div>
     </details>
     <details open>
       <summary>Now</summary>
@@ -150,7 +150,7 @@ const POLLEN_COLOUR = '#ffef3f';
 const HOLE_COLOUR = '#2b2606';
 const HOLE_TO_BALL = 0.2 / 1.4;
 const HOLE_EDGES = 12;
-const FEEDER_COLOUR = '#8a95a3';
+const SPINDEXER_COLOUR = '#8a95a3';
 const SPINNER_COLOUR = '#3f6fd0';
 const RAMP_COLOUR = '#e0590b';
 const WHEEL_COLOUR = '#4a4d55';
@@ -174,7 +174,7 @@ const TRACES = [
   { name: 'Ramp torque', unit: 'N·m', of: (f) => f.ramp[1], digits: 3 }
 ];
 
-const canvas = document.getElementById('feeder');
+const canvas = document.getElementById('spindexer');
 const title = document.getElementById('title');
 const endingPill = document.getElementById('ending-pill');
 const play = document.getElementById('play');
@@ -415,12 +415,12 @@ function boxBetween(from, to, material) {
   return mesh;
 }
 
-function feederDrawn(drawn) {
+function spindexerDrawn(drawn) {
   const m = drawn.inches;
-  const feeder = placedBy(drawn);
-  feeder.add(slab(floorShape(m), m.floorTop - FLOOR_THICKNESS_IN, FLOOR_THICKNESS_IN, seeThrough(FEEDER_COLOUR)));
-  feeder.add(new THREE.Mesh(wallGeometry(m), seeThrough(FEEDER_COLOUR)));
-  feeder.add(slab(plateShape(m), m.plateUnderside, m.plateTop - m.plateUnderside, seeThrough(FEEDER_COLOUR)));
+  const spindexer = placedBy(drawn);
+  spindexer.add(slab(floorShape(m), m.floorTop - FLOOR_THICKNESS_IN, FLOOR_THICKNESS_IN, seeThrough(SPINDEXER_COLOUR)));
+  spindexer.add(new THREE.Mesh(wallGeometry(m), seeThrough(SPINDEXER_COLOUR)));
+  spindexer.add(slab(plateShape(m), m.plateUnderside, m.plateTop - m.plateUnderside, seeThrough(SPINDEXER_COLOUR)));
   const spinner = new THREE.Group();
   const tall = m.armTop - m.armBottom;
   const hub = new THREE.Mesh(new THREE.CylinderGeometry(m.hubRadius, m.hubRadius, tall, 32), solid(SPINNER_COLOUR));
@@ -429,15 +429,15 @@ function feederDrawn(drawn) {
   spinner.add(hub);
   spinner.add(boxBetween([-m.armHalfThickness, 0, m.armBottom], [m.armHalfThickness, m.armReach, m.armTop], solid(SPINNER_COLOUR)));
   spinner.add(boxBetween([-m.armHalfThickness, -m.armReach, m.armBottom], [m.armHalfThickness, 0, m.armTop], solid(SPINNER_COLOUR)));
-  feeder.add(spinner);
+  spindexer.add(spinner);
   const ramp = new THREE.Group();
   ramp.position.set(m.pivotX, 0, m.pivotZ);
   ramp.add(boxBetween(
       [m.barFreeEndX - m.pivotX, m.barMiddleY - m.barWidth / 2, m.barTop - m.barHeight - m.pivotZ],
       [m.barPadX - m.pivotX, m.barMiddleY + m.barWidth / 2, m.barTop - m.pivotZ],
       solid(RAMP_COLOUR)));
-  feeder.add(ramp);
-  return { feeder, spinner, ramp };
+  spindexer.add(ramp);
+  return { spindexer, spinner, ramp };
 }
 
 function hoodGeometry(m) {
@@ -562,7 +562,7 @@ function eventSays(event) {
     return pollen + ' thrown from the hood at ' + fixed(event.speed, 0) + ' in/s';
   }
   if (event.kind === 'fell out') {
-    return pollen + ' fell out of the feeder';
+    return pollen + ' fell out of the spindexer';
   }
   if (event.kind === 'jammed') {
     return 'the spinner jammed on ' + (pollen || 'nothing it could name');
@@ -586,7 +586,7 @@ function describeFeed() {
     title.textContent = document.title;
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = 'No feed shown. Run one on the Feeder Sim tab.';
+    empty.textContent = 'No feed shown. Run one on the Spindexer Sim tab.';
     summaryBox.appendChild(empty);
     noneThrown.hidden = true;
     noEvents.hidden = true;
@@ -783,7 +783,7 @@ function show() {
   scrub.value = String(at.t);
   row(nowList, 'Spinner', fixed(frame.spinner[0], 1) + '° · ' + fixed(frame.spinner[1], 2) + ' rev/s · ' + fixed(frame.spinner[2], 3) + ' N·m');
   row(nowList, 'Ramp', fixed(frame.ramp[0], 1) + '° · ' + fixed(frame.ramp[1], 3) + ' N·m');
-  row(nowList, 'In the feeder', frame.pollen.length ? frame.pollen.map((p) => p.name).join(', ') : 'nothing');
+  row(nowList, 'In the spindexer', frame.pollen.length ? frame.pollen.map((p) => p.name).join(', ') : 'nothing');
   for (const tr of eventRows.querySelectorAll('tr')) {
     tr.setAttribute('aria-current', String(Math.abs(Number(tr.dataset.t) - frame.t) < 0.004));
   }
@@ -879,7 +879,7 @@ function loop(now) {
 }
 
 function framed(drawing) {
-  const a = drawing.feeder.origin;
+  const a = drawing.spindexer.origin;
   const b = drawing.launcher.origin;
   const middle = new THREE.Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
   controls.target.copy(middle);
@@ -889,16 +889,16 @@ function framed(drawing) {
 
 function partsFor(json) {
   const scenery = new THREE.Group();
-  const feeder = feederDrawn(json.drawing.feeder);
+  const spindexer = spindexerDrawn(json.drawing.spindexer);
   const launcher = launcherDrawn(json.drawing.launcher);
-  scenery.add(feeder.feeder, launcher.launcher);
+  scenery.add(spindexer.spindexer, launcher.launcher);
   const balls = new Map();
   for (const seen of json.frames0) {
     const ball = holedBall(json.pollenRadius);
     balls.set(seen.name, ball);
     scenery.add(ball);
   }
-  return { scenery, spinner: feeder.spinner, ramp: feeder.ramp, wheel: launcher.wheel,
+  return { scenery, spinner: spindexer.spinner, ramp: spindexer.ramp, wheel: launcher.wheel,
            radiansPerSecond: launcher.radiansPerSecond, balls };
 }
 
@@ -993,7 +993,7 @@ async function showTheFragment() {
       scene3.add(parts.scenery);
       framed(feed.json.drawing);
     } catch (why) {
-      drawProblem = 'The feeder could not be drawn: ' + said(why);
+      drawProblem = 'The spindexer could not be drawn: ' + said(why);
     }
   }
   scrub.min = String(feed ? feed.start : 0);
@@ -1082,7 +1082,7 @@ new MutationObserver(themeChanged).observe(document.documentElement, { attribute
 
 title.textContent = document.title;
 
-window.feederPage = {
+window.spindexerPage = {
   get settled() { return sceneSettled && !loading; },
   get problem() { return problemLine.textContent; },
   get shown() { return feed ? feed.json.id : null; },
@@ -1103,7 +1103,7 @@ window.feederPage = {
 };
 
 sceneDrawn = drawTheScene().catch((why) => {
-  drawProblem = 'This browser could not draw the feeder: ' + said(why);
+  drawProblem = 'This browser could not draw the spindexer: ' + said(why);
   sayProblems();
 }).finally(() => {
   sceneSettled = true;

@@ -180,7 +180,7 @@ public class SimFeedsTest {
 
         Response viewer = get("/feeds/");
         assertEquals(200, viewer.status);
-        assertTrue(viewer.body, viewer.body.contains("<title>Feeder Sim</title>"));
+        assertTrue(viewer.body, viewer.body.contains("<title>Spindexer Sim</title>"));
         assertEquals(308, get("/feeds/" + id).status);
         assertEquals("./#" + id, get("/feeds/" + id).headers.get("Location"));
         assertEquals("../#" + id, get("/feeds/" + id + "/").headers.get("Location"));
@@ -188,15 +188,16 @@ public class SimFeedsTest {
     }
 
     @Test
-    public void aFeedCarriesTheDrawingOfTheFeederAndTheLauncherInInches() {
+    public void aFeedCarriesTheDrawingOfTheSpindexerAndTheLauncherInInches() {
         JsonObject drawing =
                 json(get("/feeds/" + feed(A_SECOND_AND_A_HALF) + "/feed")).getAsJsonObject("drawing");
 
-        JsonObject feeder = drawing.getAsJsonObject("feeder");
-        assertEquals(1.18268, feeder.getAsJsonArray("origin").get(0).getAsDouble(), 1e-4);
-        assertEquals(0.95901, feeder.getAsJsonArray("z").get(2).getAsDouble(), 1e-4);
-        assertEquals(-1, feeder.getAsJsonArray("x").get(1).getAsDouble(), 1e-4);
-        assertEquals(3.23898, feeder.getAsJsonObject("inches").get("wallRadius").getAsDouble(), 1e-4);
+        JsonObject spindexer = drawing.getAsJsonObject("spindexer");
+        assertEquals(1.18268, spindexer.getAsJsonArray("origin").get(0).getAsDouble(), 1e-4);
+        assertEquals(0.95901, spindexer.getAsJsonArray("z").get(2).getAsDouble(), 1e-4);
+        assertEquals(-1, spindexer.getAsJsonArray("x").get(1).getAsDouble(), 1e-4);
+        assertEquals(
+                3.23898, spindexer.getAsJsonObject("inches").get("wallRadius").getAsDouble(), 1e-4);
         JsonObject launcher = drawing.getAsJsonObject("launcher");
         assertEquals(7.08661, launcher.getAsJsonArray("origin").get(2).getAsDouble(), 1e-4);
         assertEquals(

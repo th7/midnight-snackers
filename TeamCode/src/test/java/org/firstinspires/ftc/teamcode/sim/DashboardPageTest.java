@@ -78,22 +78,22 @@ public class DashboardPageTest {
     }
 
     @Test
-    public void theDashboardHasAFeederSimTabAfterLaunchSim() {
-        assertTrue(PAGE, PAGE.contains("data-tab=\"feeder\" aria-selected=\"false\" aria-controls=\"feeder\""));
-        assertTrue(PAGE, PAGE.contains("<main id=\"feeder\" class=\"panel\" role=\"tabpanel\" hidden>"));
-        assertTrue(PAGE, PAGE.contains("id=\"feeder-stage\""));
+    public void theDashboardHasASpindexerSimTabAfterLaunchSim() {
+        assertTrue(PAGE, PAGE.contains("data-tab=\"spindexer\" aria-selected=\"false\" aria-controls=\"spindexer\""));
+        assertTrue(PAGE, PAGE.contains("<main id=\"spindexer\" class=\"panel\" role=\"tabpanel\" hidden>"));
+        assertTrue(PAGE, PAGE.contains("id=\"spindexer-stage\""));
         assertTrue(PAGE, PAGE.contains("'/sim/feed/settings'"));
         assertTrue(PAGE, PAGE.contains("'/sim/feed'"));
         assertTrue(PAGE, PAGE.contains("'/sim/feeds'"));
         assertTrue(PAGE, PAGE.contains("'/sim/feeds/'"));
         assertTrue(
-                "the Feeder Sim tab comes after Launch Sim",
-                PAGE.indexOf("data-tab=\"launch\"") < PAGE.indexOf("data-tab=\"feeder\""));
-        int feederSim = PAGE.indexOf("part('the feeder sim', ");
-        assertTrue("the feeder sim starts as a part of its own", feederSim >= 0);
+                "the Spindexer Sim tab comes after Launch Sim",
+                PAGE.indexOf("data-tab=\"launch\"") < PAGE.indexOf("data-tab=\"spindexer\""));
+        int spindexerSim = PAGE.indexOf("part('the spindexer sim', ");
+        assertTrue("the spindexer sim starts as a part of its own", spindexerSim >= 0);
         assertTrue(
                 "and before the tabs, so the tab it is opened on can enter it",
-                feederSim < PAGE.indexOf("part('the tabs', wireTabs)"));
+                spindexerSim < PAGE.indexOf("part('the tabs', wireTabs)"));
     }
 
     @Test
@@ -109,8 +109,8 @@ public class DashboardPageTest {
             "#edit?resolution=low",
             "#launch",
             "#launch?resolution=low",
-            "#feeder",
-            "#feeder?resolution=low"
+            "#spindexer",
+            "#spindexer?resolution=low"
         };
 
         String[] got = tabsOnTheDashboard(asked);
@@ -125,8 +125,8 @@ public class DashboardPageTest {
         assertEquals("and options only mean something to the tab that reads them", "simulate ", got[7]);
         assertEquals("the Launch Sim tab is a tab of its own", "launch ", got[8]);
         assertEquals("and its view is drawn as it is asked to be", "launch resolution=low", got[9]);
-        assertEquals("the Feeder Sim tab is a tab of its own", "feeder ", got[10]);
-        assertEquals("feeder resolution=low", got[11]);
+        assertEquals("the Spindexer Sim tab is a tab of its own", "spindexer ", got[10]);
+        assertEquals("spindexer resolution=low", got[11]);
     }
 
     private String[] tabsOnTheDashboard(String[] asked) throws Exception {

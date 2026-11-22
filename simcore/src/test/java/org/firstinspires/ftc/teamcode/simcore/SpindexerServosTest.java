@@ -5,33 +5,33 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-public class FeederServosTest {
-    private static final String SERVO_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the REV Smart Robot"
+public class SpindexerServosTest {
+    private static final String SERVO_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: the REV Smart Robot"
             + " Servo's 0.14 s per 60 degrees and 13.5 kg cm at 6 V, scaled to the Hub's 5 V: 1.0 rev/s unloaded"
             + " and 1.1 N m at stall turning continuously, 0.168 s per 60 degrees held at an angle";
     private static final double ROUNDING = 1e-9;
 
-    private final Feeder.Spinner spinner = Feeder.Spinner.revSmartRobotServo();
+    private final Spindexer.Spinner spinner = Spindexer.Spinner.revSmartRobotServo();
 
-    private final Feeder.Ramp ramp = Feeder.Ramp.revSmartRobotServo();
+    private final Spindexer.Ramp ramp = Spindexer.Ramp.revSmartRobotServo();
 
-    private static Feeder.RampAngle degrees(double degrees) {
-        return Valid.value(Feeder.RampAngle.ofDegrees(degrees));
+    private static Spindexer.RampAngle degrees(double degrees) {
+        return Valid.value(Spindexer.RampAngle.ofDegrees(degrees));
     }
 
-    private Feeder.RampAngle slewed(double fromDegrees, double toDegrees, double loadNewtonMetres, double seconds) {
+    private Spindexer.RampAngle slewed(double fromDegrees, double toDegrees, double loadNewtonMetres, double seconds) {
         return ramp.next(
                 degrees(fromDegrees),
                 degrees(toDegrees),
-                Valid.value(Feeder.Torque.ofNewtonMetres(loadNewtonMetres)),
+                Valid.value(Spindexer.Torque.ofNewtonMetres(loadNewtonMetres)),
                 Valid.value(Seconds.of(seconds)));
     }
 
-    private Feeder.Spinner.Turning after(double power, double loadNewtonMetres) {
+    private Spindexer.Spinner.Turning after(double power, double loadNewtonMetres) {
         return spinner.next(
-                Feeder.Spinner.Turning.still(),
+                Spindexer.Spinner.Turning.still(),
                 Valid.value(Power.of(power)),
-                Valid.value(Feeder.Torque.ofNewtonMetres(loadNewtonMetres)),
+                Valid.value(Spindexer.Torque.ofNewtonMetres(loadNewtonMetres)),
                 Valid.value(Seconds.of(0.01)));
     }
 
@@ -71,21 +71,21 @@ public class FeederServosTest {
         assertRejected("from -1 to 1", Power.of(1.01));
         assertRejected("from -1 to 1", Power.of(-1.01));
         assertRejected("from -1 to 1", Power.of(Double.NaN));
-        assertRejected("from 0 to 60", Feeder.RampAngle.ofDegrees(60.5));
-        assertRejected("from 0 to 60", Feeder.RampAngle.ofDegrees(-1));
+        assertRejected("from 0 to 60", Spindexer.RampAngle.ofDegrees(60.5));
+        assertRejected("from 0 to 60", Spindexer.RampAngle.ofDegrees(-1));
     }
 
     @Test
     public void aServoIsSetWithinTheTabsRangesAndRefusedBeyondThemNamingTheRange() {
-        Feeder.Spinner faster = Valid.value(Feeder.Spinner.of(2, 1.1));
-        Feeder.Ramp slower = Valid.value(Feeder.Ramp.of(0.336));
+        Spindexer.Spinner faster = Valid.value(Spindexer.Spinner.of(2, 1.1));
+        Spindexer.Ramp slower = Valid.value(Spindexer.Ramp.of(0.336));
 
         assertEquals(
                 2,
                 faster.next(
-                                Feeder.Spinner.Turning.still(),
+                                Spindexer.Spinner.Turning.still(),
                                 Valid.value(Power.of(1)),
-                                Valid.value(Feeder.Torque.ofNewtonMetres(0)),
+                                Valid.value(Spindexer.Torque.ofNewtonMetres(0)),
                                 Valid.value(Seconds.of(0.01)))
                         .revolutionsPerSecond(),
                 ROUNDING);
@@ -94,15 +94,15 @@ public class FeederServosTest {
                 slower.next(
                                 degrees(0),
                                 degrees(35),
-                                Valid.value(Feeder.Torque.ofNewtonMetres(0)),
+                                Valid.value(Spindexer.Torque.ofNewtonMetres(0)),
                                 Valid.value(Seconds.of(0.098)))
                         .degrees(),
                 ROUNDING);
-        assertRejected("from 0.2 to 3", Feeder.Spinner.of(3.5, 1.1));
-        assertRejected("from 0.2 to 3", Feeder.Spinner.of(0.1, 1.1));
-        assertRejected("from 0.1 to 5", Feeder.Spinner.of(1, 5.5));
-        assertRejected("from 0.05 to 1", Feeder.Ramp.of(1.5));
-        assertRejected("from 0.05 to 1", Feeder.Ramp.of(Double.NaN));
+        assertRejected("from 0.2 to 3", Spindexer.Spinner.of(3.5, 1.1));
+        assertRejected("from 0.2 to 3", Spindexer.Spinner.of(0.1, 1.1));
+        assertRejected("from 0.1 to 5", Spindexer.Spinner.of(1, 5.5));
+        assertRejected("from 0.05 to 1", Spindexer.Ramp.of(1.5));
+        assertRejected("from 0.05 to 1", Spindexer.Ramp.of(Double.NaN));
     }
 
     private static void assertRejected(String rule, Checked<?> checked) {

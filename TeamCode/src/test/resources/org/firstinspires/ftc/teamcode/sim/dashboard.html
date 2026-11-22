@@ -161,15 +161,15 @@
   #launches td .use { padding: 1px 8px; font-size: 12px; }
   #launches input.compare { margin: 0; }
   .launches .empty { padding: 8px 20px 0; }
-  #feeder.panel { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view settings" "feeds settings"; }
-  #feeder .launch-view { grid-area: view; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
-  #feeder .launch-settings { grid-area: settings; border-right: 0; border-left: 1px solid var(--line); padding: 0 0 20px; min-height: 0; overflow: auto; overflow-x: hidden; }
-  #feeder .launches { grid-area: feeds; border-top: 1px solid var(--line); max-height: 32vh; overflow: auto; min-width: 0; padding: 10px 0 12px; }
+  #spindexer.panel { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "view settings" "feeds settings"; }
+  #spindexer .launch-view { grid-area: view; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
+  #spindexer .launch-settings { grid-area: settings; border-right: 0; border-left: 1px solid var(--line); padding: 0 0 20px; min-height: 0; overflow: auto; overflow-x: hidden; }
+  #spindexer .launches { grid-area: feeds; border-top: 1px solid var(--line); max-height: 32vh; overflow: auto; min-width: 0; padding: 10px 0 12px; }
   @media (max-width: 760px) {
-    #feeder.panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "view" "settings" "feeds"; overflow-y: auto; }
-    #feeder .launch-view { height: 62vh; min-height: 320px; }
-    #feeder .launch-settings { border-left: 0; border-top: 1px solid var(--line); min-height: auto; overflow: visible; }
-    #feeder .launches { max-height: none; min-height: auto; overflow: visible; }
+    #spindexer.panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "view" "settings" "feeds"; overflow-y: auto; }
+    #spindexer .launch-view { height: 62vh; min-height: 320px; }
+    #spindexer .launch-settings { border-left: 0; border-top: 1px solid var(--line); min-height: auto; overflow: visible; }
+    #spindexer .launches { max-height: none; min-height: auto; overflow: visible; }
   }
   .setting .rule { grid-column: 1 / -1; margin: 0; color: var(--bad); font-size: 12px; overflow-wrap: anywhere; }
   #feeds { table-layout: auto; }
@@ -185,7 +185,7 @@
   <nav role="tablist">
     <button role="tab" data-tab="simulate" aria-selected="true" aria-controls="simulate">Simulate</button>
     <button role="tab" data-tab="launch" aria-selected="false" aria-controls="launch">Launch Sim</button>
-    <button role="tab" data-tab="feeder" aria-selected="false" aria-controls="feeder">Feeder Sim</button>
+    <button role="tab" data-tab="spindexer" aria-selected="false" aria-controls="spindexer">Spindexer Sim</button>
   </nav>
   <p class="broke" id="broke" role="alert" hidden></p>
 </header>
@@ -251,22 +251,22 @@
     <p id="launches-none" class="empty">No launches yet. Set the launch and press Launch; each one is listed here.</p>
   </section>
 </main>
-<main id="feeder" class="panel" role="tabpanel" hidden>
+<main id="spindexer" class="panel" role="tabpanel" hidden>
   <section class="launch-view">
     <div class="stage-head">
-      <h2 id="feeder-title">No feed yet</h2>
-      <span id="feeder-state" class="launch-state"></span>
+      <h2 id="spindexer-title">No feed yet</h2>
+      <span id="spindexer-state" class="launch-state"></span>
     </div>
-    <iframe id="feeder-stage" title="The feed, drawn in the feeder and the launcher"></iframe>
+    <iframe id="spindexer-stage" title="The feed, drawn in the spindexer and the launcher"></iframe>
   </section>
   <aside class="launch-settings" aria-label="Feed settings">
     <div class="launch-bar">
-      <button id="feeder-go" class="primary" type="button" disabled>Feed</button>
-      <button id="feeder-defaults" type="button" disabled>Defaults</button>
-      <p id="feeder-message" class="launch-message" role="status"></p>
+      <button id="spindexer-go" class="primary" type="button" disabled>Feed</button>
+      <button id="spindexer-defaults" type="button" disabled>Defaults</button>
+      <p id="spindexer-message" class="launch-message" role="status"></p>
     </div>
-    <p id="feeder-forgot" class="launch-forgot" hidden></p>
-    <div id="feeder-groups"></div>
+    <p id="spindexer-forgot" class="launch-forgot" hidden></p>
+    <div id="spindexer-groups"></div>
   </aside>
   <section class="launches" aria-label="Feeds">
     <p class="section-label">Feeds</p>
@@ -313,7 +313,7 @@
     var text = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var mark = text.indexOf('?');
     var name = mark < 0 ? text : text.slice(0, mark);
-    var known = name === 'simulate' || name === 'launch' || name === 'feeder';
+    var known = name === 'simulate' || name === 'launch' || name === 'spindexer';
     return { name: known ? name : 'simulate',
              options: known && mark >= 0 ? text.slice(mark + 1) : '' };
   }
@@ -331,7 +331,7 @@
     if (location.hash !== want) { history.replaceState(null, '', want); }
     if (name === 'simulate' && simulate) { simulate.enter(); simulate.again(); }
     if (name === 'launch' && launch) { launch.enter(); }
-    if (name === 'feeder' && feeder) { feeder.enter(); }
+    if (name === 'spindexer' && spindexer) { spindexer.enter(); }
   }
 
   function withTabOptions(url) {
@@ -1362,17 +1362,17 @@
     return { enter: enter };
   }
 
-  function theFeederTab() {
+  function theSpindexerTab() {
     var VIEWER = '/sim/feeds/';
     var ENDING_PILLS = { 'all left': 'ok', 'at rest': 'muted', 'out of time': 'warn', 'too much work': 'bad' };
-    var view = document.getElementById('feeder-stage');
-    var title = document.getElementById('feeder-title');
-    var state = document.getElementById('feeder-state');
-    var go = document.getElementById('feeder-go');
-    var defaults = document.getElementById('feeder-defaults');
-    var message = document.getElementById('feeder-message');
-    var forgot = document.getElementById('feeder-forgot');
-    var groupsHost = document.getElementById('feeder-groups');
+    var view = document.getElementById('spindexer-stage');
+    var title = document.getElementById('spindexer-title');
+    var state = document.getElementById('spindexer-state');
+    var go = document.getElementById('spindexer-go');
+    var defaults = document.getElementById('spindexer-defaults');
+    var message = document.getElementById('spindexer-message');
+    var forgot = document.getElementById('spindexer-forgot');
+    var groupsHost = document.getElementById('spindexer-groups');
     var band = document.querySelector('#feeds tbody');
     var none = document.getElementById('feeds-none');
     var bandTable = document.getElementById('feeds-table');
@@ -1484,7 +1484,7 @@
     }
 
     function settingRow(setting) {
-      var id = 'feeder-setting-' + setting.name;
+      var id = 'spindexer-setting-' + setting.name;
       var row = el('div', 'setting');
       row.setAttribute('data-setting', setting.name);
       var label = el('label', 'setting-label', setting.label);
@@ -1762,10 +1762,10 @@
 
   var simulate = null;
   var launch = null;
-  var feeder = null;
+  var spindexer = null;
   part('the simulator', function () { simulate = theSimulateTab(); });
   part('the launch sim', function () { launch = theLaunchTab(); });
-  part('the feeder sim', function () { feeder = theFeederTab(); });
+  part('the spindexer sim', function () { spindexer = theSpindexerTab(); });
   part('the tabs', wireTabs);
   window.simulatorPage.started = true;
 })();

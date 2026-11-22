@@ -9,7 +9,7 @@ public enum FeedSetting {
             Group.POLLEN,
             "Pollen",
             "",
-            "How many pollen start in the feeder, one each side of the arms against the wall.",
+            "How many pollen start in the spindexer, one each side of the arms against the wall.",
             2,
             0,
             2,
@@ -47,18 +47,18 @@ public enum FeedSetting {
             "Spinner speed",
             "rev/s",
             "How fast the spinner turns at full power with nothing holding it back.",
-            Feeder.Spinner.FULL_SPEED_REV_PER_S,
-            Feeder.Spinner.LEAST_FULL_SPEED_REV_PER_S,
-            Feeder.Spinner.MOST_FULL_SPEED_REV_PER_S,
+            Spindexer.Spinner.FULL_SPEED_REV_PER_S,
+            Spindexer.Spinner.LEAST_FULL_SPEED_REV_PER_S,
+            Spindexer.Spinner.MOST_FULL_SPEED_REV_PER_S,
             false),
     SPINNER_STALL(
             Group.SPINNER,
             "Spinner stall torque",
             "N m",
             "The load that stops the spinner; it slows in proportion as its load nears this.",
-            Feeder.Spinner.STALL_NEWTON_METRES,
-            Feeder.Spinner.LEAST_STALL_NEWTON_METRES,
-            Feeder.Spinner.MOST_STALL_NEWTON_METRES,
+            Spindexer.Spinner.STALL_NEWTON_METRES,
+            Spindexer.Spinner.LEAST_STALL_NEWTON_METRES,
+            Spindexer.Spinner.MOST_STALL_NEWTON_METRES,
             false),
     RAMP_DOWN(
             Group.RAMP,
@@ -67,7 +67,7 @@ public enum FeedSetting {
             "The ramp bar's angle when it is down: 0 is as drawn, below the floor.",
             Feed.DOWN_DEGREES,
             0,
-            Feeder.RampAngle.MOST_DEGREES,
+            Spindexer.RampAngle.MOST_DEGREES,
             false),
     RAMP_UP(
             Group.RAMP,
@@ -76,7 +76,7 @@ public enum FeedSetting {
             "The ramp bar's angle when it is up, lifting a pollen at the back toward the wheel.",
             Feed.UP_DEGREES,
             0,
-            Feeder.RampAngle.MOST_DEGREES,
+            Spindexer.RampAngle.MOST_DEGREES,
             false),
     RAMP_RAISED_AT(
             Group.RAMP,
@@ -101,12 +101,12 @@ public enum FeedSetting {
             "Ramp servo speed",
             "s per 60 deg",
             "How long the ramp's servo takes to turn 60 degrees.",
-            Feeder.Ramp.SECONDS_PER_SIXTY_DEGREES,
-            Feeder.Ramp.LEAST_SECONDS_PER_SIXTY_DEGREES,
-            Feeder.Ramp.MOST_SECONDS_PER_SIXTY_DEGREES,
+            Spindexer.Ramp.SECONDS_PER_SIXTY_DEGREES,
+            Spindexer.Ramp.LEAST_SECONDS_PER_SIXTY_DEGREES,
+            Spindexer.Ramp.MOST_SECONDS_PER_SIXTY_DEGREES,
             false),
     BACK_SILL(
-            Group.FEEDER,
+            Group.SPINDEXER,
             "Back sill",
             "mm",
             "How high the back window's sill is above the floor slab's underside. The floor's top is at 15, and the"
@@ -116,7 +116,7 @@ public enum FeedSetting {
             Feed.HIGHEST_BACK_SILL_MM,
             false),
     FLYWHEEL(
-            Group.FEEDER,
+            Group.SPINDEXER,
             "Flywheel speed",
             "ticks/s",
             "How fast the flywheel's motor is commanded to turn, as the robot's code commands it.",
@@ -135,10 +135,10 @@ public enum FeedSetting {
             false);
 
     public enum Group {
-        POLLEN("Pollen", "The pollen in the feeder as the feed starts."),
+        POLLEN("Pollen", "The pollen in the spindexer as the feed starts."),
         SPINNER("Spinner", "The spinner's continuous servo: its power, and how fast and how hard it turns."),
         RAMP("Ramp", "The ramp bar's positional servo: where it is down and up, and when it moves."),
-        FEEDER("Feeder and flywheel", "The back window's sill, and the flywheel that takes a lifted pollen."),
+        SPINDEXER("Spindexer and flywheel", "The back window's sill, and the flywheel that takes a lifted pollen."),
         RUN("Run", "How long the feed is followed.");
 
         private final String label;

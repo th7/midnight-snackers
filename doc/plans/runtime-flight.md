@@ -19,7 +19,7 @@ So a ball off the floor in a run moves on the Launch Sim's engine, and the
 launch is not a formula: the ball is fed into Reginald's flywheel and hood,
 and where, how fast and with what spin it leaves comes out of the same
 engine. `WheelPair` stays in the Launch Sim. The rest of Reginald's insides
-(the roller, the scoop, the feeder, the ramp, the flywheel's inertia) are
+(the roller, the scoop, the spindexer, the ramp, the flywheel's inertia) are
 `reginald-internals.md`'s.
 
 Stages 1 to 3 are built, and so are the first two parts of stage 4: the

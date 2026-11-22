@@ -10,7 +10,7 @@ feed, and a fixed hood extension and a stop hold it there while the wheel is
 stopped.
 
 This plan fills that gap. A pollen on the floor meets the roller and the
-scoop, rolls into a pocket of the feeder, rides round, is lifted by the ramp
+scoop, rolls into a pocket of the spindexer, rides round, is lifted by the ramp
 into the flywheel and thrown. It stays one body in one engine from the front
 of the robot to the cell, and it spins the whole way. The two-wheel launcher
 stays in the Launch Sim.
@@ -24,7 +24,7 @@ inference with its confidence. Nothing in the plan waits on the team. Each
 open question has a default, and each measurement replaces one. Two steps
 can stop for the user: batch 4's run of the acceptance set, if a shot that
 scores at the code's close launch in stage 4 no longer does, and
-`SimRunnerTest`, if the turning feeder pushes it past 1 s. The second is
+`SimRunnerTest`, if the turning spindexer pushes it past 1 s. The second is
 likely, so its question goes to the user before batch 4 starts (*What it
 costs*).
 
@@ -33,7 +33,7 @@ It builds on two plans and does not repeat them:
   drive, his drawing, and no turntable. After its batch 5 there is no
   turntable, so stage 4's launcher frame is the robot's frame, and every part
   here is carried in it. Its batch 6 is superseded by the flight plan's
-  stage 4. Its batch 7 is superseded here: the abstract `Feeder` is never
+  stage 4. Its batch 7 is superseded here: the abstract `Spindexer` is never
   built, and the robot-code half moves into batch 4 below.
 - The flight plan, `doc/plans/runtime-flight.md`, stages 1 to 4, as built and
   as designed:
@@ -71,7 +71,7 @@ It builds on two plans and does not repeat them:
 origin at the middle of the chassis front at floor level, +Y back, +X left,
 +Z up. Robot: inches, +x forward, +y left, z up, origin 204 mm behind the
 front. `x = (204 − Y)/25.4`, `y = X/25.4`, `z = Z/25.4`. Two more:
-- The **feeder frame** (mm). Origin at CAD (0, 167.816, 49.596), robot
+- The **spindexer frame** (mm). Origin at CAD (0, 167.816, 49.596), robot
   (1.425, 0, 1.953) in. Axis n = robot (0.2834, 0, 0.9590): tilted 16.4645°,
   so the plates rise toward the back. e2 = robot (−0.9590, 0, 0.2834), in the
   plates' plane, toward the back. x along robot +y, in mm (CAD X). Heights d
@@ -161,7 +161,7 @@ stage 4's are.
 | Roller treads | polyurethane | 0.35 | 0.6 | PU 85A on PE (BEHAbelt datasheet); restitution assumed | low |
 | Scoop | plastic; the CAD gives none | 0.30 | 0.50 | the Launch Sim's polycarbonate (0.29–0.33) and its walls' restitution | low |
 | Plates, cross rail | aluminium (REV-41-1785) | 0.35 | 0.62 | the Launch Sim's metal and frame values | medium-low |
-| Feeder plates, rotor, fence, fin, fixed piece | printed plastic, assumed | 0.30 | 0.50 | as the scoop | low |
+| Spindexer plates, rotor, fence, fin, fixed piece | printed plastic, assumed | 0.30 | 0.50 | as the scoop | low |
 | Flywheel, hood | stage 4 | 0.6, 0.3 | 0.6 | stage 4 | — |
 
 **The pollen.** The field gives a pollen a radius of 1.39 in (70.61 mm), and
@@ -318,24 +318,24 @@ its own squash, μ 0.30, restitution 0.50.
 
 Tested in batches 1, 2 and 5.
 
-### Plates, and the path to the feeder
+### Plates, and the path to the spindexer
 
 **What the CAD says.**
 
 | What | CAD (mm) | Robot frame (in) |
 |---|---|---|
 | Plate 1, on the path | Y 50–95, X ±140, Z 12.87–15.875 | x 4.291–6.063, z 0.507–0.625 |
-| Plate 2, under the feeder | Y 120–165 | x 1.535–3.307 |
-| Plate 3, under the feeder | Y 190–235 | x −1.220–0.551 |
+| Plate 2, under the spindexer | Y 120–165 | x 1.535–3.307 |
+| Plate 3, under the spindexer | Y 190–235 | x −1.220–0.551 |
 | Cross rail | | x −2.219…−1.628, top at z 2.397 |
-| The feeder floor's front rim | top at (Y 89.524, Z 19.471): a 3.60 mm step up from plate 1, and 0.31 mm *ahead of* the scoop's back edge | |
-| Where an arriving pollen stops | in the V between the back slope and the tilted floor, centre (Y 86.50, Z 55.66), 76.26 mm from the feeder's axis | (4.626, 0, 2.191) |
+| The spindexer floor's front rim | top at (Y 89.524, Z 19.471): a 3.60 mm step up from plate 1, and 0.31 mm *ahead of* the scoop's back edge | |
+| Where an arriving pollen stops | in the V between the back slope and the tilted floor, centre (Y 86.50, Z 55.66), 76.26 mm from the spindexer's axis | (4.626, 0, 2.191) |
 
 The path runs from the crest down the back slope onto plate 1 at Y 89.833,
-then up the 3.60 mm step onto the feeder's floor. Plates 2 and 3 lie under the
-feeder and are never on the path.
+then up the 3.60 mm step onto the spindexer's floor. Plates 2 and 3 lie under the
+spindexer and are never on the path.
 
-**A finding for the team: the CAD has interferences.** The feeder's floor
+**A finding for the team: the CAD has interferences.** The spindexer's floor
 plate goes 1.02 mm into plate 1, its boss 2.96 mm into plate 2, and the floor
 plate 0.40 mm into the cross rail. The floor's rim overlaps the scoop's back
 edge by 0.31 mm.
@@ -346,27 +346,27 @@ and a pollen meets their union. The 3.60 mm step is on the path and stays.
 
 Tested in batch 1.
 
-### Feeder
+### Spindexer
 
-Superseded by `feeder-sim.md`. The CAD now draws the feeder: a floor 15 mm
+Superseded by `spindexer-sim.md`. The CAD now draws the spindexer: a floor 15 mm
 thick, a wall at r 82.27 with a front and a back window, the top plate 81.12
 above the floor, and the spinner's servo on top, pointing down the axis. The
 spinner has two arms, not four, and is not drawn yet. The 4-arm rotor, its
 pockets, the fence and its entry guide below are retired, and the batches
-that build them take the feeder from `feeder-sim.md` instead.
+that build them take the spindexer from `spindexer-sim.md` instead.
 
 Still standing, restated there: the fling limit (1.23 rev/s at the wall),
 the front station's push outward, and the servo figures.
 
 ### Lift ramp
 
-Superseded by `feeder-sim.md`. The ramp is a bar under the feeder's floor on
+Superseded by `spindexer-sim.md`. The ramp is a bar under the spindexer's floor on
 its own servo, which swings it up across the robot through a slot at the back
 of the floor. The fin under the hood, its pivot and its fixed piece are
 retired.
 
 Still standing, restated there: the timing finding, now 0.5 s per pass with
-two arms, and the ramp's torque, which the Feeder Sim reports.
+two arms, and the ramp's torque, which the Spindexer Sim reports.
 
 ### Flywheel and hood
 
@@ -492,8 +492,8 @@ simulated second.
 
 | Scenario | Units per simulated second | Source |
 |---|---|---|
-| Nothing moving inside the robot (feeder still; robot still or cruising) | bounds checks only | asleep in the robot (batch 3c) |
-| Four pollen riding a turning feeder | about 320,000 | 4 × 80,000 |
+| Nothing moving inside the robot (spindexer still; robot still or cruising) | bounds checks only | asleep in the robot (batch 3c) |
+| Four pollen riding a turning spindexer | about 320,000 | 4 × 80,000 |
 | The same, and a fifth pollen under the roller | about 400,000 | 5 × 80,000 |
 | One shot through the hood (about 40 ms in contact) | about 3,000 per shot | stage 4's count: about 370 RK4 steps and 1,480 compliant queries |
 | Four balls flying | 160,000 | measured |
@@ -510,7 +510,7 @@ What keeps it there:
   for them.
 - **Compliant contacts are not located by bisection** (stage 4), so pocket
   pollen add no events. Ball against ball inside the robot still bisects.
-- **Asleep in the robot** (batch 3c): a still feeder in a cruising robot costs
+- **Asleep in the robot** (batch 3c): a still spindexer in a cruising robot costs
   only bounds checks, and `Bodies.idleThrough` still jumps.
 - Stage 3's work allowance, 15,000 units each 5 ms window of steps, still
   bounds a burst.
@@ -521,12 +521,12 @@ than it is with one ball flying.
 
 **The risk.** `SimRunnerTest`'s 2 s run must finish in under 1 s. It runs
 `WaitingAuto`, which builds Reginald's `Robot`, whose `Intake` starts on.
-Under batch 4's rule the feeder turns whenever the intake runs, so the four
+Under batch 4's rule the spindexer turns whenever the intake runs, so the four
 preloaded pollen ride round: about 640,000 units, 0.3–0.5 s warm and 1.3 s at
 the 2.0 µs a unit that short cold runs measured, so red is likely. The levers
 above do not reach riding pollen: they are awake, in compliant contact, which
 never bisects, and far under the work allowance. The test does not change.
-Whether a feeder should turn while nothing needs feeding is the robot code's
+Whether a spindexer should turn while nothing needs feeding is the robot code's
 question, and so the team's. The default is `reginald.md`'s: it turns
 whenever the intake or the flywheel runs. So before batch 4 starts, put this
 question to the user with these numbers. Batch 4 then measures it, and if the
@@ -553,7 +553,7 @@ before and after in the telemetry store.
 | 9 | The fin's torque | 1.5–1.7 N·m against a stall of 1.1–1.3 | The servo may give way |
 | 10 | The flywheel slows per shot | about 9 %, 115 ticks/s, at 0.95 lb·in²; the ready window is ±15 | Shots wait about 0.1 s to recover |
 | 11 | The close launch's power | Under drag, Magnus and contacts the close shot scores from 40 in at 224.0–228.0 in/s. The flywheel is direct drive, 1:1 on its 28-tick motor, so the code's 1050 ticks/s throws about 198 in/s through stage 4's hood and every acceptance shot falls short. Stage 4's hood scores the shots into a cell holding nectar from 1211 to 1231 ticks/s, and tips the hive with the preload from 1218 to 1227: 9 ticks/s wide, narrower than the ±15 window (30 wide) and the 25 ticks/s power step. Into an empty cell, run at every whole command from 1000 to 1400, the shot after a tip scores in short runs (1148–1150, 1195–1202, 1263–1267) and at 1282, and the four at their cadence only at 1148, 1200, 1202 and 1267, since the cell's friction turns the hood's backspin into speed back out. The whole set scores only at isolated commands near 1148 and 1267, with the four at their cadence failing one tick a second either side | Stage 4c sets the code's close launch to 1220 ticks/s, and the team test-fires it on the robot. A ready window narrower than ±15 is worth having. The backspin is the robot's to reduce: until then the two empty-cell tests are red with the launcher in the run, and stage 4c's runtime stays off `develop` (`runtime-flight.md`, *Calibration*) |
-| 12 | A nectar may be drawn onto the scoop | 91.44 mm against the roller's 69.30 mm gap: 22 mm on the bands. It cannot pass the 76.12 mm feeder gap, and the intake has no reverse | A prediction. Batch 5's replay shows what happens |
+| 12 | A nectar may be drawn onto the scoop | 91.44 mm against the roller's 69.30 mm gap: 22 mm on the bands. It cannot pass the 76.12 mm spindexer gap, and the intake has no reverse | A prediction. Batch 5's replay shows what happens |
 | 13 | Two pollen sizes | the field's 70.61 mm; the CAD's 71.12 mm | Item 1 |
 | 14 | A fifth pollen meets every arm | a pollen waiting in the V sits at r 76.26, its near side at r 40.7, and the arms reach r 88 every quarter turn; each passing pocket's pollen also rolls out there, and with the next pocket full the guide wedges the fifth against it | Predicted to stall the rotor. Batch 5's replay shows what happens |
 | 15 | The top plate's notch is narrower than a pollen | 63.48 mm wide; a pollen crossing the raised fin from the side meets its edge 3.48 mm deep, and no fin that reaches the wheel clears it | The plan widens it to \|x\| < 42, the back window (item 23). Widen it, or say how a pollen rises through it |
@@ -567,7 +567,7 @@ and 7. Batch 1 writes the rest.
 | `reginald.md` says | Now known | Source |
 |---|---|---|
 | The 2-D check scores at 205–223 in/s; the throw 0.204 in/s per tick/s is 46 % of the surface speed | Under drag, Magnus and contacts it scores at 224.0–228.0 in/s, and 0.204 is a knife edge. Stage 4's simulated hood throws about 0.425 of the 100 mm surface speed | Launch Sim runs; inferred: stage 4's launcher throws 220.9 in/s at 1050 ticks/s and 25 ticks per turn, where the surface moves at 519.5 in/s |
-| The feeder is tilted about 17°, its plates `FeederHeight` ≈ 75 mm apart, with pockets at `FeederRadius` | 16.4645°. The gap is 76.12 mm (pollen + 5 mm). Neither variable is used by any feature | the CAD's features |
+| The spindexer is tilted about 17°, its plates `FeederHeight` ≈ 75 mm apart, with pockets at `FeederRadius` | 16.4645°. The gap is 76.12 mm (pollen + 5 mm). Neither variable is used by any feature | the CAD's features |
 | The discs sit on a servo hub | Both plates are fixed; a rotor turns between them | this plan |
 | *Part 40* is the funnel | It is *Part 41* in the live document, with the same geometry. The reduction must find it by its geometry, not its name or id | the live document |
 | "The roller pulls a pollen up the funnel" | The robot's own speed, about 0.45 m/s, carries a pollen over the lip; the roller first reaches it 5.23 mm up | the CAD's exact faces |
@@ -588,12 +588,12 @@ robot code. After each, run stage 3's acceptance set again.
 | 5 | Friction | three pollen taped into a triangle, tilted on the scoop's material and on a REV plate; μ is the tangent of the angle where it slides | 0.30 plastic; 0.35 aluminium | the materials |
 | 6 | Roller speed | video at full power, empty and with a pollen under it | 540 rpm | `INTAKE_RPM` |
 | 7 | The intake's motor and gearing, and which way positive power turns it | confirm | stall 1.5 N·m; positive pulls in | the motor's constants |
-| 8 | The feeder: two fixed plates and a 4-arm rotor on a continuous servo? Which servo, at 5 V or 6 V? How is the top plate held up? What are the corner bracket and *Sketch 6* for? | confirm | as inferred; a Smart Robot Servo at 5 V | the `assumed` feeder |
-| 9 | The feeder's speed | 120 fps video, a tape mark, frames over 10 turns, empty and with four pollen | 1.0 rev/s | `FEEDER_SPEED` |
+| 8 | The spindexer: two fixed plates and a 4-arm rotor on a continuous servo? Which servo, at 5 V or 6 V? How is the top plate held up? What are the corner bracket and *Sketch 6* for? | confirm | as inferred; a Smart Robot Servo at 5 V | the `assumed` spindexer |
+| 9 | The spindexer's speed | 120 fps video, a tape mark, frames over 10 turns, empty and with four pollen | 1.0 rev/s | `SPINDEXER_SPEED` |
 | 10 | The arms | how many, how thick, how tall above the bottom plate, what material, straight or swept, to what radius | 4; 4.0 mm; 22–62 mm; plastic; straight; r 12–88 | the `assumed` rotor |
 | 11 | A fence or housing | inner radius, height, openings at the intake and at the flywheel | r 93–96, floor to lid, windows \|x\| ≤ 50.9 and 42, a guide | the `assumed` fence |
 | 12 | Pocket radius | 55 or 58 mm | 55, fence at 93 | the `assumed` fence |
-| 13 | The feeder's direction | which way positive power turns it | counter-clockwise seen from above | the `assumed` rotor |
+| 13 | The spindexer's direction | which way positive power turns it | counter-clockwise seen from above | the `assumed` rotor |
 | 14 | The ramp | a hinged fin under the hood? Its hinge, length, width and section, its servo, its two positions in degrees, how it sits against the notch | the fin above, 12 mm wide and half-round; 37° | the `assumed` fin |
 | 15 | The ramp's stroke | 120 fps video, up and down | 0.168 s per 60° | `RAMP_SERVO_SECONDS` |
 | 16 | The flywheel's motor and gearing | confirm | a 6000 rpm, 28-tick motor, direct drive at 1:1, as the team says: 28 ticks per turn. Batch 4's slowing per shot may move the close launch that scores, since the wheel has lost part of its 9 % by the time the ball leaves, but not the ticks per turn | the motor's constants; `FLYWHEEL_TICKS_PER_TURN` |
@@ -602,7 +602,7 @@ robot code. After each, run stage 3's acceptance set again.
 | 19 | The throw | 240 fps video: exit speed, angle and spin against rpm, at three squeezes | stage 4's model | checks the whole launcher; fits 2, 3 and the wheel's μ |
 | 20 | The bottom plate | where the live 15 mm square slab's top sits against the 13 October floor | the 13 October floor plane | the `assumed` floor |
 | 21 | Reverse | will the intake ever run backward, to clear a nectar or a jam? | no: the code has on and off | nothing; the simulator already takes negative power |
-| 22 | How a launch picks out one pocket | a sensor on the rotor, a slower feeder for the shot, or the flywheel's drop | lower the ramp once the flywheel's measured speed falls 50 ticks/s below its target, or after `RAMP_UP_SECONDS` | `Launcher` |
+| 22 | How a launch picks out one pocket | a sensor on the rotor, a slower spindexer for the shot, or the flywheel's drop | lower the ramp once the flywheel's measured speed falls 50 ticks/s below its target, or after `RAMP_UP_SECONDS` | `Launcher` |
 | 23 | The top plate's notch | its width as built, and how a pollen the ramp lifts rises through it | \|x\| < 42 | the `assumed` notch |
 
 ## Asks of the CAD
@@ -616,7 +616,7 @@ No batch waits on these. Each makes the next update cheaper:
   the origin), and make it reach the fence.
 - Resolve the three interferences and the step at the rim.
 - Name the scoop. The reduction will still find it by its geometry.
-- Put mate connectors at the feeder's axis and at the ramp's pivot.
+- Put mate connectors at the spindexer's axis and at the ramp's pivot.
 - Trim the hood at +20°, as `reginald.md` already asks, and place its groove
   bottom at r 108.341 for 2.0 mm of squeeze on a 70.61 mm pollen, or say what
   squeeze the robot is built with (item 18).
@@ -631,11 +631,11 @@ this plan's tables is asserted from the committed geometry, so a wrong number
 fails at the earliest layer that can name it.
 
 - `robot.json` gains **`internals`**: each part's numbers in its own frame
-  (robot, feeder, rotor, ramp). Each entry is marked `measured`, from the
+  (robot, spindexer, rotor, ramp). Each entry is marked `measured`, from the
   CAD's exact faces in the 13 October snapshot, naming the part, or `assumed`,
   inferred here, naming why.
 - In the core, **`Internals`** holds the scoop, the plates, the cross rail,
-  the roller, the feeder's plates, the fence, the rotor, the fin and the fixed
+  the roller, the spindexer's plates, the fence, the rotor, the fin and the fixed
   piece, with the fin's half-round section. It refuses, naming the rule:
   - a radius or a slab's thickness that is not positive, or a rounding that
     is negative;
@@ -696,7 +696,7 @@ Tests first:
    - the roller 69.30 mm off the floor, and its overlap 26.99 mm at most, with
      the centre at (Y 38.5, Z 62.35);
    - first contact with the lip at Y −14.96, where the roller is 7.92 mm short;
-   - the entry V 76.26 mm from the feeder's axis, and the 3.60 mm step at the
+   - the entry V 76.26 mm from the spindexer's axis, and the 3.60 mm step at the
      rim;
    - the plates 76.12 mm apart; a pocket's pollen between r 53.12 and 57.44;
      1.33 mm each side of an arm at r 55; arm top to lid 14.12 mm and to the
@@ -731,7 +731,7 @@ robot's frame held still.
 
 - **The internals are `Surroundings.Part`s** carried in stage 4's frame: one
   for the parts that do not move within the robot (the scoop, the plates, the
-  cross rail, the feeder's floor and lid, the fence and the fixed piece), and
+  cross rail, the spindexer's floor and lid, the fence and the fixed piece), and
   one each for the roller, the rotor and the fin. Each answers stage 4's
   `squeezing` query and nothing through `near`. Its ids are its pieces' names,
   which stage 2's `Surroundings.of` already keeps unique. They are held
@@ -818,7 +818,7 @@ flywheel its inertia and controller, and nothing moves in a run yet.
     `AngularSpeed`, so it stays finite and under the motor's top speed.
 - **Mechanism constants**, guesses until measured:
   - `INTAKE_RPM`: 540 built, 100–2000;
-  - `FEEDER_SPEED`: revolutions a second at full power, 1.0 built, 0.2–3;
+  - `SPINDEXER_SPEED`: revolutions a second at full power, 1.0 built, 0.2–3;
   - `RAMP_SERVO_SECONDS`: the ramp servo's seconds per 60°, 0.168 built,
     0.05–0.5;
   - `FLYWHEEL_INERTIA`: 0.95 lb·in² built, 0.05–5.
@@ -849,7 +849,7 @@ Tests first:
    - Its power never leaves ±1.
 3. `ConstantsTest` and `SimConstantsTest`: the four constants' ranges and
    built values. `SimRunStreamTest`: the child's hello lists `intake_rpm`,
-   `feeder_speed`, `ramp_servo_seconds` and `flywheel_inertia`.
+   `spindexer_speed`, `ramp_servo_seconds` and `flywheel_inertia`.
 4. Every existing test, the Launch Sim's fingerprints and stage 4's launcher
    tests pass unchanged.
 
@@ -863,7 +863,7 @@ This batch is in the core. Parts move in the robot's frame, each has a drive
 from batch 3a, and the engine tells each drive the load it took.
 
 - **Carried parts that move.**
-  - The rotor turns about the feeder's axis, and the fin about its pivot.
+  - The rotor turns about the spindexer's axis, and the fin about its pivot.
     `Flight` keeps each one's angle where its last step ended, as it keeps
     stage 4's launcher frame, and each step is given the angles it ends at.
     Between them the angle at engine time t is interpolated linearly, as stage
@@ -983,33 +983,33 @@ Then implement, and update `doc/CONTEXT.md`:
 - **Asleep and awake** (in the robot), **Idle and allowance** (a ball asleep
   in the robot does not stop it)
 
-## Batch 4 · the feeder and the ramp replace the gates
+## Batch 4 · the spindexer and the ramp replace the gates
 
 This batch changes the robot code as well as the simulator. It is the
 robot-code half of `reginald.md`'s batch 7, with the physics doing what its
 simulator half did. Before it starts, the question in *What it costs* goes to
 the user.
 
-- **Hardware.** `topGate` and `bottomGate` give way to **`feeder`**, a
+- **Hardware.** `topGate` and `bottomGate` give way to **`spindexer`**, a
   `CRServo`, and **`ramp`**, a `Servo`. The Control Hub's configuration must
   name both before this lands on the robot. Hardware is whole or not at all,
   so a hub without them will not start an op mode. Changing the hub's
   configuration is the team's job.
-- **`Launcher`** owns the feeder and the ramp, as it owned the gates:
-  - It turns the feeder whenever the intake or the flywheel is running.
+- **`Launcher`** owns the spindexer and the ramp, as it owned the gates:
+  - It turns the spindexer whenever the intake or the flywheel is running.
   - A launch waits for the flywheel and raises the ramp. It lowers the ramp
     as soon as the flywheel's measured speed falls more than 50 ticks/s below
     its target, because the wheel took a pollen, or after `RAMP_UP_SECONDS`
-    (1.0 s, a turn of the feeder) if none came.
+    (1.0 s, a turn of the spindexer) if none came.
   - The drivers tune `RAMP_UP_SECONDS` with gamepad 2's bumpers, which tuned
     the bottom gate's wait.
-- **Fakes.** `fakes` gains `FakeCRServo`; `SimDevices` gains the feeder and
+- **Fakes.** `fakes` gains `FakeCRServo`; `SimDevices` gains the spindexer and
   the ramp. `FakeDcMotorEx` keeps the velocity PIDF it is given.
 - **`SimRobot`:**
   - It builds Reginald's internals into `Flight`, carried with his pose. The
     preload is four pollen, one in each pocket, with an arm on the front
     centreline so no pocket faces the front window, asleep in the robot.
-  - Each substep it reads the feeder's power, the ramp's position, the
+  - Each substep it reads the spindexer's power, the ramp's position, the
     intake's power and the flywheel's target. It steps the drives, hands
     `Flight` the step's `Mechanisms`, and takes back the torques and the
     flywheel's work.
@@ -1044,14 +1044,14 @@ Tests first:
      target.
    - A change of target by one power step during a launch does not lower it.
    - With no shot it lowers the ramp after `RAMP_UP_SECONDS`.
-   - The feeder turns while the flywheel runs and while the intake runs, and
+   - The spindexer turns while the flywheel runs and while the intake runs, and
      stops when neither does.
    - The bumpers tune `RAMP_UP_SECONDS`.
-2. `HardwareTest` and `SimDevicesTest`: the hardware has a feeder and a ramp,
+2. `HardwareTest` and `SimDevicesTest`: the hardware has a spindexer and a ramp,
    and no gates. `FakeDcMotorExTest`: it gives back the coefficients it was
    given.
 3. `SimRobotTest`:
-   - With the ramp down, a full feeder turning for two turns throws nothing
+   - With the ramp down, a full spindexer turning for two turns throws nothing
      and still holds four.
    - Twenty runs from the preload, with the launch started at rotor angles
      4.5° apart over a quarter turn; each throws exactly one ball. Each leaves
@@ -1071,7 +1071,7 @@ Tests first:
    - Four preloaded and four launches throw four balls, one each, at their
      real cadence.
    - The close shot scores, for Blue and for Red.
-5. `IntakeSimTest`: four pollen go in while the feeder turns, each into its
+5. `IntakeSimTest`: four pollen go in while the spindexer turns, each into its
    own pocket.
 6. The acceptance set at T 28 and the code's own commands, with no band
    around it, as stage 4 holds it: the close shot scores and stays for Blue
@@ -1082,19 +1082,19 @@ Tests first:
    - `FlightTest` pins the exact work of one ramp-fed shot.
 8. Golden traces:
    - Both Flight goldens stay byte-identical: `FlightTraceTest` has no robot.
-   - Read the diffs of the others (the gates give way to the feeder and the
+   - Read the diffs of the others (the gates give way to the spindexer and the
      ramp), then regenerate.
 
 If a launch at some rotor angle still throws none or two, confirm why from
-the map of angles and take the next default: the feeder turns at half power
+the map of angles and take the next default: the spindexer turns at half power
 while the ramp is up, which doubles the time between pockets. Record the map
 in the telemetry store and report it with finding 8. The test stays as
 written: one ball per launch is the behaviour we want.
 
 Then implement, and update `doc/CONTEXT.md`:
-- new entries: **Feeder**, **Ramp**
-- **Intake** (into the feeder's pockets, not a hopper), **Hardware**,
-  **Simulated robot** (preload, holds, gates → feeder and ramp, the flywheel
+- new entries: **Spindexer**, **Ramp**
+- **Intake** (into the spindexer's pockets, not a hopper), **Hardware**,
+  **Simulated robot** (preload, holds, gates → spindexer and ramp, the flywheel
   slows), **the launcher's physics** (fed by the fin; no stand-ins below the
   hood), **Simulation constants**
 
@@ -1142,7 +1142,7 @@ Tests first:
      still roller and goes no further.
    - Four pollen, as in batch 4.
 4. `SimRobotTest`:
-   - A ball wider than the feeder's gap, a nectar, driven into the mouth never
+   - A ball wider than the spindexer's gap, a nectar, driven into the mouth never
      enters a pocket.
    - A pollen pinned between the mouth and a wall never passes through either.
    - The pushing tests outside the mouth pass unchanged.

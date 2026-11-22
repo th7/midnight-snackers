@@ -7,7 +7,7 @@ import java.util.Map;
 
 public final class Feed {
     public static final double POLLEN_RADIUS_IN = Launcher.POLLEN_RADIUS_IN;
-    static final String DEFAULTS_SOURCE = "doc/plans/feeder-sim.md, What the tab does: two pollen, one each side of"
+    static final String DEFAULTS_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: two pollen, one each side of"
             + " the arms against the wall, the spinner at full power, the ramp down at 0 and up at 35 degrees, over a run"
             + " of 3 s";
     static final double FIRST_POLLEN_DEGREES = 90;
@@ -21,22 +21,22 @@ public final class Feed {
     static final double RAISED_AT_SECONDS = 0.3;
     static final double LOWERED_AT_SECONDS = 1.2;
     static final double RUN_SECONDS = 3;
-    static final String FLYWHEEL_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the flywheel at stage 4's"
+    static final String FLYWHEEL_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: the flywheel at stage 4's"
             + " default, the code's close launch of 1050 ticks a second at the 24.2 ticks a turn the launcher is tested"
             + " at";
     static final double FLYWHEEL_TICKS_PER_SECOND = 1050;
     static final double FLYWHEEL_TICKS_PER_TURN = 24.2;
-    static final String CONTACT_SOURCE = "doc/plans/feeder-sim.md, How it is simulated, Contact: a pollen meets the"
-            + " feeder's faces at mu 0.30 and restitution 0.50, as Launcher uses";
+    static final String CONTACT_SOURCE = "doc/plans/spindexer-sim.md, How it is simulated, Contact: a pollen meets the"
+            + " spindexer's faces at mu 0.30 and restitution 0.50, as Launcher uses";
     static final double FRICTION = 0.30;
     static final double RESTITUTION = 0.50;
-    static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: a run of 0.5 to 10 s, the ramp"
+    static final String RANGE_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: a run of 0.5 to 10 s, the ramp"
             + " moved within it; the back sill above the floor's top at z 15 and below the top plate at z 96.12";
     static final double SHORTEST_RUN_SECONDS = 0.5;
     static final double LONGEST_RUN_SECONDS = 10;
     static final double LOWEST_BACK_SILL_MM = 16;
     static final double HIGHEST_BACK_SILL_MM = 95;
-    static final String JAM_SOURCE = "doc/plans/feeder-sim.md, Phase 3, 9: a pollen that stalls the spinner jams the"
+    static final String JAM_SOURCE = "doc/plans/spindexer-sim.md, Phase 3, 9: a pollen that stalls the spinner jams the"
             + " feed: turning under a tenth of its unloaded speed for a tenth of a second, at any power but none";
     static final double JAMMED_BELOW_UNLOADED = 0.1;
     static final double JAMMED_FOR_SECONDS = 0.1;
@@ -71,12 +71,12 @@ public final class Feed {
     }
 
     public static final class RampSchedule {
-        private final Feeder.RampAngle down;
-        private final Feeder.RampAngle up;
+        private final Spindexer.RampAngle down;
+        private final Spindexer.RampAngle up;
         private final Seconds raisedAt;
         private final Seconds loweredAt;
 
-        private RampSchedule(Feeder.RampAngle down, Feeder.RampAngle up, Seconds raisedAt, Seconds loweredAt) {
+        private RampSchedule(Spindexer.RampAngle down, Spindexer.RampAngle up, Seconds raisedAt, Seconds loweredAt) {
             this.down = down;
             this.up = up;
             this.raisedAt = raisedAt;
@@ -84,7 +84,7 @@ public final class Feed {
         }
 
         public static Checked<RampSchedule> of(
-                Feeder.RampAngle down, Feeder.RampAngle up, Seconds raisedAt, Seconds loweredAt) {
+                Spindexer.RampAngle down, Spindexer.RampAngle up, Seconds raisedAt, Seconds loweredAt) {
             if (!(down.degrees() < up.degrees())) {
                 return Checked.rejected(
                         "a ramp is down below where it is up, not down at " + down + " and up at " + up);
@@ -96,7 +96,7 @@ public final class Feed {
             return Checked.ok(new RampSchedule(down, up, raisedAt, loweredAt));
         }
 
-        Feeder.RampAngle commandedAt(double seconds) {
+        Spindexer.RampAngle commandedAt(double seconds) {
             return seconds >= raisedAt.value() && seconds < loweredAt.value() ? up : down;
         }
 
@@ -104,7 +104,7 @@ public final class Feed {
             return seconds >= loweredAt.value() || raisedAt.value() >= runEnds.value();
         }
 
-        Feeder.RampAngle down() {
+        Spindexer.RampAngle down() {
             return down;
         }
 
@@ -145,10 +145,10 @@ public final class Feed {
     }
 
     public static final class Plan {
-        private final Feeder.Shape shape;
-        private final Feeder.Spinner spinner;
+        private final Spindexer.Shape shape;
+        private final Spindexer.Spinner spinner;
         private final Power spinnerPower;
-        private final Feeder.Ramp rampServo;
+        private final Spindexer.Ramp rampServo;
         private final RampSchedule ramp;
         private final Flywheel.AngularSpeed flywheel;
         private final List<Pollen> pollen;
@@ -156,10 +156,10 @@ public final class Feed {
         private final Budget budget;
 
         private Plan(
-                Feeder.Shape shape,
-                Feeder.Spinner spinner,
+                Spindexer.Shape shape,
+                Spindexer.Spinner spinner,
                 Power spinnerPower,
-                Feeder.Ramp rampServo,
+                Spindexer.Ramp rampServo,
                 RampSchedule ramp,
                 Flywheel.AngularSpeed flywheel,
                 List<Pollen> pollen,
@@ -177,11 +177,11 @@ public final class Feed {
         }
 
         public static Checked<Plan> defaults() {
-            return Feeder.Shape.cad()
-                    .then(cad -> Feeder.Window.of(Feeder.Window.BACK_HALF_WIDTH_MM, BACK_SILL_MM)
+            return Spindexer.Shape.cad()
+                    .then(cad -> Spindexer.Window.of(Spindexer.Window.BACK_HALF_WIDTH_MM, BACK_SILL_MM)
                             .then(back -> cad.withBackWindow(back)))
-                    .then(shape -> Feeder.RampAngle.ofDegrees(DOWN_DEGREES)
-                            .then(down -> Feeder.RampAngle.ofDegrees(UP_DEGREES)
+                    .then(shape -> Spindexer.RampAngle.ofDegrees(DOWN_DEGREES)
+                            .then(down -> Spindexer.RampAngle.ofDegrees(UP_DEGREES)
                                     .then(up -> Seconds.of(RAISED_AT_SECONDS)
                                             .then(raised -> Seconds.of(LOWERED_AT_SECONDS)
                                                     .then(lowered -> RampSchedule.of(down, up, raised, lowered))))
@@ -191,9 +191,9 @@ public final class Feed {
                                                             .then(second -> Seconds.of(RUN_SECONDS)
                                                                     .map(length -> new Plan(
                                                                             shape,
-                                                                            Feeder.Spinner.revSmartRobotServo(),
+                                                                            Spindexer.Spinner.revSmartRobotServo(),
                                                                             Power.clamped(1),
-                                                                            Feeder.Ramp.revSmartRobotServo(),
+                                                                            Spindexer.Ramp.revSmartRobotServo(),
                                                                             ramp,
                                                                             Flywheel.AngularSpeed.from(
                                                                                     FLYWHEEL_TICKS_PER_SECOND, ticks),
@@ -202,11 +202,11 @@ public final class Feed {
                                                                             Budget.theEngines()))))))));
         }
 
-        public Plan withShape(Feeder.Shape other) {
+        public Plan withShape(Spindexer.Shape other) {
             return new Plan(other, spinner, spinnerPower, rampServo, ramp, flywheel, pollen, length, budget);
         }
 
-        public Plan withSpinner(Feeder.Spinner other) {
+        public Plan withSpinner(Spindexer.Spinner other) {
             return new Plan(shape, other, spinnerPower, rampServo, ramp, flywheel, pollen, length, budget);
         }
 
@@ -214,7 +214,7 @@ public final class Feed {
             return new Plan(shape, spinner, other, rampServo, ramp, flywheel, pollen, length, budget);
         }
 
-        public Plan withRampServo(Feeder.Ramp other) {
+        public Plan withRampServo(Spindexer.Ramp other) {
             return new Plan(shape, spinner, spinnerPower, other, ramp, flywheel, pollen, length, budget);
         }
 
@@ -245,11 +245,11 @@ public final class Feed {
             return FeedRun.starting(this).map(FeedRun::finished);
         }
 
-        Feeder.Shape shape() {
+        Spindexer.Shape shape() {
             return shape;
         }
 
-        Feeder.Spinner spinner() {
+        Spindexer.Spinner spinner() {
             return spinner;
         }
 
@@ -257,7 +257,7 @@ public final class Feed {
             return spinnerPower;
         }
 
-        Feeder.Ramp rampServo() {
+        Spindexer.Ramp rampServo() {
             return rampServo;
         }
 
@@ -318,7 +318,7 @@ public final class Feed {
     public record Axes(Vec3 origin, Vec3 x, Vec3 y, Vec3 z) {}
 
     public record Drawing(
-            Axes feeder, Map<String, Double> feederInches, Axes launcher, Map<String, Double> launcherInches) {}
+            Axes spindexer, Map<String, Double> spindexerInches, Axes launcher, Map<String, Double> launcherInches) {}
 
     public record Fed(
             List<Frame> frames, List<Event> events, Finish finish, long work, Seconds simulated, Drawing drawing) {}

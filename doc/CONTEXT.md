@@ -1896,12 +1896,12 @@ cost ("computed in 112 ms, 0.06x real time"), which is printed and never judged.
 turning pollen round to the **ramp**, which lifts each into the flywheel, and the
 **launcher** throwing it, replayed with the **spinner**'s and ramp's loads traced
 against time. It is laid out as Launch Sim is: settings on the right of the view,
-the feeds under it. `#feeder`, with the view's options after a `?`. Like a launch, a
+the feeds under it. `#spindexer`, with the view's options after a `?`. Like a launch, a
 feed is a bench's, so it is for the robot the bench is for. It runs no
 robot code and nothing set here reaches a run; it runs on the simulator's own
 **core**. What it simulates, where every number came from, what the physics showed
-and how to calibrate it is `doc/feeder-sim.md`. Classes: `Feed`, `FeedRun`, in the
-**core**; `SimFeeds`; `SimFeedPage`. Files: `feeder.html`.
+and how to calibrate it is `doc/spindexer-sim.md`. Classes: `Feed`, `FeedRun`, in the
+**core**; `SimFeeds`; `SimSpindexerPage`. Files: `spindexer.html`.
 
 **Spindexer** — The round bowl the pollen wait in, turned by its **spinner**, and
 what was once called the feeder. As the engine meets it, it is its floor
@@ -1911,14 +1911,14 @@ named collider. Its measures are the CAD's except the spinner, which is not draw
 the back window's sill is a setting, 30 mm by default where the CAD has 43.12. It is
 placed in Reginald by the CAD's transform, tilted 16.46° and rising toward the back,
 and a feed sends its axes and measures with it, so the view draws what the physics
-meets. Class: `Feeder`, in the **core**.
+meets. Class: `Spindexer`, in the **core**.
 
 **Spinner** — The hub and two arms on a REV Smart Robot Servo in continuous mode
 that turn the pollen round the **spindexer**, clockwise seen from above. Its speed is
 its full speed times its power, less in proportion to the torque the pollen load it
 with, and none at its stall torque: 1.0 rev/s and 1.1 N·m at the Hub's 5 V. Turning
 under a tenth of its unloaded speed for a tenth of a second while powered is a
-**jam**, reported once naming the pollen touching it. Class: `Feeder.Spinner`, in
+**jam**, reported once naming the pollen touching it. Class: `Spindexer.Spinner`, in
 the **core**.
 
 **Ramp** — The bar under the **spindexer**'s floor at the back, on a second Smart Robot
@@ -1926,7 +1926,7 @@ Servo in angular mode, that swings up through the slot and lifts a passing polle
 into the flywheel; it rises toward the end away from its servo. It slews to its
 commanded angle at 0.168 s per 60° and holds it whatever the load, reporting the
 torque it holds against. A **feed** raises it at one time and lowers it at another.
-Class: `Feeder.Ramp`, in the **core**.
+Class: `Spindexer.Ramp`, in the **core**.
 
 **Feed** — One run of the **spindexer** from the pollen at rest against its wall,
 with the spinner, ramp and flywheel commanded every 4 ms, until every pollen has

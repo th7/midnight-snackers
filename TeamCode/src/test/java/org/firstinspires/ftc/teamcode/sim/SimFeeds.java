@@ -28,7 +28,7 @@ final class SimFeeds {
     static final long MOST_KEPT_BYTES = 24L * 1024 * 1024;
     static final String SETTINGS_KEPT = "settings";
     static final String FED_SO_FAR = "fed";
-    static final String REMEMBERED_FILE = "feed-settings.json";
+    static final String REMEMBERED_FILE = "spindexer-settings.json";
     static final int CHUNK_FRAMES = 250;
 
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
@@ -301,7 +301,7 @@ final class SimFeeds {
     }
 
     Response viewer() {
-        return Response.html(SimFeedPage.viewer());
+        return Response.html(SimSpindexerPage.viewer());
     }
 
     static Response toTheViewer(String from, String id) {
@@ -413,7 +413,7 @@ final class SimFeeds {
         String says;
         if (finish instanceof Feed.Finish.AllLeft) {
             kind = "all left";
-            says = "every pollen has left the feeder";
+            says = "every pollen has left the spindexer";
         } else if (finish instanceof Feed.Finish.AtRest) {
             kind = "at rest";
             says = "the spinner and ramp are still and every pollen has come to rest";
@@ -491,7 +491,7 @@ final class SimFeeds {
 
     private static JsonObject drawing(Feed.Drawing drawing) {
         JsonObject drawn = new JsonObject();
-        drawn.add("feeder", drawn(drawing.feeder(), drawing.feederInches()));
+        drawn.add("spindexer", drawn(drawing.spindexer(), drawing.spindexerInches()));
         drawn.add("launcher", drawn(drawing.launcher(), drawing.launcherInches()));
         return drawn;
     }

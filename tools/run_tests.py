@@ -22,7 +22,7 @@ class Suite(namedtuple('Suite', 'packages checks')):
 
 SUITES = {
     'client': Suite([], [Check('renderer', 'check.mjs')] + [Check('browser', script) for script in (
-        'check.mjs', 'dashboard.mjs', 'simulator.mjs', 'replay.mjs', 'launch.mjs', 'feeder.mjs', 'cost.mjs')]),
+        'check.mjs', 'dashboard.mjs', 'simulator.mjs', 'replay.mjs', 'launch.mjs', 'spindexer.mjs', 'cost.mjs')]),
     'gateway': Suite(['field', 'ci', 'suite_cost', 'start'],
                      [Check('browser', script) for script in ('login.mjs', 'admin.mjs')]),
 }

@@ -1,12 +1,12 @@
-# The Feeder Sim
+# The Spindexer Sim
 
-The **Feeder Sim** tab simulates Reginald's feeder: a two-arm spinner turns pollen round a round
-feeder, a ramp bar rises through a slot in the floor at the back and lifts a passing pollen into the
+The **Spindexer Sim** tab simulates Reginald's spindexer: a two-arm spinner turns pollen round a round
+spindexer, a ramp bar rises through a slot in the floor at the back and lifts a passing pollen into the
 flywheel, and the flywheel and hood of the Launch Sim's `Launcher` throw it. You set both servos in
 the tab, press *Feed*, and watch what the pollen do, with the spinner's and ramp's loads traced
 against time. This page says what it simulates, where every number came from, what the physics
-showed, and how to calibrate it against the real feeder. Issue #180 asked for it, and
-`doc/plans/feeder-sim.md` is the plan it was built from.
+showed, and how to calibrate it against the real spindexer. Issue #180 asked for it, and
+`doc/plans/spindexer-sim.md` is the plan it was built from.
 
 Like the Launch Sim it runs on the simulator's own **core**, not on the robot's code: it runs
 no robot code and nothing set here reaches a run.
@@ -14,7 +14,7 @@ no robot code and nothing set here reaches a run.
 ## Contents
 
 1. [What it simulates](#what-it-simulates)
-2. [The feeder's shape](#the-feeders-shape)
+2. [The spindexer's shape](#the-spindexers-shape)
 3. [The spinner](#the-spinner)
 4. [The ramp](#the-ramp)
 5. [The flywheel and the hood](#the-flywheel-and-the-hood)
@@ -23,24 +23,24 @@ no robot code and nothing set here reaches a run.
 8. [The default feed](#the-default-feed)
 9. [What the physics showed](#what-the-physics-showed)
 10. [Ten times real time](#ten-times-real-time)
-11. [Calibrating it against the real feeder](#calibrating-it-against-the-real-feeder)
+11. [Calibrating it against the real spindexer](#calibrating-it-against-the-real-spindexer)
 12. [How it is tested](#how-it-is-tested)
 
 ## What it simulates
 
-A **feed** starts with the pollen at rest against the feeder's wall, the spinner still, the ramp
+A **feed** starts with the pollen at rest against the spindexer's wall, the spinner still, the ramp
 down and the flywheel at speed. Every 4 ms the servos are commanded, as the robot's loop does about
 that often, and the engine moves everything between. A feed ends at the first of:
 
-- **all left**: every pollen has left the feeder, through the hood or out of a window;
+- **all left**: every pollen has left the spindexer, through the hood or out of a window;
 - **at rest**: the spinner and ramp are still and every pollen has come to rest;
 - **out of time**: the run's length has passed;
 - **too much work**: it took more work than its budget (see [Ten times real time](#ten-times-real-time)).
 
 Along the way it reports **events**: a pollen *thrown* from the hood (with where, how fast, at
-what angle and with what spin), a pollen that *fell out* of the feeder, and a *jam*.
+what angle and with what spin), a pollen that *fell out* of the spindexer, and a *jam*.
 
-The replay draws the feeder cut away (floor, wall and top plate see-through, with their windows,
+The replay draws the spindexer cut away (floor, wall and top plate see-through, with their windows,
 slot and notch), the spinner, the ramp bar, the flywheel with its spokes turning and the hood, and
 each pollen with its 26 holes so its roll shows. Play, pause, step, scrub, and jump between the
 events marked on the timeline. Under the view, four traces against time: the spinner's speed and
@@ -66,11 +66,11 @@ degrees, rev/s, N·m, seconds, and the flywheel's ticks per second.
 A setting out of range, a ramp lowered before it is raised, or a ramp moved after the run ends is
 refused with the rule it breaks, and the tab shows that rule beside the field.
 
-## The feeder's shape
+## The spindexer's shape
 
 Every measure is the CAD's: Onshape document `b57b76498365b6a963155c10`, part studio *Feeder*
-(`e/0296dc8087bbd2d78083cd41`), read through the API on 16 November. In the **feeder frame**, in
-mm: z along the feeder's axis, up; the origin on the axis at the floor slab's underside; −y toward
+(`e/0296dc8087bbd2d78083cd41`), read through the API on 16 November. In the **spindexer frame**, in
+mm: z along the spindexer's axis, up; the origin on the axis at the floor slab's underside; −y toward
 the robot's back; +x toward the robot's right.
 
 | Part | Measure | Source |
@@ -84,9 +84,9 @@ the robot's back; +x toward the robot's right.
 | Spinner | a hub of r 10 and two arms 4 thick out to r 50, from z 17 to z 80 | not drawn: the team's default (plan, question 2) |
 | Ramp bar | 5 tall, 6 wide, top edges rounded 1, from x −31.96 to the pad at 38, centred in the slot at y −53.95, turned about the ramp servo's shaft at x 57.54, z −13.99 | *Part 2*, CAD; its width and rounding inferred |
 
-The feeder is placed in the robot by the CAD's transform: tilted 16.46°, rising toward the back,
+The spindexer is placed in the robot by the CAD's transform: tilted 16.46°, rising toward the back,
 its origin 173.96 mm behind the chassis's front and 28.78 mm up. The flywheel's axle lands at
-(y −84.13, z 132.82) in the feeder frame, where the *Reginald* studio has it. Tests hold both.
+(y −84.13, z 132.82) in the spindexer frame, where the *Reginald* studio has it. Tests hold both.
 
 The engine meets every face as a named collider: the floor, the wall, each window's sill and sides,
 the top plate, the hub, each arm and the ramp bar. The viewer draws from the same measures, sent
@@ -133,7 +133,7 @@ The pollen is the field's 70.61 mm ball (1.39 in radius), as `Launcher` uses, so
 wheel the same ball a shot flies. They start seated on the floor against the wall at the angles
 set, clockwise from the back.
 
-The feeder's faces meet a pollen with friction μ 0.30 and restitution 0.50, as `Launcher` uses.
+The spindexer's faces meet a pollen with friction μ 0.30 and restitution 0.50, as `Launcher` uses.
 That friction matters: at the frame's default of 0.35 a pollen wedges in the front window's corner
 (at tan 19° ≈ 0.34) and falls out of the window.
 
@@ -198,15 +198,15 @@ The default feed needs about **261,000 units per simulated second** (257,930 ove
 tenth of the budget. On the development container (arm64) it computed in 0.81 s, 0.82× real time. Each feed reports its own figure, and the telemetry store keeps the default's as
 `feed.default.cost`.
 
-## Calibrating it against the real feeder
+## Calibrating it against the real spindexer
 
-Film the feeder from above and from the side at 240 fps or more, with a scale in view. Then:
+Film the spindexer from above and from the side at 240 fps or more, with a scale in view. Then:
 
 1. **The spinner.** Time a turn with no pollen at full power: that is *spinner speed*. Hold an arm
    with a force gauge at a known radius until it stops: that is *stall torque*.
 2. **The ramp.** Time the bar from down to up: that sets *ramp servo speed*. Read its angles off
    the side view against *ramp down* and *ramp up*.
-3. **Friction.** Tilt the feeder until a pollen slides on the floor and on the wall: the tangent of
+3. **Friction.** Tilt the spindexer until a pollen slides on the floor and on the wall: the tangent of
    that angle is μ. The default is 0.30.
 4. **The pass.** Note when each pollen passes the back station, and when the ramp lifts it, and set
    the tab's *raised at* and *lowered at* to the code's. A feed that throws in the tab and not on
@@ -216,13 +216,13 @@ Film the feeder from above and from the side at 240 fps or more, with a scale in
 ## How it is tested
 
 - **Core (`simcore`).**
-  - `FeederShapeTest`: the CAD's shape is accepted; the static lifts and clearances above; a
+  - `SpindexerShapeTest`: the CAD's shape is accepted; the static lifts and clearances above; a
     spinner reaching r 54, an arm taller than the room under the wheel, a bar wider than the slot
     and windows or notches outside the plate are refused; the transform puts the axle where the CAD
     has it.
-  - `FeederServosTest`: the spinner's speed under load and at negative power; the ramp slews 0° to
+  - `SpindexerServosTest`: the spinner's speed under load and at negative power; the ramp slews 0° to
     35° in 0.098 s and holds whatever the load; commands beyond the servos' ranges are refused.
-  - `FeederAsAPartTest`: the feeder keeps the contract every moving part keeps, at rest, with the
+  - `SpindexerAsAPartTest`: the spindexer keeps the contract every moving part keeps, at rest, with the
     spinner turning and with the ramp moving.
   - `FeedTest`: a stopped spinner leaves pollen at rest; the arms carry a pollen past the back;
     the front sill holds; the wheel takes a lifted pollen and the same feed with the ramp never
@@ -231,12 +231,12 @@ Film the feeder from above and from the side at 240 fps or more, with a scale in
     the default feed throws both and the CAD's sill jams it.
   - `FeedFingerprintTest` pins the default feed's work, frames, events and finish bit for bit.
   - `FeedSettingsTest` and `FeedDrawingTest`: the settings plan the default feed and refuse what
-    they should; the drawing puts the feeder and the launcher where the physics has them.
+    they should; the drawing puts the spindexer and the launcher where the physics has them.
 - **Server (`TeamCode`).** `SimFeedsTest`: the defaults throw both pollen, refusals name their rule,
   the last settings fed are kept across a restart, feeds are listed newest first, the frames replay
   the spinner, ramp and pollen, the viewer is served, and each feed carries its drawing.
-  `DashboardPageTest`: the Feeder Sim tab comes after Launch Sim. `SimFeedPageTest` holds the page's placeholders and the
+  `DashboardPageTest`: the Spindexer Sim tab comes after Launch Sim. `SimSpindexerPageTest` holds the page's placeholders and the
   answers the browser check is given to the bench's shape.
-- **Browser checks.** `tools/browser/feeder.mjs` runs the bench's own default feed in the tab,
+- **Browser checks.** `tools/browser/spindexer.mjs` runs the bench's own default feed in the tab,
   sees both pollen thrown, replays it to the end and back, and sees a refused setting's rule beside
   its field. `tools/browser/dashboard.mjs` checks that the tab opens the viewer.

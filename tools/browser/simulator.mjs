@@ -13,7 +13,7 @@ const VIEWER = '<!doctype html><meta charset="utf-8"><title>Viewer</title><body>
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const LAUNCH = JSON.parse(fs.readFileSync(path.join(here, 'launch-answers.json'), 'utf8'));
-const FEEDER = JSON.parse(fs.readFileSync(path.join(here, 'feeder-answers.json'), 'utf8'));
+const SPINDEXER = JSON.parse(fs.readFileSync(path.join(here, 'spindexer-answers.json'), 'utf8'));
 
 const ASKED = [];
 const RUNS = [];
@@ -59,7 +59,7 @@ function serve() {
     } else if (route === 'GET /sim/launches') {
       json(response, { launches: [] });
     } else if (route === 'GET /sim/feed/settings') {
-      json(response, FEEDER.settings);
+      json(response, SPINDEXER.settings);
     } else if (route === 'GET /sim/feeds') {
       json(response, { feeds: [] });
     } else if (route === 'GET /sim/launches/' || route === 'GET /sim/feeds/') {
@@ -116,7 +116,7 @@ async function itCarriesTheSimulatorAlone(page, engine) {
   const heading = await page.locator('header h1').textContent();
   check(heading === 'Simulator', `${engine}: the page is headed "${heading}"`);
   const tabs = await page.locator('nav [data-tab]').evaluateAll((all) => all.map((tab) => tab.dataset.tab));
-  check(tabs.join(',') === 'simulate,launch,feeder', `${engine}: the page offers the tabs ${tabs.join(', ')}`);
+  check(tabs.join(',') === 'simulate,launch,spindexer', `${engine}: the page offers the tabs ${tabs.join(', ')}`);
   check(await page.locator('#edit, #editor, #files, #git, #who, #robot, #adb').count() === 0,
       `${engine}: the page still carries the editor, the branch panel or who is signed in`);
   check(await page.locator('#simulate').isVisible(), `${engine}: the page does not open on Simulate`);
@@ -145,13 +145,13 @@ async function aRunIsAskedForAndShown(page, engine) {
       `${engine}: pressing Run asked for ${RUNS.slice(before).join(', ') || 'nothing'}`);
 }
 
-async function theLaunchAndFeederSimsSetOutTheirSettings(page, engine) {
+async function theLaunchAndSpindexerSimsSetOutTheirSettings(page, engine) {
   await page.locator('nav [data-tab="launch"]').click({ timeout: 5_000 });
   check(await untilTrue(page, (n) => document.querySelectorAll('#launch details.launch-group').length === n,
       LAUNCH.settings.groups.length), `${engine}: the Launch Sim tab sets out no settings`);
-  await page.locator('nav [data-tab="feeder"]').click({ timeout: 5_000 });
-  check(await untilTrue(page, (n) => document.querySelectorAll('#feeder details.launch-group').length === n,
-      FEEDER.settings.groups.length), `${engine}: the Feeder Sim tab sets out no settings`);
+  await page.locator('nav [data-tab="spindexer"]').click({ timeout: 5_000 });
+  check(await untilTrue(page, (n) => document.querySelectorAll('#spindexer details.launch-group').length === n,
+      SPINDEXER.settings.groups.length), `${engine}: the Spindexer Sim tab sets out no settings`);
 }
 
 function itAskedForNothingButTheSimulator(engine, from) {
@@ -179,7 +179,7 @@ async function main() {
       await itCarriesTheSimulatorAlone(page, engine);
       await aCompileErrorSaysWhereAndAFixIsListed(page, engine);
       await aRunIsAskedForAndShown(page, engine);
-      await theLaunchAndFeederSimsSetOutTheirSettings(page, engine);
+      await theLaunchAndSpindexerSimsSetOutTheirSettings(page, engine);
       itAskedForNothingButTheSimulator(engine, from);
       await nothingBroke(page, threw, started, engine);
       await page.close();
@@ -199,9 +199,9 @@ async function main() {
     process.exit(1);
   }
   console.log('the simulator\'s page is titled Simulator, offers Simulate, Launch Sim '
-      + 'and Feeder Sim alone and opens on Simulate even when asked for #edit, shows a compile error with its '
+      + 'and Spindexer Sim alone and opens on Simulate even when asked for #edit, shows a compile error with its '
       + 'file and line and lists the op modes once it is fixed, asks for a run and shows its live view, sets out '
-      + 'the Launch Sim\'s and the Feeder Sim\'s settings, and asks for nothing outside /sim, on this engine and '
+      + 'the Launch Sim\'s and the Spindexer Sim\'s settings, and asks for nothing outside /sim, on this engine and '
       + 'on one shaped like an older iPad\'s.');
 }
 

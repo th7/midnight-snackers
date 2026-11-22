@@ -44,8 +44,8 @@ public final class FeedSettings {
     }
 
     private Checked<Feed.RampSchedule> ramp() {
-        return Feeder.RampAngle.ofDegrees(value(FeedSetting.RAMP_DOWN))
-                .then(down -> Feeder.RampAngle.ofDegrees(value(FeedSetting.RAMP_UP))
+        return Spindexer.RampAngle.ofDegrees(value(FeedSetting.RAMP_DOWN))
+                .then(down -> Spindexer.RampAngle.ofDegrees(value(FeedSetting.RAMP_UP))
                         .then(up -> Seconds.of(value(FeedSetting.RAMP_RAISED_AT))
                                 .then(raised -> Seconds.of(value(FeedSetting.RAMP_LOWERED_AT))
                                         .then(lowered -> Feed.RampSchedule.of(down, up, raised, lowered)))));
@@ -53,15 +53,16 @@ public final class FeedSettings {
 
     public Checked<Feed.Plan> plan() {
         return Feed.Plan.defaults()
-                .then(plan -> Feeder.Shape.cad()
-                        .then(cad -> Feeder.Window.of(Feeder.Window.BACK_HALF_WIDTH_MM, value(FeedSetting.BACK_SILL))
+                .then(plan -> Spindexer.Shape.cad()
+                        .then(cad -> Spindexer.Window.of(
+                                        Spindexer.Window.BACK_HALF_WIDTH_MM, value(FeedSetting.BACK_SILL))
                                 .then(back -> cad.withBackWindow(back)))
                         .map(shape -> plan.withShape(shape)))
-                .then(plan -> Feeder.Spinner.of(value(FeedSetting.SPINNER_SPEED), value(FeedSetting.SPINNER_STALL))
+                .then(plan -> Spindexer.Spinner.of(value(FeedSetting.SPINNER_SPEED), value(FeedSetting.SPINNER_STALL))
                         .map(spinner -> plan.withSpinner(spinner)))
                 .then(plan -> Power.of(value(FeedSetting.SPINNER_POWER)).map(power -> plan.withSpinnerPower(power)))
                 .then(plan ->
-                        Feeder.Ramp.of(value(FeedSetting.RAMP_SERVO_SPEED)).map(servo -> plan.withRampServo(servo)))
+                        Spindexer.Ramp.of(value(FeedSetting.RAMP_SERVO_SPEED)).map(servo -> plan.withRampServo(servo)))
                 .then(plan -> ramp().map(ramp -> plan.withRamp(ramp)))
                 .then(plan -> Flywheel.TicksPerTurn.of(Feed.FLYWHEEL_TICKS_PER_TURN)
                         .map(ticks ->

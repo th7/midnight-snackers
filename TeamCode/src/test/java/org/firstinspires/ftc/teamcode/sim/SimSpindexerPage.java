@@ -6,12 +6,12 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
-final class SimFeedPage {
-    static final String TEMPLATE = "feeder.html";
-    static final String TITLE = "Feeder Sim";
+final class SimSpindexerPage {
+    static final String TEMPLATE = "spindexer.html";
+    static final String TITLE = "Spindexer Sim";
     static final String ASSETS_FROM_THE_VIEWER = "../assets/";
 
-    private SimFeedPage() {}
+    private SimSpindexerPage() {}
 
     static String viewer() {
         return template()
@@ -21,10 +21,10 @@ final class SimFeedPage {
     }
 
     private static String template() {
-        try (InputStream in = SimFeedPage.class.getResourceAsStream(TEMPLATE)) {
+        try (InputStream in = SimSpindexerPage.class.getResourceAsStream(TEMPLATE)) {
             if (in == null) {
                 throw new IllegalStateException(
-                        "missing resource " + TEMPLATE + " next to " + SimFeedPage.class.getName());
+                        "missing resource " + TEMPLATE + " next to " + SimSpindexerPage.class.getName());
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

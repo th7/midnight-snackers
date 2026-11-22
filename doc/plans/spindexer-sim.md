@@ -1,15 +1,15 @@
-# The Feeder Sim
+# The Spindexer Sim
 
-A **Feeder Sim** tab, after the Launch Sim, that simulates Reginald's feeder
-in fine detail. A 2-arm spinner turns pollen round a round feeder. A ramp
+A **Spindexer Sim** tab, after the Launch Sim, that simulates Reginald's spindexer
+in fine detail. A 2-arm spinner turns pollen round a round spindexer. A ramp
 rises through the floor at the back and lifts a passing pollen into the
 flywheel, and stage 4's `Launcher` takes it from there. The user sets both
 servos in the tab and watches what the pollen do, as the Launch Sim lets them
 watch a shot.
 
-This plan replaces the *Feeder* and *Lift ramp* sections of
+This plan replaces the *Spindexer* and *Lift ramp* sections of
 `reginald-internals.md`. That plan inferred a 4-arm rotor, a fence and a fin
-under the hood from the 13 October CAD. The CAD now draws the feeder's wall,
+under the hood from the 13 October CAD. The CAD now draws the spindexer's wall,
 both servos and the ramp, and none of those inferences survive (see
 [What this retires](#what-this-retires)).
 
@@ -25,9 +25,9 @@ on 16 November.
 5. [What the tab does](#what-the-tab-does)
 6. [How it is simulated](#how-it-is-simulated)
 7. [Phase 0 · settle and file](#phase-0--settle-and-file)
-8. [Phase 1 · the feeder is a shape in the core](#phase-1--the-feeder-is-a-shape-in-the-core)
+8. [Phase 1 · the spindexer is a shape in the core](#phase-1--the-spindexer-is-a-shape-in-the-core)
 9. [Phase 2 · the servos](#phase-2--the-servos)
-10. [Phase 3 · the feeder is a part](#phase-3--the-feeder-is-a-part)
+10. [Phase 3 · the spindexer is a part](#phase-3--the-spindexer-is-a-part)
 11. [Phase 4 · feeds on the coding server](#phase-4--feeds-on-the-coding-server)
 12. [Phase 5 · the tab](#phase-5--the-tab)
 13. [Phase 6 · docs](#phase-6--docs)
@@ -38,7 +38,7 @@ on 16 November.
 
 The Onshape document `b57b76498365b6a963155c10`, part studio *Feeder*
 (`e/0296dc8087bbd2d78083cd41`), read through the API on 16 November. All
-numbers are mm, in the **feeder frame**: z along the feeder's axis, up; the
+numbers are mm, in the **spindexer frame**: z along the spindexer's axis, up; the
 origin on the axis at the floor slab's underside; −y toward the robot's back,
 +x toward the robot's right.
 
@@ -67,7 +67,7 @@ together in the side-to-side plane about the ramp servo's shaft. Raised by θ fr
 so it rises toward −x, the end away from the servo. Its top reaches the
 floor's top at x 0 at θ 27.5°, and its free end at x −32 at θ 17.5°.
 
-**Placed in Reginald.** The feeder frame maps to the *Reginald* part studio
+**Placed in Reginald.** The spindexer frame maps to the *Reginald* part studio
 (mm; +X left, +Y back, +Z up, origin at the chassis's front middle at floor
 level) by
 
@@ -75,18 +75,18 @@ level) by
 
 a tilt of 16.46°, rising toward the back. It is checked against the CAD: the
 placed *FeederBottom* and *FeederTop*'s faces land at z 0, 15, 31.12, 43.12,
-96.12 and 113.12, as in the feeder's own studio.
+96.12 and 113.12, as in the spindexer's own studio.
 
-**The flywheel** (*FlywheelOuter*) has its axle along x through feeder
+**The flywheel** (*FlywheelOuter*) has its axle along x through spindexer
 (y −84.13, z 132.82). Its rim is the groove stage 4's `Launcher` already
 models: a torus of 75.2886 about the axle with a tube of 35.56, cut to
 \|x\| ≤ 25, so radius 50 at its flanges and 39.73 at the groove's bottom.
-Below the top plate it reaches into the feeder between y −50.2 and the wall,
+Below the top plate it reaches into the spindexer between y −50.2 and the wall,
 \|x\| ≤ 25, down to z 82.85.
 
-**Pollen placed in Reginald.** One at the feeder's front window, on its way
+**Pollen placed in Reginald.** One at the spindexer's front window, on its way
 in from the scoop, and three on the floor ahead of the robot. None sits in
-the feeder.
+the spindexer.
 
 ## What we infer
 
@@ -129,7 +129,7 @@ the plate. Whether the wheel pulls it out from under the plate, or the plate
 pins it against the wheel, is for the physics to show (phase 3).
 
 **The fling limit.** At the back station gravity pulls a pollen inward at
-2.78 m/s², because the feeder rises toward the back. Above **1.23 rev/s** the
+2.78 m/s², because the spindexer rises toward the back. Above **1.23 rev/s** the
 turn pulls it outward harder, so it rides the wall past the ramp. Below that,
 it slides along the arm toward the hub, where the bar meets it far off its
 center and pushes it inward rather than up. The Smart Robot Servo turns about
@@ -159,7 +159,7 @@ Asked and answered on 16 November.
 3. **The ramp's angles.** *Use the plan's for now*: down at 0°, as drawn, and
    up at 35°. Both are settings in the tab.
 4. **The notch.** The top plate's cutout, which lets the flywheel reach into
-   the feeder, is 63.48 wide, narrower than a pollen, and stops 26.843
+   the spindexer, is 63.48 wide, narrower than a pollen, and stops 26.843
    behind the axis. A lifted pollen's top pokes up into it, and meets its
    front end or its sides at about the lift that reaches the wheel. *The
    plan keeps the CAD as drawn*, and the tab shows whether the wheel takes the
@@ -168,8 +168,8 @@ Asked and answered on 16 November.
 
 ## What the tab does
 
-A **feed** starts with the pollen in the feeder at rest and the flywheel at
-speed. It ends when every pollen has left the feeder through the hood or come
+A **feed** starts with the pollen in the spindexer at rest and the flywheel at
+speed. It ends when every pollen has left the spindexer through the hood or come
 to rest, when the run's length has passed, or when it has taken too much
 work.
 
@@ -197,7 +197,7 @@ refuses.
 
 **What it shows**, replayed with play, pause, step and scrub:
 
-- the feeder cut away: floor, wall and top plate translucent, their windows
+- the spindexer cut away: floor, wall and top plate translucent, their windows
   and notch; the spinner; the ramp bar; the flywheel and the hood;
 - each pollen with its holes, so its roll shows;
 - events marked on the timeline: a pollen taken by the wheel, thrown from the
@@ -235,11 +235,11 @@ past it, the feed ends and says so.
 
 - Done: the questions went to the team, and their answers are recorded
   above. This plan and the change to `reginald-internals.md` are on
-  `develop`, and the issue *Feeder Sim tab* works it.
+  `develop`, and the issue *Spindexer Sim tab* works it.
 
-## Phase 1 · the feeder is a shape in the core
+## Phase 1 · the spindexer is a shape in the core
 
-`Feeder.Shape`, in `simcore`: the floor, wall, windows, top plate, notch, slot,
+`Spindexer.Shape`, in `simcore`: the floor, wall, windows, top plate, notch, slot,
 the spinner's shape and the ramp bar, each a Validated Type built from its
 measures, refusing a measure that breaks its rule. A spinner whose arms reach
 the wall, an arm taller than the room under the wheel, or a bar that does not
@@ -247,7 +247,7 @@ fit the slot is refused, naming the rule.
 
 Tests first, one at a time:
 
-1. The CAD's feeder is accepted. Its floor is 15 above the slab's underside,
+1. The CAD's spindexer is accepted. Its floor is 15 above the slab's underside,
    its wall r 82.27, its room 81.12 tall.
 2. Two pollen fit opposite with the default spinner: each clears the hub by
    1.15 and the wall, seated against it, by 0.
@@ -266,7 +266,7 @@ recomputed by them.
 
 ## Phase 2 · the servos
 
-`Feeder.Spinner` and `Feeder.Ramp`, Total Core functions from a state, a
+`Spindexer.Spinner` and `Spindexer.Ramp`, Total Core functions from a state, a
 command and a load to the next state.
 
 Tests first:
@@ -281,19 +281,19 @@ Tests first:
 
 Then implement.
 
-## Phase 3 · the feeder is a part
+## Phase 3 · the spindexer is a part
 
-`Feeder` implements `Surroundings.Part`, carrying the spinner, the ramp and
+`Spindexer` implements `Surroundings.Part`, carrying the spinner, the ramp and
 `Launcher`. Its contact surfaces go through `PartContract`, as every part's
 do.
 
 Tests first, one at a time:
 
-1. `PartContract` holds for the feeder at rest, with the spinner turning and
+1. `PartContract` holds for the spindexer at rest, with the spinner turning and
    with the ramp moving.
 2. With the spinner stopped, a pollen at rest stays at rest for 1 s.
 3. A turning spinner carries a pollen round; it passes the back station with
-   the ramp down and stays in the feeder for two turns.
+   the ramp down and stays in the spindexer for two turns.
 4. Above 1.23 rev/s a pollen passes the back station against the wall; at
    0.5 rev/s it leaves the wall there.
 5. At 1.0 rev/s a pollen stays inside the front sill for two turns.
@@ -318,7 +318,7 @@ simulated second, and how long it takes.
 ## Phase 4 · feeds on the coding server
 
 `SimFeeds`, after `SimLaunches`: settings in, a feed out, refusals named, the
-last settings remembered in `feed-settings.json`, earlier feeds kept as
+last settings remembered in `spindexer-settings.json`, earlier feeds kept as
 ghosts, frames sent in chunks.
 
 Tests first:
@@ -335,16 +335,16 @@ Then implement.
 
 ## Phase 5 · the tab
 
-`SimFeedPage` and `feeder.html` (three.js, after `launch.html`), and a tab
-*Feeder Sim* after *Launch Sim* on the dashboard.
+`SimSpindexerPage` and `spindexer.html` (three.js, after `launch.html`), and a tab
+*Spindexer Sim* after *Launch Sim* on the dashboard.
 
 Tests first:
 
-1. `CodingServerTest`: the tabs come in their order, with *Feeder Sim* after
+1. `CodingServerTest`: the tabs come in their order, with *Spindexer Sim* after
    *Launch Sim*.
-2. `tools/browser/feeder.mjs`: the page loads, runs the default feed, shows
+2. `tools/browser/spindexer.mjs`: the page loads, runs the default feed, shows
    two pollen thrown, and replays it to the end and back.
-3. `tools/browser/feeder.mjs`: a refused setting shows its rule beside the
+3. `tools/browser/spindexer.mjs`: a refused setting shows its rule beside the
    field.
 4. `tools/browser/dashboard.mjs`: the tab opens the page.
 
@@ -352,10 +352,10 @@ Then implement.
 
 ## Phase 6 · docs
 
-- `doc/feeder-sim.md`, after `doc/launch-sim.md`: what it simulates, every
+- `doc/spindexer-sim.md`, after `doc/launch-sim.md`: what it simulates, every
   number and its source, the servos, the budget, calibration against the real
-  feeder, how it is tested.
-- `doc/CONTEXT.md`: **Feeder**, **Spinner**, **Ramp**, **Feed**, **Feeder
+  spindexer, how it is tested.
+- `doc/CONTEXT.md`: **Spindexer**, **Spinner**, **Ramp**, **Feed**, **Spindexer
   Sim**.
 
 ## What this retires
@@ -371,14 +371,14 @@ From `reginald-internals.md`:
 
 Still standing, restated above: the fling limit (now 1.23 rev/s at the wall),
 the servo figures, and the ramp's torque, which the tab now reports rather
-than estimates. Its batches 1 to 4 take the feeder from this plan once it
+than estimates. Its batches 1 to 4 take the spindexer from this plan once it
 lands.
 
 ## Later
 
 - A pollen entering through the front window from the scoop, at a speed and
   angle the tab sets.
-- Running the feeder inside the robot simulation (`reginald-internals.md`
+- Running the spindexer inside the robot simulation (`reginald-internals.md`
   batch 4), with `Launcher`'s ramp timing in the robot code.
 - A sweep: the ramp's raise time against the spinner's angle, as a map of
   how many pollen each throws.

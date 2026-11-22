@@ -13,10 +13,10 @@ public class FeedTest {
     private static final double ARM_HALF_THICKNESS_MM = 2;
     private static final double STILL_WITHIN_IN = 1e-3;
     private static final double ROBOT_CENTRE_BACK_MM = 204;
-    private static final String SILL_SOURCE = "doc/plans/feeder-sim.md, Findings, The front sill holds: a pollen"
+    private static final String SILL_SOURCE = "doc/plans/spindexer-sim.md, Findings, The front sill holds: a pollen"
             + " leans out into the front window, its centre past the wall's 46.97 mm, onto the 16.12 mm sill's edge,"
             + " which holds it at 52.6 mm while at rest";
-    private static final String NOTCH_SOURCE = "doc/plans/feeder-sim.md, Questions for the team, 4: a lifted"
+    private static final String NOTCH_SOURCE = "doc/plans/spindexer-sim.md, Questions for the team, 4: a lifted"
             + " pollen's top pokes up into the top plate's notch, which holds it down when the wheel does not take it";
     private static final double ON_THE_FLOOR_MM = 15 + R_MM;
     private static final double OVERLAP_WITHIN_IN = 0.02;
@@ -36,8 +36,8 @@ public class FeedTest {
 
     private static Feed.RampSchedule heldUp() {
         return Valid.value(Feed.RampSchedule.of(
-                Valid.value(Feeder.RampAngle.ofDegrees(0)),
-                Valid.value(Feeder.RampAngle.ofDegrees(35)),
+                Valid.value(Spindexer.RampAngle.ofDegrees(0)),
+                Valid.value(Spindexer.RampAngle.ofDegrees(35)),
                 Valid.value(Seconds.of(0)),
                 Valid.value(Seconds.of(10))));
     }
@@ -56,7 +56,7 @@ public class FeedTest {
                 spinRatio >= LEAST_SPIN_RATIO && spinRatio <= MOST_SPIN_RATIO);
     }
 
-    private static Vec3 feederMm(Vec3 world) {
+    private static Vec3 spindexerMm(Vec3 world) {
         double cos = StrictMath.cos(TILT), sin = StrictMath.sin(TILT);
         double back = ROBOT_CENTRE_BACK_MM - world.x() / MILLIMETRE - 173.96;
         double up = world.z() / MILLIMETRE - 28.78;
@@ -64,22 +64,22 @@ public class FeedTest {
     }
 
     private static double degreesFromTheBack(Vec3 world) {
-        Vec3 feeder = feederMm(world);
-        return StrictMath.toDegrees(StrictMath.atan2(-feeder.x(), -feeder.y()));
+        Vec3 spindexer = spindexerMm(world);
+        return StrictMath.toDegrees(StrictMath.atan2(-spindexer.x(), -spindexer.y()));
     }
 
     private static Feed.RampSchedule raisedThenLoweredAt(double seconds) {
         return Valid.value(Feed.RampSchedule.of(
-                Valid.value(Feeder.RampAngle.ofDegrees(0)),
-                Valid.value(Feeder.RampAngle.ofDegrees(35)),
+                Valid.value(Spindexer.RampAngle.ofDegrees(0)),
+                Valid.value(Spindexer.RampAngle.ofDegrees(35)),
                 Valid.value(Seconds.of(0)),
                 Valid.value(Seconds.of(seconds))));
     }
 
     private static Feed.RampSchedule neverRaised() {
         return Valid.value(Feed.RampSchedule.of(
-                Valid.value(Feeder.RampAngle.ofDegrees(0)),
-                Valid.value(Feeder.RampAngle.ofDegrees(35)),
+                Valid.value(Spindexer.RampAngle.ofDegrees(0)),
+                Valid.value(Spindexer.RampAngle.ofDegrees(35)),
                 Valid.value(Seconds.of(9)),
                 Valid.value(Seconds.of(10))));
     }
@@ -118,8 +118,8 @@ public class FeedTest {
         Feed.Fed fed = fed(plan().withSpinnerPower(Power.none())
                 .withPollen(List.of(Valid.value(Feed.Pollen.againstTheWall(againstTheFrontArmDegrees()))))
                 .withRamp(Valid.value(Feed.RampSchedule.of(
-                        Valid.value(Feeder.RampAngle.ofDegrees(0)),
-                        Valid.value(Feeder.RampAngle.ofDegrees(35)),
+                        Valid.value(Spindexer.RampAngle.ofDegrees(0)),
+                        Valid.value(Spindexer.RampAngle.ofDegrees(35)),
                         Valid.value(Seconds.of(1)),
                         Valid.value(Seconds.of(1.2)))))
                 .lasting(Valid.value(Seconds.of(2))));
@@ -156,8 +156,8 @@ public class FeedTest {
         double farthest = 0;
         for (Feed.Frame frame : fed.frames()) {
             for (Feed.Seen pollen : frame.pollen()) {
-                Vec3 feeder = feederMm(pollen.at());
-                double out = StrictMath.hypot(feeder.x(), feeder.y());
+                Vec3 spindexer = spindexerMm(pollen.at());
+                double out = StrictMath.hypot(spindexer.x(), spindexer.y());
                 if (StrictMath.abs(degreesFromTheBack(pollen.at())) > 150) {
                     farthest = StrictMath.max(farthest, out);
                 }
@@ -193,7 +193,7 @@ public class FeedTest {
         Vec3 last = Vec3.zero();
         for (Feed.Frame frame : fed.frames()) {
             assertEquals(frame.t() + ": " + fed.events(), 1, frame.pollen().size());
-            last = feederMm(frame.pollen().get(0).at());
+            last = spindexerMm(frame.pollen().get(0).at());
             if (frame.t().value() < 1.3) {
                 highest = StrictMath.max(highest, last.z());
             }
@@ -261,7 +261,7 @@ public class FeedTest {
     @Test
     public void theDefaultFeedThrowsBothPollenOneAtATimeAndTheCadsSillJamsIt() {
         Feed.Fed fed = fed(Checked.ok(plan()));
-        Feed.Fed cad = fed(Checked.ok(plan().withShape(Valid.value(Feeder.Shape.cad()))));
+        Feed.Fed cad = fed(Checked.ok(plan().withShape(Valid.value(Spindexer.Shape.cad()))));
 
         assertEquals(DEFAULT_FEED_SOURCE + ": " + fed.events(), 2, fed.events().size());
         assertTrue(fed.events().toString(), fed.events().get(0) instanceof Feed.Event.Thrown);

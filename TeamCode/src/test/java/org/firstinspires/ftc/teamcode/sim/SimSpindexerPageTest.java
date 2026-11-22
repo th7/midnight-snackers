@@ -23,10 +23,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class SimFeedPageTest {
+public class SimSpindexerPageTest {
     private static final Path BROWSER_CHECKS = Paths.get("..", "tools", "browser");
-    private static final Path THE_CHECK = BROWSER_CHECKS.resolve("feeder.mjs");
-    private static final Path WHAT_THE_TAB_IS_ANSWERED = BROWSER_CHECKS.resolve("feeder-answers.json");
+    private static final Path THE_CHECK = BROWSER_CHECKS.resolve("spindexer.mjs");
+    private static final Path WHAT_THE_TAB_IS_ANSWERED = BROWSER_CHECKS.resolve("spindexer-answers.json");
     private static final Pattern PLACEHOLDER = Pattern.compile("__[A-Z_]+__");
 
     @Rule
@@ -42,8 +42,8 @@ public class SimFeedPageTest {
     }
 
     private static String template() throws IOException {
-        try (InputStream in = SimFeedPage.class.getResourceAsStream(SimFeedPage.TEMPLATE)) {
-            assertTrue("feeder.html is beside SimFeedPage", in != null);
+        try (InputStream in = SimSpindexerPage.class.getResourceAsStream(SimSpindexerPage.TEMPLATE)) {
+            assertTrue("spindexer.html is beside SimSpindexerPage", in != null);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
@@ -62,7 +62,7 @@ public class SimFeedPageTest {
         TreeSet<String> holes = placeholdersIn(template());
 
         assertEquals(new TreeSet<>(List.of("__ASSETS__", "__IMPORTMAP__", "__TITLE__")), holes);
-        assertTrue(placeholdersIn(SimFeedPage.viewer()).isEmpty());
+        assertTrue(placeholdersIn(SimSpindexerPage.viewer()).isEmpty());
         String check = new String(Files.readAllBytes(THE_CHECK), StandardCharsets.UTF_8);
         for (String hole : holes) {
             assertTrue(THE_CHECK + " fills " + hole, check.contains("'" + hole + "'"));
@@ -71,11 +71,11 @@ public class SimFeedPageTest {
 
     @Test
     public void theViewerFetchesItsAssetsFromWhereTheBenchServesThem() {
-        String page = SimFeedPage.viewer();
+        String page = SimSpindexerPage.viewer();
 
         assertTrue(page.contains("\"../assets/\""));
         assertTrue(page.contains("../assets/vendor/three.module.min.js"));
-        assertTrue(page.contains("<title>" + SimFeedPage.TITLE + "</title>"));
+        assertTrue(page.contains("<title>" + SimSpindexerPage.TITLE + "</title>"));
     }
 
     private Router routes() {
@@ -113,7 +113,7 @@ public class SimFeedPageTest {
     }
 
     @Test
-    public void whatTheFeederChecksBrowserIsAnsweredIsShapedAsTheBenchAnswersIt() throws IOException {
+    public void whatTheSpindexerChecksBrowserIsAnsweredIsShapedAsTheBenchAnswersIt() throws IOException {
         String answered = whatTheBenchAnswersTheTab();
 
         if (Boolean.getBoolean(SimTrace.REGENERATE)) {
@@ -123,17 +123,17 @@ public class SimFeedPageTest {
                     + SimTrace.REGENERATE + ".");
         }
         assertTrue(
-                "no answers at " + WHAT_THE_TAB_IS_ANSWERED.toAbsolutePath() + " for the feeder's check. Write them"
+                "no answers at " + WHAT_THE_TAB_IS_ANSWERED.toAbsolutePath() + " for the spindexer's check. Write them"
                         + " with:\n  ./gradlew :TeamCode:testDebugUnitTest --rerun -D" + SimTrace.REGENERATE
-                        + "=true --tests '*SimFeedPageTest*'",
+                        + "=true --tests '*SimSpindexerPageTest*'",
                 Files.isRegularFile(WHAT_THE_TAB_IS_ANSWERED));
         JsonElement kept = new Gson()
                 .fromJson(
                         new String(Files.readAllBytes(WHAT_THE_TAB_IS_ANSWERED), StandardCharsets.UTF_8),
                         JsonElement.class);
         assertEquals(
-                "the answers " + THE_CHECK + " gives the Feeder Sim are no longer shaped as the bench gives them;"
-                        + " regenerate with -D" + SimTrace.REGENERATE + "=true --tests '*SimFeedPageTest*'",
+                "the answers " + THE_CHECK + " gives the Spindexer Sim are no longer shaped as the bench gives them;"
+                        + " regenerate with -D" + SimTrace.REGENERATE + "=true --tests '*SimSpindexerPageTest*'",
                 SimLaunchPageTest.shapeOf(new Gson().fromJson(answered, JsonElement.class)),
                 SimLaunchPageTest.shapeOf(kept));
     }

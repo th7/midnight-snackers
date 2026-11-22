@@ -18,22 +18,22 @@ public class FeedDrawingTest {
     }
 
     @Test
-    public void theFeedersAxesPutItsOriginWhereTheMountDoesAndTipItsAxisBack16Point46Degrees() {
-        Feed.Axes feeder = drawing().feeder();
+    public void theSpindexersAxesPutItsOriginWhereTheMountDoesAndTipItsAxisBack16Point46Degrees() {
+        Feed.Axes spindexer = drawing().spindexer();
 
-        assertNear(new Vec3(1.18268, 0, 1.13307), feeder.origin());
-        assertNear(new Vec3(0.28336, 0, 0.95901), feeder.z());
-        assertNear(new Vec3(0, -1, 0), feeder.x());
+        assertNear(new Vec3(1.18268, 0, 1.13307), spindexer.origin());
+        assertNear(new Vec3(0.28336, 0, 0.95901), spindexer.z());
+        assertNear(new Vec3(0, -1, 0), spindexer.x());
     }
 
     @Test
-    public void theFeedersMeasuresAreItsShapesInInchesWithTheBackSillWhereThePlanPutsIt() {
+    public void theSpindexersMeasuresAreItsShapesInInchesWithTheBackSillWhereThePlanPutsIt() {
         Feed.Drawing drawing = drawing();
 
-        assertEquals(3.23898, drawing.feederInches().get("wallRadius"), WITHIN);
-        assertEquals(1.18110, drawing.feederInches().get("backSill"), WITHIN);
-        assertEquals(1.96850, drawing.feederInches().get("armReach"), WITHIN);
-        assertEquals(-1.25827, drawing.feederInches().get("barFreeEndX"), WITHIN);
+        assertEquals(3.23898, drawing.spindexerInches().get("wallRadius"), WITHIN);
+        assertEquals(1.18110, drawing.spindexerInches().get("backSill"), WITHIN);
+        assertEquals(1.96850, drawing.spindexerInches().get("armReach"), WITHIN);
+        assertEquals(-1.25827, drawing.spindexerInches().get("barFreeEndX"), WITHIN);
     }
 
     @Test

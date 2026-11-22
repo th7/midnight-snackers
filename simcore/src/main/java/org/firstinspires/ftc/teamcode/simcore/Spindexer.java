@@ -8,15 +8,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public final class Feeder implements Surroundings.Part {
-    static final String CAD_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: the Onshape part studio Feeder"
-            + " (b57b76498365b6a963155c10, e/0296dc8087bbd2d78083cd41) read on 16 November, in mm in the feeder"
-            + " frame: z up the feeder's axis from the floor slab's underside, -y toward the robot's back, +x toward"
+public final class Spindexer implements Surroundings.Part {
+    static final String CAD_SOURCE = "doc/plans/spindexer-sim.md, What the CAD says: the Onshape part studio Feeder"
+            + " (b57b76498365b6a963155c10, e/0296dc8087bbd2d78083cd41) read on 16 November, in mm in the spindexer"
+            + " frame: z up the spindexer's axis from the floor slab's underside, -y toward the robot's back, +x toward"
             + " its right";
 
-    static final String FLOOR = "Feeder floor";
-    static final String WALL = "Feeder wall";
-    static final String TOP_PLATE = "Feeder top plate";
+    static final String FLOOR = "Spindexer floor";
+    static final String WALL = "Spindexer wall";
+    static final String TOP_PLATE = "Spindexer top plate";
     static final String HUB = "Spinner hub";
     static final String FIRST_ARM = "Spinner's first arm";
     static final String SECOND_ARM = "Spinner's second arm";
@@ -35,7 +35,7 @@ public final class Feeder implements Surroundings.Part {
     private final Vec3 rampSpin;
     private final Vec3 pivot;
 
-    private Feeder(Faces faces, Placing placing, Motion motion, GridTime time) {
+    private Spindexer(Faces faces, Placing placing, Motion motion, GridTime time) {
         this.faces = faces;
         this.placing = placing;
         this.motion = motion;
@@ -47,8 +47,8 @@ public final class Feeder implements Surroundings.Part {
         this.pivot = placing.world(new Vec3(faces.pivotX, 0, faces.pivotZ));
     }
 
-    static Checked<Feeder> placed(Shape shape, Launcher.Frame frame, Motion motion) {
-        return Faces.of(shape).map(faces -> new Feeder(faces, Placing.of(shape, frame), motion, motion.began));
+    static Checked<Spindexer> placed(Shape shape, Launcher.Frame frame, Motion motion) {
+        return Faces.of(shape).map(faces -> new Spindexer(faces, Placing.of(shape, frame), motion, motion.began));
     }
 
     Feed.Axes axes() {
@@ -59,8 +59,8 @@ public final class Feeder implements Surroundings.Part {
         return faces.measures;
     }
 
-    Feeder moved(Motion next) {
-        return new Feeder(faces, placing, next, next.began);
+    Spindexer moved(Motion next) {
+        return new Spindexer(faces, placing, next, next.began);
     }
 
     Motion motion() {
@@ -158,7 +158,7 @@ public final class Feeder implements Surroundings.Part {
                 RampAngle rampTo) {
             double seconds = over.value();
             if (!(seconds > 0)) {
-                return Checked.rejected("a feeder's spinner and ramp move over more than 0 s, not " + seconds);
+                return Checked.rejected("a spindexer's spinner and ramp move over more than 0 s, not " + seconds);
             }
             double from = StrictMath.toRadians(rampFrom.degrees());
             return Checked.ok(new Motion(
@@ -215,8 +215,8 @@ public final class Feeder implements Surroundings.Part {
                     axis(shape, new Vec3(0, 0, 1), middle, cos, sin));
         }
 
-        private static Vec3 axis(Shape shape, Vec3 feeder, Vec3 middle, double cos, double sin) {
-            Vec3 along = shape.mount.inReginald(feeder).minus(middle);
+        private static Vec3 axis(Shape shape, Vec3 spindexer, Vec3 middle, double cos, double sin) {
+            Vec3 along = shape.mount.inReginald(spindexer).minus(middle);
             return turned(new Vec3(-along.y(), along.x(), along.z()), cos, sin);
         }
 
@@ -224,17 +224,17 @@ public final class Feeder implements Surroundings.Part {
             return new Vec3(cos * local.x() - sin * local.y(), sin * local.x() + cos * local.y(), local.z());
         }
 
-        Vec3 feeder(Vec3 world) {
+        Vec3 spindexer(Vec3 world) {
             Vec3 off = world.minus(origin);
             return new Vec3(off.dot(x), off.dot(y), off.dot(z));
         }
 
-        Vec3 direction(Vec3 feeder) {
-            return x.times(feeder.x()).plus(y.times(feeder.y())).plus(z.times(feeder.z()));
+        Vec3 direction(Vec3 spindexer) {
+            return x.times(spindexer.x()).plus(y.times(spindexer.y())).plus(z.times(spindexer.z()));
         }
 
-        Vec3 world(Vec3 feeder) {
-            return origin.plus(direction(feeder));
+        Vec3 world(Vec3 spindexer) {
+            return origin.plus(direction(spindexer));
         }
     }
 
@@ -389,9 +389,9 @@ public final class Feeder implements Surroundings.Part {
                     inches(window.sill),
                     side,
                     StrictMath.sqrt(wallRadius * wallRadius - halfWidth * halfWidth),
-                    "Feeder " + where + " sill",
-                    "Feeder " + where + " window's left side",
-                    "Feeder " + where + " window's right side");
+                    "Spindexer " + where + " sill",
+                    "Spindexer " + where + " window's left side",
+                    "Spindexer " + where + " window's right side");
         }
 
         List<String> ids() {
@@ -608,7 +608,7 @@ public final class Feeder implements Surroundings.Part {
 
     @Override
     public boolean reaches(Vec3 centre, double by) {
-        return faces.reaches(placing.feeder(centre), by);
+        return faces.reaches(placing.spindexer(centre), by);
     }
 
     @Override
@@ -625,11 +625,11 @@ public final class Feeder implements Surroundings.Part {
     public List<Surroundings.Touch> near(Vec3 centre, Length radius, double within) {
         List<Surroundings.Touch> touches = new ArrayList<>();
         double r = radius.inches();
-        Vec3 inFeeder = placing.feeder(centre);
-        if (!faces.reaches(inFeeder, r + within)) {
+        Vec3 inSpindexer = placing.spindexer(centre);
+        if (!faces.reaches(inSpindexer, r + within)) {
             return touches;
         }
-        for (Found found : faces.near(inFeeder, r, within, clockwise, raised)) {
+        for (Found found : faces.near(inSpindexer, r, within, clockwise, raised)) {
             Vec3 normal = placing.direction(found.normal());
             Vec3 contact = centre.along(normal, -(r + found.gap()));
             Vec3 spin =
@@ -653,13 +653,13 @@ public final class Feeder implements Surroundings.Part {
     }
 
     @Override
-    public Feeder at(GridTime then) {
-        return new Feeder(faces, placing, motion, then);
+    public Spindexer at(GridTime then) {
+        return new Spindexer(faces, placing, motion, then);
     }
 
     @Override
     public String toString() {
-        return "the feeder at " + time + ", " + motion;
+        return "the spindexer at " + time + ", " + motion;
     }
 
     private static boolean finite(double... measures) {
@@ -710,12 +710,12 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Spinner {
-        static final String SERVO_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the REV Smart Robot Servo"
+        static final String SERVO_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: the REV Smart Robot Servo"
                 + " (REV-41-1097) in continuous mode, 0.14 s per 60 degrees and 13.5 kg cm at 6 V by the vendor,"
                 + " scaled to the Hub's 5 V: 1.0 rev/s unloaded and 1.1 N m at stall";
         static final double FULL_SPEED_REV_PER_S = 1.0;
         static final double STALL_NEWTON_METRES = 1.1;
-        static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the spinner's speed at full"
+        static final String RANGE_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: the spinner's speed at full"
                 + " power is set from 0.2 to 3 rev/s, and its stall torque from 0.1 to 5 N m";
         static final double LEAST_FULL_SPEED_REV_PER_S = 0.2;
         static final double MOST_FULL_SPEED_REV_PER_S = 3;
@@ -781,13 +781,14 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Ramp {
-        static final String SERVO_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the REV Smart Robot Servo"
+        static final String SERVO_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: the REV Smart Robot Servo"
                 + " (REV-41-1097) in angular mode, 0.14 s per 60 degrees at 6 V by the vendor, scaled to the Hub's 5 V:"
                 + " 0.168 s per 60 degrees, and held at its angle whatever the load";
         static final double SECONDS_PER_SIXTY_DEGREES = 0.168;
         static final double SIXTY_DEGREES = 60;
-        static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the ramp servo's speed is set"
-                + " from 0.05 to 1 s per 60 degrees";
+        static final String RANGE_SOURCE =
+                "doc/plans/spindexer-sim.md, What the tab does: the ramp servo's speed is set"
+                        + " from 0.05 to 1 s per 60 degrees";
         static final double LEAST_SECONDS_PER_SIXTY_DEGREES = 0.05;
         static final double MOST_SECONDS_PER_SIXTY_DEGREES = 1;
 
@@ -825,7 +826,7 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class RampAngle {
-        static final String RANGE_SOURCE = "doc/plans/feeder-sim.md, What the tab does: the ramp is set from 0 to 60"
+        static final String RANGE_SOURCE = "doc/plans/spindexer-sim.md, What the tab does: the ramp is set from 0 to 60"
                 + " degrees, raised from where the CAD draws it";
         static final double MOST_DEGREES = 60;
 
@@ -867,7 +868,7 @@ public final class Feeder implements Surroundings.Part {
         static final double FLOOR_TOP_MM = 15;
         static final double WALL_RADIUS_MM = 82.27;
         static final double PLATE_UNDERSIDE_MM = 96.12;
-        static final String DRAWN_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: the wall's outer r 88.62 and"
+        static final String DRAWN_SOURCE = "doc/plans/spindexer-sim.md, What the CAD says: the wall's outer r 88.62 and"
                 + " the top plate's top at z 113.12, drawn but met by no pollen";
         static final double WALL_OUTER_RADIUS_MM = 88.62;
         static final double PLATE_TOP_MM = 113.12;
@@ -884,13 +885,13 @@ public final class Feeder implements Surroundings.Part {
 
         public static Checked<Room> of(double floorTopMm, double wallRadiusMm, double plateUndersideMm) {
             if (!finite(floorTopMm, wallRadiusMm, plateUndersideMm)) {
-                return Checked.rejected("a feeder's room is measured in finite mm");
+                return Checked.rejected("a spindexer's room is measured in finite mm");
             }
             if (!(wallRadiusMm > 0)) {
-                return Checked.rejected("a feeder's wall has a positive radius, not " + wallRadiusMm);
+                return Checked.rejected("a spindexer's wall has a positive radius, not " + wallRadiusMm);
             }
             if (!(plateUndersideMm > floorTopMm)) {
-                return Checked.rejected("a feeder's top plate is above its floor, not at " + plateUndersideMm
+                return Checked.rejected("a spindexer's top plate is above its floor, not at " + plateUndersideMm
                         + " over a floor at " + floorTopMm);
             }
             return Checked.ok(new Room(floorTopMm, wallRadiusMm, plateUndersideMm));
@@ -898,7 +899,7 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Arms {
-        static final String SHAPE_SOURCE = "doc/plans/feeder-sim.md, Questions for the team, 2: not drawn, so the"
+        static final String SHAPE_SOURCE = "doc/plans/spindexer-sim.md, Questions for the team, 2: not drawn, so the"
                 + " plan's for now, a hub of r 10 and two arms opposite, 4 thick, from the hub to r 50, from 2 above"
                 + " the floor to z 80";
         static final double HUB_RADIUS_MM = 10;
@@ -949,7 +950,7 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Bar {
-        static final String SHAPE_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: Part 2 runs side to side, 5"
+        static final String SHAPE_SOURCE = "doc/plans/spindexer-sim.md, What the CAD says: Part 2 runs side to side, 5"
                 + " tall with its top at z -11.49 as drawn, at y about -54, from x -31.96 to the pad at x 38, swung"
                 + " about the ramp servo's shaft along y at x 57.54, z -13.99; How it is simulated: 6 wide, its top"
                 + " edges rounded 1, inferred, so centred in the slot's 7 at y -53.95";
@@ -1086,7 +1087,7 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Window {
-        static final String CUT_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: through the wall, the front"
+        static final String CUT_SOURCE = "doc/plans/spindexer-sim.md, What the CAD says: through the wall, the front"
                 + " window at |x| < 63 with its sill at z 31.12, the entry from the scoop, and the back window at"
                 + " |x| < 40.6 with its sill at z 43.12";
         static final double FRONT_HALF_WIDTH_MM = 63;
@@ -1131,9 +1132,10 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Plate {
-        static final String CUT_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: FeederTop, cut flat at y -78.78"
-                + " and y 62.28, with a notch at |x| < 31.739 from y -26.843 out through the back, which lets the"
-                + " flywheel reach into the feeder";
+        static final String CUT_SOURCE =
+                "doc/plans/spindexer-sim.md, What the CAD says: FeederTop, cut flat at y -78.78"
+                        + " and y 62.28, with a notch at |x| < 31.739 from y -26.843 out through the back, which lets the"
+                        + " flywheel reach into the spindexer";
         static final double BACK_FLAT_Y_MM = -78.78;
         static final double FRONT_FLAT_Y_MM = 62.28;
         static final double NOTCH_HALF_WIDTH_MM = 31.739;
@@ -1186,7 +1188,7 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Slot {
-        static final String CUT_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: the floor slot, through the"
+        static final String CUT_SOURCE = "doc/plans/spindexer-sim.md, What the CAD says: the floor slot, through the"
                 + " floor, x -32.17 to 47.83, y -57.45 to -50.45";
         static final double FROM_X_MM = -32.17;
         static final double TO_X_MM = 47.83;
@@ -1230,8 +1232,8 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Wheel {
-        static final String PLACE_SOURCE = "doc/plans/feeder-sim.md, What the CAD says: FlywheelOuter's axle runs"
-                + " along x through feeder (y -84.13, z 132.82), its rim the groove Launcher models";
+        static final String PLACE_SOURCE = "doc/plans/spindexer-sim.md, What the CAD says: FlywheelOuter's axle runs"
+                + " along x through spindexer (y -84.13, z 132.82), its rim the groove Launcher models";
         static final double AXLE_Y_MM = -84.13;
         static final double AXLE_Z_MM = 132.82;
 
@@ -1275,9 +1277,10 @@ public final class Feeder implements Surroundings.Part {
     }
 
     public static final class Mount {
-        static final String PLACE_SOURCE = "doc/plans/feeder-sim.md, What the CAD says, Placed in Reginald: the feeder"
-                + " frame maps to the Reginald part studio (mm; +X left, +Y back, +Z up, origin at the chassis's front"
-                + " middle at floor level) from (0, 173.96, 28.78), tilted 16.46 degrees, rising toward the back";
+        static final String PLACE_SOURCE =
+                "doc/plans/spindexer-sim.md, What the CAD says, Placed in Reginald: the spindexer"
+                        + " frame maps to the Reginald part studio (mm; +X left, +Y back, +Z up, origin at the chassis's front"
+                        + " middle at floor level) from (0, 173.96, 28.78), tilted 16.46 degrees, rising toward the back";
         static final double ORIGIN_BACK_MM = 173.96;
         static final double ORIGIN_UP_MM = 28.78;
         static final double TILT_DEGREES = 16.46;
@@ -1292,22 +1295,24 @@ public final class Feeder implements Surroundings.Part {
 
         public static Checked<Mount> of(Vec3 originMm, Tilt tilt) {
             if (!originMm.isFinite()) {
-                return Checked.rejected("a feeder is mounted at a finite place in Reginald, not " + originMm);
+                return Checked.rejected("a spindexer is mounted at a finite place in Reginald, not " + originMm);
             }
             return Checked.ok(new Mount(originMm, tilt));
         }
 
-        private Vec3 inReginald(Vec3 feeder) {
+        private Vec3 inReginald(Vec3 spindexer) {
             double turn = StrictMath.toRadians(tilt.degrees());
             double cos = StrictMath.cos(turn);
             double sin = StrictMath.sin(turn);
-            return origin.plus(
-                    new Vec3(-feeder.x(), -feeder.y() * cos - feeder.z() * sin, -feeder.y() * sin + feeder.z() * cos));
+            return origin.plus(new Vec3(
+                    -spindexer.x(),
+                    -spindexer.y() * cos - spindexer.z() * sin,
+                    -spindexer.y() * sin + spindexer.z() * cos));
         }
 
         @Override
         public String toString() {
-            return "a feeder mounted at " + origin + " in Reginald, tilted " + tilt;
+            return "a spindexer mounted at " + origin + " in Reginald, tilted " + tilt;
         }
     }
 
@@ -1498,8 +1503,8 @@ public final class Feeder implements Surroundings.Part {
             return Checked.ok(bar.raised(drawnXMm, bar.topAsDrawn, raised).z());
         }
 
-        public Vec3 inReginaldMm(Vec3 feederMm) {
-            return mount.inReginald(feederMm);
+        public Vec3 inReginaldMm(Vec3 spindexerMm) {
+            return mount.inReginald(spindexerMm);
         }
 
         public Checked<Station> atTheBackStation(Length pollen, double xMm) {

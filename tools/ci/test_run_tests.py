@@ -67,7 +67,7 @@ class WhatThePythonSuiteDiscovers(unittest.TestCase):
 class WhichSuiteEachPageCheckIsIn(unittest.TestCase):
     def test_the_login_and_admin_pages_are_the_gateway_s_and_every_other_page_check_the_client_s(self):
         self.assertEqual(['login.mjs', 'admin.mjs'], scripts_of('gateway', 'browser'))
-        self.assertEqual(['check.mjs', 'dashboard.mjs', 'simulator.mjs', 'replay.mjs', 'launch.mjs', 'feeder.mjs',
+        self.assertEqual(['check.mjs', 'dashboard.mjs', 'simulator.mjs', 'replay.mjs', 'launch.mjs', 'spindexer.mjs',
                           'cost.mjs'], scripts_of('client', 'browser'))
         self.assertEqual(['check.mjs'], scripts_of('client', 'renderer'))
 

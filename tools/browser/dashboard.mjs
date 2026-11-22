@@ -23,7 +23,7 @@ const PROPERTIES = [...new Set(LAUNCH_SETTINGS.filter((s) => s.property).map((s)
 const PREVIEW = ANSWERED.preview;
 const SUMMARIES = ANSWERED.launches.launches.slice().reverse();
 const TOO_STEEP_RULE = ANSWERED.refused.rule;
-const FEEDER = JSON.parse(fs.readFileSync(path.join(here, 'feeder-answers.json'), 'utf8'));
+const SPINDEXER = JSON.parse(fs.readFileSync(path.join(here, 'spindexer-answers.json'), 'utf8'));
 
 const REMEMBERED = { temperature: 25 };
 const FORGOT = 'Went back to the default for what was kept of spin_rate (there is no such setting now).';
@@ -187,12 +187,12 @@ function servedTheLaunchSim(request, response, route) {
   return false;
 }
 
-let feederViewerLoads = 0;
-const FEEDER_VIEWER = '<!doctype html><meta charset="utf-8"><title>Feeder Sim</title><body></body>';
+let spindexerViewerLoads = 0;
+const SPINDEXER_VIEWER = '<!doctype html><meta charset="utf-8"><title>Spindexer Sim</title><body></body>';
 
-function servedTheFeederSim(request, response, route) {
+function servedTheSpindexerSim(request, response, route) {
   if (request.method === 'GET' && route === '/sim/feed/settings') {
-    json(response, FEEDER.settings);
+    json(response, SPINDEXER.settings);
     return true;
   }
   if (request.method === 'GET' && route === '/sim/feeds') {
@@ -200,9 +200,9 @@ function servedTheFeederSim(request, response, route) {
     return true;
   }
   if (request.method === 'GET' && route === '/sim/feeds/') {
-    feederViewerLoads += 1;
+    spindexerViewerLoads += 1;
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(FEEDER_VIEWER);
+    response.end(SPINDEXER_VIEWER);
     return true;
   }
   return false;
@@ -214,7 +214,7 @@ function serve() {
     if (servedTheLaunchSim(request, response, asked)) {
       return;
     }
-    if (servedTheFeederSim(request, response, asked)) {
+    if (servedTheSpindexerSim(request, response, asked)) {
       return;
     }
     if (request.method === 'POST' && asked === '/sim/run') {
@@ -772,20 +772,20 @@ async function theLaunchSimWorks(page, engine) {
   await noReloadTakesTextTheUserIsStillTyping(page, engine);
 }
 
-async function theFeederSimTabOpensItsViewer(page, engine) {
-  const loads = feederViewerLoads;
-  await page.locator('nav [data-tab="feeder"]').click({ timeout: 5_000 });
-  check(await page.locator('#feeder').isVisible(), `${engine}: tapping Feeder Sim does not open the tab`);
-  check(!(await page.locator('#launch').isVisible()), `${engine}: the Launch Sim tab is still shown under Feeder Sim`);
+async function theSpindexerSimTabOpensItsViewer(page, engine) {
+  const loads = spindexerViewerLoads;
+  await page.locator('nav [data-tab="spindexer"]').click({ timeout: 5_000 });
+  check(await page.locator('#spindexer').isVisible(), `${engine}: tapping Spindexer Sim does not open the tab`);
+  check(!(await page.locator('#launch').isVisible()), `${engine}: the Launch Sim tab is still shown under Spindexer Sim`);
   check(await untilTrue(page, () => {
-    const frame = document.getElementById('feeder-stage');
+    const frame = document.getElementById('spindexer-stage');
     return !!frame.contentWindow && frame.contentWindow.location.pathname === '/sim/feeds/'
-        && frame.contentDocument.title === 'Feeder Sim';
-  }), `${engine}: the Feeder Sim tab does not open the feeder's viewer`);
-  check(feederViewerLoads === loads + 1, `${engine}: the feeder's viewer was loaded ${feederViewerLoads - loads} times`);
-  check(await untilTrue(page, (n) => document.querySelectorAll('#feeder details.launch-group').length === n,
-      FEEDER.settings.groups.length), `${engine}: the Feeder Sim tab does not set out its settings' groups`);
-  check(page.url().endsWith('#feeder'), `${engine}: the Feeder Sim tab is at ${page.url()}, not #feeder`);
+        && frame.contentDocument.title === 'Spindexer Sim';
+  }), `${engine}: the Spindexer Sim tab does not open the spindexer's viewer`);
+  check(spindexerViewerLoads === loads + 1, `${engine}: the spindexer's viewer was loaded ${spindexerViewerLoads - loads} times`);
+  check(await untilTrue(page, (n) => document.querySelectorAll('#spindexer details.launch-group').length === n,
+      SPINDEXER.settings.groups.length), `${engine}: the Spindexer Sim tab does not set out its settings' groups`);
+  check(page.url().endsWith('#spindexer'), `${engine}: the Spindexer Sim tab is at ${page.url()}, not #spindexer`);
 }
 
 async function main() {
@@ -797,14 +797,14 @@ async function main() {
     await itWorks(current.page, 'this engine');
     await aGameIsAskedForByTheBox(current.page, 'this engine');
     await theLaunchSimWorks(current.page, 'this engine');
-    await theFeederSimTabOpensItsViewer(current.page, 'this engine');
+    await theSpindexerSimTabOpensItsViewer(current.page, 'this engine');
     await nothingBroke(current.page, current.threw, current.started, 'this engine');
 
     const older = await opened(browser, base, { engine: asAnOlderIpad, viewport: { width: 810, height: 1080 } });
     await itWorks(older.page, 'an older iPad');
     await aGameIsAskedForByTheBox(older.page, 'an older iPad');
     await theLaunchSimWorks(older.page, 'an older iPad');
-    await theFeederSimTabOpensItsViewer(older.page, 'an older iPad');
+    await theSpindexerSimTabOpensItsViewer(older.page, 'an older iPad');
     await nothingBroke(older.page, older.threw, older.started, 'an older iPad');
   } catch (stuck) {
     wrong.push(String((stuck && stuck.message) || stuck));
@@ -830,8 +830,8 @@ async function main() {
       + 'refusal in sight until the form changes, sends nothing while a number cannot be read, and reloads the '
       + 'settings when the bench says it no longer knows one, keeping only what the user changed and where they '
       + 'were typing, trying again after a reload fails and never over a number still being typed, and the '
-      + `Feeder Sim tab, which sets out the bench's ${FEEDER.settings.groups.length} groups of feed settings and `
-      + 'opens the feeder\'s viewer, on this engine and on one shaped like an older iPad\'s.');
+      + `Spindexer Sim tab, which sets out the bench's ${SPINDEXER.settings.groups.length} groups of feed settings and `
+      + 'opens the spindexer\'s viewer, on this engine and on one shaped like an older iPad\'s.');
 }
 
 await main();

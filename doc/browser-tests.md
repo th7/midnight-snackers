@@ -101,7 +101,7 @@ for the page that draws the field, which it then never looked at; it asks for
 ## The other page a browser is the only witness to
 
 `tools/browser/dashboard.mjs` opens the **simulator's page** -- the one the **local
-simulator** serves, with the Simulate, Launch Sim and Feeder Sim tabs -- the same way,
+simulator** serves, with the Simulate, Launch Sim and Spindexer Sim tabs -- the same way,
 over a throwaway server that answers `/` and `/sim/*` as the local simulator does, with
 the real `dashboard.html`.
 
@@ -115,7 +115,7 @@ move -- which is also what a server with nothing to show looks like.
 So the check opens the page twice:
 
 - **on this engine**, where the Simulate tab opens and lists its op modes, a run is a
-  game only when the box says so, and the Launch Sim and Feeder Sim tabs set out their
+  game only when the box says so, and the Launch Sim and Spindexer Sim tabs set out their
   settings and do what they offer;
 - **on an engine shaped like an older iPad's**, where `MediaQueryList` carries
   `addListener` and nothing else, and `ResizeObserver`, `requestIdleCallback`,
@@ -130,7 +130,7 @@ looking at it.
 
 `tools/browser/simulator.mjs` opens the same `dashboard.html` as the local simulator
 serves it, over a throwaway server that answers `/` and `/sim/*` and nothing else. There
-the page is titled Simulator, offers Simulate, Launch Sim and Feeder Sim alone, opens on
+the page is titled Simulator, offers Simulate, Launch Sim and Spindexer Sim alone, opens on
 Simulate even when it is asked for the `#edit` an old link may carry, shows a checkout
 that does not compile by its file and line, runs an op mode and sets out both sims'
 settings, on this engine and on one shaped like an older iPad's. Every request it makes

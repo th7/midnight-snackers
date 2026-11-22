@@ -38,15 +38,15 @@ conversion is `x = (204 − Y)/25.4`, `y = X/25.4`, `z = Z/25.4`.
 | Floor | three 280 mm flat plates, starting at `PlateToFront` and spaced `PlateSpacing` apart | z 0.51–0.63 |
 | Intake roller | two 90 mm grip wheels joined by 12 rubber-band strips. Axle `IntakeToFront` = 1 in behind the front and `IntakeHeight` = 4.5 in up. Overall width `IntakeWidth` = 8.625 in | axle at x 7.03, z 4.5; front edge at x 8.80; y ±4.31 |
 | Funnel | *Part 40*, a scoop on the floor that narrows toward the middle. Its mouth is 245 mm wide | mouth at x 7.89, y ±4.83, z 0.18–1.97 |
-| Feeder | *FeederBottom* and *FeederTop*: two coaxial discs of diameter `2·PollenDiameter + 25 mm` = 6.58 in, set one pollen + 5 mm apart (`FeederHeight` ≈ 75 mm). They sit on a servo hub and a bearing block, and are tilted about 17° so they rise toward the back. The top disc has a notch at the back, under the flywheel. `FeederRadius` = 55 mm | axis near x +1.3 |
+| Spindexer | *FeederBottom* and *FeederTop*: two coaxial discs of diameter `2·PollenDiameter + 25 mm` = 6.58 in, set one pollen + 5 mm apart (`FeederHeight` ≈ 75 mm). They sit on a servo hub and a bearing block, and are tilted about 17° so they rise toward the back. The top disc has a notch at the back, under the flywheel. `FeederRadius` = 55 mm | axis near x +1.3 |
 | Flywheel | *FlywheelInner* and *FlywheelOuter*: `FlywheelDiameter` 100 mm, `FlywheelWidth` 50 mm, on the centreline. Its axle runs across the robot, 217 mm behind the front and 180 mm up | axle at x −0.51, z 7.09 |
 | Hood | *Hood*: a grooved arc behind the flywheel, from 64.8° below horizontal to 41.9° above. The ball's centre travels 75.3 mm from the axle, 10 mm closer than the free pollen's | top at z 10.26; back at x −6.41 |
 | Launcher mount | one REV 420 mm 15 mm extrusion and one bearing block, on the left side only | y +1.65…+2.24, z 7.3–7.9 |
 | Reference pieces | four pollen, each made of two *Pollen Half* parts: three on the floor at the front and one on the plates | not robot |
 
 **How a ball moves through it**, from the CAD and the team. The roller pulls a
-pollen up the funnel onto the plates and into a pocket at the feeder's low
-front. The feeder turns and carries its pockets round. Under the feeder and
+pollen up the funnel onto the plates and into a pocket at the spindexer's low
+front. The spindexer turns and carries its pockets round. Under the spindexer and
 the flywheel, a servo lifts a small ramp. With the ramp up, a pollen passing
 under the flywheel is lifted into it, pinched against the hood, carried up
 the back of the flywheel and thrown forward over the top. With the ramp down,
@@ -58,7 +58,7 @@ The CAD **does not have**:
 - a drivetrain or any motor, servo, hub, battery or camera
 - a rear cross-member
 - the right-hand launcher mount
-- the feeder's pockets
+- the spindexer's pockets
 - the ramp and its servo
 
 Two things about the export that the pipeline has to handle:
@@ -78,7 +78,7 @@ Answered on 13 October.
 |---|---|---|
 | Launch angle | **70°, as today.** The 48° the hood draws is not the robot's angle. | The ball leaves where a 70° throw leaves Reginald's own flywheel: its centre 75.3 mm from the axle, 20° above horizontal behind it, which is **(−3.30, 0, 8.10) in**. A 2-D check against the upturned cell's mouth scores from `Nav.LAUNCH_DISTANCE_INCHES` = 40 at 205–223 in/s, so the launch distance stays. |
 | Turntable | **None.** | The robot aims by turning. `Turntable`, its motor, its simulation constant and the camera "on the turntable" all go. |
-| Feeder | **Four pockets. It replaces both gates.** A second servo, under the feeder and the flywheel, lifts a ramp that puts a passing pollen into the flywheel. | The ramp is the trigger. The gates let one ball through at a time; now a ball is thrown when the ramp is up while one pocket passes. |
+| Spindexer | **Four pockets. It replaces both gates.** A second servo, under the spindexer and the flywheel, lifts a ramp that puts a passing pollen into the flywheel. | The ramp is the trigger. The gates let one ball through at a time; now a ball is thrown when the ramp is up while one pocket passes. |
 | Drive | **75 mm mecanum, outside the rails.** | The robot is ≈16.8 × 14.8 in. |
 | Back | **The rails' end.** The CAD's 420 mm extrusion is longer than the real robot's. | The reduction and the drawing end the robot at the rails, and say where the CAD differs. |
 
@@ -90,8 +90,8 @@ Answered on 13 October.
 | **≈16.8 in long and ≈14.8 in wide**: the rails, the roller ahead of them, and the wheels' outer faces at about y ±7.4 | Follows from the line above | high |
 | **The centre is the midpoint of the rails**, on the centreline | Nothing in the CAD says where the drivetrain's centre is | low; only the dead-wheel offsets would show the difference |
 | **Height 10.26 in** (the top of the hood) | Measured from the CAD | high, for what is drawn |
-| **The feeder's servo turns continuously** | Pollen ride round the feeder and pass the flywheel again and again, and four pockets need more than a turn. A positional servo stops short of one turn. | medium-high |
-| **Pollen go in at the front and come out at the back** | The funnel meets the feeder's low front. The flywheel's axle is 1.8 in behind the feeder's axis, over a pocket 55 mm behind it. | high |
+| **The spindexer's servo turns continuously** | Pollen ride round the spindexer and pass the flywheel again and again, and four pockets need more than a turn. A positional servo stops short of one turn. | medium-high |
+| **Pollen go in at the front and come out at the back** | The funnel meets the spindexer's low front. The flywheel's axle is 1.8 in behind the spindexer's axis, over a pocket 55 mm behind it. | high |
 | **The four pockets sit at `FeederRadius` = 55 mm** | Four pollen there fit with 6.7 mm between them | medium |
 | **The ramp's servo is positional**: down or up | It lifts and lowers | high |
 | **Mass 15 kg, as today** | The CAD's mass is 0.92 kg, because only the REV aluminium has a material | — |
@@ -440,17 +440,17 @@ Tests first:
 Then implement, and update `doc/CONTEXT.md`: **Simulated robot** (the launch
 point and the throw) and **Simulation constants**.
 
-## Batch 7 · the feeder and the ramp
+## Batch 7 · the spindexer and the ramp
 
 This batch changes the robot code as well as the simulator.
 
-- **Hardware.** `topGate` and `bottomGate` give way to **`feeder`**, a
+- **Hardware.** `topGate` and `bottomGate` give way to **`spindexer`**, a
   `CRServo`, and **`ramp`**, a `Servo`. The Control Hub's configuration must
   name both before this lands on the robot. Hardware is whole or not at all,
   so a hub without them will not start an op mode. Changing the hub's
   configuration is the team's job.
-- **In the core, `Feeder`:**
-  - It holds four pockets, each empty or holding a ball, and the feeder's
+- **In the core, `Spindexer`:**
+  - It holds four pockets, each empty or holding a ball, and the spindexer's
     angle.
   - Pollen enter at the front station and are thrown at the back station.
   - Turning by an angle moves every pocket.
@@ -459,18 +459,18 @@ This batch changes the robot code as well as the simulator.
   - A pollen at the mouth goes into the pocket nearest the front station if
     that pocket is empty. If it is full, the pollen is pushed.
   - It is total for any step, so a step that passes two pockets throws both.
-- **`FEEDER_SPEED`** joins the mechanism constants: turns a second at full
+- **`SPINDEXER_SPEED`** joins the mechanism constants: turns a second at full
   power, a guess until measured (1).
 - **`SimRobot`:**
-  - The feeder replaces the hopper, the chamber and the gates. The preload
+  - The spindexer replaces the hopper, the chamber and the gates. The preload
     fills all four pockets.
   - The ramp counts as up past halfway between `Launcher`'s two ramp
     positions. They are read from `Launcher`, as the turntable's ticks were,
     so there is no second copy.
   - `SimDevices` gains a `FakeCRServo`.
-- **The robot code.** `Launcher` owns the feeder and the ramp, as it owned
+- **The robot code.** `Launcher` owns the spindexer and the ramp, as it owned
   the gates.
-  - It turns the feeder whenever the intake or the flywheel is running.
+  - It turns the spindexer whenever the intake or the flywheel is running.
   - A launch waits for the flywheel, raises the ramp for the time one pocket
     takes to pass (`RAMP_UP_SECONDS`), and then lowers it.
   - The drivers tune that time with gamepad 2's bumpers, which tuned the
@@ -478,40 +478,40 @@ This batch changes the robot code as well as the simulator.
 
 Tests first:
 
-1. `FeederTest` (core): each rule above, including a step that passes two
+1. `SpindexerTest` (core): each rule above, including a step that passes two
    pockets, and turning past a full turn.
 2. `LauncherTest`:
    - A launch waits for the flywheel, raises the ramp for
      `RAMP_UP_SECONDS`, and lowers it.
-   - The feeder turns while the flywheel runs and while the intake runs, and
+   - The spindexer turns while the flywheel runs and while the intake runs, and
      stops when neither does.
    - The bumpers tune `RAMP_UP_SECONDS`.
 3. `SimRobotTest`:
-   - With the ramp down, a full feeder turning for two turns throws nothing.
+   - With the ramp down, a full spindexer turning for two turns throws nothing.
    - With the ramp up for one pocket's passing, one ball leaves.
 4. `IntakeSimTest`: the intake takes four pollen into the four pockets while
-   the feeder turns, and a fifth is pushed.
+   the spindexer turns, and a fifth is pushed.
 5. `LauncherSimTest`:
    - Four preloaded and four launches throw four balls, one each.
    - The close shot scores.
-6. `HardwareTest` and `SimDevicesTest`: the hardware has a feeder and a ramp,
+6. `HardwareTest` and `SimDevicesTest`: the hardware has a spindexer and a ramp,
    and no gates.
-7. `ConstantsTest` and `SimConstantsTest`: `FEEDER_SPEED`'s range and built
+7. `ConstantsTest` and `SimConstantsTest`: `SPINDEXER_SPEED`'s range and built
    value.
-8. Golden traces: read the diffs (the gates give way to the feeder and the
+8. Golden traces: read the diffs (the gates give way to the spindexer and the
    ramp), then regenerate.
 
 Then implement, and update `doc/CONTEXT.md`:
-- new entries: **Feeder** and **Ramp**
-- **Simulated robot** (preload, holds, gates → feeder and ramp),
+- new entries: **Spindexer** and **Ramp**
+- **Simulated robot** (preload, holds, gates → spindexer and ramp),
   **Hardware**, **Simulation constants**
 
 ## Later
 
 - **Moving parts in the drawing.** Ticks would carry whether the intake is
-  on, the flywheel's speed, the feeder's angle, which pockets hold a ball,
+  on, the flywheel's speed, the spindexer's angle, which pockets hold a ball,
   and the ramp. The roller and flywheel would turn, and held balls would be
-  drawn in the feeder, where today `pieces` gives them as `null` and nothing
+  drawn in the spindexer, where today `pieces` gives them as `null` and nothing
   is drawn.
 - **The dashboard overlay.** Road Runner's `Drawing` draws a 9 in circle for
   the robot. It would draw the footprint instead.
