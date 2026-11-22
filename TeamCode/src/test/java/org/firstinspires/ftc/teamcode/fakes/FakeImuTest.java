@@ -55,8 +55,10 @@ public class FakeImuTest {
 
     @Test
     public void untilItIsInitializedTheHubIsTakenToSitLogoUpUsbForwardAsTheSdksImuTakesIt() {
-        FakeImu asTheSdkTakesIt = turned(FakeImu.mounted(hub(LogoFacingDirection.UP, UsbFacingDirection.FORWARD)), 0.3, 0.5);
-        FakeImu upsideDown = turned(FakeImu.mounted(hub(LogoFacingDirection.DOWN, UsbFacingDirection.FORWARD)), 0.3, 0.5);
+        FakeImu asTheSdkTakesIt =
+                turned(FakeImu.mounted(hub(LogoFacingDirection.UP, UsbFacingDirection.FORWARD)), 0.3, 0.5);
+        FakeImu upsideDown =
+                turned(FakeImu.mounted(hub(LogoFacingDirection.DOWN, UsbFacingDirection.FORWARD)), 0.3, 0.5);
 
         assertEquals(0.3, asTheSdkTakesIt.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS), FLOAT_DELTA);
         assertEquals(0.5, asTheSdkTakesIt.getRobotAngularVelocity(AngleUnit.RADIANS).zRotationRate, FLOAT_DELTA);

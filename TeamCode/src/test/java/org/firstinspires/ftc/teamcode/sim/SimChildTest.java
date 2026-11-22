@@ -7,9 +7,9 @@ import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.google.gson.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

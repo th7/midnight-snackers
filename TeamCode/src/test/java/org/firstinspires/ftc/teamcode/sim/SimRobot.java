@@ -35,14 +35,14 @@ import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Count;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
 import org.firstinspires.ftc.teamcode.simcore.Drawn;
 import org.firstinspires.ftc.teamcode.simcore.Draws;
 import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
 import org.firstinspires.ftc.teamcode.simcore.Encoder;
-import org.firstinspires.ftc.teamcode.simcore.Constant;
-import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
@@ -72,7 +72,6 @@ public class SimRobot {
     public static final double BATTERY_VOLTS = SimDevices.BATTERY_VOLTS;
 
     public static final double MAX_STEP_SECONDS = 0.005;
-
 
     private static final double BALL_MASS_KG = Nest.BALL_MASS_KG;
 

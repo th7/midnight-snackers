@@ -145,19 +145,28 @@ public class ConstantsTest {
     @Test
     public void noWheelMayTurnFasterThanTheChassisMayMoveWhereverTheDriveAndItsNoiseAreSet() {
         Checked<Constants> tooFast = of(
-                Constant.DRIVE_KV_VOLT_SECONDS_PER_IN, 0.2,
-                Constant.DRIVE_KS_VOLTS, 0,
-                Constant.FRESHEST_VOLTS, 20,
-                Constant.MOTOR_SPREAD, 0.5);
+                Constant.DRIVE_KV_VOLT_SECONDS_PER_IN,
+                0.2,
+                Constant.DRIVE_KS_VOLTS,
+                0,
+                Constant.FRESHEST_VOLTS,
+                20,
+                Constant.MOTOR_SPREAD,
+                0.5);
 
         assertRejected("at most 180.0 in/s", tooFast);
         assertRejected("not 200.0", tooFast);
-        assertTrue(of(
-                        Constant.DRIVE_KV_VOLT_SECONDS_PER_IN, 0.25,
-                        Constant.DRIVE_KS_VOLTS, 0,
-                        Constant.FRESHEST_VOLTS, 20,
-                        Constant.MOTOR_SPREAD, 0.5)
-                instanceof Checked.Ok);
+        assertTrue(
+                of(
+                                Constant.DRIVE_KV_VOLT_SECONDS_PER_IN,
+                                0.25,
+                                Constant.DRIVE_KS_VOLTS,
+                                0,
+                                Constant.FRESHEST_VOLTS,
+                                20,
+                                Constant.MOTOR_SPREAD,
+                                0.5)
+                        instanceof Checked.Ok);
     }
 
     @Test

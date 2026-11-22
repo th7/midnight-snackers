@@ -34,18 +34,32 @@ public class DeadWheelsTest {
     public void turningInPlaceRollsEachWheelAsFarAsItSitsFromTheCentre() {
         DeadWheels.Counts counts = AT_REST.moved(new Twist(new Vec2(0, 0), 0.1)).counts(STILL);
 
-        assertEquals("0.3 in right of the centre, rolling ahead as the robot turns left", 60, counts.par().ticks(), DELTA);
-        assertEquals("2.5 in ahead of the centre, rolling left", 500, counts.perp().ticks(), DELTA);
+        assertEquals(
+                "0.3 in right of the centre, rolling ahead as the robot turns left",
+                60,
+                counts.par().ticks(),
+                DELTA);
+        assertEquals(
+                "2.5 in ahead of the centre, rolling left", 500, counts.perp().ticks(), DELTA);
     }
 
     @Test
     public void reginaldsDeadWheelsWhereTheyNowSitCountATurnInPlace() {
         DeadWheels reginalds = Valid.value(DeadWheels.at(0.0005433029, -0.25, -3.5));
 
-        DeadWheels.Counts counts = reginalds.moved(new Twist(new Vec2(0, 0), 0.1)).counts(STILL);
+        DeadWheels.Counts counts =
+                reginalds.moved(new Twist(new Vec2(0, 0), 0.1)).counts(STILL);
 
-        assertEquals("a quarter inch right of the centre", 46.0148473347004, counts.par().ticks(), 1e-9);
-        assertEquals("three and a half inches behind it", -644.2078626858056, counts.perp().ticks(), 1e-9);
+        assertEquals(
+                "a quarter inch right of the centre",
+                46.0148473347004,
+                counts.par().ticks(),
+                1e-9);
+        assertEquals(
+                "three and a half inches behind it",
+                -644.2078626858056,
+                counts.perp().ticks(),
+                1e-9);
     }
 
     @Test

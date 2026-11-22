@@ -25,19 +25,15 @@ public final class DeadWheels {
             return Checked.rejected("a dead wheel turns a positive, finite distance a tick, not " + inPerTick + " in");
         }
         if (!(Double.isFinite(parYInches) && Double.isFinite(perpXInches))) {
-            return Checked.rejected("the dead wheels sit a finite distance from the centre, not " + parYInches
-                    + " and " + perpXInches + " in");
+            return Checked.rejected("the dead wheels sit a finite distance from the centre, not " + parYInches + " and "
+                    + perpXInches + " in");
         }
         return Checked.ok(new DeadWheels(inPerTick, parYInches, perpXInches, 0, 0));
     }
 
     public DeadWheels moved(Twist moved) {
         return new DeadWheels(
-                inPerTick,
-                parYInches,
-                perpXInches,
-                parTicks + parTicks(moved),
-                perpTicks + perpTicks(moved));
+                inPerTick, parYInches, perpXInches, parTicks + parTicks(moved), perpTicks + perpTicks(moved));
     }
 
     public Counts counts(Twist perSecond) {

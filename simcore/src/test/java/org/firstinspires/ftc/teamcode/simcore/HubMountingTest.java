@@ -21,8 +21,11 @@ public class HubMountingTest {
 
     @Test
     public void theLogoAndTheUsbPortsFaceAcrossEachOther() {
-        assertEquals(Facing.DOWN, Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)).logo());
-        assertRejected("the hub's logo and its USB ports face along different axes", HubMounting.of(Facing.UP, Facing.UP));
+        assertEquals(
+                Facing.DOWN,
+                Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)).logo());
+        assertRejected(
+                "the hub's logo and its USB ports face along different axes", HubMounting.of(Facing.UP, Facing.UP));
         assertRejected("not UP and DOWN", HubMounting.of(Facing.UP, Facing.DOWN));
         assertRejected("not LEFT and RIGHT", HubMounting.of(Facing.LEFT, Facing.RIGHT));
         assertRejected("not FORWARD and BACKWARD", HubMounting.of(Facing.FORWARD, Facing.BACKWARD));

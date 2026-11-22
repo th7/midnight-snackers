@@ -61,8 +61,8 @@ public class FakeImu implements IMU {
 
     private Quaternion chipReads() {
         long now = System.nanoTime();
-        Quaternion robot = new Quaternion(
-                (float) Math.cos(yawRadians / 2), 0, 0, (float) Math.sin(yawRadians / 2), now);
+        Quaternion robot =
+                new Quaternion((float) Math.cos(yawRadians / 2), 0, 0, (float) Math.sin(yawRadians / 2), now);
         Quaternion chip = mounted.imuCoordinateSystemOrientationFromPerspectiveOfRobot();
         return chip.inverse()
                 .multiply(robot, now)

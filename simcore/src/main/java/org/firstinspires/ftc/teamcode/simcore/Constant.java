@@ -182,7 +182,9 @@ public enum Constant {
 
     public enum Group {
         NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
-        DRIVE("Drive", "How the drivetrain moves the robot: its motors' feedforward, its wheels' spacing and its weight."),
+        DRIVE(
+                "Drive",
+                "How the drivetrain moves the robot: its motors' feedforward, its wheels' spacing and its weight."),
         DEAD_WHEELS("Dead wheels", "Where the odometry wheels sit on the robot and how far each rolls a tick.");
 
         private final String label;
