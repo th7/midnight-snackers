@@ -56,13 +56,15 @@ public final class Robot implements Loopable {
 
         this.nanoClock = hardware.nanoClock();
 
+        Hardware intakeHardware = hardware;
+
         /* launcher = new Launcher(
           hardware.motor("launcher"),
           hardware.servo("topGate"),
           hardware.servo("bottomGate"),
           nanoClock,
         channels.channel(Launcher.CHANNEL)); */
-        intake = new Intake(hardware.motor("intake"));
+        intake = new Intake(intakeHardware.motor("intake"));
         // camera = new Camera(hardware.aprilTags(), nanoClock, channels.channel(Camera.CHANNEL));
         //  turntable = new Turntable(hardware.motor("turnTable"), channels.channel(Turntable.CHANNEL));
 
@@ -85,7 +87,7 @@ public final class Robot implements Loopable {
         brain = new Brain(drive, nav, alliance, channels.channel(Brain.CHANNEL));
         plans = new Plans(drive, nav, nanoClock, intake);
 
-        this.loopOrder = List.of(localizer, drive, nav, brain, plans);
+        this.loopOrder = List.of(localizer, intake, drive, nav, brain, plans);
     }
 
     public List<Loopable> loopOrder() {
