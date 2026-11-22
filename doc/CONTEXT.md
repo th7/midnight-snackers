@@ -799,7 +799,12 @@ simulated, when there were two; it is retired and its number is never used
 again, and a version 5 child is read as any other. From version 6 the start line may carry the **simulation
 constants** that were changed, and only those; an older child runs on the
 constants it was built with, so the bench lets it run when none were changed
-and refuses it by name, with the fix, when any were: pull `develop`. A tick's
+and refuses it by name, with the fix, when any were: pull `develop`. From
+version 7 it may carry the **robot description**'s hub and **configuration**
+when they differ from Reginald's as built; an older child runs on the ones it
+was built with, so the bench refuses it by name, with the fix, when either
+differs. Only the bench and its child speak this protocol: the browser's page
+is reloaded when it changes, so it is never versioned. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
 recording: the page reads either **source**. Every one of those decisions —
@@ -1196,9 +1201,14 @@ in prose: `SimLiveServerTest`, `SimBenchTest`.
 physical truth of its mechanisms (the drive's true feedforward, its geometry and
 mass, where the dead wheels and the hub sit, which way positive power turns each
 mechanism, where the launcher's flywheels are mounted) and the **noise** a seed
-draws from. Its defaults are a file in the repository; a teammate's edits on the
-Robot tab are their own, over those defaults, and each run is made on the
-description as it stood when the run started. The robot code's own tuning is only
+draws from. Its defaults are a file in the repository,
+`TeamCode/robot-description.json`, which names every value: the local simulator
+reads it when it starts and checks it whole, and a file it cannot take refuses
+the start, naming the file and the rule. A teammate's edits on the Robot tab are
+their own, over those defaults, and each run is made on the description as it
+stood when the run started: its child is told what differs from Reginald as
+built on its start line, and its log names each difference against the built
+value, or says "as built". The robot code's own tuning is only
 what the code believes, never the description. The fake IMU reads the robot's
 turn through the hub's mounting as the SDK's own helper would read it, so code that
 takes the hub to sit otherwise reads what that robot would: Reginald's code takes
@@ -1206,7 +1216,7 @@ the hub to sit logo down, USB right, where the description sits it logo right, U
 up, and reads its yaw half a turn off and its turn rate about the wrong axis. Its
 dead wheels' offsets differ from the description's too, so it believes the wrong
 place after a turn. Classes: `RobotDescription` and `HubMounting`, in the **core**;
-`FakeImu`.
+`FakeImu`; `SimDescription`, which reads the file and the start line.
 
 **Configuration** — The hub's devices by name and kind (a motor's kind is the SDK
 motor type it is configured as), and what each motor port's encoder port reads, as
@@ -1425,7 +1435,7 @@ constants as they were when it was started: its child is told the ones that were
 its start line, its log names them, and `/status` says which they were. The
 core's calls that draw a seeded robot name the constants rather than defaulting them, so none of them is made on the
 built ones by forgetting to say. Classes: `Constant` and `Constants`, in the **core**;
-`SimConstants`, which reads and writes them; `SimBench.Run.constants`.
+`SimConstants`, which reads and writes them; `SimBench.Run.description`.
 
 **Seed** — Which robot an op mode's runs are made on, kept by the bench
 beside the op mode's start pose (in `start-poses.json`): a whole number, drawn into a robot by the noise, or

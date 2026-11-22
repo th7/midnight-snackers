@@ -1,0 +1,42 @@
+{
+  "configuration": [
+    {"name": "leftFront", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "perpendicular_dead_wheel"},
+    {"name": "rightFront", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "nothing"},
+    {"name": "leftBack", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "nothing"},
+    {"name": "rightBack", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "parallel_dead_wheel"},
+    {"name": "intake", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "own_motor"},
+    {"name": "flywheelFront", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "own_motor"},
+    {"name": "flywheelBack", "kind": "motor", "type": "REV Robotics UltraPlanetary HD Hex Motor", "encoder": "own_motor"},
+    {"name": "imu", "kind": "imu"},
+    {"name": "spinner", "kind": "continuous_servo"},
+    {"name": "ramp", "kind": "servo"},
+    {"name": "Control Hub", "kind": "voltage_sensor"}
+  ],
+  "hub": {"logo": "RIGHT", "usb": "UP"},
+  "constants": {
+    "motor_spread": 0.1,
+    "flattest_volts": 12.0,
+    "freshest_volts": 13.8,
+    "sag_volts_per_power": 0.2,
+    "drain_volts_per_second": 0.004,
+    "least_traction_g": 0.3,
+    "most_traction_g": 0.6,
+    "set_down_inches": 0.5,
+    "set_down_degrees": 2,
+    "loop_seconds": 0.033,
+    "loop_spread": 0.15,
+    "least_loop_seconds": 0.015,
+    "hiccup_chance": 0.02,
+    "shortest_hiccup_seconds": 0.08,
+    "longest_hiccup_seconds": 0.2,
+    "drive_ks_volts": 0.9891921306123841,
+    "drive_kv_volt_seconds_per_in": 0.2358092252159611,
+    "drive_ka_volt_seconds_squared_per_in": 0.09202969466940081,
+    "track_width_in": 13.751919701544644,
+    "lateral_multiplier": 1.1829409108696243,
+    "mass_kg": 15,
+    "dead_wheel_in_per_tick": 0.0005433029,
+    "parallel_dead_wheel_y_in": -0.25,
+    "perpendicular_dead_wheel_x_in": -3.5
+  }
+}

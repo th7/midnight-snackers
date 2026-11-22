@@ -16,7 +16,6 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
@@ -70,10 +69,8 @@ public final class SimChild {
         Runtime.getRuntime().halt(ORPHANED);
     }
 
-    static SimRobot robotFor(Long seed, Constants constants) {
-        return new SimRobot(
-                RobotDescription.reginalds().with(constants),
-                seed == null ? SimNoise.NONE : Noise.seeded(seed, constants));
+    static SimRobot robotFor(Long seed, RobotDescription description) {
+        return new SimRobot(description, seed == null ? SimNoise.NONE : Noise.seeded(seed, description.constants()));
     }
 
     private static List<String> sourcesFrom(String[] args, int from) {
@@ -118,10 +115,10 @@ public final class SimChild {
             return recording.outcome();
         }
         Long seed = driverStation.seed();
-        Constants constants = driverStation.constants();
-        SimRobot sim = robotFor(seed, constants);
+        RobotDescription description = driverStation.description();
+        SimRobot sim = robotFor(seed, description);
         System.err.println("Robot: " + SimNoise.described(sim.noise()));
-        System.err.println("Constants: " + SimConstants.described(constants));
+        System.err.println("Robot description: " + SimDescription.described(description));
         sim.setDown(start.get());
         Thread streamer = new Thread(() -> stream(recording, protocol), "sim-stream");
         streamer.setDaemon(true);

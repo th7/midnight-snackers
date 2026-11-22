@@ -28,6 +28,7 @@ import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -303,7 +304,7 @@ public class SimChildTest {
         Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
-        in.write(new Gson().toJson(SimDriverStation.startLine(start, 7L, Constants.defaults())) + "\n");
+        in.write(new Gson().toJson(SimDriverStation.startLine(start, 7L, RobotDescription.reginalds())) + "\n");
         in.flush();
 
         Output output = run(child);
@@ -313,6 +314,7 @@ public class SimChildTest {
         double dx = first.get("x").getAsDouble() + 60, dy = first.get("y").getAsDouble() - 12;
         assertTrue("set down near the pose: " + first, Math.hypot(dx, dy) > 0.01 && Math.hypot(dx, dy) < 3);
         assertTrue(output.stderr, output.stderr.contains(SimNoise.described(Noise.seeded(7, Constants.defaults()))));
+        assertTrue(output.stderr, output.stderr.contains("Robot description: as built"));
     }
 
     @Test
@@ -324,7 +326,12 @@ public class SimChildTest {
         Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);
-        in.write(new Gson().toJson(SimDriverStation.startLine(new Pose2d(-60, 12, 0), 7L, grippier)) + "\n");
+        in.write(new Gson()
+                        .toJson(SimDriverStation.startLine(
+                                new Pose2d(-60, 12, 0),
+                                7L,
+                                RobotDescription.reginalds().with(grippier)))
+                + "\n");
         in.flush();
 
         Output output = run(child);
@@ -332,15 +339,19 @@ public class SimChildTest {
         assertEquals(output.stderr, 0, output.exitCode);
         assertTrue(output.stderr, output.stderr.contains(SimNoise.described(Noise.seeded(7, grippier))));
         assertTrue(output.stderr, output.stderr.contains("traction 0.90 g"));
-        assertTrue(output.stderr, output.stderr.contains("Constants: " + SimConstants.described(grippier)));
+        assertTrue(
+                output.stderr,
+                output.stderr.contains("Robot description: "
+                        + SimDescription.described(RobotDescription.reginalds().with(grippier))));
     }
 
     @Test
     public void theConstantsOnTheStartLineMakeTheRobotEvenWithoutASeed() {
         Constants heavyFooted = Valid.value(Constants.of(java.util.Map.of(Constant.DRIVE_KV_VOLT_SECONDS_PER_IN, 1.0)));
 
-        double asBuilt = aheadInASecond(SimChild.robotFor(null, Constants.defaults()));
-        double slower = aheadInASecond(SimChild.robotFor(null, heavyFooted));
+        double asBuilt = aheadInASecond(SimChild.robotFor(null, RobotDescription.reginalds()));
+        double slower = aheadInASecond(
+                SimChild.robotFor(null, RobotDescription.reginalds().with(heavyFooted)));
 
         assertTrue(asBuilt + " in as built, " + slower + " in with kV 1 V per in/s", slower < asBuilt / 2);
     }

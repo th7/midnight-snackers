@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -59,6 +60,26 @@ public class LocalSimulatorTest {
 
     private static FakeChild aChildThatRunsUntilStopped() {
         return FakeChild.thatSays(SimRunStream.hello(), SimRunStream.started()).thatStaysAliveSayingNothingMore();
+    }
+
+    @Test
+    public void theRobotItSimulatesIsTheOneTheCheckoutsDescriptionDescribes() {
+        assertEquals(RobotDescription.reginalds(), Valid.value(LocalSimulator.descriptionIn(Path.of(".."))));
+    }
+
+    @Test
+    public void aDescriptionWithAValueOutOfItsRangeRefusesTheStartNamingTheValueAndItsRange() throws IOException {
+        Path checkout = folder.getRoot().toPath().resolve("checkout");
+        Path file = checkout.resolve("TeamCode").resolve(SimDescription.FILE);
+        Files.createDirectories(file.getParent());
+        String committed = new String(Files.readAllBytes(Path.of(SimDescription.FILE)), StandardCharsets.UTF_8);
+        Files.write(
+                file, committed.replace("\"mass_kg\": 15", "\"mass_kg\": 40").getBytes(StandardCharsets.UTF_8));
+
+        String refused = LocalSimulator.descriptionIn(checkout).fold(read -> "started on " + read, rule -> rule);
+
+        assertTrue(refused, refused.contains("Mass is from 1.0 to 30.0 kg, not 40.0"));
+        assertTrue(refused, refused.contains(file.toString()));
     }
 
     @Test

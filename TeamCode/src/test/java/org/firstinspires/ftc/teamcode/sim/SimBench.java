@@ -16,9 +16,9 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
-import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Moment;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.RunState;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
@@ -187,7 +187,7 @@ public final class SimBench {
 
         public final Long seed;
 
-        public final Constants constants;
+        public final RobotDescription description;
 
         public final Mode mode;
 
@@ -213,7 +213,7 @@ public final class SimBench {
                 String startedBy,
                 Pose2d start,
                 Long seed,
-                Constants constants,
+                RobotDescription description,
                 Mode mode,
                 Begin begin) {
             this.id = id;
@@ -221,7 +221,7 @@ public final class SimBench {
             this.startedBy = startedBy;
             this.start = start;
             this.seed = seed;
-            this.constants = constants;
+            this.description = description;
             this.mode = mode;
             this.view = begin.view(asked);
         }
@@ -362,7 +362,7 @@ public final class SimBench {
             item.addProperty("startedAt", startedAtMillis);
             item.addProperty("startedBy", startedBy);
             item.add("seed", StartPoses.seedToJson(seed));
-            item.add("constants", SimConstants.changed(constants));
+            item.add("constants", SimConstants.changed(description.constants()));
             item.addProperty("phase", phase);
             item.addProperty("loops", ticks.size());
             item.addProperty("seconds", seconds());
@@ -456,7 +456,7 @@ public final class SimBench {
     private final StartPoses startPoses;
     private final SimLaunches launches;
     private final SimFeeds feeds;
-    private final Supplier<Constants> constants;
+    private final Supplier<RobotDescription> descriptions;
     private final List<Run> runs = new ArrayList<>();
     private SimBuild.Result lastCheck;
 
@@ -465,7 +465,7 @@ public final class SimBench {
     }
 
     public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits, Child children) {
-        this(fixedCatalog, project, outputDir, waits, children, Constants::defaults);
+        this(fixedCatalog, project, outputDir, waits, children, RobotDescription::reginalds);
     }
 
     public SimBench(
@@ -474,8 +474,8 @@ public final class SimBench {
             Path outputDir,
             Waits waits,
             Child children,
-            Supplier<Constants> constants) {
-        this(sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock(), constants);
+            Supplier<RobotDescription> descriptions) {
+        this(sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock(), descriptions);
     }
 
     private static SimSources sourcesOf(SimCatalog fixedCatalog, Path project, Path outputDir) {
@@ -492,7 +492,7 @@ public final class SimBench {
      * on disk, or -- in a test of the bench itself -- something that need do neither.
      */
     public SimBench(SimSources sources, Path outputDir, Waits waits, Child children, Clock clock) {
-        this(sources, outputDir, waits, children, clock, Constants::defaults);
+        this(sources, outputDir, waits, children, clock, RobotDescription::reginalds);
     }
 
     public SimBench(
@@ -501,7 +501,7 @@ public final class SimBench {
             Waits waits,
             Child children,
             Clock clock,
-            Supplier<Constants> constants) {
+            Supplier<RobotDescription> descriptions) {
         this.sources = sources;
         this.outputDir = outputDir;
         this.waits = waits;
@@ -510,7 +510,7 @@ public final class SimBench {
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
         this.launches = new SimLaunches(outputDir.resolve(SimLaunches.REMEMBERED_FILE), new OnDiskStore(), clock);
         this.feeds = new SimFeeds(outputDir.resolve(SimFeeds.REMEMBERED_FILE), new OnDiskStore(), clock);
-        this.constants = constants;
+        this.descriptions = descriptions;
     }
 
     public SimCatalog catalog() {
@@ -819,7 +819,7 @@ public final class SimBench {
                 startedBy,
                 startPoses.get(entry.name),
                 startPoses.seed(entry.name),
-                constants.get(),
+                descriptions.get(),
                 mode,
                 begin);
         runs.add(run);
@@ -887,7 +887,7 @@ public final class SimBench {
                     first = false;
                     SimRunStream.Handshake handshake;
                     try {
-                        handshake = SimRunStream.handshake(line, run.start, run.seed, run.constants);
+                        handshake = SimRunStream.handshake(line, run.start, run.seed, run.description);
                     } catch (SimRunStream.WrongProtocol e) {
                         run.finish(SimRunStream.Outcome.wrongProtocol(e.childProtocol), e.getMessage());
                         child.kill();

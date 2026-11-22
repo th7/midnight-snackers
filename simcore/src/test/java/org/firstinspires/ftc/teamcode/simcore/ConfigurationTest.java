@@ -88,4 +88,14 @@ public class ConfigurationTest {
 
         assertEquals(List.of(new Configuration.Imu("imu")), configuration.devices());
     }
+
+    @Test
+    public void aMotorTypeIsNamedAsTheSdkConfiguresItAndByNothingElse() {
+        assertEquals(
+                MotorType.ULTRAPLANETARY_HD_HEX,
+                Valid.value(MotorType.named("REV Robotics UltraPlanetary HD Hex Motor")));
+        String refused = MotorType.named("NeveRest 40").fold(type -> "accepted " + type, rule -> rule);
+        assertTrue(refused, refused.contains("REV Robotics UltraPlanetary HD Hex Motor"));
+        assertTrue(refused, refused.contains("'NeveRest 40'"));
+    }
 }

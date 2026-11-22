@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimRunStream {
     public interface Listener {
@@ -71,8 +72,14 @@ public final class SimRunStream {
 
         public static String cannotTune(int childProtocol) {
             return "wrong protocol: the simulator speaks " + childProtocol
-                    + " and runs on the constants it was built with; constants set on the admin page need "
-                    + CONSTANTS_PROTOCOL;
+                    + " and runs on the constants it was built with; constants changed in " + SimDescription.FILE
+                    + " need " + CONSTANTS_PROTOCOL;
+        }
+
+        public static String cannotDescribe(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and runs on the hub and configuration it was built with; changing them in "
+                    + SimDescription.FILE + " needs " + DESCRIPTION_PROTOCOL;
         }
 
         public static String couldNotStartChild() {
@@ -153,7 +160,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 6;
+    public static final int PROTOCOL = 7;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -162,6 +169,8 @@ public final class SimRunStream {
     public static final int SEEDED_PROTOCOL = 4;
 
     public static final int CONSTANTS_PROTOCOL = 6;
+
+    public static final int DESCRIPTION_PROTOCOL = 7;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -250,7 +259,8 @@ public final class SimRunStream {
         }
     }
 
-    public static Handshake handshake(String firstLine, Pose2d start, Long seed, Constants constants) {
+    public static Handshake handshake(String firstLine, Pose2d start, Long seed, RobotDescription description) {
+        Constants constants = description.constants();
         int protocol = protocolOf(firstLine);
         String content = protocol == 1 ? firstLine : null;
         if (seed != null && protocol < SEEDED_PROTOCOL) {
@@ -273,14 +283,36 @@ public final class SimRunStream {
                     Outcome.cannotTune(protocol),
                     "the simulator in these sources speaks protocol "
                             + protocol
-                            + " and runs on the constants it was built with, not the ones set on the admin page ("
+                            + " and runs on the constants it was built with, not the ones in "
+                            + SimDescription.FILE
+                            + " ("
                             + SimConstants.described(constants)
                             + "); they need protocol "
                             + CONSTANTS_PROTOCOL
-                            + ": the sources are older than the server. Pull develop, or ask your coach to put the simulation constants back as they were built.");
+                            + ": the sources are older than the server. Pull develop, or put the constants in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
+        }
+        if (!(description.hubAsBuilt() && description.configurationAsBuilt()) && protocol < DESCRIPTION_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotDescribe(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and runs on the hub and configuration it was built with, not the ones in "
+                            + SimDescription.FILE
+                            + " ("
+                            + SimDescription.described(description.with(Constants.defaults()))
+                            + "); they need protocol "
+                            + DESCRIPTION_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put the hub and configuration in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
         }
         if (protocol >= PLACED_PROTOCOL) {
-            return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, constants), null, null);
+            return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, description), null, null);
         }
         Twist2d fromOrigin = start.minus(StartPoses.ORIGIN);
         if (Math.hypot(fromOrigin.line.x, fromOrigin.line.y) < 1e-9 && Math.abs(fromOrigin.angle) < 1e-9) {

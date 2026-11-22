@@ -12,9 +12,13 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
+import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Test;
 
 public class SimRunStreamTest {
@@ -320,28 +324,31 @@ public class SimRunStreamTest {
     @Test
     public void aChildOfThisVersionIsToldWhereToStartAndWhichRobot() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, Constants.defaults());
+                SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, RobotDescription.reginalds());
 
         assertEquals(SimRunStream.PROTOCOL, handshake.protocol);
         assertFalse(handshake.message, handshake.refused());
         assertNull("its first line was the hello", handshake.firstContentLine);
         assertEquals(
-                SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, Constants.defaults()), handshake.startLine);
+                SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, RobotDescription.reginalds()),
+                handshake.startLine);
     }
 
     @Test
     public void aChildFromBeforeTheSeedRunsWhenNoSeedIsAskedFor() {
-        SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(3), new Pose2d(12, 0, 0), null, Constants.defaults());
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(3), new Pose2d(12, 0, 0), null, RobotDescription.reginalds());
 
         assertFalse(handshake.message, handshake.refused());
-        assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), null, Constants.defaults()), handshake.startLine);
+        assertEquals(
+                SimDriverStation.startLine(new Pose2d(12, 0, 0), null, RobotDescription.reginalds()),
+                handshake.startLine);
     }
 
     @Test
     public void aChildFromBeforeTheSeedIsRefusedOneByNameAndToldTheFix() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(3), StartPoses.ORIGIN, 1L, Constants.defaults());
+                SimRunStream.handshake(SimRunStream.helloOf(3), StartPoses.ORIGIN, 1L, RobotDescription.reginalds());
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotSeed(3), handshake.outcome);
@@ -353,7 +360,7 @@ public class SimRunStreamTest {
     @Test
     public void aChildFromBeforePlacementRunsFromTheOriginAndPlacesItself() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(2), StartPoses.ORIGIN, null, Constants.defaults());
+                SimRunStream.handshake(SimRunStream.helloOf(2), StartPoses.ORIGIN, null, RobotDescription.reginalds());
 
         assertFalse(handshake.message, handshake.refused());
         assertNull("it is not told where to start, because it cannot be", handshake.startLine);
@@ -361,8 +368,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aChildFromBeforePlacementIsRefusedAnywhereElseByNameAndToldTheFix() {
-        SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(2), new Pose2d(12, 0, 0), null, Constants.defaults());
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(2), new Pose2d(12, 0, 0), null, RobotDescription.reginalds());
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotPlace(2), handshake.outcome);
@@ -372,8 +379,8 @@ public class SimRunStreamTest {
 
     @Test
     public void aVersionOneChildsFirstLineIsContent() {
-        SimRunStream.Handshake handshake =
-                SimRunStream.handshake("[{\"name\":\"an op mode\"}]", StartPoses.ORIGIN, null, Constants.defaults());
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                "[{\"name\":\"an op mode\"}]", StartPoses.ORIGIN, null, RobotDescription.reginalds());
 
         assertEquals(1, handshake.protocol);
         assertFalse(handshake.refused());
@@ -388,7 +395,7 @@ public class SimRunStreamTest {
                         SimRunStream.helloOf(SimRunStream.PROTOCOL + 1),
                         StartPoses.ORIGIN,
                         null,
-                        Constants.defaults()));
+                        RobotDescription.reginalds()));
 
         assertEquals(SimRunStream.PROTOCOL + 1, wrong.childProtocol);
     }
@@ -396,14 +403,17 @@ public class SimRunStreamTest {
     @Test
     public void aSeededChildFromBeforeTheConstantsIsPlacedAndSeeded() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(4), new Pose2d(12, 0, 0), 3L, Constants.defaults());
+                SimRunStream.handshake(SimRunStream.helloOf(4), new Pose2d(12, 0, 0), 3L, RobotDescription.reginalds());
 
         assertFalse(handshake.message, handshake.refused());
-        assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, Constants.defaults()), handshake.startLine);
+        assertEquals(
+                SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, RobotDescription.reginalds()),
+                handshake.startLine);
     }
 
-    private static Constants hiccuping(double chancePerLoop) {
-        return Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop)));
+    private static RobotDescription hiccuping(double chancePerLoop) {
+        return RobotDescription.reginalds()
+                .with(Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop))));
     }
 
     @Test
@@ -433,7 +443,7 @@ public class SimRunStreamTest {
     @Test
     public void aChildFromBeforeTheConstantsRunsWhenNoneWereChanged() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(5), new Pose2d(12, 0, 0), 3L, Constants.defaults());
+                SimRunStream.handshake(SimRunStream.helloOf(5), new Pose2d(12, 0, 0), 3L, RobotDescription.reginalds());
 
         assertFalse(handshake.message, handshake.refused());
         assertFalse(handshake.startLine.toString(), handshake.startLine.has("constants"));
@@ -450,7 +460,54 @@ public class SimRunStreamTest {
         assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.CONSTANTS_PROTOCOL));
         assertTrue(handshake.message, handshake.message.contains("Hiccup chance"));
         assertTrue(handshake.message, handshake.message.contains("Pull develop"));
-        assertTrue(handshake.message, handshake.message.contains("put the simulation constants back"));
+        assertTrue(handshake.message, handshake.message.contains(SimDescription.FILE));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    private static RobotDescription mountedLogoDown() {
+        return RobotDescription.of(
+                Configuration.reginalds(),
+                Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
+                Constants.defaults());
+    }
+
+    @Test
+    public void aChildThatTakesTheWholeDescriptionSpeaksProtocolSeven() {
+        assertEquals(7, SimRunStream.DESCRIPTION_PROTOCOL);
+        assertTrue(SimRunStream.DESCRIPTION_PROTOCOL > SimRunStream.CONSTANTS_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.DESCRIPTION_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldTheHubAsTheDescriptionMountsIt() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, mountedLogoDown());
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(
+                "DOWN", handshake.startLine.getAsJsonObject("hub").get("logo").getAsString());
+    }
+
+    @Test
+    public void aChildFromBeforeTheDescriptionStillTakesChangedConstants() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.DESCRIPTION_PROTOCOL - 1), StartPoses.ORIGIN, null, hiccuping(0.25));
+
+        assertFalse(handshake.message, handshake.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheDescriptionIsRefusedAHubThatDiffersByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(6), StartPoses.ORIGIN, null, mountedLogoDown());
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotDescribe(6), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.DESCRIPTION_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains("hub logo DOWN, USB RIGHT"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertTrue(handshake.message, handshake.message.contains(SimDescription.FILE));
         assertNull("a refused run is sent nothing", handshake.startLine);
     }
 }

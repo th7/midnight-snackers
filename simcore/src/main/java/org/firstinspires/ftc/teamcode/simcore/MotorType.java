@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public enum MotorType {
     ULTRAPLANETARY_HD_HEX("REV Robotics UltraPlanetary HD Hex Motor", Turning.CLOCKWISE, 560, 300);
 
@@ -16,6 +19,17 @@ public enum MotorType {
         this.declared = declared;
         this.ticksPerRev = ticksPerRev;
         this.maxRpm = maxRpm;
+    }
+
+    public static Checked<MotorType> named(String asked) {
+        List<String> labels = new ArrayList<>();
+        for (MotorType type : values()) {
+            if (type.label.equals(asked)) {
+                return Checked.ok(type);
+            }
+            labels.add(type.label);
+        }
+        return Checked.rejected("a motor type is " + String.join(", ", labels) + ", not '" + asked + "'");
     }
 
     public String label() {

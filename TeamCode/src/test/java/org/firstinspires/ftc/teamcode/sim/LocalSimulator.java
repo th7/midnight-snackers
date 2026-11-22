@@ -9,8 +9,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.KeptModels;
 import org.firstinspires.ftc.teamcode.simcore.PortSetting;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.WhereTheHostIs;
 
 /**
@@ -45,14 +47,26 @@ public final class LocalSimulator {
                 bench, TinyHttpServer.start(InetAddress.getLoopbackAddress(), port, "simulator", routes));
     }
 
+    static Checked<RobotDescription> descriptionIn(Path checkout) {
+        return SimDescription.read(checkout.resolve("TeamCode").resolve(SimDescription.FILE));
+    }
+
     public static void main(String[] args) throws InterruptedException {
         Path checkout = Path.of("").toAbsolutePath();
+        Checked<RobotDescription> described = descriptionIn(checkout);
+        if (described instanceof Checked.Rejected<RobotDescription> refused) {
+            System.err.println("The simulator did not start: " + refused.rule());
+            System.exit(2);
+            return;
+        }
+        RobotDescription description = Valid.value(described);
         SimBench bench = new SimBench(
                 null,
                 checkout,
                 checkout.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimBench.Waits.ofTheBench(),
-                new JvmChild());
+                new JvmChild(),
+                () -> description);
         Map<String, String> env = System.getenv();
         int port = Valid.value(PortSetting.of(env, PORT_ENV, DEFAULT_PORT));
         WhereTheHostIs host = Valid.value(WhereTheHostIs.from(env));
@@ -65,6 +79,7 @@ public final class LocalSimulator {
         System.out.println("Simulator: " + simulator.url());
         System.out.println(
                 "  runs the sources in " + checkout + " as saved; this machine only; stop the task to stop it");
+        System.out.println("  robot description: " + SimDescription.described(description));
         fetched.forEach(System.out::println);
         Thread.currentThread().join();
     }

@@ -28,4 +28,15 @@ public class EncoderReadsTest {
         assertEquals(new Count(30, 40), Valid.value(EncoderReads.PARALLEL_DEAD_WHEEL.count(UNKNOWN, DEAD)));
         assertEquals(new Count(0, 0), Valid.value(EncoderReads.NOTHING.count(UNKNOWN, DEAD)));
     }
+
+    @Test
+    public void whatAnEncoderPortReadsIsNamedByWhatItIsAskedForAsAndByNothingElse() {
+        assertEquals("parallel_dead_wheel", EncoderReads.PARALLEL_DEAD_WHEEL.asked());
+        for (EncoderReads reads : EncoderReads.values()) {
+            assertEquals(reads, Valid.value(EncoderReads.named(reads.asked())));
+        }
+        String refused = EncoderReads.named("the moon").fold(reads -> "accepted " + reads, rule -> rule);
+        assertTrue(refused, refused.contains("own_motor, parallel_dead_wheel, perpendicular_dead_wheel, nothing"));
+        assertTrue(refused, refused.contains("'the moon'"));
+    }
 }

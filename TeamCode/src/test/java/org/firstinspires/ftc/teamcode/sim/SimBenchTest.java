@@ -26,6 +26,7 @@ import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.RunState;
 import org.junit.After;
 import org.junit.Rule;
@@ -149,7 +150,7 @@ public class SimBenchTest {
                 "ada",
                 null,
                 null,
-                Constants.defaults(),
+                RobotDescription.reginalds(),
                 SimBench.Mode.FREE_PLAY,
                 SimBench.Begin.AT_ONCE);
         CountDownLatch asking = new CountDownLatch(1);
@@ -346,11 +347,12 @@ public class SimBenchTest {
         assertTrue(bench.status(), bench.status().contains("\"seed\":null"));
     }
 
-    private static Constants hiccuping(double chancePerLoop) {
-        return Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop)));
+    private static RobotDescription hiccuping(double chancePerLoop) {
+        return RobotDescription.reginalds()
+                .with(Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop))));
     }
 
-    private SimBench benchTunedBy(FakeChild child, AtomicReference<Constants> admin) {
+    private SimBench benchTunedBy(FakeChild child, AtomicReference<RobotDescription> admin) {
         return new SimBench(
                 FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)),
                 outputDir(),
@@ -363,12 +365,12 @@ public class SimBenchTest {
     @Test
     public void aRunIsMadeOnTheConstantsOfTheMomentItStartsAndSaysSo() throws Exception {
         FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
-        AtomicReference<Constants> admin = new AtomicReference<>(Constants.defaults());
+        AtomicReference<RobotDescription> admin = new AtomicReference<>(RobotDescription.reginalds());
         bench = benchTunedBy(child, admin);
         SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
 
         SimBench.Run asBuilt = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
-        assertEquals(Constants.defaults(), asBuilt.constants);
+        assertEquals(RobotDescription.reginalds(), asBuilt.description);
         assertFalse(
                 "as built is a start line with no constants at all",
                 theStartLineIn(child).has("constants"));
@@ -379,7 +381,7 @@ public class SimBenchTest {
         admin.set(hiccuping(0.2));
 
         assertEquals("done", thrown.outcome());
-        assertEquals(hiccuping(0.25), thrown.constants);
+        assertEquals(hiccuping(0.25), thrown.description);
         assertEquals(
                 "the constants are on the start line",
                 0.25,
@@ -394,7 +396,7 @@ public class SimBenchTest {
     @Test
     public void aChildFromBeforeTheConstantsIsRefusedARunOnChangedOnesAndSaysWhy() throws Exception {
         FakeChild child = aChildSpeaking(SimRunStream.CONSTANTS_PROTOCOL - 1);
-        AtomicReference<Constants> admin = new AtomicReference<>(Constants.defaults());
+        AtomicReference<RobotDescription> admin = new AtomicReference<>(RobotDescription.reginalds());
         bench = benchTunedBy(child, admin);
         SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
 

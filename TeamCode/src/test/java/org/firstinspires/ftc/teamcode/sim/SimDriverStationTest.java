@@ -10,11 +10,16 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Facing;
+import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Test;
 
 public class SimDriverStationTest {
@@ -189,12 +194,13 @@ public class SimDriverStationTest {
     public void theStartLineCarriesTheSeedWhenThereIsOne() {
         SimDriverStation station = new SimDriverStation();
         Pose2d placed = new Pose2d(-60, 12, 0);
-        JsonObject seeded = SimDriverStation.startLine(placed, 7L, Constants.defaults());
+        JsonObject seeded = SimDriverStation.startLine(placed, 7L, RobotDescription.reginalds());
         assertEquals("{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7}", seeded.toString());
         assertEquals(
                 "no seed, no key",
                 SimDriverStation.startLine(placed).toString(),
-                SimDriverStation.startLine(placed, null, Constants.defaults()).toString());
+                SimDriverStation.startLine(placed, null, RobotDescription.reginalds())
+                        .toString());
 
         station.accept(seeded);
 
@@ -206,20 +212,40 @@ public class SimDriverStationTest {
     public void theStartLineCarriesTheConstantsThatWereChangedAndOnlyThose() {
         SimDriverStation station = new SimDriverStation();
         Pose2d placed = new Pose2d(-60, 12, 0);
-        Constants changed = Valid.value(Constants.of(Map.of(Constant.DRAIN_VOLTS_PER_SECOND, 0.05)));
+        RobotDescription changed = RobotDescription.reginalds()
+                .with(Valid.value(Constants.of(Map.of(Constant.DRAIN_VOLTS_PER_SECOND, 0.05))));
         JsonObject line = SimDriverStation.startLine(placed, 7L, changed);
         assertEquals(
                 "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7,\"constants\":{\"drain_volts_per_second\":0.05}}",
                 line.toString());
         assertEquals(
                 "as built, no key",
-                SimDriverStation.startLine(placed, 7L, Constants.defaults()).toString(),
+                SimDriverStation.startLine(placed, 7L, RobotDescription.reginalds())
+                        .toString(),
                 "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"seed\":7}");
 
         station.accept(line);
 
-        assertEquals(changed, station.constants());
+        assertEquals(changed, station.description());
         assertEquals(Long.valueOf(7), station.seed());
+    }
+
+    @Test
+    public void theStartLineCarriesTheHubAndConfigurationWhenTheyDifferAndTheStationTakesThem() {
+        SimDriverStation station = new SimDriverStation();
+        RobotDescription differs = RobotDescription.of(
+                Valid.value(Configuration.of(List.of(new Configuration.Imu("imu")))),
+                Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
+                Constants.defaults());
+        JsonObject line = SimDriverStation.startLine(new Pose2d(-60, 12, 0), null, differs);
+        assertEquals(
+                "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"hub\":{\"logo\":\"DOWN\",\"usb\":\"RIGHT\"},"
+                        + "\"configuration\":[{\"name\":\"imu\",\"kind\":\"imu\"}]}",
+                line.toString());
+
+        station.accept(line);
+
+        assertEquals(differs, station.description());
     }
 
     @Test
@@ -228,7 +254,7 @@ public class SimDriverStationTest {
 
         station.accept(SimDriverStation.startLine(new Pose2d(0, 0, 0)));
 
-        assertEquals(Constants.defaults(), station.constants());
+        assertEquals(RobotDescription.reginalds(), station.description());
     }
 
     @Test

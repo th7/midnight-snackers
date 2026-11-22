@@ -37,6 +37,18 @@ public final class RobotDescription {
         return constants;
     }
 
+    public boolean hubAsBuilt() {
+        return hub.equals(HubMounting.reginalds());
+    }
+
+    public boolean configurationAsBuilt() {
+        return configuration.equals(Configuration.reginalds());
+    }
+
+    public boolean asBuilt() {
+        return hubAsBuilt() && configurationAsBuilt() && constants.asBuilt();
+    }
+
     public Checked<DeadWheels> deadWheels() {
         return DeadWheels.at(
                 constants.value(Constant.DEAD_WHEEL_IN_PER_TICK),

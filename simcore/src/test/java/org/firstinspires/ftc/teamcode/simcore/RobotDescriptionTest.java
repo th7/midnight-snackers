@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Map;
 import org.junit.Test;
@@ -53,5 +55,28 @@ public class RobotDescriptionTest {
 
         assertEquals(46.0148473347004, counts.par().ticks(), 1e-9);
         assertEquals(-644.2078626858056, counts.perp().ticks(), 1e-9);
+    }
+
+    @Test
+    public void whatDiffersFromReginaldAsBuiltIsSaidPartByPart() {
+        RobotDescription built = RobotDescription.reginalds();
+        RobotDescription turnedHub = RobotDescription.of(
+                Configuration.reginalds(),
+                Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
+                Constants.defaults());
+        RobotDescription noIntake = RobotDescription.of(
+                Valid.value(Configuration.of(java.util.List.of(new Configuration.Imu("imu")))),
+                HubMounting.reginalds(),
+                Constants.defaults());
+        RobotDescription heavier = built.with(Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))));
+
+        assertTrue(built.asBuilt());
+        assertFalse(turnedHub.asBuilt());
+        assertFalse(turnedHub.hubAsBuilt());
+        assertTrue(turnedHub.configurationAsBuilt());
+        assertFalse(noIntake.configurationAsBuilt());
+        assertTrue(noIntake.hubAsBuilt());
+        assertFalse(heavier.asBuilt());
+        assertTrue(heavier.hubAsBuilt() && heavier.configurationAsBuilt());
     }
 }

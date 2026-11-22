@@ -12,7 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
-import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimDriverStation {
     public static final class State {
@@ -176,32 +176,30 @@ public final class SimDriverStation {
     private final CountDownLatch placed = new CountDownLatch(1);
     private volatile Pose2d start;
     private volatile Long seed;
-    private volatile Constants constants = Constants.defaults();
+    private volatile RobotDescription description = RobotDescription.reginalds();
 
     public static JsonObject startLine(Pose2d start) {
-        return startLine(start, null, Constants.defaults());
+        return startLine(start, null, RobotDescription.reginalds());
     }
 
-    public static JsonObject startLine(Pose2d start, Long seed, Constants constants) {
+    public static JsonObject startLine(Pose2d start, Long seed, RobotDescription description) {
         JsonObject line = new JsonObject();
         line.add("start", StartPoses.toJson(start));
         if (seed != null) {
             line.addProperty("seed", seed);
         }
-        if (!constants.asBuilt()) {
-            line.add("constants", SimConstants.changed(constants));
-        }
+        SimDescription.addWhatDiffers(description, line);
         return line;
     }
 
     public void place(Pose2d pose) {
-        place(pose, null, Constants.defaults());
+        place(pose, null, RobotDescription.reginalds());
     }
 
-    public void place(Pose2d pose, Long seed, Constants constants) {
+    public void place(Pose2d pose, Long seed, RobotDescription description) {
         start = Objects.requireNonNull(pose, "start");
         this.seed = seed;
-        this.constants = Objects.requireNonNull(constants, "constants");
+        this.description = Objects.requireNonNull(description, "description");
         placed.countDown();
     }
 
@@ -209,8 +207,8 @@ public final class SimDriverStation {
         return seed;
     }
 
-    public Constants constants() {
-        return constants;
+    public RobotDescription description() {
+        return description;
     }
 
     public Optional<Pose2d> awaitPlacement() {
@@ -265,10 +263,10 @@ public final class SimDriverStation {
             }
             Pose2d pose = StartPoses.fromJson(line.getAsJsonObject("start"));
             Long seed = StartPoses.seedFromJson(line.get("seed"));
-            Constants constants = SimConstants.fromJson(line.get("constants")).fold(read -> read, rule -> {
-                throw new IllegalArgumentException("not simulation constants: " + rule);
+            RobotDescription description = SimDescription.fromStartLine(line).fold(read -> read, rule -> {
+                throw new IllegalArgumentException("not a robot description: " + rule);
             });
-            place(pose, seed, constants);
+            place(pose, seed, description);
             return;
         }
         if (line.has("gamepad") && line.has("state")) {

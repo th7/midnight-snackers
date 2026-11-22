@@ -30,4 +30,11 @@ public class HubMountingTest {
         assertRejected("not LEFT and RIGHT", HubMounting.of(Facing.LEFT, Facing.RIGHT));
         assertRejected("not FORWARD and BACKWARD", HubMounting.of(Facing.FORWARD, Facing.BACKWARD));
     }
+
+    @Test
+    public void aFaceIsNamedAsTheSdkNamesItAndByNothingElse() {
+        assertEquals(Facing.RIGHT, Valid.value(Facing.named("RIGHT")));
+        assertRejected("UP, DOWN, FORWARD, BACKWARD, LEFT, RIGHT", Facing.named("right"));
+        assertRejected("'right'", Facing.named("right"));
+    }
 }
