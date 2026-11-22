@@ -523,7 +523,7 @@ them, so whoever wants work left in one can take it, and says nothing when
 there are none. Class: `LeftWorktrees`, in the core.
 
 **Part** — One piece of the **local simulator**'s page that starts on its
-own: the simulator, the launch sim, the feeder sim, the tabs. A part that
+own: the simulator, the launch sim, the spindexer sim, the tabs. A part that
 throws is caught, named in a banner at the top of the page and recorded in
 `window.simulatorPage.broke`, and the others still start — so a browser that
 cannot run one part of the page still gives the rest, and never leaves the
@@ -577,8 +577,8 @@ around, not whatever the robot code believes, so code that has not caught up
 with the turn is caught. Classes: `SimRobot`; `DeadWheels.reginalds`.
 
 **Dead wheels** — Reginald's two unpowered odometry wheels, each read on a
-drive motor's encoder port. Each is reported as the SDK reports a motor's
-count, the way that port's motor is set to turn, so Road Runner's raw encoder,
+drive motor's encoder port; not the drag wheels or drag wheel encoders. Each
+is reported as the SDK reports a motor's count, the way that port's motor is set to turn, so Road Runner's raw encoder,
 which undoes that, reads the same whichever way the drive motor is set.
 Classes: `DeadWheels`; `TheHubReportsAReversedMotorsCountNegatedTest`.
 
@@ -598,7 +598,7 @@ saved, so the next Run runs the last save with no restart and a compile error
 names its file and line. It listens on loopback alone (port 21988,
 `SIMULATOR_PORT`), so nobody on the LAN reaches it, and it has no login: the
 page at its root is the simulator's own, `dashboard.html`, with the Simulate,
-Launch Sim and Feeder Sim tabs, and opens on Simulate. It draws the **kept
+Launch Sim and Spindexer Sim tabs, and opens on Simulate. It draws the **kept
 field**. Stopping the task stops any run and its child. Classes:
 `LocalSimulator`; `SimulatorRunConfigurationTest`;
 `tools/browser/simulator.mjs`.
@@ -1193,6 +1193,21 @@ showing an empty field. `?view=flat` asks for the flat drawing outright.
 Each server's base is checked against its own routes rather than asserted
 in prose: `SimLiveServerTest`, `SimBenchTest`.
 
+**Robot description** — The simulated robot as data: its **configuration**, the
+physical truth of its mechanisms (the drive's true feedforward, its geometry and
+mass, where the dead wheels and the hub sit, which way positive power turns each
+mechanism, where the launcher's flywheels are mounted) and the **noise** a seed
+draws from. Its defaults are a file in the repository; a teammate's edits on the
+Robot tab are their own, over those defaults, and each run is made on the
+description as it stood when the run started. The robot code's own tuning is only
+what the code believes, never the description.
+
+**Configuration** — The hub's devices by name and kind (a motor's kind is the SDK
+motor type it is configured as), and what each motor port's encoder port reads, as
+the robot's active configuration and its wiring have them. The robot code finds
+its devices through it as it would on the robot, so a device it asks for that is
+not there, or not of that kind, fails the run at init as the SDK would fail it.
+
 **Devices** — A robot's devices as fakes, and a clock: everything the robot
 code can reach through its **Hardware**, and nothing that moves on its own.
 A motor reads back what was last written to it, and time passes only when
@@ -1736,8 +1751,9 @@ from every compliant part moves exactly as it would, and costs exactly as it wou
 among parts that squeeze nothing. Classes: `Compliance`, `CompliantContact`, `Surroundings`,
 `Bodies`, in the **core**.
 
-**Flywheel** — Reginald's flywheel as the simulator turns it. Its motor, a goBILDA 5203
-at 6,000 rpm with no load and 28 ticks a turn, turns at most 2,800 ticks a second
+**Flywheel** — One of the **launcher**'s two wheels, each turned by a motor of its
+own. The core still turns one alone, as Reginald's flywheel once was: its motor,
+a goBILDA 5203 at 6,000 rpm with no load and 28 ticks a turn, turns at most 2,800 ticks a second
 either way: a command past that turns it at that, and one that is not a number does
 not turn it. Its **ticks per turn** are how many of its motor's ticks turn the flywheel
 once, gearing included, from 18 to 10,000; any other count is refused, saying so. It
@@ -1749,7 +1765,9 @@ A run's launch does not turn it yet: it still leaves at a speed in proportion to
 command (**Simulated robot**). Classes: `Flywheel`, with `Flywheel.TicksPerTurn` and
 `Flywheel.AngularSpeed`, in the **core**.
 
-**Launcher** — Reginald's flywheel and hood as a part of the **surroundings**, its
+**Launcher** — Reginald's two **flywheels**, each with a motor of its own, that throw
+a pollen out of the **spindexer**. The core still has the single flywheel and hood it
+replaced, as a part of the **surroundings**, its
 faces **arcs** a ball meets by **compliant contact**, as stage 4 of
 `doc/plans/runtime-flight.md` gives them; a **flight** may carry it and feed it,
 though no run does until `SimRobot` gives its flight one. Its **frame** is the robot's pose turned by the
@@ -1872,9 +1890,9 @@ cost ("computed in 112 ms, 0.06x real time"), which is printed and never judged.
 `Shot.tooMuchWork`.
 
 
-## The feeder sim
+## The spindexer sim
 
-**Feeder Sim** — The dashboard's fourth tab, after Launch Sim: Reginald's **feeder**
+**Spindexer Sim** — The dashboard's fourth tab, after Launch Sim: Reginald's **spindexer**
 turning pollen round to the **ramp**, which lifts each into the flywheel, and the
 **launcher** throwing it, replayed with the **spinner**'s and ramp's loads traced
 against time. It is laid out as Launch Sim is: settings on the right of the view,
@@ -1885,7 +1903,8 @@ robot code and nothing set here reaches a run; it runs on the simulator's own
 and how to calibrate it is `doc/feeder-sim.md`. Classes: `Feed`, `FeedRun`, in the
 **core**; `SimFeeds`; `SimFeedPage`. Files: `feeder.html`.
 
-**Feeder** — The round bowl the pollen wait in, as the engine meets it: its floor
+**Spindexer** — The round bowl the pollen wait in, turned by its **spinner**, and
+what was once called the feeder. As the engine meets it, it is its floor
 with the ramp's slot, its wall with the front and back windows, its top plate with
 the notch the flywheel reaches through, the **spinner** and the **ramp** bar, each a
 named collider. Its measures are the CAD's except the spinner, which is not drawn;
@@ -1895,21 +1914,21 @@ and a feed sends its axes and measures with it, so the view draws what the physi
 meets. Class: `Feeder`, in the **core**.
 
 **Spinner** — The hub and two arms on a REV Smart Robot Servo in continuous mode
-that turn the pollen round the **feeder**, clockwise seen from above. Its speed is
+that turn the pollen round the **spindexer**, clockwise seen from above. Its speed is
 its full speed times its power, less in proportion to the torque the pollen load it
 with, and none at its stall torque: 1.0 rev/s and 1.1 N·m at the Hub's 5 V. Turning
 under a tenth of its unloaded speed for a tenth of a second while powered is a
 **jam**, reported once naming the pollen touching it. Class: `Feeder.Spinner`, in
 the **core**.
 
-**Ramp** — The bar under the **feeder**'s floor at the back, on a second Smart Robot
+**Ramp** — The bar under the **spindexer**'s floor at the back, on a second Smart Robot
 Servo in angular mode, that swings up through the slot and lifts a passing pollen
 into the flywheel; it rises toward the end away from its servo. It slews to its
 commanded angle at 0.168 s per 60° and holds it whatever the load, reporting the
 torque it holds against. A **feed** raises it at one time and lowers it at another.
 Class: `Feeder.Ramp`, in the **core**.
 
-**Feed** — One run of the **feeder** from the pollen at rest against its wall,
+**Feed** — One run of the **spindexer** from the pollen at rest against its wall,
 with the spinner, ramp and flywheel commanded every 4 ms, until every pollen has
 left, everything is at rest, its time runs out or it has done **too much work**,
 held to the same three million units a simulated second a **shot** is. On the way it
@@ -1917,7 +1936,7 @@ reports each pollen *thrown* from the hood (where, how fast, at what angle, with
 what spin), each that *fell out* of a window, and each **jam**. A feed is a value,
 and the same settings give the same feed bit for bit. Its settings are chosen per
 feed on the tab's right and refused naming the rule they break, the last ones fed
-are remembered per user and robot in `feed-settings.json` with how many feeds there
+are remembered per user and robot in `spindexer-settings.json` with how many feeds there
 have been, so a feed's number is never used again.
 `GET /sim/feed/settings`, `POST /sim/feed`, `GET /sim/feeds`, `GET /sim/feeds/`
 (the view, with the feed to show in its fragment, `#7`), `GET /sim/feeds/<id>/feed`
