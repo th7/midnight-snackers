@@ -10,9 +10,8 @@ calibrate it against a real robot. Issue #175 asked for this.
 Its physics is **also the realtime robot simulation's**. A run's balls off the floor (`Flight`) fly
 on the engine a shot does (`Bodies`), with the air, bounces, contacts and step of this page's
 defaults, among the field's colliders without its hives and the hives as a part that turns as one
-tips (`Hives`). What stays the Launch Sim's own is the wheel pair, a shot's story and its settings: a
-run's launcher still throws at the speed `Launch` gives, with no spin, and nothing a user sets here
-reaches a run. Nothing a run does changes a shot either, which stays what it was to the bit (the
+tips (`Hives`). What stays the Launch Sim's own is the wheel pair, a shot's story and its settings:
+a run's robot has no launcher, and nothing a user sets here reaches a run. Nothing a run does changes a shot either, which stays what it was to the bit (the
 fingerprint tests hold that).
 
 ## Contents

@@ -71,7 +71,7 @@ public class SimDevicesTest {
     public void aDeviceTheSimulatorHasNoneOfFailsNamingIt() {
         IllegalStateException thrown = assertThrows(
                 IllegalStateException.class,
-                () -> SimDevices.wired(new WantsAPeriscope(), Map.of("launcher", devices.launcher)));
+                () -> SimDevices.wired(new WantsAPeriscope(), Map.of("launcher", devices.intake)));
 
         assertTrue(thrown.getMessage(), thrown.getMessage().contains("periscope"));
     }
@@ -80,7 +80,7 @@ public class SimDevicesTest {
     public void aDeviceOfAnotherKindThanTheBuilderAsksForFailsNamingIt() {
         IllegalStateException thrown = assertThrows(
                 IllegalStateException.class,
-                () -> SimDevices.wired(new WantsALauncherServo(), Map.of("launcher", devices.launcher)));
+                () -> SimDevices.wired(new WantsALauncherServo(), Map.of("launcher", devices.intake)));
 
         assertTrue(thrown.getMessage(), thrown.getMessage().contains("launcher"));
         assertTrue(thrown.getMessage(), thrown.getMessage().contains("Servo"));
@@ -101,11 +101,11 @@ public class SimDevicesTest {
     @Test
     public void aDeviceHoldsWhatWasWrittenToItWhileTimePasses() {
         devices.hardware();
-        devices.turnTable.setPower(0.4);
+        devices.intake.setPower(0.4);
 
         devices.advance(5);
 
-        assertEquals(0.4, devices.turnTable.power, DELTA);
+        assertEquals(0.4, devices.intake.power, DELTA);
     }
 
     @Test

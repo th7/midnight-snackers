@@ -317,7 +317,7 @@ public class SimChildTest {
         Constants grippier = Valid.value(Constants.of(java.util.Map.of(
                 Constant.LEAST_TRACTION_G, 0.9,
                 Constant.MOST_TRACTION_G, 0.9,
-                Constant.LAUNCH_THROW, 0.25)));
+                Constant.DRAIN_VOLTS_PER_SECOND, 0.05)));
         Process child = JvmChild.launchOnThisClasspath(
                 "--run", "Count to three", "2", folder.getRoot().toString(), ThreeLoopAuto.class.getName());
         Writer in = new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8);

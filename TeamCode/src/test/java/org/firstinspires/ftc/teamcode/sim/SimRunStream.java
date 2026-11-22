@@ -370,9 +370,6 @@ public final class SimRunStream {
         if (tick.pieces != null && tick.pieces.length > 0) {
             t.add("pieces", GSON.toJsonTree(tick.pieces));
         }
-        if (tick.held > 0) {
-            t.addProperty("held", tick.held);
-        }
         JsonObject scored = new JsonObject();
         for (Map.Entry<String, Integer> entry : new TreeMap<>(tick.scored).entrySet()) {
             if (entry.getValue() > 0) {

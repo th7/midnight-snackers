@@ -550,7 +550,7 @@ Android build: no Kotlin, no desugaring. Class: `SimBuild`.
 
 **Core** — `simcore`: the simulator's geometry and physics — the field, the
 hives and flight, the robot's motors and the **drivebase** they turn its wheels
-through, dead wheels, intake and launch, the
+through, dead wheels, the
 flowers' stacks and nests, and the **noise** a run's robot is drawn with — and
 the bench's decisions about a run — how it ends, what the **watchdog** holds its
 child to, and what Stop does — in a module whose build proves every function
@@ -879,8 +879,7 @@ pressed, tick by tick, and the keys go back to play/pause and stepping.
 pose, the plan's current step (empty for a TeleOp), the drive powers — one per
 drive motor, in the order the **drivebase** names them, `LF`, `RF`, `LB`,
 `RB`, which is how the replay page labels them — the
-dashboard packets drawn that loop, where the balls are (each as x, y, z, or
-nothing for one held in the robot), how many balls the robot **holds**, how
+dashboard packets drawn that loop, where the balls are (each as x, y, z), how
 many each alliance has **scored**, and for a TeleOp what each gamepad read.
 Class: `SimRecording`.
 
@@ -1217,7 +1216,7 @@ the rest sit unwired, still there for the physics and for a test that builds
 a switched-off subsystem straight from them. This is the second adapter at the hardware seam —
 the **simulated robot** is the first, and holds one of these, writing its
 sensors from where the physics put the robot. A test of one subsystem wants
-neither the physics nor the field (a turntable turns because its own motor
+neither the physics nor the field (an intake spins because its own motor
 says so) and wants time it can move by hand; before there were two, both
 came only as a side effect of building a rigid-body world, so a test of the
 intake loaded the ball model and a launcher waiting a tenth of a second
@@ -1262,25 +1261,9 @@ it rolls along between the two, slipping on neither, so at half the
 robot's speed. Gripping sets a ball spinning, and a ball is at rest when no
 part of it, centre or surface, moves faster than the **rest speed** (half an
 inch a second), so a spinning ball stops when a rolling one would.
-The robot starts with four pollen (its **preload**) in its **hopper**,
-which with the three nectar a hive is set up with is enough to fill one.
-Four is also all it **holds**, hopper and chamber together: while the
-**intake** is on, a pollen that touches the front of the robot — the front
-face, anywhere across its width — goes into the hopper, until there is no
-room for another, so a robot that starts preloaded takes nothing in until it
-has launched. A nectar is the bigger ball and no intake of ours takes one, so
-a nectar the robot meets, and a pollen it meets with the intake off or with
-no room, is a ball it pushes.
-The launcher is on the turntable, and its gates feed it as the robot
-code drives them: with the top gate open a ball drops from the hopper
-into the **chamber**, and with the bottom gate open the chambered ball
-drops into the flywheel and leaves at a speed set by the flywheel's, in
-**flight**. The flywheel turns as fast as the code commands it, up to its
-motor's top speed of 2,800 ticks a second either way (a goBILDA 5203 at 6,000
-rpm with no load, 28 ticks a turn), and the throw is never set so high that the
-fastest ball it throws from there, off the fastest robot the noise allows, is
-one a flight refuses: so every launch leaves the robot, and one a flight did
-refuse would stop the run saying why. The model is planar apart from flight and the flowers'
+The robot holds no balls: nothing on it takes one in, so every ball it meets
+is a ball it pushes, and a ball is off the floor only as a **flight**.
+The model is planar apart from flight and the flowers'
 stacks: only the robot's footprint collides, nothing goes over a wall or
 under a hive by being low, and a ball in flight meets what a **shot**'s
 ball meets — the floor, the walls, every element of the field, the hives
@@ -1295,21 +1278,10 @@ sensor noise, ever: the sensors read exactly what the robot did, as the
 hub would report it, which for an encoder's velocity is to the nearest
 20 ticks per second (Road Runner's encoder wrapper reads the remainder
 as a count of the hub's 16-bit overflows, so anything finer is read as
-tens of inches a second). The
-launcher's throw and the turntable's speed are guesses until measured on
-the robot. The throw, a ball's speed for each tick a second the flywheel
-turns, leaves the launcher with no spin. It is built at 199.4 in/s for the
-code's close launch of 1050 ticks a second, and that throw and one 2.1 in/s
-slower or faster each score and stay in every shot the tests score from the
-launch distance: a close shot for each alliance, one that comes to rest
-against the back of the cell, the shot after a tip, and the preload's four
-launches at the code's own cadence into an empty cell, all four coming to
-rest in it. The throw is a steep one, into a mouth a hive holds five feet
-up. Both are **simulation constants**,
-so whoever measures them changes what they were built as. The world moves in steps of at
+tens of inches a second). The world moves in steps of at
 most 5 ms whatever the loop rate, so nothing is jumped over. Classes:
-`SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels`, `Chassis`,
-`Launch` and `Turntable`, in the **core**.
+`SimRobot`, which holds the engine; `Drivetrain`, `DeadWheels` and `Chassis`,
+in the **core**.
 
 **Flight** — A ball off the floor during a run: launched, falling, or in or on
 a hive or a flower. A flight is made over a field, with the field's hives at rest
@@ -1407,9 +1379,7 @@ the constants a run was started on. Classes: `Noise` and `Draws`, in the
 **Simulation constants** — The numbers the simulator was built with that a
 run can be started on other values of: the **noise** a seed draws a robot from (how far a
 motor strays from its tuning, the battery, its sag and drain, traction, how a
-hand sets the robot down, and the loop and its hiccups), and the
-**mechanisms** nobody has measured yet (the launcher's throw and the
-turntable's speed). Each has a range it may go in, and the ones that come in
+hand sets the robot down, and the loop and its hiccups). Each has a range it may go in, and the ones that come in
 pairs — the flattest and freshest battery, the least and most traction, the
 shortest loop, the loop, and the shortest and longest hiccup — must be the
 right way round, so a set is checked whole and is either taken whole or
@@ -1421,8 +1391,7 @@ launches, kept per user, and never reaching a run: a run's **flight** flies on
 their defaults, which are the field's physics. Every run is made on the
 constants as they were when it was started: its child is told the ones that were changed on
 its start line, its log names them, and `/status` says which they were. The
-core's calls that draw a seeded robot, launch a ball or turn the turntable
-name the constants rather than defaulting them, so none of them is made on the
+core's calls that draw a seeded robot name the constants rather than defaulting them, so none of them is made on the
 built ones by forgetting to say. Classes: `Constant` and `Constants`, in the **core**;
 `SimConstants`, which reads and writes them; `SimBench.Run.constants`.
 

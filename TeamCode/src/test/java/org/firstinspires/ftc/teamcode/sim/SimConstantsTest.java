@@ -34,11 +34,11 @@ public class SimConstantsTest {
 
     @Test
     public void whatChangedIsWrittenByNameAndReadBackAsTheSameConstants() {
-        Constants changed = constants(Constant.SAG_VOLTS_PER_POWER, 0.3, Constant.LAUNCH_THROW, 0.25);
+        Constants changed = constants(Constant.SAG_VOLTS_PER_POWER, 0.3, Constant.DRAIN_VOLTS_PER_SECOND, 0.05);
 
         JsonObject written = SimConstants.changed(changed);
 
-        assertEquals("{\"sag_volts_per_power\":0.3,\"launch_throw\":0.25}", written.toString());
+        assertEquals("{\"sag_volts_per_power\":0.3,\"drain_volts_per_second\":0.05}", written.toString());
         assertEquals(changed, Valid.value(SimConstants.fromJson(written)));
         assertEquals("{}", SimConstants.changed(Constants.defaults()).toString());
     }
@@ -55,12 +55,12 @@ public class SimConstantsTest {
         assertRefused("an object", SimConstants.fromJson(json("[0.2]")));
         assertRefused("an object", SimConstants.fromJson(json("0.2")));
         assertRefused("'gravity'", SimConstants.fromJson(json("{\"gravity\": 1}")));
-        assertRefused("launch_throw", SimConstants.fromJson(json("{\"gravity\": 1}")));
-        assertRefused("Launcher throw is a number", SimConstants.fromJson(json("{\"launch_throw\": \"fast\"}")));
-        assertRefused("\"fast\"", SimConstants.fromJson(json("{\"launch_throw\": \"fast\"}")));
-        assertRefused("Launcher throw is a number", SimConstants.fromJson(json("{\"launch_throw\": null}")));
-        assertRefused("Launcher throw is a number", SimConstants.fromJson(json("{\"launch_throw\": [1]}")));
-        assertRefused("Launcher throw is from", SimConstants.fromJson(json("{\"launch_throw\": 2}")));
+        assertRefused("drain_volts_per_second", SimConstants.fromJson(json("{\"gravity\": 1}")));
+        assertRefused("Drain is a number", SimConstants.fromJson(json("{\"drain_volts_per_second\": \"fast\"}")));
+        assertRefused("\"fast\"", SimConstants.fromJson(json("{\"drain_volts_per_second\": \"fast\"}")));
+        assertRefused("Drain is a number", SimConstants.fromJson(json("{\"drain_volts_per_second\": null}")));
+        assertRefused("Drain is a number", SimConstants.fromJson(json("{\"drain_volts_per_second\": [1]}")));
+        assertRefused("Drain is from", SimConstants.fromJson(json("{\"drain_volts_per_second\": 2}")));
         assertRefused(
                 "Flattest battery may not be more than freshest battery",
                 SimConstants.fromJson(json("{\"flattest_volts\": 14}")));
@@ -70,9 +70,9 @@ public class SimConstantsTest {
     public void aRunsLogSaysWhichConstantsWereChangedAndFromWhat() {
         assertEquals("as built", SimConstants.described(Constants.defaults()));
 
-        String said = SimConstants.described(constants(Constant.LAUNCH_THROW, 0.25, Constant.HICCUP_CHANCE, 0));
+        String said =
+                SimConstants.described(constants(Constant.DRAIN_VOLTS_PER_SECOND, 0.05, Constant.HICCUP_CHANCE, 0));
 
-        assertEquals(
-                "Hiccup chance 0.0 per loop (built 0.02); Launcher throw 0.25 in/s per tick/s (built 0.1899)", said);
+        assertEquals("Drain 0.05 V/s (built 0.004); Hiccup chance 0.0 per loop (built 0.02)", said);
     }
 }

@@ -248,7 +248,7 @@ public class SimReplayPageTest {
     public void aTickCarriesWhereTheLoosePiecesAre() {
         SimRecording recording = new SimRecording("PushAuto");
         recording.add(SimRecording.Tick.at(0.0, new Pose2d(0, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of())
-                .withBalls(new double[][] {{69.27, -60.6, 1.39}, {10.5, -40.1234, 20}, null}, 2)
+                .withBalls(new double[][] {{69.27, -60.6, 1.39}, {10.5, -40.1234, 20}, null})
                 .scoring(java.util.Map.of("Blue", 1))
                 .tick());
         recording.add(SimRecording.Tick.at(0.5, new Pose2d(1, 0, 0), "1. push", new double[] {1, 1, 1, 1}, List.of())
@@ -258,9 +258,7 @@ public class SimReplayPageTest {
         String html = SimReplayPage.written(recording);
 
         assertTrue(html, html.contains("\"pieces\":[[69.27,-60.6,1.39],[10.5,-40.123,20.0],null]"));
-        assertTrue(
-                "carries what the robot holds and the score",
-                html.contains("\"held\":2") && html.contains("\"scored\":{\"Blue\":1}"));
+        assertTrue("carries the score", html.contains("\"scored\":{\"Blue\":1}"));
         assertTrue("shows the balls in the side panel", html.contains("id=\"balls\""));
         assertEquals(
                 "a tick without them carries no pieces key",

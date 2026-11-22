@@ -90,10 +90,10 @@ public class SimRunStreamTest {
     }
 
     @Test
-    public void aTickCarriesTheBallsWhatTheRobotHoldsAndTheScore() {
+    public void aTickCarriesTheBallsAndTheScore() {
         Heard heard = new Heard();
         SimRecording.Tick balls = SimRecording.Tick.at(1, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
-                .withBalls(new double[][] {{1, 2, 1.39}, null, {3, 4, 30.5}}, 1)
+                .withBalls(new double[][] {{1, 2, 1.39}, null, {3, 4, 30.5}})
                 .scoring(java.util.Map.of("Red", 2))
                 .tick();
 
@@ -102,10 +102,9 @@ public class SimRunStreamTest {
 
         JsonObject first = heard.ticks.get(0);
         assertEquals("[[1.0,2.0,1.39],null,[3.0,4.0,30.5]]", first.get("pieces").toString());
-        assertEquals(1, first.get("held").getAsInt());
         assertEquals(2, first.getAsJsonObject("scored").get("Red").getAsInt());
         JsonObject quiet = heard.ticks.get(1);
-        assertFalse("nothing held, nothing scored: nothing said", quiet.has("held") || quiet.has("scored"));
+        assertFalse("nothing scored: nothing said", quiet.has("scored"));
     }
 
     @Test
@@ -403,8 +402,8 @@ public class SimRunStreamTest {
         assertEquals(SimDriverStation.startLine(new Pose2d(12, 0, 0), 3L, Constants.defaults()), handshake.startLine);
     }
 
-    private static Constants throwing(double inPerSPerTickPerS) {
-        return Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, inPerSPerTickPerS)));
+    private static Constants hiccuping(double chancePerLoop) {
+        return Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop)));
     }
 
     @Test
@@ -417,16 +416,16 @@ public class SimRunStreamTest {
     @Test
     public void aChildOfThisVersionIsToldTheConstantsTheAdminChanged() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, throwing(0.25));
+                SimRunStream.handshake(SimRunStream.hello(), new Pose2d(12, -7, 1.5), 3L, hiccuping(0.25));
 
         assertFalse(handshake.message, handshake.refused());
-        assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, throwing(0.25)), handshake.startLine);
+        assertEquals(SimDriverStation.startLine(new Pose2d(12, -7, 1.5), 3L, hiccuping(0.25)), handshake.startLine);
         assertEquals(
                 0.25,
                 handshake
                         .startLine
                         .getAsJsonObject("constants")
-                        .get("launch_throw")
+                        .get("hiccup_chance")
                         .getAsDouble(),
                 0);
     }
@@ -443,13 +442,13 @@ public class SimRunStreamTest {
     @Test
     public void aChildFromBeforeTheConstantsIsRefusedChangedOnesByNameAndToldTheFix() {
         SimRunStream.Handshake handshake =
-                SimRunStream.handshake(SimRunStream.helloOf(5), StartPoses.ORIGIN, null, throwing(0.25));
+                SimRunStream.handshake(SimRunStream.helloOf(5), StartPoses.ORIGIN, null, hiccuping(0.25));
 
         assertTrue(handshake.refused());
         assertEquals(Outcome.cannotTune(5), handshake.outcome);
         assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
         assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.CONSTANTS_PROTOCOL));
-        assertTrue(handshake.message, handshake.message.contains("Launcher throw"));
+        assertTrue(handshake.message, handshake.message.contains("Hiccup chance"));
         assertTrue(handshake.message, handshake.message.contains("Pull develop"));
         assertTrue(handshake.message, handshake.message.contains("put the simulation constants back"));
         assertNull("a refused run is sent nothing", handshake.startLine);

@@ -151,7 +151,7 @@ __IMPORTMAP__
     <dl id="pose-panel">
       <dt id="step-label">step</dt><dd class="mono" id="step"></dd>
       <dt>true pose</dt><dd class="mono" id="pose"></dd>
-      <dt>balls</dt><dd class="mono" id="balls"></dd>
+      <dt>scored</dt><dd class="mono" id="balls"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -809,7 +809,7 @@ __IMPORTMAP__
     document.getElementById('loop').textContent = (index + 1) + ' / ' + ticks.length;
     const scored = tick.scored || {};
     document.getElementById('balls').textContent =
-      'held ' + (tick.held || 0) + ', blue ' + (scored.Blue || 0) + ', red ' + (scored.Red || 0);
+      'blue ' + (scored.Blue || 0) + ', red ' + (scored.Red || 0);
 
     const names = ['LF', 'RF', 'LB', 'RB'];
     document.getElementById('powers').innerHTML = tick.powers.map((p, i) => {

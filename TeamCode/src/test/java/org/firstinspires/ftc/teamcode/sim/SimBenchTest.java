@@ -346,8 +346,8 @@ public class SimBenchTest {
         assertTrue(bench.status(), bench.status().contains("\"seed\":null"));
     }
 
-    private static Constants throwing(double inPerSPerTickPerS) {
-        return Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCH_THROW, inPerSPerTickPerS)));
+    private static Constants hiccuping(double chancePerLoop) {
+        return Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop)));
     }
 
     private SimBench benchTunedBy(FakeChild child, AtomicReference<Constants> admin) {
@@ -374,21 +374,21 @@ public class SimBenchTest {
                 theStartLineIn(child).has("constants"));
         assertTrue(bench.status(), bench.status().contains("\"constants\":{}"));
 
-        admin.set(throwing(0.25));
+        admin.set(hiccuping(0.25));
         SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
-        admin.set(throwing(0.2));
+        admin.set(hiccuping(0.2));
 
         assertEquals("done", thrown.outcome());
-        assertEquals(throwing(0.25), thrown.constants);
+        assertEquals(hiccuping(0.25), thrown.constants);
         assertEquals(
                 "the constants are on the start line",
                 0.25,
                 theStartLineIn(child)
                         .getAsJsonObject("constants")
-                        .get("launch_throw")
+                        .get("hiccup_chance")
                         .getAsDouble(),
                 0);
-        assertTrue(bench.status(), bench.status().contains("\"constants\":{\"launch_throw\":0.25}"));
+        assertTrue(bench.status(), bench.status().contains("\"constants\":{\"hiccup_chance\":0.25}"));
     }
 
     @Test
@@ -401,7 +401,7 @@ public class SimBenchTest {
         SimBench.Run asBuilt = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
         assertEquals(asBuilt.message(), "done", asBuilt.outcome());
 
-        admin.set(throwing(0.25));
+        admin.set(hiccuping(0.25));
         SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
 
         assertEquals(SimRunStream.Outcome.cannotTune(SimRunStream.CONSTANTS_PROTOCOL - 1), thrown.outcome());

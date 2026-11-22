@@ -13,7 +13,6 @@ import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
-import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
@@ -24,11 +23,7 @@ public final class SimDevices {
     public final FakeDcMotorEx rightFront = new FakeDcMotorEx();
     public final FakeDcMotorEx leftBack = new FakeDcMotorEx();
     public final FakeDcMotorEx rightBack = new FakeDcMotorEx();
-    public final FakeDcMotorEx launcher = new FakeDcMotorEx();
-    public final FakeDcMotorEx turnTable = new FakeDcMotorEx();
     public final FakeDcMotorEx intake = new FakeDcMotorEx();
-    public final FakeServo topGate = new FakeServo();
-    public final FakeServo bottomGate = new FakeServo();
     public final FakeImu imu = new FakeImu();
     public final FakeVoltageSensor voltageSensor = new FakeVoltageSensor(BATTERY_VOLTS);
     public final FakeDashboard dashboard = new FakeDashboard();
@@ -45,14 +40,10 @@ public final class SimDevices {
 
     private Map<String, Object> offered(Supplier<List<AprilTagDetection>> aprilTags) {
         Map<String, Object> offered = new LinkedHashMap<>();
-        offered.put("launcher", launcher);
-        offered.put("topGate", topGate);
-        offered.put("bottomGate", bottomGate);
         offered.put("leftFront", leftFront);
         offered.put("rightFront", rightFront);
         offered.put("leftBack", leftBack);
         offered.put("rightBack", rightBack);
-        offered.put("turnTable", turnTable);
         offered.put("intake", intake);
         offered.put("imu", (LazyImu) () -> imu);
         offered.put("voltageSensor", voltageSensor);

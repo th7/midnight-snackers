@@ -113,27 +113,10 @@ public enum Constant {
             0.001,
             2),
     LONGEST_HICCUP_SECONDS(
-            Group.NOISE, "Longest hiccup", "s", "The longest a hiccup lasts.", Noise.LONGEST_HICCUP_SECONDS, 0.001, 2),
-    LAUNCH_THROW(
-            Group.MECHANISMS,
-            "Launcher throw",
-            "in/s per tick/s",
-            "How fast a ball leaves Reginald's launcher for each tick a second its flywheel turns.",
-            Launch.IN_PER_S_PER_TICK_PER_S,
-            0.01,
-            0.29),
-    TURNTABLE_SPEED(
-            Group.MECHANISMS,
-            "Turntable speed",
-            "ticks/s at full power",
-            "How fast Reginald's turntable turns when its motor is given full power.",
-            Turntable.TICKS_PER_SECOND_AT_FULL_POWER,
-            1,
-            10000);
+            Group.NOISE, "Longest hiccup", "s", "The longest a hiccup lasts.", Noise.LONGEST_HICCUP_SECONDS, 0.001, 2);
 
     public enum Group {
-        NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
-        MECHANISMS("Mechanisms", "Guesses until measured on the robot, which every run uses, seeded or exact.");
+        NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model.");
 
         private final String label;
         private final String says;

@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -17,15 +16,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.firstinspires.ftc.reginald.Turntable;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
+import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
-import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
-import org.firstinspires.ftc.teamcode.simcore.Flywheel;
-import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
+import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.junit.Test;
 
 public class SimRobotTest {
@@ -37,14 +34,19 @@ public class SimRobotTest {
             / MecanumDrive.PARAMS.kVVoltSecondsPerTick
             * MecanumDrive.PARAMS.inPerTick;
 
-    private static final double CLOSE_LAUNCH_VELOCITY = 1050;
+    private static final double CLOSE_SHOT_IN_PER_S = 199.395;
+
+    private static final double DROPPED_SHOT_IN_PER_S = 170.91;
+
+    private static final double THROWN_FROM_HEIGHT_IN = 14;
+
+    private static final double THROWN_AHEAD_IN = 6;
+
+    private static final double THROWN_UP_AT_RADIANS = Math.toRadians(70);
 
     private static final double LAUNCH_DISTANCE_INCHES = 40;
 
     private static final double FLIES_BOUNCES_AND_LANDS_SECONDS = 4;
-
-    private static final double TOP_GATE_OPEN = 1, TOP_GATE_CLOSED = 0.6;
-    private static final double BOTTOM_GATE_OPEN = 0.5, BOTTOM_GATE_CLOSED = 0.4;
 
     private final SimRobot sim = new SimRobot();
 
@@ -703,18 +705,12 @@ public class SimRobotTest {
     }
 
     @Test
-    public void theBallsStartWhereTheFieldIsSetUpAndTheRobotsPreloadInTheRobot() {
-        assertEquals(
-                SimRobot.FIELD.movedPieces().size() + SimRobot.PRELOAD,
-                sim.balls().size());
+    public void theBallsStartWhereTheFieldIsSetUp() {
+        assertEquals(SimRobot.FIELD.movedPieces().size(), sim.balls().size());
 
         for (SimRobot.Piece ball : sim.balls()) {
             double[] at = sim.placeOf(ball);
-            if (ball.setUpFrom().isEmpty()) {
-                assertNull("the robot brought it, so it is nowhere on the field", at);
-                continue;
-            }
-            Field.Piece piece = ball.setUpFrom().get();
+            Field.Piece piece = ball.setUpFrom();
             if (piece.place() instanceof Field.Place.InCell inCell) {
                 assertTrue(
                         "the nectar rests in the cell the field is set up with it in", within(sim, inCell.cell(), at));
@@ -729,7 +725,6 @@ public class SimRobotTest {
             }
         }
 
-        assertEquals(SimRobot.PRELOAD, sim.held());
         assertEquals("the nectar each hive is set up with", 3, sim.scored("Blue"));
         assertEquals(3, sim.scored("Red"));
         assertEquals("three fifths full", 0.6, sim.load("Blue"), 0.001);
@@ -867,13 +862,30 @@ public class SimRobotTest {
         }
     }
 
-    private static SimRobot.Piece thePreloadOf(SimRobot sim) {
+    private static SimRobot.Piece theThrownPollenOf(SimRobot sim) {
+        SimRobot.Piece last = null;
         for (SimRobot.Piece ball : sim.balls()) {
-            if (ball.setUpFrom().isEmpty()) {
-                return ball;
+            if (ball.kind() == Field.Kind.POLLEN && ball.setUpFrom().place() instanceof Field.Place.Loose) {
+                last = ball;
             }
         }
-        throw new AssertionError("the robot brought nothing");
+        assertNotNull("the field is set up with no loose pollen", last);
+        return last;
+    }
+
+    private static SimRobot.Piece thrownAhead(SimRobot sim, double inPerS) {
+        SimRobot.Piece pollen = theThrownPollenOf(sim);
+        Pose2d pose = sim.pose();
+        double aim = pose.heading.toDouble();
+        double across = inPerS * Math.cos(THROWN_UP_AT_RADIANS);
+        sim.toss(
+                pollen,
+                new Vec3(
+                        pose.position.x + THROWN_AHEAD_IN * Math.cos(aim),
+                        pose.position.y + THROWN_AHEAD_IN * Math.sin(aim),
+                        THROWN_FROM_HEIGHT_IN),
+                new Vec3(across * Math.cos(aim), across * Math.sin(aim), inPerS * Math.sin(THROWN_UP_AT_RADIANS)));
+        return pollen;
     }
 
     private Map<SimRobot.Piece, double[]> whereEverythingIs() {
@@ -891,9 +903,9 @@ public class SimRobotTest {
     private List<SimRobot.Piece> pollenOf(Field.Flower flower) {
         List<SimRobot.Piece> pollen = new ArrayList<>();
         for (SimRobot.Piece ball : sim.balls()) {
-            ball.setUpFrom()
-                    .filter(piece -> piece.place() instanceof Field.Place.InFlower in && in.flower() == flower)
-                    .ifPresent(piece -> pollen.add(ball));
+            if (ball.setUpFrom().place() instanceof Field.Place.InFlower in && in.flower() == flower) {
+                pollen.add(ball);
+            }
         }
         return pollen;
     }
@@ -930,55 +942,24 @@ public class SimRobotTest {
         }
     }
 
-    private void readyToLaunch(double flywheelVelocity) {
-        readyToLaunch(sim, flywheelVelocity);
-    }
-
-    private static void readyToLaunch(SimRobot sim, double flywheelVelocity) {
-        sim.topGate.position = TOP_GATE_OPEN;
-        sim.bottomGate.position = BOTTOM_GATE_CLOSED;
-        sim.launcher.commandedVelocity = flywheelVelocity;
-        sim.step(0.1);
-        sim.topGate.position = TOP_GATE_CLOSED;
-        sim.step(0.05);
-    }
-
     @Test
-    public void openingTheBottomGateWithTheFlywheelSpinningLaunchesTheChamberedBall() {
-        sim.setPose(new Pose2d(-60, 0, 0));
-        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
-        assertEquals(SimRobot.PRELOAD, sim.held());
-
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
-        sim.step(0.2);
-
-        assertEquals(SimRobot.PRELOAD - 1, sim.held());
-        double[] ball = sim.placeOf(thePreloadOf(sim));
-        assertNotNull("the first preloaded ball is on its way", ball);
-        assertTrue("ahead of the robot: x=" + ball[0], ball[0] > -60 + SimPlacement.ROBOT_SIZE_IN / 2);
-        assertTrue("in the air: z=" + ball[2], ball[2] > Launch.HEIGHT_IN);
-        assertEquals("straight ahead", 0, ball[1], 0.01);
-    }
-
-    @Test
-    public void aLaunchedBallFliesOnAnArcBouncesLandsAndRollsToRestInsideTheWalls() {
+    public void aThrownBallFliesOnAnArcBouncesLandsAndRollsToRestInsideTheWalls() {
         double lane = -40;
         sim.setPose(new Pose2d(-60, lane, 0));
-        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
+        thrownAhead(sim, CLOSE_SHOT_IN_PER_S);
 
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
         sim.step(0.3);
-        double[] flying = sim.placeOf(thePreloadOf(sim));
+        double[] flying = sim.placeOf(theThrownPollenOf(sim));
         sim.step(FLIES_BOUNCES_AND_LANDS_SECONDS - 0.3);
-        double[] landed = sim.placeOf(thePreloadOf(sim));
+        double[] landed = sim.placeOf(theThrownPollenOf(sim));
         sim.step(6.0);
-        double[] resting = sim.placeOf(thePreloadOf(sim));
+        double[] resting = sim.placeOf(theThrownPollenOf(sim));
         sim.step(1.0);
-        double[] still = sim.placeOf(thePreloadOf(sim));
+        double[] still = sim.placeOf(theThrownPollenOf(sim));
 
-        assertTrue("flying: z=" + flying[2], flying[2] > Launch.HEIGHT_IN + 5);
+        assertTrue("flying: z=" + flying[2], flying[2] > THROWN_FROM_HEIGHT_IN + 5);
         assertEquals("on the floor", BALL, landed[2], DELTA);
-        assertTrue("beyond where it was launched from: x=" + landed[0], landed[0] > -60 + Launch.AHEAD_IN);
+        assertTrue("beyond where it was thrown from: x=" + landed[0], landed[0] > -60 + THROWN_AHEAD_IN);
         assertEquals("in its lane, which nothing on the field crosses", lane, landed[1], 1);
         assertEquals("at rest", resting[0], still[0], DELTA);
         assertEquals(resting[1], still[1], DELTA);
@@ -987,31 +968,15 @@ public class SimRobotTest {
                 "inside the walls", Math.abs(resting[0]) <= half + CONTACT && Math.abs(resting[1]) <= half + CONTACT);
     }
 
-    @Test
-    public void withTheFlywheelStoppedTheBallJustDropsOutOfTheRobot() {
-        sim.setPose(new Pose2d(-60, 0, 0));
-        readyToLaunch(0);
-
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
-        sim.step(2.0);
-
-        double[] ball = sim.placeOf(thePreloadOf(sim));
-        assertEquals(SimRobot.PRELOAD - 1, sim.held());
-        assertEquals("on the floor", BALL, ball[2], DELTA);
-        assertTrue(
-                "just ahead of the robot: x=" + ball[0], ball[0] > -60 && ball[0] < -60 + SimPlacement.ROBOT_SIZE_IN);
-    }
-
-    private double[] launchedIntoTheBaseOf(Field.Flower flower) {
+    private double[] thrownIntoTheBaseOf(Field.Flower flower) {
         sim.setPose(new Pose2d(-26.50, 40.06, Math.toRadians(-10)));
-        readyToLaunch(900);
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        SimRobot.Piece thrown = thrownAhead(sim, DROPPED_SHOT_IN_PER_S);
         sim.step(10.0);
-        return sim.placeOf(thePreloadOf(sim));
+        return sim.placeOf(thrown);
     }
 
     @Test
-    public void aBallLaunchedOntoAnEmptyFlowersBasePlateEndsUpRollingThereAndNested() {
+    public void aBallThrownOntoAnEmptyFlowersBasePlateEndsUpRollingThereAndNested() {
         Field.Flower flower = SimPlacement.FIELD.flowers().get(0);
         int aside = 0;
         for (SimRobot.Piece pollen : pollenOf(flower)) {
@@ -1019,7 +984,7 @@ public class SimRobotTest {
         }
         sim.step(0.5);
 
-        double[] at = launchedIntoTheBaseOf(flower);
+        double[] at = thrownIntoTheBaseOf(flower);
 
         assertEquals("rolling on the floor, not held in flight above it: " + Arrays.toString(at), BALL, at[2], 0);
         assertTrue("nested at the flower's axis: " + Arrays.toString(at), fromTheAxis(flower, at) < CONTACT);
@@ -1028,16 +993,14 @@ public class SimRobotTest {
     private static final double TOUCHING_WITHIN = 0.01;
 
     @Test
-    public void aBallLaunchedUnderAFlowerOntoItsBasePlateMeetsTheStackInItsBoreAndNeverMovesIt() {
+    public void aBallThrownUnderAFlowerOntoItsBasePlateMeetsTheStackInItsBoreAndNeverMovesIt() {
         Field.Flower flower = SimPlacement.FIELD.flowers().get(0);
         Map<SimRobot.Piece, double[]> standing = new IdentityHashMap<>();
         for (SimRobot.Piece pollen : pollenOf(flower)) {
             standing.put(pollen, sim.placeOf(pollen).clone());
         }
-        SimRobot.Piece launched = thePreloadOf(sim);
         sim.setPose(new Pose2d(-26.50, 40.06, Math.toRadians(-10)));
-        readyToLaunch(900);
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        SimRobot.Piece launched = thrownAhead(sim, DROPPED_SHOT_IN_PER_S);
 
         double nearest = Double.POSITIVE_INFINITY, moved = 0;
         for (int step = 0; step < 2000; step++) {
@@ -1066,87 +1029,6 @@ public class SimRobotTest {
     }
 
     @Test
-    public void theTurntableTurnsTheLauncherCounterClockwiseWithItsEncoder() {
-        sim.setPose(new Pose2d(0, -40, 0));
-        sim.turnTable.currentPosition = Turntable.TICKS_PER_REVOLUTION / 4;
-        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
-
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
-        sim.step(0.3);
-
-        double[] ball = sim.placeOf(thePreloadOf(sim));
-        assertTrue("launched to the robot's left (+y): y=" + ball[1], ball[1] > -40 + 10);
-        assertEquals(0, ball[0], 0.5);
-    }
-
-    private static Constants constants(Constant constant, double value) {
-        java.util.Map<Constant, Double> set = new java.util.EnumMap<>(Constant.class);
-        set.put(constant, value);
-        return Valid.value(Constants.of(set));
-    }
-
-    private static double[] thrownFrom(SimRobot robot) {
-        return thrownFrom(robot, CLOSE_LAUNCH_VELOCITY);
-    }
-
-    private static double[] thrownFrom(SimRobot robot, double flywheelVelocity) {
-        robot.setPose(new Pose2d(-60, 0, 0));
-        robot.topGate.position = TOP_GATE_OPEN;
-        robot.bottomGate.position = BOTTOM_GATE_CLOSED;
-        robot.launcher.commandedVelocity = flywheelVelocity;
-        robot.step(0.1);
-        robot.topGate.position = TOP_GATE_CLOSED;
-        robot.step(0.05);
-        robot.bottomGate.position = BOTTOM_GATE_OPEN;
-        robot.step(SimRobot.MAX_STEP_SECONDS);
-        return robot.placeOf(thePreloadOf(robot));
-    }
-
-    @Test
-    public void theLauncherThrowsAsHardAsTheLauncherThrowConstantSays() {
-        SimRobot harder =
-                new SimRobot(SimNoise.NONE, constants(Constant.LAUNCH_THROW, 1.5 * Constant.LAUNCH_THROW.byDefault()));
-
-        double[] asBuilt = thrownFrom(sim);
-        double[] thrown = thrownFrom(harder);
-
-        double leaves = -60 + Launch.AHEAD_IN;
-        assertTrue("in the air: " + thrown[2], thrown[2] > Launch.HEIGHT_IN);
-        assertEquals(
-                "half as far again in the first step it flies, before the air has slowed either",
-                1.5,
-                (thrown[0] - leaves) / (asBuilt[0] - leaves),
-                0.005);
-    }
-
-    @Test
-    public void theMostTheLauncherThrowConstantAllowsStillThrowsTheCodesCloseLaunch() {
-        SimRobot most = new SimRobot(SimNoise.NONE, constants(Constant.LAUNCH_THROW, Constant.LAUNCH_THROW.most()));
-
-        double[] thrown = thrownFrom(most);
-
-        assertEquals("it left the launcher", SimRobot.PRELOAD - 1, most.held());
-        assertNotNull("and is on its way", thrown);
-        assertTrue("in the air: " + thrown[2], thrown[2] > Launch.HEIGHT_IN);
-    }
-
-    @Test
-    public void aFlywheelCommandedPastItsMotorsTopSpeedStillThrowsTheBallAsItsTopSpeedWould() {
-        for (double way : new double[] {1, -1}) {
-            SimRobot past = new SimRobot();
-
-            double[] thrown = thrownFrom(past, way * 10000);
-
-            assertEquals("it left the launcher", SimRobot.PRELOAD - 1, past.held());
-            assertArrayEquals(
-                    "as fast as at its motor's top speed",
-                    thrownFrom(new SimRobot(), way * Flywheel.TOP_TICKS_PER_SECOND),
-                    thrown,
-                    0);
-        }
-    }
-
-    @Test
     public void theRobotDrivesNoFasterThanTheFastestRobotTheLaunchAllowsForWhateverTheNoiseConstantsAllow() {
         MecanumDrive.Params drive = MecanumDrive.PARAMS;
         double weakest = 1 - Constant.MOTOR_SPREAD.most();
@@ -1157,7 +1039,7 @@ public class SimRobotTest {
         assertTrue(
                 "a wheel turns at most " + fastestWheel
                         + " in/s, where its motor's kS and kV leave its battery's volts",
-                fastestWheel <= Launch.MOST_ROBOT_SPEED_IN_PER_S);
+                fastestWheel <= Chassis.MOST_SPEED_IN_PER_S);
     }
 
     @Test
@@ -1168,43 +1050,6 @@ public class SimRobotTest {
 
         assertEquals(built, sim.flightWork());
         assertEquals("the nectar its hives are set up with lie still in them", 3, sim.scored("Blue"));
-    }
-
-    @Test
-    public void theTurntableTurnsAsFastAsTheTurntableSpeedConstantSays() {
-        SimRobot quicker = new SimRobot(
-                SimNoise.NONE, constants(Constant.TURNTABLE_SPEED, 2 * Constant.TURNTABLE_SPEED.byDefault()));
-        sim.turnTable.power = 1;
-        quicker.turnTable.power = 1;
-
-        sim.step(1);
-        quicker.step(1);
-
-        assertEquals(Constant.TURNTABLE_SPEED.byDefault(), sim.turnTable.currentPosition, 200);
-        assertEquals(2 * Constant.TURNTABLE_SPEED.byDefault(), quicker.turnTable.currentPosition, 200);
-    }
-
-    @Test
-    public void theNextBallDropsIntoTheChamberWhenTheTopGateOpensOverAnEmptyOne() {
-        sim.setPose(new Pose2d(-60, 0, 0));
-        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
-
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
-        sim.step(0.2);
-        assertEquals("one launched", SimRobot.PRELOAD - 1, sim.held());
-        sim.step(0.5);
-        assertEquals(
-                "the chamber is empty and the top gate closed, so nothing else drops through",
-                SimRobot.PRELOAD - 1,
-                sim.held());
-
-        sim.bottomGate.position = BOTTOM_GATE_CLOSED;
-        sim.topGate.position = TOP_GATE_OPEN;
-        sim.step(0.1);
-        sim.topGate.position = TOP_GATE_CLOSED;
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
-        sim.step(0.2);
-        assertEquals("the ball that dropped in is launched", SimRobot.PRELOAD - 2, sim.held());
     }
 
     private static Pose2d facing(SimRobot sim, Field.Cell cell, double distance) {
@@ -1245,10 +1090,10 @@ public class SimRobotTest {
     private static List<SimRobot.Piece> setUpInACell(SimRobot sim, String alliance) {
         List<SimRobot.Piece> out = new ArrayList<>();
         for (SimRobot.Piece ball : sim.balls()) {
-            ball.setUpFrom()
-                    .filter(piece -> piece.place() instanceof Field.Place.InCell
-                            && piece.alliance().equals(Optional.of(alliance)))
-                    .ifPresent(piece -> out.add(ball));
+            Field.Piece piece = ball.setUpFrom();
+            if (piece.place() instanceof Field.Place.InCell && piece.alliance().equals(Optional.of(alliance))) {
+                out.add(ball);
+            }
         }
         return out;
     }
@@ -1256,10 +1101,7 @@ public class SimRobotTest {
     private static List<SimRobot.Piece> ballsOf(SimRobot sim, Field.Kind kind) {
         List<SimRobot.Piece> out = new ArrayList<>();
         for (SimRobot.Piece ball : sim.balls()) {
-            if (ball.kind() == kind
-                    && ball.setUpFrom()
-                            .map(piece -> !(piece.place() instanceof Field.Place.InFlower))
-                            .orElse(false)) {
+            if (ball.kind() == kind && !(ball.setUpFrom().place() instanceof Field.Place.InFlower)) {
                 out.add(ball);
             }
         }
@@ -1273,49 +1115,20 @@ public class SimRobotTest {
         }
     }
 
-    @Test
-    public void everyShotTheThrowIsCalibratedForStillScoresAndStaysThrownTwoInchesASecondSlowerOrFaster() {
-        for (double throwing : TWO_INCHES_A_SECOND_EITHER_SIDE) {
-            String said = " throwing " + throwing * CLOSE_LAUNCH_VELOCITY + " in/s";
-            for (String alliance : new String[] {"Blue", "Red"}) {
-                assertScoresAndStays(throwing(throwing), alliance, alliance + said);
-            }
-            assertComesToRestAgainstTheBack(throwing(throwing), "against the back" + said);
-            assertTheCellThatComesUpAfterATipTakesABall(throwing(throwing), "after a tip" + said);
-        }
-    }
-
-    static final double[] TWO_INCHES_A_SECOND_EITHER_SIDE = {
-        Launch.IN_PER_S_PER_TICK_PER_S - 2.1 / CLOSE_LAUNCH_VELOCITY,
-        Launch.IN_PER_S_PER_TICK_PER_S + 2.1 / CLOSE_LAUNCH_VELOCITY
-    };
-
-    static SimRobot throwing(double inPerSPerTickPerS) {
-        return new SimRobot(SimNoise.NONE, constants(Constant.LAUNCH_THROW, inPerSPerTickPerS));
-    }
-
     private static void assertScoresAndStays(SimRobot sim, String alliance, String said) {
         Field.Cell cell = sim.upturnedCell(alliance);
         int already = sim.scored(alliance);
         sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
-        sim.topGate.position = TOP_GATE_OPEN;
-        sim.bottomGate.position = BOTTOM_GATE_CLOSED;
-        sim.launcher.commandedVelocity = CLOSE_LAUNCH_VELOCITY;
-        sim.step(0.1);
-        sim.topGate.position = TOP_GATE_CLOSED;
-        sim.step(0.05);
-
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        thrownAhead(sim, CLOSE_SHOT_IN_PER_S);
         sim.step(5.0);
 
         assertEquals(said + " scored", already + 1, sim.scored(alliance));
-        assertEquals(SimRobot.PRELOAD - 1, sim.held());
-        double[] ball = sim.placeOf(thePreloadOf(sim));
+        double[] ball = sim.placeOf(theThrownPollenOf(sim));
         assertTrue(
                 said + ": the ball rests in the cell: " + ball[0] + ", " + ball[1] + ", " + ball[2],
                 within(sim, cell, ball));
         sim.step(1.0);
-        assertEquals(said + ": and stays there", ball[0], sim.placeOf(thePreloadOf(sim))[0], DELTA);
+        assertEquals(said + ": and stays there", ball[0], sim.placeOf(theThrownPollenOf(sim))[0], DELTA);
     }
 
     @Test
@@ -1325,28 +1138,27 @@ public class SimRobotTest {
 
         Pose2d behind = facing(sim, cell, -LAUNCH_DISTANCE_INCHES);
         sim.setPose(new Pose2d(behind.position, behind.heading.plus(Math.PI)));
-        readyToLaunch(CLOSE_LAUNCH_VELOCITY);
+        thrownAhead(sim, CLOSE_SHOT_IN_PER_S);
 
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
         sim.step(4.0);
 
         assertEquals(already, sim.scored("Blue"));
         assertEquals(3, sim.scored("Red"));
-        double[] ball = sim.placeOf(thePreloadOf(sim));
+        double[] ball = sim.placeOf(theThrownPollenOf(sim));
         assertEquals("the ball fell to the floor", BALL, ball[2], DELTA);
     }
 
     @Test
     public void aBallInADownturnedCellRollsOutAndFallsToTheFloor() {
         Field.Cell down = downturnedCell("Blue");
-        sim.place(thePreloadOf(sim), down);
+        sim.place(theThrownPollenOf(sim), down);
         assertEquals("in the cell for now", 4, sim.scored("Blue"));
 
         sim.step(Falling.ROLLS_THE_LENGTH_OF_A_CELL_SECONDS
                 + Falling.settledAfter(down.mouthCentreAt(sim.tilt("Blue")).z()));
 
         assertEquals("but not for long", 3, sim.scored("Blue"));
-        double[] ball = sim.placeOf(thePreloadOf(sim));
+        double[] ball = sim.placeOf(theThrownPollenOf(sim));
         assertEquals("it rolled out and fell to the floor", BALL, ball[2], DELTA);
         assertTrue(
                 "under the hive it fell out of: " + ball[0],
@@ -1478,12 +1290,11 @@ public class SimRobotTest {
         }
 
         sim.setPose(facing(sim, now, LAUNCH_DISTANCE_INCHES));
-        readyToLaunch(sim, CLOSE_LAUNCH_VELOCITY);
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        thrownAhead(sim, CLOSE_SHOT_IN_PER_S);
         sim.step(2.0);
 
         assertEquals(said + ": and the cell that came up takes a ball", 1, sim.scored("Blue"));
-        assertTrue(said, within(sim, now, sim.placeOf(thePreloadOf(sim))));
+        assertTrue(said, within(sim, now, sim.placeOf(theThrownPollenOf(sim))));
     }
 
     @Test
@@ -1494,14 +1305,13 @@ public class SimRobotTest {
     private static void assertComesToRestAgainstTheBack(SimRobot sim, String said) {
         Field.Cell cell = sim.upturnedCell("Blue");
         sim.setPose(facing(sim, cell, LAUNCH_DISTANCE_INCHES));
-        readyToLaunch(sim, CLOSE_LAUNCH_VELOCITY);
-        sim.bottomGate.position = BOTTOM_GATE_OPEN;
+        thrownAhead(sim, CLOSE_SHOT_IN_PER_S);
 
         double farthest = 0;
         double[] was = null;
         for (int i = 0; i < 600; i++) {
             sim.step(0.005);
-            double[] now = sim.placeOf(thePreloadOf(sim));
+            double[] now = sim.placeOf(theThrownPollenOf(sim));
             if (was != null && now != null) {
                 farthest = Math.max(farthest, apart(was, now));
             }

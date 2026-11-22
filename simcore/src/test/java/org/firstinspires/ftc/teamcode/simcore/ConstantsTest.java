@@ -47,8 +47,6 @@ public class ConstantsTest {
         assertEquals(Noise.HICCUP_CHANCE, built.value(Constant.HICCUP_CHANCE), 0);
         assertEquals(Noise.SHORTEST_HICCUP_SECONDS, built.value(Constant.SHORTEST_HICCUP_SECONDS), 0);
         assertEquals(Noise.LONGEST_HICCUP_SECONDS, built.value(Constant.LONGEST_HICCUP_SECONDS), 0);
-        assertEquals(Launch.IN_PER_S_PER_TICK_PER_S, built.value(Constant.LAUNCH_THROW), 0);
-        assertEquals(Turntable.TICKS_PER_SECOND_AT_FULL_POWER, built.value(Constant.TURNTABLE_SPEED), 0);
 
         for (Constant constant : Constant.values()) {
             assertEquals(constant.name(), constant.byDefault(), built.value(constant), 0);
@@ -76,10 +74,10 @@ public class ConstantsTest {
         for (Constant constant : Constant.values()) {
             assertSame(constant, Valid.value(Constant.named(constant.asked())));
         }
-        assertEquals("launch_throw", Constant.LAUNCH_THROW.asked());
-        assertRejected("launch_throw", Constant.named("gravity"));
+        assertEquals("set_down_degrees", Constant.SET_DOWN_DEGREES.asked());
+        assertRejected("set_down_degrees", Constant.named("gravity"));
         assertRejected("'gravity'", Constant.named("gravity"));
-        assertRejected("'LAUNCH_THROW'", Constant.named("LAUNCH_THROW"));
+        assertRejected("'SET_DOWN_DEGREES'", Constant.named("SET_DOWN_DEGREES"));
     }
 
     @Test
@@ -102,7 +100,7 @@ public class ConstantsTest {
 
     @Test
     public void aValueAtEitherEndOfItsRangeIsTaken() {
-        for (Constant constant : List.of(Constant.MOTOR_SPREAD, Constant.LAUNCH_THROW, Constant.TURNTABLE_SPEED)) {
+        for (Constant constant : List.of(Constant.MOTOR_SPREAD, Constant.SET_DOWN_DEGREES, Constant.LOOP_SPREAD)) {
             assertEquals(
                     constant.least(),
                     Valid.value(of(constant, constant.least())).value(constant),
@@ -140,18 +138,18 @@ public class ConstantsTest {
     @Test
     public void whatChangedIsWhatDiffersFromTheValueAsBuiltInTheOrderTheyAreListed() {
         Constants changed = Valid.value(of(
-                Constant.LAUNCH_THROW,
-                0.2,
+                Constant.SET_DOWN_DEGREES,
+                20,
                 Constant.MOTOR_SPREAD,
                 Noise.MOTOR_SPREAD,
                 Constant.SAG_VOLTS_PER_POWER,
                 0.3));
 
         assertEquals(
-                List.of(Constant.SAG_VOLTS_PER_POWER, Constant.LAUNCH_THROW),
+                List.of(Constant.SAG_VOLTS_PER_POWER, Constant.SET_DOWN_DEGREES),
                 List.copyOf(changed.changed().keySet()));
         assertEquals(0.3, changed.changed().get(Constant.SAG_VOLTS_PER_POWER), 0);
-        assertEquals(0.2, changed.changed().get(Constant.LAUNCH_THROW), 0);
+        assertEquals(20, changed.changed().get(Constant.SET_DOWN_DEGREES), 0);
         assertFalse(changed.asBuilt());
         assertEquals(Noise.MOTOR_SPREAD, changed.value(Constant.MOTOR_SPREAD), 0);
         assertEquals(Noise.LOOP_SECONDS, changed.value(Constant.LOOP_SECONDS), 0);
@@ -160,29 +158,23 @@ public class ConstantsTest {
     @Test
     public void twoSetsOfTheSameValuesAreTheSame() {
         assertEquals(Constants.defaults(), Valid.value(of()));
-        assertEquals(Constants.defaults(), Valid.value(of(Constant.LAUNCH_THROW, Launch.IN_PER_S_PER_TICK_PER_S)));
-        assertEquals(Valid.value(of(Constant.LAUNCH_THROW, 0.2)), Valid.value(of(Constant.LAUNCH_THROW, 0.2)));
         assertEquals(
-                Valid.value(of(Constant.LAUNCH_THROW, 0.2)).hashCode(),
-                Valid.value(of(Constant.LAUNCH_THROW, 0.2)).hashCode());
-        assertFalse(Constants.defaults().equals(Valid.value(of(Constant.LAUNCH_THROW, 0.2))));
+                Constants.defaults(),
+                Valid.value(of(Constant.SET_DOWN_DEGREES, Constant.SET_DOWN_DEGREES.byDefault())));
+        assertEquals(Valid.value(of(Constant.SET_DOWN_DEGREES, 20)), Valid.value(of(Constant.SET_DOWN_DEGREES, 20)));
+        assertEquals(
+                Valid.value(of(Constant.SET_DOWN_DEGREES, 20)).hashCode(),
+                Valid.value(of(Constant.SET_DOWN_DEGREES, 20)).hashCode());
+        assertFalse(Constants.defaults().equals(Valid.value(of(Constant.SET_DOWN_DEGREES, 20))));
     }
 
     @Test
     public void whatASetIsHandedIsNotWhatItHolds() {
-        Map<Constant, Double> handed = set(Constant.LAUNCH_THROW, 0.2);
+        Map<Constant, Double> handed = set(Constant.SET_DOWN_DEGREES, 20);
         Constants constants = Valid.value(Constants.of(handed));
-        handed.put(Constant.LAUNCH_THROW, 0.5);
-        constants.changed().put(Constant.LAUNCH_THROW, 0.7);
+        handed.put(Constant.SET_DOWN_DEGREES, 30.0);
+        constants.changed().put(Constant.SET_DOWN_DEGREES, 40.0);
 
-        assertEquals(0.2, constants.value(Constant.LAUNCH_THROW), 0);
-    }
-
-    @Test
-    public void theFastestBallTheLauncherThrowConstantAllowsFromTheFastestRobotIsOneAFlightTakes() {
-        assertTrue(
-                Constant.LAUNCH_THROW.most() + " in/s per tick/s",
-                Constant.LAUNCH_THROW.most() * Flywheel.TOP_TICKS_PER_SECOND + Launch.MOST_ROBOT_SPEED_IN_PER_S
-                        <= Flight.MOST_SPEED_IN_PER_S);
+        assertEquals(20, constants.value(Constant.SET_DOWN_DEGREES), 0);
     }
 }

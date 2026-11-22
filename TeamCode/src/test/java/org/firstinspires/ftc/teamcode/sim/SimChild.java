@@ -112,7 +112,7 @@ public final class SimChild {
         }
         Long seed = driverStation.seed();
         Constants constants = driverStation.constants();
-        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : Noise.seeded(seed, constants), constants);
+        SimRobot sim = new SimRobot(seed == null ? SimNoise.NONE : Noise.seeded(seed, constants));
         System.err.println("Robot: " + SimNoise.described(sim.noise()));
         System.err.println("Constants: " + SimConstants.described(constants));
         sim.setDown(start.get());

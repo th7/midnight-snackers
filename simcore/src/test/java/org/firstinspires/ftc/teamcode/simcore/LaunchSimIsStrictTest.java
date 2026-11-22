@@ -31,7 +31,6 @@ public class LaunchSimIsStrictTest {
             "Encoder",
             "Field",
             "Heading",
-            "Launch",
             "Nest",
             "Noise",
             "Placement",
@@ -40,7 +39,6 @@ public class LaunchSimIsStrictTest {
             "Stack",
             "Tilt",
             "Traction",
-            "Turntable",
             "Vec3");
 
     private static Map<String, Boolean> reachingForJavaLangMath() throws IOException, URISyntaxException {

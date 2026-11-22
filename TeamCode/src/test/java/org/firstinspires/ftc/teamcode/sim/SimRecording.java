@@ -27,8 +27,6 @@ public final class SimRecording implements SimReplayPage.Source {
 
         public final double[][] pieces;
 
-        public final int held;
-
         public final Map<String, Integer> scored;
 
         public final Map<String, Double> tilt;
@@ -42,7 +40,6 @@ public final class SimRecording implements SimReplayPage.Source {
             this.gamepad1 = building.gamepad1;
             this.gamepad2 = building.gamepad2;
             this.pieces = building.pieces;
-            this.held = building.held;
             this.scored = building.scored;
             this.tilt = building.tilt;
         }
@@ -61,7 +58,6 @@ public final class SimRecording implements SimReplayPage.Source {
             private State gamepad1;
             private State gamepad2;
             private double[][] pieces;
-            private int held;
             private Map<String, Integer> scored = Map.of();
             private Map<String, Double> tilt = Map.of();
 
@@ -80,9 +76,8 @@ public final class SimRecording implements SimReplayPage.Source {
                 return this;
             }
 
-            public Builder withBalls(double[][] pieces, int held) {
+            public Builder withBalls(double[][] pieces) {
                 this.pieces = pieces;
-                this.held = held;
                 return this;
             }
 

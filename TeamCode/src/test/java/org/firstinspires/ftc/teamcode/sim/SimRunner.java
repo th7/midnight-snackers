@@ -238,7 +238,7 @@ public final class SimRunner {
             packetsSeen = allPackets.size();
             SimRecording.Tick.Builder tick = SimRecording.Tick.at(
                             elapsed, sim.pose(), auto != null ? auto.currentStep() : "", sim.powers(), thisLoop)
-                    .withBalls(sim.pieces(), sim.held())
+                    .withBalls(sim.pieces())
                     .scoring(sim.scored())
                     .tilted(sim.tilt());
             if (auto == null) {
