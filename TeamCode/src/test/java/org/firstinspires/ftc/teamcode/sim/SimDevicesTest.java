@@ -5,12 +5,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.Servo;
-import java.util.Map;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
-import org.firstinspires.ftc.teamcode.fakes.FakeServo;
 import org.junit.Test;
 
 public class SimDevicesTest {
@@ -18,84 +13,56 @@ public class SimDevicesTest {
 
     private final SimDevices devices = new SimDevices();
 
-    public static final class WantsAMotorAndAServo {
-        public DcMotorEx launcher;
-        public Servo topGate;
-
-        public WantsAMotorAndAServo launcher(DcMotorEx launcher) {
-            this.launcher = launcher;
-            return this;
-        }
-
-        public WantsAMotorAndAServo topGate(Servo topGate) {
-            this.topGate = topGate;
-            return this;
-        }
-    }
-
-    public static final class WantsAPeriscope {
-        public WantsAPeriscope periscope(Object periscope) {
-            return this;
-        }
-    }
-
-    public static final class WantsALauncherServo {
-        public WantsALauncherServo launcher(Servo launcher) {
-            return this;
-        }
-    }
-
     @Test
-    public void theHardwareIsWholeAndIsTheseDevices() {
+    public void aMotorIsTheSimulatorsDeviceOfThatName() {
         Hardware hardware = devices.hardware();
 
-        assertSame(devices.leftFront, hardware.leftFront);
-        assertSame(devices.rightBack, hardware.rightBack);
-        assertSame(devices.voltageSensor, hardware.voltageSensor);
-        assertSame(devices.dashboard, hardware.dashboard);
+        assertSame(devices.leftFront, hardware.motor("leftFront"));
+        assertSame(devices.rightBack, hardware.motor("rightBack"));
+        assertSame(devices.intake, hardware.motor("intake"));
     }
 
     @Test
-    public void aBuilderIsHandedEachDeviceItAsksForByItsName() {
-        FakeDcMotorEx launcher = new FakeDcMotorEx();
-        FakeServo topGate = new FakeServo();
+    public void aServoIsTheSimulatorsDeviceOfThatName() {
+        assertSame(devices.topGate, devices.hardware().servo("topGate"));
+    }
 
-        WantsAMotorAndAServo wired = SimDevices.wired(
-                new WantsAMotorAndAServo(), Map.of("launcher", launcher, "topGate", topGate, "intake", devices.intake));
+    @Test
+    public void theDevicesNobodyNamesAreTheSimulatorsOwn() {
+        Hardware hardware = devices.hardware();
 
-        assertSame(launcher, wired.launcher);
-        assertSame(topGate, wired.topGate);
+        assertSame(devices.imu, hardware.imu().get());
+        assertSame(devices.voltageSensor, hardware.voltageSensor());
+        assertSame(devices.dashboard, hardware.dashboard());
     }
 
     @Test
     public void aDeviceTheSimulatorHasNoneOfFailsNamingIt() {
         IllegalStateException thrown = assertThrows(
-                IllegalStateException.class,
-                () -> SimDevices.wired(new WantsAPeriscope(), Map.of("launcher", devices.launcher)));
+                IllegalStateException.class, () -> devices.hardware().motor("periscope"));
 
         assertTrue(thrown.getMessage(), thrown.getMessage().contains("periscope"));
     }
 
     @Test
-    public void aDeviceOfAnotherKindThanTheBuilderAsksForFailsNamingIt() {
+    public void aDeviceOfAnotherKindThanTheRobotAsksForFailsNamingItAndTheKind() {
         IllegalStateException thrown = assertThrows(
-                IllegalStateException.class,
-                () -> SimDevices.wired(new WantsALauncherServo(), Map.of("launcher", devices.launcher)));
+                IllegalStateException.class, () -> devices.hardware().servo("launcher"));
 
         assertTrue(thrown.getMessage(), thrown.getMessage().contains("launcher"));
-        assertTrue(thrown.getMessage(), thrown.getMessage().contains("Servo"));
+        assertTrue(thrown.getMessage(), thrown.getMessage().contains("servo"));
     }
 
     @Test
     public void theClockStartsAtNothingAndMovesOnlyWhenItIsAdvanced() {
         Hardware hardware = devices.hardware();
-        assertEquals(0, hardware.nanoClock.getAsLong());
+        assertEquals(0, hardware.nanoClock().getAsLong());
 
         devices.advance(0.02);
-        assertEquals(0.02, hardware.nanoClock.getAsLong() / 1e9, DELTA);
+        assertEquals(0.02, hardware.nanoClock().getAsLong() / 1e9, DELTA);
 
         devices.advance(1.5);
-        assertEquals(1.52, hardware.nanoClock.getAsLong() / 1e9, DELTA);
+        assertEquals(1.52, hardware.nanoClock().getAsLong() / 1e9, DELTA);
     }
 
     @Test
@@ -112,7 +79,7 @@ public class SimDevicesTest {
     public void theSimulatedRobotIsTheSameSeamWithAWorldBehindIt() {
         Hardware hardware = new SimRobot().hardware();
 
-        assertEquals(0, hardware.nanoClock.getAsLong());
-        assertEquals(SimDevices.BATTERY_VOLTS, hardware.voltageSensor.getVoltage(), DELTA);
+        assertEquals(0, hardware.nanoClock().getAsLong());
+        assertEquals(SimDevices.BATTERY_VOLTS, hardware.voltageSensor().getVoltage(), DELTA);
     }
 }

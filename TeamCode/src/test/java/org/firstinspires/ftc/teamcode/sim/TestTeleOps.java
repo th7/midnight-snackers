@@ -42,10 +42,10 @@ public final class TestTeleOps {
                 presses++;
             }
             double ahead = -gamepad1.left_stick_y;
-            hardware().leftFront.setPower(ahead);
-            hardware().rightFront.setPower(ahead);
-            hardware().leftBack.setPower(ahead);
-            hardware().rightBack.setPower(ahead);
+            hardware().motor("leftFront").setPower(ahead);
+            hardware().motor("rightFront").setPower(ahead);
+            hardware().motor("leftBack").setPower(ahead);
+            hardware().motor("rightBack").setPower(ahead);
         }
     }
 

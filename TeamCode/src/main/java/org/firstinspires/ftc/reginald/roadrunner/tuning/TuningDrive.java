@@ -1,14 +1,11 @@
 package org.firstinspires.ftc.reginald.roadrunner.tuning;
 
 import com.acmerobotics.roadrunner.Pose2d;
-import com.acmerobotics.roadrunner.ftc.LazyHardwareMapImu;
-import com.acmerobotics.roadrunner.ftc.LazyImu;
 import com.acmerobotics.roadrunner.ftc.LynxFirmware;
 import com.qualcomm.hardware.lynx.LynxModule;
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.reginald.Localizer;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.base.Prints;
@@ -29,26 +26,22 @@ public final class TuningDrive {
             module.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
         }
 
-        LazyImu lazyImu = new LazyHardwareMapImu(
-                hardwareMap,
-                "imu",
-                new RevHubOrientationOnRobot(
-                        MecanumDrive.PARAMS.logoFacingDirection, MecanumDrive.PARAMS.usbFacingDirection));
+        Hardware hardware = Hardware.fromHardwareMap(hardwareMap);
         Wheels wheels = new Wheels(
-                hardwareMap.get(DcMotorEx.class, "leftFront"),
-                hardwareMap.get(DcMotorEx.class, "leftBack"),
-                hardwareMap.get(DcMotorEx.class, "rightBack"),
-                hardwareMap.get(DcMotorEx.class, "rightFront"));
+                hardware.motor("leftFront"),
+                hardware.motor("leftBack"),
+                hardware.motor("rightBack"),
+                hardware.motor("rightFront"));
 
         Localizer localizer = new Localizer(
-                hardwareMap.get(DcMotorEx.class, "rightBack"),
-                hardwareMap.get(DcMotorEx.class, "leftFront"),
-                lazyImu,
+                hardware.motor("rightBack"),
+                hardware.motor("leftFront"),
+                hardware.imu(),
                 pose,
-                System::nanoTime,
+                hardware.nanoClock(),
                 Prints.NOWHERE);
         MecanumDrive drive = new MecanumDrive(
-                wheels, lazyImu, hardwareMap.voltageSensor.iterator().next(), localizer, System::nanoTime);
+                wheels, hardware.imu(), hardware.voltageSensor(), localizer, hardware.nanoClock());
         return new TuningDrive(localizer, drive);
     }
 }

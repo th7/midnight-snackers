@@ -992,8 +992,8 @@ the user.
 
 - **Hardware.** `topGate` and `bottomGate` give way to **`spindexer`**, a
   `CRServo`, and **`ramp`**, a `Servo`. The Control Hub's configuration must
-  name both before this lands on the robot. Hardware is whole or not at all,
-  so a hub without them will not start an op mode. Changing the hub's
+  name both before this lands on the robot. The launcher asks the hardware for
+  both when it is built, so a hub without them will not start an op mode. Changing the hub's
   configuration is the team's job.
 - **`Launcher`** owns the spindexer and the ramp, as it owned the gates:
   - It turns the spindexer whenever the intake or the flywheel is running.

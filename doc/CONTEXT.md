@@ -100,19 +100,22 @@ name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
 enforces rather than leaving to care.
 
-It is **whole or not at all**. The robot wires it by hand from its
-configuration, and the simulator hands the builder each device the builder
-asks for, matched by name from its fakes, so switching a device off in the
-robot code (or on again) leaves the simulator building and running as it
-was. Nothing but this class can say the two agree, so it is built through a
-builder that names each device and refuses one that is missing any, naming
-what is missing. A device added here that the simulator has no fake of
-fails where the simulator wires it, naming the device, rather than as a
-null inside whichever subsystem reaches for it first, which on the robot is
-in the middle of a match. The devices are named as they are set rather than counted out in
+A device is **asked for by name, where it is used**. Whoever builds a part
+asks the hardware for the motors and servos it drives by their configured
+names, `motor("intake")`, and hands them to it; the hardware holds no list of
+its own. So a device goes from the configuration to the part that drives it
+in one step, and switching a part off in the robot code (or on again) is an
+edit to the line that builds it and nowhere else: a device nothing asks for
+is never fetched. On the robot the hardware map answers, and in the
+simulator its fakes do, matched by name and kind, so the simulator builds
+and runs whatever the robot code asks for. A device asked for that is not
+there, or not of that kind, fails at init naming the device, on the robot as
+the SDK fails it and in the simulator as the simulator does, rather than as
+a null inside whichever subsystem reaches for it first, which on the robot
+is in the middle of a match. Devices are named rather than counted out in
 order, since nine of them are motors and a positional list would let a
-wheel be quietly swapped for its neighbour. Class: `Hardware`;
-`Hardware.Builder`; `Robot.clock`.
+wheel be quietly swapped for its neighbor. Class: `Hardware`;
+`Hardware.fromHardwareMap`; `Robot.clock`.
 
 
 **Wheels** — The four wheels, and the only thing that turns numbers into
@@ -1212,9 +1215,9 @@ not there, or not of that kind, fails the run at init as the SDK would fail it.
 code can reach through its **Hardware**, and nothing that moves on its own.
 A motor reads back what was last written to it, and time passes only when
 someone says `advance`. The fakes are every device the robot has been built
-with; the **Hardware** is handed the ones its builder asks for, by name, and
-the rest sit unwired, still there for the physics and for a test that builds
-a switched-off subsystem straight from them. This is the second adapter at the hardware seam —
+with; the robot code asks its **Hardware** for them by name and kind, and
+the ones nothing asks for are still there for the physics and for a test that
+builds a switched-off subsystem straight from them. This is the second adapter at the hardware seam —
 the **simulated robot** is the first, and holds one of these, writing its
 sensors from where the physics put the robot. A test of one subsystem wants
 neither the physics nor the field (a turntable turns because its own motor
