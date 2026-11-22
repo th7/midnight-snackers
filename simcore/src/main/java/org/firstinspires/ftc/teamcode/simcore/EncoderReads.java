@@ -16,6 +16,15 @@ public enum EncoderReads {
         return this == PARALLEL_DEAD_WHEEL || this == PERPENDICULAR_DEAD_WHEEL;
     }
 
+    public Checked<Count> count(Checked<Count> ownMotor, DeadWheels.Counts deadWheels) {
+        return switch (this) {
+            case OWN_MOTOR -> ownMotor;
+            case PARALLEL_DEAD_WHEEL -> Checked.ok(deadWheels.par());
+            case PERPENDICULAR_DEAD_WHEEL -> Checked.ok(deadWheels.perp());
+            case NOTHING -> Checked.ok(Count.none());
+        };
+    }
+
     @Override
     public String toString() {
         return label;

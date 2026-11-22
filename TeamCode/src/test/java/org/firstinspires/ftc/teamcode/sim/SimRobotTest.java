@@ -83,6 +83,62 @@ public class SimRobotTest {
     }
 
     @Test
+    public void aVelocityWrittenToAMotorWhosePortReadsADeadWheelRunsAwayTowardFullPower() {
+        mountedWheels();
+
+        sim.rightBack.setVelocity(300);
+        sim.step(1.0);
+
+        assertEquals(
+                "the parallel dead wheel is no measure of rightBack's speed", 1, Math.abs(sim.applied("rightBack")), 0);
+    }
+
+    @Test
+    public void aVelocityWrittenToAMotorWhosePortReadsNothingRunsAwayTowardFullPower() {
+        mountedWheels();
+
+        sim.leftBack.setVelocity(300);
+        sim.step(1.0);
+
+        assertEquals("leftBack's encoder port counts nothing", -1, sim.applied("leftBack"), 0);
+    }
+
+    @Test
+    public void aVelocityWrittenToAMotorWhosePortReadsItsOwnEncoderSettlesAtTheTarget() {
+        sim.intake.setVelocity(1500);
+        sim.step(2.0);
+
+        assertEquals(1500, sim.intake.getVelocity(), 20);
+        assertTrue(sim.applied("intake") > 0 && sim.applied("intake") < 1);
+    }
+
+    @Test
+    public void aMotorTurningItsOwnEncoderCountsTheTicksItTurns() {
+        sim.intake.setPower(1);
+        sim.step(2.0);
+        int before = sim.intake.getCurrentPosition();
+        sim.step(0.5);
+
+        assertEquals(
+                "the UltraPlanetary HD Hex runs 2800 ticks/s free at 12 V, a little less on the battery's 12.5 V sagging",
+                1400 * SimDevices.BATTERY_VOLTS / 12,
+                sim.intake.getCurrentPosition() - before,
+                1400 * 0.05);
+        assertEquals(2800 * SimDevices.BATTERY_VOLTS / 12, sim.intake.getVelocity(), 2800 * 0.05);
+    }
+
+    @Test
+    public void aReversedMotorSpinsTheOtherWayAndReportsItsOwnCountTheWayTheCodeSetsIt() {
+        sim.intake.setDirection(DcMotorSimple.Direction.REVERSE);
+        sim.intake.setPower(1);
+        sim.step(1.0);
+
+        assertEquals(-1, sim.applied("intake"), 0);
+        assertTrue("the SDK negates a reversed motor's count back", sim.intake.getVelocity() > 2000);
+        assertTrue(sim.intake.getCurrentPosition() > 0);
+    }
+
+    @Test
     public void theRobotTakesTimeToGetUpToSpeed() {
         mountedWheels();
         setPowers(1, 1, 1, 1);

@@ -1207,6 +1207,21 @@ the robot's active configuration and its wiring have them. The robot code finds
 its devices through it as it would on the robot, so a device it asks for that is
 not there, or not of that kind, fails the run at init as the SDK would fail it.
 
+**Hub** — What the simulated hub does with what the code writes to a motor, said
+once in the core. The direction the code set is turned into the SDK's operational
+direction (a motor type declared counterclockwise flips it). Without the encoder
+the written power reaches the motor; using the encoder, the power or velocity
+written is a target the hub's velocity loop closes on whatever that port's
+encoder port reads. A port reading its own motor settles at the target; one
+reading a dead wheel or nothing runs away toward full power, as on the robot.
+Each port reports its count as the SDK does: negated for a reversed motor,
+velocity in twenty-tick steps, zeroed while in `STOP_AND_RESET_ENCODER`.
+`RUN_TO_POSITION` is refused. The loop's gains are the simulator's own; the hub
+firmware's are not published. A motor that turns only itself, such as the intake
+or a flywheel, spins as its type does free (the UltraPlanetary HD Hex's 2800
+ticks/s at 12 V), reached over a tenth of a second. Classes: `HubPort`,
+`VelocityLoop`, `Spin`.
+
 **Devices** — A robot's devices as fakes, and a clock: everything the robot
 code can reach through its **Hardware**, and nothing that moves on its own.
 A motor reads back what was last written to it, and time passes only when

@@ -20,7 +20,7 @@ public final class DeadWheels {
         this.perpTicks = perpTicks;
     }
 
-    public record Reading(Encoder par, Encoder perp) {}
+    public record Counts(Count par, Count perp) {}
 
     public static Checked<DeadWheels> of(double inPerTick, double parYTicks, double perpXTicks) {
         if (!(inPerTick > 0 && Double.isFinite(inPerTick))) {
@@ -46,13 +46,11 @@ public final class DeadWheels {
                 perpTicks + (moved.line().y() / inPerTick + perpXTicks * moved.angle()));
     }
 
-    public Reading read(Twist perSecond, Sense parPortsMotor, Sense perpPortsMotor) {
+    public Counts counts(Twist perSecond) {
         double parVelocity = perSecond.line().x() / inPerTick + parYTicks * perSecond.angle();
         double perpVelocity = perSecond.line().y() / inPerTick + perpXTicks * perSecond.angle();
-        return new Reading(
-                Encoder.asTheHubReports(
-                        parPortsMotor.of(PAR_RAW_SIGN * parTicks), parPortsMotor.of(PAR_RAW_SIGN * parVelocity)),
-                Encoder.asTheHubReports(
-                        perpPortsMotor.of(PERP_RAW_SIGN * perpTicks), perpPortsMotor.of(PERP_RAW_SIGN * perpVelocity)));
+        return new Counts(
+                new Count(PAR_RAW_SIGN * parTicks, PAR_RAW_SIGN * parVelocity),
+                new Count(PERP_RAW_SIGN * perpTicks, PERP_RAW_SIGN * perpVelocity));
     }
 }

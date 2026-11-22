@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.teamcode.simcore.Written;
 
 public class FakeDcMotorEx implements DcMotorEx {
     public final List<String> powerSetBy = new ArrayList<>();
@@ -22,6 +23,7 @@ public class FakeDcMotorEx implements DcMotorEx {
     private Direction direction = Direction.FORWARD;
     private ZeroPowerBehavior zeroPowerBehavior = ZeroPowerBehavior.UNKNOWN;
     private boolean enabled = true;
+    private boolean velocityWrittenLast = false;
     private final MotorConfigurationType type;
 
     public FakeDcMotorEx() {
@@ -50,11 +52,19 @@ public class FakeDcMotorEx implements DcMotorEx {
     @Override
     public void setVelocity(double angularRate) {
         commandedVelocity = angularRate;
+        velocityWrittenLast = true;
+        if (mode != RunMode.RUN_TO_POSITION) {
+            mode = RunMode.RUN_USING_ENCODER;
+        }
     }
 
     @Override
     public void setVelocity(double angularRate, AngleUnit unit) {
-        commandedVelocity = angularRate;
+        setVelocity(angularRate);
+    }
+
+    public Written written() {
+        return velocityWrittenLast ? new Written.AtVelocity(commandedVelocity) : new Written.Powered(power);
     }
 
     @Override
@@ -194,6 +204,7 @@ public class FakeDcMotorEx implements DcMotorEx {
     @Override
     public void setPower(double power) {
         this.power = power;
+        velocityWrittenLast = false;
         powerSetBy.add(caller());
     }
 

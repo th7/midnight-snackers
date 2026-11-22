@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
@@ -35,6 +36,7 @@ public final class SimDevices {
 
     private final Map<String, FakeDcMotorEx> motors = new LinkedHashMap<>();
     private final Map<String, EncoderReads> encoders = new LinkedHashMap<>();
+    private final Map<String, MotorType> types = new LinkedHashMap<>();
     private final SimHardwareMap hardwareMap = new SimHardwareMap();
     private long nanos = 0;
 
@@ -50,6 +52,7 @@ public final class SimDevices {
                 FakeDcMotorEx fake = new FakeDcMotorEx(sdkType(motor.type()));
                 motors.put(name, fake);
                 encoders.put(name, motor.encoder());
+                types.put(name, motor.type());
                 hardwareMap.dcMotor.put(name, fake);
             } else if (device instanceof Configuration.Imu) {
                 hardwareMap.put(name, imu);
@@ -95,6 +98,15 @@ public final class SimDevices {
                     "no motor is configured as " + name + "; the motors are " + String.join(", ", motors.keySet()));
         }
         return motor;
+    }
+
+    public List<String> motorNames() {
+        return List.copyOf(motors.keySet());
+    }
+
+    public MotorType typeOf(String name) {
+        motor(name);
+        return types.get(name);
     }
 
     public EncoderReads encoderOf(String name) {

@@ -25,7 +25,7 @@ public class DrivetrainTest {
     }
 
     private static Drivetrain.Setting forward(double power) {
-        return new Drivetrain.Setting(Sense.FORWARD, Power.clamped(power), ZeroPower.BRAKE);
+        return new Drivetrain.Setting(Power.clamped(power), ZeroPower.BRAKE);
     }
 
     private static double leftFront(
@@ -90,8 +90,8 @@ public class DrivetrainTest {
     @Test
     public void aRollingWheelAtZeroPowerIsHeldBackHarderBrakingThanFloating() {
         double rolling = 30;
-        Drivetrain.Setting braking = new Drivetrain.Setting(Sense.FORWARD, Power.none(), ZeroPower.BRAKE);
-        Drivetrain.Setting floating = new Drivetrain.Setting(Sense.FORWARD, Power.none(), ZeroPower.FLOAT);
+        Drivetrain.Setting braking = new Drivetrain.Setting(Power.none(), ZeroPower.BRAKE);
+        Drivetrain.Setting floating = new Drivetrain.Setting(Power.none(), ZeroPower.FLOAT);
 
         double floats = leftFront(floating, rolling);
         double brakes = leftFront(braking, rolling);
@@ -113,7 +113,7 @@ public class DrivetrainTest {
 
     @Test
     public void aRollingWheelAtZeroPowerWithNoZeroPowerBehaviorIsRefusedRatherThanGuessedAt() {
-        Drivetrain.Setting unknown = new Drivetrain.Setting(Sense.FORWARD, Power.none(), ZeroPower.UNKNOWN);
+        Drivetrain.Setting unknown = new Drivetrain.Setting(Power.none(), ZeroPower.UNKNOWN);
 
         Checked<PerWheel<Double>> refused = EXACT.accelerations(
                 PerWheel.all(forward(0)).with(Wheel.RIGHT_BACK, unknown),
@@ -129,8 +129,8 @@ public class DrivetrainTest {
 
     @Test
     public void aWheelDrivenOrAtRestNeedsNoZeroPowerBehavior() {
-        Drivetrain.Setting driven = new Drivetrain.Setting(Sense.FORWARD, Power.clamped(0.5), ZeroPower.UNKNOWN);
-        Drivetrain.Setting resting = new Drivetrain.Setting(Sense.FORWARD, Power.none(), ZeroPower.UNKNOWN);
+        Drivetrain.Setting driven = new Drivetrain.Setting(Power.clamped(0.5), ZeroPower.UNKNOWN);
+        Drivetrain.Setting resting = new Drivetrain.Setting(Power.none(), ZeroPower.UNKNOWN);
 
         assertEquals(leftFront(forward(0.5), 30), leftFront(driven, 30), 0);
         assertEquals(0, leftFront(resting, 0), 0);
@@ -151,16 +151,16 @@ public class DrivetrainTest {
     }
 
     @Test
-    public void aReversedMotorOrAMirroredMountPushesTheOtherWay() {
-        Drivetrain.Setting reversed = new Drivetrain.Setting(Sense.REVERSE, Power.clamped(1), ZeroPower.BRAKE);
+    public void aNegativePowerOrAMirroredMountPushesTheOtherWay() {
+        Drivetrain.Setting backward = new Drivetrain.Setting(Power.clamped(-1), ZeroPower.BRAKE);
         PerWheel<Double> pushes = Valid.value(
                 EXACT.accelerations(PerWheel.all(forward(1)), VOLTS, PerWheel.all(0.0), STEP, Traction.unlimited()));
-        PerWheel<Double> reversedPushes = Valid.value(
-                EXACT.accelerations(PerWheel.all(reversed), VOLTS, PerWheel.all(0.0), STEP, Traction.unlimited()));
+        PerWheel<Double> backwardPushes = Valid.value(
+                EXACT.accelerations(PerWheel.all(backward), VOLTS, PerWheel.all(0.0), STEP, Traction.unlimited()));
 
         double ahead = leftFront(forward(1), 0);
         assertEquals(new PerWheel<>(ahead, ahead, -ahead, -ahead), pushes);
-        assertEquals(new PerWheel<>(-ahead, -ahead, ahead, ahead), reversedPushes);
+        assertEquals(new PerWheel<>(-ahead, -ahead, ahead, ahead), backwardPushes);
         assertEquals(
                 new PerWheel<>(Sense.FORWARD, Sense.FORWARD, Sense.REVERSE, Sense.REVERSE),
                 PerWheel.each(Wheel::mounted));

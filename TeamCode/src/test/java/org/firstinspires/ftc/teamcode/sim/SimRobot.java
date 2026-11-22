@@ -36,27 +36,33 @@ import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
+import org.firstinspires.ftc.teamcode.simcore.Count;
 import org.firstinspires.ftc.teamcode.simcore.DeadWheels;
 import org.firstinspires.ftc.teamcode.simcore.Drawn;
 import org.firstinspires.ftc.teamcode.simcore.Draws;
 import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
+import org.firstinspires.ftc.teamcode.simcore.Encoder;
 import org.firstinspires.ftc.teamcode.simcore.Feedforward;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
+import org.firstinspires.ftc.teamcode.simcore.HubPort;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Nest;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.PerWheel;
 import org.firstinspires.ftc.teamcode.simcore.Power;
 import org.firstinspires.ftc.teamcode.simcore.Rolling;
+import org.firstinspires.ftc.teamcode.simcore.RunMode;
 import org.firstinspires.ftc.teamcode.simcore.Seat;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Sense;
+import org.firstinspires.ftc.teamcode.simcore.Spin;
 import org.firstinspires.ftc.teamcode.simcore.Stack;
 import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
+import org.firstinspires.ftc.teamcode.simcore.Wheel;
 import org.firstinspires.ftc.teamcode.simcore.ZeroPower;
 
 public class SimRobot {
@@ -109,6 +115,20 @@ public class SimRobot {
     private Pose2d previous = new Pose2d(0, 0, 0);
 
     private DeadWheels deadWheels;
+
+    private static final Map<String, Wheel> WHEELS = Map.of(
+            "leftFront", Wheel.LEFT_FRONT,
+            "rightFront", Wheel.RIGHT_FRONT,
+            "leftBack", Wheel.LEFT_BACK,
+            "rightBack", Wheel.RIGHT_BACK);
+
+    private final Map<String, HubPort.State> ports = new LinkedHashMap<>();
+
+    private final Map<String, Power> applied = new LinkedHashMap<>();
+
+    private final Map<String, Count> counted = new LinkedHashMap<>();
+
+    private final Map<String, Spin> spins = new LinkedHashMap<>();
 
     private final Ball[] balls;
 
@@ -233,6 +253,14 @@ public class SimRobot {
                 drive.inPerTick,
                 noise.motors()));
         this.deadWheels = Valid.value(DeadWheels.reginalds(drive.inPerTick));
+        for (String name : devices.motorNames()) {
+            ports.put(name, HubPort.State.fresh());
+            applied.put(name, Power.none());
+            counted.put(name, Count.none());
+            if (!WHEELS.containsKey(name)) {
+                spins.put(name, Spin.still());
+            }
+        }
         voltageSensor.voltage = noise.battery().volts(Seconds.zero(), PerWheel.all(Power.none()));
         Settings settings = world.getSettings();
         settings.setLinearTolerance(CONTACT_TOLERANCE_IN * IN);
@@ -623,19 +651,68 @@ public class SimRobot {
         }
     }
 
+    public double applied(String motor) {
+        devices.motor(motor);
+        return applied.get(motor).value();
+    }
+
     private void substep(Seconds dt) {
-        PerWheel<Drivetrain.Setting> wheels =
-                new PerWheel<>(setting(leftFront), setting(rightFront), setting(leftBack), setting(rightBack));
+        driveThePorts(dt);
+        PerWheel<Drivetrain.Setting> wheels = new PerWheel<>(
+                setting("leftFront", leftFront),
+                setting("rightFront", rightFront),
+                setting("leftBack", leftBack),
+                setting("rightBack", rightBack));
         voltageSensor.voltage =
                 noise.battery().volts(Valid.value(Seconds.of(nanoTime() / 1e9)), wheels.map(Drivetrain.Setting::power));
 
         driveTheRobot(wheels, dt);
+        spinTheMotors(dt);
         holdTheNests(dt);
         world.step(1, dt.value());
         fallInTheFlowers(dt);
         standInTheBores();
         flyTheBalls(dt);
         readTheSensors();
+    }
+
+    private void driveThePorts(Seconds dt) {
+        for (String name : devices.motorNames()) {
+            HubPort.Driven driven = refusedIfNot(HubPort.drive(wrote(name), ports.get(name), counted.get(name), dt));
+            ports.put(name, driven.next());
+            applied.put(name, driven.power());
+        }
+    }
+
+    private void spinTheMotors(Seconds dt) {
+        for (Map.Entry<String, Spin> spin : spins.entrySet()) {
+            String name = spin.getKey();
+            spin.setValue(spin.getValue().next(devices.typeOf(name), applied.get(name), voltageSensor.voltage, dt));
+        }
+    }
+
+    private HubPort.Wrote wrote(String name) {
+        FakeDcMotorEx motor = devices.motor(name);
+        return new HubPort.Wrote(devices.typeOf(name), senseOf(motor), runMode(motor.getMode()), motor.written());
+    }
+
+    private static RunMode runMode(DcMotor.RunMode mode) {
+        return switch (mode) {
+            case RUN_WITHOUT_ENCODER -> RunMode.RUN_WITHOUT_ENCODER;
+            case RUN_USING_ENCODER -> RunMode.RUN_USING_ENCODER;
+            case RUN_TO_POSITION -> RunMode.RUN_TO_POSITION;
+            case STOP_AND_RESET_ENCODER -> RunMode.STOP_AND_RESET_ENCODER;
+            default -> throw new IllegalStateException("the SDK named a run mode the simulator does not know: " + mode);
+        };
+    }
+
+    private Checked<Count> ownCount(String name) {
+        Spin spin = spins.get(name);
+        if (spin == null) {
+            return Checked.rejected("the simulator does not know how big the drive wheels are yet, so " + name
+                    + "'s encoder port cannot read its own motor: configure it to read a dead wheel or nothing");
+        }
+        return Checked.ok(spin.count());
     }
 
     private void driveTheRobot(PerWheel<Drivetrain.Setting> wheels, Seconds dt) {
@@ -675,9 +752,8 @@ public class SimRobot {
         return motor.getDirection() == DcMotorSimple.Direction.REVERSE ? Sense.REVERSE : Sense.FORWARD;
     }
 
-    private static Drivetrain.Setting setting(FakeDcMotorEx motor) {
-        return new Drivetrain.Setting(
-                senseOf(motor), Power.clamped(motor.power), zeroPower(motor.getZeroPowerBehavior()));
+    private Drivetrain.Setting setting(String name, FakeDcMotorEx motor) {
+        return new Drivetrain.Setting(applied.get(name), zeroPower(motor.getZeroPowerBehavior()));
     }
 
     private static ZeroPower zeroPower(DcMotor.ZeroPowerBehavior behavior) {
@@ -737,11 +813,15 @@ public class SimRobot {
 
         Twist moved = new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle);
         deadWheels = deadWheels.moved(moved);
-        DeadWheels.Reading reading = deadWheels.read(perSecond, senseOf(rightBack), senseOf(leftFront));
-        rightBack.currentPosition = reading.par().position();
-        rightBack.measuredVelocity = reading.par().velocity();
-        leftFront.currentPosition = reading.perp().position();
-        leftFront.measuredVelocity = reading.perp().velocity();
+        DeadWheels.Counts rolled = deadWheels.counts(perSecond);
+        for (String name : devices.motorNames()) {
+            Count raw = refusedIfNot(devices.encoderOf(name).count(ownCount(name), rolled));
+            counted.put(name, raw);
+            Encoder reported = HubPort.reports(wrote(name), ports.get(name), raw);
+            FakeDcMotorEx motor = devices.motor(name);
+            motor.currentPosition = reported.position();
+            motor.measuredVelocity = reported.velocity();
+        }
 
         imu.yawRadians = pose.heading.toDouble();
         imu.yawRateRadiansPerSecond = perSecond.angle();

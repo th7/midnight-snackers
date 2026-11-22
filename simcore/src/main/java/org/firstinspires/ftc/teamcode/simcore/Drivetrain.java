@@ -9,7 +9,7 @@ public final class Drivetrain {
         this.inPerTick = inPerTick;
     }
 
-    public record Setting(Sense direction, Power power, ZeroPower atZero) {}
+    public record Setting(Power power, ZeroPower atZero) {}
 
     public static Checked<Drivetrain> of(Feedforward tuned, double inPerTick, PerWheel<Noise.Motor> noise) {
         if (!(inPerTick > 0 && Double.isFinite(inPerTick))) {
@@ -28,7 +28,7 @@ public final class Drivetrain {
     private Checked<Double> acceleration(
             Wheel wheel, Setting setting, double batteryVolts, double velocity, Seconds dt, Traction traction) {
         Feedforward motor = motors.of(wheel);
-        double volts = wheel.mounted().of(setting.direction().of(setting.power().value())) * batteryVolts;
+        double volts = wheel.mounted().of(setting.power().value()) * batteryVolts;
         double kSVolts = motor.kSVolts();
         double kAVoltSecondsSquaredPerTick = motor.kAVoltSecondsSquaredPerTick();
         double ticksPerSecond = velocity / inPerTick;
