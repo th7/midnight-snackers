@@ -1210,10 +1210,16 @@ not there, or not of that kind, fails the run at init as the SDK would fail it.
 **Devices** — A robot's devices as fakes, and a clock: everything the robot
 code can reach through its **Hardware**, and nothing that moves on its own.
 A motor reads back what was last written to it, and time passes only when
-someone says `advance`. The fakes are every device the robot has been built
-with; the **Hardware** is handed the ones its builder asks for, by name, and
-the rest sit unwired, still there for the physics and for a test that builds
-a switched-off subsystem straight from them. This is the second adapter at the hardware seam —
+someone says `advance`. The fakes are the devices the **configuration** names,
+in an SDK `HardwareMap` that finds them by name and kind as the hub's does; the
+**Hardware** is what the robot's own `Hardware.fromHardwareMap` finds there, on
+the simulator's clock and dashboard, and a device the code does not ask for sits
+configured and idle, still there for the physics. A motor answers the SDK motor
+type it is configured as, built from the SDK's own annotation for that motor, and
+the continuous servo and the servo are the SDK's own over a fake controller. The
+SDK's matrix arithmetic, which the hub's mounting is worked out with, runs on a
+stand-in for Android's `android.opengl.Matrix`, held to Android's documented
+behavior by its own tests. This is the second adapter at the hardware seam —
 the **simulated robot** is the first, and holds one of these, writing its
 sensors from where the physics put the robot. A test of one subsystem wants
 neither the physics nor the field (an intake spins because its own motor

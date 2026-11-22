@@ -22,6 +22,15 @@ public class FakeDcMotorEx implements DcMotorEx {
     private Direction direction = Direction.FORWARD;
     private ZeroPowerBehavior zeroPowerBehavior = ZeroPowerBehavior.UNKNOWN;
     private boolean enabled = true;
+    private final MotorConfigurationType type;
+
+    public FakeDcMotorEx() {
+        this(null);
+    }
+
+    public FakeDcMotorEx(MotorConfigurationType type) {
+        this.type = type;
+    }
 
     @Override
     public void setMotorEnable() {
@@ -108,7 +117,7 @@ public class FakeDcMotorEx implements DcMotorEx {
 
     @Override
     public MotorConfigurationType getMotorType() {
-        return MotorConfigurationType.getUnspecifiedMotorType();
+        return type != null ? type : MotorConfigurationType.getUnspecifiedMotorType();
     }
 
     @Override

@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
 import org.dyn4j.collision.Filter;
 import org.dyn4j.dynamics.Body;
 import org.dyn4j.dynamics.BodyFixture;
@@ -59,7 +58,6 @@ import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.firstinspires.ftc.teamcode.simcore.ZeroPower;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public class SimRobot {
     public static final Field FIELD = SimPlacement.FIELD;
@@ -88,11 +86,11 @@ public class SimRobot {
 
     private final SimDevices devices = new SimDevices();
 
-    public final FakeDcMotorEx leftFront = devices.leftFront;
-    public final FakeDcMotorEx rightFront = devices.rightFront;
-    public final FakeDcMotorEx leftBack = devices.leftBack;
-    public final FakeDcMotorEx rightBack = devices.rightBack;
-    public final FakeDcMotorEx intake = devices.intake;
+    public final FakeDcMotorEx leftFront = devices.motor("leftFront");
+    public final FakeDcMotorEx rightFront = devices.motor("rightFront");
+    public final FakeDcMotorEx leftBack = devices.motor("leftBack");
+    public final FakeDcMotorEx rightBack = devices.motor("rightBack");
+    public final FakeDcMotorEx intake = devices.motor("intake");
     public final FakeImu imu = devices.imu;
     public final FakeVoltageSensor voltageSensor = devices.voltageSensor;
     public final FakeDashboard dashboard = devices.dashboard;
@@ -348,11 +346,10 @@ public class SimRobot {
     }
 
     public void wire(com.qualcomm.robotcore.eventloop.opmode.OpMode opMode) {
-        if (!(opMode instanceof OpMode reginalds)) {
-            throw new IllegalArgumentException(opMode.getClass().getName()
-                    + " is not one of Reginald's op modes, so the simulated Reginald has no hardware to hand it");
+        opMode.hardwareMap = devices.hardwareMap();
+        if (opMode instanceof OpMode reginalds) {
+            reginalds.useHardware(devices.hardware());
         }
-        reginalds.useHardware(devices.hardware());
     }
 
     public double[] powers() {
@@ -361,10 +358,6 @@ public class SimRobot {
 
     public Hardware hardware() {
         return devices.hardware();
-    }
-
-    public Hardware hardware(Supplier<List<AprilTagDetection>> aprilTags) {
-        return devices.hardware(aprilTags);
     }
 
     public long nanoTime() {

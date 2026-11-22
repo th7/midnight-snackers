@@ -379,6 +379,63 @@ public class SimRunnerTest {
         assertFalse("the runner returned once the viewer had seen the end", runner.isAlive());
     }
 
+    private static final class AsksFor extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
+        private final Class<?> kind;
+        private final String name;
+
+        AsksFor(Class<?> kind, String name) {
+            this.kind = kind;
+            this.name = name;
+        }
+
+        @Override
+        public void init() {
+            hardwareMap.get(kind, name);
+        }
+
+        @Override
+        public void loop() {}
+    }
+
+    private SimRecording recordAskingFor(Class<?> kind, String name, String expected) {
+        SimRecording recording = new SimRecording("AsksFor");
+
+        IllegalArgumentException refused = assertThrows(
+                IllegalArgumentException.class,
+                () -> SimRunner.record(
+                        recording,
+                        new AsksFor(kind, name),
+                        sim,
+                        0.1,
+                        folder.getRoot().toPath(),
+                        new SimDriverStation(),
+                        SimRunner.Pace.FASTEST));
+
+        assertEquals("the SDK's HardwareMap.get (RobotCore 11.2.1)", expected, refused.getMessage());
+        return recording;
+    }
+
+    @Test
+    public void anOpModeAskingForADeviceThatIsNotConfiguredFailsAtInitWithTheSdksMessage() {
+        SimRecording recording = recordAskingFor(
+                com.qualcomm.robotcore.hardware.DcMotorEx.class,
+                "periscope",
+                "Unable to find a hardware device with name \"periscope\" and type DcMotorEx");
+
+        assertTrue(recording.outcome(), recording.outcome().contains("\"periscope\" and type DcMotorEx"));
+        assertEquals("the robot never moved", 0, sim.nanoTime());
+    }
+
+    @Test
+    public void anOpModeAskingForTheSpinnerAsAServoFailsAtInitWithTheSdksMessage() {
+        recordAskingFor(
+                com.qualcomm.robotcore.hardware.Servo.class,
+                "spinner",
+                "Unable to find a hardware device with name \"spinner\" and type Servo");
+
+        assertEquals("the robot never moved", 0, sim.nanoTime());
+    }
+
     @Test
     public void aTimedOutRunStillWritesTheReplayBeforeFailing() throws Exception {
         Path out = folder.getRoot().toPath();

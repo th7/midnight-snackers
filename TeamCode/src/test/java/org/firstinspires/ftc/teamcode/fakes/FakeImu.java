@@ -34,12 +34,13 @@ public class FakeImu implements IMU {
 
     @Override
     public Orientation getRobotOrientation(AxesReference reference, AxesOrder order, AngleUnit angleUnit) {
-        throw new UnsupportedOperationException("FakeImu only reports yaw/pitch/roll");
+        throw new UnsupportedOperationException("FakeImu reports yaw/pitch/roll and its quaternion only");
     }
 
     @Override
     public Quaternion getRobotOrientationAsQuaternion() {
-        throw new UnsupportedOperationException("FakeImu only reports yaw/pitch/roll");
+        return new Quaternion(
+                (float) Math.cos(yawRadians / 2), 0, 0, (float) Math.sin(yawRadians / 2), System.nanoTime());
     }
 
     @Override

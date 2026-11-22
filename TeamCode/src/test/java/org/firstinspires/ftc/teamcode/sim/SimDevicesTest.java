@@ -3,87 +3,140 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
 
+import com.qualcomm.hardware.motors.RevRoboticsUltraPlanetaryHdHexMotor;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
-import java.util.Map;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.qualcomm.robotcore.hardware.configuration.annotations.MotorType;
+import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
+import java.util.List;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
-import org.firstinspires.ftc.teamcode.fakes.FakeServo;
+import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
+import org.firstinspires.ftc.teamcode.simcore.Configuration;
+import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
+import org.firstinspires.ftc.teamcode.simcore.Turning;
 import org.junit.Test;
 
 public class SimDevicesTest {
     private static final double DELTA = 1e-9;
+    private static final String SDK_HARDWARE_MAP =
+            "the SDK's HardwareMap.get (RobotCore 11.2.1, com.qualcomm.robotcore.hardware.HardwareMap)";
+    private static final List<String> MOTORS =
+            List.of("leftFront", "rightFront", "leftBack", "rightBack", "intake", "flywheelFront", "flywheelBack");
 
     private final SimDevices devices = new SimDevices();
 
-    public static final class WantsAMotorAndAServo {
-        public DcMotorEx launcher;
-        public Servo topGate;
-
-        public WantsAMotorAndAServo launcher(DcMotorEx launcher) {
-            this.launcher = launcher;
-            return this;
-        }
-
-        public WantsAMotorAndAServo topGate(Servo topGate) {
-            this.topGate = topGate;
-            return this;
-        }
-    }
-
-    public static final class WantsAPeriscope {
-        public WantsAPeriscope periscope(Object periscope) {
-            return this;
-        }
-    }
-
-    public static final class WantsALauncherServo {
-        public WantsALauncherServo launcher(Servo launcher) {
-            return this;
-        }
+    private static String refusal(HardwareMap map, Class<?> kind, String name) {
+        return assertThrows(IllegalArgumentException.class, () -> map.get(kind, name))
+                .getMessage();
     }
 
     @Test
-    public void theHardwareIsWholeAndIsTheseDevices() {
+    public void theHardwareIsWhatTheRobotsOwnLookupsFindOnTheSimulatorsClockAndDashboard() {
         Hardware hardware = devices.hardware();
 
-        assertSame(devices.leftFront, hardware.leftFront);
-        assertSame(devices.rightBack, hardware.rightBack);
+        assertSame(devices.motor("leftFront"), hardware.leftFront);
+        assertSame(devices.motor("rightBack"), hardware.rightBack);
+        assertSame(devices.motor("intake"), hardware.intake);
         assertSame(devices.voltageSensor, hardware.voltageSensor);
+        assertSame(devices.imu, hardware.imu.get());
         assertSame(devices.dashboard, hardware.dashboard);
+        assertEquals(0, hardware.nanoClock.getAsLong());
     }
 
     @Test
-    public void aBuilderIsHandedEachDeviceItAsksForByItsName() {
-        FakeDcMotorEx launcher = new FakeDcMotorEx();
-        FakeServo topGate = new FakeServo();
-
-        WantsAMotorAndAServo wired = SimDevices.wired(
-                new WantsAMotorAndAServo(), Map.of("launcher", launcher, "topGate", topGate, "intake", devices.intake));
-
-        assertSame(launcher, wired.launcher);
-        assertSame(topGate, wired.topGate);
+    public void aNameThatIsNotConfiguredIsRefusedWithTheSdksOwnMessage() {
+        assertEquals(
+                SDK_HARDWARE_MAP,
+                "Unable to find a hardware device with name \"periscope\" and type DcMotorEx",
+                refusal(devices.hardwareMap(), DcMotorEx.class, "periscope"));
     }
 
     @Test
-    public void aDeviceTheSimulatorHasNoneOfFailsNamingIt() {
-        IllegalStateException thrown = assertThrows(
-                IllegalStateException.class,
-                () -> SimDevices.wired(new WantsAPeriscope(), Map.of("launcher", devices.intake)));
-
-        assertTrue(thrown.getMessage(), thrown.getMessage().contains("periscope"));
+    public void aDeviceAskedForAsAnotherKindIsRefusedWithTheSdksOwnMessage() {
+        assertEquals(
+                SDK_HARDWARE_MAP,
+                "Unable to find a hardware device with name \"spinner\" and type Servo",
+                refusal(devices.hardwareMap(), Servo.class, "spinner"));
+        assertEquals(
+                SDK_HARDWARE_MAP,
+                "Unable to find a hardware device with name \"ramp\" and type CRServo",
+                refusal(devices.hardwareMap(), CRServo.class, "ramp"));
     }
 
     @Test
-    public void aDeviceOfAnotherKindThanTheBuilderAsksForFailsNamingIt() {
-        IllegalStateException thrown = assertThrows(
-                IllegalStateException.class,
-                () -> SimDevices.wired(new WantsALauncherServo(), Map.of("launcher", devices.intake)));
+    public void theSpinnerIsAContinuousServoAndTheRampAServo() {
+        HardwareMap map = devices.hardwareMap();
 
-        assertTrue(thrown.getMessage(), thrown.getMessage().contains("launcher"));
-        assertTrue(thrown.getMessage(), thrown.getMessage().contains("Servo"));
+        assertSame(devices.spinner, map.get(CRServo.class, "spinner"));
+        assertSame(devices.ramp, map.get(Servo.class, "ramp"));
+    }
+
+    @Test
+    public void aConfigurationWithoutADeviceTheRobotAsksForFailsItsHardwareWithTheSdksOwnMessage() {
+        List<Configuration.Device> withoutTheIntake = Configuration.reginalds().devices().stream()
+                .filter(device -> !device.name().equals("intake"))
+                .toList();
+        SimDevices withoutAnIntake = new SimDevices(Valid.value(Configuration.of(withoutTheIntake)));
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, withoutAnIntake::hardware);
+
+        assertEquals(
+                SDK_HARDWARE_MAP,
+                "Unable to find a hardware device with name \"intake\" and type DcMotorEx",
+                refused.getMessage());
+    }
+
+    @Test
+    public void everyMotorAnswersTheTypeItIsConfiguredAs() {
+        HardwareMap map = devices.hardwareMap();
+        for (String name : MOTORS) {
+            MotorConfigurationType type = map.get(DcMotorEx.class, name).getMotorType();
+
+            assertEquals(name, "REV Robotics UltraPlanetary HD Hex Motor", type.getName());
+            assertEquals(name, Rotation.CW, type.getOrientation());
+            assertEquals(name, 560, type.getTicksPerRev(), 0);
+            assertEquals(name, 300, type.getMaxRPM(), 0);
+            assertEquals(name, 2380, type.getAchieveableMaxTicksPerSecondRounded());
+        }
+    }
+
+    @Test
+    public void theSdkDeclaresTheUltraPlanetaryHdHexClockwiseAsTheCoreSays() {
+        MotorType declared = RevRoboticsUltraPlanetaryHdHexMotor.class.getAnnotation(MotorType.class);
+
+        assertEquals(Rotation.CW, declared.orientation());
+        assertEquals(
+                Turning.CLOCKWISE, org.firstinspires.ftc.teamcode.simcore.MotorType.ULTRAPLANETARY_HD_HEX.declared());
+    }
+
+    @Test
+    public void devicesTheCodeDoesNotAskForSitConfiguredAndIdle() {
+        devices.hardware();
+
+        assertEquals(0, devices.motor("flywheelFront").getPower(), 0);
+        assertEquals(0, devices.motor("flywheelBack").getPower(), 0);
+        assertSame(devices.motor("flywheelBack"), devices.hardwareMap().get(DcMotorEx.class, "flywheelBack"));
+    }
+
+    @Test
+    public void theHubsVoltageSensorIsTheOnlyOneTheMapHolds() {
+        HardwareMap map = devices.hardwareMap();
+
+        assertSame(devices.voltageSensor, map.voltageSensor.iterator().next());
+        assertSame(devices.voltageSensor, map.get(VoltageSensor.class, "Control Hub"));
+        assertEquals(1, map.voltageSensor.size());
+    }
+
+    @Test
+    public void eachMotorKnowsWhatItsEncoderPortReads() {
+        assertEquals(EncoderReads.PERPENDICULAR_DEAD_WHEEL, devices.encoderOf("leftFront"));
+        assertEquals(EncoderReads.PARALLEL_DEAD_WHEEL, devices.encoderOf("rightBack"));
+        assertEquals(EncoderReads.NOTHING, devices.encoderOf("leftBack"));
+        assertEquals(EncoderReads.OWN_MOTOR, devices.encoderOf("intake"));
     }
 
     @Test
@@ -100,12 +153,11 @@ public class SimDevicesTest {
 
     @Test
     public void aDeviceHoldsWhatWasWrittenToItWhileTimePasses() {
-        devices.hardware();
-        devices.intake.setPower(0.4);
+        devices.hardware().intake.setPower(0.4);
 
         devices.advance(5);
 
-        assertEquals(0.4, devices.intake.power, DELTA);
+        assertEquals(0.4, devices.motor("intake").power, DELTA);
     }
 
     @Test

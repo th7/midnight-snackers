@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -1489,12 +1490,13 @@ public class SimRobotTest {
     }
 
     @Test
-    public void anOpModeThatIsNotReginaldsIsHandedNoHardware() {
-        IllegalArgumentException refused =
-                assertThrows(IllegalArgumentException.class, () -> new SimRobot().wire(new NotReginalds()));
+    public void anOpModeThatIsNotReginaldsIsHandedTheConfiguredHardwareMap() {
+        SimRobot reginald = new SimRobot();
+        NotReginalds opMode = new NotReginalds();
 
-        assertTrue(refused.getMessage(), refused.getMessage().contains(NotReginalds.class.getName()));
-        assertTrue(refused.getMessage(), refused.getMessage().contains("Reginald"));
+        reginald.wire(opMode);
+
+        assertSame(reginald.intake, opMode.hardwareMap.get(com.qualcomm.robotcore.hardware.DcMotorEx.class, "intake"));
     }
 
     private void setPowers(double leftFront, double rightFront, double leftBack, double rightBack) {
