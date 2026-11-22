@@ -5,9 +5,10 @@ import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 
-public class Nav implements Loopable {
+public class Nav extends Subsystem {
     public static class Pose {
         public final Pose2d pose2d;
 
@@ -53,7 +54,8 @@ public class Nav implements Loopable {
 
     private boolean onTheField = false;
 
-    public Nav(Localizer localizer, Alliance alliance) {
+    public Nav(LoopOrder loopOrder, Localizer localizer, Alliance alliance) {
+        super(loopOrder);
         this.localizer = localizer;
         this.headingSign = alliance.headingSign;
         this.ySign = alliance.ySign;

@@ -9,11 +9,12 @@ import org.firstinspires.ftc.reginald.control.DetectionFilter;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
-public class Camera implements Loopable {
+public class Camera extends Subsystem {
     public static final String CHANNEL = "Camera";
 
     private final Prints telemetry;
@@ -21,7 +22,8 @@ public class Camera implements Loopable {
     private final Supplier<List<AprilTagDetection>> detectionSource;
     private AprilTagDetection goalDetection;
 
-    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier nanoClock, Prints telemetry) {
+    public Camera(LoopOrder loopOrder, Supplier<List<AprilTagDetection>> detectionSource, LongSupplier nanoClock, Prints telemetry) {
+        super(loopOrder);
         this.detectionSource = detectionSource;
         this.detectionFilter = new DetectionFilter(nanoClock);
         this.telemetry = telemetry;

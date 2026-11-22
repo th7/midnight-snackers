@@ -3,9 +3,10 @@ package org.firstinspires.ftc.reginald;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.Optional;
 import org.firstinspires.ftc.reginald.Drive.Held;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 
-public class Driver implements Loopable {
+public class Driver extends Subsystem {
     private final Drive drive;
     private final Intake intake;
     // private final Launcher launcher;
@@ -16,6 +17,7 @@ public class Driver implements Loopable {
     private final Gamepad gamepad2;
 
     public Driver(
+            LoopOrder loopOrder,
             Drive drive,
             // Launcher launcher,
             Brain brain,
@@ -24,6 +26,7 @@ public class Driver implements Loopable {
             // Turntable turntable,
             Gamepad gamepad1,
             Gamepad gamepad2) {
+        super(loopOrder);
         this.drive = drive;
         // this.launcher = launcher;
         this.brain = brain;

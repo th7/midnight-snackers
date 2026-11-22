@@ -15,9 +15,9 @@ lists and how a plan becomes one), `hardware` (the devices and what is wired
 to what), `control` (the controllers and filters a subsystem steers by) and
 `roadrunner` (trajectories, which we own rather than vendor).
 `org.firstinspires.ftc.teamcode` holds what every robot's code is built on:
-`base` (what a subsystem *is* — `Loopable` — where it prints — `Prints`,
-`Channels` — and the `Alliance` a run plays for), `planrunner` (plans and
-steps), and what both robots' Road Runner needs — the **clocked encoder** and
+`base` (what a subsystem *is* — `Subsystem`, ticked by the `LoopOrder` it
+is built into — where it prints — `Prints`, `Channels` — and the
+`Alliance` a run plays for), `planrunner` (plans and steps), and what both robots' Road Runner needs — the **clocked encoder** and
 the drawing of a robot in `roadrunner`, the drive runner that follows an action
 a loop at a time in `control`, and the dashboard it draws on in `hardware`;
 its test sources hold the simulator, the robot gateway and the fakes.
@@ -28,38 +28,40 @@ to this or to anything else: the tests and CI judge the simulator and the
 robot gateway, and the robot code is the team's to change.
 
 **Subsystem** — One part of the robot, and now only that: something the
-robot ticks, which is to say a `Loopable` that lives directly in
-`reginald`. There is no base class to extend. A subsystem is built with
-everything it needs, sets itself up in its own constructor, does its work in
-`loop`, and prints to the **channel** it was handed. What used to be three
-hooks a base class asked for is one method an interface asks for, and the
-package says which classes are subsystems — which is the rule this glossary
-already opened with, now doing a job.
+robot ticks, which is to say a `Subsystem` that lives directly in
+`reginald`. A subsystem is built with everything it needs, the **loop
+order** it is ticked in first, sets itself up in its own constructor, does
+its work in `loop`, and prints to the **channel** it was handed. The base
+class does one thing: its constructor puts the subsystem in the loop order
+it was handed, so a subsystem is ticked because it was built, and one that
+is built without a loop order does not compile. What used to be three hooks
+a base class asked for is still the one method `loop`, and the package says
+which classes are subsystems — which is the rule this glossary already
+opened with, now doing a job.
 
-**Whoever owns it, ticks it.** Anything that must be ticked is ticked by
-whatever it belongs to, on the first line of that thing's own loop: a
-subsystem's plan runner or drive runner in its `loop`, an auto's plan runner
-in the auto's `onLoop`, a TeleOp's driver in the TeleOp's. Registering them
-to be ticked by somebody else read tidily and cost more than it saved. The
-method that is supposed to say what a thing does each tick stopped saying it
-— `Drive`, which follows a trajectory every loop, had an empty one — and the
-robot ended up ticking an op mode's plan runner, which meant it had to
-accept something that was not a subsystem and then ask which it had been
-given.
+**Whoever owns it, ticks it.** A subsystem is ticked by whatever built it:
+the robot's by the robot, a TeleOp's driver by the TeleOp, each through a
+`LoopOrder` of its own that the owner ticks in its own loop. Anything else
+that must be ticked is not a subsystem, and is ticked by hand on the first
+line of whatever it belongs to: a subsystem's plan runner or drive runner in
+its `loop`, an auto's plan runner in the auto's `onLoop`. Only a subsystem's
+constructor can put anything in a loop order, so the robot is never handed
+an op mode's plan runner and left to ask which it had been given. The loop
+order used to be one list in the robot's constructor, written apart from the
+subsystems it named; the intake fell out of it and was built and never
+ticked, which is a mistake building a subsystem no longer leaves room for.
 
 So the chain is plain the whole way down: an op mode's `init` builds the
-**Robot**, which builds each subsystem and hands it what it needs; an op
-mode's `loop` ticks the robot, which ticks its subsystems in the order of
-the one list in its constructor, and then the op mode's own `onLoop`, which
-is where anything the op mode owns is ticked. `loop` is final at both
-levels, so the order is not a subclass's to rearrange, and an auto's plan
-advancing after every subsystem is the shape of it rather than a position in
-a list. That every subsystem is ticked at all is mechanical rather than
-remembered, and a test says so: it finds every `Loopable` in `reginald` that
-the robot or an op mode holds and fails naming any the op modes never reach.
-A subsystem nothing holds is not judged until something holds it again; a
-**switched-off** one is still held and ticked. Classes: `Loopable`;
-`Robot.loopOrder`; `SubSystemsAreTickedTest`.
+**Robot**, which builds each subsystem into its loop order and hands it what
+it needs; an op mode's `loop` ticks the robot, which ticks its subsystems in
+the order they were built, and then the op mode's own `onLoop`, which is
+where anything the op mode owns is ticked. The localizer is built first,
+because every other subsystem reads the pose it updates. `loop` is final at
+both levels, so the order is not a subclass's to rearrange, and an auto's
+plan advancing after every subsystem is the shape of it rather than a
+position in a list. That every subsystem is ticked at all is the compiler's
+to say rather than anyone's to remember. A **switched-off** one is still
+built and ticked. Classes: `Subsystem`; `LoopOrder`; `Robot`.
 
 **Channel** — The driver station's telemetry divided by the name of whoever
 is printing. Each subsystem is handed its own when it is built and prints to
@@ -121,15 +123,16 @@ read back zero, an IMU and a voltage sensor the same, and a camera that sees
 nothing, with the run's own clock and dashboard. The part is built, held,
 ticked and prints to its channel like any other, and every subsystem that
 coordinates it keeps it; only what reaches the world is switched off. Each
-part has one line at the top of the robot's constructor that picks its
-hardware, `hardware` or `hardware.switchedOff()`, so switching it off, or on
+part has one line in the robot's constructor, just before it is built, that
+picks its hardware, `hardware` or `hardware.switchedOff()`, so switching it off, or on
 again, is that line, and the code that uses it compiles and runs either way.
 
 It replaces commenting out the part, its devices and every reference to it in
 the subsystems that coordinate it, after which turning one back on meant
 finding them all again. The intake came back that way without its place in
 the loop order, so it was built and told on and off by the driver and never
-drove its motor. A switched-off part is exactly as quiet as a missing one: a
+drove its motor; a **subsystem** now takes its place in the loop order by
+being built. A switched-off part is exactly as quiet as a missing one: a
 driver asking it for something sees nothing happen. Class:
 `Hardware.switchedOff`; `Robot`.
 

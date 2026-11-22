@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.reginald;
 
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 import org.firstinspires.ftc.teamcode.base.Prints;
 
-public class Turntable implements Loopable {
+public class Turntable extends Subsystem {
     public static final String CHANNEL = "Turntable";
 
     private final Prints telemetry;
@@ -27,7 +28,8 @@ public class Turntable implements Loopable {
     private Following following = Following.THE_GOAL;
     private int turnTableTargetPosition;
 
-    public Turntable(Prints telemetry) {
+    public Turntable(LoopOrder loopOrder, Prints telemetry) {
+        super(loopOrder);
         //     this.turnTable = turnTable;
         this.telemetry = telemetry;
     }

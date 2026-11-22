@@ -3,19 +3,21 @@ package org.firstinspires.ftc.reginald;
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.reginald.opmode.Auto;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Plans implements Loopable {
+public class Plans extends Subsystem {
     private final Drive drive;
     private final Intake intake;
     private final Nav nav;
     // private final Launcher launcher;
     private final LongSupplier nanoClock;
 
-    public Plans(Drive drive, Nav nav, LongSupplier nanoClock, Intake intake) {
+    public Plans(LoopOrder loopOrder, Drive drive, Nav nav, LongSupplier nanoClock, Intake intake) {
+        super(loopOrder);
         this.drive = drive;
         this.nav = nav;
         this.intake = intake;

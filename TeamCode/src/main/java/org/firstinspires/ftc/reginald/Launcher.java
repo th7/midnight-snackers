@@ -4,13 +4,14 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Launcher implements Loopable {
+public class Launcher extends Subsystem {
     public static final String CHANNEL = "Launcher";
 
     private final Prints telemetry;
@@ -35,7 +36,8 @@ public class Launcher implements Loopable {
     private double bottomGateWaitSeconds = BOTTOM_GATE_WAIT_SECONDS;
     private final PlanRunner planRunner = new PlanRunner();
 
-    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier nanoClock, Prints telemetry) {
+    public Launcher(LoopOrder loopOrder, DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier nanoClock, Prints telemetry) {
+        super(loopOrder);
         this.nanoClock = nanoClock;
         this.launcher = launcher;
         this.topGate = topGate;

@@ -2,7 +2,6 @@ package org.firstinspires.ftc.reginald;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.robotcore.hardware.Gamepad;
-import java.util.List;
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
@@ -10,6 +9,7 @@ import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Channels;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
 import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 
@@ -40,7 +40,7 @@ public final class Robot implements Loopable {
     public final Brain brain;
     public final Plans plans;
 
-    private final List<Loopable> loopOrder;
+    private final LoopOrder loopOrder = new LoopOrder();
 
     public Robot(Hardware hardware, Alliance alliance, Telemetry telemetry) {
         this(hardware, alliance, telemetry, new Gamepad(), new Gamepad());
@@ -56,17 +56,27 @@ public final class Robot implements Loopable {
 
         this.nanoClock = hardware.nanoClock();
 
+        localizer = new Localizer(
+                loopOrder,
+                hardware.motor("rightBack"),
+                hardware.motor("leftFront"),
+                hardware.imu(),
+                new Pose2d(0, 0, 0),
+                nanoClock,
+                channels.channel(Localizer.CHANNEL));
+
         Hardware intakeHardware = hardware;
 
         /* launcher = new Launcher(
+          loopOrder,
           hardware.motor("launcher"),
           hardware.servo("topGate"),
           hardware.servo("bottomGate"),
           nanoClock,
         channels.channel(Launcher.CHANNEL)); */
-        intake = new Intake(intakeHardware.motor("intake"));
-        // camera = new Camera(hardware.aprilTags(), nanoClock, channels.channel(Camera.CHANNEL));
-        //  turntable = new Turntable(hardware.motor("turnTable"), channels.channel(Turntable.CHANNEL));
+        intake = new Intake(loopOrder, intakeHardware.motor("intake"));
+        // camera = new Camera(loopOrder, hardware.aprilTags(), nanoClock, channels.channel(Camera.CHANNEL));
+        //  turntable = new Turntable(loopOrder, hardware.motor("turnTable"), channels.channel(Turntable.CHANNEL));
 
         wheels = new Wheels(
                 hardware.motor("leftFront"),
@@ -74,30 +84,15 @@ public final class Robot implements Loopable {
                 hardware.motor("rightBack"),
                 hardware.motor("rightFront"));
 
-        localizer = new Localizer(
-                hardware.motor("rightBack"),
-                hardware.motor("leftFront"),
-                hardware.imu(),
-                new Pose2d(0, 0, 0),
-                nanoClock,
-                channels.channel(Localizer.CHANNEL));
         mecanumDrive = new MecanumDrive(wheels, hardware.imu(), hardware.voltageSensor(), localizer, nanoClock);
-        drive = new Drive(wheels, mecanumDrive, localizer, dashboard, channels.channel(Drive.CHANNEL));
-        nav = new Nav(localizer, alliance);
-        brain = new Brain(drive, nav, alliance, channels.channel(Brain.CHANNEL));
-        plans = new Plans(drive, nav, nanoClock, intake);
-
-        this.loopOrder = List.of(localizer, intake, drive, nav, brain, plans);
-    }
-
-    public List<Loopable> loopOrder() {
-        return loopOrder;
+        drive = new Drive(loopOrder, wheels, mecanumDrive, localizer, dashboard, channels.channel(Drive.CHANNEL));
+        nav = new Nav(loopOrder, localizer, alliance);
+        brain = new Brain(loopOrder, drive, nav, alliance, channels.channel(Brain.CHANNEL));
+        plans = new Plans(loopOrder, drive, nav, nanoClock, intake);
     }
 
     @Override
     public void loop() {
-        for (Loopable subSystem : loopOrder) {
-            subSystem.loop();
-        }
+        loopOrder.loop();
     }
 }

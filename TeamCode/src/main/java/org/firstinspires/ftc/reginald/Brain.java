@@ -1,12 +1,13 @@
 package org.firstinspires.ftc.reginald;
 
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Brain implements Loopable {
+public class Brain extends Subsystem {
     public static final String CHANNEL = "Brain";
 
     private final Prints telemetry;
@@ -20,6 +21,7 @@ public class Brain implements Loopable {
     private final Alliance alliance;
 
     public Brain(
+            LoopOrder loopOrder,
             Drive drive,
             //  Launcher launcher,
             // Camera camera,
@@ -27,6 +29,7 @@ public class Brain implements Loopable {
             // Turntable turntable,
             Alliance alliance,
             Prints telemetry) {
+        super(loopOrder);
         this.drive = drive;
         //        this.launcher = launcher;
         // this.camera = camera;

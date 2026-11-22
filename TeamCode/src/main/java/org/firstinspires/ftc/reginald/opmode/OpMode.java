@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.reginald.opmode;
 
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import java.util.List;
 import org.firstinspires.ftc.reginald.Brain;
 import org.firstinspires.ftc.reginald.Camera;
 import org.firstinspires.ftc.reginald.Drive;
@@ -12,7 +11,6 @@ import org.firstinspires.ftc.reginald.Turntable;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     private final Alliance alliance;
@@ -51,10 +49,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     public String where() {
         return getClass().getName();
-    }
-
-    public List<Loopable> loopOrder() {
-        return robot.loopOrder();
     }
 
     @Override

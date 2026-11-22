@@ -14,10 +14,11 @@ import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.reginald.roadrunner.PoseEstimate;
 import org.firstinspires.ftc.reginald.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.reginald.roadrunner.messages.PoseMessage;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.LoopOrder;
+import org.firstinspires.ftc.teamcode.base.Subsystem;
 import org.firstinspires.ftc.teamcode.base.Prints;
 
-public class Localizer implements Loopable, PoseEstimate {
+public class Localizer extends Subsystem implements PoseEstimate {
     public static final String CHANNEL = "Localizer";
 
     private final Prints telemetry;
@@ -31,12 +32,14 @@ public class Localizer implements Loopable, PoseEstimate {
     private PoseVelocity2d velocity = new PoseVelocity2d(new Vector2d(0, 0), 0);
 
     public Localizer(
+            LoopOrder loopOrder,
             DcMotorEx parallel,
             DcMotorEx perpendicular,
             LazyImu imu,
             Pose2d startingPose,
             LongSupplier nanoClock,
             Prints telemetry) {
+        super(loopOrder);
         this.telemetry = telemetry;
         deadWheels = new TwoDeadWheelLocalizer(
                 parallel, perpendicular, imu.get(), MecanumDrive.PARAMS.inPerTick, startingPose, nanoClock);
@@ -46,7 +49,7 @@ public class Localizer implements Loopable, PoseEstimate {
         return deadWheels;
     }
 
-    public void update() {
+    private void update() {
         velocity = deadWheels.update();
         trail.add(deadWheels.getPose());
         while (trail.size() > TRAIL) {
