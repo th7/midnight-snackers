@@ -57,8 +57,8 @@ advancing after every subsystem is the shape of it rather than a position in
 a list. That every subsystem is ticked at all is mechanical rather than
 remembered, and a test says so: it finds every `Loopable` in `reginald` that
 the robot or an op mode holds and fails naming any the op modes never reach.
-A subsystem nothing holds, such as one switched off with the hardware it
-drives, is not judged until something holds it again. Classes: `Loopable`;
+A subsystem nothing holds is not judged until something holds it again; a
+**switched-off** one is still held and ticked. Classes: `Loopable`;
 `Robot.loopOrder`; `SubSystemsAreTickedTest`.
 
 **Channel** — The driver station's telemetry divided by the name of whoever
@@ -104,18 +104,34 @@ A device is **asked for by name, where it is used**. Whoever builds a part
 asks the hardware for the motors and servos it drives by their configured
 names, `motor("intake")`, and hands them to it; the hardware holds no list of
 its own. So a device goes from the configuration to the part that drives it
-in one step, and switching a part off in the robot code (or on again) is an
-edit to the line that builds it and nowhere else: a device nothing asks for
-is never fetched. On the robot the hardware map answers, and in the
-simulator an SDK `HardwareMap` of its **devices** does, so the simulator
-builds and runs whatever the robot code asks for. A device asked for that is
-not configured, or not of that kind, fails at init with the SDK's own
-message naming the device, on the robot and in the simulator alike, rather
-than as a null inside whichever subsystem reaches for it first, which on the
-robot is in the middle of a match. Devices are named rather than counted out in
+in one step, and a device nothing asks for is never fetched. On the robot
+the hardware map answers, and in the simulator an SDK `HardwareMap` of its
+**devices** does, so the simulator builds and runs whatever the robot code
+asks for. A device asked for that is not configured, or not of that kind,
+fails at init with the SDK's own message naming the device, on the robot and
+in the simulator alike, rather than as a null inside whichever subsystem
+reaches for it first, which on the robot is in the middle of a match. Devices are named rather than counted out in
 order, since nine of them are motors and a positional list would let a
 wheel be quietly swapped for its neighbor. Class: `Hardware`;
 `Hardware.fromHardwareMap`; `Robot.clock`.
+
+**Switched off** — A part built on hardware that does nothing.
+`hardware.switchedOff()` hands it motors and servos that take every write and
+read back zero, an IMU and a voltage sensor the same, and a camera that sees
+nothing, with the run's own clock and dashboard. The part is built, held,
+ticked and prints to its channel like any other, and every subsystem that
+coordinates it keeps it; only what reaches the world is switched off. Each
+part has one line at the top of the robot's constructor that picks its
+hardware, `hardware` or `hardware.switchedOff()`, so switching it off, or on
+again, is that line, and the code that uses it compiles and runs either way.
+
+It replaces commenting out the part, its devices and every reference to it in
+the subsystems that coordinate it, after which turning one back on meant
+finding them all again. The intake came back that way without its place in
+the loop order, so it was built and told on and off by the driver and never
+drove its motor. A switched-off part is exactly as quiet as a missing one: a
+driver asking it for something sees nothing happen. Class:
+`Hardware.switchedOff`; `Robot`.
 
 
 **Wheels** — The four wheels, and the only thing that turns numbers into

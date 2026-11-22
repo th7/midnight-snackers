@@ -91,6 +91,7 @@ public class SimBenchTest {
     }
 
     static final String HARDWARE = SimProject.HARDWARE;
+    static final String SWITCHED_OFF = SimProject.SWITCHED_OFF;
     static final String SIM_ROBOT = SimProject.SIM_ROBOT;
     static final String SIM_DEVICES = SimProject.SIM_DEVICES;
     static final String SIM_CHILD = SimProject.SIM_CHILD;
@@ -272,6 +273,7 @@ public class SimBenchTest {
 
         edit(project, HARDWARE, "LongSupplier nanoClock();", "LongSupplier nanoClock();\n\n    String whose();");
         edit(project, HARDWARE, "return new Hardware() {", "return new Hardware() {\n" + whose("the robot's"));
+        edit(project, SWITCHED_OFF, "implements Hardware {", "implements Hardware {\n" + whose("nobody's"));
         edit(project, SIM_DEVICES, "return new Hardware() {", "return new Hardware() {\n" + whose("the simulator's"));
         edit(
                 project,

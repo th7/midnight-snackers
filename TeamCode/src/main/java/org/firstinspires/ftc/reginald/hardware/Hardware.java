@@ -29,6 +29,10 @@ public interface Hardware {
 
     LongSupplier nanoClock();
 
+    default Hardware switchedOff() {
+        return new SwitchedOff(this);
+    }
+
     static Hardware fromHardwareMap(HardwareMap hardwareMap) {
         LazyImu imu = new LazyHardwareMapImu(
                 hardwareMap,
