@@ -32,6 +32,9 @@ public final class SimReplayPage {
          * null for a run that is not one.
          */
         JsonElement match();
+
+        /** What differed from the robot as built when the run was made, or "as built". */
+        String madeOn();
     }
 
     private static final String TEMPLATE = "replay.html";
@@ -54,6 +57,7 @@ public final class SimReplayPage {
         JsonObject root = root(run.name(), run.kind(), false);
         root.addProperty("outcome", run.outcome());
         root.add("match", run.match());
+        root.addProperty("madeOn", run.madeOn());
         root.add("ticks", GSON.fromJson(run.ticksJson(0), JsonArray.class));
         return fill(run.name(), root, Optional.empty());
     }
@@ -63,6 +67,7 @@ public final class SimReplayPage {
         root.addProperty("awaited", awaited);
         root.addProperty("outcome", (String) null);
         root.add("match", run.match());
+        root.addProperty("madeOn", run.madeOn());
         root.add("ticks", new JsonArray());
         return fill(run.name(), root, Optional.of(assetsUnder));
     }

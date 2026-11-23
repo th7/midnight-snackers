@@ -226,6 +226,10 @@ public enum Constant {
         this.most = most;
     }
 
+    public static List<String> retired() {
+        return List.of("launch_throw", "turntable_speed");
+    }
+
     public static Checked<Constant> named(String asked) {
         for (Constant constant : values()) {
             if (constant.asked().equals(asked)) {

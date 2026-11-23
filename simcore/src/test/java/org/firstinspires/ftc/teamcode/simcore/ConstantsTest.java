@@ -24,6 +24,16 @@ public class ConstantsTest {
         return set;
     }
 
+    @Test
+    public void aRetiredConstantsNameIsKeptAndNoConstantTakesItAgain() {
+        List<String> retired = Constant.retired();
+
+        assertTrue(retired.containsAll(List.of("launch_throw", "turntable_speed")));
+        for (Constant constant : Constant.values()) {
+            assertFalse(constant.asked() + " was retired and is never used again", retired.contains(constant.asked()));
+        }
+    }
+
     private static Checked<Constants> of(Object... pairs) {
         return Constants.of(set(pairs));
     }

@@ -352,21 +352,20 @@ public class SimBenchTest {
                 .with(Valid.value(Constants.of(java.util.Map.of(Constant.HICCUP_CHANCE, chancePerLoop))));
     }
 
-    private SimBench benchTunedBy(FakeChild child, AtomicReference<RobotDescription> admin) {
+    private SimBench benchOver(FakeChild child) {
         return new SimBench(
-                FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)),
-                outputDir(),
-                WAITS,
-                child,
-                new SystemClock(),
-                admin::get);
+                FakeSources.listing(SimCatalog.of(ThreeLoopAuto.class)), outputDir(), WAITS, child, new SystemClock());
+    }
+
+    private static void edit(SimBench bench, String edits) {
+        TinyHttpServer.Response saved = bench.routes("ada").handle(TinyHttpServer.Request.of("PUT", "/robot", edits));
+        assertEquals(saved.body, 200, saved.status);
     }
 
     @Test
     public void aRunIsMadeOnTheConstantsOfTheMomentItStartsAndSaysSo() throws Exception {
         FakeChild child = aChildSpeaking(SimRunStream.PROTOCOL);
-        AtomicReference<RobotDescription> admin = new AtomicReference<>(RobotDescription.reginalds());
-        bench = benchTunedBy(child, admin);
+        bench = benchOver(child);
         SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
 
         SimBench.Run asBuilt = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
@@ -376,9 +375,9 @@ public class SimBenchTest {
                 theStartLineIn(child).has("constants"));
         assertTrue(bench.status(), bench.status().contains("\"constants\":{}"));
 
-        admin.set(hiccuping(0.25));
+        edit(bench, "{\"constants\": {\"hiccup_chance\": 0.25}}");
         SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
-        admin.set(hiccuping(0.2));
+        edit(bench, "{\"constants\": {\"hiccup_chance\": 0.2}}");
 
         assertEquals("done", thrown.outcome());
         assertEquals(hiccuping(0.25), thrown.description);
@@ -391,19 +390,28 @@ public class SimBenchTest {
                         .getAsDouble(),
                 0);
         assertTrue(bench.status(), bench.status().contains("\"constants\":{\"hiccup_chance\":0.25}"));
+        assertTrue(
+                bench.status(),
+                bench.status().contains("\"description\":\"Hiccup chance 0.25 per loop (built 0.02)\""));
+        assertTrue(bench.status(), bench.status().contains("\"description\":\"as built\""));
+        assertTrue(
+                "the run's live replay names what it was made on",
+                bench.routes("ada")
+                        .handle(TinyHttpServer.Request.of("GET", "/runs/" + thrown.id + "/", ""))
+                        .body
+                        .contains("\"madeOn\":\"Hiccup chance 0.25 per loop (built 0.02)\""));
     }
 
     @Test
     public void aChildFromBeforeTheConstantsIsRefusedARunOnChangedOnesAndSaysWhy() throws Exception {
         FakeChild child = aChildSpeaking(SimRunStream.CONSTANTS_PROTOCOL - 1);
-        AtomicReference<RobotDescription> admin = new AtomicReference<>(RobotDescription.reginalds());
-        bench = benchTunedBy(child, admin);
+        bench = benchOver(child);
         SimCatalog.Entry entry = bench.catalog().find("Count to three").get();
 
         SimBench.Run asBuilt = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
         assertEquals(asBuilt.message(), "done", asBuilt.outcome());
 
-        admin.set(hiccuping(0.25));
+        edit(bench, "{\"constants\": {\"hiccup_chance\": 0.25}}");
         SimBench.Run thrown = await(bench.start(entry, "ada", SimBench.Mode.FREE_PLAY));
 
         assertEquals(SimRunStream.Outcome.cannotTune(SimRunStream.CONSTANTS_PROTOCOL - 1), thrown.outcome());

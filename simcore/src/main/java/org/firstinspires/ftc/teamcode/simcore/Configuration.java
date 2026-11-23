@@ -9,17 +9,71 @@ import java.util.Set;
 public final class Configuration {
     public sealed interface Device permits Motor, Imu, ContinuousServo, Servo, VoltageSensor {
         String name();
+
+        String kind();
+
+        Device named(String name);
     }
 
-    public record Motor(String name, MotorType type, EncoderReads encoder) implements Device {}
+    public record Motor(String name, MotorType type, EncoderReads encoder) implements Device {
+        @Override
+        public String kind() {
+            return "motor";
+        }
 
-    public record Imu(String name) implements Device {}
+        @Override
+        public Device named(String name) {
+            return new Motor(name, type, encoder);
+        }
+    }
 
-    public record ContinuousServo(String name) implements Device {}
+    public record Imu(String name) implements Device {
+        @Override
+        public String kind() {
+            return "imu";
+        }
 
-    public record Servo(String name) implements Device {}
+        @Override
+        public Device named(String name) {
+            return new Imu(name);
+        }
+    }
 
-    public record VoltageSensor(String name) implements Device {}
+    public record ContinuousServo(String name) implements Device {
+        @Override
+        public String kind() {
+            return "continuous_servo";
+        }
+
+        @Override
+        public Device named(String name) {
+            return new ContinuousServo(name);
+        }
+    }
+
+    public record Servo(String name) implements Device {
+        @Override
+        public String kind() {
+            return "servo";
+        }
+
+        @Override
+        public Device named(String name) {
+            return new Servo(name);
+        }
+    }
+
+    public record VoltageSensor(String name) implements Device {
+        @Override
+        public String kind() {
+            return "voltage_sensor";
+        }
+
+        @Override
+        public Device named(String name) {
+            return new VoltageSensor(name);
+        }
+    }
 
     private final List<Device> devices;
 

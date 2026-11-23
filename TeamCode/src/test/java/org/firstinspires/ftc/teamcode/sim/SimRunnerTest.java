@@ -9,14 +9,17 @@ import static org.junit.Assert.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.GatedAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.NeverDoneAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.WaitingAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
+import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -39,6 +42,21 @@ public class SimRunnerTest {
         assertNull("an auto's ticks carry no driver inputs", recording.ticks().get(0).gamepad1);
         assertEquals("auto", recording.kind());
         assertTrue(Files.exists(out.resolve("ThreeLoopAuto.html")));
+    }
+
+    @Test
+    public void theReplayNamesWhatTheRobotWasMadeOnAgainstTheBuiltValue() throws Exception {
+        Path out = folder.getRoot().toPath();
+        RobotDescription moved = RobotDescription.reginalds()
+                .with(Valid.value(Constants.of(Map.of(Constant.PARALLEL_DEAD_WHEEL_Y_IN, -1.5))));
+
+        SimRunner.run(new ThreeLoopAuto(), new SimRobot(moved, SimNoise.NONE), 5, out);
+        SimRunner.run(new WaitingAuto(), new SimRobot(), 10, out);
+
+        assertTrue(new String(Files.readAllBytes(out.resolve("ThreeLoopAuto.html")), StandardCharsets.UTF_8)
+                .contains("\"madeOn\":\"Parallel dead wheel, left of centre -1.5 in (built -0.25)\""));
+        assertTrue(new String(Files.readAllBytes(out.resolve("WaitingAuto.html")), StandardCharsets.UTF_8)
+                .contains("\"madeOn\":\"as built\""));
     }
 
     @Test

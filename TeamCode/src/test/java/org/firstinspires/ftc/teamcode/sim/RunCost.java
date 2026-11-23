@@ -166,6 +166,11 @@ public final class RunCost {
             public JsonElement match() {
                 return JsonNull.INSTANCE;
             }
+
+            @Override
+            public String madeOn() {
+                return recording.madeOn();
+            }
         };
     }
 

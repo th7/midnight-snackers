@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimRecording implements SimReplayPage.Source {
     public static final class Tick {
@@ -101,6 +102,7 @@ public final class SimRecording implements SimReplayPage.Source {
     private final String kind;
     private final List<Tick> ticks = new ArrayList<>();
     private String outcome = null;
+    private String madeOn = SimDescription.described(RobotDescription.reginalds());
 
     public SimRecording(String name) {
         this(name, SimCatalog.AUTO);
@@ -125,6 +127,15 @@ public final class SimRecording implements SimReplayPage.Source {
     @Override
     public JsonElement match() {
         return JsonNull.INSTANCE;
+    }
+
+    public synchronized void madeOn(RobotDescription description) {
+        madeOn = SimDescription.described(description);
+    }
+
+    @Override
+    public synchronized String madeOn() {
+        return madeOn;
     }
 
     @Override

@@ -121,6 +121,7 @@ __IMPORTMAP__
   <section>
     <h1 id="title"></h1>
     <p class="sub" id="outcome"></p>
+    <p class="sub" id="made-on" hidden></p>
     <canvas id="field" width="720" height="500"></canvas>
     <canvas id="solid" width="720" height="500" hidden></canvas>
     <p class="field-controls" id="field-controls"></p>
@@ -481,6 +482,9 @@ __IMPORTMAP__
   const driving = () => rec.live && !rec.outcome && !rec.disconnected;
 
   function updateOutcome() {
+    const madeOn = document.getElementById('made-on');
+    madeOn.hidden = placing || typeof rec.madeOn !== 'string';
+    if (!madeOn.hidden) madeOn.textContent = 'Robot description: ' + rec.madeOn;
     if (placing) {
       document.getElementById('outcome').textContent = 'Where this op mode starts. Drag the robot to move it and the handle in front of it to turn it; every move is saved.';
       hint.innerHTML = 'Drag the field to orbit, scroll to zoom, double-click to reset the view. Hold <kbd>shift</kbd> while turning to snap to 45&deg;. Field in inches, Road Runner frame: +x forward, +y left, 24-inch tiles.';

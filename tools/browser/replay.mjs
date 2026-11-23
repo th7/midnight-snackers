@@ -48,6 +48,7 @@ function aRunToPlay(model) {
     kind: 'auto',
     live: false,
     outcome: 'done',
+    madeOn: 'Parallel dead wheel, left of centre -1.5 in (built -0.25)',
     ticks: [0, 1, 2].map((n) => ({
       t: n * 0.25,
       x: -30 + n * 12,
@@ -199,6 +200,7 @@ async function opened(browser, url) {
 const readPanels = (open) => open.evaluate(() => ({
   title: document.getElementById('title').textContent,
   outcome: document.getElementById('outcome').textContent,
+  madeOn: document.getElementById('made-on').hidden ? null : document.getElementById('made-on').textContent,
   step: document.getElementById('step').textContent,
   pose: document.getElementById('pose').textContent,
   ticks: Number(document.getElementById('scrub').max),
@@ -249,6 +251,8 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
           `the live view drew the ${panels.drawing} field, not the model: ${panels.problem}`);
     check(panels.title.includes(NAME), `the page is titled "${panels.title}", not the run's name`);
     check(/done/i.test(panels.outcome), `the page says the run ended "${panels.outcome}", not done`);
+    check(panels.madeOn === `Robot description: ${run.madeOn}`,
+          `the page names the robot it was made on as "${panels.madeOn}", not the run's "${run.madeOn}"`);
     check(panels.ticks === run.ticks.length - 1,
           `the scrub covers ${panels.ticks + 1} ticks of ${run.ticks.length}`);
     check(panels.step === '0. drive', `the first tick's step reads "${panels.step}"`);

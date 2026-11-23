@@ -89,6 +89,8 @@ public class SimRobot {
 
     private static final double WALL_THICKNESS_M = 1;
 
+    private final RobotDescription description;
+
     private final SimDevices devices;
 
     public final FakeDcMotorEx leftFront;
@@ -245,7 +247,12 @@ public class SimRobot {
         this(RobotDescription.reginalds(), noise);
     }
 
+    public RobotDescription description() {
+        return description;
+    }
+
     public SimRobot(RobotDescription description, Noise noise) {
+        this.description = description;
         this.devices = new SimDevices(description);
         this.leftFront = devices.motor("leftFront");
         this.rightFront = devices.motor("rightFront");

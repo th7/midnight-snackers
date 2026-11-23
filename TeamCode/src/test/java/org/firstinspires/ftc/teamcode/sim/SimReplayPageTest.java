@@ -395,6 +395,11 @@ public class SimReplayPageTest {
             public com.google.gson.JsonElement match() {
                 return com.google.gson.JsonNull.INSTANCE;
             }
+
+            @Override
+            public String madeOn() {
+                return "as built";
+            }
         };
 
         assertEquals(SimReplayPage.written(recording), SimReplayPage.written(fromTheChild));
@@ -429,6 +434,11 @@ public class SimReplayPageTest {
             @Override
             public com.google.gson.JsonElement match() {
                 return com.google.gson.JsonNull.INSTANCE;
+            }
+
+            @Override
+            public String madeOn() {
+                return "as built";
             }
         };
 

@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Request;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Field;
@@ -363,6 +362,7 @@ public final class SimBench {
             item.addProperty("startedBy", startedBy);
             item.add("seed", StartPoses.seedToJson(seed));
             item.add("constants", SimConstants.changed(description.constants()));
+            item.addProperty("description", madeOn());
             item.addProperty("phase", phase);
             item.addProperty("loops", ticks.size());
             item.addProperty("seconds", seconds());
@@ -444,6 +444,11 @@ public final class SimBench {
         }
 
         @Override
+        public String madeOn() {
+            return SimDescription.described(description);
+        }
+
+        @Override
         public String kind() {
             return entry.kind;
         }
@@ -456,7 +461,7 @@ public final class SimBench {
     private final StartPoses startPoses;
     private final SimLaunches launches;
     private final SimFeeds feeds;
-    private final Supplier<RobotDescription> descriptions;
+    private final SimOverrides overrides;
     private final List<Run> runs = new ArrayList<>();
     private SimBuild.Result lastCheck;
 
@@ -465,7 +470,7 @@ public final class SimBench {
     }
 
     public SimBench(SimCatalog fixedCatalog, Path project, Path outputDir, Waits waits, Child children) {
-        this(fixedCatalog, project, outputDir, waits, children, RobotDescription::reginalds);
+        this(fixedCatalog, project, outputDir, waits, children, RobotDescription.reginalds());
     }
 
     public SimBench(
@@ -474,8 +479,8 @@ public final class SimBench {
             Path outputDir,
             Waits waits,
             Child children,
-            Supplier<RobotDescription> descriptions) {
-        this(sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock(), descriptions);
+            RobotDescription defaults) {
+        this(sourcesOf(fixedCatalog, project, outputDir), outputDir, waits, children, new SystemClock(), defaults);
     }
 
     private static SimSources sourcesOf(SimCatalog fixedCatalog, Path project, Path outputDir) {
@@ -492,16 +497,11 @@ public final class SimBench {
      * on disk, or -- in a test of the bench itself -- something that need do neither.
      */
     public SimBench(SimSources sources, Path outputDir, Waits waits, Child children, Clock clock) {
-        this(sources, outputDir, waits, children, clock, RobotDescription::reginalds);
+        this(sources, outputDir, waits, children, clock, RobotDescription.reginalds());
     }
 
     public SimBench(
-            SimSources sources,
-            Path outputDir,
-            Waits waits,
-            Child children,
-            Clock clock,
-            Supplier<RobotDescription> descriptions) {
+            SimSources sources, Path outputDir, Waits waits, Child children, Clock clock, RobotDescription defaults) {
         this.sources = sources;
         this.outputDir = outputDir;
         this.waits = waits;
@@ -510,7 +510,7 @@ public final class SimBench {
         this.startPoses = new StartPoses(outputDir.resolve(START_POSES_FILE));
         this.launches = new SimLaunches(outputDir.resolve(SimLaunches.REMEMBERED_FILE), new OnDiskStore(), clock);
         this.feeds = new SimFeeds(outputDir.resolve(SimFeeds.REMEMBERED_FILE), new OnDiskStore(), clock);
-        this.descriptions = descriptions;
+        this.overrides = new SimOverrides(outputDir.resolve(SimOverrides.FILE), new OnDiskStore(), defaults);
     }
 
     public SimCatalog catalog() {
@@ -596,6 +596,8 @@ public final class SimBench {
                         "/run",
                         (request, params) ->
                                 run(request.query("opmode"), request.query("mode"), request.query("begin"), startedBy))
+                .route("GET", "/robot", (request, params) -> overrides.listing())
+                .route("PUT", "/robot", (request, params) -> overrides.save(request.body))
                 .route("GET", "/launch/settings", (request, params) -> launches.settings())
                 .route("POST", "/launch/preview", (request, params) -> launches.preview(request.body))
                 .route("POST", "/launch", (request, params) -> launches.launch(request.body))
@@ -819,7 +821,7 @@ public final class SimBench {
                 startedBy,
                 startPoses.get(entry.name),
                 startPoses.seed(entry.name),
-                descriptions.get(),
+                overrides.description(),
                 mode,
                 begin);
         runs.add(run);
@@ -973,6 +975,10 @@ public final class SimBench {
 
     private Moment now() {
         return new Moment(clock.nanos());
+    }
+
+    public RobotDescription description() {
+        return overrides.description();
     }
 
     public synchronized Run current() {

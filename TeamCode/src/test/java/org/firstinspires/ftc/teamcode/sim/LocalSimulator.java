@@ -66,7 +66,7 @@ public final class LocalSimulator {
                 checkout.resolve("TeamCode").resolve(SimRunner.DEFAULT_OUTPUT_DIR),
                 SimBench.Waits.ofTheBench(),
                 new JvmChild(),
-                () -> description);
+                description);
         Map<String, String> env = System.getenv();
         int port = Valid.value(PortSetting.of(env, PORT_ENV, DEFAULT_PORT));
         WhereTheHostIs host = Valid.value(WhereTheHostIs.from(env));
@@ -79,7 +79,7 @@ public final class LocalSimulator {
         System.out.println("Simulator: " + simulator.url());
         System.out.println(
                 "  runs the sources in " + checkout + " as saved; this machine only; stop the task to stop it");
-        System.out.println("  robot description: " + SimDescription.described(description));
+        System.out.println("  robot description: " + SimDescription.described(bench.description()));
         fetched.forEach(System.out::println);
         Thread.currentThread().join();
     }

@@ -158,6 +158,7 @@ public final class SimRunner {
             Pace pace,
             Meter meter) {
         Budget budget = Valid.value(Budget.of(seconds));
+        recording.madeOn(sim.description());
         try {
             Ending ending = loopUntilDone(opMode, sim, budget, recording, driverStation, pace, meter);
             recording.finish(outcomeOf(ending, seconds));

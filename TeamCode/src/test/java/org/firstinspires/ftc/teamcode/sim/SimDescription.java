@@ -134,7 +134,7 @@ public final class SimDescription {
     private static String said(Configuration configuration) {
         List<String> devices = new ArrayList<>();
         for (Configuration.Device device : configuration.devices()) {
-            String sentence = device.name() + " " + kindOf(device);
+            String sentence = device.name() + " " + device.kind();
             if (device instanceof Configuration.Motor motor) {
                 sentence += " reading " + motor.encoder();
             }
@@ -236,28 +236,12 @@ public final class SimDescription {
                 .map(fields -> other.apply(name));
     }
 
-    private static String kindOf(Configuration.Device device) {
-        if (device instanceof Configuration.Motor) {
-            return MOTOR;
-        }
-        if (device instanceof Configuration.Imu) {
-            return IMU;
-        }
-        if (device instanceof Configuration.ContinuousServo) {
-            return CONTINUOUS_SERVO;
-        }
-        if (device instanceof Configuration.Servo) {
-            return SERVO;
-        }
-        return VOLTAGE_SENSOR;
-    }
-
     private static JsonArray configurationJson(Configuration configuration) {
         JsonArray devices = new JsonArray();
         for (Configuration.Device device : configuration.devices()) {
             JsonObject json = new JsonObject();
             json.addProperty("name", device.name());
-            json.addProperty("kind", kindOf(device));
+            json.addProperty("kind", device.kind());
             if (device instanceof Configuration.Motor motor) {
                 json.addProperty("type", motor.type().label());
                 json.addProperty("encoder", motor.encoder().asked());
