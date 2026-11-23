@@ -18,6 +18,7 @@ import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.Mechanism;
@@ -121,7 +122,13 @@ public class SimRunStreamTest {
         SimRecording.Tick taking = SimRecording.Tick.at(
                         1, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
                 .turning(new SimRecording.Mechanisms(
-                        1, Intake.Way.IN, new Spinner.Turning(Spinner.Way.CLOCKWISE, 0.9), 36.45, true))
+                        1,
+                        Intake.Way.IN,
+                        new Spinner.Turning(Spinner.Way.CLOCKWISE, 0.9),
+                        36.45,
+                        true,
+                        1,
+                        Handover.Why.HANDING))
                 .tick();
 
         SimRunStream.accept(SimRunStream.tick(taking), heard);
@@ -129,12 +136,13 @@ public class SimRunStreamTest {
 
         assertEquals(
                 "{\"held\":1,\"intake\":\"in\",\"spinner\":{\"way\":\"clockwise\",\"speed\":0.9},"
-                        + "\"ramp\":{\"degrees\":36.45,\"up\":true}}",
+                        + "\"ramp\":{\"degrees\":36.45,\"up\":true},\"fed\":1,\"handing\":\"handing\"}",
                 heard.ticks.get(0).get("mechanisms").toString());
         assertEquals(
                 "a still robot holding nothing says so",
                 "{\"held\":0,\"intake\":\"still\",\"spinner\":{\"way\":\"still\",\"speed\":0.0},"
-                        + "\"ramp\":{\"degrees\":0.0,\"up\":false}}",
+                        + "\"ramp\":{\"degrees\":0.0,\"up\":false},\"fed\":0,"
+                        + "\"handing\":\"spinner_not_clockwise\"}",
                 heard.ticks.get(1).get("mechanisms").toString());
     }
 

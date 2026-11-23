@@ -9,13 +9,22 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Spinner;
 
 public final class SimRecording implements SimReplayPage.Source {
-    public record Mechanisms(int held, Intake.Way intake, Spinner.Turning spinner, double rampDegrees, boolean rampUp) {
-        public static final Mechanisms NONE = new Mechanisms(0, Intake.Way.STILL, Spinner.Turning.still(), 0, false);
+    public record Mechanisms(
+            int held,
+            Intake.Way intake,
+            Spinner.Turning spinner,
+            double rampDegrees,
+            boolean rampUp,
+            int fed,
+            Handover.Why handing) {
+        public static final Mechanisms NONE = new Mechanisms(
+                0, Intake.Way.STILL, Spinner.Turning.still(), 0, false, 0, Handover.Why.SPINNER_NOT_CLOCKWISE);
     }
 
     public static final class Tick {

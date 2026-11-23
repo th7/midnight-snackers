@@ -486,6 +486,8 @@ public final class SimRunStream {
         ramp.add("degrees", GSON.toJsonTree(tick.mechanisms.rampDegrees()));
         ramp.addProperty("up", tick.mechanisms.rampUp());
         mechanisms.add("ramp", ramp);
+        mechanisms.addProperty("fed", tick.mechanisms.fed());
+        mechanisms.addProperty("handing", tick.mechanisms.handing().name().toLowerCase(Locale.ROOT));
         t.add("mechanisms", mechanisms);
         return t;
     }

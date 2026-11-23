@@ -893,7 +893,8 @@ dashboard packets drawn that loop, where the balls are (each as x, y, z), how
 many each alliance has **scored**, for a TeleOp what each gamepad read, and
 the robot's mechanisms: how many pollen it **holds**, which way its intake
 turns, which way the **spinner** turns and at what fraction of full speed, and the
-**ramp**'s angle and whether it is up. The replay page marks an intake pushing out, a
+**ramp**'s angle and whether it is up, how many pollen have been **fed**, and whether
+the spindexer is handing one over or why not. The replay page marks an intake pushing out, a
 spinner turning counterclockwise and a ramp down while the spinner turns as the wrong
 way; none stops the run. Class: `SimRecording`.
 
@@ -1298,6 +1299,13 @@ the spinner's is, becomes an angle as REV's servo mode makes it, 500→2500 µs 
 is position × 243°. It slews toward that angle at the description's rate (0.168 s per
 60° as built) and is **up** at or above the description's angle (35° as built). Class:
 `Ramp`, in the **core**.
+
+**Fed** — A pollen the spindexer has handed to the launcher. With the **spinner**
+turning clockwise and the **ramp** up, each of its two arms passing the ramp, once
+every half turn, hands over one held pollen. Until the launcher is simulated, a fed
+pollen leaves the robot and the field. When nothing can be handed over, each tick
+says why: the spinner is not turning clockwise, the ramp is down, or nothing is held.
+Class: `Handover`, in the **core**.
 Each port reports its count as the SDK does: negated for a reversed motor,
 velocity in twenty-tick steps, zeroed while in `STOP_AND_RESET_ENCODER`.
 `RUN_TO_POSITION` is refused. The loop's gains are the simulator's own; the hub

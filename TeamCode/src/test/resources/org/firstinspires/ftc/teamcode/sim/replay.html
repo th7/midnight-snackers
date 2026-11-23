@@ -158,6 +158,8 @@ __IMPORTMAP__
       <dt>intake</dt><dd class="mono" id="intake"></dd>
       <dt>spinner</dt><dd class="mono" id="spinner"></dd>
       <dt>ramp</dt><dd class="mono" id="ramp"></dd>
+      <dt>fed</dt><dd class="mono" id="fed"></dd>
+      <dt>handing</dt><dd class="mono" id="handing"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -622,6 +624,10 @@ __IMPORTMAP__
   }
   const MOVED = FIELD.moved;
   const INTAKE_WAYS = { in: 'taking in', out: 'pushing out', still: 'still' };
+  const HANDING = {
+    handing: 'handing over', nothing_held: 'nothing held', spinner_not_clockwise: 'spinner not turning clockwise',
+    ramp_down: 'ramp down'
+  };
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
@@ -845,6 +851,9 @@ __IMPORTMAP__
          turning && spinner.way === 'counterclockwise');
     show('ramp', ramp ? ramp.degrees.toFixed(1) + '\u00b0 ' + (ramp.up ? 'up' : 'down') : '\u2014',
          !!ramp && !ramp.up && turning);
+    show('fed', mechanisms && mechanisms.fed !== undefined ? String(mechanisms.fed) : '\u2014', false);
+    show('handing', mechanisms && mechanisms.handing ? HANDING[mechanisms.handing] || mechanisms.handing : '\u2014',
+         false);
   }
 
   function show(id, text, wrong) {

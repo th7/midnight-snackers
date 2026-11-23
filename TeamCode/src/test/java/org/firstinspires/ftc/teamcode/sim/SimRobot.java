@@ -46,6 +46,7 @@ import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
 import org.firstinspires.ftc.teamcode.simcore.Encoder;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
+import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.HubPort;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
@@ -152,12 +153,22 @@ public class SimRobot {
 
     private Ramp ramp = Ramp.stowed();
 
+    private final Deque<Ball> holding = new ArrayDeque<>();
+
+    private double spinnerTurns = 0;
+
+    private int fed = 0;
+
+    private Handover.Why handing = Handover.Why.SPINNER_NOT_CLOCKWISE;
+
     private enum Where {
         ROLLING,
 
         FLYING,
 
         HELD,
+
+        FED,
 
         IN_FLOWER,
 
@@ -481,6 +492,7 @@ public class SimRobot {
                     out[i] = Points.array(flight.at(ball).orElseThrow());
                     break;
                 case HELD:
+                case FED:
                     out[i] = null;
                     break;
                 case IN_FLOWER:
@@ -538,6 +550,7 @@ public class SimRobot {
     private void take(Ball ball) {
         if (ball.where == Where.HELD) {
             held = held.less(1);
+            holding.remove(ball);
         }
         if (ball.where == Where.ROLLING) {
             world.removeBody(ball.body);
@@ -656,7 +669,9 @@ public class SimRobot {
                 intakeWay,
                 spinnerTurning,
                 ramp.degrees(),
-                ramp.up(description.constants().value(Constant.RAMP_UP_DEGREES)));
+                ramp.up(description.constants().value(Constant.RAMP_UP_DEGREES)),
+                fed,
+                handing);
     }
 
     public int scored(String alliance) {
@@ -755,6 +770,7 @@ public class SimRobot {
         for (Ball ball : touching.subList(0, taken.taken())) {
             take(ball);
             ball.where = Where.HELD;
+            holding.add(ball);
         }
         held = taken.held();
     }
@@ -763,6 +779,21 @@ public class SimRobot {
         spinnerTurning = Spinner.turning(
                 devices.spinnerSignal(), description.directions().reversed(Mechanism.SPINNER));
         ramp = ramp.next(devices.rampSignal(), description.constants().value(Constant.RAMP_SECONDS_PER_60_DEGREES), dt);
+        Handover.Stepped stepped = Handover.step(
+                spinnerTurns,
+                spinnerTurning,
+                description.constants().value(Constant.SPINNER_FULL_SPEED_RPM),
+                ramp.up(description.constants().value(Constant.RAMP_UP_DEGREES)),
+                held.count(),
+                dt);
+        spinnerTurns = stepped.turns();
+        handing = stepped.why();
+        for (int i = 0; i < stepped.handed() && !holding.isEmpty(); i++) {
+            Ball ball = holding.peek();
+            take(ball);
+            ball.where = Where.FED;
+            fed++;
+        }
     }
 
     private boolean againstTheFront(Ball ball) {

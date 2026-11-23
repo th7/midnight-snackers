@@ -60,9 +60,12 @@ function aRunToPlay(model) {
       pieces: places(n),
       tilt: n === 1 && blue ? { Blue: blue.tilt - 25 } : undefined,
       mechanisms: [
-        { held: 0, intake: 'still', spinner: { way: 'still', speed: 0 }, ramp: { degrees: 0, up: false } },
-        { held: 1, intake: 'in', spinner: { way: 'clockwise', speed: 0.9 }, ramp: { degrees: 36.45, up: true } },
-        { held: 2, intake: 'out', spinner: { way: 'counterclockwise', speed: 0.5 }, ramp: { degrees: 10, up: false } }
+        { held: 0, intake: 'still', spinner: { way: 'still', speed: 0 }, ramp: { degrees: 0, up: false },
+          fed: 0, handing: 'spinner_not_clockwise' },
+        { held: 1, intake: 'in', spinner: { way: 'clockwise', speed: 0.9 }, ramp: { degrees: 36.45, up: true },
+          fed: 1, handing: 'handing' },
+        { held: 2, intake: 'out', spinner: { way: 'counterclockwise', speed: 0.5 }, ramp: { degrees: 10, up: false },
+          fed: 1, handing: 'ramp_down' }
       ][n]
     }))
   };
@@ -212,6 +215,8 @@ const readPanels = (open) => open.evaluate(() => ({
   intake: document.getElementById('intake').textContent,
   spinner: document.getElementById('spinner').textContent,
   ramp: document.getElementById('ramp').textContent,
+  fed: document.getElementById('fed').textContent,
+  handing: document.getElementById('handing').textContent,
   wrong: ['intake', 'spinner', 'ramp'].filter((id) => document.getElementById(id).classList.contains('wrong')),
   ticks: Number(document.getElementById('scrub').max),
   drawing: window.replayPage.drawing,
@@ -270,6 +275,9 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(panels.intake === 'still', `the first tick shows the intake "${panels.intake}", not still`);
     check(panels.spinner === 'still', `the first tick shows the spinner "${panels.spinner}", not still`);
     check(panels.ramp === '0.0° down', `the first tick shows the ramp "${panels.ramp}", not 0.0° down`);
+    check(panels.fed === '0', `the first tick shows "${panels.fed}" fed, not 0`);
+    check(panels.handing === 'spinner not turning clockwise',
+          `the first tick says it hands nothing over because "${panels.handing}"`);
     check(panels.wrong.length === 0, `a robot doing nothing shows ${panels.wrong.join(', ')} the wrong way`);
 
     await twoFrames(open);
@@ -297,6 +305,7 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(last.intake === 'pushing out', `the last tick shows the intake "${last.intake}", not pushing out`);
     check(last.spinner === 'counterclockwise 50%',
           `the last tick shows the spinner "${last.spinner}", not counterclockwise 50%`);
+    check(last.handing === 'ramp down', `the last tick says it hands nothing over because "${last.handing}"`);
     check(last.ramp === '10.0° down', `the last tick shows the ramp "${last.ramp}", not 10.0° down`);
     check(last.wrong.join(',') === 'intake,spinner,ramp',
           `pushing out, turning counterclockwise and a ramp down while the spinner turns show only `
@@ -325,6 +334,8 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     const feeding = await readPanels(open);
     check(feeding.spinner === 'clockwise 90%', `a tick turning clockwise shows the spinner "${feeding.spinner}"`);
     check(feeding.ramp === '36.5° up', `a tick with the ramp up shows it "${feeding.ramp}", not 36.5° up`);
+    check(feeding.fed === '1', `a tick that has fed one shows "${feeding.fed}" fed`);
+    check(feeding.handing === 'handing over', `a tick handing pollen over says "${feeding.handing}"`);
     check(feeding.wrong.length === 0, `a robot taking in and feeding shows ${feeding.wrong.join(', ')} the wrong way`);
     check(Math.abs(tipped.Blue - ended.leaning.Blue) > 0.01,
           `the blue hive leans ${tipped.Blue} on the tick that tips it and ${ended.leaning.Blue} at rest, `
