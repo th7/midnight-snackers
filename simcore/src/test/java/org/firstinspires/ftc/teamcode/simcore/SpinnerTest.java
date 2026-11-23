@@ -9,33 +9,12 @@ public class SpinnerTest {
     private static final double SDK_UPPER_US = 2400;
 
     private static ServoSignal at(double position, double lowerUs, double upperUs) {
-        return Valid.value(ServoSignal.of(true, position, lowerUs, upperUs));
+        return Valid.value(ServoPort.unwritten().positioned(position, Valid.value(PulseRange.of(lowerUs, upperUs))))
+                .signal();
     }
 
     private static ServoSignal at(double position) {
         return at(position, SDK_LOWER_US, SDK_UPPER_US);
-    }
-
-    @Test
-    public void aPositionBecomesThePulseItsRangeMakes() {
-        assertEquals(2400, ((ServoSignal.Pulse) at(1)).microseconds(), 1e-9);
-        assertEquals(1500, ((ServoSignal.Pulse) at(0.5)).microseconds(), 1e-9);
-        assertEquals(500, ((ServoSignal.Pulse) at(0, 500, 2500)).microseconds(), 1e-9);
-    }
-
-    @Test
-    public void aServoNotDrivenGetsNoPulse() {
-        assertEquals(ServoSignal.none(), Valid.value(ServoSignal.of(false, 1, SDK_LOWER_US, SDK_UPPER_US)));
-    }
-
-    @Test
-    public void aPositionOutsideZeroToOneOrARangeBackwardsIsNoPulse() {
-        assertEquals(
-                "a servo position is from 0 to 1, not 1.5",
-                ServoSignal.of(true, 1.5, SDK_LOWER_US, SDK_UPPER_US).fold(found -> "found " + found, rule -> rule));
-        assertEquals(
-                "a pulse range is finite microseconds from its lower to its upper, not 2400 to 600",
-                ServoSignal.of(true, 0.5, 2400, 600).fold(found -> "found " + found, rule -> rule));
     }
 
     @Test

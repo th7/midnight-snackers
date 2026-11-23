@@ -5,7 +5,6 @@ import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.CRServoImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.UserConfigurationType;
@@ -76,17 +75,11 @@ public final class SimDevices {
     }
 
     public ServoSignal spinnerSignal() {
-        return spinner == null ? ServoSignal.none() : signalTo(spinner.getPortNumber());
+        return spinner == null ? ServoSignal.none() : servos.signal(spinner.getPortNumber());
     }
 
     public ServoSignal rampSignal() {
-        return ramp == null ? ServoSignal.none() : signalTo(ramp.getPortNumber());
-    }
-
-    private ServoSignal signalTo(int port) {
-        PwmControl.PwmRange range = servos.getServoPwmRange(port);
-        return Valid.value(
-                ServoSignal.of(servos.driven(port), servos.position(port), range.usPulseLower, range.usPulseUpper));
+        return ramp == null ? ServoSignal.none() : servos.signal(ramp.getPortNumber());
     }
 
     static RevHubOrientationOnRobot sdkMounting(HubMounting hub) {

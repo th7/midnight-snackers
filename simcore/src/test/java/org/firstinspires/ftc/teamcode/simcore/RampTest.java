@@ -11,7 +11,8 @@ public class RampTest {
     private static final double UP = 35;
 
     private static ServoSignal at(double position) {
-        return Valid.value(ServoSignal.of(true, position, 600, 2400));
+        return Valid.value(ServoPort.unwritten().positioned(position, Valid.value(PulseRange.of(600, 2400))))
+                .signal();
     }
 
     private static Ramp after(Ramp ramp, ServoSignal signal, double seconds) {

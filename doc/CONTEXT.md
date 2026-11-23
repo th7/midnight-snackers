@@ -1296,11 +1296,16 @@ live and in the replay. Class: `Intake`, in the **core**.
 **Spinner** — The spindexer's continuous servo, turning the pollen it holds about a
 shaft up from below. What the code writes becomes a pulse as the SDK makes it (power
 −1…1 onto positions 0…1, negated for `REVERSE`, across the port's `PwmControl` range,
-600–2400 µs unless the code sets one), and the pulse becomes motion as REV's continuous
-mode makes it: 1500 µs is still, above it clockwise from above up to full speed at
-2500 µs, below it counterclockwise; the **directions** may reverse that. So power 1
-`FORWARD` is clockwise at 90% of full speed. A servo the code has not driven, or whose
-pulse it disabled, is still. Classes: `ServoSignal` and `Spinner`, in the **core**.
+600–2400 µs unless the code sets one, in whole microseconds), or is the pulse itself
+when the code sets one with `PwmControl.setPulseWidth`. As on the hub, a position the
+same as the last one written sends nothing, so a range changed since waits for the
+next position that differs, and `getPulseWidth` reads back the last pulse sent. The
+pulse becomes motion as REV's continuous mode makes it: 1500 µs is still, above it
+clockwise from above up to full speed at 2500 µs, below it counterclockwise; the
+**directions** may reverse that. So power 1 `FORWARD`, or a pulse of 2400 µs, is
+clockwise at 90% of full speed. A servo the code has not driven, or whose pulse it
+disabled, is still. Classes: `ServoPort`, `PulseRange`, `ServoSignal` and `Spinner`, in
+the **core**.
 
 **Ramp** — The spindexer's servo that lifts a pollen to the launcher. Its pulse, made as
 the spinner's is, becomes an angle as REV's servo mode makes it, 500→2500 µs onto
