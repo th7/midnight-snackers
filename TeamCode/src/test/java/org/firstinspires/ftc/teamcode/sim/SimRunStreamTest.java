@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.simcore.Flywheels;
 import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
+import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
@@ -133,7 +134,9 @@ public class SimRunStreamTest {
                         1,
                         Handover.Why.HANDING,
                         new Flywheels.Turning(Flywheels.Way.LAUNCHING, 2571.5, 508.5),
-                        new Flywheels.Turning(Flywheels.Way.WRONG_WAY, -100, -20)))
+                        new Flywheels.Turning(Flywheels.Way.WRONG_WAY, -100, -20),
+                        1,
+                        new SimRecording.Chamber.Holds(Launch.Why.BACK_WHEEL_WRONG_WAY)))
                 .tick();
 
         SimRunStream.accept(SimRunStream.tick(taking), heard);
@@ -143,7 +146,8 @@ public class SimRunStreamTest {
                 "{\"held\":1,\"intake\":\"in\",\"spinner\":{\"way\":\"clockwise\",\"speed\":0.9},"
                         + "\"ramp\":{\"degrees\":36.45,\"up\":true},\"fed\":1,\"handing\":\"handing\","
                         + "\"flywheels\":{\"front\":{\"way\":\"launching\",\"rpm\":2571.5},"
-                        + "\"back\":{\"way\":\"wrong_way\",\"rpm\":-100.0},\"mismatch\":528.5}}",
+                        + "\"back\":{\"way\":\"wrong_way\",\"rpm\":-100.0},\"mismatch\":528.5},"
+                        + "\"launcher\":{\"launched\":1,\"stays\":\"back_wheel_wrong_way\"}}",
                 heard.ticks.get(0).get("mechanisms").toString());
         assertEquals(
                 "a still robot holding nothing says so",
@@ -151,7 +155,8 @@ public class SimRunStreamTest {
                         + "\"ramp\":{\"degrees\":0.0,\"up\":false},\"fed\":0,"
                         + "\"handing\":\"spinner_not_clockwise\","
                         + "\"flywheels\":{\"front\":{\"way\":\"still\",\"rpm\":0.0},"
-                        + "\"back\":{\"way\":\"still\",\"rpm\":0.0},\"mismatch\":0.0}}",
+                        + "\"back\":{\"way\":\"still\",\"rpm\":0.0},\"mismatch\":0.0},"
+                        + "\"launcher\":{\"launched\":0}}",
                 heard.ticks.get(1).get("mechanisms").toString());
     }
 
@@ -781,5 +786,58 @@ public class SimRunStreamTest {
             assertTrue(handshake.message, handshake.message.contains("Pull develop"));
             assertNull("a refused run is sent nothing", handshake.startLine);
         }
+    }
+
+    private static RobotDescription steeperLaunch() {
+        return RobotDescription.reginalds()
+                .with(Valid.value(Constants.of(java.util.Map.of(Constant.LAUNCHER_PITCH_DEGREES, 75.0))));
+    }
+
+    @Test
+    public void aChildThatLaunchesSpeaksProtocolTwelve() {
+        assertEquals(12, SimRunStream.LAUNCH_PROTOCOL);
+        assertTrue(SimRunStream.LAUNCH_PROTOCOL > SimRunStream.LAUNCHER_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.LAUNCH_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldTheLaunchersMountingAsTheDescriptionHasIt() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, steeperLaunch());
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(
+                75,
+                handshake
+                        .startLine
+                        .getAsJsonObject("constants")
+                        .get("launcher_pitch_degrees")
+                        .getAsDouble(),
+                0);
+    }
+
+    @Test
+    public void aChildFromBeforeTheLaunchStillTakesAReversedFlywheel() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.LAUNCH_PROTOCOL - 1),
+                StartPoses.ORIGIN,
+                null,
+                frontFlywheelReversed());
+
+        assertFalse(handshake.message, handshake.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheLaunchIsRefusedAMountingThatDiffersByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(11), StartPoses.ORIGIN, null, steeperLaunch());
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotMount(11), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.LAUNCH_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains(SimDescription.described(steeperLaunch())));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
     }
 }

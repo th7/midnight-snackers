@@ -24,6 +24,7 @@ import org.firstinspires.ftc.teamcode.simcore.Stack;
 import org.firstinspires.ftc.teamcode.simcore.Surface;
 import org.firstinspires.ftc.teamcode.simcore.Tilt;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
+import org.firstinspires.ftc.teamcode.simcore.WheelPair;
 import org.junit.Test;
 
 public class FlightTest {
@@ -110,6 +111,39 @@ public class FlightTest {
 
     private static String rejection(Checked<?> checked) {
         return checked.fold(value -> "accepted", rule -> rule);
+    }
+
+    private static WheelPair.Launched leaving(Vec3 at, Vec3 velocity, Vec3 spin) {
+        return Valid.value(WheelPair.Launched.of(at, velocity, spin, 0, 0, 0, 0));
+    }
+
+    @Test
+    public void aPollenLaunchedLevelWithBackspinKeepsItsSpinAndFallsSlowerThanOneLaunchedWithout() {
+        Vec3 at = new Vec3(-50, -50, 40);
+        Vec3 velocity = new Vec3(200, 0, 0);
+        WheelPair.Launched spun = leaving(at, velocity, new Vec3(0, -300, 0));
+        Object plain = new Object();
+        Object backspun = new Object();
+        flight = Valid.value(flight.launched(plain, Field.Kind.POLLEN, POLLEN, leaving(at, velocity, Vec3.zero())));
+        flight = Valid.value(flight.launched(backspun, Field.Kind.POLLEN, POLLEN, spun));
+
+        fly(0.3);
+
+        assertEquals(WheelPair.SpinKind.BACKSPIN, spun.kind());
+        double falling = flight.velocity(backspun).orElseThrow().z();
+        double without = flight.velocity(plain).orElseThrow().z();
+        assertTrue("backspun falls at " + falling + " in/s, plain at " + without, falling > without + 1);
+    }
+
+    @Test
+    public void aLaunchFasterThanAFlightTakesABallIsRefused() {
+        Checked<Flight<Object>> refused = flight.launched(
+                new Object(),
+                Field.Kind.POLLEN,
+                POLLEN,
+                leaving(new Vec3(0, 0, 15), new Vec3(1001, 0, 0), Vec3.zero()));
+
+        assertTrue(rejection(refused), rejection(refused).startsWith("a ball comes into flight at most 1000.0 in/s"));
     }
 
     @Test

@@ -62,15 +62,18 @@ function aRunToPlay(model) {
       mechanisms: [
         { held: 0, intake: 'still', spinner: { way: 'still', speed: 0 }, ramp: { degrees: 0, up: false },
           fed: 0, handing: 'spinner_not_clockwise',
-          flywheels: { front: { way: 'still', rpm: 0 }, back: { way: 'still', rpm: 0 }, mismatch: 0 } },
+          flywheels: { front: { way: 'still', rpm: 0 }, back: { way: 'still', rpm: 0 }, mismatch: 0 },
+          launcher: { launched: 0 } },
         { held: 1, intake: 'in', spinner: { way: 'clockwise', speed: 0.9 }, ramp: { degrees: 36.45, up: true },
           fed: 1, handing: 'handing',
           flywheels: { front: { way: 'launching', rpm: 2571.4 }, back: { way: 'launching', rpm: 2400 },
-                       mismatch: 33.9 } },
+                       mismatch: 33.9 },
+          launcher: { launched: 1 } },
         { held: 2, intake: 'out', spinner: { way: 'counterclockwise', speed: 0.5 }, ramp: { degrees: 10, up: false },
           fed: 1, handing: 'ramp_down',
           flywheels: { front: { way: 'wrong_way', rpm: -1000 }, back: { way: 'launching', rpm: 2571.4 },
-                       mismatch: -706.2 } }
+                       mismatch: -706.2 },
+          launcher: { launched: 1, stays: 'front_wheel_wrong_way' } }
       ][n]
     }))
   };
@@ -225,7 +228,8 @@ const readPanels = (open) => open.evaluate(() => ({
   front: document.getElementById('flywheel-front').textContent,
   back: document.getElementById('flywheel-back').textContent,
   mismatch: document.getElementById('mismatch').textContent,
-  wrong: ['intake', 'spinner', 'ramp', 'flywheel-front', 'flywheel-back', 'mismatch'].filter((id) => document.getElementById(id).classList.contains('wrong')),
+  launcher: document.getElementById('launcher').textContent,
+  wrong: ['intake', 'spinner', 'ramp', 'flywheel-front', 'flywheel-back', 'mismatch', 'launcher'].filter((id) => document.getElementById(id).classList.contains('wrong')),
   ticks: Number(document.getElementById('scrub').max),
   drawing: window.replayPage.drawing,
   problem: window.replayPage.problem
@@ -289,6 +293,7 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(panels.front === 'still', `the first tick shows the front flywheel "${panels.front}", not still`);
     check(panels.back === 'still', `the first tick shows the back flywheel "${panels.back}", not still`);
     check(panels.mismatch === 'even', `the first tick shows the flywheels' mismatch "${panels.mismatch}", not even`);
+    check(panels.launcher === '0 launched', `the first tick shows the launcher "${panels.launcher}", not 0 launched`);
     check(panels.wrong.length === 0, `a robot doing nothing shows ${panels.wrong.join(', ')} the wrong way`);
 
     await twoFrames(open);
@@ -323,9 +328,11 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(last.back === 'launching 2571 rpm', `the last tick shows the back flywheel "${last.back}"`);
     check(last.mismatch === '706 in/s back faster',
           `the last tick shows the flywheels' mismatch "${last.mismatch}", not 706 in/s back faster`);
-    check(last.wrong.join(',') === 'intake,spinner,ramp,flywheel-front',
-          `pushing out, turning counterclockwise, a ramp down while the spinner turns and a flywheel turning `
-          + `the wrong way show only `
+    check(last.launcher === '1 launched, holds one: front wheel turning the wrong way',
+          `the last tick shows the launcher "${last.launcher}"`);
+    check(last.wrong.join(',') === 'intake,spinner,ramp,flywheel-front,launcher',
+          `pushing out, turning counterclockwise, a ramp down while the spinner turns, a flywheel turning `
+          + `the wrong way and a pollen kept in the launcher show only `
           + `${last.wrong.join(', ') || 'nothing'} the wrong way`);
     const reads = `x ${at.x.toFixed(1)} in, y ${at.y.toFixed(1)} in, `
         + `${(at.heading * 180 / Math.PI).toFixed(1)}°`;
@@ -354,6 +361,7 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(feeding.fed === '1', `a tick that has fed one shows "${feeding.fed}" fed`);
     check(feeding.handing === 'handing over', `a tick handing pollen over says "${feeding.handing}"`);
     check(feeding.front === 'launching 2571 rpm', `a tick launching shows the front flywheel "${feeding.front}"`);
+    check(feeding.launcher === '1 launched', `a tick that has launched one shows the launcher "${feeding.launcher}"`);
     check(feeding.mismatch === '34 in/s front faster',
           `a tick whose front flywheel runs faster shows the mismatch "${feeding.mismatch}"`);
     check(feeding.wrong.length === 0, `a robot taking in and feeding shows ${feeding.wrong.join(', ')} the wrong way`);

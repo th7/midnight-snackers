@@ -52,6 +52,7 @@ import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.HubPort;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
+import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.Length;
 import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.Nest;
@@ -72,6 +73,7 @@ import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.firstinspires.ftc.teamcode.simcore.Wheel;
+import org.firstinspires.ftc.teamcode.simcore.WheelPair;
 import org.firstinspires.ftc.teamcode.simcore.ZeroPower;
 
 public class SimRobot {
@@ -142,6 +144,16 @@ public class SimRobot {
 
     private final Flywheels flywheels;
 
+    private static final int LAUNCHER_HOLDS = 1;
+
+    private final Launch launch;
+
+    private final Deque<Ball> launcher = new ArrayDeque<>();
+
+    private final List<WheelPair.Launched> launches = new ArrayList<>();
+
+    private SimRecording.Chamber chamber = new SimRecording.Chamber.Empty();
+
     private final Map<Flywheels.Side, Flywheels.Turning> flywheelsTurning = new EnumMap<>(
             Map.of(Flywheels.Side.FRONT, Flywheels.Turning.still(), Flywheels.Side.BACK, Flywheels.Turning.still()));
 
@@ -178,7 +190,7 @@ public class SimRobot {
 
         HELD,
 
-        FED,
+        IN_LAUNCHER,
 
         IN_FLOWER,
 
@@ -306,6 +318,7 @@ public class SimRobot {
         this.drivetrain = Valid.value(description.drivetrain(noise.motors()));
         this.deadWheels = Valid.value(description.deadWheels());
         this.flywheels = Valid.value(description.flywheels());
+        this.launch = Valid.value(description.launch());
         for (String name : devices.motorsCommittedAs()) {
             ports.put(name, HubPort.State.fresh());
             applied.put(name, Power.none());
@@ -503,7 +516,7 @@ public class SimRobot {
                     out[i] = Points.array(flight.at(ball).orElseThrow());
                     break;
                 case HELD:
-                case FED:
+                case IN_LAUNCHER:
                     out[i] = null;
                     break;
                 case IN_FLOWER:
@@ -562,6 +575,9 @@ public class SimRobot {
         if (ball.where == Where.HELD) {
             held = held.less(1);
             holding.remove(ball);
+        }
+        if (ball.where == Where.IN_LAUNCHER) {
+            launcher.remove(ball);
         }
         if (ball.where == Where.ROLLING) {
             world.removeBody(ball.body);
@@ -684,7 +700,13 @@ public class SimRobot {
                 fed,
                 handing,
                 flywheelsTurning.get(Flywheels.Side.FRONT),
-                flywheelsTurning.get(Flywheels.Side.BACK));
+                flywheelsTurning.get(Flywheels.Side.BACK),
+                launches.size(),
+                chamber);
+    }
+
+    public List<WheelPair.Launched> launches() {
+        return List.copyOf(launches);
     }
 
     public int scored(String alliance) {
@@ -747,6 +769,7 @@ public class SimRobot {
         world.step(1, dt.value());
         intakeThePollen();
         turnTheSpindexer(dt);
+        launchThePollen();
         fallInTheFlowers(dt);
         standInTheBores();
         flyTheBalls(dt);
@@ -818,15 +841,50 @@ public class SimRobot {
                 description.constants().value(Constant.SPINNER_FULL_SPEED_RPM),
                 ramp.up(description.constants().value(Constant.RAMP_UP_DEGREES)),
                 held.count(),
+                LAUNCHER_HOLDS - launcher.size(),
                 dt);
         spinnerTurns = stepped.turns();
         handing = stepped.why();
         for (int i = 0; i < stepped.handed() && !holding.isEmpty(); i++) {
             Ball ball = holding.peek();
             take(ball);
-            ball.where = Where.FED;
+            ball.where = Where.IN_LAUNCHER;
+            launcher.add(ball);
             fed++;
         }
+    }
+
+    private void launchThePollen() {
+        Ball ball = launcher.peek();
+        if (ball == null) {
+            chamber = new SimRecording.Chamber.Empty();
+            return;
+        }
+        Launch.Decision decision = refusedIfNot(launch.decide(
+                flywheelsTurning.get(Flywheels.Side.FRONT),
+                flywheelsTurning.get(Flywheels.Side.BACK),
+                ball.length,
+                launchingFrom()));
+        if (decision instanceof Launch.Stays stays) {
+            chamber = new SimRecording.Chamber.Holds(stays.why());
+            return;
+        }
+        WheelPair.Launched leaving = ((Launch.Launches) decision).launched();
+        take(ball);
+        ball.where = Where.FLYING;
+        flight = refusedIfNot(flight.launched(ball, ball.kind, ball.length, leaving));
+        launches.add(leaving);
+        chamber = new SimRecording.Chamber.Empty();
+    }
+
+    private Launch.Robot launchingFrom() {
+        Transform at = chassis.getTransform();
+        Vector2 linear = chassis.getLinearVelocity();
+        return new Launch.Robot(
+                new Vec2(at.getTranslationX() / IN, at.getTranslationY() / IN),
+                Valid.value(Heading.ofRadians(at.getRotationAngle())),
+                new Vec2(linear.x / IN, linear.y / IN),
+                chassis.getAngularVelocity());
     }
 
     private boolean againstTheFront(Ball ball) {

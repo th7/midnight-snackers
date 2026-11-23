@@ -268,8 +268,12 @@ public final class Flight<K> {
     }
 
     public Checked<Flight<K>> with(K ball, Field.Kind kind, Length radius, Vec3 at, Vec3 velocity) {
+        return into(ball, kind, radius, at, velocity, Vec3.zero());
+    }
+
+    private Checked<Flight<K>> into(K ball, Field.Kind kind, Length radius, Vec3 at, Vec3 velocity, Vec3 spin) {
         return comingIntoFlight(velocity)
-                .then(allowed -> Bodies.Motion.of(at, velocity, Vec3.zero()))
+                .then(allowed -> Bodies.Motion.of(at, velocity, spin))
                 .then(motion -> ballOf(kind, radius).then(shape -> {
                     Work<K> work = new Work<>(this);
                     work.catchUp();
@@ -283,6 +287,10 @@ public final class Flight<K> {
                                     new Bodies.Start.Awake(Bodies.Sleep.WHEN_RESTING))
                             .then(seen -> work.checked());
                 }));
+    }
+
+    public Checked<Flight<K>> launched(K ball, Field.Kind kind, Length radius, WheelPair.Launched launched) {
+        return into(ball, kind, radius, launched.at(), launched.velocity(), launched.spin());
     }
 
     public Checked<Flight<K>> restingAt(K ball, Field.Kind kind, Length radius, Vec3 at) {

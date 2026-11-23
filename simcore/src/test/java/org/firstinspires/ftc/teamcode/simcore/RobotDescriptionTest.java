@@ -122,4 +122,17 @@ public class RobotDescriptionTest {
         assertTrue(quickerRamp.launcherAsBuilt());
         assertTrue(heavierWheel.spindexerAsBuilt());
     }
+
+    @Test
+    public void theLaunchIsAsBuiltWhileNoneOfTheLaunchersMountingHasChanged() {
+        RobotDescription built = RobotDescription.reginalds();
+        RobotDescription steeper = built.with(Valid.value(Constants.of(Map.of(Constant.LAUNCHER_PITCH_DEGREES, 75.0))));
+        RobotDescription heavierWheel = built.with(
+                Valid.value(Constants.of(Map.of(Constant.FLYWHEEL_FRONT_KA_VOLT_SECONDS_SQUARED_PER_TICK, 0.01))));
+
+        assertTrue(built.launchAsBuilt());
+        assertFalse(steeper.launchAsBuilt());
+        assertTrue(steeper.launcherAsBuilt());
+        assertTrue(heavierWheel.launchAsBuilt());
+    }
 }

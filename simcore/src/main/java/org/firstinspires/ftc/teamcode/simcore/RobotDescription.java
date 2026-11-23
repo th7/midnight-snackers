@@ -87,6 +87,27 @@ public final class RobotDescription {
         return true;
     }
 
+    public boolean launchAsBuilt() {
+        for (Constant changed : constants.changed().keySet()) {
+            if (changed.group() == Constant.Group.LAUNCH) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public Checked<Launch> launch() {
+        return flywheels()
+                .map(wheels -> new Launch(
+                        wheels,
+                        new Vec3(
+                                constants.value(Constant.LAUNCHER_FORWARD_IN),
+                                constants.value(Constant.LAUNCHER_LEFT_IN),
+                                constants.value(Constant.LAUNCHER_HEIGHT_IN)),
+                        constants.value(Constant.LAUNCHER_PITCH_DEGREES),
+                        constants.value(Constant.LAUNCHER_ROLL_DEGREES)));
+    }
+
     public Checked<Flywheels> flywheels() {
         return Feedforward.of(
                         constants.value(Constant.FLYWHEEL_FRONT_KS_VOLTS),

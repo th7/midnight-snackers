@@ -62,33 +62,55 @@ final class ShotSetup {
     }
 
     static Checked<WheelPair> wheels(ShotSettings settings, Ball pollen) {
-        Checked<WheelPair.Inertia> inertia = settings.on(ShotSetting.WHEELS_SLOW)
-                ? WheelPair.Inertia.Slows.of(WheelPair.Inertia.Slows.fromPoundSquareInches(
-                                settings.value(ShotSetting.WHEEL_INERTIA)))
-                        .map(ShotSetup::asInertia)
-                : Checked.ok(new WheelPair.Inertia.KeepSpeed());
         return WheelPair.Flywheel.of(
                         settings.value(ShotSetting.WHEEL_ONE_DIAMETER), settings.value(ShotSetting.WHEEL_ONE_RPM))
                 .then(one -> WheelPair.Flywheel.of(
                                 settings.value(ShotSetting.WHEEL_TWO_DIAMETER),
                                 settings.value(ShotSetting.WHEEL_TWO_RPM))
-                        .then(two -> inertia.then(slowing -> WheelPair.of(
+                        .then(two -> wheels(
+                                settings,
                                 pollen,
                                 new Vec3(
                                         settings.value(ShotSetting.X),
                                         settings.value(ShotSetting.Y),
                                         settings.value(ShotSetting.HEIGHT)),
-                                settings.value(ShotSetting.YAW),
-                                settings.value(ShotSetting.PITCH),
-                                settings.value(ShotSetting.ROLL),
+                                new Angles(
+                                        settings.value(ShotSetting.YAW),
+                                        settings.value(ShotSetting.PITCH),
+                                        settings.value(ShotSetting.ROLL)),
                                 one,
                                 two,
-                                settings.value(ShotSetting.SPEED_EFFICIENCY),
-                                settings.value(ShotSetting.SPIN_EFFICIENCY),
-                                settings.value(ShotSetting.COMPRESSION),
-                                slowing,
-                                new Vec2(
-                                        settings.value(ShotSetting.ROBOT_VX), settings.value(ShotSetting.ROBOT_VY))))));
+                                new Vec2(settings.value(ShotSetting.ROBOT_VX), settings.value(ShotSetting.ROBOT_VY)))));
+    }
+
+    record Angles(double yawDegrees, double pitchDegrees, double rollDegrees) {}
+
+    static Checked<WheelPair> wheels(
+            ShotSettings settings,
+            Ball pollen,
+            Vec3 exit,
+            Angles angles,
+            WheelPair.Flywheel one,
+            WheelPair.Flywheel two,
+            Vec2 robotVelocity) {
+        Checked<WheelPair.Inertia> inertia = settings.on(ShotSetting.WHEELS_SLOW)
+                ? WheelPair.Inertia.Slows.of(WheelPair.Inertia.Slows.fromPoundSquareInches(
+                                settings.value(ShotSetting.WHEEL_INERTIA)))
+                        .map(ShotSetup::asInertia)
+                : Checked.ok(new WheelPair.Inertia.KeepSpeed());
+        return inertia.then(slowing -> WheelPair.of(
+                pollen,
+                exit,
+                angles.yawDegrees(),
+                angles.pitchDegrees(),
+                angles.rollDegrees(),
+                one,
+                two,
+                settings.value(ShotSetting.SPEED_EFFICIENCY),
+                settings.value(ShotSetting.SPIN_EFFICIENCY),
+                settings.value(ShotSetting.COMPRESSION),
+                slowing,
+                robotVelocity));
     }
 
     private static WheelPair.Inertia asInertia(WheelPair.Inertia.Slows slows) {

@@ -108,6 +108,12 @@ public final class SimRunStream {
                     + " needs " + LAUNCHER_PROTOCOL;
         }
 
+        public static String cannotMount(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and drops each pollen it feeds; launching it from the launcher in " + SimDescription.FILE
+                    + " needs " + LAUNCH_PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -186,7 +192,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 11;
+    public static final int PROTOCOL = 12;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -205,6 +211,8 @@ public final class SimRunStream {
     public static final int RENAMED_PROTOCOL = 10;
 
     public static final int LAUNCHER_PROTOCOL = 11;
+
+    public static final int LAUNCH_PROTOCOL = 12;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -417,6 +425,24 @@ public final class SimRunStream {
                             + SimDescription.FILE
                             + " back as they were built.");
         }
+        if (!description.launchAsBuilt() && protocol < LAUNCH_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotMount(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and drops each pollen it feeds, so it cannot launch it from the launcher in "
+                            + SimDescription.FILE
+                            + " ("
+                            + SimDescription.described(description)
+                            + "); that needs protocol "
+                            + LAUNCH_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put the launch's constants in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
+        }
         if (protocol >= PLACED_PROTOCOL) {
             return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, description), null, null);
         }
@@ -545,6 +571,12 @@ public final class SimRunStream {
         flywheels.add("back", turning(tick.mechanisms.back()));
         flywheels.add("mismatch", GSON.toJsonTree(tick.mechanisms.mismatch()));
         mechanisms.add("flywheels", flywheels);
+        JsonObject launcher = new JsonObject();
+        launcher.addProperty("launched", tick.mechanisms.launched());
+        if (tick.mechanisms.chamber() instanceof SimRecording.Chamber.Holds holds) {
+            launcher.addProperty("stays", holds.why().name().toLowerCase(Locale.ROOT));
+        }
+        mechanisms.add("launcher", launcher);
         t.add("mechanisms", mechanisms);
         return t;
     }

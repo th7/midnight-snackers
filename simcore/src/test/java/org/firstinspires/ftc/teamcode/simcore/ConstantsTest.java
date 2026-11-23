@@ -117,6 +117,18 @@ public class ConstantsTest {
     }
 
     @Test
+    public void reginaldsLauncherSitsAsTheLaunchSimsDoesAtTheOldLaunchersExit() {
+        Constants built = Constants.defaults();
+
+        assertEquals(14, built.value(Constant.LAUNCHER_HEIGHT_IN), 0);
+        assertEquals(-3.26, built.value(Constant.LAUNCHER_FORWARD_IN), 0);
+        assertEquals(0, built.value(Constant.LAUNCHER_LEFT_IN), 0);
+        assertEquals(70, built.value(Constant.LAUNCHER_PITCH_DEGREES), 0);
+        assertEquals(0, built.value(Constant.LAUNCHER_ROLL_DEGREES), 0);
+        assertEquals(Constant.Group.LAUNCH, Constant.LAUNCHER_PITCH_DEGREES.group());
+    }
+
+    @Test
     public void aBareHdHexAsBuiltTurnsSixThousandRpmFreeOnTwelveVolts() {
         Constants built = Constants.defaults();
         double free = (12 - built.value(Constant.FLYWHEEL_FRONT_KS_VOLTS))

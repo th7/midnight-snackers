@@ -53,6 +53,11 @@
     "flywheel_back_ka_volt_seconds_squared_per_tick": 0.00713,
     "flywheel_ticks_per_turn": 28,
     "flywheel_front_diameter_in": 3.78,
-    "flywheel_back_diameter_in": 3.78
+    "flywheel_back_diameter_in": 3.78,
+    "launcher_height_in": 14,
+    "launcher_forward_in": -3.26,
+    "launcher_left_in": 0,
+    "launcher_pitch_degrees": 70,
+    "launcher_roll_degrees": 0
   }
 }

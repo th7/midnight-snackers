@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.sim;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
@@ -27,6 +26,7 @@ public class SimHandoverTest {
     private static final double[] POLLEN_X = {8, 14};
     private static final double HALF_TURN_AT_NINETY_PERCENT_SECONDS = 0.5 / (0.9 * 59.5 / 60);
     private static final double ONE_LOOP_SECONDS = 0.05;
+    private static final double FLYWHEEL_TICKS_PER_SECOND = 1200;
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -37,6 +37,8 @@ public class SimHandoverTest {
         private final double rampPosition;
         private final List<DcMotorEx> wheels = new ArrayList<>();
         private DcMotorEx intake;
+        private DcMotorEx flywheelFront;
+        private DcMotorEx flywheelBack;
         private CRServo spinner;
         private Servo ramp;
         private long startedAt;
@@ -57,6 +59,11 @@ public class SimHandoverTest {
             hardwareMap.get(DcMotorEx.class, "leftBack").setDirection(DcMotorSimple.Direction.REVERSE);
             hardwareMap.get(DcMotorEx.class, "rightBack").setDirection(DcMotorSimple.Direction.REVERSE);
             intake = hardwareMap.get(DcMotorEx.class, "intake");
+            flywheelFront = hardwareMap.get(DcMotorEx.class, "flywheelFront");
+            flywheelBack = hardwareMap.get(DcMotorEx.class, "flywheelBack");
+            flywheelFront.setDirection(DcMotorSimple.Direction.REVERSE);
+            flywheelFront.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            flywheelBack.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
             spinner = hardwareMap.get(CRServo.class, "spinner");
             ramp = hardwareMap.get(Servo.class, "ramp");
             startedAt = sim.nanoTime();
@@ -69,6 +76,8 @@ public class SimHandoverTest {
                 wheel.setPower(takingIn ? 0.3 : 0);
             }
             intake.setPower(1);
+            flywheelFront.setVelocity(FLYWHEEL_TICKS_PER_SECOND);
+            flywheelBack.setVelocity(FLYWHEEL_TICKS_PER_SECOND);
             ramp.setPosition(rampPosition);
             spinner.setPower(takingIn ? 0 : spinnerPower);
         }
@@ -132,7 +141,7 @@ public class SimHandoverTest {
     }
 
     @Test
-    public void spinningClockwiseWithTheRampUpFeedsBothHeldPollenHalfATurnApart() {
+    public void spinningClockwiseWithTheRampUpFeedsBothHeldPollenHalfATurnApartToTheLauncher() {
         Run run = run(1, 0.15);
 
         List<Double> fedAt = run.fedAt();
@@ -141,12 +150,7 @@ public class SimHandoverTest {
         assertEquals(HALF_TURN_AT_NINETY_PERCENT_SECONDS, fedAt.get(1) - fedAt.get(0), ONE_LOOP_SECONDS);
         assertEquals(0, run.last().mechanisms.held());
         assertEquals(Handover.Why.NOTHING_HELD, whyWhileSpinning(run));
-        int last = run.ticks.size() - 1;
-        for (SimRobot.Piece fed : run.pollen) {
-            assertNull(
-                    "a fed pollen has left the robot",
-                    run.ticks.get(last).pieces[run.sim.balls().indexOf(fed)]);
-        }
+        assertEquals("each fed pollen was launched", 2, run.last().mechanisms.launched());
     }
 
     @Test

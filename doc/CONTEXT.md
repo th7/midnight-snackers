@@ -1311,10 +1311,24 @@ is position × 243°. It slews toward that angle at the description's rate (0.16
 
 **Fed** — A pollen the spindexer has handed to the launcher. With the **spinner**
 turning clockwise and the **ramp** up, each of its two arms passing the ramp, once
-every half turn, hands over one held pollen. Until the launcher is simulated, a fed
-pollen leaves the robot and the field. When nothing can be handed over, each tick
-says why: the spinner is not turning clockwise, the ramp is down, or nothing is held.
-Class: `Handover`, in the **core**.
+every half turn, hands over one held pollen into the **launcher**, which holds one, and
+which **launches** it at once when it can. When nothing can be handed over, each tick
+says why: the spinner is not turning clockwise, the ramp is down, nothing is held, or
+the launcher still holds the pollen it was handed last. Class: `Handover`, in the
+**core**.
+
+**Launch** — How a fed pollen leaves the **launcher** in a run. With both **flywheels**
+launching, it leaves into a **flight** with the speed and spin the core's **wheel pair**
+gives from the two wheels' rpm, as the **Launch Sim**'s launcher settings would on their
+defaults: from the exit point on the robot (14 in up and 3.26 in behind its centre as
+built), pointing ahead along the robot's heading at the description's pitch (70°) and
+roll (0), carrying that point's velocity as the robot drives and turns. At roll 0 the back
+wheel is the wheel pair's wheel one, on top, so a faster back wheel gives topspin and a
+faster front wheel backspin. Otherwise it stays in the launcher, and every tick says why:
+the front or back wheel is still or turns the wrong way, or the launch would be faster than
+a flight takes a ball (1,000 in/s). Each tick counts the pollen launched, live and in the
+replay, where one kept in the launcher is marked. Classes: `Launch`, with `Launch.Robot`
+and `Launch.Decision`, in the **core**; `SimRobot.launches`.
 Each port reports its count as the SDK does: negated for a reversed motor,
 velocity in twenty-tick steps, zeroed while in `STOP_AND_RESET_ENCODER`.
 `RUN_TO_POSITION` is refused. The loop's gains are the simulator's own; the hub
@@ -1386,8 +1400,8 @@ it rolls along between the two, slipping on neither, so at half the
 robot's speed. Gripping sets a ball spinning, and a ball is at rest when no
 part of it, centre or surface, moves faster than the **rest speed** (half an
 inch a second), so a spinning ball stops when a rolling one would.
-The robot holds no balls: nothing on it takes one in, so every ball it meets
-is a ball it pushes, and a ball is off the floor only as a **flight**.
+A ball the robot does not **hold** is a ball it pushes, and a ball is off the floor
+only as a **flight**, which is how a **launch** leaves it.
 The model is planar apart from flight and the flowers'
 stacks: only the robot's footprint collides, nothing goes over a wall or
 under a hive by being low, and a ball in flight meets what a **shot**'s
@@ -1509,7 +1523,8 @@ the **robot description** (the drive's feedforward per inch, its track width,
 lateral multiplier and mass, the dead wheels' tick and where they sit, and the
 **spindexer**'s: the **spinner**'s full speed, and the **ramp**'s slew and the angle it is up at;
 and the **launcher**'s: each **flywheel**'s motor's kS, kV and kA, their encoders' ticks
-a turn and each wheel's diameter). Each has a range it may go in, and the ones that come in
+a turn and each wheel's diameter, and where on the robot it lets a pollen go, at what pitch
+and roll). Each has a range it may go in, and the ones that come in
 pairs — the flattest and freshest battery, the least and most traction, the
 shortest loop, the loop, and the shortest and longest hiccup — must be the
 right way round. No set may let a wheel turn faster than the chassis may move,
@@ -1877,8 +1892,7 @@ turns at its clamped command times a whole turn over its ticks per turn, in radi
 second, signed as the command is: positive when the back of the wheel moves up, the
 motor's direction, which in the **launcher**'s frame is about the way to its left. So
 no command turns it faster than 2,800 ticks a second over 18, 977 radians a second.
-A run's launch does not turn it yet: it still leaves at a speed in proportion to the
-command (**Simulated robot**). Classes: `Flywheel`, with `Flywheel.TicksPerTurn` and
+A run's **launch** takes its speed from the two flywheels instead. Classes: `Flywheel`, with `Flywheel.TicksPerTurn` and
 `Flywheel.AngularSpeed`, in the **core**.
 
 **Launcher** — Reginald's two **flywheels**, each with a motor of its own, that throw

@@ -5,7 +5,8 @@ public final class Handover {
         HANDING,
         NOTHING_HELD,
         SPINNER_NOT_CLOCKWISE,
-        RAMP_DOWN
+        RAMP_DOWN,
+        LAUNCHER_FULL
     }
 
     public record Stepped(double turns, int handed, Why why) {}
@@ -15,14 +16,20 @@ public final class Handover {
     private Handover() {}
 
     public static Stepped step(
-            double turns, Spinner.Turning turning, double fullSpeedRpm, boolean rampUp, int held, Seconds dt) {
+            double turns,
+            Spinner.Turning turning,
+            double fullSpeedRpm,
+            boolean rampUp,
+            int held,
+            int room,
+            Seconds dt) {
         double next = turns + turnsPerSecond(turning, fullSpeedRpm) * dt.value();
-        Why why = why(turning, rampUp, held);
+        Why why = why(turning, rampUp, held, room);
         if (why != Why.HANDING) {
             return new Stepped(next, 0, why);
         }
         double passed = StrictMath.floor(next * ARMS_PER_TURN) - StrictMath.floor(turns * ARMS_PER_TURN);
-        return new Stepped(next, (int) StrictMath.max(0, StrictMath.min(held, passed)), why);
+        return new Stepped(next, (int) StrictMath.max(0, StrictMath.min(StrictMath.min(held, room), passed)), why);
     }
 
     private static double turnsPerSecond(Spinner.Turning turning, double fullSpeedRpm) {
@@ -34,7 +41,7 @@ public final class Handover {
         };
     }
 
-    private static Why why(Spinner.Turning turning, boolean rampUp, int held) {
+    private static Why why(Spinner.Turning turning, boolean rampUp, int held, int room) {
         if (turning.way() != Spinner.Way.CLOCKWISE) {
             return Why.SPINNER_NOT_CLOCKWISE;
         }
@@ -43,6 +50,9 @@ public final class Handover {
         }
         if (held <= 0) {
             return Why.NOTHING_HELD;
+        }
+        if (room <= 0) {
+            return Why.LAUNCHER_FULL;
         }
         return Why.HANDING;
     }

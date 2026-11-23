@@ -278,7 +278,49 @@ public enum Constant {
             "How big the back flywheel is across: a bigger wheel's surface moves faster at the same rpm.",
             3.78,
             1.5,
-            6);
+            6),
+    LAUNCHER_HEIGHT_IN(
+            Group.LAUNCH,
+            "Exit height",
+            "in",
+            "How high above the floor a pollen's centre is as it leaves the wheels.",
+            14,
+            2,
+            40),
+    LAUNCHER_FORWARD_IN(
+            Group.LAUNCH,
+            "Exit ahead of centre",
+            "in",
+            "How far ahead of the robot's centre a pollen leaves the wheels; behind it is negative.",
+            -3.26,
+            -9,
+            9),
+    LAUNCHER_LEFT_IN(
+            Group.LAUNCH,
+            "Exit left of centre",
+            "in",
+            "How far to the left of the robot's centre a pollen leaves the wheels; to the right is negative.",
+            0,
+            -9,
+            9),
+    LAUNCHER_PITCH_DEGREES(
+            Group.LAUNCH,
+            "Pitch",
+            "deg",
+            "How steeply the launcher throws ahead of the robot: 0 is level, 90 is straight up and below 0 is"
+                    + " downward.",
+            70,
+            -30,
+            90),
+    LAUNCHER_ROLL_DEGREES(
+            Group.LAUNCH,
+            "Roll",
+            "deg",
+            "Where the back flywheel sits around the pollen, turning about the way it is thrown: 0 puts it on top,"
+                    + " 90 on the left and 180 underneath.",
+            0,
+            -180,
+            180);
 
     public enum Group {
         NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
@@ -291,7 +333,8 @@ public enum Constant {
                 "How fast the spinner turns, how fast the ramp rises, and how high it must stand to feed the launcher."),
         LAUNCHER(
                 "Launcher",
-                "How each flywheel's motor comes up to speed, how its encoder counts and how big its wheel is.");
+                "How each flywheel's motor comes up to speed, how its encoder counts and how big its wheel is."),
+        LAUNCH("Launch", "Where the launcher's wheels let a pollen go on the robot, and the angle they throw it at.");
 
         private final String label;
         private final String says;

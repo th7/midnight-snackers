@@ -12,10 +12,17 @@ import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.simcore.Flywheels;
 import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
+import org.firstinspires.ftc.teamcode.simcore.Launch;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Spinner;
 
 public final class SimRecording implements SimReplayPage.Source {
+    public sealed interface Chamber {
+        record Empty() implements Chamber {}
+
+        record Holds(Launch.Why why) implements Chamber {}
+    }
+
     public record Mechanisms(
             int held,
             Intake.Way intake,
@@ -25,7 +32,9 @@ public final class SimRecording implements SimReplayPage.Source {
             int fed,
             Handover.Why handing,
             Flywheels.Turning front,
-            Flywheels.Turning back) {
+            Flywheels.Turning back,
+            int launched,
+            Chamber chamber) {
         public static final Mechanisms NONE = new Mechanisms(
                 0,
                 Intake.Way.STILL,
@@ -35,7 +44,9 @@ public final class SimRecording implements SimReplayPage.Source {
                 0,
                 Handover.Why.SPINNER_NOT_CLOCKWISE,
                 Flywheels.Turning.still(),
-                Flywheels.Turning.still());
+                Flywheels.Turning.still(),
+                0,
+                new Chamber.Empty());
 
         public double mismatch() {
             return Flywheels.mismatch(front, back);

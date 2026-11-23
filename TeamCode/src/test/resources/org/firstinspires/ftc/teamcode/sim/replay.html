@@ -163,6 +163,7 @@ __IMPORTMAP__
       <dt>front flywheel</dt><dd class="mono" id="flywheel-front"></dd>
       <dt>back flywheel</dt><dd class="mono" id="flywheel-back"></dd>
       <dt>mismatch</dt><dd class="mono" id="mismatch"></dd>
+      <dt>launcher</dt><dd class="mono" id="launcher"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -629,7 +630,12 @@ __IMPORTMAP__
   const INTAKE_WAYS = { in: 'taking in', out: 'pushing out', still: 'still' };
   const HANDING = {
     handing: 'handing over', nothing_held: 'nothing held', spinner_not_clockwise: 'spinner not turning clockwise',
-    ramp_down: 'ramp down'
+    ramp_down: 'ramp down', launcher_full: 'launcher full'
+  };
+  const STAYS = {
+    front_wheel_still: 'front wheel still', front_wheel_wrong_way: 'front wheel turning the wrong way',
+    back_wheel_still: 'back wheel still', back_wheel_wrong_way: 'back wheel turning the wrong way',
+    too_fast: 'faster than a flight takes'
   };
   const FLYWHEEL_WAYS = { launching: 'launching', still: 'still', wrong_way: 'wrong way' };
   function ballOf(piece, c) {
@@ -864,6 +870,13 @@ __IMPORTMAP__
     show('mismatch', !flywheels ? '\u2014' : Math.round(Math.abs(flywheels.mismatch)) === 0 ? 'even'
          : Math.round(Math.abs(flywheels.mismatch)) + ' in/s ' + (flywheels.mismatch > 0 ? 'front' : 'back') + ' faster',
          false);
+    showLauncher(mechanisms && mechanisms.launcher);
+  }
+
+  function showLauncher(launcher) {
+    show('launcher', !launcher ? '\u2014' : launcher.launched + ' launched'
+         + (launcher.stays ? ', holds one: ' + (STAYS[launcher.stays] || launcher.stays) : ''),
+         !!launcher && !!launcher.stays);
   }
 
   function showFlywheel(id, flywheel) {
