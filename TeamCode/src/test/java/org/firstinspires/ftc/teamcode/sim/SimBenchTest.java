@@ -432,7 +432,7 @@ public class SimBenchTest {
         bench = new SimBench(null, project, outputDir(), WAITS);
         SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
         assertEquals("Test", temp.group);
-        assertEquals("org.firstinspires.ftc.reginald.benchtest.TempAuto", temp.where);
+        assertEquals("TempAuto.count()", temp.where);
         assertEquals(
                 2,
                 await(bench.start(temp, "ada", SimBench.Mode.FREE_PLAY)).ticks().size());

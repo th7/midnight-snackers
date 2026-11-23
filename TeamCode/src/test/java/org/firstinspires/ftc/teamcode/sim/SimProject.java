@@ -124,17 +124,15 @@ public final class SimProject {
 
     public static String tempAuto(int loops, String group) {
         return "package org.firstinspires.ftc.reginald.benchtest;\n"
-                + "import com.qualcomm.robotcore.eventloop.opmode.Autonomous;\n"
-                + "import org.firstinspires.ftc.reginald.opmode.AutoOp;\n"
+                + "import org.firstinspires.ftc.reginald.framework.Auto;\n"
                 + "import org.firstinspires.ftc.teamcode.base.Alliance;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
                 + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
                 + "\n"
-                + "@Autonomous(name = \"" + TEMP_NAME + "\", group = \"" + group + "\")\n"
-                + "public class TempAuto extends AutoOp {\n"
+                + "public class TempAuto {\n"
                 + "    private int loops = 0;\n"
-                + "    public TempAuto() { super(Alliance.RELATIVE); }\n"
-                + "    public PlanPart getPlan() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
+                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
+                + "    public PlanPart count() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"
                 + "}\n";
     }

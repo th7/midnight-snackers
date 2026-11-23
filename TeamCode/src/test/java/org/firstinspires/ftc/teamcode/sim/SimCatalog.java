@@ -18,7 +18,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.firstinspires.ftc.reginald.opmode.OpMode;
+import org.firstinspires.ftc.reginald.framework.Discovered;
+import org.firstinspires.ftc.reginald.framework.OpMode;
+import org.firstinspires.ftc.reginald.framework.OpModes;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
 import org.firstinspires.ftc.teamcode.base.Alliance;
@@ -105,8 +107,11 @@ public final class SimCatalog {
         for (Class<?> source : sources) {
             List<Entry> found = entriesFrom(source, OpMode.class::isAssignableFrom);
             if (found == null) {
-                throw new IllegalArgumentException(
-                        source.getName() + " is neither an annotated op mode nor a registrar");
+                found = registeredByTheRobot(List.of(source));
+                if (found.isEmpty()) {
+                    throw new IllegalArgumentException(source.getName()
+                            + " is neither an annotated op mode, a registrar, a TeleOp nor a class of autos");
+                }
             }
             entries.addAll(found);
             names.add(source.getName());
@@ -157,22 +162,32 @@ public final class SimCatalog {
     }
 
     /**
-     * The robot's op modes in a package and the packages under it, but for its Road Runner package,
-     * whose tuning op modes are not ours to simulate.
+     * The robot's op modes in a package and the packages under it, but for its tools package, whose
+     * tuning and measuring op modes are not ours to simulate. The robot's own registrar lists the
+     * classes of the app it runs in; here it is handed the classes of the package instead.
      */
     public static SimCatalog discover(String javaPackage) {
-        String roadRunner = javaPackage + ".roadrunner.";
+        String tools = javaPackage + ".tools.";
         List<Entry> entries = new ArrayList<>();
+        List<Class<?>> classes = new ArrayList<>();
         for (Class<?> type : Classpath.classesUnder(javaPackage)) {
-            if (type.getName().startsWith(roadRunner)) {
+            if (type.getName().startsWith(tools) || type == OpModes.class) {
                 continue;
             }
+            classes.add(type);
             List<Entry> found = entriesFrom(type, OpMode.class::isAssignableFrom);
             if (found != null) {
                 entries.addAll(found);
             }
         }
+        entries.addAll(registeredByTheRobot(classes));
         return sorted(entries, List.of());
+    }
+
+    private static List<Entry> registeredByTheRobot(List<Class<?>> classes) {
+        FakeOpModeManager manager = new FakeOpModeManager();
+        OpModes.register(manager, Discovered.of(classes));
+        return entriesOf(manager, OpMode.class::isAssignableFrom);
     }
 
     public List<String> sources() {
@@ -279,6 +294,10 @@ public final class SimCatalog {
         } catch (IllegalAccessException | IllegalArgumentException e) {
             throw new IllegalStateException("could not call the registrar " + registrar, e);
         }
+        return entriesOf(manager, ours);
+    }
+
+    private static List<Entry> entriesOf(FakeOpModeManager manager, Predicate<Class<?>> ours) {
         List<Entry> entries = new ArrayList<>();
         for (FakeOpModeManager.Registration registration : manager.registrations) {
             Class<?> type = registration.instance != null ? registration.instance.getClass() : registration.type;

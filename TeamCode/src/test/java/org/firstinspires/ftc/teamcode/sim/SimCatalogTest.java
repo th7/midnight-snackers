@@ -15,9 +15,8 @@ import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.firstinspires.ftc.reginald.opmode.AutoOp;
-import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
+import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
@@ -87,7 +86,7 @@ public class SimCatalogTest {
         SimCatalog.Entry teleOp = catalog.find("Red driving").get();
 
         assertSame(plan.opMode(), plan.opMode());
-        assertTrue(plan.opMode() instanceof AutoOp);
+        assertTrue(plan.opMode() instanceof RunsAPlan);
         assertNotSame(teleOp.opMode(), teleOp.opMode());
         assertTrue(teleOp.opMode() instanceof RedDriving);
         assertFalse(catalog.find("org.example.Nope").isPresent());
@@ -121,11 +120,7 @@ public class SimCatalogTest {
     }
 
     @Autonomous(name = "Count to three", group = "Test")
-    public static class AnotherCountToThree extends AutoOp {
-        public AnotherCountToThree() {
-            super(Alliance.RELATIVE);
-        }
-
+    public static class AnotherCountToThree extends TestAutos.TestAuto {
         @Override
         public PlanPart getPlan() {
             return new Step("wait", () -> {}, () -> false);
