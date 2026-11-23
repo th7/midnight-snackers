@@ -12,9 +12,15 @@ import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 
 public interface Hardware {
-    DcMotorEx motor(String name);
+    <D> D device(Class<D> kind, String name);
 
-    Servo servo(String name);
+    default DcMotorEx motor(String name) {
+        return device(DcMotorEx.class, name);
+    }
+
+    default Servo servo(String name) {
+        return device(Servo.class, name);
+    }
 
     LazyImu imu();
 
@@ -36,13 +42,8 @@ public interface Hardware {
                         MecanumDrive.PARAMS.logoFacingDirection, MecanumDrive.PARAMS.usbFacingDirection));
         return new Hardware() {
             @Override
-            public DcMotorEx motor(String name) {
-                return hardwareMap.get(DcMotorEx.class, name);
-            }
-
-            @Override
-            public Servo servo(String name) {
-                return hardwareMap.get(Servo.class, name);
+            public <D> D device(Class<D> kind, String name) {
+                return hardwareMap.get(kind, name);
             }
 
             @Override

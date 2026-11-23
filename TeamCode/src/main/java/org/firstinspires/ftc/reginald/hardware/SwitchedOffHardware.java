@@ -1,9 +1,7 @@
 package org.firstinspires.ftc.reginald.hardware;
 
 import com.acmerobotics.roadrunner.ftc.LazyImu;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.IMU;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -18,13 +16,12 @@ final class SwitchedOffHardware implements Hardware {
     }
 
     @Override
-    public DcMotorEx motor(String name) {
-        return inert(DcMotorEx.class, name);
-    }
-
-    @Override
-    public Servo servo(String name) {
-        return inert(Servo.class, name);
+    public <D> D device(Class<D> kind, String name) {
+        if (!kind.isInterface()) {
+            throw new IllegalStateException("a switched-off part cannot be handed the " + kind.getSimpleName() + " "
+                    + name + ": only a device the SDK names by an interface, such as DcMotorEx, can be switched off");
+        }
+        return inert(kind, name);
     }
 
     @Override

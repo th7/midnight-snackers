@@ -4,10 +4,8 @@ import com.acmerobotics.roadrunner.ftc.LazyImu;
 import com.qualcomm.hardware.motors.RevRoboticsUltraPlanetaryHdHexMotor;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.CRServoImplEx;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
@@ -145,13 +143,8 @@ public final class SimDevices {
         Hardware found = Hardware.fromHardwareMap(hardwareMap);
         return new Hardware() {
             @Override
-            public DcMotorEx motor(String name) {
-                return found.motor(name);
-            }
-
-            @Override
-            public Servo servo(String name) {
-                return found.servo(name);
+            public <D> D device(Class<D> kind, String name) {
+                return found.device(kind, name);
             }
 
             @Override

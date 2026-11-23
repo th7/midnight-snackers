@@ -125,9 +125,10 @@ robot may reach for Road Runner's wall-clock encoder, which a test
 enforces rather than leaving to care.
 
 A device is **asked for by name, where it is used**. A part is handed the
-hardware and asks it for the motors and servos it drives by their configured
-names, `motor("intake")`, in its own constructor; the hardware holds no list
-of its own. So a device goes from the configuration to the part that drives
+hardware and asks it for each device it drives by its kind and configured
+name, `device(DistanceSensor.class, "front")`, or for a motor or a servo by
+name alone, `motor("intake")`, in its own constructor; the hardware holds no
+list of its own, so a new kind of device needs nothing added to it. So a device goes from the configuration to the part that drives
 it in one step, and a device nothing asks for is never fetched. On the robot
 the hardware map answers, and in the simulator an SDK `HardwareMap` of its
 **devices** does, so the simulator builds and runs whatever the robot code
@@ -137,11 +138,12 @@ in the simulator alike, rather than as a null inside whichever subsystem
 reaches for it first, which on the robot is in the middle of a match. Devices are named rather than counted out in
 order, since nine of them are motors and a positional list would let a
 wheel be quietly swapped for its neighbor. Class: `Hardware`;
-`Hardware.fromHardwareMap`; `Hardware.nanoClock`.
+`Hardware.device`; `Hardware.fromHardwareMap`; `Hardware.nanoClock`.
 
 **Switched off** — A part built on hardware that does nothing.
-`hardware.switchedOff()` hands it motors and servos that take every write and
-read back zero, an IMU and a voltage sensor the same, with the run's own
+`hardware.switchedOff()` hands it devices that take every write and read back
+zero, of any kind the SDK names by an interface, an IMU and a voltage sensor
+the same, with the run's own
 clock and dashboard. The part is built, held,
 ticked and prints to its channel like any other, and every subsystem that
 coordinates it keeps it; only what reaches the world is switched off. A part
