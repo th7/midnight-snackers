@@ -25,19 +25,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # --- x86-64 runtime so aapt2 works on the arm64 base image ---------------------
-# The base image is arm64 (Apple Silicon), but the Android Gradle Plugin ships
-# aapt2 only as an x86-64 Linux binary (Google publishes no arm64 build). Docker
-# Desktop emulates it via Rosetta, but that needs the x86-64 glibc runtime and
-# dynamic loader (/lib64/ld-linux-x86-64.so.2) present — otherwise every AAPT2
-# daemon dies with "rosetta error: failed to open elf ..." and all .aar resource
-# transforms fail. Adding the amd64 arch and these libs lets Rosetta run AGP's
-# own aapt2 transparently (verified end-to-end: assembleDebug produces an APK).
+# The base image is arm64, but the Android Gradle Plugin ships aapt2 only as an
+# x86-64 Linux binary (Google publishes no arm64 build). Two hosts run it:
+#   - Docker Desktop on a Mac emulates it via Rosetta, which needs the x86-64
+#     glibc runtime and loader (/lib64/ld-linux-x86-64.so.2) present, or every
+#     AAPT2 daemon dies with "rosetta error: failed to open elf ...".
+#   - An arm64 Linux host with no Rosetta and no binfmt cannot exec it at all:
+#     every AAPT2 daemon dies with 'aapt2: 1: Syntax error: ")" unexpected'.
+#     qemu-user's qemu-x86_64 runs it there, on the same amd64 libs (-L /).
+# The aapt2 wrapper further down picks whichever of the two works.
 RUN dpkg --add-architecture amd64 \
     && apt-get update && apt-get install -y --no-install-recommends \
         libc6:amd64 \
         libstdc++6:amd64 \
         libgcc-s1:amd64 \
         zlib1g:amd64 \
+        qemu-user \
     && rm -rf /var/lib/apt/lists/*
 
 # Android SDK lives outside /home/agent (that path is masked by the home volume
@@ -65,12 +68,30 @@ ENV ANDROID_ADB_SERVER_ADDRESS=host.docker.internal
 
 # Accept licenses, then install the exact SDK packages this project compiles
 # against. Keep these in sync with compileSdkVersion in build.common.gradle.
+ARG ANDROID_BUILD_TOOLS=36.0.0
+
 RUN yes | sdkmanager --licenses > /dev/null \
     && sdkmanager --install \
         "platform-tools" \
         "platforms;android-36" \
-        "build-tools;36.0.0" \
+        "build-tools;${ANDROID_BUILD_TOOLS}" \
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
+
+# Gradle runs build-tools' aapt2 through this wrapper instead of the one AGP
+# fetches from Maven into ~/.gradle (the home volume masks anything put there,
+# so the override cannot live in ~/.gradle/gradle.properties). The wrapper runs
+# aapt2 directly where the kernel can (Rosetta), and under qemu-x86_64 where it
+# cannot. GRADLE_OPTS rather than ORG_GRADLE_PROJECT_android.aapt2FromMaven...:
+# dash drops environment variables whose names hold a dot.
+RUN printf '%s\n' \
+        '#!/bin/sh' \
+        "real=${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS}/aapt2" \
+        'if "$real" version > /dev/null 2>&1; then exec "$real" "$@"; fi' \
+        'exec /usr/bin/qemu-x86_64 -L / "$real" "$@"' \
+        > /usr/local/bin/aapt2 \
+    && chmod 755 /usr/local/bin/aapt2
+
+ENV GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=/usr/local/bin/aapt2"
 
 # --- a browser, for testing the simulator's pages ------------------------------
 # The pages are the part of the simulator nothing tests. tools/renderer/check.mjs
@@ -112,3 +133,8 @@ USER agent
 # failed test weeks later.
 RUN chromium --version \
     && chromium --headless --no-sandbox --disable-gpu --dump-dom about:blank > /dev/null
+
+# Likewise aapt2: one that cannot run fails the image build here, not the first
+# Gradle run, which reports it as AAPT2 daemons failing to start.
+RUN aapt2 version \
+    || { echo "aapt2 cannot run in this image: neither directly nor under qemu-x86_64" >&2; exit 1; }

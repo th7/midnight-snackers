@@ -10,10 +10,12 @@ FTC robot app — Android / Gradle / Kotlin, FTC SDK 11.0.0. Compile with
 
 ### Build environment (already handled in `.my-agent/Dockerfile`)
 - JDK 21, Android SDK platform-36 + build-tools 36.0.0.
-- The base image is arm64 but Google ships aapt2 only for x86-64; it runs under
-  Rosetta thanks to the amd64 glibc the Dockerfile installs. If a build fails on
-  aapt2 or an "architecture / rosetta" error, read the Dockerfile comments before
-  changing anything.
+- The base image is arm64 but Google ships aapt2 only for x86-64. Gradle runs
+  build-tools' aapt2 through `/usr/local/bin/aapt2` (set by `GRADLE_OPTS`), which
+  runs it directly under Rosetta, or under `qemu-x86_64` on a host without it. No
+  hand setup is needed; do not add an `aapt2FromMavenOverride` of your own. If a
+  build fails on aapt2 or an "architecture / rosetta" error, read the Dockerfile
+  comments before changing anything.
 
 ### Deploying to the robot (adb)
 - Container `adb` is a client of the **host's** adb server (`ANDROID_ADB_SERVER_ADDRESS`
