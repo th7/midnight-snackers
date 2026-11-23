@@ -19,8 +19,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Collider;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Ring;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Shot;
 import org.firstinspires.ftc.teamcode.simcore.ShotSetting;
@@ -77,7 +79,7 @@ final class SimLaunches {
     private final AtomicBoolean simulating = new AtomicBoolean();
     private final List<Launch> launches = new ArrayList<>();
     private int launched;
-    private ShotSettings remembered = ShotSettings.defaults();
+    private Map<ShotSetting, Double> remembered = new EnumMap<>(ShotSetting.class);
     private String forgot = "";
 
     SimLaunches(Path file, Store store, Clock clock) {
@@ -137,12 +139,7 @@ final class SimLaunches {
             }
             set.put(ok.value(), number.get());
         }
-        Checked<ShotSettings> settings = ShotSettings.of(set);
-        if (settings instanceof Checked.Ok<ShotSettings> ok) {
-            remembered = ok.value();
-        } else {
-            dropped.add(rule(settings));
-        }
+        remembered = set;
         if (!dropped.isEmpty()) {
             forgot = "Went back to the default for what was kept of " + String.join(", ", dropped) + ".";
         }
@@ -161,11 +158,12 @@ final class SimLaunches {
         return checked.fold(value -> "", rule -> rule);
     }
 
-    Response settings() {
+    Response settings(RobotDescription description) {
+        Constants described = description.constants();
         ShotSettings now;
         String said;
         synchronized (this) {
-            now = remembered;
+            now = ShotSettings.of(remembered, described).orElse(ShotSettings.defaults(described));
             said = forgot;
         }
         JsonArray groups = new JsonArray();
@@ -187,7 +185,8 @@ final class SimLaunches {
             one.addProperty("says", setting.says());
             one.addProperty("least", setting.least());
             one.addProperty("most", setting.most());
-            one.addProperty("byDefault", setting.byDefault());
+            one.addProperty("byDefault", now.byDefault(setting));
+            setting.described().ifPresent(constant -> one.addProperty("described", constant.label()));
             one.addProperty("switch", setting.kind() instanceof ShotSetting.Switch);
             one.addProperty("value", now.value(setting));
             if (setting.kind() instanceof ShotSetting.OnSurface on) {
@@ -212,7 +211,7 @@ final class SimLaunches {
         return Response.json(GSON.toJson(listing));
     }
 
-    private static Asked asked(String body) {
+    private static Asked asked(String body, Constants described) {
         JsonObject json;
         try {
             json = GSON.fromJson(body == null || body.isBlank() ? "{}" : body, JsonObject.class);
@@ -222,7 +221,7 @@ final class SimLaunches {
                     "a launch is asked for with an object of numbers by setting, as" + " {\"pitch\": 60}, not " + body);
         }
         if (json == null) {
-            return Asked.of(ShotSettings.defaults());
+            return Asked.of(ShotSettings.defaults(described));
         }
         Map<ShotSetting, Double> set = new EnumMap<>(ShotSetting.class);
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
@@ -242,7 +241,7 @@ final class SimLaunches {
             }
             set.put(ok.value(), number.get());
         }
-        Checked<ShotSettings> settings = ShotSettings.of(set);
+        Checked<ShotSettings> settings = ShotSettings.of(set, described);
         if (!(settings instanceof Checked.Ok<ShotSettings> ok)) {
             return Asked.refused(null, rule(settings));
         }
@@ -254,8 +253,8 @@ final class SimLaunches {
                 400, GSON.toJson(asked instanceof Asked.Refused refused ? refused.refusal() : new JsonObject()));
     }
 
-    Response preview(String body) {
-        Asked asked = asked(body);
+    Response preview(String body, RobotDescription description) {
+        Asked asked = asked(body, description.constants());
         if (!(asked instanceof Asked.Settled settled)) {
             return refusedAs(asked);
         }
@@ -292,8 +291,8 @@ final class SimLaunches {
         return Response.json(GSON.toJson(json));
     }
 
-    Response launch(String body) {
-        Asked asked = asked(body);
+    Response launch(String body, RobotDescription description) {
+        Asked asked = asked(body, description.constants());
         if (!(asked instanceof Asked.Settled settled)) {
             return refusedAs(asked);
         }
@@ -333,7 +332,7 @@ final class SimLaunches {
         while (launches.size() > MOST_KEPT || (launches.size() > 1 && keptBytes() > MOST_KEPT_BYTES)) {
             launches.remove(0);
         }
-        remembered = settings;
+        remembered = settings.changed();
         forgot = "";
         JsonObject kept = new JsonObject();
         kept.add(SETTINGS_KEPT, changed(settings));
@@ -521,7 +520,7 @@ final class SimLaunches {
             one.addProperty("label", setting.label());
             one.addProperty("unit", setting.unit());
             one.addProperty("value", settings.value(setting));
-            one.addProperty("byDefault", setting.byDefault());
+            one.addProperty("byDefault", settings.byDefault(setting));
             listed.add(one);
         }
         shot.add("settings", listed);

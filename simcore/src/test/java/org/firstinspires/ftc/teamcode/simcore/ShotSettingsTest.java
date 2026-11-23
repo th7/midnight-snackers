@@ -30,15 +30,75 @@ public class ShotSettingsTest {
     }
 
     private static Checked<ShotSettings> of(Object... pairs) {
-        return ShotSettings.of(set(pairs));
+        return ShotSettings.of(set(pairs), Constants.defaults());
+    }
+
+    private static Constants described(Object... pairs) {
+        Map<Constant, Double> set = new EnumMap<>(Constant.class);
+        for (int i = 0; i < pairs.length; i += 2) {
+            set.put((Constant) pairs[i], ((Number) pairs[i + 1]).doubleValue());
+        }
+        return Valid.value(Constants.of(set));
+    }
+
+    private static final Constants REBUILT = described(
+            Constant.LAUNCHER_HEIGHT_IN,
+            16,
+            Constant.LAUNCHER_PITCH_DEGREES,
+            55,
+            Constant.LAUNCHER_ROLL_DEGREES,
+            90,
+            Constant.FLYWHEEL_BACK_DIAMETER_IN,
+            4,
+            Constant.FLYWHEEL_FRONT_DIAMETER_IN,
+            3,
+            Constant.FLYWHEEL_TICKS_PER_TURN,
+            560);
+
+    @Test
+    public void theLaunchersDefaultsAreTheRobotDescriptionsAsItStands() {
+        ShotSettings defaults = ShotSettings.defaults(REBUILT);
+
+        assertEquals(16, defaults.value(ShotSetting.HEIGHT), 0);
+        assertEquals(55, defaults.value(ShotSetting.PITCH), 0);
+        assertEquals(90, defaults.value(ShotSetting.ROLL), 0);
+        assertEquals(4, defaults.value(ShotSetting.WHEEL_ONE_DIAMETER), 0);
+        assertEquals(3, defaults.value(ShotSetting.WHEEL_TWO_DIAMETER), 0);
+        assertEquals(560, defaults.value(ShotSetting.TICKS_PER_REV), 0);
+        assertEquals(55, defaults.value(ShotSetting.X), 0);
+        assertEquals(900, defaults.value(ShotSetting.WHEEL_ONE_RPM), 0);
+        assertTrue(defaults.changed().isEmpty());
+    }
+
+    @Test
+    public void whatChangedIsMeasuredFromTheRobotDescription() {
+        ShotSettings set = Valid.value(
+                ShotSettings.of(set(ShotSetting.PITCH, 70, ShotSetting.HEIGHT, 16, ShotSetting.DRAG, 0.3), REBUILT));
+
+        assertEquals(
+                List.of(ShotSetting.PITCH, ShotSetting.DRAG),
+                List.copyOf(set.changed().keySet()));
+        assertEquals(70, set.changed().get(ShotSetting.PITCH), 0);
+        assertEquals(55, set.byDefault(ShotSetting.PITCH), 0);
+        assertEquals(16, set.byDefault(ShotSetting.HEIGHT), 0);
+        assertEquals(0.45, set.byDefault(ShotSetting.DRAG), 0);
+    }
+
+    @Test
+    public void theSameValuesOverDifferentDescriptionsAreNotTheSameSet() {
+        ShotSettings overRebuilt = Valid.value(ShotSettings.of(set(ShotSetting.PITCH, 70), REBUILT));
+        ShotSettings asBuilt = Valid.value(ShotSettings.of(set(ShotSetting.PITCH, 70), Constants.defaults()));
+
+        assertEquals(asBuilt.value(ShotSetting.PITCH), overRebuilt.value(ShotSetting.PITCH), 0);
+        assertNotEquals(asBuilt, overRebuilt);
     }
 
     @Test
     public void theDefaultsHoldEverySettingAtItsDefaultAndNothingChanged() {
-        ShotSettings defaults = ShotSettings.defaults();
+        ShotSettings defaults = ShotSettings.defaults(Constants.defaults());
 
         for (ShotSetting setting : ShotSetting.values()) {
-            assertEquals(setting.name(), setting.byDefault(), defaults.value(setting), 0);
+            assertEquals(setting.name(), setting.byDefault(Constants.defaults()), defaults.value(setting), 0);
         }
         assertTrue(defaults.changed().isEmpty());
         assertEquals(55, defaults.value(ShotSetting.X), 0);
@@ -48,11 +108,13 @@ public class ShotSettingsTest {
 
     @Test
     public void settingNothingIsTheDefaults() {
-        ShotSettings nothing = Valid.value(ShotSettings.of(new EnumMap<>(ShotSetting.class)));
+        ShotSettings nothing = Valid.value(ShotSettings.of(new EnumMap<>(ShotSetting.class), Constants.defaults()));
 
-        assertEquals(ShotSettings.defaults(), nothing);
-        assertEquals(ShotSettings.defaults().hashCode(), nothing.hashCode());
-        assertEquals(ShotSettings.defaults(), Valid.value(of(ShotSetting.PITCH, 70, ShotSetting.PIECES, 1)));
+        assertEquals(ShotSettings.defaults(Constants.defaults()), nothing);
+        assertEquals(ShotSettings.defaults(Constants.defaults()).hashCode(), nothing.hashCode());
+        assertEquals(
+                ShotSettings.defaults(Constants.defaults()),
+                Valid.value(of(ShotSetting.PITCH, 70, ShotSetting.PIECES, 1)));
     }
 
     @Test
@@ -64,7 +126,7 @@ public class ShotSettingsTest {
         assertEquals(0.4, set.value(ShotSetting.CELL_GRIP), 0);
         for (ShotSetting setting : ShotSetting.values()) {
             if (setting != ShotSetting.PITCH && setting != ShotSetting.WIND_Y && setting != ShotSetting.CELL_GRIP) {
-                assertEquals(setting.name(), setting.byDefault(), set.value(setting), 0);
+                assertEquals(setting.name(), setting.byDefault(Constants.defaults()), set.value(setting), 0);
             }
         }
     }
@@ -75,7 +137,7 @@ public class ShotSettingsTest {
         given.put(ShotSetting.WIND_X, null);
         given.put(ShotSetting.YAW, 90.0);
 
-        ShotSettings set = Valid.value(ShotSettings.of(given));
+        ShotSettings set = Valid.value(ShotSettings.of(given, Constants.defaults()));
 
         assertEquals(0, set.value(ShotSetting.WIND_X), 0);
         assertEquals(90, set.value(ShotSetting.YAW), 0);
@@ -112,7 +174,7 @@ public class ShotSettingsTest {
                 ShotSetting.LONGEST,
                 12,
                 ShotSetting.YAW,
-                ShotSetting.YAW.byDefault(),
+                ShotSetting.YAW.byDefault(Constants.defaults()),
                 ShotSetting.FLOOR_FRICTION,
                 0.7,
                 ShotSetting.WHEELS_SLOW,
@@ -127,7 +189,7 @@ public class ShotSettingsTest {
         assertEquals(1, changed.changed().get(ShotSetting.WHEELS_SLOW), 0);
         assertEquals(0.7, changed.changed().get(ShotSetting.FLOOR_FRICTION), 0);
         assertEquals(12, changed.changed().get(ShotSetting.LONGEST), 0);
-        assertEquals(ShotSetting.YAW.byDefault(), changed.value(ShotSetting.YAW), 0);
+        assertEquals(ShotSetting.YAW.byDefault(Constants.defaults()), changed.value(ShotSetting.YAW), 0);
     }
 
     @Test
@@ -135,12 +197,12 @@ public class ShotSettingsTest {
         ShotSettings zero = Valid.value(of(ShotSetting.ROLL, -0.0, ShotSetting.WHEELS_SLOW, -0.0));
 
         assertTrue(zero.changed().toString(), zero.changed().isEmpty());
-        assertEquals(ShotSettings.defaults(), zero);
+        assertEquals(ShotSettings.defaults(Constants.defaults()), zero);
     }
 
     @Test
     public void aSwitchIsOnWhenItIsOne() {
-        ShotSettings defaults = ShotSettings.defaults();
+        ShotSettings defaults = ShotSettings.defaults(Constants.defaults());
         assertFalse(defaults.on(ShotSetting.WHEELS_SLOW));
         assertTrue(defaults.on(ShotSetting.PIECES));
         assertFalse(defaults.on(ShotSetting.BLUE_HIVE_TIPPED));
@@ -167,14 +229,14 @@ public class ShotSettingsTest {
         assertEquals(
                 Valid.value(of(ShotSetting.DRAG, 0.3)).hashCode(),
                 Valid.value(of(ShotSetting.DRAG, 0.3)).hashCode());
-        assertNotEquals(ShotSettings.defaults(), Valid.value(of(ShotSetting.DRAG, 0.3)));
+        assertNotEquals(ShotSettings.defaults(Constants.defaults()), Valid.value(of(ShotSetting.DRAG, 0.3)));
         assertNotEquals(Valid.value(of(ShotSetting.DRAG, 0.3)), Valid.value(of(ShotSetting.DRAG, 0.31)));
-        assertNotEquals(ShotSettings.defaults(), "the defaults");
+        assertNotEquals(ShotSettings.defaults(Constants.defaults()), "the defaults");
     }
 
     @Test
     public void aSetSaysWhatChanged() {
-        assertEquals("the defaults", ShotSettings.defaults().toString());
+        assertEquals("the defaults", ShotSettings.defaults(Constants.defaults()).toString());
         String said =
                 Valid.value(of(ShotSetting.DRAG, 0.3, ShotSetting.PITCH, 45)).toString();
         assertTrue(said, said.contains("PITCH=45.0"));
@@ -184,7 +246,7 @@ public class ShotSettingsTest {
     @Test
     public void whatASetIsHandedIsNotWhatItHolds() {
         Map<ShotSetting, Double> handed = set(ShotSetting.DRAG, 0.3);
-        ShotSettings settings = Valid.value(ShotSettings.of(handed));
+        ShotSettings settings = Valid.value(ShotSettings.of(handed, Constants.defaults()));
         handed.put(ShotSetting.DRAG, 0.5);
         settings.changed().put(ShotSetting.DRAG, 0.7);
 

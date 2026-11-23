@@ -675,8 +675,8 @@ public class LauncherAsAPartTest {
     private static Bodies flying(Surroundings.Part launcher, Vec3 from, Vec3 velocity) {
         Bodies bodies = Bodies.unwatched(
                 Valid.value(Surroundings.of(FIELD, List.of(launcher))),
-                Valid.value(ShotSetup.air(ShotSettings.defaults())),
-                Valid.value(ShotSetup.surfaces(ShotSettings.defaults())),
+                Valid.value(ShotSetup.air(ShotSettings.defaults(Constants.defaults()))),
+                Valid.value(ShotSetup.surfaces(ShotSettings.defaults(Constants.defaults()))),
                 Valid.value(Flight.stepping()));
         Valid.value(bodies.add(
                 Valid.value(Bodies.Name.of("ball")),

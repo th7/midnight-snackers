@@ -1999,11 +1999,19 @@ work without limit. Class: `Bodies`, in the **core**.
 **Shot settings** — Every number a launch is made from, each with its group, label,
 unit, range, default and a sentence saying what it does, and checked whole: the
 launcher, the pollen and the pieces, the field, the air, the flight model, the
-bounce of each surface, the contact and the simulation. They are chosen per launch
+bounce of each surface, the contact and the simulation. The launcher's exit height,
+pitch and roll, each wheel's diameter (wheel one is the back flywheel, wheel two the
+front) and the encoder's ticks per turn have no default of their own: they default to
+the teammate's **robot description** as it stands, their **robot overrides**
+included, and take its ranges, and the tab names the Robot tab's value each comes
+from. The launcher's place on the field, its yaw and the wheels' speeds are the
+Launch Sim's own, since the description holds none of them. They are chosen per launch
 on the tab's right, the last ones launched are remembered per user and robot in
 `launch-settings.json` beside the start poses, with how many launches there have
-been, so a launch's number is never used again for another; a remembered one that no
-longer fits goes back to its default and the tab says so. `GET /sim/launch/settings`,
+been, so a launch's number is never used again for another. Only what a launch set
+apart from its defaults is remembered, so a value it left at the description's follows
+the description when it changes; a remembered one that no longer fits goes back to its
+default and the tab says so. `GET /sim/launch/settings`,
 `POST /sim/launch/preview` (how the wheels will throw, without launching),
 `POST /sim/launch`, `GET /sim/launches`, `GET /sim/launches/` (the view, with the
 launches to show in its fragment, `#7` or `#7,5,3` with the others as ghosts),

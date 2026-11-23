@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.EnumMap;
 import java.util.Map;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Fingerprint;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
@@ -32,7 +33,7 @@ public class ShotOnTheFieldFingerprintTest {
         for (int i = 0; i < pairs.length; i += 2) {
             set.put((ShotSetting) pairs[i], ((Number) pairs[i + 1]).doubleValue());
         }
-        return Valid.value(ShotSettings.of(set));
+        return Valid.value(ShotSettings.of(set, Constants.defaults()));
     }
 
     private static Seconds seconds(double value) {
@@ -55,12 +56,12 @@ public class ShotOnTheFieldFingerprintTest {
 
     @Test
     public void theDefaultShotComesOutTheSameToTheBitAdvancedAsTheBenchAdvancesIt() {
-        assertEquals(THE_DEFAULT_SHOT, Fingerprint.of(inTheBenchsChunks(ShotSettings.defaults())));
+        assertEquals(THE_DEFAULT_SHOT, Fingerprint.of(inTheBenchsChunks(ShotSettings.defaults(Constants.defaults()))));
     }
 
     @Test
     public void theDefaultShotComesOutTheSameToTheBitAdvancedAllAtOnce() {
-        assertEquals(THE_DEFAULT_SHOT, Fingerprint.of(flown(ShotSettings.defaults())));
+        assertEquals(THE_DEFAULT_SHOT, Fingerprint.of(flown(ShotSettings.defaults(Constants.defaults()))));
     }
 
     @Test

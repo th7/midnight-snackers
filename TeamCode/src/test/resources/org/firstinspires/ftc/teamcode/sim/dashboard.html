@@ -716,7 +716,8 @@
 
     function rangeOf(setting) {
       var unit = setting.unit ? ' ' + setting.unit : '';
-      return short(setting.least) + ' to ' + short(setting.most) + unit + '; ' + short(setting.byDefault) + ' unless changed.';
+      var from = setting.described ? ", as the Robot tab's " + setting.described + ' is' : '';
+      return short(setting.least) + ' to ' + short(setting.most) + unit + '; ' + short(setting.byDefault) + ' unless changed' + from + '.';
     }
 
     function valueOf(entry) {

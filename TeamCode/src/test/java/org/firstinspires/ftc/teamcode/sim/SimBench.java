@@ -598,9 +598,12 @@ public final class SimBench {
                                 run(request.query("opmode"), request.query("mode"), request.query("begin"), startedBy))
                 .route("GET", "/robot", (request, params) -> overrides.listing())
                 .route("PUT", "/robot", (request, params) -> overrides.save(request.body))
-                .route("GET", "/launch/settings", (request, params) -> launches.settings())
-                .route("POST", "/launch/preview", (request, params) -> launches.preview(request.body))
-                .route("POST", "/launch", (request, params) -> launches.launch(request.body))
+                .route("GET", "/launch/settings", (request, params) -> launches.settings(overrides.description()))
+                .route(
+                        "POST",
+                        "/launch/preview",
+                        (request, params) -> launches.preview(request.body, overrides.description()))
+                .route("POST", "/launch", (request, params) -> launches.launch(request.body, overrides.description()))
                 .route("GET", "/launches", (request, params) -> launches.listing())
                 .route("GET", "/launches/", (request, params) -> launches.viewer())
                 .route("GET", "/launches/{id}", (request, params) -> SimLaunches.toTheViewer("./", params.get("id")))

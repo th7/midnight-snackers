@@ -27,11 +27,8 @@ public enum ShotSetting {
     HEIGHT(
             Group.LAUNCHER,
             "Exit height",
-            "in",
             "How high above the floor the pollen's centre is as it leaves the wheels.",
-            14,
-            2,
-            40),
+            Constant.LAUNCHER_HEIGHT_IN),
     YAW(
             Group.LAUNCHER,
             "Yaw",
@@ -44,20 +41,14 @@ public enum ShotSetting {
     PITCH(
             Group.LAUNCHER,
             "Pitch",
-            "deg",
             "How steeply the pollen is thrown: 0 is level, 90 is straight up and below 0 is downward.",
-            70,
-            -30,
-            90),
+            Constant.LAUNCHER_PITCH_DEGREES),
     ROLL(
             Group.LAUNCHER,
             "Roll",
-            "deg",
             "Where wheel one sits around the pollen, turning about the way it is thrown: 0 puts it on top, 90 on"
                     + " the left and 180 underneath, and the spin the wheels give turns with it.",
-            0,
-            -180,
-            180),
+            Constant.LAUNCHER_ROLL_DEGREES),
     WHEEL_ONE_RPM(
             Group.LAUNCHER,
             "Wheel one speed",
@@ -79,28 +70,19 @@ public enum ShotSetting {
     WHEEL_ONE_DIAMETER(
             Group.LAUNCHER,
             "Wheel one diameter",
-            "in",
             "How big wheel one is across: a bigger wheel's surface moves faster at the same rpm.",
-            3.78,
-            1.5,
-            6),
+            Constant.FLYWHEEL_BACK_DIAMETER_IN),
     WHEEL_TWO_DIAMETER(
             Group.LAUNCHER,
             "Wheel two diameter",
-            "in",
             "How big wheel two is across: a bigger wheel's surface moves faster at the same rpm.",
-            3.78,
-            1.5,
-            6),
+            Constant.FLYWHEEL_FRONT_DIAMETER_IN),
     TICKS_PER_REV(
             Group.LAUNCHER,
             "Encoder ticks per turn",
-            "ticks",
             "How many encoder ticks a wheel's motor counts as its wheel turns once. It only changes what the form"
                     + " shows: each wheel's speed in ticks a second, as a motor's setVelocity takes it.",
-            28,
-            1,
-            10000),
+            Constant.FLYWHEEL_TICKS_PER_TURN),
     SPEED_EFFICIENCY(
             Group.LAUNCHER,
             "Speed efficiency",
@@ -481,7 +463,8 @@ public enum ShotSetting {
     private final String label;
     private final String unit;
     private final String says;
-    private final double byDefault;
+    private final double ownDefault;
+    private final Optional<Constant> described;
     private final double least;
     private final double most;
     private final boolean isSwitch;
@@ -493,9 +476,24 @@ public enum ShotSetting {
         this.label = label;
         this.unit = unit;
         this.says = says;
-        this.byDefault = byDefault;
+        this.ownDefault = byDefault;
+        this.described = Optional.empty();
         this.least = least;
         this.most = most;
+        this.isSwitch = false;
+        this.surface = Optional.empty();
+        this.property = Optional.empty();
+    }
+
+    ShotSetting(Group group, String label, String says, Constant described) {
+        this.group = group;
+        this.label = label;
+        this.unit = described.unit();
+        this.says = says;
+        this.ownDefault = described.byDefault();
+        this.described = Optional.of(described);
+        this.least = described.least();
+        this.most = described.most();
         this.isSwitch = false;
         this.surface = Optional.empty();
         this.property = Optional.empty();
@@ -506,7 +504,8 @@ public enum ShotSetting {
         this.label = label;
         this.unit = "";
         this.says = says;
-        this.byDefault = onByDefault ? 1 : 0;
+        this.ownDefault = onByDefault ? 1 : 0;
+        this.described = Optional.empty();
         this.least = 0;
         this.most = 1;
         this.isSwitch = true;
@@ -519,7 +518,8 @@ public enum ShotSetting {
         this.label = labelOf(surface) + " " + property.label().toLowerCase(Locale.ROOT);
         this.unit = "";
         this.says = saysOf(surface, property);
-        this.byDefault = byDefault;
+        this.ownDefault = byDefault;
+        this.described = Optional.empty();
         this.least = 0;
         this.most = property.most();
         this.isSwitch = false;
@@ -619,8 +619,12 @@ public enum ShotSetting {
         return says;
     }
 
-    public double byDefault() {
-        return byDefault;
+    public double byDefault(Constants description) {
+        return described.map(constant -> description.value(constant)).orElse(ownDefault);
+    }
+
+    public Optional<Constant> described() {
+        return described;
     }
 
     public double least() {

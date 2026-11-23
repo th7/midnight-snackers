@@ -6,7 +6,7 @@ import java.util.List;
 import org.junit.Test;
 
 public class WorkedExamplesTest {
-    private static final ShotSettings DEFAULTS = ShotSettings.defaults();
+    private static final ShotSettings DEFAULTS = ShotSettings.defaults(Constants.defaults());
     private static final Ball POLLEN = Valid.value(ShotSetup.pollen(DEFAULTS));
     private static final Surfaces SURFACES = Valid.value(ShotSetup.surfaces(DEFAULTS));
     private static final double ALPHA = POLLEN.inertiaFactor();

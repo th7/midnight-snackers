@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.EnumMap;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.simcore.Colliders;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Shot;
@@ -26,7 +27,7 @@ public class ShotOnTheFieldTest {
         for (int i = 0; i < pairs.length; i += 2) {
             set.put((ShotSetting) pairs[i], ((Number) pairs[i + 1]).doubleValue());
         }
-        return Valid.value(ShotSettings.of(set));
+        return Valid.value(ShotSettings.of(set, Constants.defaults()));
     }
 
     private static Shot.Finished flown(ShotSettings settings) {
@@ -37,7 +38,7 @@ public class ShotOnTheFieldTest {
 
     @Test
     public void theDefaultLaunchScoresInTheBlueHivesUpturnedCellClearOfTheNectarThere() {
-        Shot.Finished shot = flown(ShotSettings.defaults());
+        Shot.Finished shot = flown(ShotSettings.defaults(Constants.defaults()));
 
         assertTrue(shot.finish().toString(), shot.finish() instanceof Shot.Finish.AtRest);
         Shot.Finish.AtRest rest = (Shot.Finish.AtRest) shot.finish();

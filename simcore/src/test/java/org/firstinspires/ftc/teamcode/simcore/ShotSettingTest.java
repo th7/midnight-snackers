@@ -13,10 +13,12 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.firstinspires.ftc.teamcode.simcore.ShotSetting.Group;
 import org.firstinspires.ftc.teamcode.simcore.ShotSetting.OnSurface;
@@ -56,7 +58,7 @@ public class ShotSettingTest {
                 setting.name(),
                 setting.group(),
                 kindOf(setting),
-                setting.byDefault(),
+                setting.byDefault(Constants.defaults()),
                 setting.least(),
                 setting.most(),
                 setting.unit());
@@ -93,7 +95,7 @@ public class ShotSettingTest {
                 amount(ShotSetting.WHEEL_TWO_RPM, LAUNCHER, 1200, 0, 6000, "rpm"),
                 amount(ShotSetting.WHEEL_ONE_DIAMETER, LAUNCHER, 3.78, 1.5, 6, "in"),
                 amount(ShotSetting.WHEEL_TWO_DIAMETER, LAUNCHER, 3.78, 1.5, 6, "in"),
-                amount(ShotSetting.TICKS_PER_REV, LAUNCHER, 28, 1, 10000, "ticks"),
+                amount(ShotSetting.TICKS_PER_REV, LAUNCHER, 28, 18, 10000, "ticks"),
                 amount(ShotSetting.SPEED_EFFICIENCY, LAUNCHER, 1, 0.3, 1, ""),
                 amount(ShotSetting.SPIN_EFFICIENCY, LAUNCHER, 1, 0.3, 1, ""),
                 amount(ShotSetting.COMPRESSION, LAUNCHER, 0, 0, 0.6, "in"),
@@ -150,14 +152,50 @@ public class ShotSettingTest {
     }
 
     @Test
+    public void theLauncherSettingsTheRobotDescriptionHoldsTakeItsDefaultAndRange() {
+        Map<ShotSetting, Constant> expected = new EnumMap<>(ShotSetting.class);
+        expected.put(ShotSetting.HEIGHT, Constant.LAUNCHER_HEIGHT_IN);
+        expected.put(ShotSetting.PITCH, Constant.LAUNCHER_PITCH_DEGREES);
+        expected.put(ShotSetting.ROLL, Constant.LAUNCHER_ROLL_DEGREES);
+        expected.put(ShotSetting.WHEEL_ONE_DIAMETER, Constant.FLYWHEEL_BACK_DIAMETER_IN);
+        expected.put(ShotSetting.WHEEL_TWO_DIAMETER, Constant.FLYWHEEL_FRONT_DIAMETER_IN);
+        expected.put(ShotSetting.TICKS_PER_REV, Constant.FLYWHEEL_TICKS_PER_TURN);
+        Map<ShotSetting, Constant> described = new EnumMap<>(ShotSetting.class);
+        for (ShotSetting setting : ShotSetting.values()) {
+            setting.described().ifPresent(constant -> described.put(setting, constant));
+        }
+
+        assertEquals(expected, described);
+        for (Map.Entry<ShotSetting, Constant> entry : described.entrySet()) {
+            ShotSetting setting = entry.getKey();
+            Constant constant = entry.getValue();
+            assertEquals(setting.name(), constant.least(), setting.least(), 0);
+            assertEquals(setting.name(), constant.most(), setting.most(), 0);
+            assertEquals(setting.name(), constant.unit(), setting.unit());
+        }
+    }
+
+    @Test
+    public void aDescribedSettingsDefaultIsWhatTheDescriptionSaysNow() {
+        Constants pitched = Valid.value(Constants.of(Map.of(Constant.LAUNCHER_PITCH_DEGREES, 48.0)));
+
+        assertEquals(48, ShotSetting.PITCH.byDefault(pitched), 0);
+        assertEquals(70, ShotSetting.PITCH.byDefault(Constants.defaults()), 0);
+        assertEquals(180, ShotSetting.YAW.byDefault(pitched), 0);
+    }
+
+    @Test
     public void everySettingSaysWhatItIsAndHasRoomToMoveAroundItsDefault() {
         for (ShotSetting setting : ShotSetting.values()) {
             assertFalse(setting.name(), setting.label().isBlank());
             assertFalse(setting.name(), setting.says().isBlank());
             assertTrue(setting.name() + " says a sentence", setting.says().endsWith("."));
             assertEquals(setting.name(), setting.unit().strip(), setting.unit());
-            assertTrue(setting.name() + " is at least its least", setting.byDefault() >= setting.least());
-            assertTrue(setting.name() + " is at most its most", setting.byDefault() <= setting.most());
+            assertTrue(
+                    setting.name() + " is at least its least",
+                    setting.byDefault(Constants.defaults()) >= setting.least());
+            assertTrue(
+                    setting.name() + " is at most its most", setting.byDefault(Constants.defaults()) <= setting.most());
             assertTrue(setting.name() + " has room to move", setting.least() < setting.most());
         }
     }
@@ -253,7 +291,7 @@ public class ShotSettingTest {
     @Test
     public void aValueAtEitherEndOfItsRangeOrAtItsDefaultIsTaken() {
         for (ShotSetting setting : ShotSetting.values()) {
-            for (double right : List.of(setting.least(), setting.byDefault(), setting.most())) {
+            for (double right : List.of(setting.least(), setting.byDefault(Constants.defaults()), setting.most())) {
                 assertEquals(setting.name(), right, Valid.value(setting.admits(right)), 0);
             }
         }
@@ -279,7 +317,9 @@ public class ShotSettingTest {
         for (ShotSetting setting : switches()) {
             assertEquals(setting.name(), 0, setting.least(), 0);
             assertEquals(setting.name(), 1, setting.most(), 0);
-            assertTrue(setting.name(), setting.byDefault() == 0 || setting.byDefault() == 1);
+            assertTrue(
+                    setting.name(),
+                    setting.byDefault(Constants.defaults()) == 0 || setting.byDefault(Constants.defaults()) == 1);
             assertEquals(setting.name(), "", setting.unit());
             assertEquals(0, Valid.value(setting.admits(0)), 0);
             assertEquals(1, Valid.value(setting.admits(1)), 0);

@@ -48,7 +48,7 @@ public class LauncherTest {
     private static final double COURSE_SECONDS = 0.005;
     private static final double DEGREE = StrictMath.PI / 180;
     private static final Length POLLEN = Valid.length(Launcher.POLLEN_RADIUS_IN);
-    private static final ShotSettings DEFAULTS = ShotSettings.defaults();
+    private static final ShotSettings DEFAULTS = ShotSettings.defaults(Constants.defaults());
     private static final Ball BALL =
             Valid.value(Ball.of(POLLEN, DEFAULTS.value(ShotSetting.MASS), DEFAULTS.value(ShotSetting.INERTIA)));
     private static final Field FIELD = CollidersTest.field(30);

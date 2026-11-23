@@ -188,7 +188,7 @@ public final class Flight<K> {
     }
 
     private static <K> Checked<Flight<K>> over(Hives hives, Robot robot) {
-        ShotSettings defaults = ShotSettings.defaults();
+        ShotSettings defaults = ShotSettings.defaults(Constants.defaults());
         Set<String> floors = floorsOf(hives.field());
         List<Surroundings.Part> parts = new ArrayList<>();
         parts.add(hives.part());

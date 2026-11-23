@@ -15,6 +15,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
+import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.ShotSetting;
 import org.junit.After;
 import org.junit.Rule;
@@ -55,6 +56,12 @@ public class SimLaunchesTest {
         return routes().handle(TinyHttpServer.Request.of("POST", path, body));
     }
 
+    private void describe(String constants) {
+        Response saved =
+                routes().handle(TinyHttpServer.Request.of("PUT", "/robot", "{\"constants\": " + constants + "}"));
+        assertEquals(saved.body, 200, saved.status);
+    }
+
     private static JsonObject json(Response response) {
         return new Gson().fromJson(response.body, JsonObject.class);
     }
@@ -87,8 +94,12 @@ public class SimLaunchesTest {
             JsonObject one = named(settings, setting.asked());
             assertEquals(setting.least(), one.get("least").getAsDouble(), 0);
             assertEquals(setting.most(), one.get("most").getAsDouble(), 0);
-            assertEquals(setting.byDefault(), one.get("byDefault").getAsDouble(), 0);
-            assertEquals(setting.byDefault(), one.get("value").getAsDouble(), 0);
+            assertEquals(
+                    setting.byDefault(Constants.defaults()),
+                    one.get("byDefault").getAsDouble(),
+                    0);
+            assertEquals(
+                    setting.byDefault(Constants.defaults()), one.get("value").getAsDouble(), 0);
             assertFalse(one.get("label").getAsString().isBlank());
             assertFalse(one.get("says").getAsString().isBlank());
             assertTrue(one.has("switch"));
@@ -101,6 +112,69 @@ public class SimLaunchesTest {
                 named(settings, ShotSetting.FLOOR_GRIP.asked()).get("property").getAsString());
         assertEquals(6, listing.getAsJsonArray("surfaces").size());
         assertEquals("", listing.get("forgot").getAsString());
+    }
+
+    @Test
+    public void theLaunchersDefaultsAreTheRobotTabsAsItStandsNow() {
+        describe(
+                "{\"launcher_pitch_degrees\": 55, \"flywheel_back_diameter_in\": 4, \"flywheel_ticks_per_turn\": 560}");
+
+        JsonArray settings = json(get("/launch/settings")).getAsJsonArray("settings");
+        assertEquals(55, named(settings, "pitch").get("byDefault").getAsDouble(), 0);
+        assertEquals(55, named(settings, "pitch").get("value").getAsDouble(), 0);
+        assertEquals("Pitch", named(settings, "pitch").get("described").getAsString());
+        assertEquals(4, named(settings, "wheel_one_diameter").get("value").getAsDouble(), 0);
+        assertEquals(3.78, named(settings, "wheel_two_diameter").get("value").getAsDouble(), 0);
+        assertEquals(
+                "Back flywheel diameter",
+                named(settings, "wheel_one_diameter").get("described").getAsString());
+        assertEquals(560, named(settings, "ticks_per_rev").get("value").getAsDouble(), 0);
+        assertEquals(180, named(settings, "yaw").get("byDefault").getAsDouble(), 0);
+        assertFalse(named(settings, "yaw").has("described"));
+    }
+
+    @Test
+    public void aLaunchAskedWithoutALauncherSettingTakesTheRobotTabs() {
+        describe("{\"flywheel_ticks_per_turn\": 560, \"flywheel_back_diameter_in\": 4}");
+
+        JsonObject preview = json(post("/launch/preview", "{}"));
+
+        assertEquals(
+                900 * 560 / 60.0,
+                preview.getAsJsonArray("ticksPerSecond").get(0).getAsDouble(),
+                1e-9);
+        assertEquals(
+                Math.PI * 4 * 900 / 60,
+                preview.getAsJsonArray("surfaces").get(0).getAsDouble(),
+                1e-6);
+    }
+
+    @Test
+    public void aRememberedLaunchKeepsWhatItSetAndFollowsTheRobotTabForTheRest() {
+        launch("{\"pitch\": 60, \"pieces\": 0, \"longest\": 0.5}");
+        describe("{\"launcher_pitch_degrees\": 50, \"launcher_height_in\": 18}");
+
+        JsonArray settings = json(get("/launch/settings")).getAsJsonArray("settings");
+        assertEquals(60, named(settings, "pitch").get("value").getAsDouble(), 0);
+        assertEquals(50, named(settings, "pitch").get("byDefault").getAsDouble(), 0);
+        assertEquals(18, named(settings, "height").get("value").getAsDouble(), 0);
+    }
+
+    @Test
+    public void aLaunchSaysWhatItChangedFromTheRobotTab() {
+        describe("{\"launcher_pitch_degrees\": 50}");
+
+        launch("{\"pitch\": 50, \"height\": 16, \"pieces\": 0, \"longest\": 0.5}");
+
+        JsonObject changed = json(get("/launches"))
+                .getAsJsonArray("launches")
+                .get(0)
+                .getAsJsonObject()
+                .getAsJsonObject("changed");
+        assertFalse(changed.toString(), changed.has("pitch"));
+        assertEquals(16, changed.get("height").getAsDouble(), 0);
+        JsonObject pitch = named(json(get("/launches/1/shot")).getAsJsonArray("settings"), "pitch");
+        assertEquals(50, pitch.get("byDefault").getAsDouble(), 0);
     }
 
     @Test
@@ -257,7 +331,9 @@ public class SimLaunchesTest {
         assertEquals(60, named(settings, "pitch").get("value").getAsDouble(), 0);
         assertEquals(0, named(settings, "pieces").get("value").getAsDouble(), 0);
         assertEquals(
-                ShotSetting.YAW.byDefault(), named(settings, "yaw").get("value").getAsDouble(), 0);
+                ShotSetting.YAW.byDefault(Constants.defaults()),
+                named(settings, "yaw").get("value").getAsDouble(),
+                0);
     }
 
     @Test
@@ -272,12 +348,33 @@ public class SimLaunchesTest {
         assertEquals(
                 10, named(listing.getAsJsonArray("settings"), "x").get("value").getAsDouble(), 0);
         assertEquals(
-                ShotSetting.PITCH.byDefault(),
+                ShotSetting.PITCH.byDefault(Constants.defaults()),
                 named(listing.getAsJsonArray("settings"), "pitch").get("value").getAsDouble(),
                 0);
         String forgot = listing.get("forgot").getAsString();
         assertTrue(forgot, forgot.contains("pitch") && forgot.contains("nope"));
         assertEquals(200, get("/status").status);
+    }
+
+    @Test
+    public void aRememberedSettingThatNoLongerFitsGoesBackToTheRobotTabs() throws Exception {
+        Files.createDirectories(outputDir());
+        Files.write(
+                outputDir().resolve(SimLaunches.REMEMBERED_FILE),
+                "{\"settings\": {\"ticks_per_rev\": 5}, \"launched\": 2}".getBytes(StandardCharsets.UTF_8));
+        describe("{\"flywheel_ticks_per_turn\": 560}");
+
+        JsonObject listing = json(get("/launch/settings"));
+
+        assertEquals(
+                560,
+                named(listing.getAsJsonArray("settings"), "ticks_per_rev")
+                        .get("value")
+                        .getAsDouble(),
+                0);
+        assertTrue(
+                listing.get("forgot").getAsString(),
+                listing.get("forgot").getAsString().contains("ticks_per_rev"));
     }
 
     @Test
@@ -289,7 +386,7 @@ public class SimLaunchesTest {
         JsonObject listing = json(get("/launch/settings"));
         assertFalse(listing.get("forgot").getAsString().isBlank());
         assertEquals(
-                ShotSetting.X.byDefault(),
+                ShotSetting.X.byDefault(Constants.defaults()),
                 named(listing.getAsJsonArray("settings"), "x").get("value").getAsDouble(),
                 0);
     }

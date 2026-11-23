@@ -71,14 +71,14 @@ final class FeedRun {
     }
 
     private static Checked<Engine> engine(Parts parts) {
-        ShotSettings defaults = ShotSettings.defaults();
+        ShotSettings defaults = ShotSettings.defaults(Constants.defaults());
         Map<ShotSetting, Double> spindexers = new EnumMap<>(ShotSetting.class);
         spindexers.put(ShotSetting.FRAME_FRICTION, Feed.FRICTION);
         spindexers.put(ShotSetting.FRAME_BOUNCE, Feed.RESTITUTION);
         return openAir()
                 .then(still -> Surroundings.of(still, List.of(parts.spindexer(), parts.launcher())))
                 .then(around -> ShotSetup.air(defaults)
-                        .then(air -> ShotSettings.of(spindexers)
+                        .then(air -> ShotSettings.of(spindexers, Constants.defaults())
                                 .then(settings -> ShotSetup.surfaces(settings))
                                 .map(surfaces -> Bodies.unwatched(around, air, surfaces, parts.step()))))
                 .then(bodies -> Length.of(Launcher.POLLEN_RADIUS_IN)

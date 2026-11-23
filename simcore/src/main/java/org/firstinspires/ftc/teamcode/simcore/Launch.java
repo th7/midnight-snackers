@@ -49,7 +49,7 @@ public final class Launch {
                 robot.velocity().x() - turning * offset.y(), robot.velocity().y() + turning * offset.x());
         double yawDegrees = StrictMath.toDegrees(
                 StrictMath.atan2(robot.heading().sin(), robot.heading().cos()));
-        ShotSettings field = ShotSettings.defaults();
+        ShotSettings field = ShotSettings.defaults(Constants.defaults());
         return Ball.of(pollenRadius, field.value(ShotSetting.MASS), field.value(ShotSetting.INERTIA))
                 .then(pollen -> WheelPair.Flywheel.of(flywheels.diameterInches(Flywheels.Side.BACK), back.rpm())
                         .then(one -> WheelPair.Flywheel.of(flywheels.diameterInches(Flywheels.Side.FRONT), front.rpm())

@@ -122,8 +122,17 @@ counts as backspin.
   82 mm steel flywheel.
 - *Robot velocity*: the robot's own motion is added to the ball's (shooting on the move).
 
-*Ticks per revolution* (28 for a goBILDA 5203 at 1:1) changes nothing about the shot. It only shows
-each wheel's speed as the encoder ticks per second a team's code would command.
+*Ticks per revolution* changes nothing about the shot. It only shows each wheel's speed as the
+encoder ticks per second a team's code would command.
+
+**Defaults from the robot description.** The launcher's exit height, pitch and roll, each wheel's
+diameter and the ticks per revolution default to the teammate's robot description, their Robot tab
+edits included: wheel one is the back flywheel and wheel two the front, so the Launch Sim starts
+from the launcher a run throws with (28 ticks a turn for a bare HD Hex, 3.78 in wheels, 14 in up,
+70° and roll 0 as built). They take the description's ranges too. Where the launcher stands on the
+field, its yaw and the wheels' speeds stay the Launch Sim's own, since the description holds none
+of them. A launch remembers only what it set apart from its defaults, so a value it left alone
+follows the description when a teammate changes it.
 
 ## The air
 

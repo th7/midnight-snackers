@@ -409,6 +409,10 @@ async function theLaunchSimSetsItsSettingsOutBesideTheView(page, engine) {
   const says = page.locator('#launch [data-setting="pitch"] .says');
   check(await says.isVisible() && (await says.textContent()).includes(settingNamed('pitch').says),
       `${engine}: what pitch means is not shown under it`);
+  check((await says.textContent()).includes(`unless changed, as the Robot tab's ${settingNamed('pitch').described} is`),
+      `${engine}: pitch says "${await says.textContent()}", not that its default is the Robot tab's`);
+  const yawSays = await page.locator('#launch [data-setting="yaw"] .says').textContent();
+  check(!yawSays.includes('Robot tab'), `${engine}: yaw says "${yawSays}", as though the Robot tab held it`);
   check(await page.locator('#launch-setting-wheels_slow').getAttribute('type') === 'checkbox',
       `${engine}: a switch is not a checkbox`);
 
