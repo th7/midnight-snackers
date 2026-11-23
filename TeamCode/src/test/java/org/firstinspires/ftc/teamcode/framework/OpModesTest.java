@@ -5,6 +5,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +20,7 @@ import org.firstinspires.ftc.reginald.framework.TeleOp;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.base.Gamepads;
+import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
@@ -25,6 +28,7 @@ import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
+import org.firstinspires.ftc.teamcode.sim.SimDriverStation;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -83,6 +87,41 @@ public class OpModesTest {
         public PlanPart notAnAuto() {
             return new Plan();
         }
+    }
+
+    public static class Talker extends SubSystem {
+        private final Prints channel;
+
+        public Talker(Prints channel) {
+            this.channel = channel;
+        }
+
+        @Override
+        public void loop() {
+            channel.addData("said", "hello");
+        }
+    }
+
+    @Test
+    public void shareOnGamepadTwoStepsThroughTheChannelsAndTheDriverStationSaysWhichIsShowing() {
+        OpMode practice = wired(registered(Practice.class, Steering.class, Talker.class), "Practice");
+        FakeTelemetry screen = (FakeTelemetry) practice.telemetry;
+        practice.init();
+
+        practice.loop();
+        assertFalse(screen.captions.contains("Talker.said"));
+        assertTrue(
+                String.valueOf(screen.lines), screen.lines.contains("Telemetry: off, share on gamepad 2 for the next"));
+
+        SimDriverStation.State.fromJson(new Gson().fromJson("{\"share\": true}", JsonObject.class))
+                .applyTo(practice.gamepad2);
+        screen.captions.clear();
+        screen.lines.clear();
+        practice.loop();
+        assertTrue(screen.captions.contains("Talker.said"));
+        assertTrue(
+                String.valueOf(screen.lines),
+                screen.lines.contains("Telemetry: Talker, share on gamepad 2 for the next"));
     }
 
     private static FakeOpModeManager registered(Class<?>... found) {

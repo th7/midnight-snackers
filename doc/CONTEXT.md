@@ -90,11 +90,12 @@ it rather than a position in a list. Classes: `SubSystem`; `Robot`.
 is printing. Each subsystem is handed its own when it is built and prints to
 it and nothing else, always, knowing nothing about whether anyone is
 reading; the channel puts its own name on every caption, so two subsystems
-cannot print the same one. Telemetry costs a loop and a crowded screen, so a
-channel is off until a driver asks for it, and which button reaches which
-channels is said once, in the op mode. Every channel the robot makes has a
-button; a button may also name a channel of a subsystem that is switched
-off, which then reaches nothing. Class: `TelemetryTogglesReachEveryChannelTest`.
+cannot print the same one. Telemetry costs a loop and a crowded screen, so
+one channel shows at a time, and none until a driver asks: share on gamepad 2
+shows the next channel by name, and after the last, none again. The driver
+station says which is showing on every loop. So every channel the robot
+makes is reachable with no list of them to keep, and a new subsystem's
+channel is in the cycle because it is there.
 
 That the decision lives there and nowhere else is the point. It used to be a
 flag on every subsystem, a gate in a base class and a method on each of them

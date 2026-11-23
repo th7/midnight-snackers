@@ -52,7 +52,7 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     @Override
     public final void loop() {
-        handleTelemetryToggles();
+        showTheNextChannelWhenAsked();
         beforeTheRobotTicks();
         robot.loop();
         onLoop();
@@ -62,9 +62,10 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
 
     protected void onLoop() {}
 
-    private void handleTelemetryToggles() {
-        if (gamepad2.crossWasPressed()) {
-            robot.channels.toggle("Drive", "Localizer");
+    private void showTheNextChannelWhenAsked() {
+        if (gamepad2.shareWasPressed()) {
+            robot.channels.step();
         }
+        telemetry.addData("Telemetry", robot.channels.showing().orElse("off") + ", share on gamepad 2 for the next");
     }
 }
