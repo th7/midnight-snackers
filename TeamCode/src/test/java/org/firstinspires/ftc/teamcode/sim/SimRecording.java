@@ -11,10 +11,11 @@ import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
+import org.firstinspires.ftc.teamcode.simcore.Spinner;
 
 public final class SimRecording implements SimReplayPage.Source {
-    public record Mechanisms(int held, Intake.Way intake) {
-        public static final Mechanisms NONE = new Mechanisms(0, Intake.Way.STILL);
+    public record Mechanisms(int held, Intake.Way intake, Spinner.Turning spinner, double rampDegrees, boolean rampUp) {
+        public static final Mechanisms NONE = new Mechanisms(0, Intake.Way.STILL, Spinner.Turning.still(), 0, false);
     }
 
     public static final class Tick {

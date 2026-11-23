@@ -89,12 +89,14 @@ public class SimDescriptionTest {
     public void theDirectionsNameEveryMechanismAndOnlyTheWaysEachHas() throws IOException {
         assertRefused(
                 "directions is missing",
-                SimDescription.read(written(committed().replace("\"directions\": {\"intake\": \"takes_in\"},", ""))));
+                SimDescription.read(written(committed()
+                        .replace(
+                                "\"directions\": {\"intake\": \"takes_in\", \"spinner\": \"turns_clockwise\"},", ""))));
         assertRefused(
                 "the robot description's directions name every mechanism, and intake is missing",
-                SimDescription.read(written(committed().replace("\"intake\": \"takes_in\"", ""))));
+                SimDescription.read(written(committed().replace("\"intake\": \"takes_in\", ", ""))));
         assertRefused(
-                "a mechanism is intake, not 'outtake'",
+                "a mechanism is intake, spinner, not 'outtake'",
                 SimDescription.read(
                         written(committed().replace("\"intake\": \"takes_in\"", "\"outtake\": \"takes_in\""))));
         assertRefused(

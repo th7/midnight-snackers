@@ -15,6 +15,10 @@ public class FakeServoController implements ServoControllerEx {
         return positions.getOrDefault(port, 0.0);
     }
 
+    public boolean driven(int port) {
+        return positions.containsKey(port) && isServoPwmEnabled(port);
+    }
+
     @Override
     public void pwmEnable() {}
 

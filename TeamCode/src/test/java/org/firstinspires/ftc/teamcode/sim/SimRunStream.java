@@ -89,6 +89,12 @@ public final class SimRunStream {
                     + " needs " + DIRECTIONS_PROTOCOL;
         }
 
+        public static String cannotSpindex(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and runs on the spindexer it was built with; changing it in " + SimDescription.FILE
+                    + " needs " + SPINDEXER_PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -167,7 +173,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 8;
+    public static final int PROTOCOL = 9;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -180,6 +186,8 @@ public final class SimRunStream {
     public static final int DESCRIPTION_PROTOCOL = 7;
 
     public static final int DIRECTIONS_PROTOCOL = 8;
+
+    public static final int SPINDEXER_PROTOCOL = 9;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -338,6 +346,25 @@ public final class SimRunStream {
                             + SimDescription.FILE
                             + " back as they were built.");
         }
+        if (!description.spindexerAsBuilt() && protocol < SPINDEXER_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotSpindex(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and runs on the spindexer it was built with, not the one in "
+                            + SimDescription.FILE
+                            + " ("
+                            + SimDescription.described(description)
+                            + "); it needs protocol "
+                            + SPINDEXER_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put the spinner's direction"
+                            + " and the spindexer's constants in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
+        }
         if (protocol >= PLACED_PROTOCOL) {
             return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, description), null, null);
         }
@@ -451,6 +478,14 @@ public final class SimRunStream {
         JsonObject mechanisms = new JsonObject();
         mechanisms.addProperty("held", tick.mechanisms.held());
         mechanisms.addProperty("intake", tick.mechanisms.intake().name().toLowerCase(Locale.ROOT));
+        JsonObject spinner = new JsonObject();
+        spinner.addProperty("way", tick.mechanisms.spinner().way().name().toLowerCase(Locale.ROOT));
+        spinner.add("speed", GSON.toJsonTree(tick.mechanisms.spinner().ofFull()));
+        mechanisms.add("spinner", spinner);
+        JsonObject ramp = new JsonObject();
+        ramp.add("degrees", GSON.toJsonTree(tick.mechanisms.rampDegrees()));
+        ramp.addProperty("up", tick.mechanisms.rampUp());
+        mechanisms.add("ramp", ramp);
         t.add("mechanisms", mechanisms);
         return t;
     }

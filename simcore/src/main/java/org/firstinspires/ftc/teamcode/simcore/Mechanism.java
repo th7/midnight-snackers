@@ -5,7 +5,14 @@ import java.util.List;
 import java.util.Locale;
 
 public enum Mechanism {
-    INTAKE("Intake", "the intake", "takes_in", "pushes_out", "power takes pollen in", "power pushes pollen out");
+    INTAKE("Intake", "the intake", "takes_in", "pushes_out", "power takes pollen in", "power pushes pollen out"),
+    SPINNER(
+            "Spinner",
+            "the spinner",
+            "turns_clockwise",
+            "turns_counterclockwise",
+            "power turns it clockwise from above",
+            "power turns it counterclockwise from above");
 
     private final String label;
     private final String called;

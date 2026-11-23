@@ -59,7 +59,11 @@ function aRunToPlay(model) {
       packets: n === 0 ? [] : overlay,
       pieces: places(n),
       tilt: n === 1 && blue ? { Blue: blue.tilt - 25 } : undefined,
-      mechanisms: [{ held: 0, intake: 'still' }, { held: 1, intake: 'in' }, { held: 2, intake: 'out' }][n]
+      mechanisms: [
+        { held: 0, intake: 'still', spinner: { way: 'still', speed: 0 }, ramp: { degrees: 0, up: false } },
+        { held: 1, intake: 'in', spinner: { way: 'clockwise', speed: 0.9 }, ramp: { degrees: 36.45, up: true } },
+        { held: 2, intake: 'out', spinner: { way: 'counterclockwise', speed: 0.5 }, ramp: { degrees: 10, up: false } }
+      ][n]
     }))
   };
 }
@@ -206,6 +210,9 @@ const readPanels = (open) => open.evaluate(() => ({
   pose: document.getElementById('pose').textContent,
   held: document.getElementById('held').textContent,
   intake: document.getElementById('intake').textContent,
+  spinner: document.getElementById('spinner').textContent,
+  ramp: document.getElementById('ramp').textContent,
+  wrong: ['intake', 'spinner', 'ramp'].filter((id) => document.getElementById(id).classList.contains('wrong')),
   ticks: Number(document.getElementById('scrub').max),
   drawing: window.replayPage.drawing,
   problem: window.replayPage.problem
@@ -261,6 +268,9 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(panels.step === '0. drive', `the first tick's step reads "${panels.step}"`);
     check(panels.held === '0', `the first tick shows "${panels.held}" held, not 0`);
     check(panels.intake === 'still', `the first tick shows the intake "${panels.intake}", not still`);
+    check(panels.spinner === 'still', `the first tick shows the spinner "${panels.spinner}", not still`);
+    check(panels.ramp === '0.0° down', `the first tick shows the ramp "${panels.ramp}", not 0.0° down`);
+    check(panels.wrong.length === 0, `a robot doing nothing shows ${panels.wrong.join(', ')} the wrong way`);
 
     await twoFrames(open);
     const first = await open.evaluate(() => ({
@@ -285,6 +295,12 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(last.step === '2. drive', `after scrubbing to the end the step reads "${last.step}"`);
     check(last.held === '2', `the last tick shows "${last.held}" held, not 2`);
     check(last.intake === 'pushing out', `the last tick shows the intake "${last.intake}", not pushing out`);
+    check(last.spinner === 'counterclockwise 50%',
+          `the last tick shows the spinner "${last.spinner}", not counterclockwise 50%`);
+    check(last.ramp === '10.0° down', `the last tick shows the ramp "${last.ramp}", not 10.0° down`);
+    check(last.wrong.join(',') === 'intake,spinner,ramp',
+          `pushing out, turning counterclockwise and a ramp down while the spinner turns show only `
+          + `${last.wrong.join(', ') || 'nothing'} the wrong way`);
     const reads = `x ${at.x.toFixed(1)} in, y ${at.y.toFixed(1)} in, `
         + `${(at.heading * 180 / Math.PI).toFixed(1)}°`;
     check(last.pose === reads, `the page shows the pose "${last.pose}", not the last tick's "${reads}"`);
@@ -306,6 +322,10 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     await scrubTo(open, 1);
     await twoFrames(open);
     const tipped = await open.evaluate(() => window.replayPage.leaning);
+    const feeding = await readPanels(open);
+    check(feeding.spinner === 'clockwise 90%', `a tick turning clockwise shows the spinner "${feeding.spinner}"`);
+    check(feeding.ramp === '36.5° up', `a tick with the ramp up shows it "${feeding.ramp}", not 36.5° up`);
+    check(feeding.wrong.length === 0, `a robot taking in and feeding shows ${feeding.wrong.join(', ')} the wrong way`);
     check(Math.abs(tipped.Blue - ended.leaning.Blue) > 0.01,
           `the blue hive leans ${tipped.Blue} on the tick that tips it and ${ended.leaning.Blue} at rest, `
           + 'so the live view is not leaning it');

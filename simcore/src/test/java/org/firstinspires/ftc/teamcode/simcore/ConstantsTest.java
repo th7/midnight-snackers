@@ -81,6 +81,16 @@ public class ConstantsTest {
     }
 
     @Test
+    public void reginaldsSpindexerAsBuiltTurnsItsSpinnerAtAboutARevolutionASecondAndRaisesItsRampThirtyFiveDegrees() {
+        Constants built = Constants.defaults();
+
+        assertEquals(59.5, built.value(Constant.SPINNER_FULL_SPEED_RPM), 0);
+        assertEquals(0.168, built.value(Constant.RAMP_SECONDS_PER_60_DEGREES), 0);
+        assertEquals(35, built.value(Constant.RAMP_UP_DEGREES), 0);
+        assertEquals(Constant.Group.SPINDEXER, Constant.RAMP_UP_DEGREES.group());
+    }
+
+    @Test
     public void everyConstantSaysWhatItIsInWhatUnitAndWhereItMayGo() {
         for (Constant constant : Constant.values()) {
             assertFalse(constant.name(), constant.label().isBlank());

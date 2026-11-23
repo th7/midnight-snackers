@@ -178,14 +178,41 @@ public enum Constant {
             "How far ahead of the robot's centre the dead wheel that rolls sideways sits; behind is negative.",
             -3.5,
             -9,
-            9);
+            9),
+    SPINNER_FULL_SPEED_RPM(
+            Group.SPINDEXER,
+            "Spinner full speed",
+            "rpm",
+            "How fast the spinner turns at a 2500 microsecond pulse, the fastest REV's continuous mode turns it.",
+            59.5,
+            1,
+            300),
+    RAMP_SECONDS_PER_60_DEGREES(
+            Group.SPINDEXER,
+            "Ramp slew",
+            "s per 60 deg",
+            "How long the ramp's servo takes to turn 60 degrees toward the angle its pulse asks for.",
+            0.168,
+            0.01,
+            2),
+    RAMP_UP_DEGREES(
+            Group.SPINDEXER,
+            "Ramp up",
+            "deg",
+            "How far above stowed the ramp must stand before the spindexer can hand a pollen to the launcher.",
+            35,
+            0,
+            243);
 
     public enum Group {
         NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
         DRIVE(
                 "Drive",
                 "How the drivetrain moves the robot: its motors' feedforward, its wheels' spacing and its weight."),
-        DEAD_WHEELS("Dead wheels", "Where the odometry wheels sit on the robot and how far each rolls a tick.");
+        DEAD_WHEELS("Dead wheels", "Where the odometry wheels sit on the robot and how far each rolls a tick."),
+        SPINDEXER(
+                "Spindexer",
+                "How fast the spinner turns, how fast the ramp rises, and how high it must stand to feed the launcher.");
 
         private final String label;
         private final String says;

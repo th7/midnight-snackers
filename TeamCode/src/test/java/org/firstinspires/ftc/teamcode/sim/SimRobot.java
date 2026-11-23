@@ -55,6 +55,7 @@ import org.firstinspires.ftc.teamcode.simcore.Nest;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.PerWheel;
 import org.firstinspires.ftc.teamcode.simcore.Power;
+import org.firstinspires.ftc.teamcode.simcore.Ramp;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Rolling;
 import org.firstinspires.ftc.teamcode.simcore.RunMode;
@@ -62,6 +63,7 @@ import org.firstinspires.ftc.teamcode.simcore.Seat;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
 import org.firstinspires.ftc.teamcode.simcore.Sense;
 import org.firstinspires.ftc.teamcode.simcore.Spin;
+import org.firstinspires.ftc.teamcode.simcore.Spinner;
 import org.firstinspires.ftc.teamcode.simcore.Stack;
 import org.firstinspires.ftc.teamcode.simcore.Twist;
 import org.firstinspires.ftc.teamcode.simcore.Vec2;
@@ -145,6 +147,10 @@ public class SimRobot {
     private Intake.Held held = Intake.Held.none();
 
     private Intake.Way intakeWay = Intake.Way.STILL;
+
+    private Spinner.Turning spinnerTurning = Spinner.Turning.still();
+
+    private Ramp ramp = Ramp.stowed();
 
     private enum Where {
         ROLLING,
@@ -645,7 +651,12 @@ public class SimRobot {
     }
 
     public SimRecording.Mechanisms mechanisms() {
-        return new SimRecording.Mechanisms(held.count(), intakeWay);
+        return new SimRecording.Mechanisms(
+                held.count(),
+                intakeWay,
+                spinnerTurning,
+                ramp.degrees(),
+                ramp.up(description.constants().value(Constant.RAMP_UP_DEGREES)));
     }
 
     public int scored(String alliance) {
@@ -707,6 +718,7 @@ public class SimRobot {
         holdTheNests(dt);
         world.step(1, dt.value());
         intakeThePollen();
+        turnTheSpindexer(dt);
         fallInTheFlowers(dt);
         standInTheBores();
         flyTheBalls(dt);
@@ -745,6 +757,12 @@ public class SimRobot {
             ball.where = Where.HELD;
         }
         held = taken.held();
+    }
+
+    private void turnTheSpindexer(Seconds dt) {
+        spinnerTurning = Spinner.turning(
+                devices.spinnerSignal(), description.directions().reversed(Mechanism.SPINNER));
+        ramp = ramp.next(devices.rampSignal(), description.constants().value(Constant.RAMP_SECONDS_PER_60_DEGREES), dt);
     }
 
     private boolean againstTheFront(Ball ball) {

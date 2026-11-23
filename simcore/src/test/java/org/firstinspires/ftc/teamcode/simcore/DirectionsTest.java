@@ -33,8 +33,18 @@ public class DirectionsTest {
     public void aMechanismIsNamedAsTheDescriptionAsksForIt() {
         assertEquals(Mechanism.INTAKE, Valid.value(Mechanism.named("intake")));
         assertEquals(
-                "a mechanism is intake, not 'outtake'",
+                "a mechanism is intake, spinner, not 'outtake'",
                 Mechanism.named("outtake").fold(found -> "found " + found, rule -> rule));
+    }
+
+    @Test
+    public void reginaldsSpinnerAsBuiltTurnsClockwiseFromAboveOnPositivePower() {
+        Directions reversed = Directions.reginalds().with(Mechanism.SPINNER, true);
+
+        assertFalse(Directions.reginalds().reversed(Mechanism.SPINNER));
+        assertEquals("turns_clockwise", Mechanism.SPINNER.way(false));
+        assertEquals("Positive power turns it counterclockwise from above.", Mechanism.SPINNER.says(true));
+        assertEquals("spinner turns counterclockwise on positive power", reversed.toString());
     }
 
     @Test

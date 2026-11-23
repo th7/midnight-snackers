@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
+import org.firstinspires.ftc.teamcode.simcore.Spinner;
 import org.junit.Test;
 
 public class SimRunStreamTest {
@@ -115,22 +116,25 @@ public class SimRunStreamTest {
     }
 
     @Test
-    public void aTickSaysWhatTheRobotHoldsAndWhichWayItsIntakeTurns() {
+    public void aTickSaysWhatTheRobotHoldsAndHowItsIntakeSpinnerAndRampTurn() {
         Heard heard = new Heard();
         SimRecording.Tick taking = SimRecording.Tick.at(
                         1, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
-                .turning(new SimRecording.Mechanisms(1, Intake.Way.IN))
+                .turning(new SimRecording.Mechanisms(
+                        1, Intake.Way.IN, new Spinner.Turning(Spinner.Way.CLOCKWISE, 0.9), 36.45, true))
                 .tick();
 
         SimRunStream.accept(SimRunStream.tick(taking), heard);
         SimRunStream.accept(SimRunStream.tick(tick(2, "quiet")), heard);
 
         assertEquals(
-                "{\"held\":1,\"intake\":\"in\"}",
+                "{\"held\":1,\"intake\":\"in\",\"spinner\":{\"way\":\"clockwise\",\"speed\":0.9},"
+                        + "\"ramp\":{\"degrees\":36.45,\"up\":true}}",
                 heard.ticks.get(0).get("mechanisms").toString());
         assertEquals(
                 "a still robot holding nothing says so",
-                "{\"held\":0,\"intake\":\"still\"}",
+                "{\"held\":0,\"intake\":\"still\",\"spinner\":{\"way\":\"still\",\"speed\":0.0},"
+                        + "\"ramp\":{\"degrees\":0.0,\"up\":false}}",
                 heard.ticks.get(1).get("mechanisms").toString());
     }
 
@@ -578,5 +582,59 @@ public class SimRunStreamTest {
         assertTrue(handshake.message, handshake.message.contains("Pull develop"));
         assertTrue(handshake.message, handshake.message.contains(SimDescription.FILE));
         assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    private static RobotDescription spinnerReversed() {
+        return RobotDescription.reginalds().with(Directions.reginalds().with(Mechanism.SPINNER, true));
+    }
+
+    private static RobotDescription quickerRamp() {
+        return RobotDescription.reginalds()
+                .with(Valid.value(Constants.of(java.util.Map.of(Constant.RAMP_SECONDS_PER_60_DEGREES, 0.1))));
+    }
+
+    @Test
+    public void aChildThatTakesTheSpindexerSpeaksProtocolNine() {
+        assertEquals(9, SimRunStream.SPINDEXER_PROTOCOL);
+        assertTrue(SimRunStream.SPINDEXER_PROTOCOL > SimRunStream.DIRECTIONS_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.SPINDEXER_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldTheSpindexerAsTheDescriptionHasIt() {
+        SimRunStream.Handshake reversed =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, spinnerReversed());
+        SimRunStream.Handshake quicker =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, quickerRamp());
+
+        assertFalse(reversed.message, reversed.refused());
+        assertEquals(
+                "turns_counterclockwise",
+                reversed.startLine.getAsJsonObject("directions").get("spinner").getAsString());
+        assertFalse(quicker.message, quicker.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheSpindexerStillTakesAReversedIntake() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.SPINDEXER_PROTOCOL - 1), StartPoses.ORIGIN, null, intakeReversed());
+
+        assertFalse(handshake.message, handshake.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheSpindexerIsRefusedASpindexerThatDiffersByNameAndToldTheFix() {
+        for (RobotDescription differs : java.util.List.of(spinnerReversed(), quickerRamp())) {
+            SimRunStream.Handshake handshake =
+                    SimRunStream.handshake(SimRunStream.helloOf(8), StartPoses.ORIGIN, null, differs);
+
+            assertTrue(handshake.refused());
+            assertEquals(Outcome.cannotSpindex(8), handshake.outcome);
+            assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+            assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.SPINDEXER_PROTOCOL));
+            assertTrue(handshake.message, handshake.message.contains(SimDescription.described(differs)));
+            assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+            assertNull("a refused run is sent nothing", handshake.startLine);
+        }
     }
 }

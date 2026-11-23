@@ -2,9 +2,10 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.hardware.motors.RevRoboticsUltraPlanetaryHdHexMotor;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-import com.qualcomm.robotcore.hardware.CRServoImpl;
+import com.qualcomm.robotcore.hardware.CRServoImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.UserConfigurationType;
@@ -26,6 +27,7 @@ import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.MotorType;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
+import org.firstinspires.ftc.teamcode.simcore.ServoSignal;
 
 public final class SimDevices {
     public static final double BATTERY_VOLTS = 12.5;
@@ -34,7 +36,7 @@ public final class SimDevices {
     public final FakeVoltageSensor voltageSensor = new FakeVoltageSensor(BATTERY_VOLTS);
     public final FakeDashboard dashboard = new FakeDashboard();
     public final FakeServoController servos = new FakeServoController();
-    public CRServoImpl spinner;
+    public CRServoImplEx spinner;
     public ServoImplEx ramp;
 
     private final Map<String, FakeDcMotorEx> motors = new LinkedHashMap<>();
@@ -61,7 +63,7 @@ public final class SimDevices {
             } else if (device instanceof Configuration.Imu) {
                 hardwareMap.put(name, imu);
             } else if (device instanceof Configuration.ContinuousServo) {
-                spinner = new CRServoImpl(servos, servoPort++, DcMotorSimple.Direction.FORWARD);
+                spinner = new CRServoImplEx(servos, servoPort++, DcMotorSimple.Direction.FORWARD, null);
                 hardwareMap.crservo.put(name, spinner);
             } else if (device instanceof Configuration.Servo) {
                 ramp = new ServoImplEx(servos, servoPort++, null);
@@ -70,6 +72,20 @@ public final class SimDevices {
                 hardwareMap.voltageSensor.put(name, voltageSensor);
             }
         }
+    }
+
+    public ServoSignal spinnerSignal() {
+        return spinner == null ? ServoSignal.none() : signalTo(spinner.getPortNumber());
+    }
+
+    public ServoSignal rampSignal() {
+        return ramp == null ? ServoSignal.none() : signalTo(ramp.getPortNumber());
+    }
+
+    private ServoSignal signalTo(int port) {
+        PwmControl.PwmRange range = servos.getServoPwmRange(port);
+        return Valid.value(
+                ServoSignal.of(servos.driven(port), servos.position(port), range.usPulseLower, range.usPulseUpper));
     }
 
     static RevHubOrientationOnRobot sdkMounting(HubMounting hub) {

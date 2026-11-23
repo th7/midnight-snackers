@@ -13,7 +13,7 @@
     {"name": "Control Hub", "kind": "voltage_sensor"}
   ],
   "hub": {"logo": "RIGHT", "usb": "UP"},
-  "directions": {"intake": "takes_in"},
+  "directions": {"intake": "takes_in", "spinner": "turns_clockwise"},
   "constants": {
     "motor_spread": 0.1,
     "flattest_volts": 12.0,
@@ -38,6 +38,9 @@
     "mass_kg": 15,
     "dead_wheel_in_per_tick": 0.0005433029,
     "parallel_dead_wheel_y_in": -0.25,
-    "perpendicular_dead_wheel_x_in": -3.5
+    "perpendicular_dead_wheel_x_in": -3.5,
+    "spinner_full_speed_rpm": 59.5,
+    "ramp_seconds_per_60_degrees": 0.168,
+    "ramp_up_degrees": 35
   }
 }

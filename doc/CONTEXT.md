@@ -805,7 +805,10 @@ when they differ from Reginald's as built; an older child runs on the ones it
 was built with, so the bench refuses it by name, with the fix, when either
 differs. From version 8 it may carry the **directions** too, when any mechanism is
 reversed; an older child runs every mechanism as built, so the bench refuses it by
-name, with the fix, when one is reversed. Only the bench and its child speak this protocol: the browser's page
+name, with the fix, when one is reversed. From version 9 the spinner is among the
+directions and the spindexer's constants among the constants; an older child runs the
+spindexer it was built with, so the bench refuses it by name, with the fix, when the
+spinner is reversed or a spindexer constant changed. Only the bench and its child speak this protocol: the browser's page
 is reloaded when it changes, so it is never versioned. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
@@ -888,8 +891,11 @@ drive motor, in the order the **drivebase** names them, `LF`, `RF`, `LB`,
 `RB`, which is how the replay page labels them — the
 dashboard packets drawn that loop, where the balls are (each as x, y, z), how
 many each alliance has **scored**, for a TeleOp what each gamepad read, and
-the robot's mechanisms: how many pollen it **holds** and which way its intake
-turns. Class: `SimRecording`.
+the robot's mechanisms: how many pollen it **holds**, which way its intake
+turns, which way the **spinner** turns and at what fraction of full speed, and the
+**ramp**'s angle and whether it is up. The replay page marks an intake pushing out, a
+spinner turning counterclockwise and a ramp down while the spinner turns as the wrong
+way; none stops the run. Class: `SimRecording`.
 
 **Golden trace** — What the simulator's flight did, sample by sample, kept
 in a file under `TeamCode/src/test/resources/.../sim/traces` and compared
@@ -1265,7 +1271,8 @@ reading a dead wheel or nothing runs away toward full power, as on the robot.
 
 **Directions** — Which way positive power turns each mechanism's pieces, with the
 SDK's motor direction left forward: the intake `takes_in` as built, or
-`pushes_out`. A part of the **robot description** a teammate reverses on the Robot
+`pushes_out`; the **spinner** `turns_clockwise` from above as built, or
+`turns_counterclockwise`. A part of the **robot description** a teammate reverses on the Robot
 tab, so code written for the other way round is seen doing the wrong thing.
 Classes: `Directions` and `Mechanism`, in the **core**.
 
@@ -1275,6 +1282,22 @@ still, the robot pushes pollen as its chassis would. A held pollen is off the
 field, so its place in a tick is empty. Which way the intake turns comes from its
 motor's spin and the **directions**, and is shown with what it holds on every tick,
 live and in the replay. Class: `Intake`, in the **core**.
+
+**Spinner** — The spindexer's continuous servo, turning the pollen it holds about a
+shaft up from below. What the code writes becomes a pulse as the SDK makes it (power
+−1…1 onto positions 0…1, negated for `REVERSE`, across the port's `PwmControl` range,
+600–2400 µs unless the code sets one), and the pulse becomes motion as REV's continuous
+mode makes it: 1500 µs is still, above it clockwise from above up to full speed at
+2500 µs, below it counterclockwise; the **directions** may reverse that. So power 1
+`FORWARD` is clockwise at 90% of full speed. A servo the code has not driven, or whose
+pulse it disabled, is still. Classes: `ServoSignal` and `Spinner`, in the **core**.
+
+**Ramp** — The spindexer's servo that lifts a pollen to the launcher. Its pulse, made as
+the spinner's is, becomes an angle as REV's servo mode makes it, 500→2500 µs onto
+−135°→+135°, so position 0 through the SDK's range is stowed and the angle above stowed
+is position × 243°. It slews toward that angle at the description's rate (0.168 s per
+60° as built) and is **up** at or above the description's angle (35° as built). Class:
+`Ramp`, in the **core**.
 Each port reports its count as the SDK does: negated for a reversed motor,
 velocity in twenty-tick steps, zeroed while in `STOP_AND_RESET_ENCODER`.
 `RUN_TO_POSITION` is refused. The loop's gains are the simulator's own; the hub
@@ -1463,7 +1486,8 @@ run can be started on other values of: the **noise** a seed draws a robot from (
 motor strays from its tuning, the battery, its sag and drain, traction, how a
 hand sets the robot down, and the loop and its hiccups), and the physical truth of
 the **robot description** (the drive's feedforward per inch, its track width,
-lateral multiplier and mass, and the dead wheels' tick and where they sit). Each has a range it may go in, and the ones that come in
+lateral multiplier and mass, the dead wheels' tick and where they sit, and the
+**spindexer**'s: the **spinner**'s full speed, and the **ramp**'s slew and the angle it is up at). Each has a range it may go in, and the ones that come in
 pairs — the flattest and freshest battery, the least and most traction, the
 shortest loop, the loop, and the shortest and longest hiccup — must be the
 right way round. No set may let a wheel turn faster than the chassis may move,

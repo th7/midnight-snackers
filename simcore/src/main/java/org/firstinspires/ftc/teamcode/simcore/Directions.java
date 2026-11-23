@@ -46,9 +46,9 @@ public final class Directions {
     @Override
     public String toString() {
         List<String> said = new ArrayList<>();
-        for (Mechanism mechanism : Mechanism.values()) {
-            said.add(mechanism.said(reversed(mechanism)));
+        for (Mechanism mechanism : reversed) {
+            said.add(mechanism.said(true));
         }
-        return String.join(", ", said);
+        return said.isEmpty() ? "as built" : String.join(", ", said);
     }
 }

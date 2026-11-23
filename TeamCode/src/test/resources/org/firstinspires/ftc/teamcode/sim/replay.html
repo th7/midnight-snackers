@@ -59,6 +59,7 @@ __IMPORTMAP__
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
   dt { color: var(--muted); }
   dd { margin: 0; word-break: break-word; }
+  dd.wrong { color: var(--stop); font-weight: 600; }
   .section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
   .power { display: grid; grid-template-columns: 3ch 1fr 5.5ch; gap: 10px; align-items: center; margin: 3px 0; }
   .power span:last-child { text-align: right; }
@@ -155,6 +156,8 @@ __IMPORTMAP__
       <dt>scored</dt><dd class="mono" id="balls"></dd>
       <dt>held</dt><dd class="mono" id="held"></dd>
       <dt>intake</dt><dd class="mono" id="intake"></dd>
+      <dt>spinner</dt><dd class="mono" id="spinner"></dd>
+      <dt>ramp</dt><dd class="mono" id="ramp"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -817,9 +820,7 @@ __IMPORTMAP__
     const scored = tick.scored || {};
     document.getElementById('balls').textContent =
       'blue ' + (scored.Blue || 0) + ', red ' + (scored.Red || 0);
-    const mechanisms = tick.mechanisms;
-    document.getElementById('held').textContent = mechanisms ? String(mechanisms.held) : '\u2014';
-    document.getElementById('intake').textContent = mechanisms ? INTAKE_WAYS[mechanisms.intake] || mechanisms.intake : '\u2014';
+    showMechanisms(tick.mechanisms);
 
     const names = ['LF', 'RF', 'LB', 'RB'];
     document.getElementById('powers').innerHTML = tick.powers.map((p, i) => {
@@ -831,6 +832,25 @@ __IMPORTMAP__
     const data = packets.length ? packets[packets.length - 1].data || {} : {};
     document.getElementById('data').innerHTML = Object.keys(data).map(k =>
       '<tr><td>' + k + '</td><td>' + data[k] + '</td></tr>').join('');
+  }
+
+  function showMechanisms(mechanisms) {
+    const spinner = mechanisms && mechanisms.spinner;
+    const ramp = mechanisms && mechanisms.ramp;
+    const turning = !!spinner && spinner.way !== 'still';
+    show('held', mechanisms ? String(mechanisms.held) : '\u2014', false);
+    show('intake', mechanisms ? INTAKE_WAYS[mechanisms.intake] || mechanisms.intake : '\u2014',
+         !!mechanisms && mechanisms.intake === 'out');
+    show('spinner', !spinner ? '\u2014' : turning ? spinner.way + ' ' + Math.round(spinner.speed * 100) + '%' : 'still',
+         turning && spinner.way === 'counterclockwise');
+    show('ramp', ramp ? ramp.degrees.toFixed(1) + '\u00b0 ' + (ramp.up ? 'up' : 'down') : '\u2014',
+         !!ramp && !ramp.up && turning);
+  }
+
+  function show(id, text, wrong) {
+    const shown = document.getElementById(id);
+    shown.textContent = text;
+    shown.classList.toggle('wrong', wrong);
   }
 
   function setIndex(i) {

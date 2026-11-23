@@ -86,4 +86,20 @@ public class RobotDescriptionTest {
         assertFalse(intakeReversed.directionsAsBuilt());
         assertTrue(intakeReversed.constants().asBuilt() && intakeReversed.hubAsBuilt());
     }
+
+    @Test
+    public void theSpindexerIsAsBuiltWhileItsSpinnerTurnsAsBuiltAndNoneOfItsConstantsHasChanged() {
+        RobotDescription built = RobotDescription.reginalds();
+        RobotDescription spinnerReversed = built.with(Directions.reginalds().with(Mechanism.SPINNER, true));
+        RobotDescription quickerRamp =
+                built.with(Valid.value(Constants.of(Map.of(Constant.RAMP_SECONDS_PER_60_DEGREES, 0.1))));
+        RobotDescription intakeReversed = built.with(Directions.reginalds().with(Mechanism.INTAKE, true));
+        RobotDescription heavier = built.with(Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))));
+
+        assertTrue(built.spindexerAsBuilt());
+        assertFalse(spinnerReversed.spindexerAsBuilt());
+        assertFalse(quickerRamp.spindexerAsBuilt());
+        assertTrue(intakeReversed.spindexerAsBuilt());
+        assertTrue(heavier.spindexerAsBuilt());
+    }
 }

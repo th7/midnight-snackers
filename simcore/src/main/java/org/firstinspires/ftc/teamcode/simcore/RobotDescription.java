@@ -61,6 +61,18 @@ public final class RobotDescription {
         return directions.asBuilt();
     }
 
+    public boolean spindexerAsBuilt() {
+        if (directions.reversed(Mechanism.SPINNER)) {
+            return false;
+        }
+        for (Constant changed : constants.changed().keySet()) {
+            if (changed.group() == Constant.Group.SPINDEXER) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean asBuilt() {
         return hubAsBuilt() && configurationAsBuilt() && constants.asBuilt() && directionsAsBuilt();
     }
