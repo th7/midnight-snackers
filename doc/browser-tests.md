@@ -101,7 +101,7 @@ for the page that draws the field, which it then never looked at; it asks for
 ## The other page a browser is the only witness to
 
 `tools/browser/dashboard.mjs` opens the **simulator's page** -- the one the **local
-simulator** serves, with the Simulate, Launch Sim and Spindexer Sim tabs -- the same way,
+simulator** serves, with the Robot, Simulate, Launch Sim and Spindexer Sim tabs -- the same way,
 over a throwaway server that answers `/` and `/sim/*` as the local simulator does, with
 the real `dashboard.html`.
 
@@ -130,11 +130,25 @@ looking at it.
 
 `tools/browser/simulator.mjs` opens the same `dashboard.html` as the local simulator
 serves it, over a throwaway server that answers `/` and `/sim/*` and nothing else. There
-the page is titled Simulator, offers Simulate, Launch Sim and Spindexer Sim alone, opens on
+the page is titled Simulator, offers Robot, Simulate, Launch Sim and Spindexer Sim alone, opens on
 Simulate even when it is asked for the `#edit` an old link may carry, shows a checkout
-that does not compile by its file and line, runs an op mode and sets out both sims'
+that does not compile by its file and line, runs an op mode and lists it with the robot
+description it was made on, and sets out both sims'
 settings, on this engine and on one shaped like an older iPad's. Every request it makes
 is recorded, and any outside `/sim` fails the check.
+
+`tools/browser/robot.mjs` opens the same `dashboard.html` on its **Robot tab**, over a
+throwaway server that answers `/sim/robot` with what the bench itself answered, kept at
+`tools/browser/robot-answers.json`: the listing, a moved dead wheel saved, a flattest
+battery above the freshest refused, every edit reset, a motor rewired, and a file an
+older build kept recalled. The server takes only the edits those answers were made
+from, so a tab that sends anything else fails the check. There the tab comes first,
+lists every device and every value with its range and sentence, saves a moved wheel,
+marks it and shows it again when opened anew, shows the refusal beside the battery with
+nothing saved, rewires a motor, puts everything back with Reset all, shows what it
+could not keep from the older file, and does not scroll sideways on a phone.
+`SimRobotTabTest` fails when the bench's answers are no longer shaped as the ones kept,
+saying to regenerate them with `-DsimTrace.regenerate=true`.
 
 `tools/browser/launch.mjs` opens the **Launch Sim's page** the same way, over a
 throwaway server that answers `/launches/<id>/shot` with shots built by hand -- a lob

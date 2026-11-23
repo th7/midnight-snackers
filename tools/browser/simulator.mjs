@@ -10,6 +10,7 @@ const DOES_NOT_COMPILE = 'the sources do not compile:\n'
     + 'org/firstinspires/ftc/reginald/Plans.java:161: illegal start of expression';
 const LIVE_VIEW = '<!doctype html><meta charset="utf-8"><title>Live view</title><body></body>';
 const VIEWER = '<!doctype html><meta charset="utf-8"><title>Viewer</title><body></body>';
+const MADE_ON = 'Parallel dead wheel, left of centre -1.5 in (built -0.25)';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const LAUNCH = JSON.parse(fs.readFileSync(path.join(here, 'launch-answers.json'), 'utf8'));
@@ -48,7 +49,10 @@ function serve() {
         response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }).end(DOES_NOT_COMPILE);
       }
     } else if (route === 'GET /sim/status') {
-      json(response, { running: false, runs: [] });
+      json(response, { running: false, runs: RUNS.map((name, i) => ({
+        id: i + 1, name, kind: OPMODE.kind, mode: 'free', startedBy: null, seed: 1, description: MADE_ON,
+        phase: 'over', loops: 3, seconds: 0.06, outcome: 'done', message: null
+      })) });
     } else if (route === 'POST /sim/run') {
       RUNS.push(new URL(request.url, 'http://x').searchParams.get('opmode'));
       json(response, { id: RUNS.length });
@@ -116,8 +120,8 @@ async function itCarriesTheSimulatorAlone(page, engine) {
   const heading = await page.locator('header h1').textContent();
   check(heading === 'Simulator', `${engine}: the page is headed "${heading}"`);
   const tabs = await page.locator('nav [data-tab]').evaluateAll((all) => all.map((tab) => tab.dataset.tab));
-  check(tabs.join(',') === 'simulate,launch,spindexer', `${engine}: the page offers the tabs ${tabs.join(', ')}`);
-  check(await page.locator('#edit, #editor, #files, #git, #who, #robot, #adb').count() === 0,
+  check(tabs.join(',') === 'robot,simulate,launch,spindexer', `${engine}: the page offers the tabs ${tabs.join(', ')}`);
+  check(await page.locator('#edit, #editor, #files, #git, #who, select#robot, #adb').count() === 0,
       `${engine}: the page still carries the editor, the branch panel or who is signed in`);
   check(await page.locator('#simulate').isVisible(), `${engine}: the page does not open on Simulate`);
   check(page.url().endsWith('#simulate'), `${engine}: the page is at ${page.url()}, not #simulate`);
@@ -143,6 +147,13 @@ async function aRunIsAskedForAndShown(page, engine) {
       `${engine}: pressing Run does not show the run's live view`);
   check(RUNS.slice(before).join(',') === OPMODE.name,
       `${engine}: pressing Run asked for ${RUNS.slice(before).join(', ') || 'nothing'}`);
+  check(await untilTrue(page, (said) => [...document.querySelectorAll('#history tbody tr')]
+      .some((row) => row.title.endsWith('robot description: ' + said)), MADE_ON),
+      `${engine}: the run is not listed with the robot description it was made on`);
+  const edited = await page.locator('#stage-state .pill', { hasText: 'robot edited' }).getAttribute('title')
+      .catch(() => null);
+  check(edited === 'Robot description: ' + MADE_ON,
+      `${engine}: the run shown says its robot was "${edited}", not what it was made on`);
 }
 
 async function theLaunchAndSpindexerSimsSetOutTheirSettings(page, engine) {
@@ -198,9 +209,9 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('the simulator\'s page is titled Simulator, offers Simulate, Launch Sim '
-      + 'and Spindexer Sim alone and opens on Simulate even when asked for #edit, shows a compile error with its '
-      + 'file and line and lists the op modes once it is fixed, asks for a run and shows its live view, sets out '
+  console.log('the simulator\'s page is titled Simulator, offers Robot, Simulate, '
+      + 'Launch Sim and Spindexer Sim alone and opens on Simulate even when asked for #edit, shows a compile error with its '
+      + 'file and line and lists the op modes once it is fixed, asks for a run and shows its live view and the robot description it was made on, sets out '
       + 'the Launch Sim\'s and the Spindexer Sim\'s settings, and asks for nothing outside /sim, on this engine and '
       + 'on one shaped like an older iPad\'s.');
 }

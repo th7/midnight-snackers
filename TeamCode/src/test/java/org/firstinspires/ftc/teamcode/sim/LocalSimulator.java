@@ -18,7 +18,7 @@ import org.firstinspires.ftc.teamcode.simcore.WhereTheHostIs;
 /**
  * The simulator a teammate runs from their own checkout: one bench over the sources on disk, for
  * Reginald, served on loopback alone to the browser on the same machine. It serves the dashboard's
- * Simulate, Launch Sim and Spindexer Sim tabs.
+ * Robot, Simulate, Launch Sim and Spindexer Sim tabs.
  * <pre>
  * ./gradlew :TeamCode:simulator      (or the Simulator run configuration in Android Studio)
  * </pre>

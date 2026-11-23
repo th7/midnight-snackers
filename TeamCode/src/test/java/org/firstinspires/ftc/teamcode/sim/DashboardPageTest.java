@@ -78,6 +78,21 @@ public class DashboardPageTest {
     }
 
     @Test
+    public void theDashboardHasARobotTabBeforeSimulate() {
+        assertTrue(PAGE, PAGE.contains("data-tab=\"robot\" aria-selected=\"false\" aria-controls=\"robot\""));
+        assertTrue(PAGE, PAGE.contains("<main id=\"robot\" class=\"panel\" role=\"tabpanel\" hidden>"));
+        assertTrue(PAGE, PAGE.contains("fetch('/sim/robot'"));
+        assertTrue(
+                "the Robot tab comes before Simulate",
+                PAGE.indexOf("data-tab=\"robot\"") < PAGE.indexOf("data-tab=\"simulate\""));
+        int robotTab = PAGE.indexOf("part('the robot description', ");
+        assertTrue("the robot description starts as a part of its own", robotTab >= 0);
+        assertTrue(
+                "and before the tabs, so the tab it is opened on can enter it",
+                robotTab < PAGE.indexOf("part('the tabs', wireTabs)"));
+    }
+
+    @Test
     public void theDashboardHasASpindexerSimTabAfterLaunchSim() {
         assertTrue(PAGE, PAGE.contains("data-tab=\"spindexer\" aria-selected=\"false\" aria-controls=\"spindexer\""));
         assertTrue(PAGE, PAGE.contains("<main id=\"spindexer\" class=\"panel\" role=\"tabpanel\" hidden>"));
@@ -110,7 +125,8 @@ public class DashboardPageTest {
             "#launch",
             "#launch?resolution=low",
             "#spindexer",
-            "#spindexer?resolution=low"
+            "#spindexer?resolution=low",
+            "#robot"
         };
 
         String[] got = tabsOnTheDashboard(asked);
@@ -127,6 +143,7 @@ public class DashboardPageTest {
         assertEquals("and its view is drawn as it is asked to be", "launch resolution=low", got[9]);
         assertEquals("the Spindexer Sim tab is a tab of its own", "spindexer ", got[10]);
         assertEquals("spindexer resolution=low", got[11]);
+        assertEquals("the Robot tab is a tab of its own", "robot ", got[12]);
     }
 
     private String[] tabsOnTheDashboard(String[] asked) throws Exception {

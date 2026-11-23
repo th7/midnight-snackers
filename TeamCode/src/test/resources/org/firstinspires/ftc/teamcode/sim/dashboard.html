@@ -38,6 +38,7 @@
   nav button { border: 0; border-radius: 0; background: none; padding: 12px 14px; color: var(--muted); font-weight: 600; box-shadow: inset 0 -2px 0 transparent; }
   nav button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
   nav button:hover { color: var(--ink); }
+  @media (max-width: 480px) { header { gap: 0 12px; } nav button { padding: 12px 8px; } }
   .panel { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; }
   @media (max-width: 760px) { .panel { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
   #simulate aside { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; overflow-x: hidden; }
@@ -177,18 +178,62 @@
   #feeds td.since { color: var(--muted); white-space: normal; min-width: 9em; overflow-wrap: anywhere; }
   #feeds td.actions a { margin-right: 8px; }
   #feeds td .use { padding: 1px 8px; font-size: 12px; }
+  #robot.panel { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+  #robot .robot-settings { border: 0; padding: 0 0 20px; overflow: visible; max-width: 860px; width: 100%; }
+  .robot-described { flex-basis: 100%; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+  .robot-notices { margin: 12px 14px; padding: 6px 10px 6px 26px; border-left: 3px solid var(--warn); border-radius: 4px; background: var(--warn-soft); font-size: 12px; }
+  .robot-part { margin: 0; }
+  .robot-table { margin: 0 14px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  #robot-devices { table-layout: auto; }
+  #robot-devices th, #robot-devices td { white-space: normal; overflow: visible; text-overflow: clip; }
+  #robot-devices td .kind { color: var(--muted); font-size: 12px; }
+  #robot select, #robot input[type="text"] { font: inherit; max-width: 100%; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  #robot input[type="text"] { width: 10em; }
+  #robot .field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  #robot .field.changed select, #robot .field.changed input { border-color: var(--accent); }
+  #robot .field button.reset { padding: 0 6px; font-size: 13px; line-height: 1.6; }
+  #robot .field button.reset.unneeded { visibility: hidden; }
+  #robot .hub { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; padding: 5px 14px 10px; }
 </style>
 </head>
 <body>
 <header>
   <h1>Simulator</h1>
   <nav role="tablist">
+    <button role="tab" data-tab="robot" aria-selected="false" aria-controls="robot">Robot</button>
     <button role="tab" data-tab="simulate" aria-selected="true" aria-controls="simulate">Simulate</button>
     <button role="tab" data-tab="launch" aria-selected="false" aria-controls="launch">Launch Sim</button>
     <button role="tab" data-tab="spindexer" aria-selected="false" aria-controls="spindexer">Spindexer Sim</button>
   </nav>
   <p class="broke" id="broke" role="alert" hidden></p>
 </header>
+<main id="robot" class="panel" role="tabpanel" hidden>
+  <section class="launch-settings robot-settings" aria-label="Robot description">
+    <div class="launch-bar">
+      <button id="robot-reset-all" type="button" disabled>Reset all</button>
+      <p id="robot-message" class="launch-message" role="status"></p>
+      <p id="robot-described" class="robot-described"></p>
+    </div>
+    <p class="note" style="margin-top: 12px">What the robot is made of and how it behaves, as each run of yours is made. Every value starts as committed with the project; what you change is kept on this computer for you alone and saved as you change it, and each run is made on the description as it stood when the run started.</p>
+    <ul id="robot-notices" class="robot-notices" hidden></ul>
+    <details class="launch-group robot-part" data-group="configuration" open>
+      <summary><span>Configuration</span><span class="changes"></span></summary>
+      <p class="says group-says">The devices on the hub, by the name each is configured under, with each motor's SDK type and what its port's encoder reads.</p>
+      <div class="robot-table">
+        <table id="robot-devices">
+          <thead><tr><th>Device</th><th>Name</th><th>Motor type</th><th>Encoder port reads</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="launch-group robot-part" data-group="hub" open>
+      <summary><span>Hub</span><span class="changes"></span></summary>
+      <p class="says group-says">Which way the hub is mounted, which turns what its IMU reads into the robot's heading.</p>
+      <div class="hub" id="robot-hub"></div>
+    </details>
+    <div id="robot-groups"></div>
+  </section>
+</main>
 <main id="simulate" class="panel" role="tabpanel">
   <aside>
     <div>
@@ -313,7 +358,7 @@
     var text = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var mark = text.indexOf('?');
     var name = mark < 0 ? text : text.slice(0, mark);
-    var known = name === 'simulate' || name === 'launch' || name === 'spindexer';
+    var known = name === 'robot' || name === 'simulate' || name === 'launch' || name === 'spindexer';
     return { name: known ? name : 'simulate',
              options: known && mark >= 0 ? text.slice(mark + 1) : '' };
   }
@@ -329,6 +374,7 @@
     });
     var want = '#' + name + (tabOptions ? '?' + tabOptions : '');
     if (location.hash !== want) { history.replaceState(null, '', want); }
+    if (name === 'robot' && robot) { robot.enter(); }
     if (name === 'simulate' && simulate) { simulate.enter(); simulate.again(); }
     if (name === 'launch' && launch) { launch.enter(); }
     if (name === 'spindexer' && spindexer) { spindexer.enter(); }
@@ -514,7 +560,7 @@
       if (wasRunning && !running) { loadCatalog(); }
       Array.prototype.forEach.call(list.querySelectorAll('button.run'), function (b) { b.disabled = running; });
       history.innerHTML = status.runs.map(function (run) {
-        var title = escapeHtml(run.name) + ' · ' + (run.mode === 'game' ? 'a game · ' : '') + run.seconds.toFixed(1) + ' s' + (run.startedBy ? ' · started by ' + escapeHtml(run.startedBy) : '');
+        var title = escapeHtml(run.name) + ' · ' + (run.mode === 'game' ? 'a game · ' : '') + run.seconds.toFixed(1) + ' s' + (run.startedBy ? ' · started by ' + escapeHtml(run.startedBy) : '') + (typeof run.description === 'string' ? ' · robot description: ' + escapeHtml(run.description) : '');
         return '<tr class="' + (run.id === shownRunId ? 'current' : '') + '" title="' + title + '">' +
           '<td class="mono">' + run.id + '</td>' +
           '<td>' + escapeHtml(run.name) + '</td>' +
@@ -529,7 +575,7 @@
       });
       var shown = null;
       status.runs.forEach(function (r) { if (r.id === shownRunId) { shown = r; } });
-      stageState.innerHTML = shown ? pill(shown) + (shown.mode === 'game' ? ' <span class="pill muted" title="Played as a match is: the period of its kind, watched from where its drivers stand">game</span>' : '') + ' <span class="pill muted" title="Which robot the run is on">seed ' + seedLabel(shown) + '</span>' + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
+      stageState.innerHTML = shown ? pill(shown) + (shown.mode === 'game' ? ' <span class="pill muted" title="Played as a match is: the period of its kind, watched from where its drivers stand">game</span>' : '') + ' <span class="pill muted" title="Which robot the run is on">seed ' + seedLabel(shown) + '</span>' + (typeof shown.description === 'string' && shown.description !== 'as built' ? ' <span class="pill muted" title="Robot description: ' + escapeHtml(shown.description) + '">robot edited</span>' : '') + (shown.startedBy ? ' <span class="pill muted">' + escapeHtml(shown.startedBy) + '</span>' : '') : '';
       runMessage.textContent = messageOf(shown);
       runMessage.hidden = !messageOf(shown);
       if (status.runs.length && shownRunId === null && placingName === null) { show(status.runs[0].id, status.runs[0].name); }
@@ -1760,9 +1806,344 @@
     return { enter: enter };
   }
 
+  function theRobotTab() {
+    var resetAll = document.getElementById('robot-reset-all');
+    var message = document.getElementById('robot-message');
+    var described = document.getElementById('robot-described');
+    var noticesHost = document.getElementById('robot-notices');
+    var devicesHost = document.querySelector('#robot-devices tbody');
+    var hubHost = document.getElementById('robot-hub');
+    var groupsHost = document.getElementById('robot-groups');
+    var configurationPart = document.querySelector('#robot [data-group="configuration"]');
+    var hubPart = document.querySelector('#robot [data-group="hub"]');
+
+    var fields = [];
+    var asked = false;
+    var ready = false;
+    var saving = false;
+    var pending = null;
+    var refusal = null;
+
+    function has(object, key) {
+      return !!object && Object.prototype.hasOwnProperty.call(object, key);
+    }
+
+    function el(tag, className, text) {
+      var made = document.createElement(tag);
+      if (className) { made.className = className; }
+      if (text !== undefined && text !== null) { made.textContent = text; }
+      return made;
+    }
+
+    function clear(node) {
+      while (node.firstChild) { node.removeChild(node.firstChild); }
+    }
+
+    function finite(n) {
+      return typeof n === 'number' && isFinite(n);
+    }
+
+    function short(n) {
+      return finite(n) ? String(Math.round(n * 10000) / 10000) : '–';
+    }
+
+    function say(text, bad) {
+      message.textContent = text;
+      if (bad) { message.classList.add('bad'); } else { message.classList.remove('bad'); }
+    }
+
+    function lost(e) {
+      say('Lost the host: ' + e + '. ' + TO_RESTART, true);
+    }
+
+    function stepOf(constant) {
+      var span = constant.most - constant.least;
+      var places = Math.min(4, Math.max(2, span > 0 ? 2 - Math.floor(Math.log(span) / Math.LN10) : 2));
+      return (1 / Math.pow(10, places)).toFixed(places);
+    }
+
+    function rangeOf(constant) {
+      var unit = constant.unit ? ' ' + constant.unit : '';
+      return short(constant.least) + ' to ' + short(constant.most) + unit + '; ' + short(constant.byDefault)
+          + ' as committed.';
+    }
+
+    function unreadable(field) {
+      return field.number && (field.input.value.trim() === '' || !finite(Number(field.input.value))
+          || (!!field.input.validity && field.input.validity.badInput));
+    }
+
+    function valueOf(field) {
+      return field.number ? Number(field.input.value) : field.input.value;
+    }
+
+    function changed(field) {
+      return !unreadable(field) && valueOf(field) !== field.byDefault;
+    }
+
+    function put(field, value) {
+      field.input.value = String(value);
+    }
+
+    function edits() {
+      var wanted = {};
+      fields.forEach(function (field) {
+        if (!changed(field)) { return; }
+        if (!has(wanted, field.part)) { wanted[field.part] = {}; }
+        var into = wanted[field.part];
+        if (field.device !== null) {
+          if (!has(into, field.device)) { into[field.device] = {}; }
+          into = into[field.device];
+        }
+        into[field.key] = valueOf(field);
+      });
+      return wanted;
+    }
+
+    function showMarks() {
+      var counts = [];
+      fields.forEach(function (field) {
+        var bad = unreadable(field);
+        var refused = refusal !== null && refusal.field === field;
+        var said = bad ? 'This is not a number. Type one, or press reset for the committed value.'
+          : refused ? refusal.rule : '';
+        if (field.rule) {
+          field.rule.textContent = said;
+          field.rule.hidden = !said;
+        }
+        if (said) { field.input.setAttribute('aria-invalid', 'true'); } else { field.input.removeAttribute('aria-invalid'); }
+        field.wrap.classList.toggle('changed', changed(field));
+        field.reset.classList.toggle('unneeded', !bad && !changed(field));
+        var count = counts.filter(function (c) { return c.details === field.details; })[0];
+        if (!count) { count = { details: field.details, n: 0 }; counts.push(count); }
+        if (changed(field)) { count.n += 1; }
+      });
+      counts.forEach(function (count) {
+        var shown = count.details.querySelector('summary .changes');
+        if (shown) { shown.textContent = count.n ? count.n + ' changed' : ''; }
+      });
+      resetAll.disabled = !ready || !fields.some(function (field) { return changed(field) || unreadable(field); });
+    }
+
+    function showListing(listing) {
+      described.textContent = 'Your next run is made on: ' + (listing.described || 'as built');
+      clear(noticesHost);
+      (listing.notices || []).forEach(function (notice) { noticesHost.appendChild(el('li', '', notice)); });
+      noticesHost.hidden = !(listing.notices || []).length;
+    }
+
+    function save(from) {
+      if (!ready) { return; }
+      if (refusal !== null) { refusal = null; say('', false); }
+      showMarks();
+      var bad = fields.filter(unreadable);
+      if (bad.length) { return; }
+      if (saving) { pending = from; return; }
+      saving = true;
+      var sent = JSON.stringify(edits());
+      fetch('/sim/robot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: sent
+      }).then(function (r) {
+        if (r.status === 403) { location.reload(); return; }
+        return r.text().then(function (text) {
+          if (r.status === 400) {
+            var rule = text;
+            try { rule = JSON.parse(text).rule || text; } catch (e) { rule = text; }
+            refusal = { field: from, rule: rule };
+            say('Nothing was saved: ' + rule + '.', true);
+            showMarks();
+            return;
+          }
+          if (!r.ok) { say('Could not save: ' + text, true); return; }
+          showListing(JSON.parse(text));
+          say(sent === '{}' ? 'Every value is as committed.' : 'Saved.', false);
+        });
+      }).catch(lost).then(function () {
+        saving = false;
+        if (pending !== null) {
+          var next = pending;
+          pending = null;
+          save(next);
+        }
+      });
+    }
+
+    function resetButton(label, byDefault) {
+      var reset = el('button', 'reset unneeded', 'reset');
+      reset.type = 'button';
+      reset.setAttribute('aria-label', 'Put ' + label + ' back to ' + byDefault);
+      return reset;
+    }
+
+    function field(made) {
+      made.reset = resetButton(made.label, made.number ? short(made.byDefault) : made.byDefault);
+      made.reset.addEventListener('click', function () { put(made, made.byDefault); save(made); });
+      made.input.addEventListener('input', function () { showMarks(); });
+      made.input.addEventListener('change', function () { save(made); });
+      fields.push(made);
+      return made;
+    }
+
+    function select(options, value, label) {
+      var input = document.createElement('select');
+      input.setAttribute('aria-label', label);
+      options.forEach(function (option) {
+        var one = el('option', '', option.label);
+        one.value = option.name;
+        input.appendChild(one);
+      });
+      input.value = value;
+      return input;
+    }
+
+    function cell(made) {
+      var td = el('td');
+      var wrap = el('span', 'field');
+      wrap.appendChild(made.input);
+      wrap.appendChild(made.reset);
+      td.appendChild(wrap);
+      made.wrap = wrap;
+      return td;
+    }
+
+    function deviceRow(listed, listing) {
+      var tr = el('tr');
+      tr.setAttribute('data-device', listed.device);
+      var who = el('td');
+      who.appendChild(el('div', 'mono', listed.device));
+      who.appendChild(el('div', 'kind', listed.kind.replace(/_/g, ' ')));
+      tr.appendChild(who);
+      var name = document.createElement('input');
+      name.type = 'text';
+      name.value = listed.value.name;
+      name.setAttribute('aria-label', listed.device + "'s name");
+      tr.appendChild(cell(field({ part: 'configuration', device: listed.device, key: 'name', number: false,
+                                  label: listed.device + "'s name", byDefault: listed.byDefault.name,
+                                  input: name, rule: null, details: configurationPart })));
+      if (!has(listed.value, 'type')) {
+        tr.appendChild(el('td', 'kind', ''));
+        tr.appendChild(el('td', 'kind', ''));
+        return tr;
+      }
+      var types = (listing.types || []).map(function (type) { return { name: type, label: type }; });
+      tr.appendChild(cell(field({ part: 'configuration', device: listed.device, key: 'type', number: false,
+                                  label: listed.device + "'s motor type", byDefault: listed.byDefault.type,
+                                  input: select(types, listed.value.type, listed.device + "'s motor type"),
+                                  rule: null, details: configurationPart })));
+      tr.appendChild(cell(field({ part: 'configuration', device: listed.device, key: 'encoder', number: false,
+                                  label: listed.device + "'s encoder port", byDefault: listed.byDefault.encoder,
+                                  input: select(listing.encoders || [], listed.value.encoder,
+                                                'What ' + listed.device + "'s encoder port reads"),
+                                  rule: null, details: configurationPart })));
+      return tr;
+    }
+
+    function hubRow(face, label, hub) {
+      var faces = (hub.faces || []).map(function (one) { return { name: one, label: one.toLowerCase() }; });
+      var made = field({ part: 'hub', device: null, key: face, number: false, label: label,
+                         byDefault: hub.byDefault[face], input: select(faces, hub[face], label), rule: null,
+                         details: hubPart });
+      hubHost.appendChild(el('span', 'setting-label', label));
+      var wrap = el('span', 'field');
+      wrap.setAttribute('data-hub', face);
+      wrap.appendChild(made.input);
+      wrap.appendChild(made.reset);
+      made.wrap = wrap;
+      hubHost.appendChild(wrap);
+    }
+
+    function constantRow(constant, details) {
+      var id = 'robot-value-' + constant.name;
+      var row = el('div', 'setting');
+      row.setAttribute('data-setting', constant.name);
+      var label = el('label', 'setting-label', constant.label);
+      label.htmlFor = id;
+      var input = document.createElement('input');
+      input.id = id;
+      input.name = constant.name;
+      input.type = 'number';
+      input.min = String(constant.least);
+      input.max = String(constant.most);
+      input.step = stepOf(constant);
+      input.value = String(constant.value);
+      input.setAttribute('aria-describedby', id + '-says ' + id + '-rule');
+      var rule = el('p', 'rule');
+      rule.id = id + '-rule';
+      rule.hidden = true;
+      rule.setAttribute('role', 'alert');
+      var made = field({ part: 'constants', device: null, key: constant.name, number: true, label: constant.label,
+                         byDefault: constant.byDefault, input: input, rule: rule, details: details });
+      var control = el('span', 'control');
+      control.appendChild(input);
+      control.appendChild(el('span', 'unit', constant.unit || ''));
+      control.appendChild(made.reset);
+      made.wrap = row;
+      var says = el('p', 'says', constant.says + ' ' + rangeOf(constant));
+      says.id = id + '-says';
+      row.appendChild(label);
+      row.appendChild(control);
+      row.appendChild(rule);
+      row.appendChild(says);
+      return row;
+    }
+
+    function render(listing) {
+      fields = [];
+      clear(devicesHost);
+      clear(hubHost);
+      clear(groupsHost);
+      (listing.configuration || []).forEach(function (listed) { devicesHost.appendChild(deviceRow(listed, listing)); });
+      if (listing.hub) {
+        hubRow('logo', "The hub's logo faces", listing.hub);
+        hubRow('usb', "The hub's USB ports face", listing.hub);
+      }
+      (listing.groups || []).forEach(function (group) {
+        var details = el('details', 'launch-group');
+        details.setAttribute('data-group', group.name);
+        details.open = true;
+        var summary = el('summary');
+        summary.appendChild(el('span', '', group.label));
+        summary.appendChild(el('span', 'changes', ''));
+        details.appendChild(summary);
+        if (group.says) { details.appendChild(el('p', 'says group-says', group.says)); }
+        (listing.constants || []).forEach(function (constant) {
+          if (constant.group === group.name) { details.appendChild(constantRow(constant, details)); }
+        });
+        groupsHost.appendChild(details);
+      });
+      showListing(listing);
+      showMarks();
+    }
+
+    function load() {
+      if (asked) { return; }
+      asked = true;
+      fetch('/sim/robot', { cache: 'no-store' }).then(function (r) {
+        if (r.status === 403) { location.reload(); return null; }
+        if (!r.ok) { return r.text().then(function (t) { asked = false; say(t, true); return null; }); }
+        return r.json();
+      }).then(function (listing) {
+        if (!listing) { return; }
+        ready = true;
+        render(listing);
+      }).catch(function (e) { asked = false; lost(e); });
+    }
+
+    resetAll.addEventListener('click', function () {
+      fields.forEach(function (field) { put(field, field.byDefault); });
+      save(null);
+    });
+
+    return { enter: load };
+  }
+
+  var robot = null;
   var simulate = null;
   var launch = null;
   var spindexer = null;
+  part('the robot description', function () { robot = theRobotTab(); });
   part('the simulator', function () { simulate = theSimulateTab(); });
   part('the launch sim', function () { launch = theLaunchTab(); });
   part('the spindexer sim', function () { spindexer = theSpindexerTab(); });

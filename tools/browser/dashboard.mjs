@@ -280,7 +280,7 @@ async function opened(browser, base, asked = {}) {
 
 async function itWorks(page, engine) {
   check(await page.locator('#simulate').isVisible(), `${engine}: the page does not open on Simulate`);
-  check(await page.locator('#edit, #editor, #files, #who, #robot, #adb').count() === 0,
+  check(await page.locator('#edit, #editor, #files, #who, select#robot, #adb').count() === 0,
       `${engine}: the page still carries the editor or who is signed in`);
   await page.waitForFunction((name) => document.getElementById('opmodes').textContent.includes(name),
       OPMODE.name, { timeout: 10_000 }).catch(() => {});

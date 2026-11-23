@@ -597,7 +597,7 @@ serves one bench for Reginald over the sources on disk as they were last
 saved, so the next Run runs the last save with no restart and a compile error
 names its file and line. It listens on loopback alone (port 21988,
 `SIMULATOR_PORT`), so nobody on the LAN reaches it, and it has no login: the
-page at its root is the simulator's own, `dashboard.html`, with the Simulate,
+page at its root is the simulator's own, `dashboard.html`, with the Robot, Simulate,
 Launch Sim and Spindexer Sim tabs, and opens on Simulate. It draws the **kept
 field**. Stopping the task stops any run and its child. Classes:
 `LocalSimulator`; `SimulatorRunConfigurationTest`;
@@ -1218,6 +1218,33 @@ dead wheels' offsets differ from the description's too, so it believes the wrong
 place after a turn. Classes: `RobotDescription` and `HubMounting`, in the **core**;
 `FakeImu`; `SimDescription`, which reads the file and the start line.
 
+**Robot tab** — The dashboard's first tab, before Simulate (`#robot`): the
+**robot description** a teammate's runs are made on. It lists the
+**configuration** by device (its kind, the name it is configured under, and for a
+motor its SDK motor type and what its port's encoder port reads), which way the hub
+is mounted, and every **simulation constant** by group with its label, unit, range,
+sentence and committed value. A value that differs from the committed default is
+marked, with a reset beside it, and Reset all puts every value back. Each change
+saves the whole set as it stands: a set the core refuses names the rule beside the
+value changed and nothing is saved, and the tab says what the next run is made on, as
+`/status`, the run's log, its replay and its row on the Simulate tab say it: each
+difference against the built value, or "as built". Answered by `GET /robot` and saved by `PUT /robot` with the
+**robot overrides** asked. Classes: `SimOverrides`; `tools/browser/robot.mjs`.
+
+**Robot overrides** — A teammate's edits to the **robot description**, kept by the
+bench in `robot-overrides.json` beside `start-poses.json` and
+`launch-settings.json` under its output directory, never in the repository: only
+what differs from the committed defaults, as `{"constants": {name: value}, "hub":
+{"logo", "usb"}, "configuration": {device: {"name", "type", "encoder"}}}`, a device
+named by its committed name. A save is checked whole and refused naming the rule,
+an unknown name included. Recalled at the start, the file is taken as far as it
+can be: a value past a range narrowed since goes back to its default, and one for
+a value the description no longer has is kept in the file until the next save
+drops it, and the tab says which. A removed value's name is never reused, since
+an older file would be read with the new meaning: `Constant.retired()` lists them
+(`launch_throw`, `turntable_speed`) and a test holds that no constant takes one.
+Classes: `Overrides`, in the **core**; `SimOverrides`.
+
 **Configuration** — The hub's devices by name and kind (a motor's kind is the SDK
 motor type it is configured as), and what each motor port's encoder port reads, as
 the robot's active configuration and its wiring have them. The robot code finds
@@ -1592,7 +1619,7 @@ in inches and degrees; every move is saved. Class: `StartPoses`;
 
 ## The launch sim
 
-**Launch Sim** — The dashboard's third tab, after Simulate: one pollen thrown by a
+**Launch Sim** — The dashboard's tab after Simulate: one pollen thrown by a
 pair of flywheels, on the field, in as much detail as there is a measured basis
 for, and replayed. Its settings stand on the right of its view, with its launches
 under the view; under 760 px wide the page stacks them, the view first, then the
@@ -1903,7 +1930,7 @@ cost ("computed in 112 ms, 0.06x real time"), which is printed and never judged.
 
 ## The spindexer sim
 
-**Spindexer Sim** — The dashboard's fourth tab, after Launch Sim: Reginald's **spindexer**
+**Spindexer Sim** — The dashboard's last tab, after Launch Sim: Reginald's **spindexer**
 turning pollen round to the **ramp**, which lifts each into the flywheel, and the
 **launcher** throwing it, replayed with the **spinner**'s and ramp's loads traced
 against time. It is laid out as Launch Sim is: settings on the right of the view,
