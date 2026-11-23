@@ -52,13 +52,14 @@ public final class SimDevices {
     public SimDevices(RobotDescription description) {
         imu = FakeImu.mounted(sdkMounting(description.hub()));
         int servoPort = 0;
-        for (Configuration.Device device : description.configuration().devices()) {
+        for (Configuration.Committed committed : description.configuration().committed()) {
+            Configuration.Device device = committed.device();
             String name = device.name();
             if (device instanceof Configuration.Motor motor) {
                 FakeDcMotorEx fake = new FakeDcMotorEx(sdkType(motor.type()));
-                motors.put(name, fake);
-                encoders.put(name, motor.encoder());
-                types.put(name, motor.type());
+                motors.put(committed.as(), fake);
+                encoders.put(committed.as(), motor.encoder());
+                types.put(committed.as(), motor.type());
                 hardwareMap.dcMotor.put(name, fake);
             } else if (device instanceof Configuration.Imu) {
                 hardwareMap.put(name, imu);
@@ -117,27 +118,27 @@ public final class SimDevices {
         throw new IllegalArgumentException("the simulator knows no SDK class for " + type.label());
     }
 
-    public FakeDcMotorEx motor(String name) {
-        FakeDcMotorEx motor = motors.get(name);
+    public FakeDcMotorEx motor(String committedAs) {
+        FakeDcMotorEx motor = motors.get(committedAs);
         if (motor == null) {
-            throw new IllegalArgumentException(
-                    "no motor is configured as " + name + "; the motors are " + String.join(", ", motors.keySet()));
+            throw new IllegalArgumentException("no motor is committed as " + committedAs
+                    + "; the motors are committed as " + String.join(", ", motors.keySet()));
         }
         return motor;
     }
 
-    public List<String> motorNames() {
+    public List<String> motorsCommittedAs() {
         return List.copyOf(motors.keySet());
     }
 
-    public MotorType typeOf(String name) {
-        motor(name);
-        return types.get(name);
+    public MotorType typeOf(String committedAs) {
+        motor(committedAs);
+        return types.get(committedAs);
     }
 
-    public EncoderReads encoderOf(String name) {
-        motor(name);
-        return encoders.get(name);
+    public EncoderReads encoderOf(String committedAs) {
+        motor(committedAs);
+        return encoders.get(committedAs);
     }
 
     public HardwareMap hardwareMap() {

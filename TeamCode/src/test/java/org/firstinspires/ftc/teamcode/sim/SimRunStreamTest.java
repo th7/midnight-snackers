@@ -16,12 +16,14 @@ import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Directions;
+import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.Mechanism;
+import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Spinner;
 import org.junit.Test;
@@ -644,5 +646,65 @@ public class SimRunStreamTest {
             assertTrue(handshake.message, handshake.message.contains("Pull develop"));
             assertNull("a refused run is sent nothing", handshake.startLine);
         }
+    }
+
+    private static RobotDescription intakeRenamed() {
+        return Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        List.of(new Overrides.Kept.Known(new Overrides.Edit.Renamed("intake", "intakeMotor")))))
+                .description();
+    }
+
+    private static RobotDescription intakeRewired() {
+        return Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        List.of(new Overrides.Kept.Known(new Overrides.Edit.Wired("intake", EncoderReads.NOTHING)))))
+                .description();
+    }
+
+    @Test
+    public void aChildThatTakesRenamedDevicesSpeaksProtocolTen() {
+        assertEquals(10, SimRunStream.RENAMED_PROTOCOL);
+        assertTrue(SimRunStream.RENAMED_PROTOCOL > SimRunStream.SPINDEXER_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.RENAMED_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldTheNameARenamedDeviceIsCommittedUnder() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, intakeRenamed());
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(
+                "intake",
+                handshake
+                        .startLine
+                        .getAsJsonArray("configuration")
+                        .get(4)
+                        .getAsJsonObject()
+                        .get("committed")
+                        .getAsString());
+    }
+
+    @Test
+    public void aChildFromBeforeRenamedDevicesStillTakesAConfigurationThatDiffersOtherwise() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.RENAMED_PROTOCOL - 1), StartPoses.ORIGIN, null, intakeRewired());
+
+        assertFalse(handshake.message, handshake.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeRenamedDevicesIsRefusedARenamedDeviceByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(9), StartPoses.ORIGIN, null, intakeRenamed());
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotRename(9), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.RENAMED_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains("intake as intakeMotor"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
     }
 }

@@ -95,6 +95,12 @@ public final class SimRunStream {
                     + " needs " + SPINDEXER_PROTOCOL;
         }
 
+        public static String cannotRename(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and finds each device by the name it was built with; renaming one in the Robot tab needs "
+                    + RENAMED_PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -173,7 +179,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 9;
+    public static final int PROTOCOL = 10;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -188,6 +194,8 @@ public final class SimRunStream {
     public static final int DIRECTIONS_PROTOCOL = 8;
 
     public static final int SPINDEXER_PROTOCOL = 9;
+
+    public static final int RENAMED_PROTOCOL = 10;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -364,6 +372,22 @@ public final class SimRunStream {
                             + " and the spindexer's constants in "
                             + SimDescription.FILE
                             + " back as they were built.");
+        }
+        if (!description.configuration().committedUnderTheirOwnNames() && protocol < RENAMED_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotRename(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and finds each device by the name it was built with, so it cannot run a robot whose"
+                            + " Robot tab renames "
+                            + SimDescription.renames(description.configuration())
+                            + "; that needs protocol "
+                            + RENAMED_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put those names back in the"
+                            + " Robot tab.");
         }
         if (protocol >= PLACED_PROTOCOL) {
             return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, description), null, null);

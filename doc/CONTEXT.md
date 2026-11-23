@@ -808,7 +808,10 @@ reversed; an older child runs every mechanism as built, so the bench refuses it 
 name, with the fix, when one is reversed. From version 9 the spinner is among the
 directions and the spindexer's constants among the constants; an older child runs the
 spindexer it was built with, so the bench refuses it by name, with the fix, when the
-spinner is reversed or a spindexer constant changed. Only the bench and its child speak this protocol: the browser's page
+spinner is reversed or a spindexer constant changed. From version 10 a device in the
+start line's configuration may carry the name it is committed under, beside the name the
+Robot tab gave it; an older child finds each device by the name it was built with, so the
+bench refuses it by name, with the fix, when a device is renamed. Only the bench and its child speak this protocol: the browser's page
 is reloaded when it changes, so it is never versioned. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
@@ -1261,6 +1264,10 @@ motor type it is configured as), and what each motor port's encoder port reads, 
 the robot's active configuration and its wiring have them. The robot code finds
 its devices through it as it would on the robot, so a device it asks for that is
 not there, or not of that kind, fails the run at init as the SDK would fail it.
+Each device is also committed under the name `TeamCode/robot-description.json` gives
+it, which a rename on the Robot tab never changes: the simulator finds each
+mechanism's device by that committed name, so a rename changes only what the robot
+code must ask for. Classes: `Configuration`, in the **core**; `SimDevices`.
 
 **Hub** — What the simulated hub does with what the code writes to a motor, said
 once in the core. The direction the code set is turned into the SDK's operational

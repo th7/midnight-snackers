@@ -45,6 +45,8 @@ public final class SimDescription {
 
     private static final TypeAdapter<JsonElement> ELEMENT = new Gson().getAdapter(JsonElement.class);
 
+    private static final String COMMITTED = "committed";
+
     private static final String MOTOR = "motor";
     private static final String IMU = "imu";
     private static final String CONTINUOUS_SERVO = "continuous_servo";
@@ -123,7 +125,7 @@ public final class SimDescription {
 
     public static Checked<RobotDescription> fromStartLine(JsonObject line) {
         Checked<Configuration> configuration = line.has(CONFIGURATION)
-                ? configuration(line.get(CONFIGURATION))
+                ? committedConfiguration(line.get(CONFIGURATION))
                 : Checked.ok(Configuration.reginalds());
         Checked<HubMounting> hub = line.has(HUB) ? hub(line.get(HUB)) : Checked.ok(HubMounting.reginalds());
         Checked<Directions> directions =
@@ -191,6 +193,16 @@ public final class SimDescription {
             json.addProperty(mechanism.asked(), mechanism.way(directions.reversed(mechanism)));
         }
         return json;
+    }
+
+    static String renames(Configuration configuration) {
+        List<String> renames = new ArrayList<>();
+        for (Configuration.Committed committed : configuration.committed()) {
+            if (!committed.as().equals(committed.device().name())) {
+                renames.add(committed.as() + " as " + committed.device().name());
+            }
+        }
+        return String.join(", ", renames);
     }
 
     private static String said(Configuration configuration) {
@@ -268,6 +280,36 @@ public final class SimDescription {
         return Configuration.of(devices);
     }
 
+    private static Checked<Configuration> committedConfiguration(JsonElement json) {
+        if (json == null || !json.isJsonArray()) {
+            return Checked.rejected("the configuration is a list of devices, not " + json);
+        }
+        List<Configuration.Committed> committed = new ArrayList<>();
+        for (JsonElement element : json.getAsJsonArray()) {
+            Checked<Configuration.Committed> one = committedDevice(element);
+            if (one instanceof Checked.Rejected<Configuration.Committed> rejected) {
+                return Checked.rejected(rejected.rule());
+            }
+            committed.add(Valid.value(one));
+        }
+        return Configuration.committedAs(committed);
+    }
+
+    private static Checked<Configuration.Committed> committedDevice(JsonElement json) {
+        if (json == null || !json.isJsonObject() || !json.getAsJsonObject().has(COMMITTED)) {
+            return device(json).map(device -> new Configuration.Committed(device.name(), device));
+        }
+        JsonObject named = new JsonObject();
+        for (Map.Entry<String, JsonElement> field : json.getAsJsonObject().entrySet()) {
+            if (!field.getKey().equals(COMMITTED)) {
+                named.add(field.getKey(), field.getValue());
+            }
+        }
+        return device(named)
+                .then(device -> text(json.getAsJsonObject(), COMMITTED, "'" + device.name() + "'")
+                        .map(as -> new Configuration.Committed(as, device)));
+    }
+
     private static Checked<Configuration.Device> device(JsonElement json) {
         String what = "a configured device";
         return fields(json, what, OTHER_FIELDS, MOTOR_FIELDS)
@@ -300,13 +342,17 @@ public final class SimDescription {
 
     private static JsonArray configurationJson(Configuration configuration) {
         JsonArray devices = new JsonArray();
-        for (Configuration.Device device : configuration.devices()) {
+        for (Configuration.Committed committed : configuration.committed()) {
+            Configuration.Device device = committed.device();
             JsonObject json = new JsonObject();
             json.addProperty("name", device.name());
             json.addProperty("kind", device.kind());
             if (device instanceof Configuration.Motor motor) {
                 json.addProperty("type", motor.type().label());
                 json.addProperty("encoder", motor.encoder().asked());
+            }
+            if (!committed.as().equals(device.name())) {
+                json.addProperty(COMMITTED, committed.as());
             }
             devices.add(json);
         }

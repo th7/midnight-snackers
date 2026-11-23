@@ -21,6 +21,8 @@ import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Lean;
+import org.firstinspires.ftc.teamcode.simcore.Overrides;
+import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Vec3;
 import org.junit.Test;
 
@@ -1515,6 +1517,46 @@ public class SimRobotTest {
 
         @Override
         public void loop() {}
+    }
+
+    @Test
+    public void driveMotorsThatSwapNamesOnTheRobotTabEachStillTurnTheWheelTheyAreMountedOn() {
+        RobotDescription swapped = Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        List.of(
+                                new Overrides.Kept.Known(new Overrides.Edit.Renamed("leftFront", "rightBack")),
+                                new Overrides.Kept.Known(new Overrides.Edit.Renamed("rightBack", "leftFront")))))
+                .description();
+
+        Pose2d drivenByTheLeftFrontWheel = poseAfterRobotCodePowersOnly(RobotDescription.reginalds(), "leftFront");
+        Pose2d drivenByTheDeviceNowNamedRightBack = poseAfterRobotCodePowersOnly(swapped, "rightBack");
+
+        assertTrue(
+                "the robot moved: " + drivenByTheLeftFrontWheel,
+                Math.abs(drivenByTheLeftFrontWheel.heading.toDouble()) > 0.01);
+        assertEquals(drivenByTheLeftFrontWheel.position.x, drivenByTheDeviceNowNamedRightBack.position.x, 1e-9);
+        assertEquals(drivenByTheLeftFrontWheel.position.y, drivenByTheDeviceNowNamedRightBack.position.y, 1e-9);
+        assertEquals(
+                drivenByTheLeftFrontWheel.heading.toDouble(),
+                drivenByTheDeviceNowNamedRightBack.heading.toDouble(),
+                1e-9);
+    }
+
+    private static Pose2d poseAfterRobotCodePowersOnly(RobotDescription description, String name) {
+        SimRobot robot = new SimRobot(description, SimNoise.NONE);
+        NotReginalds opMode = new NotReginalds();
+        robot.wire(opMode);
+        for (String wheel : new String[] {"leftFront", "rightFront", "leftBack", "rightBack"}) {
+            opMode.hardwareMap
+                    .get(com.qualcomm.robotcore.hardware.DcMotorEx.class, wheel)
+                    .setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        }
+        robot.setPose(new Pose2d(-30, 0, 0));
+        opMode.hardwareMap
+                .get(com.qualcomm.robotcore.hardware.DcMotorEx.class, name)
+                .setPower(0.6);
+        robot.step(1.0);
+        return robot.pose();
     }
 
     @Test

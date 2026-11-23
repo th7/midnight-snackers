@@ -1,9 +1,11 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public final class Configuration {
@@ -75,14 +77,24 @@ public final class Configuration {
         }
     }
 
-    private final List<Device> devices;
+    public record Committed(String as, Device device) {}
 
-    private Configuration(List<Device> devices) {
-        this.devices = List.copyOf(devices);
+    private final List<Committed> committed;
+
+    private Configuration(List<Committed> committed) {
+        this.committed = List.copyOf(committed);
+    }
+
+    private static Configuration underTheirOwnNames(List<Device> devices) {
+        List<Committed> committed = new ArrayList<>();
+        for (Device device : devices) {
+            committed.add(new Committed(device.name(), device));
+        }
+        return new Configuration(committed);
     }
 
     public static Configuration reginalds() {
-        return new Configuration(List.of(
+        return underTheirOwnNames(List.of(
                 new Motor("leftFront", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.PERPENDICULAR_DEAD_WHEEL),
                 new Motor("rightFront", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.NOTHING),
                 new Motor("leftBack", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.NOTHING),
@@ -97,6 +109,22 @@ public final class Configuration {
     }
 
     public static Checked<Configuration> of(List<Device> devices) {
+        return checked(devices).map(Configuration::underTheirOwnNames);
+    }
+
+    public static Checked<Configuration> committedAs(List<Committed> committed) {
+        Set<String> committedNames = new HashSet<>();
+        List<Device> devices = new ArrayList<>();
+        for (Committed one : committed) {
+            if (!committedNames.add(one.as())) {
+                return Checked.rejected("two devices are committed as '" + one.as() + "'");
+            }
+            devices.add(one.device());
+        }
+        return checked(devices).map(valid -> new Configuration(committed));
+    }
+
+    private static Checked<List<Device>> checked(List<Device> devices) {
         Set<String> names = new HashSet<>();
         Map<EncoderReads, String> deadWheels = new EnumMap<>(EncoderReads.class);
         for (Device device : devices) {
@@ -118,25 +146,51 @@ public final class Configuration {
                 }
             }
         }
-        return Checked.ok(new Configuration(devices));
+        return Checked.ok(devices);
     }
 
     public List<Device> devices() {
-        return devices;
+        List<Device> devices = new ArrayList<>();
+        for (Committed one : committed) {
+            devices.add(one.device());
+        }
+        return List.copyOf(devices);
+    }
+
+    public List<Committed> committed() {
+        return committed;
+    }
+
+    public boolean committedUnderTheirOwnNames() {
+        for (Committed one : committed) {
+            if (!one.as().equals(one.device().name())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public Optional<Device> committed(String as) {
+        for (Committed one : committed) {
+            if (one.as().equals(as)) {
+                return Optional.of(one.device());
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof Configuration that && devices.equals(that.devices);
+        return other instanceof Configuration that && committed.equals(that.committed);
     }
 
     @Override
     public int hashCode() {
-        return devices.hashCode();
+        return committed.hashCode();
     }
 
     @Override
     public String toString() {
-        return devices.toString();
+        return devices().toString();
     }
 }

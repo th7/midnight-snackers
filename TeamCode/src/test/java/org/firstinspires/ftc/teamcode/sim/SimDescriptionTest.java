@@ -105,6 +105,16 @@ public class SimDescriptionTest {
     }
 
     @Test
+    public void theCommittedFileNamesEachDeviceOnlyByTheNameItIsCommittedUnder() throws IOException {
+        assertRefused(
+                "a configured device names only name, kind, type, encoder, not 'committed'",
+                SimDescription.read(written(committed()
+                        .replace(
+                                "{\"name\": \"intake\", \"kind\": \"motor\",",
+                                "{\"name\": \"intakeMotor\", \"committed\": \"intake\", \"kind\": \"motor\","))));
+    }
+
+    @Test
     public void aFileIsReadWholeAndRefusedForAnythingMissingUnknownOrMisnamed() throws IOException {
         assertRefused("mass_kg", SimDescription.read(written(committed().replace("\"mass_kg\": 15,", ""))));
         assertRefused(

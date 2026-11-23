@@ -25,6 +25,7 @@ import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.Turning;
 import org.junit.Test;
@@ -101,6 +102,20 @@ public class SimDevicesTest {
                 SDK_HARDWARE_MAP,
                 "Unable to find a hardware device with name \"intake\" and type DcMotorEx",
                 refused.getMessage());
+    }
+
+    @Test
+    public void aRenamedMotorIsTheSimulatorsByTheNameItIsCommittedUnderAndTheRobotsByItsNewName() {
+        SimDevices renamed = new SimDevices(Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        List.of(new Overrides.Kept.Known(new Overrides.Edit.Renamed("intake", "intakeMotor")))))
+                .description());
+
+        assertSame(renamed.motor("intake"), renamed.hardwareMap().get(DcMotorEx.class, "intakeMotor"));
+        assertEquals(
+                SDK_HARDWARE_MAP,
+                "Unable to find a hardware device with name \"intake\" and type DcMotorEx",
+                refusal(renamed.hardwareMap(), DcMotorEx.class, "intake"));
     }
 
     @Test

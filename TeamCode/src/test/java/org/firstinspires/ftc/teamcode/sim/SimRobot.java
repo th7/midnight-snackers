@@ -295,7 +295,7 @@ public class SimRobot {
                 constants.value(Constant.TRACK_WIDTH_IN), constants.value(Constant.LATERAL_MULTIPLIER));
         this.drivetrain = Valid.value(description.drivetrain(noise.motors()));
         this.deadWheels = Valid.value(description.deadWheels());
-        for (String name : devices.motorNames()) {
+        for (String name : devices.motorsCommittedAs()) {
             ports.put(name, HubPort.State.fresh());
             applied.put(name, Power.none());
             counted.put(name, Count.none());
@@ -741,7 +741,7 @@ public class SimRobot {
     }
 
     private void driveThePorts(Seconds dt) {
-        for (String name : devices.motorNames()) {
+        for (String name : devices.motorsCommittedAs()) {
             HubPort.Driven driven = refusedIfNot(HubPort.drive(wrote(name), ports.get(name), counted.get(name), dt));
             ports.put(name, driven.next());
             applied.put(name, driven.power());
@@ -930,7 +930,7 @@ public class SimRobot {
         Twist moved = new Twist(new Vec2(delta.line.x, delta.line.y), delta.angle);
         deadWheels = deadWheels.moved(moved);
         DeadWheels.Counts rolled = deadWheels.counts(perSecond);
-        for (String name : devices.motorNames()) {
+        for (String name : devices.motorsCommittedAs()) {
             Count raw = refusedIfNot(devices.encoderOf(name).count(ownCount(name), rolled));
             counted.put(name, raw);
             Encoder reported = HubPort.reports(wrote(name), ports.get(name), raw);

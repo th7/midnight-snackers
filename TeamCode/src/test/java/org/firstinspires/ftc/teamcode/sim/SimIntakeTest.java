@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
@@ -16,6 +17,7 @@ import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.Mechanism;
+import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,11 +34,13 @@ public class SimIntakeTest {
 
     private static final class DrivesOverPollen extends OpMode {
         private final double intakePower;
+        private final String intakeName;
         private final List<DcMotorEx> wheels = new ArrayList<>();
         private DcMotorEx intake;
 
-        DrivesOverPollen(double intakePower) {
+        DrivesOverPollen(double intakePower, String intakeName) {
             this.intakePower = intakePower;
+            this.intakeName = intakeName;
         }
 
         @Override
@@ -48,7 +52,7 @@ public class SimIntakeTest {
             }
             hardwareMap.get(DcMotorEx.class, "leftBack").setDirection(DcMotorSimple.Direction.REVERSE);
             hardwareMap.get(DcMotorEx.class, "rightBack").setDirection(DcMotorSimple.Direction.REVERSE);
-            intake = hardwareMap.get(DcMotorEx.class, "intake");
+            intake = hardwareMap.get(DcMotorEx.class, intakeName);
         }
 
         @Override
@@ -82,6 +86,10 @@ public class SimIntakeTest {
     }
 
     private Run run(RobotDescription description, int pollenAhead, double intakePower) {
+        return run(description, pollenAhead, intakePower, "intake");
+    }
+
+    private Run run(RobotDescription description, int pollenAhead, double intakePower, String intakeName) {
         SimRobot sim = new SimRobot(description, SimNoise.NONE);
         List<SimRobot.Piece> pollen = new ArrayList<>();
         for (SimRobot.Piece ball : sim.balls()) {
@@ -97,7 +105,7 @@ public class SimIntakeTest {
         sim.setPose(new Pose2d(-8, LANE_Y, 0));
         SimRecording recording = SimRunner.record(
                 new SimRecording("DrivesOverPollen"),
-                new DrivesOverPollen(intakePower),
+                new DrivesOverPollen(intakePower, intakeName),
                 sim,
                 RUN_SECONDS,
                 folder.getRoot().toPath(),
@@ -108,6 +116,13 @@ public class SimIntakeTest {
 
     private static RobotDescription intakeReversed() {
         return RobotDescription.reginalds().with(Directions.reginalds().with(Mechanism.INTAKE, true));
+    }
+
+    private static RobotDescription intakeRenamed() {
+        return Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        List.of(new Overrides.Kept.Known(new Overrides.Edit.Renamed("intake", "intakeMotor")))))
+                .description();
     }
 
     private static void assertPushedAhead(Run run, int which) {
@@ -165,5 +180,25 @@ public class SimIntakeTest {
         assertPushedAhead(run, 0);
         assertEquals(Intake.Way.STILL, run.last().mechanisms.intake());
         assertEquals(0, run.last().mechanisms.held());
+    }
+
+    @Test
+    public void anIntakeRenamedOnTheRobotTabTakesPollenInForRobotCodeThatAsksForItsNewName() {
+        Run run = run(intakeRenamed(), 1, 1, "intakeMotor");
+
+        assertNull("the pollen is in the robot, not on the field", run.placeInLastTick(0));
+        assertEquals(1, run.last().mechanisms.held());
+        assertEquals(Intake.Way.IN, run.last().mechanisms.intake());
+    }
+
+    @Test
+    public void robotCodeStillAskingForTheIntakesOldNameFailsAtInitNamingTheMissingDevice() {
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> run(intakeRenamed(), 1, 1, "intake"));
+
+        assertEquals(
+                "the SDK's HardwareMap.get (RobotCore 11.2.1)",
+                "Unable to find a hardware device with name \"intake\" and type DcMotorEx",
+                refused.getMessage());
     }
 }

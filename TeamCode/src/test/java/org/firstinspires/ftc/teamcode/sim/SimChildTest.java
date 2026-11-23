@@ -3,12 +3,14 @@ package org.firstinspires.ftc.teamcode.sim;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import com.acmerobotics.roadrunner.Pose2d;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -28,6 +30,7 @@ import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
+import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Rule;
 import org.junit.Test;
@@ -354,6 +357,30 @@ public class SimChildTest {
                 SimChild.robotFor(null, RobotDescription.reginalds().with(heavyFooted)));
 
         assertTrue(asBuilt + " in as built, " + slower + " in with kV 1 V per in/s", slower < asBuilt / 2);
+    }
+
+    @Test
+    public void aStartLineThatRenamesTheIntakeMakesTheChildsRobotWithTheIntakeUnderItsNewName() {
+        RobotDescription renamed = Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        java.util.List.of(
+                                new Overrides.Kept.Known(new Overrides.Edit.Renamed("intake", "intakeMotor")))))
+                .description();
+        SimDriverStation station = new SimDriverStation();
+        station.accept(SimDriverStation.startLine(ORIGIN, null, renamed));
+
+        SimRobot sim = SimChild.robotFor(null, station.description());
+        com.qualcomm.robotcore.eventloop.opmode.OpMode robotCode =
+                new com.qualcomm.robotcore.eventloop.opmode.OpMode() {
+                    @Override
+                    public void init() {}
+
+                    @Override
+                    public void loop() {}
+                };
+        sim.wire(robotCode);
+
+        assertSame(sim.intake, robotCode.hardwareMap.get(DcMotorEx.class, "intakeMotor"));
     }
 
     private static double aheadInASecond(SimRobot sim) {

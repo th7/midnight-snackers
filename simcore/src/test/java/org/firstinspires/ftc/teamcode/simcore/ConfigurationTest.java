@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.simcore;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.Test;
 
 public class ConfigurationTest {
@@ -39,6 +41,55 @@ public class ConfigurationTest {
     public void everyMotorOnReginaldIsConfiguredAsTheUltraPlanetaryHdHex() {
         assertEquals("REV Robotics UltraPlanetary HD Hex Motor", MotorType.ULTRAPLANETARY_HD_HEX.label());
         assertEquals(Turning.CLOCKWISE, MotorType.ULTRAPLANETARY_HD_HEX.declared());
+    }
+
+    @Test
+    public void eachDeviceOfAConfigurationIsCommittedUnderItsOwnName() {
+        Configuration configuration = Valid.value(
+                Configuration.of(List.of(motor("a", EncoderReads.OWN_MOTOR), new Configuration.Servo("b"))));
+
+        assertEquals(Optional.of(new Configuration.Servo("b")), configuration.committed("b"));
+        assertEquals(Optional.empty(), configuration.committed("c"));
+    }
+
+    @Test
+    public void aDeviceCommittedUnderAnotherNameIsFoundByThatName() {
+        Configuration renamed = Valid.value(Configuration.committedAs(List.of(
+                new Configuration.Committed("intake", motor("intakeMotor", EncoderReads.OWN_MOTOR)),
+                new Configuration.Committed("ramp", new Configuration.Servo("ramp")))));
+
+        assertEquals(Optional.of(motor("intakeMotor", EncoderReads.OWN_MOTOR)), renamed.committed("intake"));
+        assertEquals(
+                List.of(motor("intakeMotor", EncoderReads.OWN_MOTOR), new Configuration.Servo("ramp")),
+                renamed.devices());
+    }
+
+    @Test
+    public void twoDevicesCommittedUnderOneNameAreRejectedNamingIt() {
+        assertRejected(
+                "two devices are committed as 'intake'",
+                Configuration.committedAs(List.of(
+                        new Configuration.Committed("intake", motor("intakeMotor", EncoderReads.OWN_MOTOR)),
+                        new Configuration.Committed("intake", new Configuration.Servo("ramp")))));
+    }
+
+    @Test
+    public void devicesCommittedUnderAnotherNameAreCheckedByTheNamesTheyHaveNow() {
+        assertRejected(
+                "two devices are named 'ramp'",
+                Configuration.committedAs(List.of(
+                        new Configuration.Committed("intake", new Configuration.Servo("ramp")),
+                        new Configuration.Committed("ramp", new Configuration.Servo("ramp")))));
+    }
+
+    @Test
+    public void aConfigurationIsCommittedUnderItsOwnNamesUntilADeviceIsCommittedUnderAnother() {
+        Configuration own = Valid.value(Configuration.of(List.of(new Configuration.Servo("ramp"))));
+        Configuration renamed = Valid.value(Configuration.committedAs(
+                List.of(new Configuration.Committed("ramp", new Configuration.Servo("lift")))));
+
+        assertTrue(own.committedUnderTheirOwnNames());
+        assertFalse(renamed.committedUnderTheirOwnNames());
     }
 
     @Test

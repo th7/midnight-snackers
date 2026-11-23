@@ -233,12 +233,16 @@ public final class Overrides {
                                 : device);
             }
         }
+        List<Configuration.Committed> committed = new ArrayList<>();
+        for (Map.Entry<String, Configuration.Device> device : devices.entrySet()) {
+            committed.add(new Configuration.Committed(device.getKey(), device.getValue()));
+        }
         Facing logo = faces.getOrDefault(HubFace.LOGO, defaults.hub().logo());
         Facing usb = faces.getOrDefault(HubFace.USB, defaults.hub().usb());
         Directions directed = directions;
         return Constants.of(values)
                 .then(constants -> HubMounting.of(logo, usb)
-                        .then(hub -> Configuration.of(new ArrayList<>(devices.values()))
+                        .then(hub -> Configuration.committedAs(committed)
                                 .map(configuration -> RobotDescription.of(configuration, hub, constants, directed))));
     }
 

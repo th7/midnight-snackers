@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.Test;
 
 public class OverridesTest {
@@ -144,6 +145,57 @@ public class OverridesTest {
                         new Overrides.Edit.Wired("rightBack", EncoderReads.NOTHING),
                         new Overrides.Edit.Renamed("ramp", "lift")),
                 edited.edits());
+    }
+
+    @Test
+    public void aRenamedDeviceIsFoundByTheNameItIsCommittedUnderAndNotByItsNewName() {
+        Configuration renamed = asked(REGINALD, known(new Overrides.Edit.Renamed("intake", "intakeMotor")))
+                .description()
+                .configuration();
+
+        assertEquals(
+                Optional.of(new Configuration.Motor(
+                        "intakeMotor", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.OWN_MOTOR)),
+                renamed.committed("intake"));
+        assertEquals(Optional.empty(), renamed.committed("intakeMotor"));
+    }
+
+    @Test
+    public void aRenamedConfigurationListsEachDeviceWithTheNameItIsCommittedUnderInItsOrder() {
+        Configuration renamed = asked(REGINALD, known(new Overrides.Edit.Renamed("intake", "intakeMotor")))
+                .description()
+                .configuration();
+
+        assertEquals(
+                new Configuration.Committed(
+                        "intake",
+                        new Configuration.Motor(
+                                "intakeMotor", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.OWN_MOTOR)),
+                renamed.committed().get(4));
+        assertEquals(
+                new Configuration.Committed(
+                        "leftFront", REGINALD.configuration().devices().get(0)),
+                renamed.committed().get(0));
+        assertEquals(11, renamed.committed().size());
+    }
+
+    @Test
+    public void twoDevicesThatSwapNamesAreEachFoundByTheNameTheyAreCommittedUnder() {
+        Configuration swapped = asked(
+                        REGINALD,
+                        known(new Overrides.Edit.Renamed("leftFront", "rightBack")),
+                        known(new Overrides.Edit.Renamed("rightBack", "leftFront")))
+                .description()
+                .configuration();
+
+        assertEquals(
+                Optional.of(new Configuration.Motor(
+                        "rightBack", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.PERPENDICULAR_DEAD_WHEEL)),
+                swapped.committed("leftFront"));
+        assertEquals(
+                Optional.of(new Configuration.Motor(
+                        "leftFront", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.PARALLEL_DEAD_WHEEL)),
+                swapped.committed("rightBack"));
     }
 
     @Test

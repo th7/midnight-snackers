@@ -20,6 +20,7 @@ import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Test;
 
@@ -248,6 +249,46 @@ public class SimDriverStationTest {
         station.accept(line);
 
         assertEquals(differs, station.description());
+    }
+
+    @Test
+    public void theStartLineCarriesTheNameEachRenamedDeviceIsCommittedUnderAndTheStationTakesIt() {
+        SimDriverStation station = new SimDriverStation();
+        RobotDescription renamed = Valid.value(Overrides.asked(
+                        RobotDescription.reginalds(),
+                        List.of(
+                                new Overrides.Kept.Known(new Overrides.Edit.Renamed("intake", "intakeMotor")),
+                                new Overrides.Kept.Known(new Overrides.Edit.Renamed("ramp", "lift")))))
+                .description();
+        JsonObject line = SimDriverStation.startLine(new Pose2d(-60, 12, 0), null, renamed);
+        String said = line.toString();
+
+        assertTrue(
+                said,
+                said.contains("{\"name\":\"intakeMotor\",\"kind\":\"motor\","
+                        + "\"type\":\"REV Robotics UltraPlanetary HD Hex Motor\",\"encoder\":\"own_motor\","
+                        + "\"committed\":\"intake\"}"));
+        assertTrue(said, said.contains("{\"name\":\"lift\",\"kind\":\"servo\",\"committed\":\"ramp\"}"));
+        assertTrue(said, said.contains("{\"name\":\"imu\",\"kind\":\"imu\"}"));
+
+        station.accept(line);
+
+        assertEquals(renamed, station.description());
+    }
+
+    @Test
+    public void twoDevicesOfAStartLineCommittedUnderOneNameAreRefused() {
+        JsonObject line = new Gson()
+                .fromJson(
+                        "{\"start\":{\"x\":0.0,\"y\":0.0,\"heading\":0.0},\"configuration\":["
+                                + "{\"name\":\"lift\",\"kind\":\"servo\",\"committed\":\"ramp\"},"
+                                + "{\"name\":\"ramp\",\"kind\":\"servo\"}]}",
+                        JsonObject.class);
+
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> new SimDriverStation().accept(line));
+
+        assertTrue(refused.getMessage(), refused.getMessage().contains("two devices are committed as 'ramp'"));
     }
 
     @Test
