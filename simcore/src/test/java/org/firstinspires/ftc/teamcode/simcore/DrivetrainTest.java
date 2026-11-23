@@ -15,8 +15,10 @@ public class DrivetrainTest {
 
     private static final Feedforward TUNED =
             Valid.value(Feedforward.of(KS_VOLTS, KV_VOLT_SECONDS_PER_TICK, KA_VOLT_SECONDS_SQUARED_PER_TICK));
-    private static final Drivetrain EXACT =
-            Valid.value(Drivetrain.of(TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned())));
+    private static final PerWheel<Sense> FRONT_AHEAD_BACK_MIRRORED =
+            new PerWheel<>(Sense.FORWARD, Sense.FORWARD, Sense.REVERSE, Sense.REVERSE);
+    private static final Drivetrain EXACT = Valid.value(
+            Drivetrain.of(TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned()), FRONT_AHEAD_BACK_MIRRORED));
 
     private static final Seconds STEP = Valid.value(Seconds.of(0.005));
 
@@ -163,7 +165,7 @@ public class DrivetrainTest {
         assertEquals(new PerWheel<>(-ahead, -ahead, ahead, ahead), backwardPushes);
         assertEquals(
                 new PerWheel<>(Sense.FORWARD, Sense.FORWARD, Sense.REVERSE, Sense.REVERSE),
-                PerWheel.each(Wheel::mounted));
+                PerWheel.each(wheel -> wheel.drives(Directions.reginalds())));
     }
 
     @Test
@@ -179,7 +181,10 @@ public class DrivetrainTest {
     public void aNoisyMotorIsItsTuningScaledByItsNoise() {
         Noise.Motor weaker = Valid.value(Noise.Motor.of(1, 1.1, 1));
         Drivetrain noisy = Valid.value(Drivetrain.of(
-                TUNED, IN_PER_TICK, PerWheel.all(Noise.Motor.tuned()).with(Wheel.LEFT_FRONT, weaker)));
+                TUNED,
+                IN_PER_TICK,
+                PerWheel.all(Noise.Motor.tuned()).with(Wheel.LEFT_FRONT, weaker),
+                FRONT_AHEAD_BACK_MIRRORED));
 
         double weakerFreeSpeed = (VOLTS - KS_VOLTS) / (1.1 * KV_VOLT_SECONDS_PER_TICK) * IN_PER_TICK;
         assertEquals(0, leftFront(noisy, forward(1), weakerFreeSpeed, Traction.unlimited()), 1e-6);
@@ -205,7 +210,11 @@ public class DrivetrainTest {
         assertTrue(Feedforward.of(1, 1, 0) instanceof Checked.Rejected);
         assertTrue(Feedforward.of(1, 1, Double.NaN) instanceof Checked.Rejected);
         assertTrue(Feedforward.of(Double.POSITIVE_INFINITY, 1, 1) instanceof Checked.Rejected);
-        assertTrue(Drivetrain.of(TUNED, 0, PerWheel.all(Noise.Motor.tuned())) instanceof Checked.Rejected);
-        assertTrue(Drivetrain.of(TUNED, Double.NaN, PerWheel.all(Noise.Motor.tuned())) instanceof Checked.Rejected);
+        assertTrue(
+                Drivetrain.of(TUNED, 0, PerWheel.all(Noise.Motor.tuned()), FRONT_AHEAD_BACK_MIRRORED)
+                        instanceof Checked.Rejected);
+        assertTrue(
+                Drivetrain.of(TUNED, Double.NaN, PerWheel.all(Noise.Motor.tuned()), FRONT_AHEAD_BACK_MIRRORED)
+                        instanceof Checked.Rejected);
     }
 }

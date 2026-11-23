@@ -33,7 +33,8 @@ public class DirectionsTest {
     public void aMechanismIsNamedAsTheDescriptionAsksForIt() {
         assertEquals(Mechanism.INTAKE, Valid.value(Mechanism.named("intake")));
         assertEquals(
-                "a mechanism is intake, spinner, flywheel_front, flywheel_back, not 'outtake'",
+                "a mechanism is left_front, right_front, left_back, right_back, intake, spinner, flywheel_front,"
+                        + " flywheel_back, not 'outtake'",
                 Mechanism.named("outtake").fold(found -> "found " + found, rule -> rule));
     }
 
@@ -79,5 +80,21 @@ public class DirectionsTest {
                 "Positive power turns its motor counterclockwise, seen from its shaft.",
                 Mechanism.FLYWHEEL_BACK.says(false));
         assertEquals("flywheel_front turns clockwise on positive power", reversed.toString());
+    }
+
+    @Test
+    public void reginaldsDriveMotorsAsBuiltDriveTheFrontWheelsForwardAndTheBackWheelsBackwardOnPositivePower() {
+        Directions reversed = Directions.reginalds().with(Mechanism.LEFT_FRONT, true);
+
+        assertEquals("drives_forward", Mechanism.LEFT_FRONT.way(false));
+        assertEquals("drives_forward", Mechanism.RIGHT_FRONT.way(false));
+        assertEquals("drives_backward", Mechanism.LEFT_BACK.way(false));
+        assertEquals("drives_backward", Mechanism.RIGHT_BACK.way(false));
+        assertEquals("drives_forward", Mechanism.RIGHT_BACK.way(true));
+        assertEquals("Left front", Mechanism.LEFT_FRONT.label());
+        assertEquals("Right back", Mechanism.RIGHT_BACK.label());
+        assertEquals("Positive power drives its wheel backward.", Mechanism.LEFT_BACK.says(false));
+        assertEquals("Positive power drives its wheel forward.", Mechanism.LEFT_BACK.says(true));
+        assertEquals("left_front drives backward on positive power", reversed.toString());
     }
 }

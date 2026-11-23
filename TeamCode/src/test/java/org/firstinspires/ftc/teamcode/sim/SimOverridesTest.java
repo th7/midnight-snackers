@@ -71,6 +71,15 @@ public class SimOverridesTest {
         throw new AssertionError("no constant " + name + " in " + listing);
     }
 
+    private static JsonObject direction(JsonObject listing, String name) {
+        for (JsonElement one : listing.getAsJsonArray("directions")) {
+            if (one.getAsJsonObject().get("name").getAsString().equals(name)) {
+                return one.getAsJsonObject();
+            }
+        }
+        throw new AssertionError("no direction " + name + " in " + listing);
+    }
+
     private static List<String> notices(JsonObject listing) {
         List<String> said = new ArrayList<>();
         for (JsonElement notice : listing.getAsJsonArray("notices")) {
@@ -224,8 +233,7 @@ public class SimOverridesTest {
 
     @Test
     public void eachMechanismIsListedWithWhatPositiveDriveDoesEachWayAndItsDefault() {
-        JsonObject intake =
-                json(get(aBench())).getAsJsonArray("directions").get(0).getAsJsonObject();
+        JsonObject intake = direction(json(get(aBench())), "intake");
 
         assertEquals("intake", intake.get("name").getAsString());
         assertEquals("Intake", intake.get("label").getAsString());
@@ -243,19 +251,39 @@ public class SimOverridesTest {
     }
 
     @Test
+    public void eachDriveMotorIsListedWithWhichWayPositivePowerDrivesItsWheel() {
+        JsonObject listing = json(get(aBench()));
+        JsonObject leftFront = direction(listing, "left_front");
+        JsonObject rightBack = direction(listing, "right_back");
+
+        assertEquals("Left front", leftFront.get("label").getAsString());
+        assertEquals("drives_forward", leftFront.get("byDefault").getAsString());
+        assertEquals(
+                "Positive power drives its wheel backward.",
+                leftFront
+                        .getAsJsonArray("ways")
+                        .get(1)
+                        .getAsJsonObject()
+                        .get("says")
+                        .getAsString());
+        assertEquals("drives_backward", rightBack.get("value").getAsString());
+        assertEquals(
+                "left_front",
+                listing.getAsJsonArray("directions")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("name")
+                        .getAsString());
+    }
+
+    @Test
     public void aReversedMechanismIsWhatTheNextRunIsMadeOnAndIsKept() throws Exception {
         SimBench bench = aBench();
 
         JsonObject saved = json(put(bench, "{\"directions\": {\"intake\": \"pushes_out\"}}"));
 
         assertTrue(bench.description().directions().reversed(Mechanism.INTAKE));
-        assertEquals(
-                "pushes_out",
-                saved.getAsJsonArray("directions")
-                        .get(0)
-                        .getAsJsonObject()
-                        .get("value")
-                        .getAsString());
+        assertEquals("pushes_out", direction(saved, "intake").get("value").getAsString());
         assertEquals("{\"directions\":{\"intake\":\"pushes_out\"}}", keptText());
         assertTrue(
                 saved.get("described").getAsString(),

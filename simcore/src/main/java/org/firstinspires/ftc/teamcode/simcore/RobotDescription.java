@@ -61,6 +61,15 @@ public final class RobotDescription {
         return directions.asBuilt();
     }
 
+    public boolean driveMotorsAsBuilt() {
+        for (Wheel wheel : Wheel.values()) {
+            if (directions.reversed(wheel.mechanism())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean spindexerAsBuilt() {
         if (directions.reversed(Mechanism.SPINNER)) {
             return false;
@@ -142,7 +151,8 @@ public final class RobotDescription {
                         constants.value(Constant.DRIVE_KS_VOLTS),
                         constants.value(Constant.DRIVE_KV_VOLT_SECONDS_PER_IN),
                         constants.value(Constant.DRIVE_KA_VOLT_SECONDS_SQUARED_PER_IN))
-                .then(perInch -> Drivetrain.of(perInch, AN_INCH, noise));
+                .then(perInch ->
+                        Drivetrain.of(perInch, AN_INCH, noise, PerWheel.each(wheel -> wheel.drives(directions))));
     }
 
     @Override

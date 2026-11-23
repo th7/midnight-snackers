@@ -145,7 +145,8 @@ older build kept recalled. The server takes only the edits those answers were ma
 from, so a tab that sends anything else fails the check. There the tab comes first,
 lists every device and every value with its range and sentence, saves a moved wheel,
 marks it and shows it again when opened anew, shows the refusal beside the battery with
-nothing saved, rewires a motor, puts everything back with Reset all, shows what it
+nothing saved, rewires a motor, puts everything back with Reset all, offers each
+mechanism's direction by what positive power does, the four drive motors' among them, shows what it
 could not keep from the older file, and does not scroll sideways on a phone.
 `SimRobotTabTest` fails when the bench's answers are no longer shaped as the ones kept,
 saying to regenerate them with `-DsimTrace.regenerate=true`.

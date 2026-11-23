@@ -840,4 +840,50 @@ public class SimRunStreamTest {
         assertTrue(handshake.message, handshake.message.contains("Pull develop"));
         assertNull("a refused run is sent nothing", handshake.startLine);
     }
+
+    private static RobotDescription leftFrontReversed() {
+        return RobotDescription.reginalds().with(Directions.reginalds().with(Mechanism.LEFT_FRONT, true));
+    }
+
+    @Test
+    public void aChildThatTakesTheDriveMotorsDirectionsSpeaksProtocolThirteen() {
+        assertEquals(13, SimRunStream.DRIVE_MOTORS_PROTOCOL);
+        assertTrue(SimRunStream.DRIVE_MOTORS_PROTOCOL > SimRunStream.LAUNCH_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.DRIVE_MOTORS_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldTheDriveMotorsDirectionsAsTheDescriptionHasThem() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, leftFrontReversed());
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(
+                "{\"left_front\":\"drives_backward\"}",
+                handshake.startLine.getAsJsonObject("directions").toString());
+    }
+
+    @Test
+    public void aChildFromBeforeTheDriveMotorsDirectionsStillTakesAReversedFlywheelAndAMovedLauncher() {
+        for (RobotDescription differs : List.of(frontFlywheelReversed(), steeperLaunch())) {
+            SimRunStream.Handshake handshake = SimRunStream.handshake(
+                    SimRunStream.helloOf(SimRunStream.DRIVE_MOTORS_PROTOCOL - 1), StartPoses.ORIGIN, null, differs);
+
+            assertFalse(handshake.message, handshake.refused());
+        }
+    }
+
+    @Test
+    public void aChildFromBeforeTheDriveMotorsDirectionsIsRefusedAReversedDriveMotorByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(12), StartPoses.ORIGIN, null, leftFrontReversed());
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotDrive(12), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.DRIVE_MOTORS_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains("left_front drives backward on positive power"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
 }

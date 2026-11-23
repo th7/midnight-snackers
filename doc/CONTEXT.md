@@ -560,7 +560,9 @@ writes it. A project's own core is built with its simulator. Classes:
 
 **Drivebase** — How Reginald's drive motors turn the four wheels of the rigid
 body the simulator pushes, said once in the core: **mecanum**, a motor to each
-wheel, the back pair mounted mirror-image to the front. Its motors' powers are
+wheel, the back pair mounted mirror-image to the front. Which way each motor drives
+its wheel on positive power is one of the **directions**, so nothing about it is left
+in code. Its motors' powers are
 recorded `LF`, `RF`, `LB`, `RB`, and each motor has the noise drawn for its
 wheel. Classes: `Wheel`; `Drivetrain`.
 
@@ -811,7 +813,14 @@ spindexer it was built with, so the bench refuses it by name, with the fix, when
 spinner is reversed or a spindexer constant changed. From version 10 a device in the
 start line's configuration may carry the name it is committed under, beside the name the
 Robot tab gave it; an older child finds each device by the name it was built with, so the
-bench refuses it by name, with the fix, when a device is renamed. Only the bench and its child speak this protocol: the browser's page
+bench refuses it by name, with the fix, when a device is renamed. From version 11 the
+flywheels are among the directions and the launcher's constants among the constants; an
+older child runs the flywheels it was built with, so the bench refuses it by name, with the
+fix, when a flywheel is reversed or a launcher constant changed. From version 12 the
+launch's constants are among them too; an older child drops each pollen it feeds, so the
+bench refuses it by name, with the fix, when one changed. From version 13 the four drive
+motors are among the directions; an older child drives each wheel the way it was built
+to, so the bench refuses it by name, with the fix, when a drive motor is reversed. Only the bench and its child speak this protocol: the browser's page
 is reloaded when it changes, so it is never versioned. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
@@ -1279,7 +1288,9 @@ encoder port reads. A port reading its own motor settles at the target; one
 reading a dead wheel or nothing runs away toward full power, as on the robot.
 
 **Directions** — Which way positive power turns each mechanism's pieces, with the
-SDK's motor direction left forward: the intake `takes_in` as built, or
+SDK's motor direction left forward: each **drivebase** motor's wheel, `left_front`
+and `right_front` `drives_forward` as built, or `drives_backward`, and `left_back` and
+`right_back` `drives_backward` as built, mounted mirror-image, or `drives_forward`; the intake `takes_in` as built, or
 `pushes_out`; the **spinner** `turns_clockwise` from above as built, or
 `turns_counterclockwise`; each **flywheel**'s motor `turns_counterclockwise` seen
 from its shaft as built, or `turns_clockwise`. A part of the **robot description** a teammate reverses on the Robot

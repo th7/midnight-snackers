@@ -223,6 +223,13 @@ async function aMotorIsRewiredAndResetAllPutsEverythingBack(page) {
 
 async function aMechanismIsReversedByWhatPositivePowerDoes(page) {
   const listed = ANSWERED.listing.directions;
+  check(['left_front', 'right_front', 'left_back', 'right_back'].every((name) => listed.some((one) => one.name === name)),
+        `the drive motors are not all among the directions: ${listed.map((one) => one.name).join(', ')}`);
+  for (const one of listed) {
+    const ways = await page.locator(`#robot [data-direction="${one.name}"] select option`).allTextContents();
+    check(ways.join('|') === one.ways.map((way) => way.says).join('|'),
+          `${one.label} offers ${JSON.stringify(ways)}, not what positive power does each way`);
+  }
   const intake = listed.find((one) => one.name === 'intake');
   const select = page.locator('#robot [data-direction="intake"] select');
   const offered = await select.locator('option').allTextContents();
@@ -307,7 +314,7 @@ async function main() {
   console.log(`the Robot tab comes first, lists the ${ANSWERED.listing.configuration.length} configured devices and`
       + ` the ${ANSWERED.listing.constants.length} values with their ranges and sentences, saves a moved wheel and`
       + ' keeps it, refuses a flattest battery above the freshest saying why and saving nothing, rewires a motor,'
-      + ' puts everything back with Reset all, reverses the intake by what positive power does, shows what it could not keep from an older build\'s file, and fits a'
+      + ' puts everything back with Reset all, offers each mechanism\'s direction, the drive motors\' among them, reverses the intake by what positive power does, shows what it could not keep from an older build\'s file, and fits a'
       + ' phone.');
 }
 

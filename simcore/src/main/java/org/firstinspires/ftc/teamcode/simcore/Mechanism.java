@@ -5,6 +5,34 @@ import java.util.List;
 import java.util.Locale;
 
 public enum Mechanism {
+    LEFT_FRONT(
+            "Left front",
+            "the left front motor",
+            "drives_forward",
+            "drives_backward",
+            "power drives its wheel forward",
+            "power drives its wheel backward"),
+    RIGHT_FRONT(
+            "Right front",
+            "the right front motor",
+            "drives_forward",
+            "drives_backward",
+            "power drives its wheel forward",
+            "power drives its wheel backward"),
+    LEFT_BACK(
+            "Left back",
+            "the left back motor",
+            "drives_backward",
+            "drives_forward",
+            "power drives its wheel backward",
+            "power drives its wheel forward"),
+    RIGHT_BACK(
+            "Right back",
+            "the right back motor",
+            "drives_backward",
+            "drives_forward",
+            "power drives its wheel backward",
+            "power drives its wheel forward"),
     INTAKE("Intake", "the intake", "takes_in", "pushes_out", "power takes pollen in", "power pushes pollen out"),
     SPINNER(
             "Spinner",

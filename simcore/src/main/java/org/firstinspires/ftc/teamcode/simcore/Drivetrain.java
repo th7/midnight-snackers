@@ -2,21 +2,24 @@ package org.firstinspires.ftc.teamcode.simcore;
 
 public final class Drivetrain {
     private final PerWheel<Feedforward> motors;
+    private final PerWheel<Sense> drives;
     private final double inPerTick;
 
-    private Drivetrain(PerWheel<Feedforward> motors, double inPerTick) {
+    private Drivetrain(PerWheel<Feedforward> motors, PerWheel<Sense> drives, double inPerTick) {
         this.motors = motors;
+        this.drives = drives;
         this.inPerTick = inPerTick;
     }
 
     public record Setting(Power power, ZeroPower atZero) {}
 
-    public static Checked<Drivetrain> of(Feedforward tuned, double inPerTick, PerWheel<Noise.Motor> noise) {
+    public static Checked<Drivetrain> of(
+            Feedforward tuned, double inPerTick, PerWheel<Noise.Motor> noise, PerWheel<Sense> drives) {
         if (!(inPerTick > 0 && Double.isFinite(inPerTick))) {
             return Checked.rejected("a wheel turns a positive, finite distance a tick, not " + inPerTick + " in");
         }
         return PerWheel.allOf(noise.map(motor -> tuned.scaledBy(motor)))
-                .map(motors -> new Drivetrain(motors, inPerTick));
+                .map(motors -> new Drivetrain(motors, drives, inPerTick));
     }
 
     public Checked<PerWheel<Double>> accelerations(
@@ -28,7 +31,7 @@ public final class Drivetrain {
     private Checked<Double> acceleration(
             Wheel wheel, Setting setting, double batteryVolts, double velocity, Seconds dt, Traction traction) {
         Feedforward motor = motors.of(wheel);
-        double volts = wheel.mounted().of(setting.power().value()) * batteryVolts;
+        double volts = drives.of(wheel).of(setting.power().value()) * batteryVolts;
         double kSVolts = motor.kSVolts();
         double kAVoltSecondsSquaredPerTick = motor.kAVoltSecondsSquaredPerTick();
         double ticksPerSecond = velocity / inPerTick;

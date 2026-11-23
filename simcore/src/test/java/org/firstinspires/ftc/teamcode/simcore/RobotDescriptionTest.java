@@ -49,6 +49,25 @@ public class RobotDescriptionTest {
     }
 
     @Test
+    public void aDriveMotorReversedInTheDirectionsPushesItsWheelTheOtherWayAndNoOtherWheel() {
+        RobotDescription reversed =
+                RobotDescription.reginalds().with(Directions.reginalds().with(Mechanism.LEFT_FRONT, true));
+        Drivetrain drive = Valid.value(reversed.drivetrain(PerWheel.all(Noise.Motor.tuned())));
+
+        PerWheel<Double> fromRest = Valid.value(drive.accelerations(
+                PerWheel.all(new Drivetrain.Setting(Power.clamped(1), ZeroPower.BRAKE)),
+                12,
+                PerWheel.all(0.0),
+                Valid.value(Seconds.of(0.005)),
+                Traction.unlimited()));
+
+        assertEquals(-119.64407693562225, fromRest.leftFront(), 1e-9);
+        assertEquals(119.64407693562225, fromRest.rightFront(), 1e-9);
+        assertEquals(-119.64407693562225, fromRest.leftBack(), 1e-9);
+        assertEquals(-119.64407693562225, fromRest.rightBack(), 1e-9);
+    }
+
+    @Test
     public void reginaldsDeadWheelsAsBuiltSitWhereTheDescriptionPutsThem() {
         DeadWheels wheels = Valid.value(RobotDescription.reginalds().deadWheels());
 
@@ -134,5 +153,20 @@ public class RobotDescriptionTest {
         assertFalse(steeper.launchAsBuilt());
         assertTrue(steeper.launcherAsBuilt());
         assertTrue(heavierWheel.launchAsBuilt());
+    }
+
+    @Test
+    public void theDriveMotorsAreAsBuiltWhileEachDrivesItsWheelAsBuilt() {
+        RobotDescription built = RobotDescription.reginalds();
+        RobotDescription rightBackReversed = built.with(Directions.reginalds().with(Mechanism.RIGHT_BACK, true));
+        RobotDescription frontReversed = built.with(Directions.reginalds().with(Mechanism.FLYWHEEL_FRONT, true));
+        RobotDescription heavier = built.with(Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))));
+
+        assertTrue(built.driveMotorsAsBuilt());
+        assertFalse(rightBackReversed.driveMotorsAsBuilt());
+        assertFalse(rightBackReversed.directionsAsBuilt());
+        assertTrue(rightBackReversed.launcherAsBuilt() && rightBackReversed.spindexerAsBuilt());
+        assertTrue(frontReversed.driveMotorsAsBuilt());
+        assertTrue(heavier.driveMotorsAsBuilt());
     }
 }

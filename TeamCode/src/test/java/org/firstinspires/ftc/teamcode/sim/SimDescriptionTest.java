@@ -86,12 +86,31 @@ public class SimDescriptionTest {
     }
 
     @Test
+    public void eachDriveMotorsDirectionIsReadFromTheFileAndNoneMayBeLeftOut() throws IOException {
+        RobotDescription read = Valid.value(SimDescription.read(written(
+                committed().replace("\"left_front\": \"drives_forward\"", "\"left_front\": \"drives_backward\""))));
+
+        assertTrue(read.directions().reversed(Mechanism.LEFT_FRONT));
+        assertFalse(read.directions().reversed(Mechanism.RIGHT_BACK));
+        assertRefused(
+                "the robot description's directions name every mechanism, and right_back is missing",
+                SimDescription.read(written(committed().replace(", \"right_back\": \"drives_backward\"", ""))));
+        assertRefused(
+                "the left back motor drives_backward or drives_forward on positive power, not 'drives_back'",
+                SimDescription.read(written(
+                        committed().replace("\"left_back\": \"drives_backward\"", "\"left_back\": \"drives_back\""))));
+    }
+
+    @Test
     public void theDirectionsNameEveryMechanismAndOnlyTheWaysEachHas() throws IOException {
         assertRefused(
                 "directions is missing",
                 SimDescription.read(written(committed()
                         .replace(
-                                "\"directions\": {\n    \"intake\": \"takes_in\", \"spinner\": \"turns_clockwise\",\n"
+                                "\"directions\": {\n"
+                                        + "    \"left_front\": \"drives_forward\", \"right_front\": \"drives_forward\",\n"
+                                        + "    \"left_back\": \"drives_backward\", \"right_back\": \"drives_backward\",\n"
+                                        + "    \"intake\": \"takes_in\", \"spinner\": \"turns_clockwise\",\n"
                                         + "    \"flywheel_front\": \"turns_counterclockwise\","
                                         + " \"flywheel_back\": \"turns_counterclockwise\"\n  },",
                                 ""))));
@@ -99,7 +118,8 @@ public class SimDescriptionTest {
                 "the robot description's directions name every mechanism, and intake is missing",
                 SimDescription.read(written(committed().replace("\"intake\": \"takes_in\", ", ""))));
         assertRefused(
-                "a mechanism is intake, spinner, flywheel_front, flywheel_back, not 'outtake'",
+                "a mechanism is left_front, right_front, left_back, right_back, intake, spinner, flywheel_front,"
+                        + " flywheel_back, not 'outtake'",
                 SimDescription.read(
                         written(committed().replace("\"intake\": \"takes_in\"", "\"outtake\": \"takes_in\""))));
         assertRefused(

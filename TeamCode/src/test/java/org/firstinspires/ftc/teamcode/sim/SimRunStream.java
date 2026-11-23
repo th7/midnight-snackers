@@ -114,6 +114,12 @@ public final class SimRunStream {
                     + " needs " + LAUNCH_PROTOCOL;
         }
 
+        public static String cannotDrive(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and drives each wheel the way it was built to; reversing a drive motor in "
+                    + SimDescription.FILE + " needs " + DRIVE_MOTORS_PROTOCOL;
+        }
+
         public static String couldNotStartChild() {
             return "could not start the child JVM";
         }
@@ -192,7 +198,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 12;
+    public static final int PROTOCOL = 13;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -213,6 +219,8 @@ public final class SimRunStream {
     public static final int LAUNCHER_PROTOCOL = 11;
 
     public static final int LAUNCH_PROTOCOL = 12;
+
+    public static final int DRIVE_MOTORS_PROTOCOL = 13;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -440,6 +448,25 @@ public final class SimRunStream {
                             + "); that needs protocol "
                             + LAUNCH_PROTOCOL
                             + ": the sources are older than the server. Pull develop, or put the launch's constants in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
+        }
+        if (!description.driveMotorsAsBuilt() && protocol < DRIVE_MOTORS_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotDrive(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and drives each wheel the way it was built to, not as "
+                            + SimDescription.FILE
+                            + " has it ("
+                            + SimDescription.described(description)
+                            + "); that needs protocol "
+                            + DRIVE_MOTORS_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put the drive motors'"
+                            + " directions in "
                             + SimDescription.FILE
                             + " back as they were built.");
         }

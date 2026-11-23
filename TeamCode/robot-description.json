@@ -14,6 +14,8 @@
   ],
   "hub": {"logo": "RIGHT", "usb": "UP"},
   "directions": {
+    "left_front": "drives_forward", "right_front": "drives_forward",
+    "left_back": "drives_backward", "right_back": "drives_backward",
     "intake": "takes_in", "spinner": "turns_clockwise",
     "flywheel_front": "turns_counterclockwise", "flywheel_back": "turns_counterclockwise"
   },
