@@ -7,69 +7,94 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 ## The robot
 
-**Where things live** — The robot's code is a package of its own, its
-**own files**: `org.firstinspires.ftc.reginald` is Reginald. `reginald` holds
-the **Robot** and nothing but the subsystems it is made of, so the list of
-files is the list of parts. Underneath it: `opmode` (what the driver station
-lists and how a plan becomes one), `hardware` (the devices and what is wired
-to what), `control` (the controllers and filters a subsystem steers by) and
-`roadrunner` (trajectories, which we own rather than vendor).
-`org.firstinspires.ftc.teamcode` holds what every robot's code is built on:
-`base` (what a subsystem *is* — `Loopable` — where it prints — `Prints`,
-`Channels` — and the `Alliance` a run plays for), `planrunner` (plans and
-steps), and what both robots' Road Runner needs — the **clocked encoder** and
-the drawing of a robot in `roadrunner`, the drive runner that follows an action
-a loop at a time in `control`, and the dashboard it draws on in `hardware`;
-its test sources hold the simulator, the robot gateway and the fakes.
-Nothing outside a robot's package uses that robot's code, and every op mode
-is in a robot's package: a class moves into `teamcode` when a second robot
-needs it, rather than being reached for across. No test holds the robot code
-to this or to anything else: the tests and CI judge the simulator and the
-robot gateway, and the robot code is the team's to change.
+**Where things live** — Two roots, side by side. `org.firstinspires.ftc.reginald`
+is Reginald, and is the only one a teammate opens: `subsystems` holds nothing
+but the parts the robot is made of, so the list of files is the list of
+parts, `autos` holds nothing but the autos the driver station lists, and
+`oldcode` holds **old code**. Adding, switching off or removing a part or an
+auto touches that one file and no other. A part in `subsystems` holds what a
+teammate changes about it — which buttons do what, and the steps it offers an
+auto — and asks the framework for the rest: `Drive` is the sticks and
+bumpers, and the `Chassis` it drives follows trajectories and steers.
 
-**Subsystem** — One part of the robot, and now only that: something the
-robot ticks, which is to say a `Loopable` that lives directly in
-`reginald`. There is no base class to extend. A subsystem is built with
-everything it needs, sets itself up in its own constructor, does its work in
-`loop`, and prints to the **channel** it was handed. What used to be three
-hooks a base class asked for is one method an interface asks for, and the
-package says which classes are subsystems — which is the rule this glossary
-already opened with, now doing a job.
+`org.firstinspires.ftc.framework` is what every robot is built on, and nobody
+needs to open it to add a part or an auto: `robot` (the **Robot**, what a
+subsystem and an op mode *are*, how the driver station comes to list them,
+the TeleOp every robot has, where a part prints — `Prints`, `Channels` — its
+`Gamepads`, and the `Alliance` a run plays for), `plans` (plans, steps, and
+`Pause`, the step that waits), `hardware` (the devices and what is wired to
+what), `drive` (the chassis, the localizer, the pose math in `Nav`, Road
+Runner, which we own rather than vendor, the **clocked encoder**, and the
+controllers a drive steers by) and `tools` (tuning op modes for the people
+who tune). The test sources hold the simulator, the robot gateway and the
+fakes. No test holds the subsystems or the autos to this or to anything
+else: they are the team's to change. The tests and CI judge the simulator,
+the robot gateway and the framework, and one test builds and loops every op
+mode the robot lists, so a change to the framework cannot leave the team's
+code unbuildable unnoticed.
 
-**Whoever owns it, ticks it.** Anything that must be ticked is ticked by
-whatever it belongs to, on the first line of that thing's own loop: a
-subsystem's plan runner or drive runner in its `loop`, an auto's plan runner
-in the auto's `onLoop`, a TeleOp's driver in the TeleOp's. Registering them
-to be ticked by somebody else read tidily and cost more than it saved. The
-method that is supposed to say what a thing does each tick stopped saying it
-— `Drive`, which follows a trajectory every loop, had an empty one — and the
-robot ended up ticking an op mode's plan runner, which meant it had to
-accept something that was not a subsystem and then ask which it had been
-given.
+**Subsystem** — One part of the robot, and now only that: a class in
+`subsystems` that extends `SubSystem`. A subsystem names everything it needs
+as its one public constructor's parameters, sets itself up in that
+constructor, gets ready in `init`, reads the driver's buttons in `teleOp`,
+does its work in `loop`, and prints to the **channel** it was handed. It
+offers an auto its **steps**, such as `drive.to(24, 0, 0)` or
+`intake.spin()`. It never builds, registers or ticks itself, and nobody does
+it by hand: the **robot** builds every subsystem in every op mode, calls its
+`init` once every part is built, in a TeleOp its `teleOp` every loop with
+the gamepads, and its `loop` every loop after that. Each hook does nothing
+unless the subsystem says otherwise. Which buttons do what is said in the
+subsystem they move, so there is no driver class to keep in step with it.
+
+**Built because it is there** — Every subsystem the robot finds in
+Reginald's code or the framework is built in every op mode, and, first, everything its
+constructor asks for; a class that is no subsystem is built only because
+something asks for it. Nobody lists the parts: a file in `subsystems` is
+built because it is there, and one taken out is not. A part is built once
+and shared: the localizer the `Chassis` steers by is the one
+`MecanumDrive` reads. What the robot does not build it supplies: the
+`Hardware` (switched off for a **switched-off** part), the `Alliance`, the
+`Gamepads`, the `Dashboard`, and each part's own channel, named after its
+class. It builds only the classes it found, through their one public
+constructor, and an interface is the one class it found that implements it,
+as `Localizer` is for `PoseEstimate`. A part that needs something the robot
+neither supplies nor builds, an interface no class or two classes implement,
+or itself, fails at init naming the chain that led to it. The robot finds
+its classes by listing the app's own code at registration, every class
+under `org.firstinspires.ftc.reginald` and `org.firstinspires.ftc.framework`,
+the way the SDK finds annotated op modes. Classes: `Robot`; `Discovered`.
+
+**Whoever owns it, ticks it.** A subsystem is ticked by the robot, after
+everything it was built from: what a part needs is built first, so it is
+ticked first, and the localizer leads because the parts that steer by its
+pose need it; parts that need nothing of each other tick in the order of
+their names. Anything else that must be ticked is not a subsystem, and is
+ticked by whatever it belongs to on the first line of that thing's own loop:
+a subsystem's plan runner or drive runner in its `loop`, an auto's plan
+runner in the auto's `onLoop`. The tick order used to be one list in the
+robot's constructor, written apart from the parts it named; the intake fell
+out of it and was built and never ticked. Now there is no list, so there is
+nothing to keep in step.
 
 So the chain is plain the whole way down: an op mode's `init` builds the
-**Robot**, which builds each subsystem and hands it what it needs; an op
-mode's `loop` ticks the robot, which ticks its subsystems in the order of
-the one list in its constructor, and then the op mode's own `onLoop`, which
-is where anything the op mode owns is ticked. `loop` is final at both
-levels, so the order is not a subclass's to rearrange, and an auto's plan
-advancing after every subsystem is the shape of it rather than a position in
-a list. That every subsystem is ticked at all is mechanical rather than
-remembered, and a test says so: it finds every `Loopable` in `reginald` that
-the robot or an op mode holds and fails naming any the op modes never reach.
-A subsystem nothing holds, such as one switched off with the hardware it
-drives, is not judged until something holds it again. Classes: `Loopable`;
-`Robot.loopOrder`; `SubSystemsAreTickedTest`.
+**Robot**, which builds every subsystem and calls each part's `init`; an op
+mode's `loop` hands a TeleOp's gamepads to each subsystem's `teleOp`, ticks
+the robot, which ticks its subsystems, and then the op mode's own `onLoop`,
+which is where anything the op mode owns, such as an auto's plan, is
+ticked. `loop` is final at both levels, so the order is not a subclass's to
+rearrange, and an auto's plan advancing after every subsystem is the shape of
+it rather than a position in a list. Classes: `SubSystem`; `Robot`.
 
 **Channel** — The driver station's telemetry divided by the name of whoever
 is printing. Each subsystem is handed its own when it is built and prints to
 it and nothing else, always, knowing nothing about whether anyone is
 reading; the channel puts its own name on every caption, so two subsystems
-cannot print the same one. Telemetry costs a loop and a crowded screen, so a
-channel is off until a driver asks for it, and which button reaches which
-channels is said once, in the op mode. Every channel the robot makes has a
-button; a button may also name a channel of a subsystem that is switched
-off, which then reaches nothing. Class: `TelemetryTogglesReachEveryChannelTest`.
+cannot print the same one. Telemetry costs a loop and a crowded screen, so
+one channel shows at a time, and none until a driver asks: share on gamepad 2
+shows the next channel by name, and after the last, none again. The driver
+station says which is showing on every loop. So every channel the robot
+makes is reachable with no list of them to keep, and a new subsystem's
+channel is in the cycle because it is there.
 
 That the decision lives there and nowhere else is the point. It used to be a
 flag on every subsystem, a gate in a base class and a method on each of them
@@ -80,39 +105,58 @@ loud rather than left as a null. Classes: `Channels`; `Prints`;
 `Prints.NOWHERE`.
 
 **Handed, not fetched** — A subsystem is given everything it needs when it
-is built — its devices, its clock, what it coordinates, and somewhere to
-print — and reaches for nothing else, ever. Nothing is handed to it
-afterwards, so there is no moment between being built and being ready. So
-the order in Robot's constructor is the order
-they depend on each other in, and javac says so: a subsystem built before
-one it is given does not compile, and one that asks for something the
-robot does not have does not compile either. Nothing reaches back into the
-robot, so there is no list to keep in step and no null to find on a field.
+is built — the hardware it asks for its devices and clock, what it
+coordinates, and somewhere to print — and reaches for nothing else, ever.
+What it needs is its constructor's parameters, so it says so in one place,
+and the robot hands each of them over already built. Nothing is handed to
+it afterwards; `init` runs once everything is built, and before the first
+loop. Nothing reaches back into the robot, so there is no null to find on a
+field.
 
 **Hardware** — Everything the op modes touch outside their own code: the
-configured devices, the camera's detections, the dashboard, and the
+configured devices, the dashboard, and the
 **clock**, the time in nanoseconds that every timer in the robot code
 reads and nothing else does: a step that waits, the trajectory followers,
-the camera's check of a detection's age, and the dead wheel encoders'
-measure of their own speed. On the robot the clock is the
+and the dead wheel encoders' measure of their own speed. On the robot the clock is the
 system's; in the simulator it is the simulated clock. A timed step must
 name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
 enforces rather than leaving to care.
 
-It is **whole or not at all**. The robot wires it by hand from its
-configuration, and the simulator hands the builder each device the builder
-asks for, matched by name from its fakes, so switching a device off in the
-robot code (or on again) leaves the simulator building and running as it
-was. Nothing but this class can say the two agree, so it is built through a
-builder that names each device and refuses one that is missing any, naming
-what is missing. A device added here that the simulator has no fake of
-fails where the simulator wires it, naming the device, rather than as a
-null inside whichever subsystem reaches for it first, which on the robot is
-in the middle of a match. The devices are named as they are set rather than counted out in
+A device is **asked for by name, where it is used**. A part is handed the
+hardware and asks it for each device it drives by its kind and configured
+name, `device(DistanceSensor.class, "front")`, or for a motor or a servo by
+name alone, `motor("intake")`, in its own constructor; the hardware holds no
+list of its own, so a new kind of device needs nothing added to it. So a device goes from the configuration to the part that drives
+it in one step, and a device nothing asks for is never fetched. On the robot
+the hardware map answers, and in the simulator an SDK `HardwareMap` of its
+**devices** does, so the simulator builds and runs whatever the robot code
+asks for. A device asked for that is not configured, or not of that kind,
+fails at init with the SDK's own message naming the device, on the robot and
+in the simulator alike, rather than as a null inside whichever subsystem
+reaches for it first, which on the robot is in the middle of a match. Devices are named rather than counted out in
 order, since nine of them are motors and a positional list would let a
-wheel be quietly swapped for its neighbour. Class: `Hardware`;
-`Hardware.Builder`; `Robot.clock`.
+wheel be quietly swapped for its neighbor. Class: `Hardware`;
+`Hardware.device`; `Hardware.fromHardwareMap`; `Hardware.nanoClock`.
+
+**Switched off** — A part built on hardware that does nothing.
+`hardware.switchedOff()` hands it devices that take every write and read back
+zero, of any kind the SDK names by an interface, an IMU and a voltage sensor
+the same, with the run's own
+clock and dashboard. The part is built, held,
+ticked and prints to its channel like any other, and every subsystem that
+coordinates it keeps it; only what reaches the world is switched off. A part
+is switched off by `@SwitchedOff` on its class, which has the robot hand it
+`hardware.switchedOff()` instead of the hardware, so switching it off, or on
+again, is that line, and the code that uses it compiles and runs either way.
+
+It replaces commenting out the part, its devices and every reference to it in
+the subsystems that coordinate it, after which turning one back on meant
+finding them all again. The intake came back that way without its place in
+the loop order, so it was built and told on and off by the driver and never
+drove its motor. A switched-off part is exactly as quiet as a missing one: a
+driver asking it for something sees nothing happen. Classes: `SwitchedOff`;
+`Hardware.switchedOff`.
 
 
 **Wheels** — The four wheels, and the only thing that turns numbers into
@@ -220,6 +264,15 @@ arriving after a placement is a *later* sighting and nudges rather than
 placing, which is what we want — a start pose somebody measured is worth
 more than the first frame the camera agreed on. Methods: `Nav.placeAt`;
 `Nav.sighted`.
+
+**Old code** — A part the robot no longer has, kept where a teammate can
+still read it: an `oldcode` folder, now `reginald/oldcode`, which holds the
+brain, the camera and its filter and webcam, the launcher and the turntable.
+Android Studio shows it with the rest of the code, and nothing builds it: the
+robot's build and the simulator's both skip every `oldcode` folder, so it
+needs no upkeep and need not compile. Bringing a part back means moving it
+out and making it build again. The entries for the turntable, the sighting
+and the agreement below describe code that is there now.
 
 **Turntable** — What the launcher and the camera ride on, and the only thing
 that decides where it points. Each tick the brain gives it an **aim**, how
@@ -748,13 +801,15 @@ the server's. Method: `SimBuild.libraries()`.
 
 **Catalog** — The op modes the simulator can run, exactly as the robot
 controller lists them: every concrete op mode of Reginald's own kind,
-`opmode.OpMode`, under its own package, `reginald`, that carries the
+`framework.OpMode`, under its own package, `reginald`, that carries the
 `@Autonomous` or `@TeleOp` annotation, plus whatever a
 **registrar** (a
 static method annotated `@OpModeRegistrar`) registers, found by calling
-the registrar itself. The autos are registered that way: each `@Auto`
-annotation on a plan method in `Plans` is one op mode, with no class of
-its own. Entries are keyed by the op mode's **name**, which the robot
+the registrar itself. Reginald's TeleOps and autos are registered that way,
+by `OpModes`: every robot has a TeleOp for each alliance, `BlueTeleOp` and
+`RedTeleOp`, with no file of its own, since what a TeleOp does is said in
+each subsystem's `teleOp`; and each `@Auto` annotation on a method that makes
+a plan is one, with no class of its own, handed the subsystems its parameters name. Entries are keyed by the op mode's **name**, which the robot
 controller requires to be unique, and carry a **kind** (*auto* or
 *teleop*), **where** a person finds the code (a class, or the plan
 method), and the **alliance** it plays for (*Blue*, *Red*, or none for a plan
@@ -762,8 +817,8 @@ relative to wherever the robot starts). An op mode says its alliance only once
 it is made, so the catalog makes one to ask; one that cannot be made is listed
 all the same and says why when it is run. A listing from a child from before
 alliances plays for none. Nested classes are never listed, so test op modes
-stay out of the real bench, and Road Runner's vendored code is not ours to
-simulate.
+stay out of the real bench, and the tuning op modes in `tools` are not ours
+to simulate.
 The child reports the catalog after each build, so a newly written op
 mode appears without a restart. Class: `SimCatalog`.
 

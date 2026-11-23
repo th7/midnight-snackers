@@ -2,17 +2,57 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.firstinspires.ftc.reginald.opmode.AutoOp;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.PlanRunner;
+import org.firstinspires.ftc.framework.plans.RunsAPlan;
+import org.firstinspires.ftc.framework.plans.Step;
+import org.firstinspires.ftc.framework.robot.Alliance;
+import org.firstinspires.ftc.framework.robot.Discovered;
+import org.firstinspires.ftc.framework.robot.OpMode;
+import org.firstinspires.ftc.teamcode.Classpath;
 
 public final class TestAutos {
     private TestAutos() {}
 
-    public abstract static class TestAuto extends AutoOp {
+    /**
+     * What a test auto is: an op mode of Reginald's that runs the one plan it makes. The robot's own
+     * autos are {@code @Auto} methods, which the robot registers itself; a test names its autos as
+     * classes, so the simulator can be handed each one on its own. Each drives Reginald as the robot
+     * builds it: every subsystem of Reginald's code is built and ticks.
+     */
+    public abstract static class TestAuto extends OpMode implements RunsAPlan {
+        private static final Discovered REGINALD = SimCatalog.theRobotWith(Classpath.classesUnder(SimCatalog.PACKAGE));
+
+        private PlanRunner planRunner;
+
         protected TestAuto() {
             super(Alliance.RELATIVE);
+            found(REGINALD);
+        }
+
+        public abstract PlanPart getPlan();
+
+        @Override
+        public void init() {
+            super.init();
+            planRunner = new PlanRunner();
+            planRunner.run(getPlan());
+        }
+
+        @Override
+        protected void onLoop() {
+            planRunner.loop();
+            telemetry.addData("Current Step:", planRunner.currentStep());
+        }
+
+        @Override
+        public boolean done() {
+            return planRunner.done();
+        }
+
+        @Override
+        public String currentStep() {
+            return planRunner.currentStep();
         }
     }
 
@@ -60,7 +100,7 @@ public final class TestAutos {
 
         @Override
         public PlanPart getPlan() {
-            return Step.waitFor("wait", SECONDS, hardware().nanoClock);
+            return Step.waitFor("wait", SECONDS, hardware().nanoClock());
         }
     }
 

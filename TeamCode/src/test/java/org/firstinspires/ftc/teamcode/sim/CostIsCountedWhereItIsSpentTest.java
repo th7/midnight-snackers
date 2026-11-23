@@ -58,6 +58,7 @@ public class CostIsCountedWhereItIsSpentTest {
     private static List<Path> classes() {
         List<Path> classes = new ArrayList<>(Bytecode.classesUnder(TEAMCODE));
         classes.addAll(Bytecode.classesUnder(SimCatalog.PACKAGE.replace('.', '/')));
+        classes.addAll(Bytecode.classesUnder(SimCatalog.FRAMEWORK.replace('.', '/')));
         assertTrue("no compiled classes were found, so this rule judged nothing", classes.size() > 20);
         return classes;
     }

@@ -8,9 +8,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import org.firstinspires.ftc.reginald.opmode.AutoOp;
+import org.firstinspires.ftc.framework.plans.RunsAPlan;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
 import org.firstinspires.ftc.teamcode.simcore.Budget;
 import org.firstinspires.ftc.teamcode.simcore.Ending;
 import org.firstinspires.ftc.teamcode.simcore.Seconds;
@@ -44,11 +43,12 @@ public final class SimRunner {
 
     private SimRunner() {}
 
-    public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds) {
+    public static <A extends OpMode & RunsAPlan> SimRecording run(A opMode, SimRobot sim, double timeoutSeconds) {
         return run(opMode, sim, timeoutSeconds, DEFAULT_OUTPUT_DIR, livePortFromEnvironment());
     }
 
-    public static SimRecording run(AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
+    public static <A extends OpMode & RunsAPlan> SimRecording run(
+            A opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
         return run(opMode, sim, timeoutSeconds, outputDir, null);
     }
 
@@ -73,8 +73,8 @@ public final class SimRunner {
         return run(new SimRecording(entry.name, entry.kind), opMode, sim, timeoutSeconds, outputDir, livePort);
     }
 
-    public static SimRecording run(
-            AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
+    public static <A extends OpMode & RunsAPlan> SimRecording run(
+            A opMode, SimRobot sim, double timeoutSeconds, Path outputDir, Integer livePort) {
         return run(new SimRecording(nameOf(opMode)), opMode, sim, timeoutSeconds, outputDir, livePort);
     }
 
@@ -108,8 +108,8 @@ public final class SimRunner {
         }
     }
 
-    public static SimRecording record(
-            SimRecording recording, AutoOp opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
+    public static <A extends OpMode & RunsAPlan> SimRecording record(
+            SimRecording recording, A opMode, SimRobot sim, double timeoutSeconds, Path outputDir) {
         return record(recording, opMode, sim, timeoutSeconds, outputDir, new SimDriverStation(), Pace.REAL_TIME);
     }
 

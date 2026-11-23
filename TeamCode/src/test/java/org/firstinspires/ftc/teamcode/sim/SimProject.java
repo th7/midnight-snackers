@@ -22,7 +22,9 @@ public final class SimProject {
             "TeamCode/src/main/java/org/firstinspires/ftc/reginald/benchtest/TempAuto.java";
 
     public static final String HARDWARE =
-            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/Hardware.java";
+            "TeamCode/src/main/java/org/firstinspires/ftc/framework/hardware/Hardware.java";
+    public static final String SWITCHED_OFF_HARDWARE =
+            "TeamCode/src/main/java/org/firstinspires/ftc/framework/hardware/SwitchedOffHardware.java";
     public static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
     public static final String SIM_DEVICES =
             "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimDevices.java";
@@ -122,17 +124,15 @@ public final class SimProject {
 
     public static String tempAuto(int loops, String group) {
         return "package org.firstinspires.ftc.reginald.benchtest;\n"
-                + "import com.qualcomm.robotcore.eventloop.opmode.Autonomous;\n"
-                + "import org.firstinspires.ftc.reginald.opmode.AutoOp;\n"
-                + "import org.firstinspires.ftc.teamcode.base.Alliance;\n"
-                + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
-                + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
+                + "import org.firstinspires.ftc.framework.robot.Auto;\n"
+                + "import org.firstinspires.ftc.framework.robot.Alliance;\n"
+                + "import org.firstinspires.ftc.framework.plans.PlanPart;\n"
+                + "import org.firstinspires.ftc.framework.plans.Step;\n"
                 + "\n"
-                + "@Autonomous(name = \"" + TEMP_NAME + "\", group = \"" + group + "\")\n"
-                + "public class TempAuto extends AutoOp {\n"
+                + "public class TempAuto {\n"
                 + "    private int loops = 0;\n"
-                + "    public TempAuto() { super(Alliance.RELATIVE); }\n"
-                + "    public PlanPart getPlan() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
+                + "    @Auto(name = \"" + TEMP_NAME + "\", group = \"" + group + "\", alliance = Alliance.RELATIVE)\n"
+                + "    public PlanPart count() { return new Step(\"count\", () -> { }, () -> ++loops >= " + loops
                 + "); }\n"
                 + "}\n";
     }

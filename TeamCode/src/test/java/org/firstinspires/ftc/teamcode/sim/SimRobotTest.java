@@ -61,7 +61,7 @@ public class SimRobotTest {
         assertEquals(
                 "the hardware's nanoClock is the world's",
                 520_000_000L,
-                sim.hardware().nanoClock.getAsLong());
+                sim.hardware().nanoClock().getAsLong());
     }
 
     @Test

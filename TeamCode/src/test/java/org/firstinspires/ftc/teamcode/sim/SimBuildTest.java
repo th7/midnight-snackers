@@ -105,6 +105,18 @@ public class SimBuildTest {
     }
 
     @Test
+    public void codeInAnOldcodeFolderIsKeptToReadAndNeverCompiled() throws IOException {
+        SimBuild build = build();
+        write("demo/Greeter.java", GREETER);
+        write("demo/oldcode/Launcher.java", "package demo.oldcode;\npublic class Launcher { int x = ; }\n");
+
+        SimBuild.Result result = build.build();
+
+        assertTrue(result.diagnostics, result.problems.isEmpty());
+        assertFalse(Files.exists(result.classes.resolve("demo/oldcode")));
+    }
+
+    @Test
     public void aGoodBuildHasNoProblems() throws IOException {
         SimBuild build = build();
         write("demo/Greeter.java", GREETER);
@@ -362,7 +374,7 @@ public class SimBuildTest {
             libraries.add(Paths.get(library).toAbsolutePath().normalize());
         }
         Path gson = locationOf(com.google.gson.Gson.class);
-        Path serverRobot = locationOf(org.firstinspires.ftc.reginald.opmode.OpMode.class);
+        Path serverRobot = locationOf(org.firstinspires.ftc.framework.robot.OpMode.class);
         Path serverSimulator = locationOf(SimBuild.class);
         Path serverCore = locationOf(Checked.class);
 
@@ -429,7 +441,7 @@ public class SimBuildTest {
         try (Stream<Path> sources = Files.walk(real)) {
             for (Path source : (Iterable<Path>) sources.filter(p -> p.toString().endsWith(".java"))::iterator) {
                 String name = real.relativize(source).toString().replace(File.separatorChar, '/');
-                if (name.endsWith("package-info.java")) {
+                if (name.endsWith("package-info.java") || name.contains("/oldcode/")) {
                     continue;
                 }
                 String compiled = name.substring(0, name.length() - ".java".length()) + ".class";

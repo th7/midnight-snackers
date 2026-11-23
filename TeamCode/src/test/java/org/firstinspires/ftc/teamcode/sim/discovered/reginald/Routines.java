@@ -2,20 +2,18 @@ package org.firstinspires.ftc.teamcode.sim.discovered.reginald;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
-import org.firstinspires.ftc.reginald.opmode.AutoOp;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.Step;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.teamcode.sim.TestAutos;
 
 public final class Routines {
     private Routines() {}
 
-    public static final class Routine extends AutoOp {
+    public static final class Routine extends TestAutos.TestAuto {
         private final String where;
 
         Routine(String where) {
-            super(Alliance.RELATIVE);
             this.where = where;
         }
 

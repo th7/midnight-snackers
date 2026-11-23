@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Optional;
 import java.util.OptionalDouble;
-import org.firstinspires.ftc.reginald.opmode.StepResponse;
+import org.firstinspires.ftc.framework.tools.StepResponse;
 import org.junit.Test;
 
 public class StepResponseTest {

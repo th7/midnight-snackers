@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
-import org.firstinspires.ftc.reginald.roadrunner.TwoDeadWheelLocalizer;
+import org.firstinspires.ftc.framework.drive.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.junit.Rule;
 import org.junit.Test;

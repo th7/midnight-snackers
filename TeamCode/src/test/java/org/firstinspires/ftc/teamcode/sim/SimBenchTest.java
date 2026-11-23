@@ -86,7 +86,12 @@ public class SimBenchTest {
         SimProject.at(project).edited(relative, from, to);
     }
 
+    private static String whose(String hardware) {
+        return "public String whose() { return \"" + hardware + "\"; }\n";
+    }
+
     static final String HARDWARE = SimProject.HARDWARE;
+    static final String SWITCHED_OFF_HARDWARE = SimProject.SWITCHED_OFF_HARDWARE;
     static final String SIM_ROBOT = SimProject.SIM_ROBOT;
     static final String SIM_DEVICES = SimProject.SIM_DEVICES;
     static final String SIM_CHILD = SimProject.SIM_CHILD;
@@ -266,9 +271,10 @@ public class SimBenchTest {
     public void theChildRunsTheProjectsOwnSimulatorNotThisServers() throws Exception {
         Path project = projectWith(folder.getRoot().toPath(), tempAuto(2));
 
-        edit(project, HARDWARE, "public static Builder builder()", "public static Builder wiring()");
-        edit(project, HARDWARE, "return builder()", "return wiring()");
-        edit(project, SIM_DEVICES, "Hardware.builder()", "Hardware.wiring()");
+        edit(project, HARDWARE, "LongSupplier nanoClock();", "LongSupplier nanoClock();\n\n    String whose();");
+        edit(project, HARDWARE, "return new Hardware() {", "return new Hardware() {\n" + whose("the robot's"));
+        edit(project, SWITCHED_OFF_HARDWARE, "implements Hardware {", "implements Hardware {\n" + whose("nobody's"));
+        edit(project, SIM_DEVICES, "return new Hardware() {", "return new Hardware() {\n" + whose("the simulator's"));
         edit(
                 project,
                 SIM_CHILD,
@@ -426,7 +432,7 @@ public class SimBenchTest {
         bench = new SimBench(null, project, outputDir(), WAITS);
         SimCatalog.Entry temp = bench.catalog().find(TEMP_NAME).get();
         assertEquals("Test", temp.group);
-        assertEquals("org.firstinspires.ftc.reginald.benchtest.TempAuto", temp.where);
+        assertEquals("TempAuto.count()", temp.where);
         assertEquals(
                 2,
                 await(bench.start(temp, "ada", SimBench.Mode.FREE_PLAY)).ticks().size());

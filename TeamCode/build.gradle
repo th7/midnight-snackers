@@ -26,6 +26,13 @@ android {
     }
 }
 
+// A part the robot no longer has sits in an oldcode folder, where a teammate can still read it in
+// Android Studio. Nothing builds it and nobody keeps it compiling; the simulator's own build skips
+// the same folders.
+tasks.withType(JavaCompile).configureEach {
+    exclude '**/oldcode/**'
+}
+
 repositories {
     maven {
         url = 'https://maven.brott.dev/'

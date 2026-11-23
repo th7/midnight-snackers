@@ -13,12 +13,15 @@ import com.google.gson.JsonArray;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
+import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
-import org.firstinspires.ftc.reginald.opmode.AutoOp;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.RunsAPlan;
+import org.firstinspires.ftc.framework.plans.Step;
+import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.ThreeLoopAuto;
 import org.firstinspires.ftc.teamcode.sim.TestTeleOps.StickTeleOp;
 import org.firstinspires.ftc.teamcode.sim.discovered.reginald.RedDriving;
@@ -27,6 +30,32 @@ import org.junit.Test;
 
 public class SimCatalogTest {
     private final SimCatalog catalog = SimCatalog.discover(RedDriving.class.getPackageName());
+
+    @Test
+    public void everyOpModeTheRealRobotListsIsBuiltAndLoopsInTheSimulator() {
+        SimCatalog real = SimCatalog.discover();
+        assertTrue(real.find("BlueTeleOp").isPresent());
+        assertTrue(real.find("RedTeleOp").isPresent());
+        assertTrue(
+                "the robot lists its autos too",
+                real.entries().stream().anyMatch(entry -> entry.kind.equals(SimCatalog.AUTO)));
+
+        Map<String, String> failed = new TreeMap<>();
+        for (SimCatalog.Entry entry : real.entries()) {
+            com.qualcomm.robotcore.eventloop.opmode.OpMode opMode = entry.opMode();
+            new SimRobot().wire(opMode);
+            opMode.telemetry = new FakeTelemetry();
+            opMode.gamepad1 = new Gamepad();
+            opMode.gamepad2 = new Gamepad();
+            try {
+                opMode.init();
+                opMode.loop();
+            } catch (RuntimeException failure) {
+                failed.put(entry.name, String.valueOf(failure));
+            }
+        }
+        assertEquals(Map.of(), failed);
+    }
 
     @Test
     public void reginaldsCatalogListsNoOpModeThatIsNotReginaldsKind() {
@@ -77,7 +106,7 @@ public class SimCatalogTest {
     @Test
     public void autosComeBeforeTeleOpsEachSortedByName() {
         assertEquals(
-                List.of("back", "forward", "Blue driving", "Red driving"),
+                List.of("back", "forward", "Blue driving", "BlueTeleOp", "Red driving", "RedTeleOp"),
                 catalog.entries().stream().map(e -> e.name).collect(Collectors.toList()));
     }
 
@@ -87,7 +116,7 @@ public class SimCatalogTest {
         SimCatalog.Entry teleOp = catalog.find("Red driving").get();
 
         assertSame(plan.opMode(), plan.opMode());
-        assertTrue(plan.opMode() instanceof AutoOp);
+        assertTrue(plan.opMode() instanceof RunsAPlan);
         assertNotSame(teleOp.opMode(), teleOp.opMode());
         assertTrue(teleOp.opMode() instanceof RedDriving);
         assertFalse(catalog.find("org.example.Nope").isPresent());
@@ -121,11 +150,7 @@ public class SimCatalogTest {
     }
 
     @Autonomous(name = "Count to three", group = "Test")
-    public static class AnotherCountToThree extends AutoOp {
-        public AnotherCountToThree() {
-            super(Alliance.RELATIVE);
-        }
-
+    public static class AnotherCountToThree extends TestAutos.TestAuto {
         @Override
         public PlanPart getPlan() {
             return new Step("wait", () -> {}, () -> false);

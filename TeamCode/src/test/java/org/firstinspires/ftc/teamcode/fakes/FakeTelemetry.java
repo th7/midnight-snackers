@@ -10,15 +10,19 @@ public class FakeTelemetry implements Telemetry {
 
     public final List<String> captions = new ArrayList<>();
 
+    public final List<String> lines = new ArrayList<>();
+
     @Override
     public Item addData(String caption, String format, Object... args) {
         captions.add(caption);
+        lines.add(caption + ": " + String.format(format, args));
         return null;
     }
 
     @Override
     public Item addData(String caption, Object value) {
         captions.add(caption);
+        lines.add(caption + ": " + value);
         return null;
     }
 

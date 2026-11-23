@@ -1,21 +1,22 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.acmerobotics.roadrunner.ftc.LazyImu;
 import com.qualcomm.hardware.motors.RevRoboticsUltraPlanetaryHdHexMotor;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.CRServoImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.MotorConfigurationType;
 import com.qualcomm.robotcore.hardware.configuration.typecontainers.UserConfigurationType;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.reginald.hardware.Hardware;
+import org.firstinspires.ftc.framework.hardware.Dashboard;
+import org.firstinspires.ftc.framework.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
@@ -139,43 +140,33 @@ public final class SimDevices {
     }
 
     public Hardware hardware() {
-        return onTheSimulatorsClockAndDashboard(Hardware.fromHardwareMap(hardwareMap));
-    }
-
-    private Hardware onTheSimulatorsClockAndDashboard(Hardware found) {
-        Hardware.Builder builder = Hardware.builder();
-        for (Method setter : builder.getClass().getMethods()) {
-            if (setter.getDeclaringClass() != builder.getClass() || setter.getParameterCount() != 1) {
-                continue;
+        Hardware found = Hardware.fromHardwareMap(hardwareMap);
+        return new Hardware() {
+            @Override
+            public <D> D device(Class<D> kind, String name) {
+                return found.device(kind, name);
             }
-            try {
-                setter.invoke(builder, handed(found, setter.getName()));
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException(
-                        "the simulator could not hand the robot's hardware its " + setter.getName(), e);
-            } catch (InvocationTargetException e) {
-                throw new IllegalStateException(
-                        "the robot's hardware refused the simulator's " + setter.getName(), e.getCause());
-            }
-        }
-        return builder.build();
-    }
 
-    private Object handed(Hardware found, String name) throws IllegalAccessException {
-        if (name.equals("dashboard")) {
-            return dashboard;
-        }
-        if (name.equals("nanoClock")) {
-            return (LongSupplier) this::nanoTime;
-        }
-        try {
-            return Hardware.class.getField(name).get(found);
-        } catch (NoSuchFieldException e) {
-            throw new IllegalStateException(
-                    "the robot's hardware asks for " + name
-                            + " and keeps no field of that name for the simulator to hand on",
-                    e);
-        }
+            @Override
+            public LazyImu imu() {
+                return found.imu();
+            }
+
+            @Override
+            public VoltageSensor voltageSensor() {
+                return found.voltageSensor();
+            }
+
+            @Override
+            public Dashboard dashboard() {
+                return dashboard;
+            }
+
+            @Override
+            public LongSupplier nanoClock() {
+                return SimDevices.this::nanoTime;
+            }
+        };
     }
 
     public long nanoTime() {
