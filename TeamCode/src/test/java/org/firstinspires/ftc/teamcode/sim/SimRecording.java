@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.Flywheels;
 import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
@@ -22,9 +23,23 @@ public final class SimRecording implements SimReplayPage.Source {
             double rampDegrees,
             boolean rampUp,
             int fed,
-            Handover.Why handing) {
+            Handover.Why handing,
+            Flywheels.Turning front,
+            Flywheels.Turning back) {
         public static final Mechanisms NONE = new Mechanisms(
-                0, Intake.Way.STILL, Spinner.Turning.still(), 0, false, 0, Handover.Why.SPINNER_NOT_CLOCKWISE);
+                0,
+                Intake.Way.STILL,
+                Spinner.Turning.still(),
+                0,
+                false,
+                0,
+                Handover.Why.SPINNER_NOT_CLOCKWISE,
+                Flywheels.Turning.still(),
+                Flywheels.Turning.still());
+
+        public double mismatch() {
+            return Flywheels.mismatch(front, back);
+        }
     }
 
     public static final class Tick {

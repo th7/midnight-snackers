@@ -202,7 +202,83 @@ public enum Constant {
             "How far above stowed the ramp must stand before the spindexer can hand a pollen to the launcher.",
             35,
             0,
-            243);
+            243),
+    FLYWHEEL_FRONT_KS_VOLTS(
+            Group.LAUNCHER,
+            "Front flywheel kS",
+            "V",
+            "The voltage the front flywheel's motor spends overcoming friction before its wheel turns at all.",
+            0.5647,
+            0,
+            6),
+    FLYWHEEL_FRONT_KV_VOLT_SECONDS_PER_TICK(
+            Group.LAUNCHER,
+            "Front flywheel kV",
+            "V per tick/s",
+            "The voltage the front flywheel's motor spends on each tick a second it turns: with kS, it sets"
+                    + " how fast the wheel turns free.",
+            0.004084,
+            0.0005,
+            0.05),
+    FLYWHEEL_FRONT_KA_VOLT_SECONDS_SQUARED_PER_TICK(
+            Group.LAUNCHER,
+            "Front flywheel kA",
+            "V per tick/s^2",
+            "The voltage the front flywheel's motor spends on each tick a second its wheel gains every"
+                    + " second: a heavier wheel takes longer to come up to speed.",
+            0.00713,
+            0.0001,
+            0.1),
+    FLYWHEEL_BACK_KS_VOLTS(
+            Group.LAUNCHER,
+            "Back flywheel kS",
+            "V",
+            "The voltage the back flywheel's motor spends overcoming friction before its wheel turns at all.",
+            0.5647,
+            0,
+            6),
+    FLYWHEEL_BACK_KV_VOLT_SECONDS_PER_TICK(
+            Group.LAUNCHER,
+            "Back flywheel kV",
+            "V per tick/s",
+            "The voltage the back flywheel's motor spends on each tick a second it turns: with kS, it sets"
+                    + " how fast the wheel turns free.",
+            0.004084,
+            0.0005,
+            0.05),
+    FLYWHEEL_BACK_KA_VOLT_SECONDS_SQUARED_PER_TICK(
+            Group.LAUNCHER,
+            "Back flywheel kA",
+            "V per tick/s^2",
+            "The voltage the back flywheel's motor spends on each tick a second its wheel gains every"
+                    + " second: a heavier wheel takes longer to come up to speed.",
+            0.00713,
+            0.0001,
+            0.1),
+    FLYWHEEL_TICKS_PER_TURN(
+            Group.LAUNCHER,
+            "Flywheel encoder ticks per turn",
+            "ticks",
+            "How many ticks each flywheel's motor counts as its wheel turns once.",
+            28,
+            Flywheel.TicksPerTurn.LEAST,
+            Flywheel.TicksPerTurn.MOST),
+    FLYWHEEL_FRONT_DIAMETER_IN(
+            Group.LAUNCHER,
+            "Front flywheel diameter",
+            "in",
+            "How big the front flywheel is across: a bigger wheel's surface moves faster at the same rpm.",
+            3.78,
+            1.5,
+            6),
+    FLYWHEEL_BACK_DIAMETER_IN(
+            Group.LAUNCHER,
+            "Back flywheel diameter",
+            "in",
+            "How big the back flywheel is across: a bigger wheel's surface moves faster at the same rpm.",
+            3.78,
+            1.5,
+            6);
 
     public enum Group {
         NOISE("Noise", "What a seed draws a run's robot from: how it differs from the tuned model."),
@@ -212,7 +288,10 @@ public enum Constant {
         DEAD_WHEELS("Dead wheels", "Where the odometry wheels sit on the robot and how far each rolls a tick."),
         SPINDEXER(
                 "Spindexer",
-                "How fast the spinner turns, how fast the ramp rises, and how high it must stand to feed the launcher.");
+                "How fast the spinner turns, how fast the ramp rises, and how high it must stand to feed the launcher."),
+        LAUNCHER(
+                "Launcher",
+                "How each flywheel's motor comes up to speed, how its encoder counts and how big its wheel is.");
 
         private final String label;
         private final String says;

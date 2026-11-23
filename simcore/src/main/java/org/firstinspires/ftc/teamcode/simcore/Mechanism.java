@@ -12,7 +12,21 @@ public enum Mechanism {
             "turns_clockwise",
             "turns_counterclockwise",
             "power turns it clockwise from above",
-            "power turns it counterclockwise from above");
+            "power turns it counterclockwise from above"),
+    FLYWHEEL_FRONT(
+            "Front flywheel",
+            "the front flywheel",
+            "turns_counterclockwise",
+            "turns_clockwise",
+            "power turns its motor counterclockwise, seen from its shaft",
+            "power turns its motor clockwise, seen from its shaft"),
+    FLYWHEEL_BACK(
+            "Back flywheel",
+            "the back flywheel",
+            "turns_counterclockwise",
+            "turns_clockwise",
+            "power turns its motor counterclockwise, seen from its shaft",
+            "power turns its motor clockwise, seen from its shaft");
 
     private final String label;
     private final String called;

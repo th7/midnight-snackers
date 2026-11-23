@@ -160,6 +160,9 @@ __IMPORTMAP__
       <dt>ramp</dt><dd class="mono" id="ramp"></dd>
       <dt>fed</dt><dd class="mono" id="fed"></dd>
       <dt>handing</dt><dd class="mono" id="handing"></dd>
+      <dt>front flywheel</dt><dd class="mono" id="flywheel-front"></dd>
+      <dt>back flywheel</dt><dd class="mono" id="flywheel-back"></dd>
+      <dt>mismatch</dt><dd class="mono" id="mismatch"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -628,6 +631,7 @@ __IMPORTMAP__
     handing: 'handing over', nothing_held: 'nothing held', spinner_not_clockwise: 'spinner not turning clockwise',
     ramp_down: 'ramp down'
   };
+  const FLYWHEEL_WAYS = { launching: 'launching', still: 'still', wrong_way: 'wrong way' };
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
@@ -854,6 +858,18 @@ __IMPORTMAP__
     show('fed', mechanisms && mechanisms.fed !== undefined ? String(mechanisms.fed) : '\u2014', false);
     show('handing', mechanisms && mechanisms.handing ? HANDING[mechanisms.handing] || mechanisms.handing : '\u2014',
          false);
+    const flywheels = mechanisms && mechanisms.flywheels;
+    showFlywheel('flywheel-front', flywheels && flywheels.front);
+    showFlywheel('flywheel-back', flywheels && flywheels.back);
+    show('mismatch', !flywheels ? '\u2014' : Math.round(Math.abs(flywheels.mismatch)) === 0 ? 'even'
+         : Math.round(Math.abs(flywheels.mismatch)) + ' in/s ' + (flywheels.mismatch > 0 ? 'front' : 'back') + ' faster',
+         false);
+  }
+
+  function showFlywheel(id, flywheel) {
+    show(id, !flywheel ? '\u2014' : flywheel.way === 'still' ? 'still'
+         : (FLYWHEEL_WAYS[flywheel.way] || flywheel.way) + ' ' + Math.round(Math.abs(flywheel.rpm)) + ' rpm',
+         !!flywheel && flywheel.way === 'wrong_way');
   }
 
   function show(id, text, wrong) {

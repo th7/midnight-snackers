@@ -45,4 +45,79 @@ public class SpinTest {
         assertEquals(1400, later.count().ticks() - spin.count().ticks(), DELTA);
         assertEquals(2800, later.count().ticksPerSecond(), DELTA);
     }
+
+    private static final Feedforward A_FLYWHEEL = Valid.value(Feedforward.of(0.5, 0.005, 0.005));
+
+    private static Spin driven(Spin from, double seconds, double power, double volts, ZeroPower atZero) {
+        Spin spin = from;
+        Seconds step = Valid.value(Seconds.of(0.005));
+        for (int i = 0; i < Math.round(seconds / 0.005); i++) {
+            spin = spin.next(A_FLYWHEEL, Power.clamped(power), volts, atZero, step);
+        }
+        return spin;
+    }
+
+    @Test
+    public void aMotorDrivenByItsFeedforwardComesToWhatItsVoltsLessFrictionTurnItAt() {
+        assertEquals(2300, driven(Spin.still(), 30, 1, 12, ZeroPower.BRAKE).ticksPerSecond(), 0.01);
+        assertEquals(-1100, driven(Spin.still(), 30, -0.5, 12, ZeroPower.BRAKE).ticksPerSecond(), 0.01);
+    }
+
+    @Test
+    public void itComesMostOfTheWayInItsKaOverItsKv() {
+        assertEquals(1453.88, driven(Spin.still(), 1, 1, 12, ZeroPower.BRAKE).ticksPerSecond(), 0.01);
+    }
+
+    @Test
+    public void itDoesNotStartWhileItsVoltsAreNoMoreThanItsFriction() {
+        assertEquals(Spin.still(), driven(Spin.still(), 1, 0.04, 12, ZeroPower.BRAKE));
+    }
+
+    @Test
+    public void atZeroPowerFloatingItCoastsDownOnFrictionAlone() {
+        Spin spinning = new Spin(0, 2300);
+
+        assertEquals(1300, driven(spinning, 10, 0, 12, ZeroPower.FLOAT).ticksPerSecond(), 0.01);
+    }
+
+    @Test
+    public void atZeroPowerBrakingItsBackEmfStopsItSooner() {
+        Spin spinning = new Spin(0, 2300);
+
+        assertEquals(782.91, driven(spinning, 1, 0, 12, ZeroPower.BRAKE).ticksPerSecond(), 0.01);
+        assertEquals(782.91, driven(spinning, 1, 0, 12, ZeroPower.UNKNOWN).ticksPerSecond(), 0.01);
+    }
+
+    @Test
+    public void frictionStopsItAndNeverTurnsItBackward() {
+        Spin spinning = new Spin(0, 2300);
+
+        assertEquals(0, driven(spinning, 30, 0, 12, ZeroPower.FLOAT).ticksPerSecond(), 0);
+        assertEquals(0, driven(spinning, 30, 0, 12, ZeroPower.BRAKE).ticksPerSecond(), 0);
+    }
+
+    @Test
+    public void drivenTheOtherWayItStopsAndSpinsUpTheOtherWay() {
+        Spin spinning = new Spin(0, 2300);
+
+        assertEquals(-2300, driven(spinning, 30, -1, 12, ZeroPower.BRAKE).ticksPerSecond(), 0.01);
+    }
+
+    @Test
+    public void itCountsTheTicksItTurnsUnderItsFeedforward() {
+        Spin spinning = new Spin(100, 2300);
+        Spin later = spinning.next(A_FLYWHEEL, Power.clamped(1), 12, ZeroPower.BRAKE, Valid.value(Seconds.of(0.5)));
+
+        assertEquals(1250, later.count().ticks(), DELTA);
+        assertEquals(2300, later.ticksPerSecond(), DELTA);
+    }
+
+    @Test
+    public void inOneLongStepItStopsWhereFrictionStopsIt() {
+        Spin spinning = new Spin(0, 2300);
+        Spin later = spinning.next(A_FLYWHEEL, Power.none(), 12, ZeroPower.FLOAT, Valid.value(Seconds.of(30)));
+
+        assertEquals(26450, later.count().ticks(), 1e-6);
+        assertEquals(0, later.ticksPerSecond(), 0);
+    }
 }

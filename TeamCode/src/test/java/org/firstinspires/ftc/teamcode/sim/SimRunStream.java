@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Flywheels;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimRunStream {
@@ -99,6 +100,12 @@ public final class SimRunStream {
             return "wrong protocol: the simulator speaks " + childProtocol
                     + " and finds each device by the name it was built with; renaming one in the Robot tab needs "
                     + RENAMED_PROTOCOL;
+        }
+
+        public static String cannotLaunch(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and runs on the flywheels it was built with; changing them in " + SimDescription.FILE
+                    + " needs " + LAUNCHER_PROTOCOL;
         }
 
         public static String couldNotStartChild() {
@@ -179,7 +186,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 10;
+    public static final int PROTOCOL = 11;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -196,6 +203,8 @@ public final class SimRunStream {
     public static final int SPINDEXER_PROTOCOL = 9;
 
     public static final int RENAMED_PROTOCOL = 10;
+
+    public static final int LAUNCHER_PROTOCOL = 11;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -389,6 +398,25 @@ public final class SimRunStream {
                             + ": the sources are older than the server. Pull develop, or put those names back in the"
                             + " Robot tab.");
         }
+        if (!description.launcherAsBuilt() && protocol < LAUNCHER_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotLaunch(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and runs on the flywheels it was built with, not the ones in "
+                            + SimDescription.FILE
+                            + " ("
+                            + SimDescription.described(description)
+                            + "); it needs protocol "
+                            + LAUNCHER_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put the flywheels' directions"
+                            + " and the launcher's constants in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
+        }
         if (protocol >= PLACED_PROTOCOL) {
             return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, description), null, null);
         }
@@ -512,8 +540,20 @@ public final class SimRunStream {
         mechanisms.add("ramp", ramp);
         mechanisms.addProperty("fed", tick.mechanisms.fed());
         mechanisms.addProperty("handing", tick.mechanisms.handing().name().toLowerCase(Locale.ROOT));
+        JsonObject flywheels = new JsonObject();
+        flywheels.add("front", turning(tick.mechanisms.front()));
+        flywheels.add("back", turning(tick.mechanisms.back()));
+        flywheels.add("mismatch", GSON.toJsonTree(tick.mechanisms.mismatch()));
+        mechanisms.add("flywheels", flywheels);
         t.add("mechanisms", mechanisms);
         return t;
+    }
+
+    private static JsonObject turning(Flywheels.Turning turning) {
+        JsonObject json = new JsonObject();
+        json.addProperty("way", turning.way().name().toLowerCase(Locale.ROOT));
+        json.add("rpm", GSON.toJsonTree(turning.rpm()));
+        return json;
     }
 
     private static Gson gson() {

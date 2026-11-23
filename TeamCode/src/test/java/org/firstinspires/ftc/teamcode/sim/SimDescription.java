@@ -190,7 +190,9 @@ public final class SimDescription {
     static JsonObject directionsJson(Directions directions) {
         JsonObject json = new JsonObject();
         for (Mechanism mechanism : Mechanism.values()) {
-            json.addProperty(mechanism.asked(), mechanism.way(directions.reversed(mechanism)));
+            if (directions.reversed(mechanism) != Directions.reginalds().reversed(mechanism)) {
+                json.addProperty(mechanism.asked(), mechanism.way(directions.reversed(mechanism)));
+            }
         }
         return json;
     }

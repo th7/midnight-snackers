@@ -33,7 +33,7 @@ public class DirectionsTest {
     public void aMechanismIsNamedAsTheDescriptionAsksForIt() {
         assertEquals(Mechanism.INTAKE, Valid.value(Mechanism.named("intake")));
         assertEquals(
-                "a mechanism is intake, spinner, not 'outtake'",
+                "a mechanism is intake, spinner, flywheel_front, flywheel_back, not 'outtake'",
                 Mechanism.named("outtake").fold(found -> "found " + found, rule -> rule));
     }
 
@@ -63,5 +63,21 @@ public class DirectionsTest {
         assertEquals("Positive power takes pollen in.", Mechanism.INTAKE.says(false));
         assertEquals("Positive power pushes pollen out.", Mechanism.INTAKE.says(true));
         assertEquals("Intake", Mechanism.INTAKE.label());
+    }
+
+    @Test
+    public void reginaldsFlywheelsAsBuiltTurnCounterclockwiseSeenFromTheirShaftsOnPositivePower() {
+        Directions reversed = Directions.reginalds().with(Mechanism.FLYWHEEL_FRONT, true);
+
+        assertFalse(Directions.reginalds().reversed(Mechanism.FLYWHEEL_FRONT));
+        assertFalse(Directions.reginalds().reversed(Mechanism.FLYWHEEL_BACK));
+        assertEquals("turns_counterclockwise", Mechanism.FLYWHEEL_FRONT.way(false));
+        assertEquals("turns_clockwise", Mechanism.FLYWHEEL_BACK.way(true));
+        assertEquals("Front flywheel", Mechanism.FLYWHEEL_FRONT.label());
+        assertEquals("Back flywheel", Mechanism.FLYWHEEL_BACK.label());
+        assertEquals(
+                "Positive power turns its motor counterclockwise, seen from its shaft.",
+                Mechanism.FLYWHEEL_BACK.says(false));
+        assertEquals("flywheel_front turns clockwise on positive power", reversed.toString());
     }
 }

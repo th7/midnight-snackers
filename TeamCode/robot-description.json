@@ -13,7 +13,10 @@
     {"name": "Control Hub", "kind": "voltage_sensor"}
   ],
   "hub": {"logo": "RIGHT", "usb": "UP"},
-  "directions": {"intake": "takes_in", "spinner": "turns_clockwise"},
+  "directions": {
+    "intake": "takes_in", "spinner": "turns_clockwise",
+    "flywheel_front": "turns_counterclockwise", "flywheel_back": "turns_counterclockwise"
+  },
   "constants": {
     "motor_spread": 0.1,
     "flattest_volts": 12.0,
@@ -41,6 +44,15 @@
     "perpendicular_dead_wheel_x_in": -3.5,
     "spinner_full_speed_rpm": 59.5,
     "ramp_seconds_per_60_degrees": 0.168,
-    "ramp_up_degrees": 35
+    "ramp_up_degrees": 35,
+    "flywheel_front_ks_volts": 0.5647,
+    "flywheel_front_kv_volt_seconds_per_tick": 0.004084,
+    "flywheel_front_ka_volt_seconds_squared_per_tick": 0.00713,
+    "flywheel_back_ks_volts": 0.5647,
+    "flywheel_back_kv_volt_seconds_per_tick": 0.004084,
+    "flywheel_back_ka_volt_seconds_squared_per_tick": 0.00713,
+    "flywheel_ticks_per_turn": 28,
+    "flywheel_front_diameter_in": 3.78,
+    "flywheel_back_diameter_in": 3.78
   }
 }

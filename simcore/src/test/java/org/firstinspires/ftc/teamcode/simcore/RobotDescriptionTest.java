@@ -102,4 +102,24 @@ public class RobotDescriptionTest {
         assertTrue(intakeReversed.spindexerAsBuilt());
         assertTrue(heavier.spindexerAsBuilt());
     }
+
+    @Test
+    public void theLauncherIsAsBuiltWhileItsFlywheelsTurnAsBuiltAndNoneOfItsConstantsHasChanged() {
+        RobotDescription built = RobotDescription.reginalds();
+        RobotDescription frontReversed = built.with(Directions.reginalds().with(Mechanism.FLYWHEEL_FRONT, true));
+        RobotDescription backReversed = built.with(Directions.reginalds().with(Mechanism.FLYWHEEL_BACK, true));
+        RobotDescription heavierWheel = built.with(
+                Valid.value(Constants.of(Map.of(Constant.FLYWHEEL_FRONT_KA_VOLT_SECONDS_SQUARED_PER_TICK, 0.01))));
+        RobotDescription spinnerReversed = built.with(Directions.reginalds().with(Mechanism.SPINNER, true));
+        RobotDescription quickerRamp =
+                built.with(Valid.value(Constants.of(Map.of(Constant.RAMP_SECONDS_PER_60_DEGREES, 0.1))));
+
+        assertTrue(built.launcherAsBuilt());
+        assertFalse(frontReversed.launcherAsBuilt());
+        assertFalse(backReversed.launcherAsBuilt());
+        assertFalse(heavierWheel.launcherAsBuilt());
+        assertTrue(spinnerReversed.launcherAsBuilt());
+        assertTrue(quickerRamp.launcherAsBuilt());
+        assertTrue(heavierWheel.spindexerAsBuilt());
+    }
 }

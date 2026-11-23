@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,7 @@ import org.firstinspires.ftc.teamcode.simcore.Drivetrain;
 import org.firstinspires.ftc.teamcode.simcore.Encoder;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
+import org.firstinspires.ftc.teamcode.simcore.Flywheels;
 import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.HubPort;
@@ -134,6 +136,14 @@ public class SimRobot {
     private final Map<String, Count> counted = new LinkedHashMap<>();
 
     private final Map<String, Spin> spins = new LinkedHashMap<>();
+
+    private static final Map<Flywheels.Side, String> FLYWHEELS =
+            Map.of(Flywheels.Side.FRONT, "flywheelFront", Flywheels.Side.BACK, "flywheelBack");
+
+    private final Flywheels flywheels;
+
+    private final Map<Flywheels.Side, Flywheels.Turning> flywheelsTurning = new EnumMap<>(
+            Map.of(Flywheels.Side.FRONT, Flywheels.Turning.still(), Flywheels.Side.BACK, Flywheels.Turning.still()));
 
     private final Ball[] balls;
 
@@ -295,6 +305,7 @@ public class SimRobot {
                 constants.value(Constant.TRACK_WIDTH_IN), constants.value(Constant.LATERAL_MULTIPLIER));
         this.drivetrain = Valid.value(description.drivetrain(noise.motors()));
         this.deadWheels = Valid.value(description.deadWheels());
+        this.flywheels = Valid.value(description.flywheels());
         for (String name : devices.motorsCommittedAs()) {
             ports.put(name, HubPort.State.fresh());
             applied.put(name, Power.none());
@@ -671,7 +682,9 @@ public class SimRobot {
                 ramp.degrees(),
                 ramp.up(description.constants().value(Constant.RAMP_UP_DEGREES)),
                 fed,
-                handing);
+                handing,
+                flywheelsTurning.get(Flywheels.Side.FRONT),
+                flywheelsTurning.get(Flywheels.Side.BACK));
     }
 
     public int scored(String alliance) {
@@ -751,7 +764,27 @@ public class SimRobot {
     private void spinTheMotors(Seconds dt) {
         for (Map.Entry<String, Spin> spin : spins.entrySet()) {
             String name = spin.getKey();
-            spin.setValue(spin.getValue().next(devices.typeOf(name), applied.get(name), voltageSensor.voltage, dt));
+            if (!FLYWHEELS.containsValue(name)) {
+                spin.setValue(spin.getValue().next(devices.typeOf(name), applied.get(name), voltageSensor.voltage, dt));
+            }
+        }
+        for (Flywheels.Side side : Flywheels.Side.values()) {
+            String name = FLYWHEELS.get(side);
+            Spin spun = spins.get(name)
+                    .next(
+                            flywheels.motor(side),
+                            applied.get(name),
+                            voltageSensor.voltage,
+                            zeroPower(devices.motor(name).getZeroPowerBehavior()),
+                            dt);
+            spins.put(name, spun);
+            flywheelsTurning.put(
+                    side,
+                    flywheels.turning(
+                            side,
+                            spun.ticksPerSecond(),
+                            devices.typeOf(name),
+                            description.directions().reversed(side.mechanism())));
         }
     }
 

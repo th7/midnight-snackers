@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.Field;
+import org.firstinspires.ftc.teamcode.simcore.Flywheels;
 import org.firstinspires.ftc.teamcode.simcore.Handover;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.Intake;
@@ -130,7 +131,9 @@ public class SimRunStreamTest {
                         36.45,
                         true,
                         1,
-                        Handover.Why.HANDING))
+                        Handover.Why.HANDING,
+                        new Flywheels.Turning(Flywheels.Way.LAUNCHING, 2571.5, 508.5),
+                        new Flywheels.Turning(Flywheels.Way.WRONG_WAY, -100, -20)))
                 .tick();
 
         SimRunStream.accept(SimRunStream.tick(taking), heard);
@@ -138,13 +141,17 @@ public class SimRunStreamTest {
 
         assertEquals(
                 "{\"held\":1,\"intake\":\"in\",\"spinner\":{\"way\":\"clockwise\",\"speed\":0.9},"
-                        + "\"ramp\":{\"degrees\":36.45,\"up\":true},\"fed\":1,\"handing\":\"handing\"}",
+                        + "\"ramp\":{\"degrees\":36.45,\"up\":true},\"fed\":1,\"handing\":\"handing\","
+                        + "\"flywheels\":{\"front\":{\"way\":\"launching\",\"rpm\":2571.5},"
+                        + "\"back\":{\"way\":\"wrong_way\",\"rpm\":-100.0},\"mismatch\":528.5}}",
                 heard.ticks.get(0).get("mechanisms").toString());
         assertEquals(
                 "a still robot holding nothing says so",
                 "{\"held\":0,\"intake\":\"still\",\"spinner\":{\"way\":\"still\",\"speed\":0.0},"
                         + "\"ramp\":{\"degrees\":0.0,\"up\":false},\"fed\":0,"
-                        + "\"handing\":\"spinner_not_clockwise\"}",
+                        + "\"handing\":\"spinner_not_clockwise\","
+                        + "\"flywheels\":{\"front\":{\"way\":\"still\",\"rpm\":0.0},"
+                        + "\"back\":{\"way\":\"still\",\"rpm\":0.0},\"mismatch\":0.0}}",
                 heard.ticks.get(1).get("mechanisms").toString());
     }
 
@@ -706,5 +713,73 @@ public class SimRunStreamTest {
         assertTrue(handshake.message, handshake.message.contains("intake as intakeMotor"));
         assertTrue(handshake.message, handshake.message.contains("Pull develop"));
         assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    private static RobotDescription frontFlywheelReversed() {
+        return RobotDescription.reginalds().with(Directions.reginalds().with(Mechanism.FLYWHEEL_FRONT, true));
+    }
+
+    private static RobotDescription heavierBackFlywheel() {
+        return RobotDescription.reginalds()
+                .with(Valid.value(
+                        Constants.of(java.util.Map.of(Constant.FLYWHEEL_BACK_KA_VOLT_SECONDS_SQUARED_PER_TICK, 0.02))));
+    }
+
+    @Test
+    public void aChildThatTakesTheLaunchersFlywheelsSpeaksProtocolEleven() {
+        assertEquals(11, SimRunStream.LAUNCHER_PROTOCOL);
+        assertTrue(SimRunStream.LAUNCHER_PROTOCOL > SimRunStream.RENAMED_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.LAUNCHER_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldTheFlywheelsAsTheDescriptionHasThem() {
+        SimRunStream.Handshake reversed =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, frontFlywheelReversed());
+        SimRunStream.Handshake heavier =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, heavierBackFlywheel());
+
+        assertFalse(reversed.message, reversed.refused());
+        assertEquals(
+                "turns_clockwise",
+                reversed.startLine
+                        .getAsJsonObject("directions")
+                        .get("flywheel_front")
+                        .getAsString());
+        assertFalse(heavier.message, heavier.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheFlywheelsStillTakesAReversedSpinner() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.LAUNCHER_PROTOCOL - 1), StartPoses.ORIGIN, null, spinnerReversed());
+
+        assertFalse(handshake.message, handshake.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheFlywheelsIsToldOnlyTheDirectionsThatDifferSoItKnowsEveryMechanismNamed() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.LAUNCHER_PROTOCOL - 1), StartPoses.ORIGIN, null, spinnerReversed());
+
+        assertEquals(
+                "{\"spinner\":\"turns_counterclockwise\"}",
+                handshake.startLine.getAsJsonObject("directions").toString());
+    }
+
+    @Test
+    public void aChildFromBeforeTheFlywheelsIsRefusedALauncherThatDiffersByNameAndToldTheFix() {
+        for (RobotDescription differs : List.of(frontFlywheelReversed(), heavierBackFlywheel())) {
+            SimRunStream.Handshake handshake =
+                    SimRunStream.handshake(SimRunStream.helloOf(10), StartPoses.ORIGIN, null, differs);
+
+            assertTrue(handshake.refused());
+            assertEquals(Outcome.cannotLaunch(10), handshake.outcome);
+            assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+            assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.LAUNCHER_PROTOCOL));
+            assertTrue(handshake.message, handshake.message.contains(SimDescription.described(differs)));
+            assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+            assertNull("a refused run is sent nothing", handshake.startLine);
+        }
     }
 }

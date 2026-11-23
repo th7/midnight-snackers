@@ -1213,7 +1213,8 @@ in prose: `SimLiveServerTest`, `SimBenchTest`.
 **Robot description** — The simulated robot as data: its **configuration**, the
 physical truth of its mechanisms (the drive's true feedforward, its geometry and
 mass, where the dead wheels and the hub sit, which way positive power turns each
-mechanism, where the launcher's flywheels are mounted) and the **noise** a seed
+mechanism, how each of the launcher's flywheels comes up to speed and where they
+are mounted) and the **noise** a seed
 draws from. Its defaults are a file in the repository,
 `TeamCode/robot-description.json`, which names every value: the local simulator
 reads it when it starts and checks it whole, and a file it cannot take refuses
@@ -1280,7 +1281,8 @@ reading a dead wheel or nothing runs away toward full power, as on the robot.
 **Directions** — Which way positive power turns each mechanism's pieces, with the
 SDK's motor direction left forward: the intake `takes_in` as built, or
 `pushes_out`; the **spinner** `turns_clockwise` from above as built, or
-`turns_counterclockwise`. A part of the **robot description** a teammate reverses on the Robot
+`turns_counterclockwise`; each **flywheel**'s motor `turns_counterclockwise` seen
+from its shaft as built, or `turns_clockwise`. A part of the **robot description** a teammate reverses on the Robot
 tab, so code written for the other way round is seen doing the wrong thing.
 Classes: `Directions` and `Mechanism`, in the **core**.
 
@@ -1316,9 +1318,12 @@ Class: `Handover`, in the **core**.
 Each port reports its count as the SDK does: negated for a reversed motor,
 velocity in twenty-tick steps, zeroed while in `STOP_AND_RESET_ENCODER`.
 `RUN_TO_POSITION` is refused. The loop's gains are the simulator's own; the hub
-firmware's are not published. A motor that turns only itself, such as the intake
-or a flywheel, spins as its type does free (the UltraPlanetary HD Hex's 2800
-ticks/s at 12 V), reached over a tenth of a second. Classes: `HubPort`,
+firmware's are not published. A motor that turns only itself, such as the intake,
+spins as its type does free (the UltraPlanetary HD Hex's 2800
+ticks/s at 12 V), reached over a tenth of a second; a **flywheel**'s motor spins
+on its own true feedforward instead. The loop's integral winds up while a heavy
+wheel comes up to speed, so a flywheel asked for 1200 ticks/s passes it by about a
+fifth and settles within 2% after about six seconds. Classes: `HubPort`,
 `VelocityLoop`, `Spin`.
 
 **Devices** — A robot's devices as fakes, and a clock: everything the robot
@@ -1502,7 +1507,9 @@ motor strays from its tuning, the battery, its sag and drain, traction, how a
 hand sets the robot down, and the loop and its hiccups), and the physical truth of
 the **robot description** (the drive's feedforward per inch, its track width,
 lateral multiplier and mass, the dead wheels' tick and where they sit, and the
-**spindexer**'s: the **spinner**'s full speed, and the **ramp**'s slew and the angle it is up at). Each has a range it may go in, and the ones that come in
+**spindexer**'s: the **spinner**'s full speed, and the **ramp**'s slew and the angle it is up at;
+and the **launcher**'s: each **flywheel**'s motor's kS, kV and kA, their encoders' ticks
+a turn and each wheel's diameter). Each has a range it may go in, and the ones that come in
 pairs — the flattest and freshest battery, the least and most traction, the
 shortest loop, the loop, and the shortest and longest hiccup — must be the
 right way round. No set may let a wheel turn faster than the chassis may move,
@@ -1845,8 +1852,23 @@ from every compliant part moves exactly as it would, and costs exactly as it wou
 among parts that squeeze nothing. Classes: `Compliance`, `CompliantContact`, `Surroundings`,
 `Bodies`, in the **core**.
 
-**Flywheel** — One of the **launcher**'s two wheels, each turned by a motor of its
-own. The core still turns one alone, as Reginald's flywheel once was: its motor,
+**Flywheel** — One of the **launcher**'s two wheels, the front and the back, each a
+bare REV HD Hex (`flywheelFront`, `flywheelBack`) turning its wheel directly. Each
+motor comes up to speed on its own true feedforward from the **robot description**
+(as built kS 0.5647 V from the HD Hex's stall current, kV 0.004084 V per tick/s
+from its 6,000 rpm free, and kA 0.00713 V per tick/s² from the Launch Sim's wheel
+inertia, 0.95 lb·in²), so a wheel asked for 1200 ticks/s takes most of a second
+to reach it; with no power it coasts on its friction alone when floating, and
+brakes on its back-EMF too otherwise. Its encoder counts the description's ticks a
+turn (28) and reports as the **hub** does. The motors' bodies point left: the front
+wheel launches turning clockwise seen from its motor's shaft, the back
+counterclockwise, so with the **directions** as built the code sets the front
+`REVERSE` and the back `FORWARD`. Each tick says, live and in the replay, which way
+each wheel turns (launching, still within a twentieth of its motor's free speed, or
+the wrong way, which is marked), its rpm the launching way, and their mismatch:
+how much faster the front wheel's surface moves than the back's, in inches a second.
+Classes: `Flywheels`, with `Flywheels.Side` and `Flywheels.Turning`, and `Spin`, in
+the **core**. The core still turns one alone, as Reginald's flywheel once was: its motor,
 a goBILDA 5203 at 6,000 rpm with no load and 28 ticks a turn, turns at most 2,800 ticks a second
 either way: a command past that turns it at that, and one that is not a number does
 not turn it. Its **ticks per turn** are how many of its motor's ticks turn the flywheel

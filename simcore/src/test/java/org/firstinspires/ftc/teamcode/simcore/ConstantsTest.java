@@ -11,6 +11,10 @@ import java.util.Map;
 import org.junit.Test;
 
 public class ConstantsTest {
+    private static final String REV_HD_HEX = "REV's HD Hex Motor: 6000 rpm and 0.4 A free, 0.105 N m and 8.5 A at"
+            + " stall on 12 V, 28 counts a turn at the motor, https://docs.revrobotics.com/duo-build/motion/motors/hd-hex-motor;"
+            + " kS is the free current through the winding, kA the Launch Sim's 0.95 lb in^2 wheel";
+
     private static void assertRejected(String rule, Checked<?> checked) {
         String said = checked.fold(value -> "accepted " + value, reason -> reason);
         assertTrue(said, checked instanceof Checked.Rejected && said.contains(rule));
@@ -88,6 +92,37 @@ public class ConstantsTest {
         assertEquals(0.168, built.value(Constant.RAMP_SECONDS_PER_60_DEGREES), 0);
         assertEquals(35, built.value(Constant.RAMP_UP_DEGREES), 0);
         assertEquals(Constant.Group.SPINDEXER, Constant.RAMP_UP_DEGREES.group());
+    }
+
+    @Test
+    public void reginaldsFlywheelsAsBuiltAreBareHdHexMotorsTurningTheirWheelsDirectly() {
+        Constants built = Constants.defaults();
+
+        for (Constant kS : List.of(Constant.FLYWHEEL_FRONT_KS_VOLTS, Constant.FLYWHEEL_BACK_KS_VOLTS)) {
+            assertEquals(REV_HD_HEX, 0.5647, built.value(kS), 0);
+        }
+        for (Constant kV : List.of(
+                Constant.FLYWHEEL_FRONT_KV_VOLT_SECONDS_PER_TICK, Constant.FLYWHEEL_BACK_KV_VOLT_SECONDS_PER_TICK)) {
+            assertEquals(REV_HD_HEX, 0.004084, built.value(kV), 0);
+        }
+        for (Constant kA : List.of(
+                Constant.FLYWHEEL_FRONT_KA_VOLT_SECONDS_SQUARED_PER_TICK,
+                Constant.FLYWHEEL_BACK_KA_VOLT_SECONDS_SQUARED_PER_TICK)) {
+            assertEquals(REV_HD_HEX, 0.00713, built.value(kA), 0);
+        }
+        assertEquals(REV_HD_HEX, 28, built.value(Constant.FLYWHEEL_TICKS_PER_TURN), 0);
+        assertEquals(3.78, built.value(Constant.FLYWHEEL_FRONT_DIAMETER_IN), 0);
+        assertEquals(3.78, built.value(Constant.FLYWHEEL_BACK_DIAMETER_IN), 0);
+        assertEquals(Constant.Group.LAUNCHER, Constant.FLYWHEEL_TICKS_PER_TURN.group());
+    }
+
+    @Test
+    public void aBareHdHexAsBuiltTurnsSixThousandRpmFreeOnTwelveVolts() {
+        Constants built = Constants.defaults();
+        double free = (12 - built.value(Constant.FLYWHEEL_FRONT_KS_VOLTS))
+                / built.value(Constant.FLYWHEEL_FRONT_KV_VOLT_SECONDS_PER_TICK);
+
+        assertEquals(REV_HD_HEX, 6000, free / built.value(Constant.FLYWHEEL_TICKS_PER_TURN) * 60, 1);
     }
 
     @Test

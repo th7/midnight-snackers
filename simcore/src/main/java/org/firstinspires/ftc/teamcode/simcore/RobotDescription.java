@@ -73,6 +73,38 @@ public final class RobotDescription {
         return true;
     }
 
+    public boolean launcherAsBuilt() {
+        for (Flywheels.Side side : Flywheels.Side.values()) {
+            if (directions.reversed(side.mechanism())) {
+                return false;
+            }
+        }
+        for (Constant changed : constants.changed().keySet()) {
+            if (changed.group() == Constant.Group.LAUNCHER) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public Checked<Flywheels> flywheels() {
+        return Feedforward.of(
+                        constants.value(Constant.FLYWHEEL_FRONT_KS_VOLTS),
+                        constants.value(Constant.FLYWHEEL_FRONT_KV_VOLT_SECONDS_PER_TICK),
+                        constants.value(Constant.FLYWHEEL_FRONT_KA_VOLT_SECONDS_SQUARED_PER_TICK))
+                .then(front -> Feedforward.of(
+                                constants.value(Constant.FLYWHEEL_BACK_KS_VOLTS),
+                                constants.value(Constant.FLYWHEEL_BACK_KV_VOLT_SECONDS_PER_TICK),
+                                constants.value(Constant.FLYWHEEL_BACK_KA_VOLT_SECONDS_SQUARED_PER_TICK))
+                        .then(back -> Flywheel.TicksPerTurn.of(constants.value(Constant.FLYWHEEL_TICKS_PER_TURN))
+                                .then(ticks -> Flywheels.of(
+                                        front,
+                                        back,
+                                        ticks,
+                                        constants.value(Constant.FLYWHEEL_FRONT_DIAMETER_IN),
+                                        constants.value(Constant.FLYWHEEL_BACK_DIAMETER_IN)))));
+    }
+
     public boolean asBuilt() {
         return hubAsBuilt() && configurationAsBuilt() && constants.asBuilt() && directionsAsBuilt();
     }
