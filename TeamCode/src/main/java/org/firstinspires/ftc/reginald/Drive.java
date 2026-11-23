@@ -8,12 +8,12 @@ import com.acmerobotics.roadrunner.Vector2d;
 import org.firstinspires.ftc.reginald.control.FastDrive;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
-import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.control.DriveRunner;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
 
-public class Drive implements Loopable {
+public class Drive extends SubSystem {
     public static final String CHANNEL = "Drive";
 
     private final Prints telemetry;

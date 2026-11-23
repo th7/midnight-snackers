@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.reginald;
 
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Brain implements Loopable {
+public class Brain extends SubSystem {
     public static final String CHANNEL = "Brain";
 
     private final Prints telemetry;

@@ -1,26 +1,27 @@
 package org.firstinspires.ftc.reginald;
 
 import java.util.function.LongSupplier;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.opmode.Auto;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Plans implements Loopable {
+public class Plans extends SubSystem {
     private final Drive drive;
     private final Intake intake;
     private final Nav nav;
     // private final Launcher launcher;
     private final LongSupplier nanoClock;
 
-    public Plans(Drive drive, Nav nav, LongSupplier nanoClock, Intake intake) {
+    public Plans(Drive drive, Nav nav, Hardware hardware, Intake intake) {
         this.drive = drive;
         this.nav = nav;
         this.intake = intake;
         //  this.launcher = launcher;
-        this.nanoClock = nanoClock;
+        this.nanoClock = hardware.nanoClock();
     }
 
     // @Auto(alliance = Alliance.RELATIVE)
@@ -156,6 +157,4 @@ public class Plans implements Loopable {
         return new Plan(new Step("driveForward", () -> drive.strafeTo(nav.pose(24, 0, 0)), drive::done));
     }
 
-    @Override
-    public void loop() {}
 }

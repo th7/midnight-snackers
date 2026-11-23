@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.reginald.opmode;
 
+import org.firstinspires.ftc.reginald.Plans;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
@@ -9,7 +10,7 @@ public abstract class AutoOp extends OpMode implements RunsAPlan {
     private PlanRunner planRunner;
 
     protected AutoOp(Alliance alliance) {
-        super(alliance);
+        super(alliance, Plans.class);
     }
 
     @Override

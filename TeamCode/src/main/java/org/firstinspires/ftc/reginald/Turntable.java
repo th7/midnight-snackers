@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.reginald;
 
-import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 
-public class Turntable implements Loopable {
+public class Turntable extends SubSystem {
     public static final String CHANNEL = "Turntable";
 
     private final Prints telemetry;

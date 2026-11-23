@@ -4,20 +4,18 @@ import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.acmerobotics.roadrunner.ftc.DownsampledWriter;
-import com.acmerobotics.roadrunner.ftc.LazyImu;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.LongSupplier;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.reginald.roadrunner.PoseEstimate;
 import org.firstinspires.ftc.reginald.roadrunner.TwoDeadWheelLocalizer;
 import org.firstinspires.ftc.reginald.roadrunner.messages.PoseMessage;
-import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 
-public class Localizer implements Loopable, PoseEstimate {
+public class Localizer extends SubSystem implements PoseEstimate {
     public static final String CHANNEL = "Localizer";
 
     private final Prints telemetry;
@@ -30,16 +28,15 @@ public class Localizer implements Loopable, PoseEstimate {
 
     private PoseVelocity2d velocity = new PoseVelocity2d(new Vector2d(0, 0), 0);
 
-    public Localizer(
-            DcMotorEx parallel,
-            DcMotorEx perpendicular,
-            LazyImu imu,
-            Pose2d startingPose,
-            LongSupplier nanoClock,
-            Prints telemetry) {
+    public Localizer(Hardware hardware, Prints telemetry) {
         this.telemetry = telemetry;
         deadWheels = new TwoDeadWheelLocalizer(
-                parallel, perpendicular, imu.get(), MecanumDrive.PARAMS.inPerTick, startingPose, nanoClock);
+                hardware.motor("rightBack"),
+                hardware.motor("leftFront"),
+                hardware.imu().get(),
+                MecanumDrive.PARAMS.inPerTick,
+                new Pose2d(0, 0, 0),
+                hardware.nanoClock());
     }
 
     public TwoDeadWheelLocalizer deadWheels() {

@@ -1,16 +1,17 @@
 package org.firstinspires.ftc.reginald;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 
-public class Intake implements Loopable {
+public class Intake extends SubSystem {
     public static final double RUNNING_POWER = 0.7;
 
     private final DcMotorEx intake;
     private boolean on = true;
 
-    public Intake(DcMotorEx intake) {
-        this.intake = intake;
+    public Intake(Hardware hardware) {
+        this.intake = hardware.motor("intake");
     }
 
     public void on() {

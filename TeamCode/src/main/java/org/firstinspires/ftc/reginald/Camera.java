@@ -3,17 +3,17 @@ package org.firstinspires.ftc.reginald;
 import com.acmerobotics.roadrunner.Pose2d;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.reginald.control.DetectionFilter;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.base.Loopable;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
-public class Camera implements Loopable {
+public class Camera extends SubSystem {
     public static final String CHANNEL = "Camera";
 
     private final Prints telemetry;
@@ -21,9 +21,9 @@ public class Camera implements Loopable {
     private final Supplier<List<AprilTagDetection>> detectionSource;
     private AprilTagDetection goalDetection;
 
-    public Camera(Supplier<List<AprilTagDetection>> detectionSource, LongSupplier nanoClock, Prints telemetry) {
-        this.detectionSource = detectionSource;
-        this.detectionFilter = new DetectionFilter(nanoClock);
+    public Camera(Hardware hardware, Prints telemetry) {
+        this.detectionSource = hardware.aprilTags();
+        this.detectionFilter = new DetectionFilter(hardware.nanoClock());
         this.telemetry = telemetry;
     }
 

@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.reginald.opmode;
 
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import java.util.List;
 import org.firstinspires.ftc.reginald.Brain;
 import org.firstinspires.ftc.reginald.Camera;
 import org.firstinspires.ftc.reginald.Drive;
@@ -12,18 +11,22 @@ import org.firstinspires.ftc.reginald.Turntable;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.Gamepads;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 
 public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpMode {
     private final Alliance alliance;
+    private final Class<? extends SubSystem>[] needs;
     protected Robot robot;
 
     private Hardware injectedHardware = null;
 
     private Telemetry driverStationTelemetry = null;
 
-    protected OpMode(Alliance alliance) {
+    @SafeVarargs
+    protected OpMode(Alliance alliance, Class<? extends SubSystem>... needs) {
         this.alliance = alliance;
+        this.needs = needs;
     }
 
     public Alliance alliance() {
@@ -46,15 +49,11 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
             driverStationTelemetry = telemetry;
         }
         telemetry = new MultipleTelemetry(driverStationTelemetry, hardware.dashboard().telemetry());
-        robot = new Robot(hardware, alliance, telemetry, gamepad1, gamepad2);
+        robot = new Robot(hardware, alliance, telemetry, new Gamepads(gamepad1, gamepad2), needs);
     }
 
     public String where() {
         return getClass().getName();
-    }
-
-    public List<Loopable> loopOrder() {
-        return robot.loopOrder();
     }
 
     @Override

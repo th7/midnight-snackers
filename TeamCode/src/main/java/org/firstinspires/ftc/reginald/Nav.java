@@ -5,9 +5,9 @@ import com.acmerobotics.roadrunner.Rotation2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import java.util.Optional;
 import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 
-public class Nav implements Loopable {
+public class Nav extends SubSystem {
     public static class Pose {
         public final Pose2d pose2d;
 
@@ -140,6 +140,4 @@ public class Nav implements Loopable {
                 from.x + Math.cos(directionRadians) * distance, from.y + Math.sin(directionRadians) * distance);
     }
 
-    @Override
-    public void loop() {}
 }

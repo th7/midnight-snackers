@@ -16,11 +16,11 @@ public final class Wheels {
     private final DcMotorEx rightBack;
     private final DcMotorEx rightFront;
 
-    public Wheels(DcMotorEx leftFront, DcMotorEx leftBack, DcMotorEx rightBack, DcMotorEx rightFront) {
-        this.leftFront = leftFront;
-        this.leftBack = leftBack;
-        this.rightBack = rightBack;
-        this.rightFront = rightFront;
+    public Wheels(Hardware hardware) {
+        this.leftFront = hardware.motor("leftFront");
+        this.leftBack = hardware.motor("leftBack");
+        this.rightBack = hardware.motor("rightBack");
+        this.rightFront = hardware.motor("rightFront");
 
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);

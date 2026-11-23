@@ -1,6 +1,9 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.acmerobotics.roadrunner.PoseVelocity2d;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.base.Alliance;
 
@@ -32,8 +35,16 @@ public final class TestTeleOps {
     public static class StickTeleOp extends OpMode {
         public int presses = 0;
 
+        private Wheels wheels;
+
         public StickTeleOp() {
             super(Alliance.RED);
+        }
+
+        @Override
+        public void init() {
+            super.init();
+            wheels = new Wheels(hardware());
         }
 
         @Override
@@ -41,11 +52,7 @@ public final class TestTeleOps {
             if (gamepad1.crossWasPressed()) {
                 presses++;
             }
-            double ahead = -gamepad1.left_stick_y;
-            hardware().motor("leftFront").setPower(ahead);
-            hardware().motor("rightFront").setPower(ahead);
-            hardware().motor("leftBack").setPower(ahead);
-            hardware().motor("rightBack").setPower(ahead);
+            wheels.drive(new PoseVelocity2d(new Vector2d(-gamepad1.left_stick_y, 0), 0));
         }
     }
 

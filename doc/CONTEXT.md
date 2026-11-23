@@ -15,7 +15,7 @@ lists and how a plan becomes one), `hardware` (the devices and what is wired
 to what), `control` (the controllers and filters a subsystem steers by) and
 `roadrunner` (trajectories, which we own rather than vendor).
 `org.firstinspires.ftc.teamcode` holds what every robot's code is built on:
-`base` (what a subsystem *is* — `Loopable` — where it prints — `Prints`,
+`base` (what a subsystem *is* — `SubSystem` — where it prints — `Prints`,
 `Channels` — and the `Alliance` a run plays for), `planrunner` (plans and
 steps), and what both robots' Road Runner needs — the **clocked encoder** and
 the drawing of a robot in `roadrunner`, the drive runner that follows an action
@@ -27,39 +27,49 @@ needs it, rather than being reached for across. No test holds the robot code
 to this or to anything else: the tests and CI judge the simulator and the
 robot gateway, and the robot code is the team's to change.
 
-**Subsystem** — One part of the robot, and now only that: something the
-robot ticks, which is to say a `Loopable` that lives directly in
-`reginald`. There is no base class to extend. A subsystem is built with
-everything it needs, sets itself up in its own constructor, does its work in
-`loop`, and prints to the **channel** it was handed. What used to be three
-hooks a base class asked for is one method an interface asks for, and the
-package says which classes are subsystems — which is the rule this glossary
-already opened with, now doing a job.
+**Subsystem** — One part of the robot, and now only that: a class in
+`reginald` that extends `SubSystem`. A subsystem names everything it needs
+as its one public constructor's parameters, sets itself up in that
+constructor, gets ready in `init`, does its work in `loop`, and prints to
+the **channel** it was handed. It never builds, registers or ticks itself,
+and nobody does it by hand: the **robot** builds it because something needs
+it, calls its `init` once every part is built, and its `loop` every loop
+after that. Both hooks do nothing unless the subsystem says otherwise.
 
-**Whoever owns it, ticks it.** Anything that must be ticked is ticked by
-whatever it belongs to, on the first line of that thing's own loop: a
-subsystem's plan runner or drive runner in its `loop`, an auto's plan runner
-in the auto's `onLoop`, a TeleOp's driver in the TeleOp's. Registering them
-to be ticked by somebody else read tidily and cost more than it saved. The
-method that is supposed to say what a thing does each tick stopped saying it
-— `Drive`, which follows a trajectory every loop, had an empty one — and the
-robot ended up ticking an op mode's plan runner, which meant it had to
-accept something that was not a subsystem and then ask which it had been
-given.
+**Built because something needs it** — Each op mode names the parts it
+needs, a TeleOp its `Driver` and an auto its `Plans`, and the robot builds
+those and, first, everything their constructors ask for, and nothing else. A
+part is built once and shared: the localizer `Drive` steers by is the one
+`MecanumDrive` reads. What the robot does not build it supplies: the
+`Hardware` (switched off for a **switched-off** part), the `Alliance`, the
+`Gamepads`, the `Dashboard`, and each part's own channel, named after its
+class. It builds only Reginald's own classes, through their one public
+constructor, and is told which class stands for an interface, as
+`Localizer` does for `PoseEstimate`. A part that needs something the robot
+neither supplies nor builds, or needs itself, fails at init naming the chain
+that led to it, and an op mode that asks for a part the robot did not build
+is told so by name. A part nothing needs is not built, so Launcher, Camera
+and Turntable cost nothing until something asks for them, and Brain is not
+built in an auto. Class: `Robot`.
+
+**Whoever owns it, ticks it.** A subsystem is ticked by the robot, after
+everything it was built from: what a part needs is built first, so it is
+ticked first, and the localizer leads because the parts that steer by its
+pose need it. Anything else that must be ticked is not a subsystem, and is
+ticked by whatever it belongs to on the first line of that thing's own loop:
+a subsystem's plan runner or drive runner in its `loop`, an auto's plan
+runner in the auto's `onLoop`. The tick order used to be one list in the
+robot's constructor, written apart from the parts it named; the intake fell
+out of it and was built and never ticked. Now there is no list, so there is
+nothing to keep in step.
 
 So the chain is plain the whole way down: an op mode's `init` builds the
-**Robot**, which builds each subsystem and hands it what it needs; an op
-mode's `loop` ticks the robot, which ticks its subsystems in the order of
-the one list in its constructor, and then the op mode's own `onLoop`, which
-is where anything the op mode owns is ticked. `loop` is final at both
-levels, so the order is not a subclass's to rearrange, and an auto's plan
-advancing after every subsystem is the shape of it rather than a position in
-a list. That every subsystem is ticked at all is mechanical rather than
-remembered, and a test says so: it finds every `Loopable` in `reginald` that
-the robot or an op mode holds and fails naming any the op modes never reach.
-A subsystem nothing holds is not judged until something holds it again; a
-**switched-off** one is still held and ticked. Classes: `Loopable`;
-`Robot.loopOrder`; `SubSystemsAreTickedTest`.
+**Robot**, which builds what the op mode needs and calls each part's
+`init`; an op mode's `loop` ticks the robot, which ticks its subsystems, and
+then the op mode's own `onLoop`, which is where anything the op mode owns is
+ticked. `loop` is final at both levels, so the order is not a subclass's to
+rearrange, and an auto's plan advancing after every subsystem is the shape of
+it rather than a position in a list. Classes: `SubSystem`; `Robot`.
 
 **Channel** — The driver station's telemetry divided by the name of whoever
 is printing. Each subsystem is handed its own when it is built and prints to
@@ -80,14 +90,13 @@ loud rather than left as a null. Classes: `Channels`; `Prints`;
 `Prints.NOWHERE`.
 
 **Handed, not fetched** — A subsystem is given everything it needs when it
-is built — its devices, its clock, what it coordinates, and somewhere to
-print — and reaches for nothing else, ever. Nothing is handed to it
-afterwards, so there is no moment between being built and being ready. So
-the order in Robot's constructor is the order
-they depend on each other in, and javac says so: a subsystem built before
-one it is given does not compile, and one that asks for something the
-robot does not have does not compile either. Nothing reaches back into the
-robot, so there is no list to keep in step and no null to find on a field.
+is built — the hardware it asks for its devices and clock, what it
+coordinates, and somewhere to print — and reaches for nothing else, ever.
+What it needs is its constructor's parameters, so it says so in one place,
+and the robot hands each of them over already built. Nothing is handed to
+it afterwards; `init` runs once everything is built, and before the first
+loop. Nothing reaches back into the robot, so there is no null to find on a
+field.
 
 **Hardware** — Everything the op modes touch outside their own code: the
 configured devices, the camera's detections, the dashboard, and the
@@ -100,11 +109,11 @@ name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
 enforces rather than leaving to care.
 
-A device is **asked for by name, where it is used**. Whoever builds a part
-asks the hardware for the motors and servos it drives by their configured
-names, `motor("intake")`, and hands them to it; the hardware holds no list of
-its own. So a device goes from the configuration to the part that drives it
-in one step, and a device nothing asks for is never fetched. On the robot
+A device is **asked for by name, where it is used**. A part is handed the
+hardware and asks it for the motors and servos it drives by their configured
+names, `motor("intake")`, in its own constructor; the hardware holds no list
+of its own. So a device goes from the configuration to the part that drives
+it in one step, and a device nothing asks for is never fetched. On the robot
 the hardware map answers, and in the simulator an SDK `HardwareMap` of its
 **devices** does, so the simulator builds and runs whatever the robot code
 asks for. A device asked for that is not configured, or not of that kind,
@@ -113,16 +122,16 @@ in the simulator alike, rather than as a null inside whichever subsystem
 reaches for it first, which on the robot is in the middle of a match. Devices are named rather than counted out in
 order, since nine of them are motors and a positional list would let a
 wheel be quietly swapped for its neighbor. Class: `Hardware`;
-`Hardware.fromHardwareMap`; `Robot.clock`.
+`Hardware.fromHardwareMap`; `Hardware.nanoClock`.
 
 **Switched off** — A part built on hardware that does nothing.
 `hardware.switchedOff()` hands it motors and servos that take every write and
 read back zero, an IMU and a voltage sensor the same, and a camera that sees
 nothing, with the run's own clock and dashboard. The part is built, held,
 ticked and prints to its channel like any other, and every subsystem that
-coordinates it keeps it; only what reaches the world is switched off. Each
-part has one line at the top of the robot's constructor that picks its
-hardware, `hardware` or `hardware.switchedOff()`, so switching it off, or on
+coordinates it keeps it; only what reaches the world is switched off. A part
+is switched off by `@SwitchedOff` on its class, which has the robot hand it
+`hardware.switchedOff()` instead of the hardware, so switching it off, or on
 again, is that line, and the code that uses it compiles and runs either way.
 
 It replaces commenting out the part, its devices and every reference to it in
@@ -130,8 +139,8 @@ the subsystems that coordinate it, after which turning one back on meant
 finding them all again. The intake came back that way without its place in
 the loop order, so it was built and told on and off by the driver and never
 drove its motor. A switched-off part is exactly as quiet as a missing one: a
-driver asking it for something sees nothing happen. Class:
-`Hardware.switchedOff`; `Robot`.
+driver asking it for something sees nothing happen. Classes: `SwitchedOff`;
+`Hardware.switchedOff`.
 
 
 **Wheels** — The four wheels, and the only thing that turns numbers into

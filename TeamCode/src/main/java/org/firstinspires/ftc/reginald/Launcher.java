@@ -4,13 +4,14 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import java.util.function.LongSupplier;
-import org.firstinspires.ftc.teamcode.base.Loopable;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.teamcode.base.SubSystem;
 import org.firstinspires.ftc.teamcode.planrunner.Plan;
 import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
 import org.firstinspires.ftc.teamcode.planrunner.Step;
 
-public class Launcher implements Loopable {
+public class Launcher extends SubSystem {
     public static final String CHANNEL = "Launcher";
 
     private final Prints telemetry;
@@ -35,11 +36,11 @@ public class Launcher implements Loopable {
     private double bottomGateWaitSeconds = BOTTOM_GATE_WAIT_SECONDS;
     private final PlanRunner planRunner = new PlanRunner();
 
-    public Launcher(DcMotorEx launcher, Servo topGate, Servo bottomGate, LongSupplier nanoClock, Prints telemetry) {
-        this.nanoClock = nanoClock;
-        this.launcher = launcher;
-        this.topGate = topGate;
-        this.bottomGate = bottomGate;
+    public Launcher(Hardware hardware, Prints telemetry) {
+        this.nanoClock = hardware.nanoClock();
+        this.launcher = hardware.motor("launcher");
+        this.topGate = hardware.servo("topGate");
+        this.bottomGate = hardware.servo("bottomGate");
         this.telemetry = telemetry;
 
         launcher.setPositionPIDFCoefficients(5);

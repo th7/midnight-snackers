@@ -23,8 +23,8 @@ public final class SimProject {
 
     public static final String HARDWARE =
             "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/Hardware.java";
-    public static final String SWITCHED_OFF =
-            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/SwitchedOff.java";
+    public static final String SWITCHED_OFF_HARDWARE =
+            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/SwitchedOffHardware.java";
     public static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
     public static final String SIM_DEVICES =
             "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimDevices.java";

@@ -27,21 +27,10 @@ public final class TuningDrive {
         }
 
         Hardware hardware = Hardware.fromHardwareMap(hardwareMap);
-        Wheels wheels = new Wheels(
-                hardware.motor("leftFront"),
-                hardware.motor("leftBack"),
-                hardware.motor("rightBack"),
-                hardware.motor("rightFront"));
-
-        Localizer localizer = new Localizer(
-                hardware.motor("rightBack"),
-                hardware.motor("leftFront"),
-                hardware.imu(),
-                pose,
-                hardware.nanoClock(),
-                Prints.NOWHERE);
-        MecanumDrive drive = new MecanumDrive(
-                wheels, hardware.imu(), hardware.voltageSensor(), localizer, hardware.nanoClock());
+        Wheels wheels = new Wheels(hardware);
+        Localizer localizer = new Localizer(hardware, Prints.NOWHERE);
+        localizer.setPose(pose);
+        MecanumDrive drive = new MecanumDrive(wheels, hardware, localizer);
         return new TuningDrive(localizer, drive);
     }
 }

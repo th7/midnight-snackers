@@ -17,7 +17,7 @@ public final class PlanOp extends AutoOp {
 
     @Override
     public PlanPart getPlan() {
-        return plan.apply(robot.plans);
+        return plan.apply(robot.part(Plans.class));
     }
 
     @Override

@@ -32,6 +32,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.LongSupplier;
+import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.reginald.hardware.Wheels;
 import org.firstinspires.ftc.reginald.roadrunner.messages.DriveCommandMessage;
 import org.firstinspires.ftc.reginald.roadrunner.messages.MecanumCommandMessage;
@@ -70,12 +71,11 @@ public final class MecanumDrive {
         return nanoClock.getAsLong() * 1e-9;
     }
 
-    public MecanumDrive(
-            Wheels wheels, LazyImu lazyImu, VoltageSensor voltageSensor, PoseEstimate where, LongSupplier nanoClock) {
-        this.nanoClock = nanoClock;
+    public MecanumDrive(Wheels wheels, Hardware hardware, PoseEstimate where) {
+        this.nanoClock = hardware.nanoClock();
         this.wheels = wheels;
-        this.lazyImu = lazyImu;
-        this.voltageSensor = voltageSensor;
+        this.lazyImu = hardware.imu();
+        this.voltageSensor = hardware.voltageSensor();
         this.where = where;
 
         FlightRecorder.write("MECANUM_PARAMS", PARAMS);
