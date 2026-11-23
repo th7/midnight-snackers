@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
+import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.MotorType;
 import org.firstinspires.ftc.teamcode.simcore.Overrides;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
@@ -30,6 +31,7 @@ final class SimOverrides {
     private static final String CONSTANTS = "constants";
     private static final String HUB = "hub";
     private static final String CONFIGURATION = "configuration";
+    private static final String DIRECTIONS = "directions";
     private static final String LOGO = "logo";
     private static final String USB = "usb";
     private static final String NAME = "name";
@@ -97,10 +99,12 @@ final class SimOverrides {
         try {
             json = GSON.fromJson(body == null || body.isBlank() ? "{}" : body, JsonElement.class);
         } catch (JsonParseException e) {
-            return refused("the robot's edits are an object of constants, hub and configuration, not " + body);
+            return refused(
+                    "the robot's edits are an object of constants, hub, configuration and directions, not " + body);
         }
         if (json == null || !json.isJsonObject()) {
-            return refused("the robot's edits are an object of constants, hub and configuration, not " + json);
+            return refused(
+                    "the robot's edits are an object of constants, hub, configuration and directions, not " + json);
         }
         Overrides current;
         synchronized (this) {
@@ -143,6 +147,7 @@ final class SimOverrides {
                 case CONSTANTS -> kept.addAll(constants(value));
                 case HUB -> kept.addAll(hub(value));
                 case CONFIGURATION -> kept.addAll(configuration(value));
+                case DIRECTIONS -> kept.addAll(directions(value));
                 default -> kept.add(new Overrides.Kept.Gone(key));
             }
         }
@@ -190,6 +195,28 @@ final class SimOverrides {
             }
             kept.add(read(
                     face.label(), entry.getValue(), Facing::named, facing -> new Overrides.Edit.OfHub(face, facing)));
+        }
+        return kept;
+    }
+
+    private static List<Overrides.Kept> directions(JsonElement json) {
+        if (!json.isJsonObject()) {
+            return List.of(new Overrides.Kept.Unreadable(
+                    DIRECTIONS, "the directions are an object of mechanisms by name, not " + json));
+        }
+        List<Overrides.Kept> kept = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : json.getAsJsonObject().entrySet()) {
+            Checked<Mechanism> named = Mechanism.named(entry.getKey());
+            if (!(named instanceof Checked.Ok<Mechanism> ok)) {
+                kept.add(new Overrides.Kept.Gone(DIRECTIONS + "." + entry.getKey()));
+                continue;
+            }
+            Mechanism mechanism = ok.value();
+            kept.add(read(
+                    mechanism.label() + "'s direction",
+                    entry.getValue(),
+                    mechanism::reversedIf,
+                    reversed -> new Overrides.Edit.Reversed(mechanism, reversed)));
         }
         return kept;
     }
@@ -251,7 +278,12 @@ final class SimOverrides {
         JsonObject constants = new JsonObject();
         JsonObject hub = new JsonObject();
         JsonObject configuration = new JsonObject();
+        JsonObject directions = new JsonObject();
         for (Overrides.Edit edit : overrides.edits()) {
+            if (edit instanceof Overrides.Edit.Reversed reversed) {
+                directions.addProperty(
+                        reversed.mechanism().asked(), reversed.mechanism().way(reversed.reversed()));
+            }
             if (edit instanceof Overrides.Edit.OfConstant set) {
                 constants.addProperty(set.constant().asked(), set.to());
             }
@@ -281,6 +313,9 @@ final class SimOverrides {
         }
         if (!configuration.entrySet().isEmpty()) {
             edits.add(CONFIGURATION, configuration);
+        }
+        if (!directions.entrySet().isEmpty()) {
+            edits.add(DIRECTIONS, directions);
         }
         return edits;
     }
@@ -330,6 +365,24 @@ final class SimOverrides {
         }
         hub.add("faces", faces);
         listing.add(HUB, hub);
+        JsonArray directions = new JsonArray();
+        for (Mechanism mechanism : Mechanism.values()) {
+            JsonObject one = new JsonObject();
+            one.addProperty(NAME, mechanism.asked());
+            one.addProperty("label", mechanism.label());
+            JsonArray ways = new JsonArray();
+            for (boolean reversed : new boolean[] {false, true}) {
+                JsonObject way = new JsonObject();
+                way.addProperty(NAME, mechanism.way(reversed));
+                way.addProperty("says", mechanism.says(reversed));
+                ways.add(way);
+            }
+            one.add("ways", ways);
+            one.addProperty("byDefault", mechanism.way(defaults.directions().reversed(mechanism)));
+            one.addProperty("value", mechanism.way(now.directions().reversed(mechanism)));
+            directions.add(one);
+        }
+        listing.add(DIRECTIONS, directions);
         JsonArray groups = new JsonArray();
         for (Constant.Group group : Constant.Group.values()) {
             JsonObject one = new JsonObject();

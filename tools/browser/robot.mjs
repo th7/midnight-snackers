@@ -10,6 +10,7 @@ const ANSWERED = JSON.parse(fs.readFileSync(path.join(here, 'robot-answers.json'
 const MOVED_WHEEL = '{"constants":{"parallel_dead_wheel_y_in":-1.5}}';
 const TOO_FLAT = '{"constants":{"parallel_dead_wheel_y_in":-1.5,"flattest_volts":14}}';
 const REWIRED = '{"configuration":{"rightBack":{"encoder":"nothing"}}}';
+const REVERSED = '{"directions":{"intake":"pushes_out"}}';
 const KEPT_BY_AN_OLDER_BUILD = '{"constants":{"mass_kg":40,"launch_throw":1.2}}';
 const WIDE = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
@@ -47,7 +48,7 @@ function canonical(text) {
   }
 }
 
-const SAVES = { [canonical(MOVED_WHEEL)]: 'saved', '{}': 'reset', [canonical(REWIRED)]: 'rewired' };
+const SAVES = { [canonical(MOVED_WHEEL)]: 'saved', '{}': 'reset', [canonical(REWIRED)]: 'rewired', [canonical(REVERSED)]: 'reversed' };
 
 function servedTheRobotTab(request, response, path) {
   if (request.method === 'GET' && path === '/sim/robot') {
@@ -220,6 +221,26 @@ async function aMotorIsRewiredAndResetAllPutsEverythingBack(page) {
   check(await page.locator('#robot .changed').count() === 0, 'values are still marked changed after Reset all');
 }
 
+async function aMechanismIsReversedByWhatPositivePowerDoes(page) {
+  const listed = ANSWERED.listing.directions;
+  const intake = listed.find((one) => one.name === 'intake');
+  const select = page.locator('#robot [data-direction="intake"] select');
+  const offered = await select.locator('option').allTextContents();
+  check(offered.join('|') === intake.ways.map((way) => way.says).join('|'),
+        `the intake offers ${JSON.stringify(offered)}, not what positive power does each way`);
+  check(await select.inputValue() === intake.byDefault, `the intake starts as ${await select.inputValue()}`);
+  await select.selectOption('pushes_out');
+  check(await untilTrue(page, (said) => document.getElementById('robot-described').textContent.endsWith(said),
+                        ANSWERED.reversed.described), 'reversing the intake is not what the next run is made on');
+  check(sent[sent.length - 1] === canonical(REVERSED), `reversing the intake sent ${sent[sent.length - 1]}`);
+  const count = await page.locator('#robot details[data-group="directions"] summary .changes').textContent();
+  check(count === '1 changed', `the directions say "${count}", not that one changed`);
+  await page.locator('#robot [data-direction="intake"] button.reset').click({ timeout: 5_000 });
+  check(await untilTrue(page, () => document.getElementById('robot-described').textContent.endsWith('as built')),
+        'putting the intake back does not make the next run as built');
+  check(sent[sent.length - 1] === '{}', `putting the intake back sent ${sent[sent.length - 1]}`);
+}
+
 async function whatAnOlderBuildKeptIsShownAsTheTabRecalledIt(browser, base) {
   current = ANSWERED.recalled;
   const { page, threw } = await opened(browser, base);
@@ -256,6 +277,7 @@ async function main() {
     await aSavedEditOutlivesTheTab(browser, base);
     await aRefusedSetShowsItsRuleAndSavesNothing(page);
     await aMotorIsRewiredAndResetAllPutsEverythingBack(page);
+    await aMechanismIsReversedByWhatPositivePowerDoes(page);
     const broke = await page.evaluate(() => window.simulatorPage.broke);
     check(broke.length === 0, `the dashboard broke: ${JSON.stringify(broke)}`);
     threw.push(...thrown);
@@ -285,7 +307,7 @@ async function main() {
   console.log(`the Robot tab comes first, lists the ${ANSWERED.listing.configuration.length} configured devices and`
       + ` the ${ANSWERED.listing.constants.length} values with their ranges and sentences, saves a moved wheel and`
       + ' keeps it, refuses a flattest battery above the freshest saying why and saving nothing, rewires a motor,'
-      + ' puts everything back with Reset all, shows what it could not keep from an older build\'s file, and fits a'
+      + ' puts everything back with Reset all, reverses the intake by what positive power does, shows what it could not keep from an older build\'s file, and fits a'
       + ' phone.');
 }
 

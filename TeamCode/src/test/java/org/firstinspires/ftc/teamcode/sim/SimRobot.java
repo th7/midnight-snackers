@@ -34,6 +34,7 @@ import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
 import org.firstinspires.ftc.teamcode.fakes.FakeImu;
 import org.firstinspires.ftc.teamcode.fakes.FakeVoltageSensor;
+import org.firstinspires.ftc.teamcode.simcore.Chassis;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -47,7 +48,9 @@ import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.Flight;
 import org.firstinspires.ftc.teamcode.simcore.Heading;
 import org.firstinspires.ftc.teamcode.simcore.HubPort;
+import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.Length;
+import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.Nest;
 import org.firstinspires.ftc.teamcode.simcore.Noise;
 import org.firstinspires.ftc.teamcode.simcore.PerWheel;
@@ -139,10 +142,16 @@ public class SimRobot {
 
     private Flight<Ball> flight;
 
+    private Intake.Held held = Intake.Held.none();
+
+    private Intake.Way intakeWay = Intake.Way.STILL;
+
     private enum Where {
         ROLLING,
 
         FLYING,
+
+        HELD,
 
         IN_FLOWER,
 
@@ -465,6 +474,9 @@ public class SimRobot {
                 case FLYING:
                     out[i] = Points.array(flight.at(ball).orElseThrow());
                     break;
+                case HELD:
+                    out[i] = null;
+                    break;
                 case IN_FLOWER:
                     out[i] = Points.array(stacks.get(ball.flower).at(ball).orElseThrow());
                     break;
@@ -518,6 +530,9 @@ public class SimRobot {
     }
 
     private void take(Ball ball) {
+        if (ball.where == Where.HELD) {
+            held = held.less(1);
+        }
         if (ball.where == Where.ROLLING) {
             world.removeBody(ball.body);
         }
@@ -629,6 +644,10 @@ public class SimRobot {
         return false;
     }
 
+    public SimRecording.Mechanisms mechanisms() {
+        return new SimRecording.Mechanisms(held.count(), intakeWay);
+    }
+
     public int scored(String alliance) {
         return flight.scored(alliance);
     }
@@ -687,6 +706,7 @@ public class SimRobot {
         spinTheMotors(dt);
         holdTheNests(dt);
         world.step(1, dt.value());
+        intakeThePollen();
         fallInTheFlowers(dt);
         standInTheBores();
         flyTheBalls(dt);
@@ -706,6 +726,36 @@ public class SimRobot {
             String name = spin.getKey();
             spin.setValue(spin.getValue().next(devices.typeOf(name), applied.get(name), voltageSensor.voltage, dt));
         }
+    }
+
+    private void intakeThePollen() {
+        intakeWay = Intake.way(
+                spins.get("intake").ticksPerSecond(),
+                devices.typeOf("intake"),
+                description.directions().reversed(Mechanism.INTAKE));
+        List<Ball> touching = new ArrayList<>();
+        for (Ball ball : balls) {
+            if (ball.where == Where.ROLLING && ball.kind == Field.Kind.POLLEN && againstTheFront(ball)) {
+                touching.add(ball);
+            }
+        }
+        Intake.Taken taken = Intake.take(intakeWay, held, touching.size());
+        for (Ball ball : touching.subList(0, taken.taken())) {
+            take(ball);
+            ball.where = Where.HELD;
+        }
+        held = taken.held();
+    }
+
+    private boolean againstTheFront(Ball ball) {
+        Transform robotAt = chassis.getTransform();
+        Transform ballAt = ball.body.getTransform();
+        return Chassis.againstTheFront(
+                Valid.value(Heading.ofRadians(robotAt.getRotationAngle())),
+                new Vec2(
+                        (ballAt.getTranslationX() - robotAt.getTranslationX()) / IN,
+                        (ballAt.getTranslationY() - robotAt.getTranslationY()) / IN),
+                ball.length);
     }
 
     private HubPort.Wrote wrote(String name) {

@@ -9,9 +9,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
+import org.firstinspires.ftc.teamcode.simcore.Intake;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
 public final class SimRecording implements SimReplayPage.Source {
+    public record Mechanisms(int held, Intake.Way intake) {
+        public static final Mechanisms NONE = new Mechanisms(0, Intake.Way.STILL);
+    }
+
     public static final class Tick {
         public final double seconds;
         public final Pose2d truePose;
@@ -32,6 +37,8 @@ public final class SimRecording implements SimReplayPage.Source {
 
         public final Map<String, Double> tilt;
 
+        public final Mechanisms mechanisms;
+
         private Tick(Builder building) {
             this.seconds = building.seconds;
             this.truePose = building.truePose;
@@ -43,6 +50,7 @@ public final class SimRecording implements SimReplayPage.Source {
             this.pieces = building.pieces;
             this.scored = building.scored;
             this.tilt = building.tilt;
+            this.mechanisms = building.mechanisms;
         }
 
         public static Builder at(
@@ -61,6 +69,7 @@ public final class SimRecording implements SimReplayPage.Source {
             private double[][] pieces;
             private Map<String, Integer> scored = Map.of();
             private Map<String, Double> tilt = Map.of();
+            private Mechanisms mechanisms = Mechanisms.NONE;
 
             private Builder(
                     double seconds, Pose2d truePose, String step, double[] wheelPowers, List<TelemetryPacket> packets) {
@@ -89,6 +98,11 @@ public final class SimRecording implements SimReplayPage.Source {
 
             public Builder tilted(Map<String, Double> tilt) {
                 this.tilt = tilt;
+                return this;
+            }
+
+            public Builder turning(Mechanisms mechanisms) {
+                this.mechanisms = mechanisms;
                 return this;
             }
 

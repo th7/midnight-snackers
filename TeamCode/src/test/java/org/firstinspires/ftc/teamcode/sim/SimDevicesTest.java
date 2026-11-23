@@ -21,6 +21,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Rotation;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
@@ -89,7 +90,10 @@ public class SimDevicesTest {
                 .filter(device -> !device.name().equals("intake"))
                 .toList();
         SimDevices withoutAnIntake = new SimDevices(RobotDescription.of(
-                Valid.value(Configuration.of(withoutTheIntake)), HubMounting.reginalds(), Constants.defaults()));
+                Valid.value(Configuration.of(withoutTheIntake)),
+                HubMounting.reginalds(),
+                Constants.defaults(),
+                Directions.reginalds()));
 
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, withoutAnIntake::hardware);
 
@@ -153,7 +157,8 @@ public class SimDevicesTest {
         SimDevices logoDown = new SimDevices(RobotDescription.of(
                 Configuration.reginalds(),
                 Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
-                Constants.defaults()));
+                Constants.defaults(),
+                Directions.reginalds()));
         logoDown.imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.DOWN, RevHubOrientationOnRobot.UsbFacingDirection.RIGHT)));
         devices.imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(

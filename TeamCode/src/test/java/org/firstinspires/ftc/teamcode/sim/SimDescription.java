@@ -22,9 +22,11 @@ import java.util.function.Function;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.MotorType;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 
@@ -34,8 +36,9 @@ public final class SimDescription {
     static final String CONFIGURATION = "configuration";
     static final String HUB = "hub";
     static final String CONSTANTS = "constants";
+    static final String DIRECTIONS = "directions";
 
-    private static final List<String> PARTS = List.of(CONFIGURATION, HUB, CONSTANTS);
+    private static final List<String> PARTS = List.of(CONFIGURATION, HUB, CONSTANTS, DIRECTIONS);
     private static final List<String> HUB_FACES = List.of("logo", "usb");
     private static final List<String> MOTOR_FIELDS = List.of("name", "kind", "type", "encoder");
     private static final List<String> OTHER_FIELDS = List.of("name", "kind");
@@ -86,10 +89,21 @@ public final class SimDescription {
                 }
             }
         }
+        Checked<Directions> directions = directions(parts.get(DIRECTIONS));
+        if (directions instanceof Checked.Rejected<Directions> rejected) {
+            return Checked.rejected(rejected.rule());
+        }
+        for (Mechanism mechanism : Mechanism.values()) {
+            if (!parts.getAsJsonObject(DIRECTIONS).has(mechanism.asked())) {
+                return Checked.rejected("the robot description's directions name every mechanism, and "
+                        + mechanism.asked() + " is missing");
+            }
+        }
         return configuration(parts.get(CONFIGURATION))
                 .then(configuration -> hub(parts.get(HUB))
                         .then(hub -> SimConstants.fromJson(constants)
-                                .map(read -> RobotDescription.of(configuration, hub, read))));
+                                .then(read -> directions.map(
+                                        directed -> RobotDescription.of(configuration, hub, read, directed)))));
     }
 
     public static void addWhatDiffers(RobotDescription description, JsonObject line) {
@@ -102,6 +116,9 @@ public final class SimDescription {
         if (!description.configurationAsBuilt()) {
             line.add(CONFIGURATION, configurationJson(description.configuration()));
         }
+        if (!description.directionsAsBuilt()) {
+            line.add(DIRECTIONS, directionsJson(description.directions()));
+        }
     }
 
     public static Checked<RobotDescription> fromStartLine(JsonObject line) {
@@ -109,8 +126,11 @@ public final class SimDescription {
                 ? configuration(line.get(CONFIGURATION))
                 : Checked.ok(Configuration.reginalds());
         Checked<HubMounting> hub = line.has(HUB) ? hub(line.get(HUB)) : Checked.ok(HubMounting.reginalds());
-        return configuration.then(configured -> hub.then(mounted -> SimConstants.fromJson(line.get(CONSTANTS))
-                .map(constants -> RobotDescription.of(configured, mounted, constants))));
+        Checked<Directions> directions =
+                line.has(DIRECTIONS) ? directions(line.get(DIRECTIONS)) : Checked.ok(Directions.reginalds());
+        return configuration.then(configured ->
+                hub.then(mounted -> directions.then(directed -> SimConstants.fromJson(line.get(CONSTANTS))
+                        .map(constants -> RobotDescription.of(configured, mounted, constants, directed)))));
     }
 
     public static String described(RobotDescription description) {
@@ -128,7 +148,49 @@ public final class SimDescription {
             changes.add("configuration " + said(description.configuration()) + " (built "
                     + said(Configuration.reginalds()) + ")");
         }
+        for (Mechanism mechanism : Mechanism.values()) {
+            if (description.directions().reversed(mechanism)) {
+                changes.add(mechanism.asked() + " " + spoken(mechanism.way(true)) + " on positive power (built "
+                        + spoken(mechanism.way(false)) + ")");
+            }
+        }
         return String.join("; ", changes);
+    }
+
+    private static String spoken(String way) {
+        return way.replace('_', ' ');
+    }
+
+    static Checked<Directions> directions(JsonElement json) {
+        if (json == null || !json.isJsonObject()) {
+            return Checked.rejected("the directions are an object of mechanisms by name, not " + json);
+        }
+        Directions directions = Directions.reginalds();
+        for (Map.Entry<String, JsonElement> entry : json.getAsJsonObject().entrySet()) {
+            Checked<Mechanism> named = Mechanism.named(entry.getKey());
+            if (named instanceof Checked.Rejected<Mechanism> rejected) {
+                return Checked.rejected(rejected.rule());
+            }
+            Mechanism mechanism = Valid.value(named);
+            JsonElement way = entry.getValue();
+            if (!(way.isJsonPrimitive() && way.getAsJsonPrimitive().isString())) {
+                return Checked.rejected("the " + mechanism.asked() + "'s direction is text, not " + way);
+            }
+            Checked<Boolean> reversed = mechanism.reversedIf(way.getAsString());
+            if (reversed instanceof Checked.Rejected<Boolean> rejected) {
+                return Checked.rejected(rejected.rule());
+            }
+            directions = directions.with(mechanism, Valid.value(reversed));
+        }
+        return Checked.ok(directions);
+    }
+
+    static JsonObject directionsJson(Directions directions) {
+        JsonObject json = new JsonObject();
+        for (Mechanism mechanism : Mechanism.values()) {
+            json.addProperty(mechanism.asked(), mechanism.way(directions.reversed(mechanism)));
+        }
+        return json;
     }
 
     private static String said(Configuration configuration) {

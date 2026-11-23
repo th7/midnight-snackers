@@ -58,7 +58,8 @@ function aRunToPlay(model) {
       powers: [1, 0.5, -0.5, -1],
       packets: n === 0 ? [] : overlay,
       pieces: places(n),
-      tilt: n === 1 && blue ? { Blue: blue.tilt - 25 } : undefined
+      tilt: n === 1 && blue ? { Blue: blue.tilt - 25 } : undefined,
+      mechanisms: [{ held: 0, intake: 'still' }, { held: 1, intake: 'in' }, { held: 2, intake: 'out' }][n]
     }))
   };
 }
@@ -203,6 +204,8 @@ const readPanels = (open) => open.evaluate(() => ({
   madeOn: document.getElementById('made-on').hidden ? null : document.getElementById('made-on').textContent,
   step: document.getElementById('step').textContent,
   pose: document.getElementById('pose').textContent,
+  held: document.getElementById('held').textContent,
+  intake: document.getElementById('intake').textContent,
   ticks: Number(document.getElementById('scrub').max),
   drawing: window.replayPage.drawing,
   problem: window.replayPage.problem
@@ -256,6 +259,8 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     check(panels.ticks === run.ticks.length - 1,
           `the scrub covers ${panels.ticks + 1} ticks of ${run.ticks.length}`);
     check(panels.step === '0. drive', `the first tick's step reads "${panels.step}"`);
+    check(panels.held === '0', `the first tick shows "${panels.held}" held, not 0`);
+    check(panels.intake === 'still', `the first tick shows the intake "${panels.intake}", not still`);
 
     await twoFrames(open);
     const first = await open.evaluate(() => ({
@@ -278,6 +283,8 @@ async function theLiveViewDrawsTheFieldModel(browser, base, run) {
     const last = await readPanels(open);
     const at = run.ticks[run.ticks.length - 1];
     check(last.step === '2. drive', `after scrubbing to the end the step reads "${last.step}"`);
+    check(last.held === '2', `the last tick shows "${last.held}" held, not 2`);
+    check(last.intake === 'pushing out', `the last tick shows the intake "${last.intake}", not pushing out`);
     const reads = `x ${at.x.toFixed(1)} in, y ${at.y.toFixed(1)} in, `
         + `${(at.heading * 180 / Math.PI).toFixed(1)}°`;
     check(last.pose === reads, `the page shows the pose "${last.pose}", not the last tick's "${reads}"`);

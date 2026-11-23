@@ -241,7 +241,8 @@ public final class SimRunner {
                             elapsed, sim.pose(), auto != null ? auto.currentStep() : "", sim.powers(), thisLoop)
                     .withBalls(sim.pieces())
                     .scoring(sim.scored())
-                    .tilted(sim.tilt());
+                    .tilted(sim.tilt())
+                    .turning(sim.mechanisms());
             if (auto == null) {
                 tick.drivenBy(applied.gamepad1, applied.gamepad2);
             }

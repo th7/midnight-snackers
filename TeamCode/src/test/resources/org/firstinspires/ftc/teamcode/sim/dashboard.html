@@ -231,6 +231,11 @@
       <p class="says group-says">Which way the hub is mounted, which turns what its IMU reads into the robot's heading.</p>
       <div class="hub" id="robot-hub"></div>
     </details>
+    <details class="launch-group robot-part" data-group="directions" open>
+      <summary><span>Directions</span><span class="changes"></span></summary>
+      <p class="says group-says">Which way each mechanism turns its pieces on positive power, as the SDK gives it with the motor's direction left forward.</p>
+      <div class="hub" id="robot-directions"></div>
+    </details>
     <div id="robot-groups"></div>
   </section>
 </main>
@@ -1816,6 +1821,8 @@
     var groupsHost = document.getElementById('robot-groups');
     var configurationPart = document.querySelector('#robot [data-group="configuration"]');
     var hubPart = document.querySelector('#robot [data-group="hub"]');
+    var directionsHost = document.getElementById('robot-directions');
+    var directionsPart = document.querySelector('#robot [data-group="directions"]');
 
     var fields = [];
     var asked = false;
@@ -2054,6 +2061,24 @@
       hubHost.appendChild(wrap);
     }
 
+    function directionRow(mechanism) {
+      var ways = (mechanism.ways || []).map(function (way) { return { name: way.name, label: way.says }; });
+      var byDefault = ways.filter(function (way) { return way.name === mechanism.byDefault; })[0];
+      var made = field({ part: 'directions', device: null, key: mechanism.name, number: false,
+                         label: mechanism.label + "'s direction", byDefault: mechanism.byDefault,
+                         input: select(ways, mechanism.value, mechanism.label + "'s direction"), rule: null,
+                         details: directionsPart });
+      made.reset.setAttribute('aria-label', 'Put ' + mechanism.label + "'s direction back to "
+          + (byDefault ? byDefault.label : mechanism.byDefault));
+      directionsHost.appendChild(el('span', 'setting-label', mechanism.label));
+      var wrap = el('span', 'field');
+      wrap.setAttribute('data-direction', mechanism.name);
+      wrap.appendChild(made.input);
+      wrap.appendChild(made.reset);
+      made.wrap = wrap;
+      directionsHost.appendChild(wrap);
+    }
+
     function constantRow(constant, details) {
       var id = 'robot-value-' + constant.name;
       var row = el('div', 'setting');
@@ -2093,12 +2118,14 @@
       fields = [];
       clear(devicesHost);
       clear(hubHost);
+      clear(directionsHost);
       clear(groupsHost);
       (listing.configuration || []).forEach(function (listed) { devicesHost.appendChild(deviceRow(listed, listing)); });
       if (listing.hub) {
         hubRow('logo', "The hub's logo faces", listing.hub);
         hubRow('usb', "The hub's USB ports face", listing.hub);
       }
+      (listing.directions || []).forEach(directionRow);
       (listing.groups || []).forEach(function (group) {
         var details = el('details', 'launch-group');
         details.setAttribute('data-group', group.name);

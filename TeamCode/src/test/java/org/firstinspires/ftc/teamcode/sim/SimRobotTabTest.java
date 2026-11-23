@@ -27,6 +27,7 @@ public class SimRobotTabTest {
     static final String MOVED_WHEEL = "{\"constants\":{\"parallel_dead_wheel_y_in\":-1.5}}";
     static final String TOO_FLAT = "{\"constants\":{\"parallel_dead_wheel_y_in\":-1.5,\"flattest_volts\":14}}";
     static final String REWIRED = "{\"configuration\":{\"rightBack\":{\"encoder\":\"nothing\"}}}";
+    static final String REVERSED = "{\"directions\":{\"intake\":\"pushes_out\"}}";
     static final String KEPT_BY_AN_OLDER_BUILD = "{\"constants\":{\"mass_kg\":40,\"launch_throw\":1.2}}";
 
     @Rule
@@ -65,6 +66,7 @@ public class SimRobotTabTest {
         answers.add("refused", answer(bench, "PUT", TOO_FLAT));
         answers.add("reset", answer(bench, "PUT", "{}"));
         answers.add("rewired", answer(bench, "PUT", REWIRED));
+        answers.add("reversed", answer(bench, "PUT", REVERSED));
         answers.add("recalled", answer(aBench(KEPT_BY_AN_OLDER_BUILD), "GET", ""));
         return new Gson().toJson(answers);
     }
@@ -99,7 +101,7 @@ public class SimRobotTabTest {
     public void theBrowserCheckSendsTheEditsItsAnswersWereMadeFrom() throws IOException {
         String check = new String(Files.readAllBytes(THE_CHECK), StandardCharsets.UTF_8);
 
-        for (String sent : List.of(MOVED_WHEEL, TOO_FLAT, REWIRED, KEPT_BY_AN_OLDER_BUILD)) {
+        for (String sent : List.of(MOVED_WHEEL, TOO_FLAT, REWIRED, REVERSED, KEPT_BY_AN_OLDER_BUILD)) {
             assertTrue(THE_CHECK + " expects the tab to send " + sent, check.contains("'" + sent + "'"));
         }
     }

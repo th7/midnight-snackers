@@ -23,7 +23,8 @@ public final class Overrides {
         }
     }
 
-    public sealed interface Edit permits Edit.OfConstant, Edit.OfHub, Edit.Renamed, Edit.Typed, Edit.Wired {
+    public sealed interface Edit
+            permits Edit.OfConstant, Edit.OfHub, Edit.Reversed, Edit.Renamed, Edit.Typed, Edit.Wired {
         String value();
 
         record OfConstant(Constant constant, double to) implements Edit {
@@ -37,6 +38,13 @@ public final class Overrides {
             @Override
             public String value() {
                 return face.label();
+            }
+        }
+
+        record Reversed(Mechanism mechanism, boolean reversed) implements Edit {
+            @Override
+            public String value() {
+                return mechanism.label() + "'s direction";
             }
         }
 
@@ -167,7 +175,7 @@ public final class Overrides {
                 : edit instanceof Edit.Typed typed
                         ? typed.device()
                         : edit instanceof Edit.Wired wired ? wired.device() : "";
-        if (edit instanceof Edit.OfHub) {
+        if (edit instanceof Edit.OfHub || edit instanceof Edit.Reversed) {
             return new Admitted.Taken(edit);
         }
         for (Configuration.Device configured : defaults.configuration().devices()) {
@@ -192,6 +200,7 @@ public final class Overrides {
         EnumMap<HubFace, Facing> faces = new EnumMap<>(HubFace.class);
         faces.put(HubFace.LOGO, defaults.hub().logo());
         faces.put(HubFace.USB, defaults.hub().usb());
+        Directions directions = defaults.directions();
         Map<String, Configuration.Device> devices = new LinkedHashMap<>();
         for (Configuration.Device device : defaults.configuration().devices()) {
             devices.put(device.name(), device);
@@ -202,6 +211,9 @@ public final class Overrides {
             }
             if (edit instanceof Edit.OfHub hub) {
                 faces.put(hub.face(), hub.facing());
+            }
+            if (edit instanceof Edit.Reversed reversed) {
+                directions = directions.with(reversed.mechanism(), reversed.reversed());
             }
             if (edit instanceof Edit.Renamed renamed) {
                 devices.computeIfPresent(renamed.device(), (name, device) -> device.named(renamed.name()));
@@ -223,10 +235,11 @@ public final class Overrides {
         }
         Facing logo = faces.getOrDefault(HubFace.LOGO, defaults.hub().logo());
         Facing usb = faces.getOrDefault(HubFace.USB, defaults.hub().usb());
+        Directions directed = directions;
         return Constants.of(values)
                 .then(constants -> HubMounting.of(logo, usb)
                         .then(hub -> Configuration.of(new ArrayList<>(devices.values()))
-                                .map(configuration -> RobotDescription.of(configuration, hub, constants))));
+                                .map(configuration -> RobotDescription.of(configuration, hub, constants, directed))));
     }
 
     public RobotDescription defaults() {
@@ -250,6 +263,12 @@ public final class Overrides {
         }
         if (description.hub().usb() != defaults.hub().usb()) {
             edits.add(new Edit.OfHub(HubFace.USB, description.hub().usb()));
+        }
+        for (Mechanism mechanism : Mechanism.values()) {
+            boolean reversed = description.directions().reversed(mechanism);
+            if (reversed != defaults.directions().reversed(mechanism)) {
+                edits.add(new Edit.Reversed(mechanism, reversed));
+            }
         }
         ArrayDeque<Configuration.Device> byDefault =
                 new ArrayDeque<>(defaults.configuration().devices());

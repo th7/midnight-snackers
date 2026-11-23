@@ -15,9 +15,12 @@ import org.firstinspires.ftc.teamcode.sim.SimRunStream.Outcome;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.Field;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.Intake;
+import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Test;
 
@@ -109,6 +112,26 @@ public class SimRunStreamTest {
         assertEquals(2, first.getAsJsonObject("scored").get("Red").getAsInt());
         JsonObject quiet = heard.ticks.get(1);
         assertFalse("nothing scored: nothing said", quiet.has("scored"));
+    }
+
+    @Test
+    public void aTickSaysWhatTheRobotHoldsAndWhichWayItsIntakeTurns() {
+        Heard heard = new Heard();
+        SimRecording.Tick taking = SimRecording.Tick.at(
+                        1, new Pose2d(0, 0, 0), "", new double[] {0, 0, 0, 0}, List.of())
+                .turning(new SimRecording.Mechanisms(1, Intake.Way.IN))
+                .tick();
+
+        SimRunStream.accept(SimRunStream.tick(taking), heard);
+        SimRunStream.accept(SimRunStream.tick(tick(2, "quiet")), heard);
+
+        assertEquals(
+                "{\"held\":1,\"intake\":\"in\"}",
+                heard.ticks.get(0).get("mechanisms").toString());
+        assertEquals(
+                "a still robot holding nothing says so",
+                "{\"held\":0,\"intake\":\"still\"}",
+                heard.ticks.get(1).get("mechanisms").toString());
     }
 
     @Test
@@ -468,7 +491,8 @@ public class SimRunStreamTest {
         return RobotDescription.of(
                 Configuration.reginalds(),
                 Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
-                Constants.defaults());
+                Constants.defaults(),
+                Directions.reginalds());
     }
 
     @Test
@@ -506,6 +530,51 @@ public class SimRunStreamTest {
         assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
         assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.DESCRIPTION_PROTOCOL));
         assertTrue(handshake.message, handshake.message.contains("hub logo DOWN, USB RIGHT"));
+        assertTrue(handshake.message, handshake.message.contains("Pull develop"));
+        assertTrue(handshake.message, handshake.message.contains(SimDescription.FILE));
+        assertNull("a refused run is sent nothing", handshake.startLine);
+    }
+
+    private static RobotDescription intakeReversed() {
+        return RobotDescription.reginalds().with(Directions.reginalds().with(Mechanism.INTAKE, true));
+    }
+
+    @Test
+    public void aChildThatTakesTheDirectionsSpeaksProtocolEight() {
+        assertEquals(8, SimRunStream.DIRECTIONS_PROTOCOL);
+        assertTrue(SimRunStream.DIRECTIONS_PROTOCOL > SimRunStream.DESCRIPTION_PROTOCOL);
+        assertTrue(SimRunStream.PROTOCOL >= SimRunStream.DIRECTIONS_PROTOCOL);
+    }
+
+    @Test
+    public void aChildOfThisVersionIsToldWhichMechanismsTheDescriptionReverses() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.hello(), StartPoses.ORIGIN, null, intakeReversed());
+
+        assertFalse(handshake.message, handshake.refused());
+        assertEquals(
+                "pushes_out",
+                handshake.startLine.getAsJsonObject("directions").get("intake").getAsString());
+    }
+
+    @Test
+    public void aChildFromBeforeTheDirectionsStillTakesAHubThatDiffers() {
+        SimRunStream.Handshake handshake = SimRunStream.handshake(
+                SimRunStream.helloOf(SimRunStream.DIRECTIONS_PROTOCOL - 1), StartPoses.ORIGIN, null, mountedLogoDown());
+
+        assertFalse(handshake.message, handshake.refused());
+    }
+
+    @Test
+    public void aChildFromBeforeTheDirectionsIsRefusedAReversedMechanismByNameAndToldTheFix() {
+        SimRunStream.Handshake handshake =
+                SimRunStream.handshake(SimRunStream.helloOf(7), StartPoses.ORIGIN, null, intakeReversed());
+
+        assertTrue(handshake.refused());
+        assertEquals(Outcome.cannotDirect(7), handshake.outcome);
+        assertTrue(handshake.outcome, handshake.outcome.startsWith("wrong protocol"));
+        assertTrue(handshake.message, handshake.message.contains("protocol " + SimRunStream.DIRECTIONS_PROTOCOL));
+        assertTrue(handshake.message, handshake.message.contains("intake pushes out on positive power"));
         assertTrue(handshake.message, handshake.message.contains("Pull develop"));
         assertTrue(handshake.message, handshake.message.contains(SimDescription.FILE));
         assertNull("a refused run is sent nothing", handshake.startLine);

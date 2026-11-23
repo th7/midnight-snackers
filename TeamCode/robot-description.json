@@ -13,6 +13,7 @@
     {"name": "Control Hub", "kind": "voltage_sensor"}
   ],
   "hub": {"logo": "RIGHT", "usb": "UP"},
+  "directions": {"intake": "takes_in"},
   "constants": {
     "motor_spread": 0.1,
     "flattest_volts": 12.0,

@@ -16,6 +16,7 @@ import java.util.List;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.HangingAuto;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
+import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.After;
 import org.junit.Rule;
@@ -219,6 +220,59 @@ public class SimOverridesTest {
         assertTrue(
                 saved.get("described").getAsString(),
                 saved.get("described").getAsString().contains("hub logo LEFT, USB UP (built logo RIGHT, USB UP)"));
+    }
+
+    @Test
+    public void eachMechanismIsListedWithWhatPositiveDriveDoesEachWayAndItsDefault() {
+        JsonObject intake =
+                json(get(aBench())).getAsJsonArray("directions").get(0).getAsJsonObject();
+
+        assertEquals("intake", intake.get("name").getAsString());
+        assertEquals("Intake", intake.get("label").getAsString());
+        assertEquals("takes_in", intake.get("value").getAsString());
+        assertEquals("takes_in", intake.get("byDefault").getAsString());
+        JsonArray ways = intake.getAsJsonArray("ways");
+        assertEquals("takes_in", ways.get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals(
+                "Positive power takes pollen in.",
+                ways.get(0).getAsJsonObject().get("says").getAsString());
+        assertEquals("pushes_out", ways.get(1).getAsJsonObject().get("name").getAsString());
+        assertEquals(
+                "Positive power pushes pollen out.",
+                ways.get(1).getAsJsonObject().get("says").getAsString());
+    }
+
+    @Test
+    public void aReversedMechanismIsWhatTheNextRunIsMadeOnAndIsKept() throws Exception {
+        SimBench bench = aBench();
+
+        JsonObject saved = json(put(bench, "{\"directions\": {\"intake\": \"pushes_out\"}}"));
+
+        assertTrue(bench.description().directions().reversed(Mechanism.INTAKE));
+        assertEquals(
+                "pushes_out",
+                saved.getAsJsonArray("directions")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("value")
+                        .getAsString());
+        assertEquals("{\"directions\":{\"intake\":\"pushes_out\"}}", keptText());
+        assertTrue(
+                saved.get("described").getAsString(),
+                saved.get("described").getAsString().contains("intake pushes out on positive power (built takes in)"));
+    }
+
+    @Test
+    public void aKeptWayAMechanismDoesNotHaveGoesBackToItsDefaultAndTheTabSaysSo() throws Exception {
+        keep("{\"directions\": {\"intake\": \"spins\"}}");
+
+        SimBench bench = aBench();
+
+        assertFalse(bench.description().directions().reversed(Mechanism.INTAKE));
+        assertEquals(
+                List.of("Intake's direction went back to its default:"
+                        + " the intake takes_in or pushes_out on positive power, not 'spins'."),
+                notices(json(get(bench))));
     }
 
     @Test

@@ -17,9 +17,11 @@ import org.firstinspires.ftc.teamcode.simcore.Checked;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.EncoderReads;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
+import org.firstinspires.ftc.teamcode.simcore.Mechanism;
 import org.firstinspires.ftc.teamcode.simcore.MotorType;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.junit.Rule;
@@ -75,6 +77,32 @@ public class SimDescriptionTest {
     }
 
     @Test
+    public void aReversedMechanismIsReadAsItStands() throws IOException {
+        Path file = written(committed().replace("\"intake\": \"takes_in\"", "\"intake\": \"pushes_out\""));
+
+        RobotDescription read = Valid.value(SimDescription.read(file));
+
+        assertTrue(read.directions().reversed(Mechanism.INTAKE));
+    }
+
+    @Test
+    public void theDirectionsNameEveryMechanismAndOnlyTheWaysEachHas() throws IOException {
+        assertRefused(
+                "directions is missing",
+                SimDescription.read(written(committed().replace("\"directions\": {\"intake\": \"takes_in\"},", ""))));
+        assertRefused(
+                "the robot description's directions name every mechanism, and intake is missing",
+                SimDescription.read(written(committed().replace("\"intake\": \"takes_in\"", ""))));
+        assertRefused(
+                "a mechanism is intake, not 'outtake'",
+                SimDescription.read(
+                        written(committed().replace("\"intake\": \"takes_in\"", "\"outtake\": \"takes_in\""))));
+        assertRefused(
+                "the intake takes_in or pushes_out on positive power, not 'spins'",
+                SimDescription.read(written(committed().replace("\"intake\": \"takes_in\"", "\"intake\": \"spins\""))));
+    }
+
+    @Test
     public void aFileIsReadWholeAndRefusedForAnythingMissingUnknownOrMisnamed() throws IOException {
         assertRefused("mass_kg", SimDescription.read(written(committed().replace("\"mass_kg\": 15,", ""))));
         assertRefused(
@@ -122,7 +150,8 @@ public class SimDescriptionTest {
                                 "leftFront", MotorType.ULTRAPLANETARY_HD_HEX, EncoderReads.PERPENDICULAR_DEAD_WHEEL),
                         new Configuration.Imu("imu")))),
                 Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
-                Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))));
+                Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))),
+                Directions.reginalds().with(Mechanism.INTAKE, true));
         JsonObject line = new JsonObject();
         JsonObject asBuilt = new JsonObject();
 
@@ -133,6 +162,8 @@ public class SimDescriptionTest {
         assertEquals(differs, Valid.value(SimDescription.fromStartLine(heard)));
         assertEquals(18, heard.getAsJsonObject("constants").get("mass_kg").getAsDouble(), 0);
         assertEquals(1, heard.getAsJsonObject("constants").size());
+        assertEquals(
+                "pushes_out", heard.getAsJsonObject("directions").get("intake").getAsString());
         assertEquals("{}", asBuilt.toString());
         assertEquals(RobotDescription.reginalds(), Valid.value(SimDescription.fromStartLine(asBuilt)));
     }
@@ -142,13 +173,15 @@ public class SimDescriptionTest {
         RobotDescription differs = RobotDescription.of(
                 Configuration.reginalds(),
                 Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
-                Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))));
+                Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))),
+                Directions.reginalds().with(Mechanism.INTAKE, true));
 
         String said = SimDescription.described(differs);
 
         assertEquals("as built", SimDescription.described(RobotDescription.reginalds()));
         assertTrue(said, said.contains("Mass 18.0 kg (built 15.0)"));
         assertTrue(said, said.contains("hub logo DOWN, USB RIGHT (built logo RIGHT, USB UP)"));
+        assertTrue(said, said.contains("intake pushes out on positive power (built takes in)"));
         assertFalse(said, said.contains("configuration"));
     }
 }

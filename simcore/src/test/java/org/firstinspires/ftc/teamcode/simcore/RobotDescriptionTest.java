@@ -15,6 +15,7 @@ public class RobotDescriptionTest {
         assertEquals(Configuration.reginalds(), reginald.configuration());
         assertEquals(HubMounting.reginalds(), reginald.hub());
         assertEquals(Constants.defaults(), reginald.constants());
+        assertEquals(Directions.reginalds(), reginald.directions());
     }
 
     @Test
@@ -63,12 +64,15 @@ public class RobotDescriptionTest {
         RobotDescription turnedHub = RobotDescription.of(
                 Configuration.reginalds(),
                 Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
-                Constants.defaults());
+                Constants.defaults(),
+                Directions.reginalds());
         RobotDescription noIntake = RobotDescription.of(
                 Valid.value(Configuration.of(java.util.List.of(new Configuration.Imu("imu")))),
                 HubMounting.reginalds(),
-                Constants.defaults());
+                Constants.defaults(),
+                Directions.reginalds());
         RobotDescription heavier = built.with(Valid.value(Constants.of(Map.of(Constant.MASS_KG, 18.0))));
+        RobotDescription intakeReversed = built.with(Directions.reginalds().with(Mechanism.INTAKE, true));
 
         assertTrue(built.asBuilt());
         assertFalse(turnedHub.asBuilt());
@@ -77,6 +81,9 @@ public class RobotDescriptionTest {
         assertFalse(noIntake.configurationAsBuilt());
         assertTrue(noIntake.hubAsBuilt());
         assertFalse(heavier.asBuilt());
-        assertTrue(heavier.hubAsBuilt() && heavier.configurationAsBuilt());
+        assertTrue(heavier.hubAsBuilt() && heavier.configurationAsBuilt() && heavier.directionsAsBuilt());
+        assertFalse(intakeReversed.asBuilt());
+        assertFalse(intakeReversed.directionsAsBuilt());
+        assertTrue(intakeReversed.constants().asBuilt() && intakeReversed.hubAsBuilt());
     }
 }

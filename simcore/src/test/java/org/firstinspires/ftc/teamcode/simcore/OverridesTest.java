@@ -106,6 +106,28 @@ public class OverridesTest {
     }
 
     @Test
+    public void aMechanismIsReversedAndListedAsAnEdit() {
+        Overrides reversed = asked(REGINALD, known(new Overrides.Edit.Reversed(Mechanism.INTAKE, true)));
+
+        assertTrue(reversed.description().directions().reversed(Mechanism.INTAKE));
+        assertEquals(List.of(new Overrides.Edit.Reversed(Mechanism.INTAKE, true)), reversed.edits());
+        assertEquals("Intake's direction", new Overrides.Edit.Reversed(Mechanism.INTAKE, true).value());
+    }
+
+    @Test
+    public void aMechanismPutBackAsItsDefaultIsNoEdit() {
+        RobotDescription reversedByDefault =
+                REGINALD.with(Directions.reginalds().with(Mechanism.INTAKE, true));
+
+        Overrides asBuilt = asked(reversedByDefault, known(new Overrides.Edit.Reversed(Mechanism.INTAKE, false)));
+        Overrides same = asked(reversedByDefault, known(new Overrides.Edit.Reversed(Mechanism.INTAKE, true)));
+
+        assertEquals(List.of(new Overrides.Edit.Reversed(Mechanism.INTAKE, false)), asBuilt.edits());
+        assertEquals(List.of(), same.edits());
+        assertEquals(REGINALD, asBuilt.description());
+    }
+
+    @Test
     public void aConfiguredDeviceIsRenamedAndAMotorRewiredByItsDefaultName() {
         Overrides edited = asked(
                 REGINALD,

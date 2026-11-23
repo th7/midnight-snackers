@@ -153,6 +153,8 @@ __IMPORTMAP__
       <dt id="step-label">step</dt><dd class="mono" id="step"></dd>
       <dt>true pose</dt><dd class="mono" id="pose"></dd>
       <dt>scored</dt><dd class="mono" id="balls"></dd>
+      <dt>held</dt><dd class="mono" id="held"></dd>
+      <dt>intake</dt><dd class="mono" id="intake"></dd>
       <dt>loop</dt><dd class="mono" id="loop"></dd>
     </dl>
     <div id="powers-panel">
@@ -616,6 +618,7 @@ __IMPORTMAP__
     return null;
   }
   const MOVED = FIELD.moved;
+  const INTAKE_WAYS = { in: 'taking in', out: 'pushing out', still: 'still' };
   function ballOf(piece, c) {
     const depth = depthOf(c);
     return { depth, draw: () => {
@@ -814,6 +817,9 @@ __IMPORTMAP__
     const scored = tick.scored || {};
     document.getElementById('balls').textContent =
       'blue ' + (scored.Blue || 0) + ', red ' + (scored.Red || 0);
+    const mechanisms = tick.mechanisms;
+    document.getElementById('held').textContent = mechanisms ? String(mechanisms.held) : '\u2014';
+    document.getElementById('intake').textContent = mechanisms ? INTAKE_WAYS[mechanisms.intake] || mechanisms.intake : '\u2014';
 
     const names = ['LF', 'RF', 'LB', 'RB'];
     document.getElementById('powers').innerHTML = tick.powers.map((p, i) => {

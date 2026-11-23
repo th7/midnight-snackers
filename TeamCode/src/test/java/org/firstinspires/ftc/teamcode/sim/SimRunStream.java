@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
@@ -80,6 +81,12 @@ public final class SimRunStream {
             return "wrong protocol: the simulator speaks " + childProtocol
                     + " and runs on the hub and configuration it was built with; changing them in "
                     + SimDescription.FILE + " needs " + DESCRIPTION_PROTOCOL;
+        }
+
+        public static String cannotDirect(int childProtocol) {
+            return "wrong protocol: the simulator speaks " + childProtocol
+                    + " and runs on the directions it was built with; changing them in " + SimDescription.FILE
+                    + " needs " + DIRECTIONS_PROTOCOL;
         }
 
         public static String couldNotStartChild() {
@@ -160,7 +167,7 @@ public final class SimRunStream {
         }
     }
 
-    public static final int PROTOCOL = 7;
+    public static final int PROTOCOL = 8;
 
     public static final int OLDEST_PROTOCOL_READ = 1;
 
@@ -171,6 +178,8 @@ public final class SimRunStream {
     public static final int CONSTANTS_PROTOCOL = 6;
 
     public static final int DESCRIPTION_PROTOCOL = 7;
+
+    public static final int DIRECTIONS_PROTOCOL = 8;
 
     public static final class WrongProtocol extends RuntimeException {
         public final int childProtocol;
@@ -311,6 +320,24 @@ public final class SimRunStream {
                             + SimDescription.FILE
                             + " back as they were built.");
         }
+        if (!description.directionsAsBuilt() && protocol < DIRECTIONS_PROTOCOL) {
+            return new Handshake(
+                    protocol,
+                    content,
+                    null,
+                    Outcome.cannotDirect(protocol),
+                    "the simulator in these sources speaks protocol "
+                            + protocol
+                            + " and runs on the directions it was built with, not the ones in "
+                            + SimDescription.FILE
+                            + " ("
+                            + description.directions()
+                            + "); they need protocol "
+                            + DIRECTIONS_PROTOCOL
+                            + ": the sources are older than the server. Pull develop, or put the directions in "
+                            + SimDescription.FILE
+                            + " back as they were built.");
+        }
         if (protocol >= PLACED_PROTOCOL) {
             return new Handshake(protocol, content, SimDriverStation.startLine(start, seed, description), null, null);
         }
@@ -421,6 +448,10 @@ public final class SimRunStream {
         if (tilt.size() > 0) {
             t.add("tilt", tilt);
         }
+        JsonObject mechanisms = new JsonObject();
+        mechanisms.addProperty("held", tick.mechanisms.held());
+        mechanisms.addProperty("intake", tick.mechanisms.intake().name().toLowerCase(Locale.ROOT));
+        t.add("mechanisms", mechanisms);
         return t;
     }
 

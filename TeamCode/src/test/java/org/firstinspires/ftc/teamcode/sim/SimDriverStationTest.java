@@ -17,6 +17,7 @@ import org.firstinspires.ftc.teamcode.sim.SimDriverStation.State;
 import org.firstinspires.ftc.teamcode.simcore.Configuration;
 import org.firstinspires.ftc.teamcode.simcore.Constant;
 import org.firstinspires.ftc.teamcode.simcore.Constants;
+import org.firstinspires.ftc.teamcode.simcore.Directions;
 import org.firstinspires.ftc.teamcode.simcore.Facing;
 import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
@@ -236,7 +237,8 @@ public class SimDriverStationTest {
         RobotDescription differs = RobotDescription.of(
                 Valid.value(Configuration.of(List.of(new Configuration.Imu("imu")))),
                 Valid.value(HubMounting.of(Facing.DOWN, Facing.RIGHT)),
-                Constants.defaults());
+                Constants.defaults(),
+                Directions.reginalds());
         JsonObject line = SimDriverStation.startLine(new Pose2d(-60, 12, 0), null, differs);
         assertEquals(
                 "{\"start\":{\"x\":-60.0,\"y\":12.0,\"heading\":0.0},\"hub\":{\"logo\":\"DOWN\",\"usb\":\"RIGHT\"},"

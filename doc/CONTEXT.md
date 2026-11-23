@@ -803,7 +803,9 @@ and refuses it by name, with the fix, when any were: pull `develop`. From
 version 7 it may carry the **robot description**'s hub and **configuration**
 when they differ from Reginald's as built; an older child runs on the ones it
 was built with, so the bench refuses it by name, with the fix, when either
-differs. Only the bench and its child speak this protocol: the browser's page
+differs. From version 8 it may carry the **directions** too, when any mechanism is
+reversed; an older child runs every mechanism as built, so the bench refuses it by
+name, with the fix, when one is reversed. Only the bench and its child speak this protocol: the browser's page
 is reloaded when it changes, so it is never versioned. A tick's
 line is also the form the replay page reads, so a run the bench knows
 only by its lines is the same page the child wrote from its own
@@ -885,8 +887,9 @@ pose, the plan's current step (empty for a TeleOp), the drive powers — one per
 drive motor, in the order the **drivebase** names them, `LF`, `RF`, `LB`,
 `RB`, which is how the replay page labels them — the
 dashboard packets drawn that loop, where the balls are (each as x, y, z), how
-many each alliance has **scored**, and for a TeleOp what each gamepad read.
-Class: `SimRecording`.
+many each alliance has **scored**, for a TeleOp what each gamepad read, and
+the robot's mechanisms: how many pollen it **holds** and which way its intake
+turns. Class: `SimRecording`.
 
 **Golden trace** — What the simulator's flight did, sample by sample, kept
 in a file under `TeamCode/src/test/resources/.../sim/traces` and compared
@@ -1215,14 +1218,14 @@ takes the hub to sit otherwise reads what that robot would: Reginald's code take
 the hub to sit logo down, USB right, where the description sits it logo right, USB
 up, and reads its yaw half a turn off and its turn rate about the wrong axis. Its
 dead wheels' offsets differ from the description's too, so it believes the wrong
-place after a turn. Classes: `RobotDescription` and `HubMounting`, in the **core**;
+place after a turn. Classes: `RobotDescription`, `HubMounting` and `Directions`, in the **core**;
 `FakeImu`; `SimDescription`, which reads the file and the start line.
 
 **Robot tab** — The dashboard's first tab, before Simulate (`#robot`): the
 **robot description** a teammate's runs are made on. It lists the
 **configuration** by device (its kind, the name it is configured under, and for a
 motor its SDK motor type and what its port's encoder port reads), which way the hub
-is mounted, and every **simulation constant** by group with its label, unit, range,
+is mounted, the **directions** as what positive power does each way, and every **simulation constant** by group with its label, unit, range,
 sentence and committed value. A value that differs from the committed default is
 marked, with a reset beside it, and Reset all puts every value back. Each change
 saves the whole set as it stands: a set the core refuses names the rule beside the
@@ -1235,7 +1238,8 @@ difference against the built value, or "as built". Answered by `GET /robot` and 
 bench in `robot-overrides.json` beside `start-poses.json` and
 `launch-settings.json` under its output directory, never in the repository: only
 what differs from the committed defaults, as `{"constants": {name: value}, "hub":
-{"logo", "usb"}, "configuration": {device: {"name", "type", "encoder"}}}`, a device
+{"logo", "usb"}, "configuration": {device: {"name", "type", "encoder"}},
+"directions": {mechanism: way}}`, a device
 named by its committed name. A save is checked whole and refused naming the rule,
 an unknown name included. Recalled at the start, the file is taken as far as it
 can be: a value past a range narrowed since goes back to its default, and one for
@@ -1258,6 +1262,19 @@ the written power reaches the motor; using the encoder, the power or velocity
 written is a target the hub's velocity loop closes on whatever that port's
 encoder port reads. A port reading its own motor settles at the target; one
 reading a dead wheel or nothing runs away toward full power, as on the robot.
+
+**Directions** — Which way positive power turns each mechanism's pieces, with the
+SDK's motor direction left forward: the intake `takes_in` as built, or
+`pushes_out`. A part of the **robot description** a teammate reverses on the Robot
+tab, so code written for the other way round is seen doing the wrong thing.
+Classes: `Directions` and `Mechanism`, in the **core**.
+
+**Holds** — The pollen the simulated robot has taken in. Its intake turning
+inward takes every pollen touching its front face, up to two; turning outward or
+still, the robot pushes pollen as its chassis would. A held pollen is off the
+field, so its place in a tick is empty. Which way the intake turns comes from its
+motor's spin and the **directions**, and is shown with what it holds on every tick,
+live and in the replay. Class: `Intake`, in the **core**.
 Each port reports its count as the SDK does: negated for a reversed motor,
 velocity in twenty-tick steps, zeroed while in `STOP_AND_RESET_ENCODER`.
 `RUN_TO_POSITION` is refused. The loop's gains are the simulator's own; the hub

@@ -6,23 +6,31 @@ public final class RobotDescription {
     private final Configuration configuration;
     private final HubMounting hub;
     private final Constants constants;
+    private final Directions directions;
 
-    private RobotDescription(Configuration configuration, HubMounting hub, Constants constants) {
+    private RobotDescription(Configuration configuration, HubMounting hub, Constants constants, Directions directions) {
         this.configuration = configuration;
         this.hub = hub;
         this.constants = constants;
+        this.directions = directions;
     }
 
     public static RobotDescription reginalds() {
-        return new RobotDescription(Configuration.reginalds(), HubMounting.reginalds(), Constants.defaults());
+        return new RobotDescription(
+                Configuration.reginalds(), HubMounting.reginalds(), Constants.defaults(), Directions.reginalds());
     }
 
-    public static RobotDescription of(Configuration configuration, HubMounting hub, Constants constants) {
-        return new RobotDescription(configuration, hub, constants);
+    public static RobotDescription of(
+            Configuration configuration, HubMounting hub, Constants constants, Directions directions) {
+        return new RobotDescription(configuration, hub, constants, directions);
     }
 
     public RobotDescription with(Constants constants) {
-        return new RobotDescription(configuration, hub, constants);
+        return new RobotDescription(configuration, hub, constants, directions);
+    }
+
+    public RobotDescription with(Directions directions) {
+        return new RobotDescription(configuration, hub, constants, directions);
     }
 
     public Configuration configuration() {
@@ -37,6 +45,10 @@ public final class RobotDescription {
         return constants;
     }
 
+    public Directions directions() {
+        return directions;
+    }
+
     public boolean hubAsBuilt() {
         return hub.equals(HubMounting.reginalds());
     }
@@ -45,8 +57,12 @@ public final class RobotDescription {
         return configuration.equals(Configuration.reginalds());
     }
 
+    public boolean directionsAsBuilt() {
+        return directions.asBuilt();
+    }
+
     public boolean asBuilt() {
-        return hubAsBuilt() && configurationAsBuilt() && constants.asBuilt();
+        return hubAsBuilt() && configurationAsBuilt() && constants.asBuilt() && directionsAsBuilt();
     }
 
     public Checked<DeadWheels> deadWheels() {
@@ -69,11 +85,13 @@ public final class RobotDescription {
         return other instanceof RobotDescription that
                 && configuration.equals(that.configuration)
                 && hub.equals(that.hub)
-                && constants.equals(that.constants);
+                && constants.equals(that.constants)
+                && directions.equals(that.directions);
     }
 
     @Override
     public int hashCode() {
-        return 31 * (31 * configuration.hashCode() + hub.hashCode()) + constants.hashCode();
+        return 31 * (31 * (31 * configuration.hashCode() + hub.hashCode()) + constants.hashCode())
+                + directions.hashCode();
     }
 }
