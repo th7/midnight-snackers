@@ -36,6 +36,8 @@ const IN_SOFTWARE = [
 
 export const FLAGS = ANYWHERE.concat(IN_SOFTWARE);
 
+export const WHILE_A_VIEW_DRAWS = { timeout: 30_000 };
+
 export function chrome(asked = {}) {
   return chromium.launch({
     ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : { channel: 'chromium' }),

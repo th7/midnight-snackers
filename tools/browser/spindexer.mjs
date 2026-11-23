@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, importMapFor, sim, TYPES } from './bench.mjs';
+import { chrome, importMapFor, sim, TYPES, WHILE_A_VIEW_DRAWS } from './bench.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -138,7 +138,7 @@ async function viewerOf(page) {
 }
 
 async function theTabSetsOutTheDefaults(page) {
-  await page.locator('nav [data-tab="spindexer"]').click({ timeout: 5_000 });
+  await page.locator('nav [data-tab="spindexer"]').click(WHILE_A_VIEW_DRAWS);
   await untilTrue(page, (count) => document.querySelectorAll('#spindexer-groups input').length === count,
                   ANSWERED.settings.settings.length);
   const sill = ANSWERED.settings.settings.find((s) => s.name === 'back_sill');
@@ -147,7 +147,7 @@ async function theTabSetsOutTheDefaults(page) {
 }
 
 async function aFeedRunsAndShowsItsPollenThrown(page) {
-  await page.locator('#spindexer-go').click({ timeout: 5_000 });
+  await page.locator('#spindexer-go').click(WHILE_A_VIEW_DRAWS);
   const viewer = await viewerOf(page);
   check(feedsAsked.length === 1, `pressing Feed asked for ${feedsAsked.length} feeds, not 1`);
   await untilTrue(page, (id) => !!document.querySelector(`#feeds tbody tr[data-id="${id}"]`), FED_ID);
@@ -169,7 +169,7 @@ async function itReplaysToTheEndAndBack(viewer) {
       && p.position.every((v, k) => Math.abs(v - first.pollen[i].at[k]) <= SAME_PLACE_IN)),
         `the viewer opened with its pollen at ${JSON.stringify(atStart)}, not the feed's first frame`);
   await viewer.locator('#speed').selectOption('2');
-  await viewer.locator('#play').click({ timeout: 5_000 });
+  await viewer.locator('#play').click(WHILE_A_VIEW_DRAWS);
   await viewer.waitForFunction((end) => !window.spindexerPage.playing && window.spindexerPage.time === end, END,
                                { timeout: 30_000 });
   const atEnd = await viewer.evaluate(() => window.spindexerPage.pollen.filter((p) => p.visible).length);
@@ -192,7 +192,7 @@ async function itReplaysToTheEndAndBack(viewer) {
 async function aRefusedSettingShowsItsRuleBesideTheField(page) {
   const asked = feedsAsked.length;
   await page.locator('#spindexer-setting-back_sill').fill(String(REFUSED_SILL));
-  await page.locator('#spindexer-go').click({ timeout: 5_000 });
+  await page.locator('#spindexer-go').click(WHILE_A_VIEW_DRAWS);
   await untilTrue(page, () => {
     const rule = document.querySelector('#spindexer [data-setting="back_sill"] .rule');
     return !!rule && !rule.hidden && rule.textContent.length > 0;

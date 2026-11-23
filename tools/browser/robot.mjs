@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, sim, TYPES } from './bench.mjs';
+import { chrome, sim, TYPES, WHILE_A_VIEW_DRAWS } from './bench.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -195,14 +195,14 @@ async function aRefusedSetShowsItsRuleAndSavesNothing(page) {
         `the tab says "${said}", not that nothing was saved and why`);
   const described = await page.locator('#robot-described').textContent();
   check(described.endsWith(ANSWERED.saved.described), `after the refusal the tab says "${described}"`);
-  await page.locator('#robot [data-setting="flattest_volts"] button.reset').click({ timeout: 5_000 });
+  await page.locator('#robot [data-setting="flattest_volts"] button.reset').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, () => document.querySelector('#robot [data-setting="flattest_volts"] .rule').hidden),
         'the rule stays once the flattest battery is reset');
   check(sent[sent.length - 1] === canonical(MOVED_WHEEL), `resetting the battery sent ${sent[sent.length - 1]}`);
 }
 
 async function aMotorIsRewiredAndResetAllPutsEverythingBack(page) {
-  await page.locator('#robot [data-setting="parallel_dead_wheel_y_in"] button.reset').click({ timeout: 5_000 });
+  await page.locator('#robot [data-setting="parallel_dead_wheel_y_in"] button.reset').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, () => document.getElementById('robot-described').textContent.endsWith('as built')),
         'resetting the wheel does not make the next run as built');
   check(sent[sent.length - 1] === '{}', `resetting the wheel sent ${sent[sent.length - 1]}`);
@@ -212,7 +212,7 @@ async function aMotorIsRewiredAndResetAllPutsEverythingBack(page) {
   check(sent[sent.length - 1] === canonical(REWIRED), `rewiring rightBack sent ${sent[sent.length - 1]}`);
   const count = await page.locator('#robot details[data-group="configuration"] summary .changes').textContent();
   check(count === '1 changed', `the configuration says "${count}", not that one value changed`);
-  await page.locator('#robot-reset-all').click({ timeout: 5_000 });
+  await page.locator('#robot-reset-all').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, () => document.getElementById('robot-described').textContent.endsWith('as built')),
         'Reset all does not make the next run as built');
   check(sent[sent.length - 1] === '{}', `Reset all sent ${sent[sent.length - 1]}`);
@@ -242,7 +242,7 @@ async function aMechanismIsReversedByWhatPositivePowerDoes(page) {
   check(sent[sent.length - 1] === canonical(REVERSED), `reversing the intake sent ${sent[sent.length - 1]}`);
   const count = await page.locator('#robot details[data-group="directions"] summary .changes').textContent();
   check(count === '1 changed', `the directions say "${count}", not that one changed`);
-  await page.locator('#robot [data-direction="intake"] button.reset').click({ timeout: 5_000 });
+  await page.locator('#robot [data-direction="intake"] button.reset').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, () => document.getElementById('robot-described').textContent.endsWith('as built')),
         'putting the intake back does not make the next run as built');
   check(sent[sent.length - 1] === '{}', `putting the intake back sent ${sent[sent.length - 1]}`);

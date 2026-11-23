@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, sim } from './bench.mjs';
+import { chrome, sim, WHILE_A_VIEW_DRAWS } from './bench.mjs';
 
 const OPMODE = { name: 'driveForward', kind: 'auto', group: 'Autonomous',
                  where: 'org.firstinspires.ftc.reginald.opmode.Autos', seed: null };
@@ -132,7 +132,7 @@ async function aCompileErrorSaysWhereAndAFixIsListed(page, engine) {
       `${engine}: a checkout that does not compile shows "${await page.locator('#msg').textContent()}", `
       + 'not the file and line');
   compiles = true;
-  await page.locator('nav [data-tab="simulate"]').click({ timeout: 5_000 });
+  await page.locator('nav [data-tab="simulate"]').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, (name) => document.getElementById('opmodes').textContent.includes(name), OPMODE.name),
       `${engine}: once the checkout compiles the Simulate tab lists no op modes`);
   check(await page.locator('#msg').textContent() === '', `${engine}: the compile error is still shown once fixed`);
@@ -141,7 +141,7 @@ async function aCompileErrorSaysWhereAndAFixIsListed(page, engine) {
 
 async function aRunIsAskedForAndShown(page, engine) {
   const before = RUNS.length;
-  await page.locator('#opmodes button.run').first().click({ timeout: 5_000 });
+  await page.locator('#opmodes button.run').first().click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, () => /^\/sim\/runs\/\d+\/$/.test(
       new URL(document.getElementById('stage').src, location.href).pathname)),
       `${engine}: pressing Run does not show the run's live view`);
@@ -157,10 +157,10 @@ async function aRunIsAskedForAndShown(page, engine) {
 }
 
 async function theLaunchAndSpindexerSimsSetOutTheirSettings(page, engine) {
-  await page.locator('nav [data-tab="launch"]').click({ timeout: 5_000 });
+  await page.locator('nav [data-tab="launch"]').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, (n) => document.querySelectorAll('#launch details.launch-group').length === n,
       LAUNCH.settings.groups.length), `${engine}: the Launch Sim tab sets out no settings`);
-  await page.locator('nav [data-tab="spindexer"]').click({ timeout: 5_000 });
+  await page.locator('nav [data-tab="spindexer"]').click(WHILE_A_VIEW_DRAWS);
   check(await untilTrue(page, (n) => document.querySelectorAll('#spindexer details.launch-group').length === n,
       SPINDEXER.settings.groups.length), `${engine}: the Spindexer Sim tab sets out no settings`);
 }

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chrome, sim } from './bench.mjs';
+import { chrome, sim, WHILE_A_VIEW_DRAWS } from './bench.mjs';
 
 const OPMODE = { name: 'BlueLeftAuto', kind: 'auto', group: 'Autonomous',
                  where: 'org.firstinspires.ftc.reginald.BlueLeftAuto', seed: null };
@@ -298,11 +298,11 @@ async function aGameIsAskedForByTheBox(page, engine) {
   const run = page.locator('#opmodes button.run').first();
 
   const before = RUNS_ASKED.length;
-  await run.click({ timeout: 5_000 });
+  await run.click(WHILE_A_VIEW_DRAWS);
   await page.waitForFunction(() => document.getElementById('stage-title').textContent.startsWith('Run '), null,
       { timeout: 10_000 }).catch(() => {});
   await box.check();
-  await run.click({ timeout: 5_000 });
+  await run.click(WHILE_A_VIEW_DRAWS);
   await page.waitForFunction((n) => document.getElementById('stage-title').textContent.startsWith('Run ' + n),
       before + 2, { timeout: 10_000 }).catch(() => {});
 
@@ -366,7 +366,7 @@ async function untilAsked(list, from, ok) {
 const settle = (page) => untilTrue(page, () => !document.getElementById('launch-go').disabled);
 
 async function theLaunchSimSetsItsSettingsOutBesideTheView(page, engine) {
-  await page.locator('nav [data-tab="launch"]').click({ timeout: 5_000 });
+  await page.locator('nav [data-tab="launch"]').click(WHILE_A_VIEW_DRAWS);
   check(await page.locator('#launch').isVisible(), `${engine}: tapping Launch Sim does not open the tab`);
   check(!(await page.locator('#simulate').isVisible()), `${engine}: the Simulate tab is still shown under Launch Sim`);
   const listed = await untilTrue(page, (n) => document.querySelectorAll('#launch details.launch-group').length === n,
@@ -462,7 +462,7 @@ async function aChangeIsPreviewedAndAnAimSetsTheYaw(page, engine) {
   }
   const yaw = Math.round(target.yaw * 100) / 100;
   const aimed = PREVIEWS_ASKED.length;
-  await aim.click({ timeout: 5_000 });
+  await aim.click(WHILE_A_VIEW_DRAWS);
   check(await input(page, 'yaw').inputValue() === String(yaw),
       `${engine}: aiming at ${target.cell} set the yaw to ${await input(page, 'yaw').inputValue()}, not ${yaw}`);
   check(await untilAsked(PREVIEWS_ASKED, aimed, (body) => body.yaw === yaw),
@@ -475,7 +475,7 @@ async function aLaunchIsShownComparedAndUsedAgain(page, engine, yaw) {
   const token = await viewerToken(page);
   check(token !== null, `${engine}: the launch view was not opened when the tab was`);
 
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   const busy = await untilTrue(page, () => {
     const go = document.getElementById('launch-go');
     return go.disabled && go.textContent === 'Simulating…';
@@ -492,7 +492,7 @@ async function aLaunchIsShownComparedAndUsedAgain(page, engine, yaw) {
   check(await page.locator('#launch-go').textContent() === 'Launch', `${engine}: Launch does not come back`);
 
   await input(page, 'wheel_two_rpm').fill('1300');
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   await theViewIsAt(page, '/sim/launches/#2');
   check((await viewerAt(page)).endsWith('/sim/launches/#2'),
       `${engine}: after the second launch the view is on ${await viewerAt(page)}`);
@@ -515,14 +515,14 @@ async function aLaunchIsShownComparedAndUsedAgain(page, engine, yaw) {
   const apex = `${second.apex.toFixed(1)} in`;
   check((await newest.textContent()).includes(apex), `${engine}: the second launch does not give its apex, ${apex}`);
 
-  await page.locator('#launches tbody tr[data-id="1"] input.compare').check({ timeout: 5_000 });
+  await page.locator('#launches tbody tr[data-id="1"] input.compare').check(WHILE_A_VIEW_DRAWS);
   await theViewIsAt(page, '/sim/launches/#2,1');
   check((await viewerAt(page)).endsWith('/sim/launches/#2,1'),
       `${engine}: ticking the first launch to compare shows ${await viewerAt(page)}`);
   check(viewerLoads === loads, `${engine}: comparing loaded the view again`);
 
   const used = summaryOf(1).changed;
-  await page.locator('#launches tbody tr[data-id="1"] button.use').click({ timeout: 5_000 });
+  await page.locator('#launches tbody tr[data-id="1"] button.use').click(WHILE_A_VIEW_DRAWS);
   for (const setting of LAUNCH_SETTINGS) {
     const meant = Object.prototype.hasOwnProperty.call(used, setting.name) ? used[setting.name] : setting.byDefault;
     const field = input(page, setting.name);
@@ -530,7 +530,7 @@ async function aLaunchIsShownComparedAndUsedAgain(page, engine, yaw) {
     check(holds === meant, `${engine}: using the first launch's settings left ${setting.name} at ${holds}, not ${meant}`);
   }
 
-  await page.locator('#launch-defaults').click({ timeout: 5_000 });
+  await page.locator('#launch-defaults').click(WHILE_A_VIEW_DRAWS);
   check(await input(page, 'wheel_one_rpm').inputValue() === '900' && await input(page, 'yaw').inputValue() === '180'
       && await input(page, 'temperature').inputValue() === '20' && await input(page, 'longest').inputValue() === '8',
       `${engine}: Defaults left wheel one at ${await input(page, 'wheel_one_rpm').inputValue()}, the air at `
@@ -545,7 +545,7 @@ async function aRefusedSettingIsMarkedWhereItIs(page, engine) {
   await input(page, 'pitch').fill('95');
   await page.locator('#launch details.launch-group[data-group="launcher"]')
       .evaluate((group) => { group.open = false; });
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   check(await untilAsked(LAUNCHES_ASKED, from, (body) => body.pitch === 95),
       `${engine}: a pitch of 95 was not asked of the server`);
   const marked = await untilTrue(page,
@@ -558,7 +558,7 @@ async function aRefusedSettingIsMarkedWhereItIs(page, engine) {
       `${engine}: the message says "${await message(page)}", not the rule`);
   await settle(page);
 
-  await page.locator('#launch [data-setting="pitch"] button.reset').click({ timeout: 5_000 });
+  await page.locator('#launch [data-setting="pitch"] button.reset').click(WHILE_A_VIEW_DRAWS);
   check(await input(page, 'pitch').inputValue() === '70', `${engine}: resetting pitch did not put it back at 70`);
   const cleared = await untilTrue(page,
       () => document.getElementById('launch-setting-pitch').getAttribute('aria-invalid') !== 'true');
@@ -573,7 +573,7 @@ async function aLaunchsRefusalStaysUntilTheFormChanges(page, engine) {
   for (const [name, value] of Object.entries(INSIDE_A_PIECE)) {
     await input(page, name).fill(String(value));
   }
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   check(await untilAsked(LAUNCHES_ASKED, launchesFrom, startsInsideAPiece),
       `${engine}: a launch from inside a piece was not asked of the server`);
   const said = await untilTrue(page,
@@ -616,11 +616,11 @@ async function theViewKeepsHowItIsDrawn(page, engine) {
         `${engine}: ${doing} loaded the view again rather than changing its fragment alone`);
   };
 
-  await page.locator('#launches tbody tr[data-id="1"] a.show').click({ timeout: 5_000 });
+  await page.locator('#launches tbody tr[data-id="1"] a.show').click(WHILE_A_VIEW_DRAWS);
   await keptAt('showing launch 1', '/sim/launches/?view=flat#1');
-  await page.locator('#launches tbody tr[data-id="2"] input.compare').check({ timeout: 5_000 });
+  await page.locator('#launches tbody tr[data-id="2"] input.compare').check(WHILE_A_VIEW_DRAWS);
   await keptAt('ticking launch 2 to compare', '/sim/launches/?view=flat#1,2');
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   await keptAt('launching again', '/sim/launches/?view=flat#3,2,1');
   await settle(page);
 }
@@ -628,7 +628,7 @@ async function theViewKeepsHowItIsDrawn(page, engine) {
 async function anUnreadableNumberIsNeitherPreviewedNorLaunched(page, engine) {
   await settle(page);
   const field = input(page, 'wheel_one_rpm');
-  await field.click({ timeout: 5_000 });
+  await field.click(WHILE_A_VIEW_DRAWS);
   await page.keyboard.press('ControlOrMeta+A');
   const previewsFrom = PREVIEWS_ASKED.length;
   await page.keyboard.type('1e');
@@ -643,7 +643,7 @@ async function anUnreadableNumberIsNeitherPreviewedNorLaunched(page, engine) {
       + `wheel one at ${previewed.map((body) => body.wheel_one_rpm).join(', ')}`);
 
   const launchesFrom = LAUNCHES_ASKED.length;
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   await page.waitForTimeout(700);
   check(LAUNCHES_ASKED.length === launchesFrom, `${engine}: with text in wheel one that is not a number, Launch asked `
       + `for wheel one at ${LAUNCHES_ASKED.slice(launchesFrom).map((body) => body.wheel_one_rpm).join(', ')}`);
@@ -715,7 +715,7 @@ async function aFailedReloadIsTriedAgain(page, engine) {
 }
 
 async function typeWhatIsNotANumber(page, name) {
-  await input(page, name).click({ timeout: 5_000 });
+  await input(page, name).click(WHILE_A_VIEW_DRAWS);
   await page.keyboard.press('ControlOrMeta+A');
   await page.keyboard.type('1e');
 }
@@ -727,7 +727,7 @@ async function noReloadTakesTextTheUserIsStillTyping(page, engine) {
   UNKNOWN_TO_THE_BENCH.add('robot_vx');
   LAUNCHING.hold();
   const launchesFrom = LAUNCHES_ASKED.length;
-  await page.locator('#launch-go').click({ timeout: 5_000 });
+  await page.locator('#launch-go').click(WHILE_A_VIEW_DRAWS);
   check(await untilAsked(LAUNCHES_ASKED, launchesFrom, (body) => 'robot_vx' in body),
       `${engine}: Launch was not asked of the bench`);
   await typeWhatIsNotANumber(page, 'wheel_one_rpm');
@@ -778,7 +778,7 @@ async function theLaunchSimWorks(page, engine) {
 
 async function theSpindexerSimTabOpensItsViewer(page, engine) {
   const loads = spindexerViewerLoads;
-  await page.locator('nav [data-tab="spindexer"]').click({ timeout: 5_000 });
+  await page.locator('nav [data-tab="spindexer"]').click(WHILE_A_VIEW_DRAWS);
   check(await page.locator('#spindexer').isVisible(), `${engine}: tapping Spindexer Sim does not open the tab`);
   check(!(await page.locator('#launch').isVisible()), `${engine}: the Launch Sim tab is still shown under Spindexer Sim`);
   check(await untilTrue(page, () => {
