@@ -374,7 +374,7 @@ public class SimBuildTest {
             libraries.add(Paths.get(library).toAbsolutePath().normalize());
         }
         Path gson = locationOf(com.google.gson.Gson.class);
-        Path serverRobot = locationOf(org.firstinspires.ftc.reginald.framework.OpMode.class);
+        Path serverRobot = locationOf(org.firstinspires.ftc.framework.robot.OpMode.class);
         Path serverSimulator = locationOf(SimBuild.class);
         Path serverCore = locationOf(Checked.class);
 

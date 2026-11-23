@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
+import org.firstinspires.ftc.framework.plans.PlanPart;
 import org.firstinspires.ftc.teamcode.sim.TinyHttpServer.Response;
 import org.junit.Rule;
 import org.junit.Test;

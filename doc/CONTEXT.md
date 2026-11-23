@@ -7,32 +7,31 @@ module has been deepened; plans, steps and the other subsystems are not yet.
 
 ## The robot
 
-**Where things live** — The robot's code is a package of its own, its
-**own files**: `org.firstinspires.ftc.reginald` is Reginald. A teammate opens
-two folders of it: `subsystems`, which holds nothing but the parts the robot
-is made of, so the list of files is the list of parts, and `opmodes`, which
-holds nothing but what the driver station lists, so the list of files is the
-list of TeleOps and autos. Adding, switching off or removing a part, a TeleOp
-or an auto touches that one file and no other. Beside them: `framework` (the
-**Robot**, what a subsystem and an op mode *are*, and how the driver station
-comes to list them), `tools` (tuning op modes for the people who tune),
-`hardware` (the devices and what is wired to what), `control` (the
-controllers and filters a subsystem steers by), `roadrunner` (trajectories,
-which we own rather than vendor) and `oldcode` (**old code**).
-`org.firstinspires.ftc.teamcode` holds what every robot's code is built on:
-`base` (where a subsystem prints — `Prints`, `Channels` — its `Gamepads`,
-and the `Alliance` a run plays for), `planrunner` (plans and
-steps), and what both robots' Road Runner needs — the **clocked encoder** and
-the drawing of a robot in `roadrunner`, the drive runner that follows an action
-a loop at a time in `control`, and the dashboard it draws on in `hardware`;
-its test sources hold the simulator, the robot gateway and the fakes.
-Nothing outside a robot's package uses that robot's code, and every op mode
-is in a robot's package: a class moves into `teamcode` when a second robot
-needs it, rather than being reached for across. No test holds the
-subsystems or the op modes to this or to anything else: they are the team's
-to change. The tests and CI judge the simulator, the robot gateway and
-`framework`, which is what makes a file in `subsystems` a part and a file in
-`opmodes` an op mode, and which no teammate needs to open.
+**Where things live** — Two roots, side by side. `org.firstinspires.ftc.reginald`
+is Reginald, and is the only one a teammate opens: `subsystems` holds nothing
+but the parts the robot is made of, so the list of files is the list of
+parts, `autos` holds nothing but the autos the driver station lists, and
+`oldcode` holds **old code**. Adding, switching off or removing a part or an
+auto touches that one file and no other. A part in `subsystems` holds what a
+teammate changes about it — which buttons do what, and the steps it offers an
+auto — and asks the framework for the rest: `Drive` is the sticks and
+bumpers, and the `Chassis` it drives follows trajectories and steers.
+
+`org.firstinspires.ftc.framework` is what every robot is built on, and nobody
+needs to open it to add a part or an auto: `robot` (the **Robot**, what a
+subsystem and an op mode *are*, how the driver station comes to list them,
+the TeleOp every robot has, where a part prints — `Prints`, `Channels` — its
+`Gamepads`, and the `Alliance` a run plays for), `plans` (plans, steps, and
+`Pause`, the step that waits), `hardware` (the devices and what is wired to
+what), `drive` (the chassis, the localizer, the pose math in `Nav`, Road
+Runner, which we own rather than vendor, the **clocked encoder**, and the
+controllers a drive steers by) and `tools` (tuning op modes for the people
+who tune). The test sources hold the simulator, the robot gateway and the
+fakes. No test holds the subsystems or the autos to this or to anything
+else: they are the team's to change. The tests and CI judge the simulator,
+the robot gateway and the framework, and one test builds and loops every op
+mode the robot lists, so a change to the framework cannot leave the team's
+code unbuildable unnoticed.
 
 **Subsystem** — One part of the robot, and now only that: a class in
 `subsystems` that extends `SubSystem`. A subsystem names everything it needs
@@ -48,22 +47,22 @@ unless the subsystem says otherwise. Which buttons do what is said in the
 subsystem they move, so there is no driver class to keep in step with it.
 
 **Built because it is there** — Every subsystem the robot finds in
-Reginald's code is built in every op mode, and, first, everything its
+Reginald's code or the framework is built in every op mode, and, first, everything its
 constructor asks for; a class that is no subsystem is built only because
 something asks for it. Nobody lists the parts: a file in `subsystems` is
 built because it is there, and one taken out is not. A part is built once
-and shared: the localizer `Drive` steers by is the one
+and shared: the localizer the `Chassis` steers by is the one
 `MecanumDrive` reads. What the robot does not build it supplies: the
 `Hardware` (switched off for a **switched-off** part), the `Alliance`, the
 `Gamepads`, the `Dashboard`, and each part's own channel, named after its
-class. It builds only Reginald's own classes, through their one public
+class. It builds only the classes it found, through their one public
 constructor, and an interface is the one class it found that implements it,
 as `Localizer` is for `PoseEstimate`. A part that needs something the robot
 neither supplies nor builds, an interface no class or two classes implement,
 or itself, fails at init naming the chain that led to it. The robot finds
-Reginald's classes by listing the app's own code at registration, every
-class under `org.firstinspires.ftc.reginald`, the way the SDK finds
-annotated op modes. Classes: `Robot`; `Discovered`.
+its classes by listing the app's own code at registration, every class
+under `org.firstinspires.ftc.reginald` and `org.firstinspires.ftc.framework`,
+the way the SDK finds annotated op modes. Classes: `Robot`; `Discovered`.
 
 **Whoever owns it, ticks it.** A subsystem is ticked by the robot, after
 everything it was built from: what a part needs is built first, so it is
@@ -807,9 +806,10 @@ controller lists them: every concrete op mode of Reginald's own kind,
 **registrar** (a
 static method annotated `@OpModeRegistrar`) registers, found by calling
 the registrar itself. Reginald's TeleOps and autos are registered that way,
-by `OpModes`: each class that extends `TeleOp` is one op mode, named after
-its class, and each `@Auto` annotation on a method that makes a plan is
-one, with no class of its own, handed the subsystems its parameters name. Entries are keyed by the op mode's **name**, which the robot
+by `OpModes`: every robot has a TeleOp for each alliance, `BlueTeleOp` and
+`RedTeleOp`, with no file of its own, since what a TeleOp does is said in
+each subsystem's `teleOp`; and each `@Auto` annotation on a method that makes
+a plan is one, with no class of its own, handed the subsystems its parameters name. Entries are keyed by the op mode's **name**, which the robot
 controller requires to be unique, and carry a **kind** (*auto* or
 *teleop*), **where** a person finds the code (a class, or the plan
 method), and the **alliance** it plays for (*Blue*, *Red*, or none for a plan

@@ -12,8 +12,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos.TestAuto;
 
 /**

@@ -18,18 +18,22 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.firstinspires.ftc.reginald.framework.Discovered;
-import org.firstinspires.ftc.reginald.framework.OpMode;
-import org.firstinspires.ftc.reginald.framework.OpModes;
+import org.firstinspires.ftc.framework.plans.RunsAPlan;
+import org.firstinspires.ftc.framework.robot.Alliance;
+import org.firstinspires.ftc.framework.robot.Discovered;
+import org.firstinspires.ftc.framework.robot.OpMode;
+import org.firstinspires.ftc.framework.robot.OpModes;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
 import org.firstinspires.ftc.teamcode.Classpath;
-import org.firstinspires.ftc.teamcode.base.Alliance;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 
 public final class SimCatalog {
     public static final String AUTO = "auto";
     public static final String TELEOP = "teleop";
     public static final String PACKAGE = "org.firstinspires.ftc.reginald";
+
+    /** What every robot is built on, which the robot finds beside its own code. */
+    public static final String FRAMEWORK = "org.firstinspires.ftc.framework";
 
     /** The alliances an op mode can play for, as the field names them. */
     public static final List<String> ALLIANCES = List.of("Blue", "Red");
@@ -107,10 +111,10 @@ public final class SimCatalog {
         for (Class<?> source : sources) {
             List<Entry> found = entriesFrom(source, OpMode.class::isAssignableFrom);
             if (found == null) {
-                found = registeredByTheRobot(List.of(source));
+                found = registeredByTheRobot(List.of(source), RunsAPlan.class::isAssignableFrom);
                 if (found.isEmpty()) {
-                    throw new IllegalArgumentException(source.getName()
-                            + " is neither an annotated op mode, a registrar, a TeleOp nor a class of autos");
+                    throw new IllegalArgumentException(
+                            source.getName() + " is neither an annotated op mode, a registrar nor a class of autos");
                 }
             }
             entries.addAll(found);
@@ -162,9 +166,10 @@ public final class SimCatalog {
     }
 
     /**
-     * The robot's op modes in a package and the packages under it, but for its tools package, whose
+     * The robot's op modes in a package and the packages under it, but for a tools package, whose
      * tuning and measuring op modes are not ours to simulate. The robot's own registrar lists the
-     * classes of the app it runs in; here it is handed the classes of the package instead.
+     * classes of the app it runs in; here it is handed the classes of the package and of the
+     * {@link #FRAMEWORK} instead, so it lists the TeleOps every robot has too.
      */
     public static SimCatalog discover(String javaPackage) {
         String tools = javaPackage + ".tools.";
@@ -180,14 +185,21 @@ public final class SimCatalog {
                 entries.addAll(found);
             }
         }
-        entries.addAll(registeredByTheRobot(classes));
+        entries.addAll(registeredByTheRobot(classes, OpMode.class::isAssignableFrom));
         return sorted(entries, List.of());
     }
 
-    private static List<Entry> registeredByTheRobot(List<Class<?>> classes) {
+    private static List<Entry> registeredByTheRobot(List<Class<?>> classes, Predicate<Class<?>> ours) {
         FakeOpModeManager manager = new FakeOpModeManager();
-        OpModes.register(manager, Discovered.of(classes));
-        return entriesOf(manager, OpMode.class::isAssignableFrom);
+        OpModes.register(manager, theRobotWith(classes));
+        return entriesOf(manager, ours);
+    }
+
+    /** The classes the robot finds when its own code is these: they and the framework's. */
+    public static Discovered theRobotWith(List<Class<?>> classes) {
+        List<Class<?>> found = new ArrayList<>(classes);
+        found.addAll(Classpath.classesUnder(FRAMEWORK));
+        return Discovered.of(found);
     }
 
     public List<String> sources() {

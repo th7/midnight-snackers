@@ -22,9 +22,9 @@ public final class SimProject {
             "TeamCode/src/main/java/org/firstinspires/ftc/reginald/benchtest/TempAuto.java";
 
     public static final String HARDWARE =
-            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/Hardware.java";
+            "TeamCode/src/main/java/org/firstinspires/ftc/framework/hardware/Hardware.java";
     public static final String SWITCHED_OFF_HARDWARE =
-            "TeamCode/src/main/java/org/firstinspires/ftc/reginald/hardware/SwitchedOffHardware.java";
+            "TeamCode/src/main/java/org/firstinspires/ftc/framework/hardware/SwitchedOffHardware.java";
     public static final String SIM_ROBOT = "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimRobot.java";
     public static final String SIM_DEVICES =
             "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/sim/SimDevices.java";
@@ -124,10 +124,10 @@ public final class SimProject {
 
     public static String tempAuto(int loops, String group) {
         return "package org.firstinspires.ftc.reginald.benchtest;\n"
-                + "import org.firstinspires.ftc.reginald.framework.Auto;\n"
-                + "import org.firstinspires.ftc.teamcode.base.Alliance;\n"
-                + "import org.firstinspires.ftc.teamcode.planrunner.PlanPart;\n"
-                + "import org.firstinspires.ftc.teamcode.planrunner.Step;\n"
+                + "import org.firstinspires.ftc.framework.robot.Auto;\n"
+                + "import org.firstinspires.ftc.framework.robot.Alliance;\n"
+                + "import org.firstinspires.ftc.framework.plans.PlanPart;\n"
+                + "import org.firstinspires.ftc.framework.plans.Step;\n"
                 + "\n"
                 + "public class TempAuto {\n"
                 + "    private int loops = 0;\n"

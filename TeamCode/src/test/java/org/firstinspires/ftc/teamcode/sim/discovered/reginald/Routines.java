@@ -2,9 +2,9 @@ package org.firstinspires.ftc.teamcode.sim.discovered.reginald;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManager;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeRegistrar;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.Step;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.TestAutos;
 
 public final class Routines {

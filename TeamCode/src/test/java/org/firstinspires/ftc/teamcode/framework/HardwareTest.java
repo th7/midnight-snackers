@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
-import org.firstinspires.ftc.reginald.hardware.Hardware;
+import org.firstinspires.ftc.framework.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Test;
 

@@ -11,22 +11,21 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.firstinspires.ftc.reginald.framework.Auto;
-import org.firstinspires.ftc.reginald.framework.Discovered;
-import org.firstinspires.ftc.reginald.framework.OpMode;
-import org.firstinspires.ftc.reginald.framework.OpModes;
-import org.firstinspires.ftc.reginald.framework.SubSystem;
-import org.firstinspires.ftc.reginald.framework.TeleOp;
+import org.firstinspires.ftc.framework.plans.Plan;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.RunsAPlan;
+import org.firstinspires.ftc.framework.plans.Step;
+import org.firstinspires.ftc.framework.robot.Alliance;
+import org.firstinspires.ftc.framework.robot.Auto;
+import org.firstinspires.ftc.framework.robot.Discovered;
+import org.firstinspires.ftc.framework.robot.Gamepads;
+import org.firstinspires.ftc.framework.robot.OpMode;
+import org.firstinspires.ftc.framework.robot.OpModes;
+import org.firstinspires.ftc.framework.robot.Prints;
+import org.firstinspires.ftc.framework.robot.SubSystem;
 import org.firstinspires.ftc.robotcore.internal.opmode.OpModeMeta;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Gamepads;
-import org.firstinspires.ftc.teamcode.base.Prints;
 import org.firstinspires.ftc.teamcode.fakes.FakeOpModeManager;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
-import org.firstinspires.ftc.teamcode.planrunner.Plan;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.firstinspires.ftc.teamcode.sim.SimDriverStation;
 import org.junit.Before;
@@ -57,18 +56,6 @@ public class OpModesTest {
         @Override
         public void loop() {
             HAPPENED.add(steered ? "loop Steering, steered" : "loop Steering");
-        }
-    }
-
-    public static class Practice extends TeleOp {
-        public Practice() {
-            super(Alliance.RED);
-        }
-    }
-
-    public abstract static class Unfinished extends TeleOp {
-        protected Unfinished() {
-            super(Alliance.BLUE);
         }
     }
 
@@ -104,7 +91,7 @@ public class OpModesTest {
 
     @Test
     public void shareOnGamepadTwoStepsThroughTheChannelsAndTheDriverStationSaysWhichIsShowing() {
-        OpMode practice = wired(registered(Practice.class, Steering.class, Talker.class), "Practice");
+        OpMode practice = wired(registered(Steering.class, Talker.class), "RedTeleOp");
         FakeTelemetry screen = (FakeTelemetry) practice.telemetry;
         practice.init();
 
@@ -140,23 +127,24 @@ public class OpModesTest {
     }
 
     @Test
-    public void aTeleOpIsListedUnderItsClassNameWithNoAnnotation() {
-        FakeOpModeManager manager = registered(Practice.class, Unfinished.class, Steering.class);
+    public void aTeleOpForEachAllianceIsListedWithNoFileOfItsOwn() {
+        FakeOpModeManager manager = registered(Steering.class);
 
-        assertEquals(List.of("Practice"), names(manager));
-        OpModeMeta meta = manager.find("Practice").get().meta;
-        assertEquals(OpModeMeta.Flavor.TELEOP, meta.flavor);
-        assertEquals("TeleOp", meta.group);
-        OpMode practice = (OpMode) manager.find("Practice").get().opMode();
-        assertEquals(Alliance.RED, practice.alliance());
-        assertEquals(Practice.class.getName(), practice.where());
+        assertEquals(List.of("BlueTeleOp", "RedTeleOp"), names(manager));
+        for (String name : List.of("BlueTeleOp", "RedTeleOp")) {
+            OpModeMeta meta = manager.find(name).get().meta;
+            assertEquals(OpModeMeta.Flavor.TELEOP, meta.flavor);
+            assertEquals("TeleOp", meta.group);
+        }
+        assertEquals(Alliance.BLUE, ((OpMode) manager.find("BlueTeleOp").get().opMode()).alliance());
+        assertEquals(Alliance.RED, ((OpMode) manager.find("RedTeleOp").get().opMode()).alliance());
     }
 
     @Test
     public void anAutoIsListedUnderItsMethodsNameOrTheNameItGivesForEachAlliance() {
         FakeOpModeManager manager = registered(Plays.class, Steering.class);
 
-        assertEquals(List.of("Blue steer", "Red steer", "steerOnce"), names(manager));
+        assertEquals(List.of("BlueTeleOp", "RedTeleOp", "Blue steer", "Red steer", "steerOnce"), names(manager));
         OpModeMeta once = manager.find("steerOnce").get().meta;
         assertEquals(OpModeMeta.Flavor.AUTONOMOUS, once.flavor);
         assertEquals("Autonomous", once.group);
@@ -180,10 +168,10 @@ public class OpModesTest {
 
     @Test
     public void aTeleOpBuildsEverySubsystemAndHandsItsButtonsToEachBeforeTheyTick() {
-        OpMode practice = wired(registered(Practice.class, Steering.class), "Practice");
+        OpMode teleOp = wired(registered(Steering.class), "RedTeleOp");
 
-        practice.init();
-        practice.loop();
+        teleOp.init();
+        teleOp.loop();
 
         assertEquals(List.of("teleOp Steering", "loop Steering"), HAPPENED);
     }
@@ -199,7 +187,7 @@ public class OpModesTest {
     }
 
     public static class Clashing {
-        @Auto(name = "Practice", alliance = Alliance.RELATIVE)
+        @Auto(name = "RedTeleOp", alliance = Alliance.RELATIVE)
         public PlanPart practice() {
             return new Plan();
         }
@@ -207,11 +195,10 @@ public class OpModesTest {
 
     @Test
     public void twoOpModesWithOneNameFailNamingBoth() {
-        IllegalStateException failed =
-                assertThrows(IllegalStateException.class, () -> registered(Practice.class, Clashing.class));
+        IllegalStateException failed = assertThrows(IllegalStateException.class, () -> registered(Clashing.class));
 
         assertEquals(
-                "two op modes are named Practice: " + Practice.class.getName() + " and Clashing.practice()",
+                "two op modes are named RedTeleOp: the TeleOp every robot has and Clashing.practice()",
                 failed.getMessage());
     }
 
@@ -228,22 +215,6 @@ public class OpModesTest {
 
         assertEquals(
                 "@Auto needs a public method that returns a PlanPart; NoPlan.wanders() is not one",
-                failed.getMessage());
-    }
-
-    public static class Unbuildable extends TeleOp {
-        public Unbuildable(Alliance alliance) {
-            super(alliance);
-        }
-    }
-
-    @Test
-    public void aTeleOpWithoutAConstructorOfNoParametersFailsNamingIt() {
-        IllegalStateException failed = assertThrows(IllegalStateException.class, () -> registered(Unbuildable.class));
-
-        assertEquals(
-                "a TeleOp needs a public constructor with no parameters, which calls super with its alliance; "
-                        + Unbuildable.class.getName() + " has none",
                 failed.getMessage());
     }
 

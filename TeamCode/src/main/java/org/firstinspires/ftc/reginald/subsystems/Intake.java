@@ -1,10 +1,10 @@
 package org.firstinspires.ftc.reginald.subsystems;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import org.firstinspires.ftc.reginald.framework.SubSystem;
-import org.firstinspires.ftc.reginald.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.base.Gamepads;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
+import org.firstinspires.ftc.framework.hardware.Hardware;
+import org.firstinspires.ftc.framework.plans.Step;
+import org.firstinspires.ftc.framework.robot.Gamepads;
+import org.firstinspires.ftc.framework.robot.SubSystem;
 
 public class Intake extends SubSystem {
     public static final double RUNNING_POWER = 0.7;

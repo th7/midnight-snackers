@@ -3,9 +3,9 @@ package org.firstinspires.ftc.teamcode.sim;
 import com.acmerobotics.roadrunner.PoseVelocity2d;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.reginald.framework.OpMode;
-import org.firstinspires.ftc.reginald.hardware.Wheels;
-import org.firstinspires.ftc.teamcode.base.Alliance;
+import org.firstinspires.ftc.framework.hardware.Wheels;
+import org.firstinspires.ftc.framework.robot.Alliance;
+import org.firstinspires.ftc.framework.robot.OpMode;
 
 public final class TestTeleOps {
     private TestTeleOps() {}

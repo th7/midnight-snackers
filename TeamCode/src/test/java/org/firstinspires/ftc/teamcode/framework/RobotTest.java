@@ -11,14 +11,14 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import org.firstinspires.ftc.reginald.framework.Discovered;
-import org.firstinspires.ftc.reginald.framework.Robot;
-import org.firstinspires.ftc.reginald.framework.SubSystem;
-import org.firstinspires.ftc.reginald.framework.SwitchedOff;
-import org.firstinspires.ftc.reginald.hardware.Hardware;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.base.Gamepads;
-import org.firstinspires.ftc.teamcode.base.Prints;
+import org.firstinspires.ftc.framework.hardware.Hardware;
+import org.firstinspires.ftc.framework.robot.Alliance;
+import org.firstinspires.ftc.framework.robot.Discovered;
+import org.firstinspires.ftc.framework.robot.Gamepads;
+import org.firstinspires.ftc.framework.robot.Prints;
+import org.firstinspires.ftc.framework.robot.Robot;
+import org.firstinspires.ftc.framework.robot.SubSystem;
+import org.firstinspires.ftc.framework.robot.SwitchedOff;
 import org.firstinspires.ftc.teamcode.fakes.FakeTelemetry;
 import org.firstinspires.ftc.teamcode.sim.SimDevices;
 import org.junit.Before;
@@ -196,7 +196,7 @@ public class RobotTest {
 
         assertEquals(
                 "the robot cannot build Lift, because that needs a Gearbox, which the robot does not supply,"
-                        + " and it builds only the classes it found in Reginald's code",
+                        + " and it builds only the classes it found in Reginald's code and the framework",
                 failed.getMessage());
     }
 

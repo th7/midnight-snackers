@@ -2,14 +2,14 @@ package org.firstinspires.ftc.teamcode.sim;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.firstinspires.ftc.reginald.framework.Discovered;
-import org.firstinspires.ftc.reginald.framework.OpMode;
+import org.firstinspires.ftc.framework.plans.PlanPart;
+import org.firstinspires.ftc.framework.plans.PlanRunner;
+import org.firstinspires.ftc.framework.plans.RunsAPlan;
+import org.firstinspires.ftc.framework.plans.Step;
+import org.firstinspires.ftc.framework.robot.Alliance;
+import org.firstinspires.ftc.framework.robot.Discovered;
+import org.firstinspires.ftc.framework.robot.OpMode;
 import org.firstinspires.ftc.teamcode.Classpath;
-import org.firstinspires.ftc.teamcode.base.Alliance;
-import org.firstinspires.ftc.teamcode.planrunner.PlanPart;
-import org.firstinspires.ftc.teamcode.planrunner.PlanRunner;
-import org.firstinspires.ftc.teamcode.planrunner.RunsAPlan;
-import org.firstinspires.ftc.teamcode.planrunner.Step;
 
 public final class TestAutos {
     private TestAutos() {}
@@ -21,8 +21,7 @@ public final class TestAutos {
      * builds it: every subsystem of Reginald's code is built and ticks.
      */
     public abstract static class TestAuto extends OpMode implements RunsAPlan {
-        private static final Discovered REGINALD =
-                Discovered.of(Classpath.classesUnder("org.firstinspires.ftc.reginald"));
+        private static final Discovered REGINALD = SimCatalog.theRobotWith(Classpath.classesUnder(SimCatalog.PACKAGE));
 
         private PlanRunner planRunner;
 
