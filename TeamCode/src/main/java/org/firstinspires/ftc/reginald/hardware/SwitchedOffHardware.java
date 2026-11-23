@@ -7,12 +7,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 final class SwitchedOffHardware implements Hardware {
     private final Hardware hardware;
@@ -40,11 +36,6 @@ final class SwitchedOffHardware implements Hardware {
     @Override
     public VoltageSensor voltageSensor() {
         return inert(VoltageSensor.class, "voltageSensor");
-    }
-
-    @Override
-    public Supplier<List<AprilTagDetection>> aprilTags() {
-        return ArrayList::new;
     }
 
     @Override

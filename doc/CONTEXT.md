@@ -48,9 +48,7 @@ constructor, and is told which class stands for an interface, as
 `Localizer` does for `PoseEstimate`. A part that needs something the robot
 neither supplies nor builds, or needs itself, fails at init naming the chain
 that led to it, and an op mode that asks for a part the robot did not build
-is told so by name. A part nothing needs is not built, so Launcher, Camera
-and Turntable cost nothing until something asks for them, and Brain is not
-built in an auto. Class: `Robot`.
+is told so by name. A part nothing needs is not built. Class: `Robot`.
 
 **Whoever owns it, ticks it.** A subsystem is ticked by the robot, after
 everything it was built from: what a part needs is built first, so it is
@@ -99,11 +97,10 @@ loop. Nothing reaches back into the robot, so there is no null to find on a
 field.
 
 **Hardware** — Everything the op modes touch outside their own code: the
-configured devices, the camera's detections, the dashboard, and the
+configured devices, the dashboard, and the
 **clock**, the time in nanoseconds that every timer in the robot code
 reads and nothing else does: a step that waits, the trajectory followers,
-the camera's check of a detection's age, and the dead wheel encoders'
-measure of their own speed. On the robot the clock is the
+and the dead wheel encoders' measure of their own speed. On the robot the clock is the
 system's; in the simulator it is the simulated clock. A timed step must
 name its clock, so a forgotten one is a compile error, and no part of the
 robot may reach for Road Runner's wall-clock encoder, which a test
@@ -126,8 +123,8 @@ wheel be quietly swapped for its neighbor. Class: `Hardware`;
 
 **Switched off** — A part built on hardware that does nothing.
 `hardware.switchedOff()` hands it motors and servos that take every write and
-read back zero, an IMU and a voltage sensor the same, and a camera that sees
-nothing, with the run's own clock and dashboard. The part is built, held,
+read back zero, an IMU and a voltage sensor the same, with the run's own
+clock and dashboard. The part is built, held,
 ticked and prints to its channel like any other, and every subsystem that
 coordinates it keeps it; only what reaches the world is switched off. A part
 is switched off by `@SwitchedOff` on its class, which has the robot hand it
@@ -248,6 +245,15 @@ arriving after a placement is a *later* sighting and nudges rather than
 placing, which is what we want — a start pose somebody measured is worth
 more than the first frame the camera agreed on. Methods: `Nav.placeAt`;
 `Nav.sighted`.
+
+**Old code** — A part the robot no longer has, kept where a teammate can
+still read it: an `oldcode` folder, now `reginald/oldcode`, which holds the
+brain, the camera and its filter and webcam, the launcher and the turntable.
+Android Studio shows it with the rest of the code, and nothing builds it: the
+robot's build and the simulator's both skip every `oldcode` folder, so it
+needs no upkeep and need not compile. Bringing a part back means moving it
+out and making it build again. The entries for the turntable, the sighting
+and the agreement below describe code that is there now.
 
 **Turntable** — What the launcher and the camera ride on, and the only thing
 that decides where it points. Each tick the brain gives it an **aim**, how

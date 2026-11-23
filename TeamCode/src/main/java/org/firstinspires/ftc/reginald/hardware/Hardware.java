@@ -7,12 +7,9 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-import java.util.List;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import org.firstinspires.ftc.reginald.roadrunner.MecanumDrive;
 import org.firstinspires.ftc.teamcode.hardware.Dashboard;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public interface Hardware {
     DcMotorEx motor(String name);
@@ -22,8 +19,6 @@ public interface Hardware {
     LazyImu imu();
 
     VoltageSensor voltageSensor();
-
-    Supplier<List<AprilTagDetection>> aprilTags();
 
     Dashboard dashboard();
 
@@ -58,11 +53,6 @@ public interface Hardware {
             @Override
             public VoltageSensor voltageSensor() {
                 return hardwareMap.voltageSensor.iterator().next();
-            }
-
-            @Override
-            public Supplier<List<AprilTagDetection>> aprilTags() {
-                return AprilTagWebcam.detections(hardwareMap);
             }
 
             @Override

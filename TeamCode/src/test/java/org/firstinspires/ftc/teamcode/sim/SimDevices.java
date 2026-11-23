@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.fakes.FakeDashboard;
 import org.firstinspires.ftc.teamcode.fakes.FakeDcMotorEx;
@@ -31,7 +30,6 @@ import org.firstinspires.ftc.teamcode.simcore.HubMounting;
 import org.firstinspires.ftc.teamcode.simcore.MotorType;
 import org.firstinspires.ftc.teamcode.simcore.RobotDescription;
 import org.firstinspires.ftc.teamcode.simcore.ServoSignal;
-import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
 public final class SimDevices {
     public static final double BATTERY_VOLTS = 12.5;
@@ -164,11 +162,6 @@ public final class SimDevices {
             @Override
             public VoltageSensor voltageSensor() {
                 return found.voltageSensor();
-            }
-
-            @Override
-            public Supplier<List<AprilTagDetection>> aprilTags() {
-                return found.aprilTags();
             }
 
             @Override

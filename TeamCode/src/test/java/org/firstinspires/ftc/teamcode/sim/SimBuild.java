@@ -29,6 +29,8 @@ import org.firstinspires.ftc.reginald.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.simcore.Checked;
 
 public final class SimBuild {
+    public static final String DORMANT = "oldcode";
+
     static final String SIMULATOR_DOES_NOT_FIT =
             "the simulator does not fit these robot sources: it was built from the code"
                     + " the server runs from, and these sources came from another version of it. Pull develop; if that does not help,"
@@ -222,12 +224,24 @@ public final class SimBuild {
             throw new UncheckedIOException(e);
         }
         try (Stream<Path> walk = Files.walk(sourceRoot)) {
-            return walk.filter(p -> p.toString().endsWith(".java") && Files.isRegularFile(p))
+            return walk.filter(p -> p.toString().endsWith(".java")
+                            && Files.isRegularFile(p)
+                            && !dormant(sourceRoot.relativize(p)))
                     .sorted(Comparator.comparing(Path::toString))
                     .collect(Collectors.toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** Code a team keeps to read, and neither the robot's build nor this one compiles. */
+    private static boolean dormant(Path source) {
+        for (Path part : source) {
+            if (part.toString().equals(DORMANT)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static List<Path> harnessUnder(Path harnessRoot) {

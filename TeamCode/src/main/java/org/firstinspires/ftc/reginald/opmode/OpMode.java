@@ -1,13 +1,9 @@
 package org.firstinspires.ftc.reginald.opmode;
 
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import org.firstinspires.ftc.reginald.Brain;
-import org.firstinspires.ftc.reginald.Camera;
 import org.firstinspires.ftc.reginald.Drive;
-import org.firstinspires.ftc.reginald.Launcher;
 import org.firstinspires.ftc.reginald.Localizer;
 import org.firstinspires.ftc.reginald.Robot;
-import org.firstinspires.ftc.reginald.Turntable;
 import org.firstinspires.ftc.reginald.hardware.Hardware;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.base.Alliance;
@@ -68,12 +64,6 @@ public abstract class OpMode extends com.qualcomm.robotcore.eventloop.opmode.OpM
     private void handleTelemetryToggles() {
         if (gamepad2.crossWasPressed()) {
             robot.channels.toggle(Drive.CHANNEL, Localizer.CHANNEL);
-        }
-        if (gamepad2.squareWasPressed()) {
-            robot.channels.toggle(Turntable.CHANNEL, Launcher.CHANNEL);
-        }
-        if (gamepad2.circleWasPressed()) {
-            robot.channels.toggle(Camera.CHANNEL, Brain.CHANNEL);
         }
     }
 }

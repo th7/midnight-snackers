@@ -10,7 +10,6 @@ public class Driver extends SubSystem {
     private final Drive drive;
     private final Intake intake;
     // private final Launcher launcher;
-    private final Brain brain;
     private final Nav nav;
     // private final Turntable turntable;
     private final Gamepad gamepad1;
@@ -19,14 +18,12 @@ public class Driver extends SubSystem {
     public Driver(
             Drive drive,
             // Launcher launcher,
-            Brain brain,
             Nav nav,
             Intake intake,
             // Turntable turntable,
             Gamepads gamepads) {
         this.drive = drive;
         // this.launcher = launcher;
-        this.brain = brain;
         this.nav = nav;
         this.intake = intake;
         // this.turntable = turntable;
@@ -76,7 +73,6 @@ public class Driver extends SubSystem {
         } else if (gamepad1.left_trigger > 0.2) {
             //  brain.autoShootFast();
         } else if (gamepad1.left_bumper) {
-            brain.cancelPlan();
             Held held = Held.NONE;
             if (Math.abs(gamepad1.left_stick_x) > HELD) {
                 held = held.strafe(-gamepad1.left_stick_x);
@@ -86,14 +82,12 @@ public class Driver extends SubSystem {
             }
             aim(held);
         } else if (gamepad1.right_bumper) {
-            brain.cancelPlan();
             Held held = Held.NONE.straight(-gamepad1.left_stick_y).strafe(-gamepad1.left_stick_x);
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
                 held = held.turn(-gamepad1.right_stick_x);
             }
             aim(held);
         } else {
-            brain.cancelPlan();
             drive.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
         }
 
