@@ -42,20 +42,20 @@ public class Drive extends SubSystem {
         if (gamepad1.left_bumper) {
             Chassis.Held held = Chassis.Held.NONE;
             if (Math.abs(gamepad1.left_stick_x) > HELD) {
-                held = held.strafe(-gamepad1.left_stick_x);
+                held = held.strafe(gamepad1.left_stick_x);
             }
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
-                held = held.turn(-gamepad1.right_stick_x);
+                held = held.turn(gamepad1.right_stick_x);
             }
             aim(gamepad1, held);
         } else if (gamepad1.right_bumper) {
-            Chassis.Held held = Chassis.Held.NONE.straight(-gamepad1.left_stick_y).strafe(-gamepad1.left_stick_x);
+            Chassis.Held held = Chassis.Held.NONE.straight(gamepad1.left_stick_y).strafe(gamepad1.left_stick_x);
             if (Math.abs(gamepad1.right_stick_x) > HELD) {
-                held = held.turn(-gamepad1.right_stick_x);
+                held = held.turn(gamepad1.right_stick_x);
             }
             aim(gamepad1, held);
         } else {
-            chassis.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+            chassis.manual(gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
         }
     }
 
