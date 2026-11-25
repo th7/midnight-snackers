@@ -56,8 +56,8 @@ public final class TwoDeadWheelLocalizer {
         par = new ClockedOverflowEncoder(new RawEncoder(parMotor), nanoClock);
         perp = new ClockedOverflowEncoder(new RawEncoder(perpMotor), nanoClock);
 
-        par.setDirection(DcMotorSimple.Direction.FORWARD);
-        perp.setDirection(DcMotorSimple.Direction.FORWARD);
+        par.setDirection(DcMotorSimple.Direction.REVERSE);
+        perp.setDirection(DcMotorSimple.Direction.REVERSE);
 
         this.imu = imu;
 

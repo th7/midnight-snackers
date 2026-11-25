@@ -10,7 +10,7 @@ public class Intake extends SubSystem {
     public static final double RUNNING_POWER = 0.7;
 
     private final DcMotorEx intake;
-    private boolean on = true;
+    private boolean on = false;
 
     public Intake(Hardware hardware) {
         this.intake = hardware.motor("intake");
