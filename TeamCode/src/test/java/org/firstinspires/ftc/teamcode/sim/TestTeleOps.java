@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.teamcode.sim;
 
-import com.acmerobotics.roadrunner.PoseVelocity2d;
-import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import org.firstinspires.ftc.framework.hardware.Wheels;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import java.util.List;
 import org.firstinspires.ftc.framework.robot.Alliance;
 import org.firstinspires.ftc.framework.robot.OpMode;
 
@@ -35,7 +36,7 @@ public final class TestTeleOps {
     public static class StickTeleOp extends OpMode {
         public int presses = 0;
 
-        private Wheels wheels;
+        private List<DcMotorEx> wheels;
 
         public StickTeleOp() {
             super(Alliance.RED);
@@ -44,7 +45,18 @@ public final class TestTeleOps {
         @Override
         public void init() {
             super.init();
-            wheels = new Wheels(hardware());
+            DcMotorEx leftBack = hardware().motor("leftBack");
+            DcMotorEx rightBack = hardware().motor("rightBack");
+            leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
+            rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
+            wheels = List.of(
+                    hardware().motor("leftFront"),
+                    leftBack,
+                    rightBack,
+                    hardware().motor("rightFront"));
+            for (DcMotorEx wheel : wheels) {
+                wheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            }
         }
 
         @Override
@@ -52,7 +64,9 @@ public final class TestTeleOps {
             if (gamepad1.crossWasPressed()) {
                 presses++;
             }
-            wheels.drive(new PoseVelocity2d(new Vector2d(-gamepad1.left_stick_y, 0), 0));
+            for (DcMotorEx wheel : wheels) {
+                wheel.setPower(-gamepad1.left_stick_y);
+            }
         }
     }
 

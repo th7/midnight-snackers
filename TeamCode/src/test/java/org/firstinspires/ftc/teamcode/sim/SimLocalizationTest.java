@@ -66,6 +66,8 @@ public class SimLocalizationTest {
             leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
             rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
             localizer = new TwoDeadWheelLocalizer(hardwareMap, imu, DEAD_WHEEL_IN_PER_TICK, sim.pose(), sim::nanoTime);
+            localizer.par.setDirection(DcMotorSimple.Direction.FORWARD);
+            localizer.perp.setDirection(DcMotorSimple.Direction.FORWARD);
             localizer.update();
             startedAt = sim.nanoTime();
         }
